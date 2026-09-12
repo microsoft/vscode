@@ -25,7 +25,7 @@ import { workbenchInstantiationService } from '../../../workbench/test/browser/w
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionFocusedChatIsRenameTargetContext } from '../../common/contextkeys.js';
-import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
+import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -37,6 +37,7 @@ import { ISessionsProvider } from '../../services/sessions/common/sessionsProvid
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
+	override readonly isLoadingTranscript = observableValue(this, false);
 	layoutCount = 0;
 	primary = false;
 
@@ -125,9 +126,9 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly isCreated: IObservable<boolean>;
 	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived = observableValue(this, false);
-	override readonly loading: IObservable<boolean> = constObservable(false);
+	override readonly loading: ISettableObservable<boolean>;
 
-	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus) {
+	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus, loading = false) {
 		super();
 		this.providerId = providerId;
 		this.remoteConnectionStatus = remoteConnectionStatus && observableValue(this, remoteConnectionStatus);
@@ -147,6 +148,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 		this.shouldShowChatTabs = derived(reader => this.visibleChatTabs.read(reader).length > 1);
 		this.mainChat = constObservable(mainChat);
 		this.isCreated = constObservable(isCreated);
+		this.loading = observableValue(this, loading);
 	}
 }
 
@@ -200,6 +202,7 @@ class TestAgentHostProvider extends mock<IAgentHostSessionsProvider>() {
 	connectCalls = 0;
 	reconnectNowCalls = 0;
 	connectGate: Promise<void> | undefined;
+	override connectionLabels: IAgentHostConnectionLabels | undefined;
 
 	override async connect(): Promise<void> {
 		this.connectCalls++;
@@ -271,7 +274,7 @@ function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visibl
 	return {
 		visible: !state?.classList.contains('hidden'),
 		title: state?.querySelector('.remote-host-unavailable-empty-state-title')?.textContent ?? undefined,
-		description: state?.querySelector('.remote-host-unavailable-empty-state-description')?.textContent ?? undefined,
+		description: state?.querySelector('.remote-host-unavailable-empty-state-description:not(.hidden)')?.textContent ?? undefined,
 		progress: state?.querySelector('.remote-host-unavailable-empty-state-progress:not(.hidden)')?.textContent ?? undefined,
 		action: action && !action.classList.contains('hidden') ? action.textContent ?? undefined : undefined,
 		actionHidden: action?.classList.contains('hidden') ?? true,
@@ -446,6 +449,75 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('restores subagent groups, tab order, and active chat', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const firstSubagent = createChat('subagent-1', SessionStatus.Completed, main.resource);
+		const secondSubagent = createChat('subagent-2', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		view.setSession(session, options);
+		view.splitChatToSide(peer.resource);
+		await view.openChatInNewGroup(firstSubagent.resource);
+		await view.openChatInNewGroup(secondSubagent.resource);
+		view['_openChat'](view['_groups'][2], firstSubagent.resource);
+		const beforeReload = Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+			Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		restored.activeChat.set(firstSubagent, undefined);
+		view.setSession(restored, options);
+
+		const groups = Array.from(view.element.querySelectorAll('.chat-group-view'));
+		assert.deepStrictEqual({
+			beforeReload,
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeGroupTab: view.element.querySelector<HTMLElement>('.chat-group-view.active-group .chat-composite-bar-tab.active')?.dataset.chatResource,
+		}, {
+			beforeReload: [
+				[main.resource.toString()],
+				[secondSubagent.resource.toString()],
+				[firstSubagent.resource.toString()],
+				[peer.resource.toString()],
+			],
+			groupTabs: beforeReload,
+			activeGroupTab: firstSubagent.resource.toString(),
+		});
+	});
+
+	test('keeps saved subagent groups until delayed chat discovery completes', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, subagent]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(subagent.resource);
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main], [main], true, 'test', undefined, true);
+		view.setSession(restored, options);
+		const beforeDiscovery = view.groupCount.get();
+
+		transaction(tx => {
+			restored.allChats.set([main, subagent], tx);
+			restored.visibleChatTabs.set([main, subagent], tx);
+			restored.activeChat.set(subagent, tx);
+			restored.loading.set(false, tx);
+		});
+
+		assert.deepStrictEqual({
+			beforeDiscovery,
+			groupTabs: Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+				Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: restored.activeChat.get().resource.toString(),
+		}, {
+			beforeDiscovery: 2,
+			groupTabs: [[main.resource.toString()], [subagent.resource.toString()]],
+			activeChat: subagent.resource.toString(),
+		});
+	});
+
 	test('new session drafts do not restore a persisted chat grid', () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
@@ -547,6 +619,149 @@ suite('Sessions - ChatGroupsView', () => {
 		sessionsService.openChatError = new Error('open failed');
 
 		await assert.rejects(view.openChatInNewGroup(secondary.resource), /open failed/);
+	});
+
+	for (const alreadyVisible of [false, true]) {
+		test(`opens a ${alreadyVisible ? 'visible' : 'hidden'} fork beside its source rather than the active group`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const neighbor = createChat('neighbor');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+			view.setSession(session, options);
+			view.layout(1200, 600, 0, 0);
+			await sessionsService.openChat(session, source.resource);
+			await view.openChatInNewGroup(neighbor.resource);
+			if (alreadyVisible) {
+				session.visibleChatTabs.set([...session.visibleChatTabs.get(), fork], undefined);
+			}
+
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const readGroups = () => view['_groups'].map(group => ({
+				chats: group.resourceIds.get(),
+				active: group.activeResourceId.get(),
+			}));
+			const afterOpen = readGroups();
+			const focusedAfterOpen = view.getFocusedChat()?.resource.toString();
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const afterRepeatedOpen = readGroups();
+			view.setSession(undefined, options);
+			view.setSession(session, options);
+
+			const expected = [
+				{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+				{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+				{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			];
+			assert.deepStrictEqual({
+				afterOpen,
+				focusedAfterOpen,
+				afterRepeatedOpen,
+				afterRestore: readGroups(),
+				activeChat: session.activeChat.get().resource.toString(),
+			}, {
+				afterOpen: expected,
+				focusedAfterOpen: fork.resource.toString(),
+				afterRepeatedOpen: expected,
+				afterRestore: expected,
+				activeChat: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('keeps the source peer visible when a fork was activated before being split', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, fork]);
+		view.setSession(session, options);
+		await sessionsService.openChat(session, fork.resource);
+
+		await view.openChatInNewGroup(fork.resource, source.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
+	});
+
+	for (const closeSource of [false, true]) {
+		test(`handles ${closeSource ? 'closing' : 'leaving'} the source group while opening a fork`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, fork], [main, source]);
+			view.setSession(session, options);
+			await view.openChatInNewGroup(source.resource);
+			const gate = new DeferredPromise<void>();
+			sessionsService.openChatGate = gate.p;
+			const opening = view.openChatInNewGroup(fork.resource, source.resource);
+			transaction(tx => {
+				session.activeChat.set(main, tx);
+				if (closeSource) {
+					session.visibleChatTabs.set([main], tx);
+				}
+			});
+			gate.complete();
+			await opening;
+
+			assert.deepStrictEqual({
+				groups: view['_groups'].map(group => group.activeResourceId.get()),
+				active: session.activeChat.get().resource.toString(),
+				focused: view.getFocusedChat()?.resource.toString(),
+			}, {
+				groups: closeSource ? [main.resource.toString(), fork.resource.toString()] : [main.resource.toString(), source.resource.toString(), fork.resource.toString()],
+				active: fork.resource.toString(),
+				focused: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('does not create a group when opening a hidden fork fails', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([source, fork], [source]);
+		view.setSession(session, options);
+		sessionsService.openChatError = new Error('open failed');
+
+		await assert.rejects(view.openChatInNewGroup(fork.resource, source.resource), /open failed/);
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{ chats: [source.resource.toString()], active: source.resource.toString() }]);
+	});
+
+	test('falls back to the active group when the source tab closes but its group remains', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const neighbor = createChat('neighbor');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(neighbor.resource);
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		const opening = view.openChatInNewGroup(fork.resource, source.resource);
+		session.visibleChatTabs.set([main, neighbor], undefined);
+		gate.complete();
+		await opening;
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString()], active: main.resource.toString() },
+			{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
 	});
 
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
@@ -853,6 +1068,187 @@ suite('Sessions - ChatGroupsView', () => {
 				},
 			},
 			connectCalls: 1,
+		});
+	});
+
+	test('offers a plain connect before the first attempt and a retry once one has failed', async () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const connect = new DeferredPromise<void>();
+		provider.connectGate = connect.p;
+		sessionsProvidersService.provider = provider;
+		// A host that reports no specific reason has not been established as stoppable, which is
+		// the shape a cloud sandbox arrives in: dormant, and resumable only by asking.
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const beforeAnyAttempt = readRemoteHostUnavailableState(view).action;
+
+		view.element.querySelector<HTMLElement>('.remote-host-unavailable-empty-state-action .monaco-button')?.click();
+		const whileConnecting = readRemoteHostUnavailableState(view);
+
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(() => { });
+		try {
+			connect.error(new Error('Expected sandbox resume failure'));
+			await Promise.resolve();
+			await Promise.resolve();
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+
+		assert.deepStrictEqual({
+			beforeAnyAttempt,
+			whileConnecting: { visible: whileConnecting.visible, title: whileConnecting.title, progress: whileConnecting.progress },
+			afterFailure: readRemoteHostUnavailableState(view).action,
+			connectCalls: provider.connectCalls,
+		}, {
+			beforeAnyAttempt: 'Connect',
+			whileConnecting: { visible: true, title: 'Connecting to WSL: Ubuntu', progress: 'Waiting for agent host connection...' },
+			afterFailure: 'Retry',
+			connectCalls: 1,
+		});
+	});
+
+	test('shows the connecting state for a connection the view did not start itself', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		// Nothing in this view asked for the connect, so there is no attempt to hang progress on.
+		// The wait is real either way and must not present as a blank chat.
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connecting' });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const emptyTranscript = readRemoteHostUnavailableState(view);
+
+		const withTranscript = new TestActiveSession([createChat('existing')], undefined, true, provider.id, { kind: 'connecting' });
+		view.setSession(withTranscript, options);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+		assert.deepStrictEqual({
+			emptyTranscript: { visible: emptyTranscript.visible, title: emptyTranscript.title, progress: emptyTranscript.progress, action: emptyTranscript.action },
+			withTranscript: readBanner(view),
+			connectCalls: provider.connectCalls,
+		}, {
+			emptyTranscript: { visible: true, title: 'Connecting to WSL: Ubuntu', progress: 'Waiting for agent host connection...', action: undefined },
+			withTranscript: { visible: true, message: 'Waiting for agent host connection...', action: undefined },
+			connectCalls: 0,
+		});
+	});
+
+	test('explains a read-only chat by its connection state rather than the generic notice', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		// A host that cannot queue work offline reports its sessions read-only *because* it is
+		// disconnected, so the connection banner is what explains the missing composer.
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+		const disconnected = readBanner(view);
+
+		// Archiving is a deliberate act on the session, so it keeps explaining itself.
+		session.isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ disconnected, archived: readBanner(view).message }, {
+			disconnected: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: 'Connect' },
+			archived: 'Archived sessions are read-only.',
+		});
+	});
+
+	test('prefers the banner over the centered state while the transcript is still loading', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		// A session whose history is still in flight reports no transcript yet, which is not the
+		// same as having none. Committing to the full-pane state here would flash it and then
+		// collapse to the banner the moment the history lands.
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const currentView = () => chatViewFactory.views[chatViewFactory.views.length - 1];
+		currentView().isLoadingTranscript.set(true, undefined);
+		const whileLoading = { state: readRemoteHostUnavailableState(view).visible, banner: readBanner(view) };
+
+		// History arrived: the transcript owns the pane and the banner keeps explaining the host.
+		transaction(tx => {
+			currentView().isLoadingTranscript.set(false, tx);
+			currentView().hasVisibleTranscriptContent.set(true, tx);
+		});
+		const withTranscript = { state: readRemoteHostUnavailableState(view).visible, banner: readBanner(view).visible };
+
+		// A genuinely empty session settles the other way, so the centered state is not lost.
+		currentView().hasVisibleTranscriptContent.set(false, undefined);
+
+		assert.deepStrictEqual({ whileLoading, withTranscript, settledEmpty: readRemoteHostUnavailableState(view).visible }, {
+			whileLoading: { state: false, banner: { visible: true, message: 'Cannot reach WSL: Ubuntu.', action: 'Connect' } },
+			withTranscript: { state: false, banner: true },
+			settledEmpty: true,
+		});
+	});
+
+	test('uses provider connection labels for recovery states and banners', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		provider.connectionLabels = {
+			unavailableTitle: 'Environment Offline',
+			unavailable: 'Environment offline.',
+			connectingTitle: 'Connecting to the Environment',
+			connecting: 'Connecting...',
+			reconnecting: 'Reconnecting...',
+			reconnectingIn: seconds => `Reconnecting in ${seconds}s`,
+			incompatibleTitle: 'Cannot Connect to the Environment',
+			incompatible: 'This environment is incompatible with this version of Visual Studio Code.',
+		};
+		sessionsProvidersService.provider = provider;
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		const status = session.remoteConnectionStatus;
+		assert.ok(status);
+		view.setSession(session, options);
+		const offlineState = readRemoteHostUnavailableState(view);
+
+		status.set({ kind: 'connecting' }, undefined);
+		const connectingState = readRemoteHostUnavailableState(view);
+
+		// With a transcript on screen the banner carries the same wording.
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+		const connectingBanner = readBanner(view).message;
+		status.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		const offlineBanner = readBanner(view);
+
+		status.set({ kind: 'incompatible' }, undefined);
+		const incompatibleBanner = readBanner(view);
+		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(false, undefined);
+		const incompatibleState = readRemoteHostUnavailableState(view);
+		status.set({ kind: 'connected' }, undefined);
+
+		assert.deepStrictEqual({
+			offline: { title: offlineState.title, description: offlineState.description, action: offlineState.action },
+			connecting: { title: connectingState.title, description: connectingState.description, progress: connectingState.progress },
+			connectingBanner,
+			offlineBanner,
+			incompatible: { title: incompatibleState.title, description: incompatibleState.description, action: incompatibleState.action },
+			incompatibleBanner,
+			connected: { recoveryVisible: readRemoteHostUnavailableState(view).visible, bannerVisible: readBanner(view).visible },
+		}, {
+			offline: { title: 'Environment Offline', description: undefined, action: 'Connect' },
+			connecting: { title: 'Connecting to the Environment', description: undefined, progress: 'Connecting...' },
+			connectingBanner: 'Connecting...',
+			offlineBanner: { visible: true, message: 'Environment offline.', action: 'Connect' },
+			incompatible: {
+				title: 'Cannot Connect to the Environment',
+				description: 'This environment is incompatible with this version of Visual Studio Code.',
+				action: undefined,
+			},
+			incompatibleBanner: {
+				visible: true,
+				message: 'This environment is incompatible with this version of Visual Studio Code.',
+				action: undefined,
+			},
+			connected: { recoveryVisible: false, bannerVisible: false },
 		});
 	});
 

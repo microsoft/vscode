@@ -4,26 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ActionRunner } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFileChange, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
+import { Menus } from '../../../../../browser/menus.js';
+import { SessionIdContext } from '../../../../../common/contextkeys.js';
+import { ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
+import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
+import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
 import { createChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 
@@ -462,4 +483,282 @@ suite('AgentHostSessionChangesets', () => {
 			afterCompletion: [{ id: operationId, status: SessionChangesetOperationStatus.Idle }],
 		});
 	});
+
+	suite('pull request creation', () => {
+		const details: IPullRequestDetails = {
+			title: 'Generated title',
+			description: 'Generated description',
+			branchName: 'feature',
+			baseBranchName: 'main',
+			repository: 'microsoft/vscode',
+			autoMergeAllowed: true,
+			mergeMethods: ['SQUASH'],
+			agentMergeAvailable: true,
+			agentMergeOptions: { addressReviews: false, fixCI: true, resolveConflicts: true, mergePullRequest: 'ifUnchanged' },
+		};
+
+		function createPullRequestChangeset(operationIds: string[], invoke: (params: InvokeChangesetOperationParams) => Promise<InvokeChangesetOperationResult>) {
+			const toOperations = (ids: string[]) => ids.map(id => ({
+				id, label: id, scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle,
+			}));
+			const changesetState: ChangesetState = {
+				status: ChangesetStatus.Ready,
+				files: [],
+				operations: toOperations(operationIds),
+			};
+			const subscription = createMutableSubscription(changesetState);
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return {
+						object: subscription.object as IAgentSubscription<ComponentToState[T]>,
+						dispose: () => { },
+					};
+				}
+				override invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+					return invoke(params);
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			}, constObservable(true), [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }])[0];
+			return {
+				changeset,
+				setOperations: (ids: string[]) => subscription.set({ ...changesetState, operations: toOperations(ids) }),
+			};
+		}
+
+		test('hides preparation from buttons and round-trips confirmed metadata', async () => {
+			const invocations: InvokeChangesetOperationParams[] = [];
+			const { changeset } = createPullRequestChangeset(['commit', 'create-pr', PREPARE_PULL_REQUEST_OPERATION_ID], async params => {
+				invocations.push(params);
+				return params.operationId === PREPARE_PULL_REQUEST_OPERATION_ID ? createPullRequestDetailsResult(details) : {};
+			});
+			const creation = changeset.operations.get().find(isSessionPullRequestOperation)?.pullRequestCreation;
+			assert.ok(creation);
+			const prepared = await creation.prepare(CancellationToken.None);
+			const options = { title: 'Edited title', description: '', draft: true, agentMerge: true, agentMergeOptions: details.agentMergeOptions };
+			await creation.create(options);
+			assert.deepStrictEqual({
+				operations: changeset.operations.get().map(operation => ({ id: operation.id, configurable: isSessionPullRequestOperation(operation) })),
+				changesetHasPullRequestCreation: Object.hasOwn(changeset, 'pullRequestCreation'),
+				prepared,
+				invocations,
+			}, {
+				operations: [{ id: 'commit', configurable: false }, { id: 'create-pr', configurable: true }],
+				changesetHasPullRequestCreation: false,
+				prepared: details,
+				invocations: [
+					{ channel: 'changeset:/session-1', operationId: PREPARE_PULL_REQUEST_OPERATION_ID },
+					{ channel: 'changeset:/session-1', operationId: 'create-pr', target: undefined, _meta: createPullRequestOperationMeta(options) },
+				],
+			});
+		});
+
+		test('does not send preparation metadata to older hosts', () => {
+			const { changeset } = createPullRequestChangeset(['create-pr', 'create-draft-pr'], async () => ({}));
+			assert.deepStrictEqual({
+				creation: changeset.operations.get().find(isSessionPullRequestOperation),
+				operations: changeset.operations.get().map(operation => operation.id),
+			}, { creation: undefined, operations: ['create-pr', 'create-draft-pr'] });
+		});
+
+		test('does not invoke preparation after cancellation', async () => {
+			let invoked = false;
+			const { changeset } = createPullRequestChangeset(['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID], async () => {
+				invoked = true;
+				return createPullRequestDetailsResult(details);
+			});
+			const cancellation = disposables.add(new CancellationTokenSource());
+			cancellation.cancel();
+			const operation = changeset.operations.get().find(isSessionPullRequestOperation);
+			assert.ok(operation);
+			await assert.rejects(() => operation.pullRequestCreation.prepare(cancellation.token), /Canceled/);
+			assert.strictEqual(invoked, false);
+		});
+
+		test('tracks preparation support on the operation without replacing the changeset', () => {
+			const { changeset, setOperations } = createPullRequestChangeset(['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID], async () => ({}));
+			const snapshots: { id: string; configurable: boolean }[][] = [];
+			disposables.add(autorun(reader => {
+				snapshots.push(changeset.operations.read(reader).map(operation => ({
+					id: operation.id, configurable: isSessionPullRequestOperation(operation),
+				})));
+			}));
+			setOperations(['create-pr']);
+			setOperations([PREPARE_PULL_REQUEST_OPERATION_ID]);
+			setOperations(['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID]);
+			assert.deepStrictEqual(snapshots, [
+				[{ id: 'create-pr', configurable: true }],
+				[{ id: 'create-pr', configurable: false }],
+				[],
+				[{ id: 'create-pr', configurable: true }],
+			]);
+		});
+
+		for (const outcome of ['success', 'error'] as const) {
+			test(`keeps the creation capability while the operation runs until ${outcome}`, async () => {
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				const { changeset } = createPullRequestChangeset(['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID], () => result.p);
+				const snapshots: { status: SessionChangesetOperationStatus; configurable: boolean }[][] = [];
+				disposables.add(autorun(reader => {
+					snapshots.push(changeset.operations.read(reader).map(operation => ({
+						status: operation.status, configurable: isSessionPullRequestOperation(operation),
+					})));
+				}));
+				const operation = changeset.operations.get().find(isSessionPullRequestOperation);
+				assert.ok(operation);
+				const invocation = operation.pullRequestCreation.create({ title: 'Title', description: '', draft: false, agentMerge: false });
+				if (outcome === 'success') {
+					await result.complete({ message: 'Created' });
+					assert.strictEqual(await invocation, 'Created');
+				} else {
+					const rejected = assert.rejects(invocation, /Creation failed/);
+					await result.error(new Error('Creation failed'));
+					await rejected;
+				}
+				assert.deepStrictEqual(snapshots, [
+					[{ status: SessionChangesetOperationStatus.Idle, configurable: true }],
+					[{ status: SessionChangesetOperationStatus.Running, configurable: true }],
+					[{ status: SessionChangesetOperationStatus.Idle, configurable: true }],
+				]);
+			});
+		}
+	});
+
+	for (const outcome of ['success', 'error'] as const) {
+		test(`sync button invokes an unlisted draft's operation and spins until ${outcome}`, async () => {
+			const commandId = 'workbench.action.sessions.syncChanges';
+			const sessionUri = URI.parse('ahp-session:/draft');
+			const channel = buildUncommittedChangesetUri(sessionUri.toString());
+			const operationResult = new DeferredPromise<InvokeChangesetOperationResult>();
+			const invocations: InvokeChangesetOperationParams[] = [];
+			const changesetState: ChangesetState = {
+				status: ChangesetStatus.Ready,
+				files: [],
+				operations: [{
+					id: AGENT_HOST_SYNC_CHANGESET_OPERATION_ID,
+					label: 'Sync Changes',
+					scopes: [ChangesetOperationScope.Changeset],
+					status: ChangesetOperationStatus.Idle,
+				}],
+			};
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return {
+						object: {
+							value: changesetState as ComponentToState[T],
+							verifiedValue: changesetState as ComponentToState[T],
+							onDidChange: Event.None,
+							onWillApplyAction: Event.None,
+							onDidApplyAction: Event.None,
+						},
+						dispose: () => { },
+					};
+				}
+				override invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+					invocations.push(params);
+					return operationResult.p;
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const changesets = createChangesets(sessionUri, {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			}, constObservable(true), [{ label: 'Uncommitted Changes', changeKind: ChangesetKind.Uncommitted, uriTemplate: channel }]);
+			const session = upcastPartial<IActiveSession>({
+				sessionId: 'draft',
+				resource: sessionUri,
+				changesets: constObservable(changesets),
+				workspace: constObservable(upcastPartial<ISessionWorkspace>({
+					folders: [upcastPartial<ISessionFolder>({
+						gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges: 1 }),
+					})],
+				})),
+			});
+			const sessionsService = new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(session);
+				override readonly visibleSessions = constObservable([session]);
+			}();
+			instantiationService.stub(ISessionsService, sessionsService);
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override getSession(): undefined { return undefined; }
+			}());
+			disposables.add(new SessionSyncChangesContribution(sessionsService, new NullActionViewItemService()));
+			const commandService = new class extends mock<ICommandService>() {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+					await instantiationService.invokeFunction(CommandsRegistry.getCommand(id)!.handler, ...args);
+					return undefined;
+				}
+			}();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			SessionIdContext.bindTo(contextKeyService).set(session.sessionId);
+			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			const menuService = disposables.add(new MenuService(commandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
+			const menu = disposables.add(menuService.createMenu(Menus.NewSessionRepositoryConfig, contextKeyService, { eventDebounceDelay: 0 }));
+			const item = disposables.add(new MutableDisposable<SessionSyncChangesActionViewItem>());
+			const actionRunner = disposables.add(new ActionRunner());
+			const container = document.createElement('div');
+			const renderMenu = () => {
+				const action = menu.getActions({ arg: { session } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
+				const viewItem = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(session)), new class extends mock<ISessionsPartService>() { }());
+				item.value = viewItem;
+				viewItem.actionRunner = actionRunner;
+				container.replaceChildren();
+				viewItem.render(container);
+			};
+			disposables.add(menu.onDidChange(renderMenu));
+			renderMenu();
+			const label = () => container.querySelector<HTMLElement>('.action-label')!;
+			const presentation = () => ({
+				spinning: !!label().querySelector('.codicon-modifier-spin'),
+				enabled: item.value!.action.enabled,
+				busy: label().getAttribute('aria-busy'),
+			});
+			const completed = Event.toPromise(actionRunner.onDidRun);
+			const runningMenuChanged = Event.toPromise(menu.onDidChange);
+			label().click();
+			await runningMenuChanged;
+			const whileRunning = presentation();
+			label().click();
+			const invocationCountWhileRunning = invocations.length;
+			const failure = new Error('Sync failed');
+			const idleMenuChanged = Event.toPromise(menu.onDidChange);
+			if (outcome === 'error' && invocations.length > 0) {
+				operationResult.error(failure);
+			} else {
+				operationResult.complete({});
+			}
+			const result = await completed;
+			await idleMenuChanged;
+
+			assert.deepStrictEqual({
+				invocations,
+				invocationCountWhileRunning,
+				whileRunning,
+				afterCompletion: presentation(),
+				error: result.error,
+			}, {
+				invocations: [{ operationId: AGENT_HOST_SYNC_CHANGESET_OPERATION_ID, channel, target: undefined, _meta: undefined }],
+				invocationCountWhileRunning: 1,
+				whileRunning: { spinning: true, enabled: false, busy: 'true' },
+				afterCompletion: { spinning: false, enabled: true, busy: 'false' },
+				error: outcome === 'error' ? failure : undefined,
+			});
+		});
+	}
 });

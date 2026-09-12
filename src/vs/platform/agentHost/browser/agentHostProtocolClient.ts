@@ -19,11 +19,11 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -37,11 +37,12 @@ import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/error
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
+import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
@@ -53,7 +54,7 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
@@ -275,7 +276,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** Pending JSON-RPC requests keyed by request id. */
 	private readonly _pendingRequests = new Map<number, IPendingRequest>();
-	private readonly _authentication = new Map<string, AuthenticateParams>();
+	private readonly _authentication = new Map<string, { readonly params: AuthenticateParams; readonly expiresAt: number | undefined }>();
 	private _nextRequestId = 1;
 
 	/**
@@ -403,6 +404,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkspaceTrustEnablementService private readonly _workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
@@ -481,6 +483,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (managedPermissionsConfigurationIds.some(settingId => e.affectsConfiguration(settingId))) {
 				void this._updateManagedSettingsPermissions();
+			}
+		}));
+
+		this._register(Event.any(this._workspaceTrustManagementService.onDidChangeTrustedFolders, this._workspaceTrustManagementService.onDidChangeTrust)(() => {
+			if (this._state.kind === AgentHostClientState.Connected) {
+				this._updateWorkspaceTrust();
 			}
 		}));
 
@@ -1008,7 +1016,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (initialAuthentication) {
 					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
 					initialAuthenticationKey = this._authenticationKey(normalizedParams);
-					this._authentication.set(initialAuthenticationKey, normalizedParams);
+					const expiresAt = getExpirationTime(normalizedParams.expiresIn);
+					this._authentication.set(initialAuthenticationKey, { params: normalizedParams, expiresAt });
 				}
 			} catch (error) {
 				throw new InitialAuthenticationError(error);
@@ -1017,12 +1026,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 		}
-		await Promise.all([...this._authentication.entries()].map(async ([key, params]) => {
+		await Promise.all([...this._authentication.entries()].map(async ([key, authentication]) => {
+			const now = Date.now();
+			if (isExpired(authentication.expiresAt, now)) {
+				this._authentication.delete(key);
+				return;
+			}
+			const expiresIn = getRemainingTimeInSeconds(authentication.expiresAt, now);
+			const params = authentication.params;
 			try {
 				await this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
 					channel: ROOT_STATE_URI,
 					...params,
 					scopes: params.scopes ? [...params.scopes] : undefined,
+					...(expiresIn === undefined ? {} : { expiresIn }),
 				}, this._state.kind === AgentHostClientState.Connecting
 					? { bypassInitializeQueue: true, bypassReconnectGate: true }
 					: { bypassReconnectGate: true });
@@ -1092,6 +1109,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
 		this._updateAutoApprovePolicyRestriction();
+		this._updateWorkspaceTrust();
 		this._updateDisableRepoInfoTelemetry();
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
@@ -1101,6 +1119,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _updateAutoApprovePolicyRestriction(): void {
 		const policyRestricted = this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID)?.policyValue === false;
 		this._dispatchRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: policyRestricted });
+	}
+
+	private _updateWorkspaceTrust(): void {
+		const remoteAuthority = typeof this._resourceIdentity === 'string' && this._resourceIdentity.startsWith(`${Schemas.vscodeRemote}://`)
+			? URI.parse(this._resourceIdentity).authority : undefined;
+		const trustedUris = this._workspaceTrustManagementService.getTrustedUris()
+			.filter(uri => this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
+				? uri.scheme === Schemas.file
+				: (uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority)
+				|| (remoteAuthority !== undefined && uri.scheme === Schemas.vscodeRemote && uri.authority === remoteAuthority))
+			.map(uri => uri.scheme === Schemas.vscodeRemote ? uri.with({ scheme: Schemas.file, authority: '' }) : this.resourceUris.toAgentHost(uri))
+			.filter(uri => uri.scheme === Schemas.file)
+			.map(uri => uri.toString());
+		this._dispatchRootConfig({
+			[AgentHostWorkspaceTrustConfigKey]: {
+				enabled: this._workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
+				trustedUris,
+			},
+		});
 	}
 
 	/**
@@ -1310,6 +1347,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return promise;
 	}
 
+	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		await this._sendExtensionRequest(RemoveSessionArtifactExtensionMethod, { session: session.toString(), artifactId });
+	}
+
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		const result = await this._sendExtensionRequest(CreateAgentHostDetachedWorktreeExtensionMethod, {
 			session: session.toString(),
@@ -1411,6 +1452,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		const normalizedParams = this._normalizeAuthenticationParams(params);
+		const expiresAt = getExpirationTime(params.expiresIn);
 		await this._sendRequest('authenticate', {
 			channel: ROOT_STATE_URI,
 			...normalizedParams,
@@ -1418,7 +1460,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		});
 		const key = this._authenticationKey(normalizedParams);
 		if (params.token) {
-			this._authentication.set(key, normalizedParams);
+			this._authentication.set(key, { params: normalizedParams, expiresAt });
 		} else {
 			this._authentication.delete(key);
 		}

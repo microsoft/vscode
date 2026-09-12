@@ -60,6 +60,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
+import { isChatModelIdle } from '../../common/model/chatModelIdle.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
@@ -103,7 +104,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { shouldReserveChatPetSpace } from './chatPetWidget.js';
+import { getChatPetListPadding } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
@@ -113,11 +114,11 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 const $ = dom.$;
 
 /**
- * Total horizontal padding of a chat item in the agents window (`.interactive-item-container`,
- * `padding: 0 32px` in sessions `style.css`). Reserved when laying out embedded editors so code
+ * Baseline total horizontal padding of a chat item in the Agents window (`.interactive-item-container`,
+ * `padding: 0 32px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
  * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
  */
-const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
@@ -305,15 +306,16 @@ export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-con
 /** Computes the visual session state and whether its latest completion remains unvisited. */
 export function computeChatSessionStateIndicatorState(input: {
 	readonly requestNeedsInput: boolean;
-	readonly requestInProgress: boolean;
+	readonly isIdle: boolean;
 	readonly containsFocus: boolean;
 	readonly requestWasActive: boolean;
+	readonly requestBecameActive: boolean;
 	readonly hasUnvisitedCompletion: boolean;
 }) {
-	const state = input.requestNeedsInput ? 'needsInput' : input.requestInProgress ? 'inProgress' : 'idle';
+	const state = input.requestNeedsInput ? 'needsInput' : input.isIdle ? 'idle' : 'inProgress';
 	const requestActive = state !== 'idle';
 	let hasUnvisitedCompletion = input.containsFocus ? false : input.hasUnvisitedCompletion;
-	if (!requestActive && input.requestWasActive) {
+	if (!requestActive && (input.requestWasActive || input.requestBecameActive)) {
 		hasUnvisitedCompletion = !input.containsFocus;
 	}
 
@@ -378,6 +380,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private _persistentContentHeight: number;
+	private _chatPetListPadding = 0;
 	private transcriptProgress: { readonly container: HTMLElement; readonly content: HTMLElement } | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
 	private transcriptProgressActive = false;
@@ -976,8 +979,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) === true
 			&& !this.accessibilityService.isMotionReduced()
-			&& !isInlineChat(this)
-			&& !this.isSessionStateIndicatorEnabled();
+			&& !isInlineChat(this);
 		const inProgress = !!this.viewModel?.model.requestInProgress.get();
 		const working = enabled && inProgress;
 		inputContainer.classList.toggle('working', working);
@@ -993,18 +995,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/** Updates the whole-widget session state indicator. */
-	private updateSessionStateIndicator(): void {
+	private updateSessionStateIndicator(requestBecameActive = false): void {
 		if (!this.container) {
 			return;
 		}
 
 		const enabled = this.isSessionStateIndicatorEnabled();
-		const modelNeedsInput = !!this.viewModel?.model.requestNeedsInput.get();
+		const model = this.viewModel?.model;
+		const modelNeedsInput = !!model?.requestNeedsInput.get();
 		const indicatorState = computeChatSessionStateIndicatorState({
 			requestNeedsInput: modelNeedsInput,
-			requestInProgress: !!this.viewModel?.model.requestInProgress.get(),
-			containsFocus: dom.isAncestorOfActiveElement(this.container),
+			isIdle: !model || isChatModelIdle(model),
+			containsFocus: this.container.ownerDocument.hasFocus() && dom.isAncestorOfActiveElement(this.container),
 			requestWasActive: this._requestActiveForStateIndicator,
+			requestBecameActive,
 			hasUnvisitedCompletion: this._hasUnvisitedCompletion,
 		});
 		this._requestActiveForStateIndicator = indicatorState.requestActive;
@@ -1020,6 +1024,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.classList.toggle('chat-state-in-progress', inProgress);
 		this.container.classList.toggle('chat-state-idle', idle);
 		this.container.classList.toggle('chat-state-idle-unvisited', idleUnvisited);
+	}
+
+	private markSessionStateIndicatorVisited(): void {
+		if (!this._hasUnvisitedCompletion) {
+			return;
+		}
+
+		this._hasUnvisitedCompletion = false;
+		this.updateSessionStateIndicator();
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -1061,6 +1074,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.domNode;
 	}
 
+	get stickyScrollDomNode(): HTMLElement | undefined {
+		return this.listWidget.stickyScrollDomNode;
+	}
+
+	get onDidChangeStickyScrollDomNode(): Event<HTMLElement | undefined> {
+		return this.listWidget.onDidChangeStickyScrollDomNode;
+	}
+
 	get scrollHeight(): number {
 		return this.listWidget.scrollHeight;
 	}
@@ -1081,12 +1102,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+		const targetWindow = dom.getWindow(this.container);
 		const focusTracker = this._register(dom.trackFocus(this.container));
-		this._register(focusTracker.onDidFocus(() => {
-			if (this._hasUnvisitedCompletion) {
-				this.updateSessionStateIndicator();
-			}
-		}));
+		this._register(focusTracker.onDidFocus(() => this.markSessionStateIndicatorVisited()));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => this.markSessionStateIndicatorVisited()));
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.BLUR, () => this.updateSessionStateIndicator()));
 		this.updateSessionStateIndicator();
 		this._applyPersistentContentHeight();
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
@@ -1142,8 +1162,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
 			}, preferredPetHost));
-			const petSpaceReserved = derived(this, reader => shouldReserveChatPetSpace(this.chatPetService.enabled.read(reader), this._visible.read(reader)));
-			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petSpaceReserved.read(reader))));
+			const chatPetListPadding = derived(this, reader => getChatPetListPadding(this.chatPetService.enabled.read(reader), this._visible.read(reader), this.chatPetService.scale.read(reader)));
+			this._register(autorun(reader => {
+				this._chatPetListPadding = chatPetListPadding.read(reader);
+				this._applyListPaddingBottom();
+			}));
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
@@ -2038,7 +2061,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * editing on a read-only chat.
 	 */
 	private _applyRendererEditable(editable: boolean): void {
-		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly });
+		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly, readOnly: this._readOnly });
 	}
 
 	/**
@@ -2052,6 +2075,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Re-applied in `createInput` so a rebuilt input part keeps the correct visibility.
 		this._applyInputVisibility();
 		if (changed && this.bodyDimension) {
+			this._layoutListForInputHeight();
+		}
+	}
+
+	/**
+	 * Updates the horizontal space reserved for chat item content and re-lays out embedded editors.
+	 */
+	setContentHorizontalPadding(contentHorizontalPadding: number): void {
+		this.listWidget.updateRendererOptions({ contentHorizontalPadding });
+		if (this.bodyDimension) {
 			this._layoutListForInputHeight();
 		}
 	}
@@ -2101,7 +2134,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: options,
+				rendererOptions: { ...options, readOnly: this._readOnly },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -2117,7 +2150,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
-				paddingBottom: this._persistentContentHeight,
+				paddingBottom: this._getListPaddingBottom(),
+				tabIndex: this.viewOptions.transcriptTabIndex,
 			}
 		));
 
@@ -2715,7 +2749,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.container.style.removeProperty(chatPersistentContentHeightVariable);
 		}
-		this.listWidget?.setPaddingBottom(this._persistentContentHeight);
+		this._applyListPaddingBottom();
+	}
+
+	private _getListPaddingBottom(): number {
+		return this._persistentContentHeight + this._chatPetListPadding;
+	}
+
+	private _applyListPaddingBottom(): void {
+		this.listWidget?.setPaddingBottom(this._getListPaddingBottom());
 	}
 
 	setModel(model: IChatModel | undefined): void {
@@ -2801,7 +2843,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.requestInProgress.set(this.viewModel.model.requestInProgress.get());
 			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
 			this.updateWorkingProgressBorder();
-			this.updateSessionStateIndicator();
+			this.updateSessionStateIndicator(events?.some(e => e?.kind === 'addRequest') ?? false);
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
@@ -3679,6 +3721,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// resend/confirmation flows preserve custom per-model settings.
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'> {
 		const modelId = this.input.currentLanguageModel;
+		const model = this.viewModel?.model;
+		const intendedModel = model?.inputModel.intendedModel;
+		if (this._lockedAgent?.agentHostProviderId && model?.getRequests().length && intendedModel && intendedModel.modelId !== modelId) {
+			return { userSelectedModelId: undefined, userSelectedModelConfiguration: undefined };
+		}
 		return {
 			userSelectedModelId: modelId,
 			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,

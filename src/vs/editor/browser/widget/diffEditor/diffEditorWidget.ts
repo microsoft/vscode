@@ -633,6 +633,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	get renderSideBySide(): boolean { return this._options.renderSideBySide.get(); }
 
+	get renderSideBySideInAutomaticMode(): IObservable<boolean> { return this._options.renderSideBySideInAutomaticMode; }
+
+	get temporaryInlineMode(): IObservable<boolean> { return this._options.temporaryInlineMode; }
+
 	resetWidthBasedLayout(): void {
 		this._options.resetWidthBasedLayout();
 	}

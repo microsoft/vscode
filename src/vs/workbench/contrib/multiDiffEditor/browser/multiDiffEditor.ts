@@ -7,7 +7,6 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { MultiDiffEditorVariant } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
@@ -31,6 +30,7 @@ import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/mult
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
@@ -49,6 +49,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
+	}
+
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._multiDiffEditorWidget?.getContextKeyService();
 	}
 
 	constructor(
@@ -84,7 +88,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
-			{ variant: MultiDiffEditorVariant.Compact },
+			{ variant: 'noCards' },
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -146,6 +150,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override getControl(): ICompositeControl | undefined {
 		return this._multiDiffEditorWidget!.getActiveControl();
+	}
+
+	setDiffEditorLayoutOptions(mode: DiffEditorViewMode, wordWrap: 'off' | 'on' | 'inherit'): void {
+		this._multiDiffEditorWidget?.setDiffLayoutOptions(mode, wordWrap);
+	}
+
+	resetDiffEditorWidthBasedLayout(): void {
+		this._multiDiffEditorWidget?.resetWidthBasedLayout();
 	}
 
 	override focus(): void {

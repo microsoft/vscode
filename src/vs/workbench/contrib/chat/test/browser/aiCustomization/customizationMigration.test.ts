@@ -14,8 +14,10 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { CustomizationMigrationType, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
@@ -66,14 +68,14 @@ suite('customizationMigration', () => {
 			{ uri: URI.file('/workspace/custom-skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
 		];
 		const candidatesFor = (id: CustomizationMigrationCategoryId) => customizations
-			.filter(customization => getCustomizationMigrationCategory(id).isCandidate(customization))
+			.filter(customization => getCustomizationMigrationCategory(id).isCandidate?.(customization) === true)
 			.map(customization => customization.uri.path);
 
 		assert.deepStrictEqual({
 			promptFiles: candidatesFor(CustomizationMigrationCategoryId.PromptFiles),
 			userData: candidatesFor(CustomizationMigrationCategoryId.UserData),
 			configuredLocations: candidatesFor(CustomizationMigrationCategoryId.ConfiguredLocations),
-			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...category.sourceTypes]]),
+			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...(category.sourceTypes ?? [])]]),
 		}, {
 			promptFiles: [
 				'/workspace/.github/prompts/review.prompt.md',
@@ -92,6 +94,7 @@ suite('customizationMigration', () => {
 				[CustomizationMigrationCategoryId.PromptFiles, [PromptsType.prompt]],
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
+				[CustomizationMigrationCategoryId.McpServers, []],
 			],
 		});
 	});
@@ -108,12 +111,56 @@ suite('customizationMigration', () => {
 		assert.deepStrictEqual(category.group([agent]).map(group => ({
 			key: group.key,
 			label: group.label,
-			files: group.customizations.map(customization => customization.uri.path),
+			files: group.customizations
+				.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization))
+				.map(customization => customization.uri.path),
 		})), [{
 			key: PromptsType.agent,
 			label: 'Agents',
 			files: ['/workspace/.custom/agents/super.agent.md'],
 		}]);
+	});
+
+	test('presents MCP source-to-target migration without file-only behavior', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const candidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'server',
+			name: 'Server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		} as const;
+
+		assert.deepStrictEqual({
+			presentation: category.getCandidatePresentation(candidate, uri => uri.path),
+			description: category.getPageDescription([candidate], 'Copilot'),
+			banner: category.getBanner?.([candidate], 'Copilot', undefined, []),
+			confirmation: category.getConfirmation([candidate], 'Copilot'),
+			failure: category.getMcpServerFailureMessage?.([{
+				id: candidate.id,
+				name: candidate.name,
+				sourceUri: candidate.sourceUri,
+				targetUri: candidate.targetUri,
+				reason: McpServerCustomizationMigrationFailureReason.TargetConflict,
+			}]),
+		}, {
+			presentation: {
+				name: 'Server',
+				selectionAriaLabel: 'Select Server from /workspace/.vscode/mcp.json',
+				pathLabel: '/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+			},
+			description: 'Select the supported MCP server to move so Copilot can discover it directly. Unsupported and unselected servers stay in .vscode/mcp.json.',
+			banner: {
+				message: 'Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so Copilot can discover them directly. Unsupported and unselected servers stay in their current files.',
+			},
+			confirmation: {
+				message: 'Migrate 1 MCP server to .mcp.json?',
+				detail: 'Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Unsupported and unselected entries stay in place.',
+				primaryButton: 'Migrate',
+			},
+			failure: 'Could not migrate \'Server\' because .mcp.json already contains a different server with that name.',
+		});
 	});
 
 	test('configured locations banner links to affected settings', () => {
@@ -147,6 +194,28 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('explains cross-root MCP conflicts and prioritizes rollback guidance', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const failure = {
+			id: 'demo',
+			name: 'demo',
+			sourceUri: URI.file('/secondary/.vscode/mcp.json'),
+			targetUri: URI.file('/secondary/.mcp.json'),
+			conflictingUri: URI.file('/primary/.mcp.json'),
+			reason: McpServerCustomizationMigrationFailureReason.CrossRootConflict,
+		};
+
+		assert.deepStrictEqual({
+			single: category.getMcpServerFailureMessage?.([failure]),
+			multiple: category.getMcpServerFailureMessage?.([failure, { ...failure, name: 'other' }]),
+			rollback: category.getMcpServerFailureMessage?.([failure, { ...failure, reason: McpServerCustomizationMigrationFailureReason.RollbackFailed }]),
+		}, {
+			single: 'Could not migrate \'demo\' because another workspace root defines an MCP server with the same name. Rename or remove the duplicate before migrating.',
+			multiple: 'Some MCP servers could not be migrated because their names conflict across workspace roots. Rename or remove the duplicates before migrating.',
+			rollback: 'Some MCP server migrations could not be safely completed or rolled back. Review the affected source and destination MCP configuration files.',
+		});
+	});
+
 
 	test('uses singular copy for one User Data customization', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.UserData);
@@ -165,15 +234,12 @@ suite('customizationMigration', () => {
 		};
 
 		assert.deepStrictEqual({
-			shortcut: category.getShortcutAriaLabel(1),
 			agent: {
 				card: category.getCardDescription([agent], harnessLabel),
-				page: category.getPageDescription([agent], harnessLabel),
 				confirmation: category.getConfirmation([agent], harnessLabel, '~/.copilot/agents'),
 			},
 			instruction: {
 				card: category.getCardDescription([instruction], harnessLabel),
-				page: category.getPageDescription([instruction], harnessLabel),
 				confirmation: category.getConfirmation([instruction], harnessLabel).detail,
 			},
 			mixed: {
@@ -183,10 +249,8 @@ suite('customizationMigration', () => {
 			migrated: category.getMigratedMessage(1),
 			failed: category.getFailedMessage(['reviewer.agent.md'], 0),
 		}, {
-			shortcut: 'User data, 1 customization needs migration',
 			agent: {
 				card: 'User data customizations are only used by VS Code. Found 1 agent that Copilot ignores. Move it to keep it available.',
-				page: 'Found 1 agent in user data that local VS Code can still use, but Copilot ignores. Move it to the harness agents folder to keep it available.',
 				confirmation: {
 					message: 'Migrate user data customizations to \'~/.copilot/agents\'?',
 					detail: 'This moves 1 agent out of user data.',
@@ -196,7 +260,6 @@ suite('customizationMigration', () => {
 			},
 			instruction: {
 				card: 'User data customizations are only used by VS Code. Found 1 instruction file that Copilot ignores. Move it to keep it available.',
-				page: 'Found 1 instruction file in user data that local VS Code can still use, but Copilot ignores. Move it to the harness instructions folder to keep it available.',
 				confirmation: 'This moves 1 instruction file out of user data.',
 			},
 			mixed: {
@@ -323,6 +386,7 @@ suite('customizationMigration', () => {
 			result: {
 				...result,
 				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: result.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			migratedSkillHasManualInvocation: migratedSkillContent.includes('disable-model-invocation: true'),
 			migratedAgentContent: (await fileService.readFile(migratedAgentUri)).value.toString(),
@@ -339,6 +403,7 @@ suite('customizationMigration', () => {
 					{ uri: migratedAgentUri.path, type: PromptsType.agent },
 					{ uri: migratedInstructionsUri.path, type: PromptsType.instructions },
 				],
+				migratedSources: customizations.slice(0, 3).map(customization => ({ uri: customization.uri.path, storage: customization.storage })),
 			},
 			migratedSkillHasManualInvocation: true,
 			migratedAgentContent: '---\ndescription: Plan work\n---\nPlan.',
@@ -393,6 +458,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: [],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [{ uri: migratedUri.path, type: PromptsType.skill }],
+				migratedSources: [{ uri: skill.uri, storage: skill.storage }],
 			},
 			migratedContents: [
 				'---\nname: release\n---\nRelease safely.',
@@ -442,6 +508,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['SKILL.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			sourceContents: [
 				'---\nname: release\n---\nRelease safely.',
@@ -477,6 +544,7 @@ suite('customizationMigration', () => {
 			result: {
 				...result,
 				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: result.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			sourceExists: await fileService.exists(sourceUri),
 			workspaceTargetExists: await fileService.exists(workspaceSkillUri),
@@ -489,6 +557,10 @@ suite('customizationMigration', () => {
 				migratedCustomizations: [
 					{ uri: workspaceSkillUri.path, type: PromptsType.skill },
 					{ uri: userSkillUri.path, type: PromptsType.skill },
+				],
+				migratedSources: [
+					{ uri: sourceUri.path, storage: PromptsStorage.local },
+					{ uri: sourceUri.path, storage: PromptsStorage.user },
 				],
 			},
 			sourceExists: false,
@@ -530,11 +602,15 @@ suite('customizationMigration', () => {
 		const retriedResult = await migrateCustomizations([customization], targetFolders, fileService);
 
 		assert.deepStrictEqual({
-			failedResult,
+			failedResult: {
+				...failedResult,
+				migratedSources: failedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
+			},
 			afterFailure,
 			retriedResult: {
 				...retriedResult,
 				migratedCustomizations: retriedResult.migratedCustomizations.map(item => item.uri.path),
+				migratedSources: retriedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			afterRetry: {
 				sourceExists: await fileService.exists(sourceUri),
@@ -547,6 +623,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['style.instructions.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			afterFailure: {
 				sourceExists: true,
@@ -558,6 +635,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: [],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [targetUri.path],
+				migratedSources: [{ uri: sourceUri.path, storage: PromptsStorage.user }],
 			},
 			afterRetry: {
 				sourceExists: false,
@@ -604,6 +682,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['style.instructions.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			sourceExists: true,
 			targetContent: 'foreign content',

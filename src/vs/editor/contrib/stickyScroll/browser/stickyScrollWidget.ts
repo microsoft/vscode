@@ -462,13 +462,15 @@ class RenderedStickyLine {
 
 		const lineHeight = editor.getLineHeightForPosition(new Position(lineNumber, 1));
 		const textDirection = viewModel.getTextDirection(lineNumber);
+		const fontInfo = editor.getOption(EditorOption.fontInfo);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, 500, 'none', true, true, null,
-			textDirection, verticalScrollbarSize
+			fontInfo.spaceWidth, 1, 1, 500, 'none', true, true, null,
+			textDirection, verticalScrollbarSize, false,
+			editor.getOption(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells'
 		);
 
 		const sb = new StringBuilder(2000);

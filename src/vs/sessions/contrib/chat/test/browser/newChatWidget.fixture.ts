@@ -8,6 +8,7 @@ import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -43,8 +44,9 @@ import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { Menus } from '../../../../browser/menus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
@@ -80,9 +82,12 @@ interface INewChatWidgetFixtureOptions {
 	readonly openWorkspacePicker?: boolean;
 	readonly openGitHubContextPicker?: boolean;
 	readonly withAttachedContext?: boolean;
+	readonly withControlPickers?: boolean;
 	readonly withAutoModel?: boolean;
+	readonly withConfiguredModel?: boolean;
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
+	readonly withChatBackground?: boolean;
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -120,6 +125,24 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 }
 
 /**
+ * Wraps the composer in the `.part.sessionspart` host the Agents window uses and
+ * paints the real codicon wallpaper into it, so the fixture shows the composer
+ * the way it reads once a chat background is set.
+ */
+function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
+	const part = dom.append(container, dom.$('.part.sessionspart'));
+	part.style.position = 'relative';
+	part.style.width = '100%';
+	part.style.height = '100%';
+	// The part carries the opaque base, as it does in the Agents window, so the
+	// session view above it can stay transparent and let the wallpaper through.
+	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
+	renderer.setBackground({ kind: 'codicons' });
+	return part;
+}
+
+/**
  * Renders the whole new-session composer (`NewChatView` → `NewChatWidget`) inside
  * a `.session-view` so the draft-comments banner sits above the input the way it
  * does in the Agents window.
@@ -145,9 +168,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		openWorkspacePicker = false,
 		openGitHubContextPicker = false,
 		withAttachedContext = false,
+		withControlPickers = false,
 		withAutoModel = false,
+		withConfiguredModel = false,
 		primaryToolbarWidth,
 		phoneLayout = false,
+		withChatBackground = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -160,7 +186,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}));
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
 	const sessionTypes = createFixtureSessionTypes();
-	const provider = createFixtureProvider(workspace, sessionTypes, withAutoModel ? [createFixtureAutoModel()] : []);
+	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : []);
 	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0]) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
@@ -172,7 +198,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
-			if (withAutoModel) {
+			if (withAutoModel || withConfiguredModel) {
 				reg.define(IMenuService, AutoModelFixtureMenuService);
 			}
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
@@ -216,10 +242,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
 				override readonly onDidChangeRecentWorkspaces = Event.None;
-				override getRecentWorkspaces() { return activeSession ? [{ workspace, providerId: provider.id, checked: true }] : []; }
+				override readonly historyLoadState = constObservable('loaded' as const);
+				override getRecentWorkspaces(): IRecentWorkspace[] { return activeSession ? [{ workspace, providerId: provider.id, checked: true, source: 'agents' }] : []; }
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
+				override isNoWorkspaceChecked(): boolean { return false; }
+				override checkNoWorkspace(): void { }
 			}());
 			reg.defineInstance(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
@@ -321,14 +350,22 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
-	const sessionView = dom.append(container, dom.$('.session-view.is-active'));
+	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore) : container, dom.$('.session-view.is-active'));
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
-	sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	if (!withChatBackground) {
+		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	}
 	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 	const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
+
+	if (withControlPickers) {
+		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.plan', title: 'Plan' }, group: 'navigation', order: 0 });
+		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.allowAll', title: 'Allow All' }, group: 'navigation', order: 10 });
+	}
 
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
@@ -401,15 +438,32 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
 	}),
+	NewSessionChatBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer sits directly on the varied agent, developer, and squirrel Codicon wallpaper with no card behind it. The workspace pills, the input area and the bottom-row controls each carry their own opaque surface and a thin border, and the wallpaper shows through the gaps between them.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
+	}),
+	NewSessionBackgroundControls: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withChatBackground: true, withControlPickers: true }),
+	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action without clipping.'],
+		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action vertically centered without clipping.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true }),
 	}),
 	NewSessionCompactAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The new-session input toolbar shows the Auto model picker in compact mode as a centered Copilot icon inside a 22-pixel square control aligned with the expanded toolbar height.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, primaryToolbarWidth: 25 }),
+	}),
+	NewSessionConfiguredModel: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withConfiguredModel: true }),
+	}),
+	NewSessionCompactConfiguredModel: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withConfiguredModel: true, primaryToolbarWidth: 140 }),
 	}),
 	NewSessionWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
@@ -600,7 +654,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 				showFeatured: false,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
-				showAutoModel: true,
+				showAutoModel: !models.length || models.some(model => model.metadata.id === 'auto'),
 			};
 		}
 
@@ -621,6 +675,41 @@ function createFixtureAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 			maxInputTokens: 128000,
 			maxOutputTokens: 4096,
 			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		},
+	};
+}
+
+function createFixtureConfiguredModel(): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		identifier: 'copilot/gpt-5.6-sol-fast',
+		metadata: {
+			extension: new ExtensionIdentifier('github.copilot-chat'),
+			id: 'gpt-5.6-sol-fast',
+			name: 'GPT-5.6 Sol Fast (Internal only)',
+			vendor: 'copilot',
+			version: '1',
+			family: 'gpt',
+			maxInputTokens: 1000000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+			configurationSchema: {
+				properties: {
+					effort: {
+						type: 'string',
+						group: 'navigation',
+						enum: ['low', 'medium', 'high'],
+						enumItemLabels: ['Low', 'Medium', 'Max'],
+						default: 'high',
+					},
+					context: {
+						type: 'string',
+						group: 'tokens',
+						enum: ['default', 'long'],
+						enumItemLabels: ['Default', '1M'],
+						default: 'long',
+					},
+				},
+			},
 		},
 	};
 }

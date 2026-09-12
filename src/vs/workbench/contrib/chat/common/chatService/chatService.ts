@@ -8,10 +8,12 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
@@ -32,6 +34,7 @@ import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariab
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
 import { HookTypeValue } from '../promptSyntax/hookTypes.js';
+import { ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
@@ -212,11 +215,14 @@ export interface IChatUsage {
 	kind: 'usage';
 }
 
+const copilotCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 1 });
+
 /**
- * Formats a copilot credit value for display.
+ * Formats a Copilot credit value with locale-aware grouping and at most one decimal place.
  */
 export function formatCopilotCredits(credits: number): string {
-	return parseFloat(credits.toFixed(1)).toString();
+	const roundedCredits = parseFloat(credits.toFixed(1));
+	return copilotCreditsFormatter.value.format(roundedCredits === 0 ? 0 : roundedCredits);
 }
 
 /**
@@ -225,7 +231,7 @@ export function formatCopilotCredits(credits: number): string {
  */
 export function formatCopilotCreditsLabel(credits: number): string {
 	const formatted = formatCopilotCredits(credits);
-	return formatted === '1'
+	return parseFloat(credits.toFixed(1)) === 1
 		? localize('chat.credit', "{0} credit", formatted)
 		: localize('chat.credits', "{0} credits", formatted);
 }
@@ -325,6 +331,12 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
+	/** Use a quiet transcript boundary treatment instead of a progress row. */
+	presentation?: 'workspaceTransition';
+	/** Workspace folder name emphasized by the transition presentation. */
+	workspaceName?: string;
+	/** Complete accessible description for non-visual presentation and announcements. */
+	accessibilityLabel?: string;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -1182,6 +1194,8 @@ export interface IChatPullRequestContent {
 
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
+	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
+	hasStarted?: boolean;
 	isActive?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
@@ -1198,13 +1212,15 @@ export interface IChatSubagentToolInvocationData {
 	/** Final elapsed duration in milliseconds. Set when the subagent stops. */
 	duration?: number;
 	/**
-	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
-	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open
-	 * chat" link that reveals the subagent's read-only chat. Undefined when the
-	 * subagent has no separately-openable chat. A string (not a `URI`) so it stays
-	 * serializable across the extension host protocol.
+	 * Serializable URI of a distinct subagent chat, including a prospective URI; undefined when no target is known.
+	 * Presence does not imply readiness: use {@link isChatAvailable} to gate navigation.
 	 */
 	chatResource?: string;
+	/**
+	 * `true` means the provider reports the chat available; `false` means it is not yet or no longer available.
+	 * `undefined` preserves legacy navigation behavior based on the resource and opener.
+	 */
+	isChatAvailable?: boolean;
 }
 
 /**
@@ -1936,6 +1952,8 @@ export interface IChatSendRequestOptions {
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
 	agentHostSessionConfig?: Record<string, unknown>;
+	/** Provider-specific request metadata, separate from the prompt. */
+	metadata?: Record<string, unknown>;
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -2014,7 +2032,7 @@ export interface IChatService {
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable;
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable;
 
 	/**
 	 * An observable containing all live chat models.

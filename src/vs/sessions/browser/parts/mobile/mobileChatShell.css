@@ -566,6 +566,7 @@
  * the desktop floor at 0,5,0 / 0,4,0 — no `!important` required. */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label {
+	box-sizing: content-box;
 	display: inline-flex;
 	align-items: center;
 	height: auto;

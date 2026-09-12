@@ -16,8 +16,9 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenModelPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModelPickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -49,6 +50,132 @@ function createMockMode(overrides: Partial<IChatMode> & { id: string; kind: Chat
 		...overrides,
 	} as IChatMode;
 }
+
+suite('OpenDelegationPickerAction', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function getState(values: Record<string, ContextKeyValue>) {
+		const action = new OpenDelegationPickerAction();
+		const context = {
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		};
+		assert.ok(Array.isArray(action.desc.menu));
+		const menu = action.desc.menu.find(item => item.id === MenuId.ChatInputSecondary);
+		assert.ok(menu?.when);
+		assert.ok(action.desc.precondition);
+		return {
+			visible: menu.when.evaluate(context),
+			enabled: action.desc.precondition.evaluate(context),
+		};
+	}
+
+	const context = {
+		[ChatContextKeys.enabled.key]: true,
+		[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
+		[ChatContextKeys.chatSessionIsEmpty.key]: false,
+		[ChatContextKeys.chatSessionSupportsDelegation.key]: false,
+		[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: false,
+	};
+
+	for (const sessionType of [AgentSessionProviders.AgentHostCopilot, AgentSessionProviders.AgentHostClaude, AgentSessionProviders.AgentHostCodex, 'agent-host-custom', 'remote-test-host-copilot']) {
+		test(`gates the disabled editor harness for ${sessionType}`, () => {
+			const values = {
+				...context,
+				[ChatContextKeys.agentSessionType.key]: sessionType,
+				[IsSessionsWindowContext.key]: false,
+			};
+			assert.deepStrictEqual({
+				disabled: getState(values),
+				disabledBeforeRegistration: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: true }),
+				enabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+				enabledBeforeRegistration: getState({
+					...values,
+					[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+					[ChatContextKeys.chatSessionSupportsDelegation.key]: true,
+				}),
+			}, {
+				disabled: { visible: false, enabled: false },
+				disabledBeforeRegistration: { visible: false, enabled: false },
+				enabled: { visible: true, enabled: false },
+				enabledBeforeRegistration: { visible: true, enabled: false },
+			});
+		});
+
+		test(`never shows the existing-session harness for ${sessionType} in the Agents window`, () => {
+			const values = {
+				...context,
+				[ChatContextKeys.agentSessionType.key]: sessionType,
+				[IsSessionsWindowContext.key]: true,
+			};
+			assert.deepStrictEqual({
+				disabled: getState(values),
+				disabledBeforeRegistration: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: true }),
+				enabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+				enabledBeforeRegistration: getState({
+					...values,
+					[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+					[ChatContextKeys.chatSessionSupportsDelegation.key]: true,
+				}),
+			}, {
+				disabled: { visible: false, enabled: false },
+				disabledBeforeRegistration: { visible: false, enabled: false },
+				enabled: { visible: false, enabled: false },
+				enabledBeforeRegistration: { visible: false, enabled: false },
+			});
+		});
+	}
+
+	test('preserves non-Agent-Host visibility and delegation', () => {
+		const values = { ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.Local, [ChatContextKeys.chatSessionSupportsDelegation.key]: true };
+		assert.deepStrictEqual({
+			localDisabled: getState(values),
+			localEnabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+			unsupported: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: false }),
+			agentsWindow: getState({ ...values, [IsSessionsWindowContext.key]: true }),
+			editingInput: getState({ ...values, [ChatContextKeys.currentlyEditingInput.key]: true }),
+			editingRequest: getState({ ...values, [ChatContextKeys.currentlyEditing.key]: true }),
+		}, {
+			localDisabled: { visible: true, enabled: true },
+			localEnabled: { visible: true, enabled: true },
+			unsupported: { visible: false, enabled: false },
+			agentsWindow: { visible: false, enabled: true },
+			editingInput: { visible: true, enabled: false },
+			editingRequest: { visible: true, enabled: false },
+		});
+	});
+
+	test('preserves AI, chat location, quick chat, and empty-session visibility guards', () => {
+		const values = {
+			...context,
+			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
+			[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+		};
+		assert.deepStrictEqual({
+			aiDisabled: getState({ ...values, [ChatContextKeys.enabled.key]: false }).visible,
+			quickChat: getState({ ...values, [ChatContextKeys.inQuickChat.key]: true }).visible,
+			editorInline: getState({ ...values, [ChatContextKeys.location.key]: ChatAgentLocation.EditorInline }).visible,
+			emptySession: getState({ ...values, [ChatContextKeys.chatSessionIsEmpty.key]: true }).visible,
+		}, {
+			aiDisabled: false,
+			quickChat: false,
+			editorInline: false,
+			emptySession: false,
+		});
+	});
+
+	test('leaves harness selection enabled for new Agent Host sessions', () => {
+		const action = new OpenSessionTargetPickerAction();
+		const values = {
+			...context,
+			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
+			[ChatContextKeys.chatSessionIsEmpty.key]: true,
+		};
+		assert.ok(action.desc.precondition);
+		assert.strictEqual(action.desc.precondition.evaluate({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		}), true);
+	});
+});
 
 suite('GetHandoffsAction', () => {
 	const store = new DisposableStore();

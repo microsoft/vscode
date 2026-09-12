@@ -5,8 +5,7 @@ description: Primary accessibility skill for VS Code. REQUIRED for new feature a
 
 ## When to Use This Skill
 
-Use this skill for any VS Code feature work that introduces or changes interactive UI.
-Use this skill by default for new features and contributions, including when the request does not explicitly mention accessibility.
+Use this skill for any VS Code feature work that introduces or changes interactive UI. Use this skill by default for new features and contributions, including when the request does not explicitly mention accessibility.
 
 Trigger examples:
 - "add a new feature"
@@ -161,8 +160,7 @@ A verbosity setting controls whether a hint such as "press Alt+F1 for accessibil
 
 ### Steps
 
-1. **Add an entry** to `AccessibilityVerbositySettingId` in
-   `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts`:
+1. **Add an entry** to `AccessibilityVerbositySettingId` in `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts`:
    ```ts
    export const enum AccessibilityVerbositySettingId {
        // … existing entries …

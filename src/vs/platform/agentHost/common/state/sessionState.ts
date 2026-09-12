@@ -15,6 +15,7 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/bu
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
@@ -357,10 +358,12 @@ export function withMessageSystemInitiatedLabel(message: Message, label: string)
  *
  * A *visible* system notification (a background-agent completion, an Agent
  * Merge repair prompt) is a real turn and is deliberately not matched.
+ * A hidden workspace-continuation request is also a real provider turn.
  */
 export function isHostNoticeTurn(turn: { readonly message: Message }): boolean {
 	return turn.message.origin.kind === MessageKind.SystemNotification
-		&& (isMessageHiddenFromTranscript(turn.message) || isMessageRequestHiddenFromTranscript(turn.message));
+		&& (isMessageHiddenFromTranscript(turn.message) || isMessageRequestHiddenFromTranscript(turn.message))
+		&& !isAgentWorkspaceContinuationMessage(turn.message);
 }
 
 /** Returns the last turn id that can own file changes, or `undefined` if there is none. */
@@ -1720,6 +1723,11 @@ export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubStat
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
+/** Normalized key for comparing pull request URLs irrespective of case and trailing slashes. */
+export function getSessionPullRequestUrlKey(url: string): string {
+	return url.trim().replace(/\/+$/, '').toLowerCase();
+}
+
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
 		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
@@ -1728,7 +1736,7 @@ function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
-	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+	return distinct(normalizedUrls, getSessionPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
 }
 
 /** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
@@ -2012,6 +2020,12 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
 
+/** Session-database marker indicating that retained turns include workspace-transition boundaries. */
+export const AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY = 'agentHost.hasWorkspaceTransitions';
+
+/** Summary metadata mirror of {@link AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}. */
+export const SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY = 'hasWorkspaceTransitions';
+
 /** Blocks turns for a session whose provider could not be detached from an untrusted working directory. */
 export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.workspaceConversionQuarantined';
 
@@ -2024,6 +2038,9 @@ export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.worksp
  * the rename; readers fall back to it when {@link AH_META_IS_ARCHIVED_DB_KEY} is absent.
  */
 export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
+
+/** Timestamp written only when merged-session cleanup automatically archives a session. */
+export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
 
 /** Legacy metadata key for the archived flag; see {@link AH_META_IS_ARCHIVED_DB_KEY}. */
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
@@ -2069,6 +2086,22 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Whether retained turns in this session include host-owned workspace transitions. */
+export function readSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] === true;
+}
+
+/** Returns summary metadata with the workspace-transition history marker updated. */
+export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined, hasTransitions: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (hasTransitions) {
+		next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] = true;
+	} else {
+		delete next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
