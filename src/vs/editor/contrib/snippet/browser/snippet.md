@@ -133,4 +133,4 @@ int         ::= [0-9]+
 text        ::= .*
 ```
 
-Escaping is done with with the `\` (backslash) character. The rule of thumb is that you can escape characters that otherwise would have a syntactic meaning, e.g within text you can escape `$`, `}` and `\`, within choice elements you can escape `|`, `,` and `\`, and within transform elements you can escape `/` and `\`. Also note that in JSON you need to escape `\` as `\\`.
+Escaping is done with the `\` (backslash) character. The rule of thumb is that you can escape characters that otherwise would have a syntactic meaning, e.g within text you can escape `$`, `}` and `\`, within choice elements you can escape `|`, `,` and `\`, and within transform elements you can escape `/` and `\`. Also note that in JSON you need to escape `\` as `\\`.
