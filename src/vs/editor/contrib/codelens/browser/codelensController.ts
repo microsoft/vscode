@@ -20,7 +20,12 @@ import { CodeLensItem, CodeLensModel, getCodeLensModel } from './codelens.js';
 import { ICodeLensCache } from './codeLensCache.js';
 import { CodeLensHelper, CodeLensWidget } from './codelensWidget.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
@@ -50,7 +55,8 @@ export class CodeLensContribution implements IEditorContribution {
 		@ILanguageFeatureDebounceService debounceService: ILanguageFeatureDebounceService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
+		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
 		this._provideCodeLensDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensProvide', { min: 250 });
 		this._resolveCodeLensesDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensResolve', { min: 250, salt: 'resolve' });
@@ -261,6 +267,9 @@ export class CodeLensContribution implements IEditorContribution {
 			}
 		}));
 		this._localToDispose.add(this._editor.onMouseDown(e => {
+			if (!e.event.leftButton) {
+				return;
+			}
 			if (e.target.type !== MouseTargetType.CONTENT_WIDGET) {
 				return;
 			}
@@ -277,6 +286,21 @@ export class CodeLensContribution implements IEditorContribution {
 					}
 				}
 			}
+		}));
+		this._localToDispose.add(this._editor.onContextMenu(e => {
+			if (e.target.type !== MouseTargetType.CONTENT_WIDGET) {
+				return;
+			}
+			// Only react when the context menu is requested on a CodeLens widget
+			const element = e.target.element;
+			if (!element || !element.closest('.codelens-decoration')) {
+				return;
+			}
+			e.event.preventDefault();
+			this._contextMenuService.showContextMenu({
+				menuId: MenuId.EditorCodeLensContext,
+				getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
+			});
 		}));
 		scheduler.schedule();
 	}
@@ -538,4 +562,47 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			notificationService.error(err);
 		}
 	}
+});
+
+registerAction2(class ToggleCodeLens extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.toggleCodeLens',
+			title: {
+				...localize2('toggleEditorCodeLens', "Toggle Editor CodeLens"),
+				mnemonicTitle: localize({ key: 'mitoggleCodeLens', comment: ['&& denotes a mnemonic'] }, "Toggle Editor &&CodeLens"),
+			},
+			metadata: {
+				description: localize2('toggleEditorCodeLens.description', "Toggle/enable the editor CodeLens which shows extra information above code, such as references or test status."),
+			},
+			category: Categories.View,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.editor.codeLens', true),
+				title: localize('codeLens', "CodeLens"),
+				mnemonicTitle: localize({ key: 'miCodeLens', comment: ['&& denotes a mnemonic'] }, "&&CodeLens"),
+			},
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 4 },
+				{ id: MenuId.EditorCodeLensContext, group: '1_visibility', order: 1 },
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue('editor.codeLens');
+		configurationService.updateValue('editor.codeLens', newValue);
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorCodeLensContext, {
+	command: {
+		id: 'codelens.showLensesInCurrentLine',
+		title: localize2('showLensOnLine', "Show CodeLens Commands for Current Line"),
+	},
+	group: '2_lenses',
+	order: 1,
+	when: EditorContextKeys.hasCodeLensProvider,
 });
