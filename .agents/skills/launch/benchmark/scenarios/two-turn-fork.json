@@ -1,0 +1,24 @@
+{
+	"name": "two-turn-fork",
+	"steps": [
+		{
+			"action": "prepare"
+		},
+		{
+			"action": "chat",
+			"message": "Reply with exactly LAUNCH_BENCHMARK_ONE and do nothing else.",
+			"expect": "LAUNCH_BENCHMARK_ONE",
+			"timeoutMs": 60000
+		},
+		{
+			"action": "chat",
+			"message": "Reply with exactly LAUNCH_BENCHMARK_TWO and do nothing else.",
+			"expect": "LAUNCH_BENCHMARK_TWO",
+			"timeoutMs": 60000
+		},
+		{
+			"action": "fork",
+			"timeoutMs": 30000
+		}
+	]
+}

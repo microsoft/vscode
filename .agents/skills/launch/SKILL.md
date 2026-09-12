@@ -121,7 +121,7 @@ The script runs pre-launch (electron download, compile-if-missing, built-in exte
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
 
 ```json
-{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
+{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"preLaunchSkipped":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
 ```
 
 The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, and starting Code OSS through CDP readiness. `totalMs` covers the complete launcher operation through readiness.
@@ -160,6 +160,92 @@ $pid = $info.pid
 | `agentHostPort` (`--inspect-agenthost`) | Agent host process (Node) | `dap-cli` (Node inspector protocol) |
 
 ## Drive the UI with @playwright/cli
+
+### Fast checked scenarios (recommended for repeated workflows)
+
+For a repeatable sequence, use `scripts/drive.mjs` instead of making one model
+turn and one `@playwright/cli` process per action. It connects directly to CDP
+through the repository's `playwright-core`, runs the entire scenario in one
+process, and returns one JSON result with per-step timings.
+
+```bash
+DRIVER="$LAUNCH_DIR/scripts/drive.mjs"
+SCENARIO="$LAUNCH_DIR/benchmark/scenarios/two-turn-fork.json"
+BENCH_WORKSPACE="${TMPDIR:-/tmp}/vscode-launch-benchmark-workspace"
+mkdir -p "$BENCH_WORKSPACE"
+
+# Agents window: let the checked driver select the workspace.
+INFO=$("$LAUNCH" --agents | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+"$DRIVER" scenario \
+  --cdp "$CDP" \
+  --workspace "$BENCH_WORKSPACE" \
+  --file "$SCENARIO"
+
+# Editor window: open the fixture directly.
+INFO=$("$LAUNCH" -- "$BENCH_WORKSPACE" | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+"$DRIVER" scenario \
+  --cdp "$CDP" \
+  --workspace "$BENCH_WORKSPACE" \
+  --file "$SCENARIO"
+```
+
+The checked driver enforces these invariants:
+
+1. No action runs while a modal is visible.
+2. Known Workspace Trust dialogs are handled and awaited until hidden.
+3. Unknown dialogs fail with their text and controls instead of letting the
+   script interact with the page behind them.
+4. Chat text is read back exactly before Send is clicked.
+5. Send must be enabled before submission.
+6. Response loading and completion are observed with a short adaptive poll.
+7. Fork completion requires a visible transcript/session state change.
+
+Use a dedicated non-git fixture for synthetic chat messages. **Never benchmark
+random chat or fork scenarios in the repository checkout**: doing so pollutes
+that workspace's chat history, and a fork can materialize another full worktree.
+
+Useful individual commands:
+
+```bash
+"$DRIVER" inspect --cdp "$CDP"
+"$DRIVER" prepare --cdp "$CDP" --workspace "$BENCH_WORKSPACE"
+"$DRIVER" chat --cdp "$CDP" --message "Reply with exactly READY." --expect READY
+"$DRIVER" fork --cdp "$CDP"
+```
+
+#### Record a demonstrated action
+
+When selectors or expected state changes are unclear, start the privacy-aware
+recorder and demonstrate the action in the launched window:
+
+```bash
+"$DRIVER" record \
+  --cdp "$CDP" \
+  --duration-ms 30000 \
+  --output /tmp/launch-action-recording.json
+```
+
+The recording contains click/focus/key metadata and a compact DOM mutation
+summary that can guide a checked scenario. Typed values are redacted, printable
+keys are not stored, and mutation targets omit text content by default. Review
+the recording before sharing it because accessible labels can still reflect the
+UI that was demonstrated.
+
+#### Run the benchmark
+
+The benchmark covers both windows, creates its own non-git fixture, checks that
+the repository worktree list did not change, and cleans each launched profile:
+
+```bash
+"$LAUNCH_DIR/benchmark/run.mjs" --surface all --repeat 3 \
+  --output "$LAUNCH_DIR/benchmark/results/latest.json"
+```
+
+See [`benchmark/dashboard.md`](benchmark/dashboard.md) for current results.
+
+### Ad-hoc Playwright CLI interaction
 
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
 

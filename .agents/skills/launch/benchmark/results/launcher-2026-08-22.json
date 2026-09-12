@@ -1,0 +1,40 @@
+{
+	"date": "2026-08-22",
+	"commit": "0b87e78adc5",
+	"baselineMs": [
+		2020,
+		1780,
+		1780
+	],
+	"optimized": {
+		"safeDefault": {
+			"wallMs": 990,
+			"reported": {
+				"profileMs": 231,
+				"preLaunchMs": 251,
+				"cdpReadyMs": 459,
+				"totalMs": 962
+			}
+		},
+		"preparedEditorBuild": {
+			"wallMs": 690,
+			"reported": {
+				"profileMs": 188,
+				"preLaunchMs": 20,
+				"cdpReadyMs": 443,
+				"totalMs": 672
+			}
+		},
+		"preparedAgentsBuild": {
+			"runs": 5,
+			"passed": 5,
+			"medianWallMs": 744
+		}
+	},
+	"changes": [
+		"Allocate four debug ports in one Node process",
+		"Poll CDP readiness every 100ms instead of every second",
+		"Expose per-phase timings in launcher JSON",
+		"Allow explicit pre-launch skipping for an already-prepared unchanged build"
+	]
+}
