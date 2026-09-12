@@ -201,6 +201,13 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	private readonly _queue: ClaudePromptQueue;
 
+	/**
+	 * Steering ids accepted into the queue and not yet consumed. The drain
+	 * contribution re-delivers the current steering message on every
+	 * pending-message action, so the same id arrives until it is consumed.
+	 */
+	private readonly _steeringInFlight = new Set<string>();
+
 	/** Flips to `true` on the first `system:init` SDK message. Drives `Options.resume` decisions for downstream phases. */
 	private _isResumed = false;
 
@@ -265,11 +272,14 @@ export class ClaudeSdkPipeline extends Disposable {
 			ClaudePromptQueue,
 			sessionId,
 			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
+			(pendingId: string) => {
+				this._steeringInFlight.delete(pendingId);
+				this._onDidProduceSignal.fire({
+					kind: 'steering_consumed',
+					chat: this.chatChannelUri,
+					id: pendingId,
+				});
+			},
 		));
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
@@ -460,6 +470,10 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * into the in-progress protocol Turn).
 	 */
 	injectSteering(prompt: SDKUserMessage, pendingMessageId: string): void {
+		if (this._steeringInFlight.has(pendingMessageId)) {
+			this._logService.trace(`[Claude:${this.sessionId}] injectSteering: already in flight id=${pendingMessageId}`);
+			return;
+		}
 		if (this._abortController.signal.aborted) {
 			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (controller aborted) id=${pendingMessageId}`);
 			return;
@@ -474,6 +488,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		// promise is the original entry's deferred); attach a no-op catch
 		// so a `failAll` rejection on abort/crash doesn't surface as an
 		// unhandled rejection.
+		this._steeringInFlight.add(pendingMessageId);
 		this._queue.push({
 			sdkMessage: prompt,
 			sdkUuid,
@@ -502,7 +517,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			return;
 		}
 		this._abortController.abort();
-		this._queue.failAll(new CancellationError());
+		this._failQueue(new CancellationError());
 		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
 		// and `shutdownAndWait` still needs it to await the subprocess exit.
 		this._needsRebind = true;
@@ -521,8 +536,21 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 	}
 
+	/**
+	 * Fails every queued entry and releases the steering ids that went with them.
+	 *
+	 * A crash or an aborted rebind fails the queue without aborting the
+	 * controller. Leaving the ids behind would make the guard reject every
+	 * later delivery of a steer that was never actually run, dropping it.
+	 */
+	private _failQueue(error: Error): void {
+		this._queue.failAll(error);
+		this._steeringInFlight.clear();
+	}
+
 	private _wireAbortHandler(controller: AbortController): void {
 		controller.signal.addEventListener('abort', () => {
+			this._steeringInFlight.clear();
 			this._queue.notifyAborted();
 		}, { once: true });
 	}
@@ -622,7 +650,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-aborted: warm dispose failed: ${err}`));
 			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
-			this._queue.failAll(new CancellationError());
+			this._failQueue(new CancellationError());
 			this._needsRebind = true;
 			throw new CancellationError();
 		}
@@ -728,7 +756,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			// not clobber the fresh one. Mark unhealthy (keep the handle for
 			// teardown); the next `send` rebinds.
 			if (this._query === query) {
-				this._queue.failAll(fatal);
+				this._failQueue(fatal);
 				this._needsRebind = true;
 			}
 			if (!isCancellationError(fatal)) {
