@@ -7,7 +7,7 @@
  * Default auto-approval rules for `sort`.
  */
 export const sortAutoApproveRules: Readonly<Record<string, boolean>> = {
-	'/^sort\\b(?!-)/': true,
+	'/^sort\\b(?!-)/': false,
 
 	// - `-o`: Writes output to a file.
 	// - `-S`: Can request enough memory to cause denial of service.
