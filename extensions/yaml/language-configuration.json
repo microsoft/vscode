@@ -29,7 +29,7 @@
 		}
 	},
 	"indentationRules": {
-		"increaseIndentPattern": "^\\s*.*(:|-) ?(&amp;\\w+)?(\\{[^}\"']*|\\([^)\"']*)?$",
+		"increaseIndentPattern": "^\\s*.*(:|-) ?(&\\w+)?(\\{[^}\"']*|\\([^)\"']*|\\|(?:[1-9][+-]?|[+-][1-9]?)?|>(?:[1-9][+-]?|[+-][1-9]?)?)?$",
 		"decreaseIndentPattern": "^\\s+\\}$"
 	}
 }
