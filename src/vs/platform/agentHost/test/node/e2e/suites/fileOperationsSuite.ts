@@ -94,7 +94,8 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				isActionNotification(n, 'chat/toolCallReady')
 				&& getActionEnvelope(n).channel === chatUri
 				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).turnId === turnId
-				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId,
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId
+				&& !(getActionEnvelope(n).action as ChatToolCallReadyAction).confirmed,
 				90_000,
 			);
 			const ready = getActionEnvelope(readyNotification).action as ChatToolCallReadyAction;
@@ -110,56 +111,59 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 					reason: ToolCallCancellationReason.Denied,
 				},
 			});
-			let lastReadyServerSeq = getActionEnvelope(readyNotification).serverSeq;
-			let clientSeq = 3;
-			while (true) {
-				const notification = await context.client.waitForNotification(n => {
-					if (getActionEnvelope(n).channel !== chatUri) {
-						return false;
-					}
-					if (isActionNotification(n, 'chat/turnComplete')) {
-						return (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId;
-					}
-					if (!isActionNotification(n, 'chat/toolCallReady')) {
-						return false;
-					}
-					const action = getActionEnvelope(n).action as ChatToolCallReadyAction;
-					return action.turnId === turnId && getActionEnvelope(n).serverSeq > lastReadyServerSeq;
-				}, 90_000);
-				if (isActionNotification(notification, 'chat/turnComplete')) {
-					break;
-				}
-				const repeatedReady = getActionEnvelope(notification).action as ChatToolCallReadyAction;
-				lastReadyServerSeq = getActionEnvelope(notification).serverSeq;
-				context.client.dispatch({
-					channel: chatUri,
-					clientSeq: clientSeq++,
-					action: {
-						type: ActionType.ChatToolCallConfirmed,
-						turnId,
-						toolCallId: repeatedReady.toolCallId,
-						approved: false,
-						reason: ToolCallCancellationReason.Denied,
-					},
-				});
-			}
-			const malformedPermissionErrors = context.client.receivedNotifications(n =>
+			await context.client.waitForNotification(n =>
+				isActionNotification(n, 'chat/turnComplete')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
+				90_000,
+			);
+			const toolErrors = context.client.receivedNotifications(n =>
 				isActionNotification(n, 'chat/toolCallComplete')
 				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId
 				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === toolCallId
 			).map(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.error?.message)
-				.filter((message): message is string => typeof message === 'string' && message.includes('permission host returned malformed payload'));
+				.filter((message): message is string => typeof message === 'string');
+			const malformedPermissionErrors = toolErrors.filter(message => message.includes('permission host returned malformed payload'));
+			const responseText = getMarkdownResponseText(context.client);
+			const completions = context.client.receivedNotifications(n => {
+				if (!isActionNotification(n, 'chat/turnComplete')) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === chatUri && action.type === ActionType.ChatTurnComplete && action.turnId === turnId;
+			});
+			const denials = context.client.receivedNotifications(n => {
+				if (!isActionNotification(n, 'chat/toolCallConfirmed')) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === chatUri && action.type === ActionType.ChatToolCallConfirmed && action.turnId === turnId && !action.approved;
+			});
+			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			const state = subscribed.snapshot!.state as ChatState;
+			const turn = state.turns.find(turn => turn.id === turnId);
 			assert.deepStrictEqual({
 				fileCreatedBeforeDenial,
 				fileCreated: existsSync(join(workspace, 'denied.lock')),
-				responseEndsWithDenied: getMarkdownResponseText(context.client).trim().endsWith('denied'),
+				responseEndsWithDenied: responseText.trim().endsWith('denied'),
+				finalDeniedResponseCount: turn?.responseParts.filter(part => part.kind === ResponsePartKind.Markdown && part.content.trim() === 'denied').length,
+				turnCompleteCount: completions.length,
+				denialCount: denials.length,
+				hasActiveTurn: !!state.activeTurn,
 				malformedPermissionErrors,
+				...(config.provider === 'copilotcli' ? { denialFeedback: toolErrors } : {}),
 			}, {
 				fileCreatedBeforeDenial: false,
 				fileCreated: false,
 				responseEndsWithDenied: true,
+				finalDeniedResponseCount: 1,
+				turnCompleteCount: 1,
+				denialCount: 1,
+				hasActiveTurn: false,
 				malformedPermissionErrors: [],
-			});
+				...(config.provider === 'copilotcli' ? { denialFeedback: ['The user rejected this tool call. User feedback: The user denied permission.'] } : {}),
+			}, JSON.stringify({ turnId, responseText, requestOrdinals: context.observedModelRequestBodies.map((_, index) => index + 1) }));
 		});
 
 		(config.supportsPausedTurnCancellationE2E ? test : test.skip)('cancelling a turn paused for file-tool approval allows a replacement turn', async function () {

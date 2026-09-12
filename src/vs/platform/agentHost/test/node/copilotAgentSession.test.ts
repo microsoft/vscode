@@ -13,6 +13,7 @@ import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
@@ -798,6 +799,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	beforeFileWrite?: (resource: URI) => Promise<void>;
 	shellInitWriteFailures?: number;
 	fileAtomicWrite?: boolean;
 	shellInitWriteGate?: Promise<void>;
@@ -960,6 +962,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
 			resource.path.includes('/agentHost/shellInit/'),
 		writeFile: async (resource: URI, content: VSBuffer, writeOptions?: IWriteFileOptions) => {
+			if (options?.beforeFileWrite) {
+				await options.beforeFileWrite(resource);
+			}
 			fileWriteOptions.set(resource.fsPath, writeOptions);
 			if (resource.path.includes('/agentHost/shellInit/')) {
 				options?.onShellInitWrite?.();
@@ -5086,6 +5091,323 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await resultPromise, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
+		suite('denied creation continuation', () => {
+			const turnId = 'turn-denied-create';
+			const toolCallId = 'tc-denied-create';
+			const fileName = '/workspace/denied.lock';
+			const deniedResult = { kind: 'reject', feedback: 'The user denied permission.' };
+
+			async function startPendingCreate(previewCount = 1) {
+				const previews = Array.from({ length: previewCount }, () => ({
+					started: new DeferredPromise<void>(),
+					release: new DeferredPromise<void>(),
+				}));
+				let previewIndex = 0;
+				const logService = new CapturingLogService();
+				const result = await createAgentSession(disposables, {
+					logService,
+					beforeFileWrite: async () => {
+						const preview = previews[previewIndex++];
+						await preview.started.complete();
+						await preview.release.p;
+					},
+				});
+				result.session.resetTurnState(turnId);
+				result.mockSession.fire('user.message', { content: 'Create denied.lock, or reply denied if permission is denied.' });
+				const toolStart = { toolCallId, toolName: 'create', arguments: { path: fileName, file_text: 'DENIED_CONTENT' } };
+				result.mockSession.fire('tool.execution_start', toolStart);
+				const permission = result.runtime.handlePermissionRequest({
+					kind: 'write',
+					fileName,
+					newFileContents: 'DENIED_CONTENT',
+					toolCallId,
+				});
+				await previews[0].started.p;
+				return { ...result, permission, releasePreview: previews[0].release, previews, logService, toolStart };
+			}
+
+			function finalResponse(mockSession: MockCopilotSession): void {
+				mockSession.fire('assistant.message_delta', { messageId: 'denial-response', deltaContent: 'denied' });
+				mockSession.fire('assistant.message', { messageId: 'denial-response', content: 'denied' });
+				mockSession.fire('session.idle', {});
+			}
+
+			function terminalActions(signals: AgentSignal[]) {
+				return getActions(signals)
+					.filter(action => action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError)
+					.map(action => ({
+						type: action.type,
+						turnId: action.turnId,
+						...(action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown ? { content: action.part.content } : {}),
+					}));
+			}
+
+			for (const ordering of ['callback-before-idle', 'idle-before-callback'] as const) {
+				test(`preserves an early denial with ${ordering} and duplicate tool-ready events`, async () => {
+					const { session, mockSession, signals, permission, releasePreview, storedFileContents, toolStart } = await startPendingCreate();
+					const responses = [session.respondToPermissionRequest(toolCallId, false)];
+					mockSession.fire('tool.execution_start', toolStart);
+					responses.push(session.respondToPermissionRequest(toolCallId, false));
+					if (ordering === 'idle-before-callback') {
+						finalResponse(mockSession);
+					}
+					await releasePreview.complete();
+					const result = await permission;
+					if (ordering === 'callback-before-idle') {
+						finalResponse(mockSession);
+					}
+					mockSession.fire('session.idle', {});
+
+					assert.deepStrictEqual({
+						result,
+						responses,
+						readyCount: getActions(signals).filter(action => action.type === ActionType.ChatToolCallReady).length,
+						confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+						fileCreated: storedFileContents.has(URI.file(fileName).toString()),
+						retainedPreviewCount: storedFileContents.size,
+						actions: terminalActions(signals),
+						activeTurn: session.currentTurnId,
+					}, {
+						result: deniedResult,
+						responses: [true, false],
+						readyCount: 2,
+						confirmations: 0,
+						fileCreated: false,
+						retainedPreviewCount: 0,
+						actions: [
+							{ type: ActionType.ChatResponsePart, turnId, content: 'denied' },
+							{ type: ActionType.ChatTurnComplete, turnId },
+						],
+						activeTurn: undefined,
+					});
+				});
+			}
+
+			test('a failed preview preserves the settled denial and allows the final response', async () => {
+				const { session, mockSession, signals, permission, releasePreview, storedFileContents, logService } = await startPendingCreate();
+				session.respondToPermissionRequest(toolCallId, false);
+				await releasePreview.error(new Error('Preview write failed'));
+				const result = await permission;
+				finalResponse(mockSession);
+
+				assert.deepStrictEqual({
+					result,
+					warnings: logService.warnings.length,
+					storedFiles: [...storedFileContents.keys()],
+					actions: terminalActions(signals),
+					activeTurn: session.currentTurnId,
+				}, {
+					result: deniedResult,
+					warnings: 1,
+					storedFiles: [],
+					actions: [
+						{ type: ActionType.ChatResponsePart, turnId, content: 'denied' },
+						{ type: ActionType.ChatTurnComplete, turnId },
+					],
+					activeTurn: undefined,
+				});
+			});
+
+			test('one post-preview denial preserves feedback and completes the turn', async () => {
+				const { session, mockSession, signals, permission, releasePreview, waitForSignal, storedFileContents } = await startPendingCreate();
+				await releasePreview.complete();
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				const responses = [session.respondToPermissionRequest(toolCallId, false), session.respondToPermissionRequest(toolCallId, false)];
+				const result = await permission;
+				finalResponse(mockSession);
+
+				assert.deepStrictEqual({
+					result,
+					responses,
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+					storedFiles: [...storedFileContents.keys()],
+					actions: terminalActions(signals),
+					activeTurn: session.currentTurnId,
+				}, {
+					result: deniedResult,
+					responses: [true, false],
+					confirmations: 1,
+					storedFiles: [],
+					actions: [
+						{ type: ActionType.ChatResponsePart, turnId, content: 'denied' },
+						{ type: ActionType.ChatTurnComplete, turnId },
+					],
+					activeTurn: undefined,
+				});
+			});
+
+			for (const originalDecision of ['pending', 'denied', 'approved'] as const) {
+				test(`${originalDecision} preview cannot publish or overwrite a replacement request using the same toolCallId`, async () => {
+					const { session, runtime, signals, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2);
+					const originalOutcome = permission.then(result => result, error => {
+						assert.ok(error instanceof CancellationError);
+						return 'superseded';
+					});
+					if (originalDecision !== 'pending') {
+						session.respondToPermissionRequest(toolCallId, originalDecision === 'approved');
+					}
+					let replacementSettled = false;
+					const replacement = runtime.handlePermissionRequest({
+						kind: 'write',
+						fileName,
+						newFileContents: 'REPLACEMENT_CONTENT',
+						toolCallId,
+						managedApprovalRequired: true,
+					}).then(result => {
+						replacementSettled = true;
+						return result;
+					});
+					await previews[1].started.p;
+					await previews[1].release.complete();
+					const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+					assert.strictEqual(confirmation.kind, 'pending_confirmation');
+					if (confirmation.kind !== 'pending_confirmation') {
+						throw new Error('Expected the replacement confirmation');
+					}
+					const replacementPreview = confirmation.state.edits?.items[0].after?.content.uri;
+					assert.ok(replacementPreview);
+					await timeout(0);
+					await releasePreview.complete();
+					const originalResult = await originalOutcome;
+					const settledBeforeDenial = replacementSettled;
+					const previewContent = storedFileContents.get(replacementPreview);
+					const responses = [session.respondToPermissionRequest(toolCallId, false), session.respondToPermissionRequest(toolCallId, false)];
+					const replacementResult = await replacement;
+
+					assert.deepStrictEqual({
+						originalResult,
+						replacementResult,
+						settledBeforeDenial,
+						previewContent,
+						responses,
+						confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+						storedFiles: [...storedFileContents.keys()],
+					}, {
+						originalResult: originalDecision === 'pending' ? 'superseded' : originalDecision === 'denied' ? deniedResult : { kind: 'approve-once' },
+						replacementResult: deniedResult,
+						settledBeforeDenial: false,
+						previewContent: 'REPLACEMENT_CONTENT',
+						responses: [true, false],
+						confirmations: 1,
+						storedFiles: [],
+					});
+				});
+			}
+
+			test('superseding a published preview removes its content without deleting the replacement preview', async () => {
+				const { session, runtime, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2);
+				const originalOutcome = assert.rejects(permission, CancellationError);
+				await releasePreview.complete();
+				const originalConfirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.strictEqual(originalConfirmation.kind, 'pending_confirmation');
+				if (originalConfirmation.kind !== 'pending_confirmation') {
+					throw new Error('Expected the original confirmation');
+				}
+				const originalPreview = originalConfirmation.state.edits?.items[0].after?.content.uri;
+				assert.ok(originalPreview);
+				const replacement = runtime.handlePermissionRequest({
+					kind: 'write',
+					fileName,
+					newFileContents: 'REPLACEMENT_CONTENT',
+					toolCallId,
+					managedApprovalRequired: true,
+				});
+				await previews[1].started.p;
+				await originalOutcome;
+				const originalPreviewRetained = storedFileContents.has(originalPreview);
+				await previews[1].release.complete();
+				const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal !== originalConfirmation);
+				assert.strictEqual(confirmation.kind, 'pending_confirmation');
+				if (confirmation.kind !== 'pending_confirmation') {
+					throw new Error('Expected the replacement confirmation');
+				}
+				const replacementPreview = confirmation.state.edits?.items[0].after?.content.uri;
+				assert.ok(replacementPreview);
+				const previewContent = storedFileContents.get(replacementPreview);
+				const responded = session.respondToPermissionRequest(toolCallId, false);
+
+				assert.deepStrictEqual({
+					originalPreviewRetained,
+					previewContent,
+					responded,
+					result: await replacement,
+					storedFiles: [...storedFileContents.keys()],
+				}, {
+					originalPreviewRetained: false,
+					previewContent: 'REPLACEMENT_CONTENT',
+					responded: true,
+					result: deniedResult,
+					storedFiles: [],
+				});
+			});
+
+			for (const ending of ['abort', 'dispose'] as const) {
+				test(`${ending} without a user decision cancels the pending preview rather than manufacturing denial feedback`, async () => {
+					const { session, mockSession, signals, permission, releasePreview, storedFileContents } = await startPendingCreate();
+					if (ending === 'abort') {
+						await session.abort();
+						mockSession.fire('session.idle', { aborted: true });
+					} else {
+						session.dispose();
+					}
+					const result = await permission;
+					await releasePreview.complete();
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						result,
+						lateResponse: session.respondToPermissionRequest(toolCallId, true),
+						confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+						storedFiles: [...storedFileContents.keys()],
+						actions: terminalActions(signals),
+						activeTurn: session.currentTurnId,
+					}, {
+						result: { kind: 'reject' },
+						lateResponse: false,
+						confirmations: 0,
+						storedFiles: [],
+						actions: [],
+						activeTurn: undefined,
+					});
+				});
+			}
+
+			for (const ending of ['error', 'abort', 'dispose'] as const) {
+				test(`${ending} during a denied preview does not revive the turn or settle the callback twice`, async () => {
+					const { session, mockSession, signals, permission, releasePreview, storedFileContents } = await startPendingCreate();
+					const responses = [session.respondToPermissionRequest(toolCallId, false)];
+					if (ending === 'error') {
+						mockSession.fire('session.error', { errorType: 'test', message: 'Provider failed' });
+					} else if (ending === 'abort') {
+						await session.abort();
+						mockSession.fire('session.idle', { aborted: true });
+					} else {
+						session.dispose();
+					}
+					await releasePreview.complete();
+					const result = await permission;
+					responses.push(session.respondToPermissionRequest(toolCallId, false));
+					// Disposal releases the guarded callback before the preview's promise chain drains.
+					await timeout(0);
+					mockSession.fire('session.idle', {});
+
+					assert.deepStrictEqual({
+						result,
+						responses,
+						storedFiles: [...storedFileContents.keys()],
+						actions: terminalActions(signals),
+						activeTurn: session.currentTurnId,
+					}, {
+						result: ending === 'error' ? deniedResult : { kind: 'reject' },
+						responses: [true, false],
+						storedFiles: [],
+						actions: ending === 'error' ? [{ type: ActionType.ChatError, turnId }] : [],
+						activeTurn: undefined,
+					});
+				});
+			}
+		});
+
 		test('auto-approves write permission for session-state plan files', async () => {
 			const previousCopilotHome = process.env['COPILOT_HOME'];
 			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
@@ -5383,6 +5705,105 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approve-once');
 			assert.strictEqual(signals.length, 0);
 		});
+
+		test('preserves denial feedback when confirmation races the sandbox check', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+			const permission = runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxed-denied',
+				fullCommandText: 'echo denied',
+			});
+			const responded = session.respondToPermissionRequest('tc-sandboxed-denied', false);
+
+			assert.deepStrictEqual({
+				responded,
+				result: await permission,
+				signalCount: signals.length,
+			}, {
+				responded: true,
+				result: { kind: 'reject', feedback: 'The user denied permission.' },
+				signalCount: 0,
+			});
+		});
+
+		for (const ending of ['abort', 'dispose'] as const) {
+			test(`${ending} during a sandbox check does not approve the request or add denial feedback`, async () => {
+				const { session, runtime, signals } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				});
+				const permission = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId: 'tc-sandboxed-cancelled',
+					fullCommandText: 'echo cancelled',
+				});
+				if (ending === 'abort') {
+					await session.abort();
+				} else {
+					session.dispose();
+				}
+
+				assert.deepStrictEqual({
+					result: await permission,
+					lateResponse: session.respondToPermissionRequest('tc-sandboxed-cancelled', true),
+					signalCount: signals.length,
+				}, {
+					result: { kind: 'reject' },
+					lateResponse: false,
+					signalCount: 0,
+				});
+			});
+		}
+
+		for (const originalDecision of ['pending', 'denied', 'approved'] as const) {
+			test(`${originalDecision} sandbox check cannot authorize a replacement request using the same toolCallId`, async () => {
+				const { session, runtime, signals } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				});
+				const toolCallId = 'tc-sandboxed-reused';
+				const original = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId,
+					fullCommandText: 'echo first',
+				}).then(result => result, error => {
+					assert.ok(error instanceof CancellationError);
+					return 'superseded';
+				});
+				if (originalDecision !== 'pending') {
+					session.respondToPermissionRequest(toolCallId, originalDecision === 'approved');
+				}
+				let replacementSettled = false;
+				const replacement = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId,
+					fullCommandText: 'echo replacement',
+					managedApprovalRequired: true,
+					requestSandboxBypass: true,
+				}).then(result => {
+					replacementSettled = true;
+					return result;
+				});
+				const originalResult = await original;
+				await timeout(0);
+				const settledBeforeDenial = replacementSettled;
+				const responded = session.respondToPermissionRequest(toolCallId, false);
+
+				assert.deepStrictEqual({
+					originalResult,
+					replacementResult: await replacement,
+					settledBeforeDenial,
+					responded,
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				}, {
+					originalResult: originalDecision === 'pending' ? 'superseded' : originalDecision === 'denied' ? { kind: 'reject', feedback: 'The user denied permission.' } : { kind: 'approve-once' },
+					replacementResult: { kind: 'reject', feedback: 'The user denied permission.' },
+					settledBeforeDenial: false,
+					responded: true,
+					confirmations: 1,
+				});
+			});
+		}
 
 		test('does not auto-approve a sandboxed shell command for a file-scoped surface', async () => {
 			// The sandbox contains a command to the workspace, not to inline
