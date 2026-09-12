@@ -586,6 +586,21 @@ export class Menubar extends Disposable {
 		return !!(event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey))));
 	}
 
+	private getCommandIdForClick(commandId: string, event: KeyboardEvent): string {
+		if (!this.isOptionClick(event)) {
+			return commandId;
+		}
+
+		switch (commandId) {
+			case 'workbench.action.files.openFileFolder':
+				return 'workbench.action.files.openFileFolderInNewWindow';
+			case 'workbench.action.files.openFolder':
+				return 'workbench.action.files.openFolderInNewWindow';
+			default:
+				return commandId;
+		}
+	}
+
 	private isKeyboardEvent(event: KeyboardEvent): boolean {
 		return !!(event.triggeredByAccelerator || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 	}
@@ -689,7 +704,7 @@ export class Menubar extends Disposable {
 			if (userSettingsLabel && event.triggeredByAccelerator) {
 				this.runActionInRenderer({ type: 'keybinding', userSettingsLabel });
 			} else {
-				this.runActionInRenderer({ type: 'commandId', commandId });
+				this.runActionInRenderer({ type: 'commandId', commandId: this.getCommandIdForClick(commandId, event) });
 			}
 		};
 		const enabled = typeof enabledOpt === 'boolean' ? enabledOpt : this.windowsMainService.getWindowCount() > 0;
