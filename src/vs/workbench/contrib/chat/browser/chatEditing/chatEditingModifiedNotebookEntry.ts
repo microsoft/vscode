@@ -255,6 +255,24 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this._changesCount.set(countChanges(cellsDiffInfo), transcation);
 	}
 
+	/**
+	 * Resolves the original-model cell index that a modified-model change should be mirrored to.
+	 *
+	 * Returns `'stale'` when the cached cell diff points at an original cell that no longer exists.
+	 * This happens when the modified notebook is reset wholesale (e.g. reloaded from disk) while a
+	 * chat edit session is active: {@link NotebookTextModel.reset} shrinks the modified model and
+	 * then fires incremental change events, but `_cellsDiffInfo` still reflects the pre-reset models.
+	 * Mirroring such an event would apply an out-of-range index to the original model and throw, so
+	 * callers must recompute the diff instead.
+	 */
+	private resolveOriginalCellIndexForMirror(modifiedCellIndex: number): number | undefined | 'stale' {
+		const index = getCorrespondingOriginalCellIndex(modifiedCellIndex, this._cellsDiffInfo.get());
+		if (typeof index === 'number' && index >= this.originalModel.cells.length) {
+			return 'stale';
+		}
+		return index;
+	}
+
 	mirrorNotebookEdits(e: NotebookTextModelChangedEvent) {
 		if (this._isEditFromUs || this._isExternalEditInProgress || Array.from(this.cellEntryMap.values()).some(entry => entry.isEditFromUs)) {
 			return;
@@ -332,7 +350,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					break;
 				}
 				case NotebookCellsChangeType.ChangeCellLanguage: {
-					const index = getCorrespondingOriginalCellIndex(event.index, this._cellsDiffInfo.get());
+					const index = this.resolveOriginalCellIndexForMirror(event.index);
+					if (index === 'stale') {
+						this.initializeModelsFromDiff();
+						return;
+					}
 					if (typeof index === 'number') {
 						const edit: ICellEditOperation = {
 							editType: CellEditType.CellLanguage,
@@ -345,7 +367,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 				case NotebookCellsChangeType.ChangeCellMetadata: {
 					// ipynb and other extensions can alter metadata, ensure we update the original model in the corresponding cell.
-					const index = getCorrespondingOriginalCellIndex(event.index, this._cellsDiffInfo.get());
+					const index = this.resolveOriginalCellIndexForMirror(event.index);
+					if (index === 'stale') {
+						this.initializeModelsFromDiff();
+						return;
+					}
 					if (typeof index === 'number') {
 						const edit: ICellEditOperation = {
 							editType: CellEditType.Metadata,
@@ -359,7 +385,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				case NotebookCellsChangeType.ChangeCellMime:
 					break;
 				case NotebookCellsChangeType.ChangeCellInternalMetadata: {
-					const index = getCorrespondingOriginalCellIndex(event.index, this._cellsDiffInfo.get());
+					const index = this.resolveOriginalCellIndexForMirror(event.index);
+					if (index === 'stale') {
+						this.initializeModelsFromDiff();
+						return;
+					}
 					if (typeof index === 'number') {
 						const edit: ICellEditOperation = {
 							editType: CellEditType.PartialInternalMetadata,
@@ -372,7 +402,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 				case NotebookCellsChangeType.Output: {
 					// User can run cells.
-					const index = getCorrespondingOriginalCellIndex(event.index, this._cellsDiffInfo.get());
+					const index = this.resolveOriginalCellIndexForMirror(event.index);
+					if (index === 'stale') {
+						this.initializeModelsFromDiff();
+						return;
+					}
 					if (typeof index === 'number') {
 						const edit: ICellEditOperation = {
 							editType: CellEditType.Output,
