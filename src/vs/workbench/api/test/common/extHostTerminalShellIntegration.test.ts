@@ -64,7 +64,7 @@ suite('InternalTerminalShellIntegration', () => {
 	}
 
 	async function emitData(data: string): Promise<void> {
-		// AsyncIterableObjects are initialized in a microtask, this doesn't matter in practice
+		// AsyncIterableProducers are initialized in a microtask, this doesn't matter in practice
 		// since the events will always come through in different events.
 		await new Promise<void>(r => queueMicrotask(r));
 		si.emitData(data);
