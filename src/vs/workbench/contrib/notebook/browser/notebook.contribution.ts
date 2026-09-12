@@ -123,6 +123,7 @@ import { INotebookLoggingService } from '../common/notebookLoggingService.js';
 import { NotebookLoggingService } from './services/notebookLoggingServiceImpl.js';
 import product from '../../../../platform/product/common/product.js';
 import { NotebookVariables } from './contrib/notebookVariables/notebookVariables.js';
+import { NotebookExecutionRestartVeto } from './contrib/executionRestart/notebookExecutionRestart.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotebookAccessibilityHelp } from './notebookAccessibilityHelp.js';
 import { NotebookAccessibleView } from './notebookAccessibleView.js';
@@ -900,6 +901,7 @@ registerWorkbenchContribution2(RegisterSchemasContribution.ID, RegisterSchemasCo
 registerWorkbenchContribution2(NotebookEditorManager.ID, NotebookEditorManager, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NotebookLanguageSelectorScoreRefine.ID, NotebookLanguageSelectorScoreRefine, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SimpleNotebookWorkingCopyEditorHandler.ID, SimpleNotebookWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(NotebookExecutionRestartVeto.ID, NotebookExecutionRestartVeto, WorkbenchPhase.BlockRestore);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);
 
 AccessibleViewRegistry.register(new NotebookAccessibleView());
