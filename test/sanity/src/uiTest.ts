@@ -176,7 +176,8 @@ export class UITest {
 		await page.keyboard.type('GitHub Pull Requests', { delay: 50 });
 
 		this.context.log('Waiting for extension to appear in search results');
-		const extensionItem = page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/);
+		const extensionListItem = page.locator('.extension-list-item').filter({ has: page.getByText(/^GitHub Pull Requests$/) }).first();
+		const extensionItem = extensionListItem.getByText(/^GitHub Pull Requests$/);
 		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)').first();
 
 		for (let attempt = 0; attempt < 5; attempt++) {
@@ -200,17 +201,24 @@ export class UITest {
 		let lastFailure: string | undefined;
 		for (let attempt = 0; attempt < 3; attempt++) {
 			try {
-				this.context.log(`Clicking Install on the first extension in the list (attempt ${attempt + 1}/3)`);
-				const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
+				this.context.log(`Clicking Install for GitHub Pull Requests (attempt ${attempt + 1}/3)`);
+				const installButton = extensionListItem.locator('.extension-action.install:not(.disabled):not(.hide)').first();
 				await installButton.click();
+				await installButton.waitFor({ state: 'hidden', timeout: 30_000 });
 
 				this.context.log('Waiting for extension to be installed');
 				const uninstallButton = page.getByRole('button', { name: 'Uninstall' }).first();
-				const installed = await uninstallButton.waitFor({ timeout: 5 * 60_000 }).then(() => true, () => false);
-				if (installed) {
+				const result = await Promise.race([
+					uninstallButton.waitFor({ timeout: 5 * 60_000 }).then(() => 'installed' as const),
+					installButton.waitFor({ state: 'visible', timeout: 5 * 60_000 }).then(() => 'retry' as const),
+					messageContainer.waitFor({ state: 'visible', timeout: 5 * 60_000 }).then(() => 'message' as const),
+				]);
+				if (result === 'installed') {
 					return;
 				}
-				lastFailure = 'Uninstall button did not appear within 5 minutes';
+				lastFailure = result === 'retry'
+					? 'Install button became available again before installation completed'
+					: 'Marketplace error appeared before installation completed';
 			} catch (error) {
 				lastFailure = error instanceof Error ? error.message : String(error);
 			}
