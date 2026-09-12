@@ -38,8 +38,48 @@ export function register(tree: SymbolsTree, context: vscode.ExtensionContext): v
 		vscode.commands.registerCommand('references-view.showCallHierarchy', showCallHierarchy),
 		vscode.commands.registerCommand('references-view.showOutgoingCalls', (item: CallItem | unknown) => setCallsDirection(CallsDirection.Outgoing, item)),
 		vscode.commands.registerCommand('references-view.showIncomingCalls', (item: CallItem | unknown) => setCallsDirection(CallsDirection.Incoming, item)),
+		vscode.commands.registerCommand('references-view.copyCallName', (item: CallItem | unknown) => copyCall(item, 'name')),
+		vscode.commands.registerCommand('references-view.copyCallHierarchy', (item: CallItem | unknown) => copyCall(item, 'hierarchy', false)),
+		vscode.commands.registerCommand('references-view.copyCallHierarchyShort', (item: CallItem | unknown) => copyCall(item, 'hierarchy', false, true)),
+		vscode.commands.registerCommand('references-view.copyCallHierarchyReversed', (item: CallItem | unknown) => copyCall(item, 'hierarchy', true, false)),
+		vscode.commands.registerCommand('references-view.copyCallHierarchyReversedShort', (item: CallItem | unknown) => copyCall(item, 'hierarchy', true, true)),
 		vscode.commands.registerCommand('references-view.removeCallItem', removeCallItem)
 	);
+}
+
+async function copyCall(item: CallItem | unknown, type: 'hierarchy' | 'name', reverse: boolean = false, short: boolean = false) {
+	let val = '';
+	if (item instanceof CallItem) {
+		if (type === 'hierarchy') {
+			const space = 2;
+			const prefix = '> ';
+			let hierarchy: Array<String> = new Array();
+			let anchor: CallItem | undefined = item;
+			let level = 0;
+			while (anchor !== undefined) {
+				let itemString = anchor.item.name;
+				if (!short) {
+					itemString += ` (${vscode.SymbolKind[anchor.item.kind]} @ ${vscode.workspace.asRelativePath(anchor.item.uri)})`;
+				}
+				hierarchy.push(itemString);
+				anchor = anchor.parent;
+			}
+			if (reverse) {
+				hierarchy = hierarchy.reverse();
+			}
+			while (hierarchy.length !== 0) {
+				val += `${' '.repeat(space * level)}${(level !== 0) ? prefix : ''}${hierarchy.pop()}\n`;
+				level++;
+			}
+			val = val.trim();
+		}
+		else if (type === 'name') {
+			val = item.item.name;
+		}
+	}
+	if (val) {
+		await vscode.env.clipboard.writeText(val);
+	}
 }
 
 function removeCallItem(item: CallItem | unknown): void {
