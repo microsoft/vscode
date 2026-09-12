@@ -183,6 +183,9 @@ export class ChatSetupController extends Disposable {
 			}
 			({ defaultAccount, entitlements } = result);
 		} catch (e) {
+			if (isCancellationError(e)) {
+				return { defaultAccount: undefined, entitlement: undefined }; // user cancelled sign in, treat as cancelled and do not surface as error
+			}
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 			signInError = e instanceof Error ? e : new Error(String(e));
 		}
