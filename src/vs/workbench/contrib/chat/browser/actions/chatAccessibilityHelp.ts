@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNative } from '../../../../../base/common/platform.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
@@ -102,6 +103,12 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		if (supportsFileReferences) {
 			content.push(localize('chat.attachments.inlineReferences', 'To mention an attached context item at a specific position without removing it from the attached context, type # or @ and select the attachment from the suggestions.'));
 			content.push(localize('chat.attachments.inlineReferenceHover', 'To inspect an inline attachment reference, place the cursor on it and invoke Show or Focus Hover{0}. Image references include a preview, while file and folder references include their path.', '<keybinding:editor.action.showHover>'));
+		}
+		if (type === 'panelChat' || type === 'quickChat' || type === 'agentView') {
+			content.push(localize('chat.generatedImages', 'When a generated image appears below a response, use Tab to focus its preview or the Save action. Press Enter or Space to activate the focused control. Multiple generated images are grouped into one gallery.'));
+			if (isNative) {
+				content.push(localize('chat.imageGenerationCredentials', "Use Chat: Set Up Image Generation to configure an image endpoint. When image generation settings or credentials are stored, Chat: Remove Image Generation Credentials is available in the Command Palette even when AI features are disabled."));
+			}
 		}
 		content.push(localize('chat.attachments.removal', 'To remove attached contexts, focus an attachment and press Delete or Backspace.'));
 		content.push(localize('workbench.action.chat.toggleSpeechToText', 'To dictate your request into the input box, invoke the Dictate command{0}. Invoke it again to stop; recording start and stop are indicated by accessibility signals.', '<keybinding:workbench.action.chat.toggleSpeechToText>'));

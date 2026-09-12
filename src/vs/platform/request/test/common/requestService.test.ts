@@ -14,9 +14,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 
 class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
+	readonly traceEntries: unknown[][] = [];
 	readonly errors: (string | Error)[] = [];
 
 	override trace(message: string, ...args: unknown[]): void {
+		this.traceEntries.push([message, ...args]);
 		this.traces.push([message, ...args].join(' '));
 	}
 
@@ -116,6 +118,32 @@ suite('AbstractRequestService', () => {
 		}, {
 			cancelledTraces: 1,
 			errors: [],
+		});
+	});
+
+	test('serializes api-key headers in trace logs with redaction', async () => {
+		const logService = new TestLogService();
+		const service = store.add(new TestRequestService(() => Promise.resolve(makeResponse(200)), logService));
+
+		await service.request({
+			url: 'http://test',
+			type: 'POST',
+			headers: {
+				'api-key': 'secret-api-key',
+				authorization: 'Bearer token',
+				'proxy-authorization': 'proxy-secret',
+				'x-test-header': 'safe',
+			},
+			callSite: 'test.redaction',
+		}, CancellationToken.None);
+
+		const serialized = JSON.stringify(logService.traceEntries[0]);
+		assert.deepStrictEqual({
+			serialized,
+			leaksSecret: serialized.includes('secret-api-key') || serialized.includes('Bearer token') || serialized.includes('proxy-secret'),
+		}, {
+			serialized: '["#1: http://test - begin","POST",{"api-key":"*****","authorization":"*****","proxy-authorization":"*****","x-test-header":"safe"}]',
+			leaksSecret: false,
 		});
 	});
 

@@ -24,6 +24,13 @@ export class OfflineError extends Error {
 	}
 }
 
+export class ResponseTooLargeError extends Error {
+	constructor(readonly limit: number) {
+		super(`Response body exceeds ${limit} bytes`);
+		this.name = 'ResponseTooLargeError';
+	}
+}
+
 export interface IHeaders {
 	'Proxy-Authorization'?: string;
 	'x-operation-id'?: string;
@@ -44,6 +51,8 @@ export interface IRequestOptions {
 	timeout?: number;
 	data?: string;
 	followRedirects?: number;
+	/** Maximum body bytes downloaded by the fetch-backed request service. */
+	maxResponseBytes?: number;
 	proxyAuthorization?: string;
 	/**
 	 * A signal to not cache the response. This may not

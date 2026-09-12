@@ -21,6 +21,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { GenerateImageToolId, GenerateImageToolReferenceName } from '../../../../../../platform/agentHost/common/imageGenerationConstants.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -30,7 +31,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatProgress, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -61,7 +62,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agen
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, isToolResultInputOutputDetails, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -299,6 +300,24 @@ suite('AgentHostClientTools', () => {
 			remoteEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			otherEnabled: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
+		});
+	});
+
+	test('only advertises image generation to local Copilot sessions', async () => {
+		const tools = [{
+			...readFileTool,
+			id: GenerateImageToolId,
+			toolReferenceName: GenerateImageToolReferenceName,
+			displayName: 'Generate Image',
+		}, readFileTool];
+		assert.deepStrictEqual({
+			local: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, false),
+			remote: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE, false),
+			other: await publishedTools(tools, 'agent-host-claude', false),
+		}, {
+			local: [[GenerateImageToolReferenceName, 'Generate Image'], ['readFile', 'Read File']],
+			remote: [['readFile', 'Read File']],
+			other: [['readFile', 'Read File']],
 		});
 	});
 
@@ -766,11 +785,11 @@ suite('AgentHostClientTools', () => {
 		function createHandlerWithMocks(
 			disposables: DisposableStore,
 			tools: IToolData[],
-			toolServiceOptions?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error; invokeResult?: DeferredPromise<IToolResult> },
+			toolServiceOptions?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error; invokeResult?: DeferredPromise<IToolResult>; workingDirectory?: URI },
 			sessionType: string = AGENT_HOST_COPILOT_CLI_SESSION_TYPE,
+			connection: MockAgentHostConnection = new MockAgentHostConnection(),
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
-			const connection = new MockAgentHostConnection();
 
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const configValues: Record<string, unknown> = {};
@@ -868,7 +887,7 @@ suite('AgentHostClientTools', () => {
 			});
 			instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 				registerResolver: () => toDisposable(() => { }),
-				resolve: () => undefined,
+				resolve: () => toolServiceOptions?.workingDirectory,
 				isNewSession: () => false,
 			});
 			instantiationService.stub(IAgentHostSessionWorkingDirectorySynchronizer, {
@@ -960,6 +979,15 @@ suite('AgentHostClientTools', () => {
 			modelDescription: 'Searches for tools',
 			source: ToolDataSource.Internal,
 			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+		};
+
+		const testImageTool: IToolData = {
+			id: GenerateImageToolId,
+			toolReferenceName: GenerateImageToolReferenceName,
+			displayName: 'Generate Image',
+			modelDescription: 'Generates an image',
+			source: ToolDataSource.Internal,
+			inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
 		};
 
 		// A tool that might ask for pre-approval: the handler treats it as
@@ -1138,8 +1166,9 @@ suite('AgentHostClientTools', () => {
 			assert.strictEqual(def.name, 'runTests');
 		});
 
-		test('invokes an owned client tool when reconnecting to an active turn', async () => {
-			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+		test('invokes an owned client tool with its session working directory when reconnecting', async () => {
+			const workingDirectory = URI.file('/session-worktree');
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { workingDirectory });
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
@@ -1182,11 +1211,13 @@ suite('AgentHostClientTools', () => {
 				toolId: call.toolId,
 				parameters: call.parameters,
 				chatStreamToolCallId: call.chatStreamToolCallId,
+				workingDirectory: call.context?.workingDirectory,
 			})), [{
 				callId: 'tool-call-1',
 				toolId: 'vscode.runTask',
 				parameters: { task: 'build' },
 				chatStreamToolCallId: 'tool-call-1',
+				workingDirectory,
 			}]);
 			assert.ok(connection.dispatchedActions.some(entry => isChatAction(entry.action)
 				&& entry.action.type === ActionType.ChatToolCallComplete
@@ -1415,6 +1446,98 @@ suite('AgentHostClientTools', () => {
 			}, {
 				invocationState: IChatToolInvocation.StateKind.Completed,
 				completionError: 'Invalid tool input for "runTask": expected JSON object parameters.',
+			});
+		});
+
+		test('restores generated image results from persisted client-tool state after completion', async () => {
+			const connection = new MockAgentHostConnection();
+			const liveStore = disposables.add(new DisposableStore());
+			const invokeResult = new DeferredPromise<IToolResult>();
+			const { handler, toolsService } = createHandlerWithMocks(liveStore, [testImageTool], { invokeResult }, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, connection);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+			const imageBytes = VSBuffer.fromString('image-bytes');
+			const imageBase64 = encodeBase64(imageBytes);
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'draw a fox', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'image-call-1',
+				toolName: GenerateImageToolReferenceName,
+				displayName: 'Generate Image',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'image-call-1',
+				invocationMessage: 'Generating an image',
+				toolInput: '{"prompt":"Draw a fox"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+				toolCallId: 'image-call-1',
+				toolName: GenerateImageToolReferenceName,
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating an image',
+				toolInput: '{"prompt":"Draw a fox"}',
+			});
+			await timeout(0);
+
+			invokeResult.complete({
+				content: [
+					{ kind: 'text', value: 'Generated a 1024 x 1024 PNG image for: Draw a fox\nThe image was generated, but could not be saved to /workspace/fox.png.' },
+					{ kind: 'data', value: { mimeType: 'image/png', data: imageBytes } },
+				],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultMessage: 'Generated an image',
+				toolResultError: 'The image was generated, but the file could not be saved.',
+			});
+			await timeout(0);
+			await timeout(0);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1,
+			} as ChatAction);
+			assert.strictEqual(toolsService.executedToolCalls.length, 1);
+
+			const restoredStore = disposables.add(new DisposableStore());
+			const { handler: restoredHandler } = createHandlerWithMocks(restoredStore, [testImageTool], undefined, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, connection);
+			const restoredSession = await restoredHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+
+			const restoredResponse = restoredSession.history.find(item => item.type === 'response');
+			const restoredInvocation = restoredResponse?.type === 'response'
+				? restoredResponse.parts.find((part): part is IChatToolInvocationSerialized =>
+					part.kind === 'toolInvocationSerialized' && part.toolCallId === 'image-call-1')
+				: undefined;
+			const restoredDetails = restoredInvocation?.resultDetails;
+
+			assert.deepStrictEqual({
+				state: restoredInvocation?.isComplete ? IChatToolInvocation.StateKind.Completed : undefined,
+				toolSpecificData: restoredInvocation?.toolSpecificData,
+				input: isToolResultInputOutputDetails(restoredDetails) ? restoredDetails.input : undefined,
+				output: isToolResultInputOutputDetails(restoredDetails) ? restoredDetails.output : undefined,
+				isError: isToolResultInputOutputDetails(restoredDetails) ? restoredDetails.isError : undefined,
+			}, {
+				state: IChatToolInvocation.StateKind.Completed,
+				toolSpecificData: { kind: 'generatedImage' },
+				input: '{"prompt":"Draw a fox"}',
+				output: [
+					{ type: 'embed', value: 'Generated a 1024 x 1024 PNG image for: Draw a fox\nThe image was generated, but could not be saved to /workspace/fox.png.', isText: true, mimeType: 'text/plain' },
+					{ type: 'embed', value: imageBase64, mimeType: 'image/png' },
+				],
+				isError: true,
 			});
 		});
 

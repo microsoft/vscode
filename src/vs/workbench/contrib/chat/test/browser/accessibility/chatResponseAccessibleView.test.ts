@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatGeneratedImageData, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
 import type { IResponse } from '../../../common/model/chatModel.js';
 import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
@@ -268,9 +268,35 @@ suite('ChatResponseAccessibleView', () => {
 			};
 			assert.strictEqual(getToolSpecificDataDescription(sessionData), 'Implement issue and validate the fix');
 		});
+
+		test('describes generated-image confirmations with connection and destination details', () => {
+			const generatedImageData: IChatGeneratedImageData = {
+				kind: 'generatedImage',
+				configuration: {
+					endpoint: 'https://images.example.com',
+					deployment: 'mai-image',
+				},
+				outputUri: 'file:///workspace/assets/fox.png',
+			};
+
+			assert.strictEqual(
+				getToolSpecificDataDescription(generatedImageData),
+				'Uses deployment mai-image at https://images.example.com. Output file: file:///workspace/assets/fox.png',
+			);
+		});
 	});
 
 	suite('getResultDetailsDescription', () => {
+		test('only collects output text when requested for an image outcome', () => {
+			assert.deepStrictEqual([
+				getResultDetailsDescription({ input: 'prompt', output: [{ type: 'embed', isText: true, value: 'Generated an image' }] }),
+				getResultDetailsDescription({ input: 'prompt', output: [{ type: 'embed', isText: true, value: 'Generated an image' }] }, true),
+			], [
+				{ input: 'prompt', isError: undefined },
+				{ input: 'prompt', isError: undefined, outputText: 'Generated an image' },
+			]);
+		});
+
 		test('returns empty object for undefined', () => {
 			assert.deepStrictEqual(getResultDetailsDescription(undefined), {});
 		});
@@ -431,6 +457,25 @@ suite('ChatResponseAccessibleView', () => {
 			assert.ok(result.includes('Applied patch'));
 			assert.ok(result.includes('Input:'));
 			assert.ok(result.includes('apply_patch'));
+		});
+
+		test('includes generated image summaries from result details', () => {
+			const result = getToolInvocationA11yDescription(
+				'Generating an image',
+				'Generated an image',
+				{ kind: 'generatedImage' },
+				{
+					input: '{"prompt":"Draw a fox"}',
+					output: [
+						{ type: 'embed', value: 'Generated a 1024 x 1024 PNG image for: Draw a fox', isText: true, mimeType: 'text/plain' },
+						{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' },
+					],
+				},
+				true
+			);
+			assert.ok(result.includes('Generated an image'));
+			assert.ok(result.includes('Generated a 1024 x 1024 PNG image for: Draw a fox'));
+			assert.ok(result.includes('Input: {"prompt":"Draw a fox"}'));
 		});
 
 		test('handles all parts together', () => {

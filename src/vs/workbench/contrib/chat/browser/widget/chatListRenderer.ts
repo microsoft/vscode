@@ -47,6 +47,8 @@ import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isImageGenerationTool } from '../../../../../platform/agentHost/common/imageGenerationConstants.js';
+import { hasGeneratedImageResult } from './chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
@@ -615,7 +617,7 @@ function toolInvocationHasMcpAppData(toolInvocation: IChatToolInvocation | IChat
 function isGeneratedImageResultOwner(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, content: ReadonlyArray<IChatRendererContent>): boolean {
 	for (let index = content.length - 1; index >= 0; index--) {
 		const part = content[index];
-		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'generatedImage') {
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && hasGeneratedImageResult(part)) {
 			return part.toolCallId === toolInvocation.toolCallId;
 		}
 	}
@@ -3270,7 +3272,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// moment the tool starts so completion can replace the compact progress rendering with
 		// the final image in place instead of leaving a materialized copy inside thinking.
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-			&& (part.toolId === 'image_gen.imagegen' || part.toolSpecificData?.kind === 'generatedImage')) {
+			&& (isImageGenerationTool(part.toolId) || part.toolSpecificData?.kind === 'generatedImage')) {
 			return false;
 		}
 
@@ -3821,7 +3823,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// final image tool call so multiple tool results cannot be split between the completed
 		// response disclosure and the durable response outcome.
 		if (context.element.isComplete
-			&& toolInvocation.toolSpecificData?.kind === 'generatedImage'
+			&& hasGeneratedImageResult(toolInvocation)
 			&& !isGeneratedImageResultOwner(toolInvocation, context.content)) {
 			return this.renderNoContent(other =>
 				(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')

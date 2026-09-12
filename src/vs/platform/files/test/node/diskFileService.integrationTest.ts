@@ -16,7 +16,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils.js';
-import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from '../../common/files.js';
+import { etag, IFileAtomicReadOptions, IFileAtomicOptions, IFileOpenOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -58,6 +58,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	private invalidStatSize: boolean = false;
 	private smallStatSize: boolean = false;
 	private readonly: boolean = false;
+	private onWillOpenForWrite: ((resource: URI, opts: IFileOpenOptions) => Promise<void> | void) | undefined;
 
 	private _testCapabilities!: FileSystemProviderCapabilities;
 	override get capabilities(): FileSystemProviderCapabilities {
@@ -100,6 +101,10 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		this.readonly = readonly;
 	}
 
+	setOnWillOpenForWrite(callback: ((resource: URI, opts: IFileOpenOptions) => Promise<void> | void) | undefined): void {
+		this.onWillOpenForWrite = callback;
+	}
+
 	override async stat(resource: URI): Promise<IStat> {
 		const res = await super.stat(resource);
 
@@ -123,6 +128,14 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		this.totalBytesRead += bytesRead;
 
 		return bytesRead;
+	}
+
+	override async open(resource: URI, opts: IFileOpenOptions, disableWriteLock?: boolean): Promise<number> {
+		if (opts.create) {
+			await this.onWillOpenForWrite?.(resource, opts);
+		}
+
+		return super.open(resource, opts, disableWriteLock);
 	}
 
 	override async readFile(resource: URI, options?: IFileAtomicReadOptions): Promise<Uint8Array> {
@@ -1736,6 +1749,12 @@ flakySuite('Disk File Service', function () {
 		return assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
 	});
 
+	test('createFile (buffered readable)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return assertCreateFile(contents => toLineByLineReadable(contents));
+	});
+
 	test('createFile (stream)', async () => {
 		return assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
 	});
@@ -1763,11 +1782,11 @@ flakySuite('Disk File Service', function () {
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
 
-		writeFileSync(resource.fsPath, ''); // create file
+		writeFileSync(resource.fsPath, 'existing'); // create file
 
 		assert.ok((await service.canCreateFile(resource)) instanceof Error);
 
-		let error;
+		let error: unknown = undefined;
 		try {
 			await service.createFile(resource, VSBuffer.fromString(contents));
 		} catch (err) {
@@ -1775,6 +1794,7 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
+		assert.strictEqual(readFileSync(resource.fsPath).toString(), 'existing');
 	});
 
 	test('createFile (allows to overwrite existing)', async () => {
@@ -1797,6 +1817,46 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(event!.operation, FileOperation.CREATE);
 		assert.strictEqual(event!.target!.resource.fsPath, resource.fsPath);
 	});
+
+	test('createFile (does not overwrite when file appears before unbuffered write)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		await assertCreateFileRejectsLateCompetingCreation(VSBuffer.fromString('Hello World'));
+	});
+
+	test('createFile (does not overwrite when file appears before buffered write)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		await assertCreateFileRejectsLateCompetingCreation(toLineByLineReadable('Hello World'));
+	});
+
+	async function assertCreateFileRejectsLateCompetingCreation(contents: VSBuffer | VSBufferReadable): Promise<void> {
+		const resource = URI.file(join(testDir, 'late-compete.txt'));
+		const competingContents = 'competing contents';
+
+		fileProvider.setOnWillOpenForWrite(targetResource => {
+			if (targetResource.fsPath === resource.fsPath && !existsSync(resource.fsPath)) {
+				writeFileSync(resource.fsPath, competingContents);
+			}
+
+			fileProvider.setOnWillOpenForWrite(undefined);
+		});
+
+		assert.strictEqual(await service.canCreateFile(resource), true);
+
+		let error: unknown = undefined;
+		try {
+			await service.createFile(resource, contents);
+		} catch (err) {
+			error = err;
+		} finally {
+			fileProvider.setOnWillOpenForWrite(undefined);
+		}
+
+		assert.ok(error instanceof FileOperationError);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+		assert.strictEqual(readFileSync(resource.fsPath).toString(), competingContents);
+	}
 
 	test('writeFile - default', async () => {
 		return testWriteFile(false);
@@ -2037,6 +2097,39 @@ flakySuite('Disk File Service', function () {
 		}));
 
 		await Promise.all([writePromises]);
+	});
+
+	test('provider - create without overwrite creates a new file', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const resource = URI.file(join(testDir, 'provider-create.txt'));
+		const contents = VSBuffer.fromString('Hello World');
+
+		const fd = await fileProvider.open(resource, { create: true, overwrite: false, unlock: false });
+		try {
+			await fileProvider.write(fd, 0, contents.buffer, 0, contents.byteLength);
+		} finally {
+			await fileProvider.close(fd);
+		}
+
+		assert.strictEqual(readFileSync(resource.fsPath).toString(), contents.toString());
+	});
+
+	test('provider - create without overwrite fails for an existing file', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const resource = URI.file(join(testDir, 'provider-existing.txt'));
+		writeFileSync(resource.fsPath, 'existing');
+
+		let error: unknown = undefined;
+		try {
+			await fileProvider.open(resource, { create: true, overwrite: false, unlock: false });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.strictEqual(readFileSync(resource.fsPath).toString(), 'existing');
 	});
 
 	test('provider - write barrier is partitioned per resource', async () => {

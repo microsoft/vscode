@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { GenerateImageToolReferenceName } from '../../../../../../platform/agentHost/common/imageGenerationConstants.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -90,6 +91,48 @@ suite('ToolSetsContribution', () => {
 			sessionsMembers: ['listAutomations', 'configureAutomation', 'runAutomation', 'deleteAutomation'],
 			coreHasSet: false,
 		});
+	});
+
+	test('ClientToolSetsContribution keeps image client groups hidden from the picker', () => {
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			store.add(toolsService.registerToolData({
+				id: 'vscode_generateImage',
+				modelDescription: 'Generate an image',
+				displayName: 'Generate Image',
+				toolReferenceName: GenerateImageToolReferenceName,
+				source: ToolDataSource.Internal,
+			}));
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		const sessionsToolsService = createContribution(true);
+		const coreToolsService = createContribution(false);
+
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(sessionsToolsService.getToolSet('vscode-image-generation')?.getTools() ?? [], tool => tool.toolReferenceName),
+			sessionsHidden: sessionsToolsService.getToolSet('vscode-image-generation')?.hiddenInToolsPicker,
+			coreMembers: Array.from(coreToolsService.getToolSet('vscode-image-generation')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreHidden: coreToolsService.getToolSet('vscode-image-generation')?.hiddenInToolsPicker,
+		}, {
+			sessionsMembers: [GenerateImageToolReferenceName],
+			sessionsHidden: true,
+			coreMembers: [GenerateImageToolReferenceName],
+			coreHidden: true,
+		});
+	});
+
+	test('unconfigured image groups have no visible empty picker row', () => {
+		const toolsService = createToolsService();
+		store.add(new ClientToolSetsContribution(toolsService, new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly isSessionsWindow = false;
+		}()));
+		const group = toolsService.getToolSet('vscode-image-generation');
+		assert.deepStrictEqual({ hidden: group?.hiddenInToolsPicker, members: Array.from(group?.getTools() ?? []) }, { hidden: true, members: [] });
 	});
 
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {

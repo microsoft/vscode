@@ -52,6 +52,8 @@ import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmit
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
+import { isClientImageGenerationTool } from '../../common/imageGenerationConstants.js';
+import { persistCopilotImageToolResult, restoreCopilotImageToolResults } from './copilotImageToolResults.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
@@ -237,6 +239,16 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
 		return 'Tool produced the attached image';
 	}
 	return 'Tool produced the attached file';
+}
+
+function projectClientToolResultForSdk(toolName: string, result: ToolResultObject): ToolResultObject {
+	if (!isClientImageGenerationTool(toolName) || result.binaryResultsForLlm === undefined) {
+		return result;
+	}
+	return {
+		...result,
+		binaryResultsForLlm: undefined,
+	};
 }
 
 /**
@@ -2135,8 +2147,20 @@ export class CopilotAgentSession extends Disposable {
 				defer,
 				...sdkPolicy,
 				handler: this._guarded(async (_args: Record<string, unknown>, { toolCallId }) => {
+					const turnId = this._turnId;
 					try {
-						return await this._pendingClientToolCalls.register(toolCallId);
+						const result = await this._pendingClientToolCalls.register(toolCallId);
+						if (isClientImageGenerationTool(def.name)) {
+							try {
+								await persistCopilotImageToolResult(this._databaseRef.object, turnId, toolCallId, result);
+							} catch {
+								this._logService.warn('[Copilot] Could not persist a generated image preview.');
+								const message = localize('copilot.generatedImage.persistFailed', "The image was generated, but its chat preview could not be saved for reopening. Save the existing preview; do not generate another image just to retry saving.");
+								this._emitAction({ type: ActionType.ChatResponsePart, turnId, part: { kind: ResponsePartKind.SystemNotification, content: message } });
+								return { ...projectClientToolResultForSdk(def.name, result), resultType: 'failure', error: message, textResultForLlm: `${result.textResultForLlm}\n${message}` };
+							}
+						}
+						return projectClientToolResultForSdk(def.name, result);
 					} catch (error) {
 						this._logService.error(error, `[Copilot:${this.sessionId}] Failed in client tool handler: tool=${def.name}, toolCallId=${toolCallId}`);
 						throw error;
@@ -3414,7 +3438,17 @@ export class CopilotAgentSession extends Disposable {
 			} : {}),
 		});
 		this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
-		return result;
+		if (!db) {
+			return result;
+		}
+		const subagentTurnsByToolCallId = new Map<string, Turn[]>();
+		for (const [toolCallId, turns] of result.subagentTurnsByToolCallId) {
+			subagentTurnsByToolCallId.set(toolCallId, await restoreCopilotImageToolResults(db, turns, this._logService));
+		}
+		return {
+			turns: await restoreCopilotImageToolResults(db, result.turns, this._logService),
+			subagentTurnsByToolCallId,
+		};
 	}
 
 	/** Drop the memoized event reconstruction; the next read rebuilds it. */

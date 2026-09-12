@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common
 import { request } from '../../common/requestImpl.js';
 import { streamToBuffer } from '../../../../common/buffer.js';
 import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
+import { ResponseTooLargeError } from '../../common/request.js';
 
 
 suite('Request', () => {
@@ -26,6 +27,20 @@ suite('Request', () => {
 			server = http.createServer((req, res) => {
 				if (req.url === '/noreply') {
 					return; // never respond
+				}
+				if (req.url === '/oversized') {
+					res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+					res.write(Buffer.alloc(2048));
+					return;
+				}
+				if (req.url === '/oversized-header') {
+					res.writeHead(200, { 'Content-Length': '4096' });
+					res.flushHeaders();
+					return;
+				}
+				if (req.url === '/exact-limit') {
+					res.end(Buffer.alloc(1024));
+					return;
 				}
 				if (req.url === '/redirect') {
 					res.writeHead(302, { location: `http://127.0.0.1:${port}/redirect-target` });
@@ -101,6 +116,7 @@ suite('Request', () => {
 		const context = await request({
 			url: `http://127.0.0.1:${port}/redirect`,
 			followRedirects: 0,
+			headers: { 'api-key': 'test-key-that-must-not-be-forwarded' },
 			callSite: 'request.test.noRedirects'
 		}, CancellationToken.None);
 
@@ -111,6 +127,21 @@ suite('Request', () => {
 			statusCode: 0,
 			redirectTargetRequests: 0
 		});
+	});
+
+	for (const path of ['/oversized', '/oversized-header']) {
+		test(`bounds the response before the server finishes ${path}`, async () => {
+			await assert.rejects(request({
+				url: `http://127.0.0.1:${port}${path}`,
+				maxResponseBytes: 1024,
+				callSite: 'request.test.bounded',
+			}, CancellationToken.None), error => error instanceof ResponseTooLargeError && error.limit === 1024);
+		});
+	}
+
+	test('accepts a response exactly at the size limit', async () => {
+		const context = await request({ url: `http://127.0.0.1:${port}/exact-limit`, maxResponseBytes: 1024, callSite: 'request.test.exactLimit' }, CancellationToken.None);
+		assert.strictEqual((await streamToBuffer(context.stream)).byteLength, 1024);
 	});
 
 	test('timeout', async () => {
