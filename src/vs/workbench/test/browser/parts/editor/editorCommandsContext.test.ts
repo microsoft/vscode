@@ -145,7 +145,7 @@ suite('Resolving Editor Commands Context', () => {
 		assert.strictEqual(resolvedContext2.preserveFocus, false);
 	});
 
-	test('inactive edior group command context', async () => {
+	test('inactive editor group command context', async () => {
 		const accessor = await createServices();
 		const editorGroupService = accessor.editorGroupService;
 

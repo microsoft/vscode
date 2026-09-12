@@ -706,7 +706,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				// to stderr so we cannot use it there
 				// (see also https://github.com/microsoft/vscode/issues/230636)
 				res.stderr?.once('data', (data: Buffer) => {
-					this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
+					this.logService.error(`Error opening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
 					return this.doOpenShellExternal(windowId, url);
 				});
 			}

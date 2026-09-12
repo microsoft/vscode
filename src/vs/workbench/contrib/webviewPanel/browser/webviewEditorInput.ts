@@ -46,7 +46,7 @@ export class WebviewInput extends EditorInput {
 
 	private _webview: IOverlayWebview;
 
-	private _hasTransfered = false;
+	private _hasTransferred = false;
 
 	get resource() {
 		return URI.from({
@@ -80,7 +80,7 @@ export class WebviewInput extends EditorInput {
 
 	override dispose() {
 		if (!this.isDisposed()) {
-			if (!this._hasTransfered) {
+			if (!this._hasTransferred) {
 				this._webview?.dispose();
 			}
 		}
@@ -153,10 +153,10 @@ export class WebviewInput extends EditorInput {
 	}
 
 	protected transfer(other: WebviewInput): WebviewInput | undefined {
-		if (this._hasTransfered) {
+		if (this._hasTransferred) {
 			return undefined;
 		}
-		this._hasTransfered = true;
+		this._hasTransferred = true;
 		other._webview = this._webview;
 		return other;
 	}

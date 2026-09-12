@@ -674,7 +674,7 @@ impl DevTunnels {
 
 						return Err(AnyError::from(TunnelCreationFailed(
 								name.to_string(),
-								"You have exceeded a limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
+								"You have exceeded a limit for the port forwarding service. Please remove other machines before trying to add this machine.".to_string(),
 							)));
 					}
 					Err(e) => {
@@ -708,7 +708,7 @@ impl DevTunnels {
 		]
 	}
 
-	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
+	/// Ensures the tunnel contains a tag for the current PROTOCOL_VERSION, and no
 	/// other version tags.
 	async fn sync_tunnel_tags(
 		&self,
