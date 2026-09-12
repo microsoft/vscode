@@ -11,8 +11,8 @@ import { CustomizationEnablementKind, type AgentCustomization, CustomizationType
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { type IPromptPath, IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
@@ -37,14 +37,17 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
 ];
 
 /**
- * Storage sources whose contents are auto-synced by default. Remote agent
- * registrations can additionally include user storage.
+ * Storage sources whose contents may be auto-synced. Local and user storage
+ * are filtered to configured locations unless the remote host needs all user
+ * storage.
  *
  * `builtin` only yields skills bundled with the Agents app (e.g. `/create-pr`,
  * `/merge`); for every other prompt type the prompts service returns nothing,
  * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
+	PromptsStorage.local,
+	PromptsStorage.user,
 	PromptsStorage.plugin,
 	PromptsStorage.extension,
 	PromptsStorage.builtIn,
@@ -61,6 +64,16 @@ export interface ILocalCustomizationFile {
 	readonly disabled: boolean;
 	readonly pluginUri?: URI;
 	readonly extensionId?: string;
+}
+
+function shouldSyncPromptFile(file: IPromptPath, storage: PromptsStorage, options: ILocalCustomizationSyncOptions | undefined): boolean {
+	if (storage === PromptsStorage.local) {
+		return file.source === PromptFileSource.ConfigWorkspace;
+	}
+	if (storage === PromptsStorage.user) {
+		return options?.includeUserStorage === true || file.source === PromptFileSource.ConfigPersonal;
+	}
+	return true;
 }
 
 /**
@@ -86,19 +99,16 @@ export async function enumerateLocalCustomizationsForHarness(
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
 	const seenUris = new ResourceSet();
-	const storageSources = options?.includeUserStorage
-		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
-		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
 		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
-			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
+			SYNCABLE_STORAGE_SOURCES.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
-			const source = storageSources[i];
+			const source = SYNCABLE_STORAGE_SOURCES[i];
 			const userToggleable = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
-				if (matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
+				if (shouldSyncPromptFile(file, source, options) && matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
 					seenUris.add(file.uri);
 					result.push({
 						uri: file.uri,
