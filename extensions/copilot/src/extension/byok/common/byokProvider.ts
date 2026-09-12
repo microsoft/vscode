@@ -217,10 +217,11 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 }
 
 /**
- * Signed-out users are allowed; signed-in users without a Copilot token (e.g. enterprise-managed errors) are denied to avoid bypassing policy.
+ * Users without a Copilot token source are allowed; users with a token source must have an individual,
+ * internal, or enterprise-enabled Copilot token.
  */
-export function isClientBYOKAllowed(hasGitHubSession: boolean, copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
-	if (!hasGitHubSession) {
+export function isClientBYOKAllowed(hasCopilotTokenSource: boolean, copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
+	if (!hasCopilotTokenSource) {
 		return true;
 	}
 	if (!copilotToken) {
