@@ -198,11 +198,10 @@ export class WebviewViewPane extends ViewPane {
 
 		this._webviewDisposables.add(new WebviewWindowDragMonitor(getWindow(this.element), () => this._webview.value));
 
-		const source = this._webviewDisposables.add(new CancellationTokenSource());
+		const source = new CancellationTokenSource();
 
-		// Cancel in-flight revival when the webview is torn down (dispose or re-activation)
-		// so the webview view service drops any pending `_awaitingRevival` entry for this view.
-		this._webviewDisposables.add(toDisposable(() => source.cancel()));
+		// `dispose(true)` cancels before disposing the token emitter, so the pending `_awaitingRevival` entry is cleared on teardown.
+		this._webviewDisposables.add(toDisposable(() => source.dispose(true)));
 
 		this.withProgress(async () => {
 			await this.extensionService.activateByEvent(`onView:${this.id}`);
