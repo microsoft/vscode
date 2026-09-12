@@ -1377,6 +1377,186 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	test('tabs through a focused row toolbar and hover panel while preserving list navigation', () => {
+		const createPanel = (id: string) => {
+			const panel = document.createElement('div');
+			const repository = document.createElement('a');
+			repository.href = `https://example.com/${id}`;
+			repository.textContent = `repo-${id}`;
+			const reference = document.createElement('a');
+			reference.href = `https://example.com/${id}/1`;
+			reference.textContent = `#${id}`;
+			const branch = document.createElement('button');
+			branch.textContent = `branch-${id}`;
+			branch.setAttribute('aria-label', `Copy branch ${id}`);
+			panel.append(repository, reference, branch);
+			return { panel, controls: [repository, reference, branch] };
+		};
+		const integratedAction = (id: string): IActionListItem<ITestActionItem> => {
+			let panelControls: readonly HTMLElement[] = [];
+			return {
+				...action(id),
+				toolbarActions: [toAction({ id: `copy-${id}`, label: `Copy ${id}`, run: () => { } })],
+				hover: {
+					content: () => {
+						const result = createPanel(id);
+						panelControls = result.controls;
+						return result.panel;
+					},
+					expandable: true,
+					showIndicator: false,
+					tabThroughPanel: true,
+					getTabbableElements: () => panelControls,
+					contentOwnsPadding: true,
+				},
+			};
+		};
+		const widget = createActionListWidget(disposables, {
+			items: [integratedAction('one'), integratedAction('two')],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		const press = (key: string, shiftKey = false) =>
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }));
+		const focusState = () => {
+			const active = document.activeElement;
+			return {
+				location: active === widget.domNode.querySelector('.monaco-list')
+					? 'list'
+					: active?.closest('.action-list-submenu-panel')
+						? 'panel'
+						: active?.closest('.action-list-item-toolbar')
+							? 'toolbar'
+							: 'other',
+				label: active?.getAttribute('aria-label') ?? active?.textContent,
+			};
+		};
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		widget.focus();
+		const initial = {
+			focus: focusState(),
+			panelRole: panel.getAttribute('role'),
+			panelLabel: panel.getAttribute('aria-label'),
+			contentOwnsPadding: panel.querySelector('.action-list-submenu-hover-header')?.classList.contains('content-owns-padding'),
+		};
+		press('Tab');
+		const copy = focusState();
+		press('Tab');
+		const repository = focusState();
+		press('Tab');
+		const reference = focusState();
+		press('Tab');
+		const branch = focusState();
+		const bubbledPanelActivationKeys: string[] = [];
+		widget.domNode.addEventListener('keydown', event => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				bubbledPanelActivationKeys.push(event.key);
+			}
+		});
+		const enterDefaultPreserved = press('Enter');
+		const spaceDefaultPreserved = press(' ');
+		press('Tab', true);
+		const backToReference = focusState();
+		press('Tab', true);
+		const backToRepository = focusState();
+		press('Tab', true);
+		const backToCopy = focusState();
+		press('Tab', true);
+		const backToList = focusState();
+		press('Tab');
+		press('Tab');
+		press('ArrowDown');
+		const nextItem = {
+			focus: focusState(),
+			item: widget.getFocusedElement()?.item?.id,
+			panelLabel: panel.getAttribute('aria-label'),
+		};
+
+		assert.deepStrictEqual({
+			initial,
+			copy,
+			repository,
+			reference,
+			branch,
+			panelActivation: { bubbledPanelActivationKeys, enterDefaultPreserved, spaceDefaultPreserved },
+			backToReference,
+			backToRepository,
+			backToCopy,
+			backToList,
+			nextItem,
+		}, {
+			initial: {
+				focus: { location: 'list', label: 'Action Widget' },
+				panelRole: 'dialog',
+				panelLabel: 'one',
+				contentOwnsPadding: true,
+			},
+			copy: { location: 'toolbar', label: 'Copy one' },
+			repository: { location: 'panel', label: 'repo-one' },
+			reference: { location: 'panel', label: '#one' },
+			branch: { location: 'panel', label: 'Copy branch one' },
+			panelActivation: { bubbledPanelActivationKeys: [], enterDefaultPreserved: true, spaceDefaultPreserved: true },
+			backToReference: { location: 'panel', label: '#one' },
+			backToRepository: { location: 'panel', label: 'repo-one' },
+			backToCopy: { location: 'toolbar', label: 'Copy one' },
+			backToList: { location: 'list', label: 'Action Widget' },
+			nextItem: {
+				focus: { location: 'list', label: 'Action Widget' },
+				item: 'two',
+				panelLabel: 'two',
+			},
+		});
+	});
+
+	test('Shift+Tab traverses the panel and toolbar controls in reverse order', () => {
+		const createPanel = () => {
+			const panel = document.createElement('div');
+			const control = document.createElement('a');
+			control.href = 'https://example.com';
+			control.textContent = 'link';
+			panel.append(control);
+			return { panel, controls: [control] };
+		};
+		let panelControls: readonly HTMLElement[] = [];
+		const item: IActionListItem<ITestActionItem> = {
+			...action('one'),
+			toolbarActions: [toAction({ id: 'copy', label: 'Copy', run: () => { } })],
+			onRemove: () => { },
+			hover: {
+				content: () => {
+					const result = createPanel();
+					panelControls = result.controls;
+					return result.panel;
+				},
+				expandable: true,
+				showIndicator: false,
+				tabThroughPanel: true,
+				getTabbableElements: () => panelControls,
+				contentOwnsPadding: true,
+			},
+		};
+		const widget = createActionListWidget(disposables, {
+			items: [item],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		const press = (key: string, shiftKey = false) =>
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }));
+		const focusedToolbarLabel = () => document.activeElement?.closest('.action-list-item-toolbar') ? document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent : undefined;
+
+		widget.focus();
+		press('Tab'); // list -> Copy
+		press('Tab'); // Copy -> Remove
+		press('Tab'); // Remove -> panel link
+		press('Tab', true); // panel link -> Shift+Tab back into the toolbar
+		const firstReverseTarget = focusedToolbarLabel();
+		press('Tab', true); // Remove -> Copy
+
+		assert.deepStrictEqual({ firstReverseTarget, secondReverseTarget: focusedToolbarLabel() }, {
+			firstReverseTarget: 'Remove',
+			secondReverseTarget: 'Copy',
+		});
+	});
+
 	test('rebuilding the items in place re-measures only when the row count changed', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
 		const layouts: string[] = [];
