@@ -454,13 +454,30 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	public restoreFromState(state: IChatEditingTimelineState, tx: ITransaction): void {
 		this._checkpoints.set(state.checkpoints, tx);
 		this._currentEpoch.set(state.currentEpoch, tx);
-		this._operations.set(state.operations.slice(), tx);
+		this._operations.set(state.operations.map(op => this._reviveOperationTelemetryInfo(op)), tx);
 		this._epochCounter = state.epochCounter;
 
 		this._fileBaselines.clear();
 		for (const [key, baseline] of state.fileBaselines) {
-			this._fileBaselines.set(key, baseline);
+			this._fileBaselines.set(key, { ...baseline, telemetryInfo: this._reviveTelemetryInfo(baseline.telemetryInfo) });
 		}
+	}
+
+	/**
+	 * Re-injects the owning session resource into telemetry info whose getter-backed `sessionResource` was dropped during `JSON.stringify` persistence.
+	 */
+	private _reviveTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo): IModifiedEntryTelemetryInfo {
+		if (telemetryInfo.sessionResource) {
+			return telemetryInfo;
+		}
+		return { ...telemetryInfo, sessionResource: this.chatSessionResource };
+	}
+
+	private _reviveOperationTelemetryInfo(operation: FileOperation): FileOperation {
+		if (operation.type !== FileOperationType.Create) {
+			return operation;
+		}
+		return { ...operation, telemetryInfo: this._reviveTelemetryInfo(operation.telemetryInfo) };
 	}
 
 	public getCheckpointIdForRequest(requestId: string, undoStopId?: string): string | undefined {
