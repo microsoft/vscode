@@ -1760,7 +1760,24 @@ per-word capitalization does not survive translation. */
 	margin-inline-end: var(--vscode-spacing-size200);
 }
 
-.ai-customization-management-editor .plugin-detail-editor-container,
+.ai-customization-management-editor .plugin-detail-editor-scrollable {
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+}
+
+.ai-customization-management-editor .plugin-detail-editor-scrollable > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.ai-customization-management-editor .plugin-detail-editor-container {
+	height: 100%;
+	min-height: 0;
+	display: flex;
+	justify-content: center;
+	overflow: hidden;
+}
+
 .ai-customization-management-editor .tools-detail-editor-container {
 	flex: 1;
 	overflow: auto;
@@ -2650,12 +2667,18 @@ per-word capitalization does not survive translation. */
 	display: block;
 }
 
+.plugin-list-widget .plugin-card-grid.plugin-inventory-list .plugin-list-item,
+.plugin-list-widget .plugin-card-grid.plugin-inventory-list .ai-customization-list-item,
+.plugin-list-widget .plugin-card-grid.plugin-inventory-list .mcp-server-item {
+	border-radius: 0;
+}
+
 .plugin-list-widget .virtualized-section-list .monaco-list-row {
 	box-sizing: border-box;
 }
 
 .plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item {
-	background-color: var(--vscode-editorWidget-background);
+	background-color: transparent;
 }
 
 .plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item:hover {
@@ -3449,6 +3472,35 @@ per-word capitalization does not survive translation. */
 	background: transparent;
 	border-radius: 0;
 	white-space: pre;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar {
+	width: var(--vscode-spacing-size100);
+	height: var(--vscode-spacing-size100);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-thumb {
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-scrollbarSlider-background);
+	background-clip: padding-box;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-track {
+	background-color: var(--vscode-scrollbar-background);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-button,
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown :is(pre, div[data-code])::-webkit-scrollbar-corner {
+	display: none;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-readme-content .rendered-markdown .monaco-tokenized-source {

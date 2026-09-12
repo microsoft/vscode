@@ -746,6 +746,7 @@ interface IRenderEditorOptions {
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
+	readonly pluginReadmeContent?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly migrationActivity?: boolean;
@@ -801,6 +802,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
+	const delayedReadFiles = new ResourceSet();
+	if (options.pluginReadmeContent !== undefined) {
+		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
+		fileContents.set(pluginReadmeUri, options.pluginReadmeContent);
+		delayedReadFiles.add(pluginReadmeUri);
+	}
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	const createdFolders = new ResourceSet();
 	const migrationFileService = new class extends mock<IFileService>() {
@@ -1013,6 +1020,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					return fileContents.has(resource) || createdFolders.has(resource);
 				}
 				override async readFile(resource: URI) {
+					if (delayedReadFiles.has(resource)) {
+						await timeout(50);
+					}
 					const value = fileContents.get(resource) ?? '';
 					return createFixtureFileContentStat(resource, value);
 				}
@@ -1181,6 +1191,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	modelServiceRef.value = instantiationService.get(IModelService);
 	languageServiceRef.value = instantiationService.get(ILanguageService);
+	if (options.pluginReadmeContent !== undefined) {
+		instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer({
+			async renderCodeBlock(_languageAlias, value) {
+				await timeout(50);
+				const code = DOM.$('code');
+				code.textContent = value;
+				return code;
+			},
+		});
+	}
 	for (const [uri, content] of fileContents) {
 		if (!modelServiceRef.value.getModel(uri)) {
 			const model = modelServiceRef.value.createModel(content, null, uri, false);
@@ -1268,9 +1288,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
 			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
 		const openItemLabel = options.openItemLabel;
-		const rowToOpen = openItemLabel
-			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .plugin-home-row') as HTMLElement | undefined;
+		let rowToOpen: HTMLElement | undefined;
+		for (let attempt = 0; attempt < 20 && !rowToOpen; attempt++) {
+			rowToOpen = openItemLabel
+				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+			if (!rowToOpen) {
+				await timeout(50);
+			}
+		}
 		if (rowToOpen) {
 			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -1280,6 +1306,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			if (options.editorDisplayMode === 'raw') {
 				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
 				modeButton?.click();
+			}
+
+			if (options.pluginReadmeContent !== undefined) {
+				await timeout(200);
+				const pluginDetailContainer = ctx.container.querySelector<HTMLElement>('.plugin-detail-editor-container');
+				if (pluginDetailContainer) {
+					pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+					await timeout(50);
+				}
 			}
 		}
 	}
@@ -1496,6 +1531,15 @@ const marketplacePlugins: IMarketplacePlugin[] = [
 	makeMarketplacePlugin('PlanetScale', 'Serverless MySQL database management', 'planetscale-plugin'),
 	makeMarketplacePlugin('Vercel', 'Deployment and preview environments', 'vercel-plugin'),
 ];
+
+const overflowingPluginReadme = [
+	'# CircleCI plugin',
+	'Use this plugin to manage issues and projects from your agent session.',
+	...Array.from({ length: 12 }, (_, index) => `## Workflow ${index + 1}\n\nConfigure and run workflow ${index + 1} with the settings described below.`),
+	'```text',
+	'circleci configure --workspace example-corporation --project visual-studio-code --include-archived-projects false --sync-assignees true --output-format json --include-workflow-metadata true --include-job-metadata true',
+	'```',
+].join('\n\n');
 
 async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false): Promise<void> {
 	const height = browse ? 600 : 800;
@@ -2534,10 +2578,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugin detail view — same alignment check for the detail back button.
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The plugin detail page shows an overflowing README with themed vertical and horizontal scrollbars.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
+			pluginReadmeContent: overflowingPluginReadme,
 		}),
 	}),
 
