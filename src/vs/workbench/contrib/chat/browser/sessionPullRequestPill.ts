@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toAction } from '../../../../base/common/actions.js';
+import { toAction, type IAction } from '../../../../base/common/actions.js';
 import { derived, IObservable, isObservable } from '../../../../base/common/observable.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -14,6 +14,8 @@ import type { IStandardChatInputPillSections } from './chatInputPills.js';
 
 export interface IChatPullRequestPillEntry extends IChatPillEntry {
 	readonly pullRequestState?: ChatPullRequestState;
+	/** Offered in the dropdown toolbar, or the context menu for a single visible entry. */
+	readonly removeAction?: IAction;
 }
 
 export interface IChatPullRequestPillSection extends IChatPillSection {
@@ -28,10 +30,20 @@ export function createSessionPullRequestPillData(
 ) {
 	const filteredSections = derived(reader => {
 		const allSections = sections.read(reader);
-		return visibility.showAll.read(reader) ? allSections : allSections.map(section => ({
+		const visibleSections = visibility.showAll.read(reader) ? allSections : allSections.map(section => ({
 			...section,
 			entries: section.entries.filter(entry => visibility.isVisible(entry.pullRequestState, reader)),
 		})).filter(section => section.entries.length > 0);
+		if (getChatPillEntries(visibleSections).length <= 1) {
+			return visibleSections;
+		}
+		return visibleSections.map(section => ({
+			...section,
+			entries: section.entries.map(entry => entry.removeAction ? {
+				...entry,
+				toolbarActions: [...entry.toolbarActions ?? [], entry.removeAction],
+			} : entry),
+		}));
 	});
 	return {
 		sections: filteredSections,
@@ -58,6 +70,10 @@ export function createSessionPullRequestPillData(
 					run: () => visibility.setShowAll(false),
 				}),
 			];
+		},
+		getContextMenuPrimaryActions: () => {
+			const entries = filteredSections.get().flatMap(section => section.entries);
+			return entries.length === 1 && entries[0].removeAction ? [entries[0].removeAction] : [];
 		},
 	} satisfies IStandardChatInputPillSections;
 }

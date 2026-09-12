@@ -35,7 +35,7 @@ import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './si
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneHeaderToggleDetailsOrder = 9;
+const singlePaneHeaderToggleDetailsOrder = 10;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed

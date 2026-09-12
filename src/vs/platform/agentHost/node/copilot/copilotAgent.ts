@@ -15,7 +15,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
@@ -37,6 +36,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
@@ -1040,7 +1040,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
-			// window reload), so nothing reacts to it here; only BYOK models refresh.
+			// window reload), so nothing reacts to it here.
 			this._refreshByokModels();
 			this._refreshModelsIfAutoModeTiersChanged();
 		}));
@@ -1103,6 +1103,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeAdvisor) === true;
 	}
 
+	private _isHydraFusionEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+	}
+
 	private _areAutoModeTiersEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) === true;
 	}
@@ -1138,6 +1142,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isSessionSyncEnabled(),
 			this._isRubberDuckEnabled(),
 			this._isClaudeAdvisorEnabled(),
+			this._isHydraFusionEnabled(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getEnterpriseHost(),
 			this._isSystemProxyEnabled(),
@@ -2107,7 +2112,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * allocated each call so the observable always notifies its consumers.
 	 */
 	private _publishModels(): void {
-		this._models.set([...this._capiModels, ...this._byokModels], undefined);
+		const hydraFusionModels: readonly IAgentModelInfo[] = this._isHydraFusionEnabled() && !this._capiModels.some(model => model.id === 'hydrafusion') ? [{
+			provider: this.id,
+			id: 'hydrafusion',
+			name: 'HydraFusion',
+			supportsVision: true,
+			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
+		}] : [];
+		this._models.set([...this._capiModels, ...hydraFusionModels, ...this._byokModels], undefined);
 	}
 
 	/**
@@ -2477,39 +2489,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Synthesize a `contextSize` config property when the model exposes a `long_context` pricing tier with a distinct
-	 * context-max. Picker surfaces this as the "Context Size" button. Mirrors `getContextSizeOptions` in
-	 * `extensions/copilot/src/extension/chat/vscode-node/languageModelAccess.ts`.
-	 *
-	 * The `enum` values are the two context-window sizes (in tokens), smallest first, so the numeric token counts
-	 * flow to the client. The chosen value comes back in the model's `config` bag and is mapped to the SDK's
-	 * two-valued `contextTier` at the SDK boundary by {@link getCopilotContextTier}, using the model's long-context
-	 * window from {@link _longContextWindowFor}.
-	 */
-	private _createContextSizeConfigSchemaProperty(billing: ICAPIModelBilling | undefined): ConfigPropertySchema | undefined {
-		const tokenPrices = billing?.tokenPrices;
-		const defaultMax = tokenPrices?.contextMax;
-		const longContextMax = tokenPrices?.longContext?.contextMax;
-		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
-			return undefined;
-		}
-
-		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
-		return {
-			type: 'number',
-			title: localize('copilot.modelContextSize.title', "Context Size"),
-			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-			default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
-			enum: [defaultMax, longContextMax],
-			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
-			enumDescriptions: [
-				localize('copilot.modelContextSize.default', "Default"),
-				localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
-			],
-		};
-	}
-
-	/**
 	 * The model's long-context window (in tokens): the largest size offered by its "Context Size" picker
 	 * (the max numeric value in the synthesized `contextSize` {@link ConfigPropertySchema.enum}). Used by
 	 * {@link getCopilotContextTier} to decide whether a numeric selection opts into `long_context`.
@@ -2564,7 +2543,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
-		const contextSize = this._createContextSizeConfigSchemaProperty(billing);
+		const contextSize = createContextSizeConfigSchemaProperty(billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
@@ -5289,7 +5268,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
 			...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
 		];
-		const env = createCopilotCliEnvironment(process.env, omittedKeys, this._isClaudeAdvisorEnabled());
+		const env = createCopilotCliEnvironment(
+			process.env,
+			omittedKeys,
+			this._isClaudeAdvisorEnabled(),
+			this._isHydraFusionEnabled(),
+		);
 		if (proxy) {
 			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
 				env[key] = proxy;
@@ -6901,7 +6885,7 @@ class SessionPluginController extends Disposable {
 
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry,
-				[this._directory, ...this._additionalDirectories],
+				this._workspaceCustomizationDirectories(),
 				this._parent.getUserHome(),
 				() => this._parent.getClient(),
 				() => this._publish(() => ({
@@ -6914,12 +6898,13 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _mcpDiscoveryEntry(): SessionMcpDiscovery | undefined {
-		if (!this._directory) {
+		const workingDirectories = this._workspaceCustomizationDirectories();
+		if (workingDirectories.length === 0) {
 			return undefined;
 		}
 		if (!this._sessionMcpDiscovery.value) {
 			const store = new DisposableStore();
-			const discovery = store.add(new SessionMcpDiscovery([this._directory, ...this._additionalDirectories], this._fileService));
+			const discovery = store.add(new SessionMcpDiscovery(workingDirectories, this._fileService));
 			store.add(discovery.onDidChange(() => this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],
@@ -6927,6 +6912,13 @@ class SessionPluginController extends Disposable {
 			this._sessionMcpDiscovery.value = { discovery, dispose: () => store.dispose() };
 		}
 		return this._sessionMcpDiscovery.value.discovery;
+	}
+
+	private _workspaceCustomizationDirectories(): readonly URI[] {
+		if (!this._directory || isEqual(this._directory, workspacelessScratchDir(this._parent.getUserHome(), AgentSession.id(this._session)))) {
+			return [];
+		}
+		return [this._directory, ...this._additionalDirectories];
 	}
 
 	private _publish(action: () => SessionAction): void {

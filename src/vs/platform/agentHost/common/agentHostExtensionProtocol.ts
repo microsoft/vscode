@@ -6,6 +6,7 @@
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 export { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCanvasChatInitialization, supportsAgentHostChatStateFile, supportsAgentHostDetachedWorktrees, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionInitializeResultMeta } from './meta/agentHostExtensionProtocolMeta.js';
+export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
@@ -20,6 +21,7 @@ export const RequestAgentHostCanvasApprovalExtensionMethod = 'vscode/requestCanv
 export const CancelAgentHostCanvasApprovalExtensionMethod = 'vscode/cancelCanvasApproval';
 export const InitializeCanvasChatExtensionMethod = 'vscode/initializeCanvasChat';
 export const CancelCanvasChatInitializationExtensionMethod = 'vscode/cancelCanvasChatInitialization';
+export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 
 export const initializeCanvasChatParamsValidator = vObj({
 	channel: vString(),
@@ -37,9 +39,18 @@ export const collectAgentHostDebugLogsParamsValidator = vObj({
 
 export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentHostDebugLogsParamsValidator>;
 
+export const removeSessionArtifactParamsValidator = vObj({
+	session: vString(),
+	artifactId: vString(),
+});
+
 export interface IAgentHostExtensionCommandMap {
 	[InitializeCanvasChatExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
 	[CancelCanvasChatInitializationExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
+	[RemoveSessionArtifactExtensionMethod]: {
+		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
+		result: void;
+	};
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };

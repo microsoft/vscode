@@ -49,7 +49,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, type IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ChatModelSource, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -127,6 +127,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	private readonly _devContainerDrafts = new Set<string>();
 	private readonly _pendingDevContainerEnablement = new Set<string>();
 	private readonly _canvasExecutionChanged = observableSignalFromEvent(this, Event.any(this._onDidChangeSessionConfig.event, this._onDidChangeDraftSessions.event));
+	readonly onDidChangeDevContainerAvailability: Event<void>;
 	override get order(): number {
 		return -1;
 	}
@@ -194,6 +195,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IPathService pathService: IPathService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		this.onDidChangeDevContainerAvailability = this._devContainerAgentHostService.onDidChangeAvailability;
 		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
 			toHost: resource => resource,
@@ -336,7 +338,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			}
 			this._devContainerAvailableDrafts.add(sessionId);
 			if (this._pendingDevContainerEnablement.delete(sessionId)) {
-				this._devContainerDrafts.add(sessionId);
+				this._enableDevContainer(sessionId);
 			}
 			this._onDidChangeSessionConfig.fire(sessionId);
 		} catch (error) {
@@ -351,6 +353,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		return this._devContainerAvailableDrafts.has(sessionId);
 	}
 
+	isDevContainerWorkspaceAvailable(workspaceUri: URI): Promise<boolean> {
+		return this._devContainerAgentHostService.isAvailable(workspaceUri);
+	}
+
 	isDevContainerEnabled(sessionId: string): boolean {
 		return this._devContainerDrafts.has(sessionId);
 	}
@@ -360,7 +366,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			throw new Error(`Cannot configure unknown new session '${sessionId}'.`);
 		}
 		if (this._devContainerAvailableDrafts.has(sessionId)) {
-			this._devContainerDrafts.add(sessionId);
+			this._enableDevContainer(sessionId);
 		} else {
 			this._pendingDevContainerEnablement.add(sessionId);
 		}
@@ -376,12 +382,30 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		}
 		if (enabled) {
 			this._pendingDevContainerEnablement.delete(sessionId);
-			this._devContainerDrafts.add(sessionId);
+			this._enableDevContainer(sessionId);
 		} else {
 			this._devContainerDrafts.delete(sessionId);
 			this._pendingDevContainerEnablement.delete(sessionId);
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	private _enableDevContainer(sessionId: string): void {
+		this._devContainerDrafts.add(sessionId);
+		if (this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true) {
+			return;
+		}
+
+		const normalizeIsolation = (async () => {
+			await this._waitForSessionConfigResolution(this, sessionId, CancellationToken.None);
+			if (!this._devContainerDrafts.has(sessionId) || !this._getNewSession(sessionId)) {
+				return;
+			}
+			if (this.getSessionConfig(sessionId)?.values[SessionConfigKey.Isolation] === 'worktree') {
+				await this.setSessionConfigValue(sessionId, SessionConfigKey.Isolation, 'folder');
+			}
+		})();
+		this.trackSessionConfigOperation(sessionId, normalizeIsolation);
 	}
 
 	override startNewSessionRequest(sessionId: string, activity?: string): IDisposable {

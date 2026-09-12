@@ -260,10 +260,9 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
- * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
- * is `false`). Supported values are:
+ * shell tool. Supported values are:
  *
- *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
+ *  - `'off'` (the default): sandboxing is explicitly disabled for the SDK shell
  *    path \u2014 commands run unsandboxed.
  *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
  *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
@@ -271,10 +270,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
  *
  * Unrestricted outbound network is controlled separately by
  * `chat.agent.sandbox.allowNetwork`.
- *
- * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
- * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
- * commands and reads `chat.agent.sandbox.enabled` directly.
  */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
@@ -293,7 +288,7 @@ export type AgentHostCopilotSandboxSettingId =
 	| typeof AgentHostSdkSandboxEnabledSettingId
 	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
 
-export function getAgentHostCopilotSandboxSettingId(_customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
+export function getAgentHostCopilotSandboxSettingId(windows = isWindows): AgentHostCopilotSandboxSettingId {
 	// TODO: Check Agent Host-specific sandbox settings once they are enabled for users.
 	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
@@ -825,6 +820,8 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
+	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1131,6 +1128,8 @@ export interface IAgentConnection extends IAgentCanvasConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Requires the VS Code artifact removal capability advertised by initialize. */
+	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { InitializeResult } from '../state/protocol/common/commands.js';
+import { AgentHostArtifactRemovalCapabilityMetaKey } from './agentHostArtifactRemovalMeta.js';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -13,16 +14,18 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostCanvasChatInitializationCapabilityMetaKey]?: true;
+	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 }
 
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(canInitializeCanvasChat = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(canInitializeCanvasChat = false, canRemoveSessionArtifact = true): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostArtifactRemovalCapabilityMetaKey]: canRemoveSessionArtifact ? true : undefined,
 		...(canInitializeCanvasChat ? { [AgentHostCanvasChatInitializationCapabilityMetaKey]: true as const } : {}),
 	};
 }

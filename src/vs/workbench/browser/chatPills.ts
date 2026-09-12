@@ -49,6 +49,10 @@ export interface IChatPillsModel {
 export interface IChatPillEntry {
 	readonly id: string;
 	readonly label: string;
+	/** Optional trailing metadata rendered after the dropdown row label. */
+	readonly badge?: string;
+	/** Optional CSS class added to the dropdown row. */
+	readonly className?: string;
 	/** Short label used when this entry renders as the pill itself. */
 	readonly pillLabel?: string;
 	readonly icon?: ThemeIcon;
@@ -347,6 +351,14 @@ export class ChatPillsWidget extends Disposable {
 			}
 		}
 		return elements;
+	}
+
+	focusFirst(): boolean {
+		if (this._toolbar.getItemsLength() === 0) {
+			return false;
+		}
+		this._toolbar.focus(0);
+		return true;
 	}
 
 	/**

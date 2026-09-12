@@ -1061,6 +1061,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Container
 		this.element = parent;
+		const updateEditorTabsClass = () => parent.classList.toggle('editor-tabs-multiple', this.partOptions.showTabs === 'multiple');
+		updateEditorTabsClass();
+		this._register(this.onDidChangeEditorPartOptions(updateEditorTabsClass));
 		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}

@@ -492,6 +492,67 @@ suite('ModelCard', () => {
 		});
 	});
 
+	test('queued configuration changes use the original model schema and latest saved values', async () => {
+		const started = new DeferredPromise<void>();
+		const saved = new DeferredPromise<void>();
+		const standard = createModel();
+		const fast = {
+			...createModel({
+				name: 'Fast Model',
+				configurationSchema: {
+					properties: {
+						fastEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'], default: 'high' },
+					},
+				},
+			}),
+			identifier: 'copilot/test-model-fast',
+		};
+		const configurations = new Map<string, IStringDictionary<unknown>>([
+			[standard.identifier, { effort: 'medium' }],
+			[fast.identifier, { fastEffort: 'low' }],
+		]);
+		const writes: { modelId: string; values: IStringDictionary<unknown> }[] = [];
+		const result = createCard({}, {
+			model: standard,
+			configurationAccess: {
+				getModelConfiguration: modelId => configurations.get(modelId),
+				setModelConfiguration: async (modelId, values) => {
+					writes.push({ modelId, values });
+					if (writes.length === 1) {
+						await started.complete();
+						await saved.p;
+					}
+					configurations.set(modelId, { ...configurations.get(modelId), ...values });
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const options = element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]');
+		options[0].click();
+		await started.p;
+		options[2].click();
+		result.update({ model: fast });
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			writes,
+			changes: result.changes,
+			standardConfiguration: configurations.get(standard.identifier),
+			fastConfiguration: configurations.get(fast.identifier),
+			selectedModels: result.selectedModels,
+		}, {
+			writes: [
+				{ modelId: standard.identifier, values: { effort: 'low' } },
+				{ modelId: standard.identifier, values: { effort: 'high' } },
+			],
+			changes: [['navigation', 'effort', 'medium', 'low'], ['navigation', 'effort', 'low', 'high']],
+			standardConfiguration: { effort: 'high' },
+			fastConfiguration: { fastEffort: 'low' },
+			selectedModels: [],
+		});
+	});
+
 	test('replacing the pricing disclosure releases the old subscription', () => {
 		const previousEmitter = disposables.add(new Emitter<void>());
 		const previous: IPricingDisclosure = { isExpanded: () => false, setExpanded: () => previousEmitter.fire(), onDidChange: previousEmitter.event };

@@ -54,10 +54,14 @@ import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { type IShellInitScript } from '../../common/shellInitScript.js';
-import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { CopilotSessionEventBuffer, CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from '../../node/copilot/copilotSessionWrapper.js';
 import { extensionContextToProtocol } from '../../node/copilot/copilotAttachmentUtils.js';
 import { CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN } from '../../common/agentHostCanvases.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { MockAgent } from './mockAgent.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -74,7 +78,6 @@ import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestAgentService, getTestAgentHostCanvases, getTestAgentHostClientConnections, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { canvasChat, canvasSession, TestCanvases } from './agentHostCanvasTestUtils.js';
-import { MockAgent } from './mockAgent.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -253,6 +256,13 @@ class MockCopilotSession {
 		}
 		for (const handler of this._allHandlers) {
 			handler(event);
+		}
+	}
+
+	/** Pushes an event not yet represented by the pinned SDK TypeScript union. */
+	fireRaw(event: unknown): void {
+		for (const handler of this._allHandlers) {
+			handler(event as SessionEvent);
 		}
 	}
 
@@ -1837,6 +1847,85 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+
+		test('validates model.call_finished events from the raw SDK event stream', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: unknown[] = [];
+			disposables.add(wrapper.onModelCallFinished(event => events.push(event)));
+
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'model-call-1',
+				agentId: 'agent-1',
+				data: {
+					turnId: 'sdk-turn-1',
+					interactionId: 'interaction-1',
+					dispatchDurationMs: 125,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: true,
+					editClassifierVersion: 1,
+				},
+			});
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'invalid-model-call',
+				data: {
+					turnId: 'sdk-turn-1',
+					dispatchDurationMs: -1,
+					outcome: 'success',
+					editClassifierVersion: 1,
+				},
+			});
+
+			assert.deepStrictEqual(events, [{
+				id: 'model-call-1',
+				agentId: 'agent-1',
+				data: {
+					turnId: 'sdk-turn-1',
+					interactionId: 'interaction-1',
+					dispatchDurationMs: 125,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: true,
+					editClassifierVersion: 1,
+				},
+			}]);
+		});
+
+		for (const buffering of ['startup', 'send acknowledgement'] as const) {
+			test(`model.call_finished survives ${buffering} buffering without replaying effects`, () => {
+				const mockSession = new MockCopilotSession();
+				const wrapper = disposables.add(new CopilotSessionWrapper(
+					mockSession as unknown as CopilotSession,
+					buffering === 'startup' ? new CopilotSessionEventBuffer() : undefined,
+				));
+				const acknowledgement = buffering === 'send acknowledgement' ? disposables.add(wrapper.bufferEventsUntilAcknowledged()) : undefined;
+				const events: ICopilotModelCallFinishedEvent[] = [];
+				const unhandled: string[] = [];
+				disposables.add(wrapper.onModelCallFinished(event => events.push(event)));
+				disposables.add(wrapper.onUnhandledEvent(event => unhandled.push(event.type)));
+				const event: ICopilotModelCallFinishedEvent = {
+					id: 'buffered-model-call', agentId: undefined,
+					data: {
+						turnId: 'sdk-turn', interactionId: 'interaction', dispatchDurationMs: 125,
+						outcome: 'success', containsBuiltInFileEditRequest: true, editClassifierVersion: 1,
+					},
+				};
+				mockSession.fireRaw({ ...event, type: 'model.call_finished', ephemeral: true });
+				const beforeRelease = events.slice();
+				if (acknowledgement) {
+					acknowledgement.dispose();
+				} else {
+					wrapper.releaseBufferedEvents();
+				}
+				wrapper.releaseBufferedEvents();
+				assert.deepStrictEqual({
+					beforeRelease, events, unhandled, sends: mockSession.sendRequests, messageSends: mockSession.sendMessagesRequests,
+				}, { beforeRelease: [], events: [event], unhandled: [], sends: [], messageSends: [] });
+			});
+		}
 
 		test('reports a completed disconnect separately from a pending disconnect', async () => {
 			const disconnectGate = new DeferredPromise<void>();
@@ -5867,6 +5956,28 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('HydraFusion keeps SDK experimental mode enabled when approval mode changes', async () => {
+			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues,
+				rootValues: {
+					[CopilotCliConfigKey.HydraFusion]: true,
+				},
+			});
+
+			await session.syncPermissionMode('turn-start');
+			configValues[SessionConfigKey.AutoApprove] = 'default';
+			await session.syncPermissionMode('config-change');
+
+			assert.deepStrictEqual({
+				experimentalModeUpdates: mockSession.experimentalModeUpdates,
+				permissionModes: mockSession.permissionModeSetCalls,
+			}, {
+				experimentalModeUpdates: [true],
+				permissionModes: ['assisted', 'manual'],
+			});
+		});
+
 		test('Approve When Safe honors approve recommendations without prompting', async () => {
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -6219,6 +6330,91 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.slice(1), [{ enabled: false }, { enabled: false }]);
 		});
 
+		for (const platform of ['linux', 'win32'] as const) {
+			for (const peerChat of [false, true]) {
+				test(`applies an idle ${peerChat ? 'peer' : 'default'} session sandbox toggle before the next prompt on ${platform}`, async () => {
+					const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+					const resource = peerChat ? URI.parse(buildChatUri(sessionUri, 'sandbox-peer')) : undefined;
+					const sandbox = {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+					};
+					const results = [];
+					for (const selection of ['off', 'on', 'default']) {
+						const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+							sessionUri, chatChannelUri: resource, resource, platform,
+							rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
+						});
+						setConfigValue(SessionConfigKey.SandboxEnabled, selection);
+						fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: selection });
+						await timeout(0);
+						const beforePrompt = [...mockSession.sandboxConfigUpdates];
+						const permissionModesBeforePrompt = [...mockSession.permissionModeSetCalls];
+						await session.send('hello', undefined, 'sandbox-turn');
+						results.push({ beforePrompt, afterPrompt: [...mockSession.sandboxConfigUpdates], permissionModesBeforePrompt });
+					}
+
+					assert.deepStrictEqual(results, [
+						{ enabled: false },
+						buildSandboxConfigForSdk(platform, sandbox),
+						buildSandboxConfigForSdk(platform, sandbox),
+					].map(sandboxConfig => ({
+						beforePrompt: [sandboxConfig],
+						afterPrompt: [sandboxConfig, sandboxConfig],
+						permissionModesBeforePrompt: [],
+					})));
+				});
+			}
+		}
+
+		test('idle session sandbox override is applied immediately and stays pinned across root changes', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange, setRootValue, fireRootConfigChange } = await createAgentSession(disposables);
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, sandbox);
+			fireRootConfigChange();
+			await timeout(0);
+
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+			await timeout(0);
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { ...sandbox, allowNetwork: false });
+			fireRootConfigChange();
+			await timeout(0);
+
+			const beforePrompt = [...mockSession.sandboxConfigUpdates];
+			await session.send('hello', undefined, 'sandbox-turn');
+			assert.deepStrictEqual({
+				beforePrompt,
+				afterPrompt: mockSession.sandboxConfigUpdates,
+			}, {
+				beforePrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }],
+				afterPrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }, { enabled: false }],
+			});
+		});
+
+		test('logs idle sandbox update failures without aborting and retries before the next prompt', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, { logService });
+			mockSession.sandboxConfigUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				errors: logService.errors.map(entry => entry.first instanceof Error ? entry.first.message : entry.first),
+				abortCalls: mockSession.abortCalls,
+			}, {
+				errors: ['Copilot SDK rejected sandbox config update'],
+				abortCalls: 0,
+			});
+			await assert.rejects(() => session.send('hello', undefined, 'failed-turn'), /rejected sandbox config update/);
+			assert.deepStrictEqual(mockSession.sendRequests, []);
+
+			mockSession.sandboxConfigUpdateSuccess = true;
+			await session.send('hello', undefined, 'retry-turn');
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+		});
+
 		test('ignores approval changes for other sessions', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -6354,19 +6550,51 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
 		});
 
-		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
+		test('per-request sandbox: applied when the custom terminal tool is enabled', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: {
-					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostSandboxConfigKey.Sandbox]: sandbox,
 					[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
 				},
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			// The host's own terminal sandbox engine handles containment, so the
-			// SDK sandbox config is not managed in this mode.
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, []);
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [buildSandboxConfigForSdk('linux', sandbox)]);
+		});
+
+		test('sandbox config changes apply while idle and active with the custom terminal tool enabled', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
+			await timeout(0);
+
+			session.resetTurnState('active-turn');
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [
+				buildSandboxConfigForSdk('linux', {
+					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+					[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+				}),
+				{ enabled: false },
+			]);
+		});
+
+		test('rejects a turn when SDK sandbox configuration fails with the custom terminal tool enabled', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			mockSession.sandboxConfigUpdateSuccess = false;
+
+			await assert.rejects(() => session.send('hello', undefined, 'turn-1'), /rejected sandbox config update/);
+
+			assert.deepStrictEqual(mockSession.sendRequests, []);
 		});
 
 		test('pending permissions are denied on dispose', async () => {
@@ -7000,6 +7228,78 @@ Use the attached image as context.
 			const steeringCompletions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete && a.turnId === steeringTurnId);
 			assert.strictEqual(steeringCompletions.length, 0, 'an aborted steering turn must not be completed');
 		});
+
+		for (const { name, interactionId, expectedOriginalTurn } of [
+			{ name: 'new steering interaction before the next assistant.turn_start', interactionId: 'interaction-steer', expectedOriginalTurn: false },
+			{ name: 'stale original interaction after steering promotion', interactionId: 'interaction-original', expectedOriginalTurn: true },
+			{ name: 'missing interaction fallback after steering promotion', interactionId: undefined, expectedOriginalTurn: false },
+		]) {
+			test(`maps model-call lifecycle events with ${name}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-0', interactionId: 'interaction-original' });
+
+				await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', {
+					content: 'focus on tests',
+					interactionId: interactionId ? 'interaction-steer' : undefined,
+				} as SessionEventPayload<'user.message'>['data']);
+				const steeringTurnId = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)?.turnId;
+				assert.ok(steeringTurnId);
+
+				mockSession.fireRaw({
+					type: 'model.call_finished',
+					ephemeral: true,
+					id: 'model-call-steering',
+					data: {
+						turnId: 'sdk-0',
+						interactionId,
+						dispatchDurationMs: 250,
+						outcome: 'success',
+						containsBuiltInFileEditRequest: true,
+						editClassifierVersion: 1,
+					},
+				});
+
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+				const telemetryService = new CapturingTelemetryService();
+				const tracker = disposables.add(new AgentHostTurnTracker(
+					new AgentHostTelemetryReporter(telemetryService),
+					disposables.add(new AgentHostClientConnectionService()),
+					new NullLogService(),
+				));
+				const agent = disposables.add(new MockAgent());
+				const chatUri = buildDefaultChatUri(session.resourceUri);
+				const startTurn = (turnId: string) => tracker.turnStarted(agent, chatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+				startTurn('turn-original');
+				for (const signal of signals) {
+					if (signal.kind === 'action') {
+						if (signal.action.type === ActionType.ChatTurnStarted) {
+							startTurn(signal.action.turnId);
+						} else if (signal.action.type === ActionType.ChatTurnComplete) {
+							tracker.turnCompleted(chatUri, signal.action.turnId, 'success');
+						}
+					} else if (signal.kind === 'model_call_finished') {
+						tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+					}
+				}
+
+				assert.deepStrictEqual({
+					modelCallTurnIds: signals.filter(signal => signal.kind === 'model_call_finished').map(signal => signal.turnId),
+					completedTurns: telemetryService.events.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => {
+						const data = event.data as { turnId: string; timeToFirstEdit?: number };
+						return { turnId: data.turnId, timeToFirstEdit: data.timeToFirstEdit };
+					}),
+				}, {
+					modelCallTurnIds: [expectedOriginalTurn ? 'turn-original' : steeringTurnId],
+					completedTurns: [
+						{ turnId: 'turn-original', timeToFirstEdit: undefined },
+						{ turnId: steeringTurnId, timeToFirstEdit: expectedOriginalTurn ? undefined : 250 },
+					],
+				});
+			});
+		}
 
 		test('does not signal cleanup when send fails', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -7852,6 +8152,99 @@ Use the attached image as context.
 	// ---- event mapping ----
 
 	suite('event mapping', () => {
+
+		test('maps model.call_finished to the owning host turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('host-turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'interaction-1' });
+
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'model-call-1',
+				data: {
+					turnId: '0',
+					interactionId: 'interaction-1',
+					dispatchDurationMs: 250,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: true,
+					editClassifierVersion: 1,
+				},
+			});
+
+			session.resetTurnState('host-turn-2');
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'interaction-2' });
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'model-call-2',
+				data: {
+					turnId: '0',
+					interactionId: 'interaction-2',
+					dispatchDurationMs: 125,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: false,
+					editClassifierVersion: 1,
+				},
+			});
+
+			assert.deepStrictEqual(
+				signals
+					.filter(signal => signal.kind === 'model_call_finished')
+					.map(signal => ({ modelCallId: signal.modelCallId, turnId: signal.turnId })),
+				[
+					{ modelCallId: 'model-call-1', turnId: 'host-turn-1' },
+					{ modelCallId: 'model-call-2', turnId: 'host-turn-2' },
+				],
+			);
+		});
+
+		test('resumes a subagent on turn start before mapping model.call_finished', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('host-turn-1');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'subagent-tool-call',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				agentDescription: 'Helps',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-1',
+				toolCallId: 'subagent-tool-call',
+				description: 'Helps',
+				status: 'idle',
+				agentType: 'helper',
+				prompt: 'Initial request',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-subagent-turn' }, { agentId: 'agent-1' });
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'subagent-model-call',
+				agentId: 'agent-1',
+				data: {
+					turnId: 'sdk-subagent-turn',
+					dispatchDurationMs: 125,
+					outcome: 'error',
+					editClassifierVersion: 1,
+				},
+			});
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed' || signal.kind === 'model_call_finished').map(signal => ({
+				kind: signal.kind,
+				parentToolCallId: signal.kind === 'model_call_finished' ? signal.parentToolCallId : signal.toolCallId,
+			})), [
+				{ kind: 'subagent_completed', parentToolCallId: 'subagent-tool-call' },
+				{ kind: 'subagent_resumed', parentToolCallId: 'subagent-tool-call' },
+				{ kind: 'model_call_finished', parentToolCallId: 'subagent-tool-call' },
+			]);
+		});
 
 		test('sampling requests are rejected when no sampling provider is available', async () => {
 			const { mockSession, session } = await createAgentSession(disposables);
