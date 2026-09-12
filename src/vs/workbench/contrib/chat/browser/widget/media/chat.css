@@ -3360,7 +3360,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Hide the leading icon on collapsible parts by default; show-checkmarks restores it */
-.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error-compact):not(.codicon-warning-compact) {
+.interactive-session .chat-used-context-label:not(.chat-request-collapse-control) .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error-compact):not(.codicon-warning-compact) {
 	display: none;
 }
 
@@ -4749,6 +4749,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.request-hover {
 		top: -17px !important;
 	}
+}
+
+.interactive-item-container .chat-request-collapse-control {
+	max-width: 90%;
+	min-width: 0;
+	margin-left: auto;
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.interactive-item-container .chat-request-collapse-control .monaco-button {
+	width: auto;
+	max-width: 100%;
+	min-width: 0;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	border: none;
+}
+
+.interactive-item-container .chat-request-collapse-control .monaco-button-mdlabel {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.interactive-item-container .chat-request-collapse-control .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
 }
 
 /* Drag handle for reordering pending messages */

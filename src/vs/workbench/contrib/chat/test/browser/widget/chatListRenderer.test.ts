@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { IManagedHoverContentOrFactory } from '../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -33,8 +34,8 @@ import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentP
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
-import { ChatModel } from '../../../common/model/chatModel.js';
-import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestVariableData } from '../../../common/model/chatModel.js';
+import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -45,6 +46,7 @@ import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent }
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
+import '../../../browser/widget/media/chat.css';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -709,6 +711,371 @@ suite('ChatListRenderer', () => {
 				focusable: 0,
 				managedHoverText: undefined,
 			});
+		});
+	});
+
+	suite('pending request collapse', () => {
+		function createRenderer(renderStyle?: 'minimal', hoverService?: IHoverService) {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			if (hoverService) {
+				instantiationService.stub(IHoverService, hoverService);
+			}
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration('chat.editRequests', 'hover');
+			configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+			configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const container = mainWindow.document.createElement('div');
+			container.classList.add('interactive-session', 'monaco-reduce-motion');
+			container.style.width = '360px';
+			container.style.height = 'auto';
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer,
+				{} as ChatEditorOptions,
+				{ editable: true, renderStyle },
+				{
+					getListLength: () => viewModel.getItems().length,
+					onDidScroll: () => toDisposable(() => { }),
+					container,
+					currentChatMode: () => ChatModeKind.Agent,
+					isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { },
+					stickyScrollTopPadding: 0,
+				},
+				undefined,
+				viewModel,
+			));
+			renderer.layout(360);
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+
+			function addPending(text: string, kind = ChatRequestQueueKind.Queued, variableData: IChatRequestVariableData = { variables: [] }) {
+				const lines = text.split('\n');
+				const request = new ChatRequestModel({
+					session: model,
+					message: { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, lines.length, lines[lines.length - 1].length + 1), text)] },
+					variableData,
+					timestamp: 0,
+				});
+				model.addPendingRequest(request, kind, {});
+				return request;
+			}
+
+			function render(element: IChatRequestViewModel | IChatPendingDividerViewModel) {
+				renderer.renderElement({ element, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined }, 0, template);
+			}
+
+			function renderRequest(request: ChatRequestModel) {
+				const requestViewModel = viewModel.getItems().find(item => isRequestVM(item) && item.id === request.id);
+				assert.ok(isRequestVM(requestViewModel));
+				render(requestViewModel);
+				return requestViewModel;
+			}
+
+			return { disposables, instantiationService, model, viewModel, container, renderer, template, addPending, render, renderRequest };
+		}
+
+		function getCollapseButton(template: IChatListItemTemplate): HTMLElement {
+			const button = template.value.querySelector<HTMLElement>('.chat-request-collapse-control [role="button"]');
+			assert.ok(button, 'request should have a collapse control');
+			return button;
+		}
+
+		function renderedState(template: IChatListItemTemplate) {
+			const button = template.value.querySelector<HTMLElement>('.chat-request-collapse-control [role="button"]');
+			return {
+				collapsed: template.rowContainer.classList.contains('chat-request-collapsed'),
+				expanded: button?.getAttribute('aria-expanded') ?? null,
+				label: button?.textContent ?? null,
+				controls: template.value.querySelectorAll('.chat-request-collapse-control').length,
+				pending: template.rowContainer.classList.contains('pending-request'),
+			};
+		}
+
+		test('preserves independent state across fresh view models and queue reorder', () => {
+			const fixture = createRenderer();
+			const first = fixture.addPending('First queued message');
+			const second = fixture.addPending('Second queued message', ChatRequestQueueKind.Steering);
+			fixture.renderRequest(first);
+			const initial = renderedState(fixture.template);
+			getCollapseButton(fixture.template).click();
+			fixture.renderRequest(second);
+			const otherRequest = renderedState(fixture.template);
+			fixture.model.setPendingRequests([
+				{ requestId: second.id, kind: ChatRequestQueueKind.Queued },
+				{ requestId: first.id, kind: ChatRequestQueueKind.Queued },
+			]);
+			fixture.renderRequest(first);
+			fixture.renderRequest(first);
+
+			assert.deepStrictEqual({
+				initial,
+				otherRequest,
+				afterRerender: renderedState(fixture.template),
+				queuedMessages: fixture.model.getPendingRequests().map(pending => pending.request.message.text),
+			}, {
+				initial: { collapsed: false, expanded: 'true', label: 'Message', controls: 1, pending: true },
+				otherRequest: { collapsed: false, expanded: 'true', label: 'Message', controls: 1, pending: true },
+				afterRerender: { collapsed: true, expanded: 'false', label: 'First queued message', controls: 1, pending: true },
+				queuedMessages: ['Second queued message', 'First queued message'],
+			});
+			fixture.disposables.dispose();
+		});
+
+		for (const renderStyle of [undefined, 'minimal'] as const) {
+			test(`collapsing a long prompt reclaims row height and keeps the chevron visible (${renderStyle ?? 'default'})`, () => {
+				const fixture = createRenderer(renderStyle);
+				const text = Array.from({ length: 12 }, (_, index) => `Queued step ${index}: review the changes and explain how to verify the expected behavior in the application.`).join('\n\n');
+				fixture.renderRequest(fixture.addPending(text));
+				const button = getCollapseButton(fixture.template);
+				const expandedHeight = fixture.template.rowContainer.getBoundingClientRect().height;
+				const icon = button.querySelector<HTMLElement>('.codicon');
+				assert.ok(icon);
+				const expandedIconVisible = mainWindow.getComputedStyle(icon).display !== 'none';
+				button.click();
+				const collapsedHeight = fixture.template.rowContainer.getBoundingClientRect().height;
+				const collapsedIconVisible = mainWindow.getComputedStyle(icon).display !== 'none';
+				button.click();
+				const restoredHeight = fixture.template.rowContainer.getBoundingClientRect().height;
+
+				assert.deepStrictEqual({
+					longPromptHasHeight: expandedHeight > 100,
+					collapsedRowHasHeight: collapsedHeight > 0,
+					collapsedRowIsSmaller: collapsedHeight < expandedHeight / 2,
+					expansionRestoresHeight: Math.abs(restoredHeight - expandedHeight) < 1,
+					expandedIconVisible,
+					collapsedIconVisible,
+				}, {
+					longPromptHasHeight: true,
+					collapsedRowHasHeight: true,
+					collapsedRowIsSmaller: true,
+					expansionRestoresHeight: true,
+					expandedIconVisible: true,
+					collapsedIconVisible: true,
+				});
+				fixture.disposables.dispose();
+			});
+		}
+
+		test('retains renderer state for a processing request with the same identity', () => {
+			const fixture = createRenderer();
+			const pending = fixture.addPending('Queued message to process');
+			fixture.renderRequest(pending);
+			getCollapseButton(fixture.template).click();
+			fixture.model.dequeuePendingRequest();
+			const sent = fixture.model.addRequest(pending.message, pending.variableData, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pending.id);
+			const sentViewModel = fixture.renderRequest(sent);
+			const processing = renderedState(fixture.template);
+			const defaultRange = { start: 0, end: 100 };
+			const collapsedStickySource = fixture.renderer.getStickyScrollSourceRange(sentViewModel, defaultRange);
+			getCollapseButton(fixture.template).click();
+
+			assert.deepStrictEqual({
+				processing,
+				expanded: renderedState(fixture.template),
+				collapsedStickySource,
+				expandedStickySource: fixture.renderer.getStickyScrollSourceRange(sentViewModel, defaultRange),
+				requestText: fixture.viewModel.getItems().filter(isRequestVM).map(request => request.messageText),
+				pendingCount: fixture.model.getPendingRequests().length,
+			}, {
+				processing: { collapsed: true, expanded: 'false', label: 'Queued message to process', controls: 1, pending: false },
+				expanded: { collapsed: false, expanded: 'true', label: 'Message', controls: 1, pending: false },
+				collapsedStickySource: undefined,
+				expandedStickySource: { ...defaultRange, estimated: true },
+				requestText: ['Queued message to process'],
+				pendingCount: 0,
+			});
+			fixture.disposables.dispose();
+		});
+
+		for (const collapsedIndex of [0, 1]) {
+			test(`inherits a collapse choice from merged steering message ${collapsedIndex + 1} and allows later expansion`, () => {
+				const fixture = createRenderer();
+				const pending = [fixture.addPending('First steering message', ChatRequestQueueKind.Steering), fixture.addPending('Second steering message', ChatRequestQueueKind.Steering)];
+				fixture.renderRequest(pending[1 - collapsedIndex]);
+				getCollapseButton(fixture.template).click();
+				getCollapseButton(fixture.template).click();
+				fixture.renderRequest(pending[collapsedIndex]);
+				getCollapseButton(fixture.template).click();
+				fixture.model.dequeueAllSteeringRequests();
+				const combinedText = pending.map(request => request.message.text).join('\n\n');
+				const sent = fixture.model.addRequest(
+					{ text: combinedText, parts: [new ChatRequestTextPart(new OffsetRange(0, combinedText.length), new Range(1, 1, 3, pending[1].message.text.length + 1), combinedText)] },
+					{ variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+					pending[0].id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pending.map(request => request.id),
+				);
+				const sentViewModel = fixture.renderRequest(sent);
+				const collapsed = renderedState(fixture.template);
+				const collapsedStickySource = fixture.renderer.getStickyScrollSourceRange(sentViewModel, { start: 0, end: 100 });
+				getCollapseButton(fixture.template).click();
+				fixture.renderRequest(sent);
+				fixture.renderRequest(sent);
+
+				assert.deepStrictEqual({
+					collapsed,
+					collapsedStickySource,
+					afterExpansionAndRerender: renderedState(fixture.template),
+					requestText: sentViewModel.messageText,
+				}, {
+					collapsed: { collapsed: true, expanded: 'false', label: 'First steering message Second steering message', controls: 1, pending: false },
+					collapsedStickySource: undefined,
+					afterExpansionAndRerender: { collapsed: false, expanded: 'true', label: 'Message', controls: 1, pending: false },
+					requestText: combinedText,
+				});
+				fixture.disposables.dispose();
+			});
+		}
+
+		test('hides file attachments on collapse and restores their original layout on expansion', () => {
+			const fixture = createRenderer();
+			const pending = fixture.addPending('Review the attached file', ChatRequestQueueKind.Queued, {
+				variables: [{ kind: 'file', id: 'queued-file', name: 'example.ts', value: URI.file('/workspace/example.ts') }],
+			});
+			fixture.renderRequest(pending);
+			const attachments = fixture.template.value.querySelector<HTMLElement>('.chat-request-file-attachments');
+			assert.ok(attachments);
+			const originalDisplay = mainWindow.getComputedStyle(attachments).display;
+			getCollapseButton(fixture.template).click();
+			const collapsedDisplay = mainWindow.getComputedStyle(attachments).display;
+			getCollapseButton(fixture.template).click();
+
+			assert.deepStrictEqual({
+				originalDisplay,
+				collapsedDisplay,
+				restoredDisplay: mainWindow.getComputedStyle(attachments).display,
+				attachmentStillPresent: attachments.textContent?.includes('example.ts'),
+			}, { originalDisplay: 'flex', collapsedDisplay: 'none', restoredDisplay: 'flex', attachmentStillPresent: true });
+			fixture.disposables.dispose();
+		});
+
+		test('exposes the complete collapsed preview through its managed hover', () => {
+			const hoverContents: IManagedHoverContentOrFactory[] = [];
+			const fixture = createRenderer(undefined, {
+				...NullHoverService,
+				setupManagedHover: (delegate, target, content, options) => {
+					if (target.closest('.chat-request-collapse-control')) {
+						hoverContents.push(content);
+					}
+					return NullHoverService.setupManagedHover(delegate, target, content, options);
+				},
+			});
+			fixture.renderRequest(fixture.addPending('A long queued message\nwith the rest of the preview available on hover'));
+			const content = hoverContents[0];
+			assert.ok(typeof content === 'function');
+			const expandedHover = content();
+			getCollapseButton(fixture.template).click();
+
+			assert.deepStrictEqual({ expandedHover, collapsedHover: content() }, {
+				expandedHover: 'Collapse Message',
+				collapsedHover: 'Expand Message: A long queued message with the rest of the preview available on hover',
+			});
+			fixture.disposables.dispose();
+		});
+
+		test('clears collapse presentation when recycling a template for an unrelated request or divider', () => {
+			const fixture = createRenderer();
+			const pending = fixture.addPending('Queued message');
+			fixture.renderRequest(pending);
+			getCollapseButton(fixture.template).click();
+			const normal = fixture.model.addRequest(pending.message, pending.variableData, 0);
+			fixture.renderRequest(normal);
+			const unrelatedRequest = renderedState(fixture.template);
+			fixture.renderRequest(pending);
+			fixture.render({
+				kind: 'pendingDivider',
+				id: 'pending-divider-queued',
+				sessionResource: fixture.model.sessionResource,
+				isComplete: true,
+				dividerKind: ChatRequestQueueKind.Queued,
+				currentRenderedHeight: undefined,
+			});
+
+			assert.deepStrictEqual({ unrelatedRequest, divider: renderedState(fixture.template) }, {
+				unrelatedRequest: { collapsed: false, expanded: null, label: null, controls: 0, pending: false },
+				divider: { collapsed: false, expanded: null, label: null, controls: 0, pending: false },
+			});
+			fixture.disposables.dispose();
+		});
+
+		for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+			test(`${key === ' ' ? 'Space' : key} and click toggle without editing and announce each user toggle`, () => {
+				const fixture = createRenderer();
+				fixture.renderRequest(fixture.addPending('Keyboard queued message'));
+				let editRequests = 0;
+				let userToggles = 0;
+				fixture.disposables.add(fixture.renderer.onDidClickRequest(() => editRequests++));
+				fixture.disposables.add(dom.addDisposableListener(fixture.container, ChatCollapsibleContentPart.userToggleEvent, () => userToggles++));
+				const button = getCollapseButton(fixture.template);
+				button.focus();
+				const event = new mainWindow.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+				Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+				button.dispatchEvent(event);
+				const collapsed = renderedState(fixture.template);
+				button.click();
+
+				assert.deepStrictEqual({
+					collapsed,
+					expanded: renderedState(fixture.template),
+					focusable: button.tabIndex,
+					focused: mainWindow.document.activeElement === button,
+					hasAccessibleName: !!button.getAttribute('aria-label'),
+					defaultPrevented: event.defaultPrevented,
+					editRequests,
+					userToggles,
+				}, {
+					collapsed: { collapsed: true, expanded: 'false', label: 'Keyboard queued message', controls: 1, pending: true },
+					expanded: { collapsed: false, expanded: 'true', label: 'Message', controls: 1, pending: true },
+					focusable: 0,
+					focused: true,
+					hasAccessibleName: true,
+					defaultPrevented: true,
+					editRequests: 0,
+					userToggles: 2,
+				});
+				fixture.disposables.dispose();
+			});
+		}
+
+		test('renders the collapsed preview as normalized plain text', () => {
+			const fixture = createRenderer();
+			fixture.renderRequest(fixture.addPending('  Review\n\t <b>queued</b> $(zap)  message  '));
+			getCollapseButton(fixture.template).click();
+			const button = getCollapseButton(fixture.template);
+
+			assert.deepStrictEqual({
+				label: button.textContent,
+				hasHtmlFromPrompt: !!button.querySelector('b'),
+				hasIconFromPrompt: !!button.querySelector('.codicon-zap'),
+			}, {
+				label: 'Review <b>queued</b> $(zap) message',
+				hasHtmlFromPrompt: false,
+				hasIconFromPrompt: false,
+			});
+			fixture.disposables.dispose();
+		});
+
+		test('clears remembered state when switching sessions', () => {
+			const fixture = createRenderer();
+			const pending = fixture.addPending('Queued message');
+			fixture.renderRequest(pending);
+			getCollapseButton(fixture.template).click();
+			const otherModel = fixture.disposables.add(fixture.instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const otherViewModel = fixture.disposables.add(fixture.instantiationService.createInstance(ChatViewModel, otherModel, undefined));
+			fixture.renderer.updateViewModel(otherViewModel);
+			fixture.renderer.updateViewModel(fixture.viewModel);
+			fixture.renderRequest(pending);
+
+			assert.deepStrictEqual(renderedState(fixture.template), { collapsed: false, expanded: 'true', label: 'Message', controls: 1, pending: true });
+			fixture.disposables.dispose();
 		});
 	});
 

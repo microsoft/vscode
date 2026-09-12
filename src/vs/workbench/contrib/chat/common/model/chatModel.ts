@@ -136,6 +136,8 @@ export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'r
 
 export interface IChatRequestModel {
 	readonly id: string;
+	/** IDs of pending messages combined into this request, retained for the current session only. */
+	readonly pendingRequestIds?: readonly string[];
 	readonly timestamp: number;
 	readonly requestTimestamp: number | undefined;
 	readonly version: number;
@@ -409,6 +411,7 @@ export interface IChatRequestModelParameters {
 	isCompleteAddedRequest?: boolean;
 	modelId?: string;
 	restoredId?: string;
+	pendingRequestIds?: readonly string[];
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
@@ -424,6 +427,7 @@ export interface IChatRequestModelParameters {
 
 export class ChatRequestModel implements IChatRequestModel {
 	public readonly id: string;
+	public readonly pendingRequestIds?: readonly string[];
 	public response: ChatResponseModel | undefined;
 	public shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly timestamp: number;
@@ -511,6 +515,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this.modelId = params.modelId;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
+		this.pendingRequestIds = params.pendingRequestIds;
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
@@ -3189,6 +3194,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		origin?: IChatRequestOrigin,
 		isRequestHiddenFromTranscript?: boolean,
 		requestSource?: ChatRequestSource,
+		pendingRequestIds?: readonly string[],
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3199,6 +3205,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				: undefined;
 		const request = new ChatRequestModel({
 			restoredId: id,
+			pendingRequestIds,
 			session: this,
 			message,
 			variableData,

@@ -100,6 +100,7 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
+	readonly pendingRequestIds?: IChatRequestModel['pendingRequestIds'];
 	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -410,6 +411,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
+	}
+
+	get pendingRequestIds() {
+		return this._model.pendingRequestIds;
 	}
 
 	/**
