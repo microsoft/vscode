@@ -1006,6 +1006,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			return;
 		}
 
+		const collapsing = typeof size === 'undefined';
 		size = typeof size === 'number' ? size : item.size;
 		size = clamp(size, item.minimumSize, item.maximumSize);
 
@@ -1013,6 +1014,11 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			// In this case, we want the view to grow or shrink both sides equally
 			// so we just resize the "left" side by half and let `resize` do the clamping magic
 			this.resize(index - 1, Math.floor((item.size - size) / 2));
+			this.distributeEmptySpace();
+			this.layoutViews();
+		} else if (collapsing && index > 0) {
+			// Collapse downwards / rightwards
+			this.resize(index - 1, item.size - size);
 			this.distributeEmptySpace();
 			this.layoutViews();
 		} else {
