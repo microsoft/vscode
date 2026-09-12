@@ -79,9 +79,3 @@ export function shortenOpportunityId(opportunityId: string): string {
 	// example: `icr-1234abcd5678efgh` -> `1234`, where we strip the `icr-` prefix and take the first 4 characters
 	return opportunityId.substring(4, 8);
 }
-
-export function checkIfCursorAtEndOfLine(lineWithCursor: string, cursorOffsetZeroBased: number): boolean {
-	// check if there's any non-whitespace character after the cursor in the line
-	const isCursorAtEndOfLine = lineWithCursor.substring(cursorOffsetZeroBased).match(/^\s*$/) !== null;
-	return isCursorAtEndOfLine;
-}

@@ -70,6 +70,10 @@ class TestAgentHostOctoKitService implements IAgentHostOctoKitService {
 		throw new Error('not used');
 	}
 
+	async getRepositoryMergeCapabilities(): Promise<never> {
+		throw new Error('not used');
+	}
+
 	async getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest> {
 		this.calls.push({ owner, repo, number, token, signal });
 		const key = `${owner}/${repo}#${number}`;

@@ -109,6 +109,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
 	'agents': { type: 'boolean', cat: 'o', deprecates: ['sessions'], description: localize('agents', "Opens the agents window.") },
+	'session-title-base64': { type: 'string' },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
@@ -325,8 +326,30 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	}
 
 
+	// Pre-process args: extract '--no-KEY' where 'no-KEY' is a declared boolean option.
+	// Minimist incorrectly handles these by stripping the 'no-' prefix and setting KEY=false.
+	// For example, '--no-proxy-server' should set 'no-proxy-server=true', not 'proxy-server=false'.
+	// See https://github.com/substack/minimist/blob/aeb3e27dae0412de5c0494e9563a5f10c82cc7a9/index.js#L118-L121
+	const booleanSet = new Set(booleanOptions);
+	const extractedNoBooleans = new Set<string>();
+	const filteredArgs = args.filter(a => {
+		if (a.startsWith('--no-')) {
+			const noKey = a.slice(2); // Extract 'no-KEY' from '--no-KEY'
+			if (booleanSet.has(noKey)) {
+				extractedNoBooleans.add(noKey);
+				return false;
+			}
+		}
+		return true;
+	});
+
 	// remove aliases to avoid confusion
-	const parsedArgs = minimist(args, { string: stringOptions, boolean: booleanOptions, alias });
+	const parsedArgs = minimist(filteredArgs, { string: stringOptions, boolean: booleanOptions, alias });
+
+	// Restore the '--no-KEY' booleans that were extracted to prevent minimist from mangling them
+	for (const noKey of extractedNoBooleans) {
+		parsedArgs[noKey] = true;
+	}
 
 	const cleanedArgs: Record<string, unknown> = {};
 	const remainingArgs: Record<string, unknown> = parsedArgs;

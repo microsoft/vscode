@@ -13,9 +13,9 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
@@ -76,12 +76,15 @@ suite('WorktreeIsolation', () => {
 	let addWorktreeCalls: IAddWorktreeOptions[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
 	let removeCalls: { worktree: URI; force: boolean }[];
+	let commitCalls: { worktree: URI; message: string }[];
+	let commitError: Error | undefined;
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
 	let copyIncludeError: Error | undefined;
 	let branchName: string;
 	let hasUncommittedChanges: boolean;
 	let branchExists: boolean;
 	let headCommit: string | undefined;
+	let sessionGitState: ISessionGitState | undefined;
 
 	const sessionUri = URI.parse('agent-session://test/s1');
 	const sessionId = 's1';
@@ -99,6 +102,13 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
+			commitAll: async (worktree, message) => {
+				commitCalls.push({ worktree, message });
+				if (commitError) {
+					throw commitError;
+				}
+			},
+			getSessionGitState: async () => sessionGitState,
 			addWorktree: async (_root, options) => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
@@ -159,12 +169,15 @@ suite('WorktreeIsolation', () => {
 		addWorktreeCalls = [];
 		addExistingCalls = [];
 		removeCalls = [];
+		commitCalls = [];
+		commitError = undefined;
 		copyIncludeCalls = [];
 		copyIncludeError = undefined;
 		branchName = 'agents/my-feature';
 		hasUncommittedChanges = false;
 		branchExists = true;
 		headCommit = 'abc123';
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 0 };
 	});
 
 	teardown(() => {
@@ -195,20 +208,23 @@ suite('WorktreeIsolation', () => {
 		const repoWorktree = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 		const repoWorktreeSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
 		const repoFolder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
+		const repoFolderSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'main' } });
 		headCommit = undefined; // unborn HEAD (no commits)
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
 			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchDynamic: repoWorktree.branchProperty?.protocol.enumDynamic, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchDynamic: repoFolder.branchProperty?.protocol.enumDynamic, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolderSelected: { branchDefault: repoFolderSelected.branchDefault, branchValue: repoFolderSelected.branchValue },
 			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
 		}, {
 			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolderSelected: { branchDefault: 'feature', branchValue: 'main' },
 			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
 		});
 	});
@@ -507,20 +523,22 @@ suite('WorktreeIsolation', () => {
 			},
 		});
 		const meta = await isolation.readWorktreeMetadata(sessionUri);
-		const project = isolation.sessionWorktreeProject(sessionId);
+		const worktreeInfo = isolation.sessionWorktreeInfo(sessionId);
 
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
 			addWorktreeRoot: addWorktreeRoot?.toString(),
 			includeFileRoot: copyIncludeCalls[0]?.repositoryRoot.toString(),
 			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
-			project: project && { uri: project.uri.toString(), displayName: project.displayName },
+			project: worktreeInfo && { uri: worktreeInfo.project.uri.toString(), displayName: worktreeInfo.project.displayName },
+			branchName: worktreeInfo?.branchName,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			addWorktreeRoot: repoRoot.toString(),
 			includeFileRoot: checkoutRoot.toString(),
 			metaRepositoryRoot: repoRoot.toString(),
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
+			branchName,
 		});
 	});
 
@@ -875,7 +893,7 @@ suite('WorktreeIsolation', () => {
 		);
 	});
 
-	test('resolveWorktreeProject / sessionWorktreeProject expose the repository as the session project', async () => {
+	test('resolveWorktreeProject / sessionWorktreeInfo expose the repository as the session project', async () => {
 		// The worktree lives at `<repo>.worktrees/<name>`, but a worktree session
 		// must group under the repository in the sessions UI. Both accessors return
 		// the repo root as the project so agents can merge it into the reported
@@ -885,19 +903,19 @@ suite('WorktreeIsolation', () => {
 		const expectedDisplayName = basename(repoRoot);
 
 		const beforeAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const beforeSync = isolation.sessionWorktreeProject(sessionId);
+		const beforeSync = isolation.sessionWorktreeInfo(sessionId)?.project;
 
 		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
 		const afterAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const afterSync = isolation.sessionWorktreeProject(sessionId);
+		const afterSync = isolation.sessionWorktreeInfo(sessionId)?.project;
 
 		assert.deepStrictEqual({
 			beforeAsync,
 			beforeSync,
 			afterAsync: { uri: afterAsync?.uri.toString(), displayName: afterAsync?.displayName },
 			afterSync: { uri: afterSync?.uri.toString(), displayName: afterSync?.displayName },
-			unknownSession: isolation.sessionWorktreeProject('does-not-exist'),
+			unknownSession: isolation.sessionWorktreeInfo('does-not-exist'),
 		}, {
 			beforeAsync: undefined,
 			beforeSync: undefined,
@@ -1063,11 +1081,11 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('cleanup on archive removes a clean worktree and unarchive recreates it', async () => {
+	test('automatic cleanup removes a clean worktree and unarchive recreates it', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		await isolation.cleanupWorktree(sessionUri, sessionId);
 		const removedDuringArchive = worktree ? !existsSync(worktree.fsPath) : false;
 		await isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 		const restoredDuringUnarchive = worktree ? existsSync(worktree.fsPath) : false;
@@ -1078,10 +1096,78 @@ suite('WorktreeIsolation', () => {
 			addExistingCalls: addExistingCalls.map(c => ({ worktree: c.worktree.toString(), branchName: c.branchName })),
 			restoredDuringUnarchive,
 		}, {
-			removeCalls: [{ worktree: worktree!.toString(), force: true }],
+			removeCalls: [{ worktree: worktree!.toString(), force: false }],
 			removedDuringArchive: true,
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
+		});
+	});
+
+	test('manual archive commits uncommitted changes and removes the worktree', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		hasUncommittedChanges = true;
+
+		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+
+		assert.deepStrictEqual({
+			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message })),
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+			stillExists: worktree ? existsSync(worktree.fsPath) : false,
+		}, {
+			commitCalls: [{ worktree: worktree!.toString(), message: 'Saving uncommitted changes before archiving session' }],
+			removeCalls: [{ worktree: worktree!.toString(), force: true }],
+			stillExists: false,
+		});
+	});
+
+	test('manual archive keeps the worktree when committing uncommitted changes fails', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		hasUncommittedChanges = true;
+		commitError = new Error('commit failed');
+
+		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+
+		assert.deepStrictEqual({
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.length,
+			stillExists: worktree ? existsSync(worktree.fsPath) : false,
+		}, {
+			commitCalls: 1,
+			removeCalls: 0,
+			stillExists: true,
+		});
+	});
+
+	test('cleanup keeps the worktree unless the branch is synced with its remote', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+
+		const outcomes: { readonly reason: string; readonly removed: boolean }[] = [];
+		for (const [reason, state] of [
+			['no upstream', { outgoingChanges: 0, uncommittedChanges: 0 }],
+			['unknown outgoing changes', { upstreamBranchName: 'origin/agents/my-feature', uncommittedChanges: 0 }],
+			['unknown uncommitted changes', { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0 }],
+			['unpushed commits', { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 2, uncommittedChanges: 0 }],
+			['uncommitted changes', { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 1 }],
+			['unknown git state', undefined],
+		] as const) {
+			sessionGitState = state;
+			await isolation.cleanupWorktree(sessionUri, sessionId);
+			outcomes.push({ reason, removed: worktree ? !existsSync(worktree.fsPath) : true });
+		}
+
+		assert.deepStrictEqual({ removeCalls, outcomes }, {
+			removeCalls: [],
+			outcomes: [
+				{ reason: 'no upstream', removed: false },
+				{ reason: 'unknown outgoing changes', removed: false },
+				{ reason: 'unknown uncommitted changes', removed: false },
+				{ reason: 'unpushed commits', removed: false },
+				{ reason: 'uncommitted changes', removed: false },
+				{ reason: 'unknown git state', removed: false },
+			],
 		});
 	});
 
@@ -1097,6 +1183,31 @@ suite('WorktreeIsolation', () => {
 		}, {
 			removeCalls: [{ worktree: worktree!.toString(), force: true }],
 			resolvedWorktree: undefined,
+		});
+	});
+
+	test('discardSessionWorktree removes provisional worktree metadata', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+
+		await isolation.discardSessionWorktree(sessionUri, sessionId, await isolation.prepareSessionDeletion(sessionUri, sessionId));
+
+		assert.deepStrictEqual({
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+			metadata: await db.getMetadataObject({
+				'copilot.worktree.branchName': true,
+				'copilot.worktree.path': true,
+				'copilot.worktree.repositoryRoot': true,
+				[META_DIFF_BASE_BRANCH]: true,
+			}),
+		}, {
+			removeCalls: [{ worktree: worktree!.toString(), force: true }],
+			metadata: {
+				'copilot.worktree.branchName': undefined,
+				'copilot.worktree.path': undefined,
+				'copilot.worktree.repositoryRoot': undefined,
+				[META_DIFF_BASE_BRANCH]: undefined,
+			},
 		});
 	});
 

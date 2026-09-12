@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, type IDisposable } from '../../../base/com
 import { autorun } from '../../../base/common/observable.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
+import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../github/common/githubPullRequestService.js';
 import type { GitHubCredentialInvalidation } from '../../github/common/githubCredentialService.js';
 import type { GitHubAccountHandle } from '../../github/common/githubTypes.js';
 import { IGitHubService } from '../../github/common/githubService.js';
@@ -19,6 +19,7 @@ import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSes
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { parsePullRequestUrl } from './agentMergeController.js';
+import { isAgentMergePullRequestReadyForReview, readAgentMergeSessionState } from '../common/agentMerge.js';
 
 /**
  * Merge states GitHub reports for a pull request that can still be merged
@@ -42,6 +43,8 @@ export interface IAgentHostPullRequestStatus {
 	readonly draft: boolean;
 	/** True once the pull request is open and can be merged as-is. */
 	readonly mergeReady: boolean;
+	/** Whether Agent Merge has observed all required checks and review feedback as ready. */
+	readonly agentMergeReadyForReview?: boolean;
 	readonly viewerCanEnableAutoMerge: boolean;
 	readonly autoMergeEnabled: boolean;
 	readonly allowedMergeMethods: readonly ('MERGE' | 'SQUASH' | 'REBASE')[];
@@ -51,14 +54,14 @@ export const IAgentHostPullRequestStatusService = createDecorator<IAgentHostPull
 
 /**
  * Tracks the live GitHub state of the pull request belonging to each session a
- * client is currently watching.
+ * client is currently watching or the lifecycle service is refreshing.
  *
  * A pull request subscription costs GitHub API budget, so the watcher is scoped
  * to sessions that have at least one changeset subscriber — in practice the
- * session whose changes the user has open. It also deliberately subscribes to
- * the `core` and `mergeability` fragments only: everything the pull request
- * button bar needs is in those two, and the expensive conversation and check
- * fragments stay reserved for Agent Merge.
+ * session whose changes the user has open — or a short-lived lifecycle refresh.
+ * Lifecycle refreshes subscribe only to `core`. Visible sessions normally add
+ * `mergeability`; while Agent Merge is enabled they also add the required-check
+ * and review fragments needed to advertise the correct pull request operation.
  */
 export interface IAgentHostPullRequestStatusService extends IDisposable {
 	readonly _serviceBrand: undefined;
@@ -83,6 +86,13 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	 * without waiting for the next poll.
 	 */
 	refresh(sessionKey: string): Promise<void>;
+
+	/**
+	 * Resolves an authoritative pull request status for a background lifecycle
+	 * check without requiring a client changeset subscription. A supplied pull
+	 * request URL lets cleanup check a cold session without restoring it first.
+	 */
+	resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
 interface IWatch extends IDisposable {
@@ -122,7 +132,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopWatch(session)));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionIsArchivedChanged) {
+			if (envelope.action.type === ActionType.SessionIsArchivedChanged || envelope.action.type === ActionType.SessionConfigChanged) {
 				this._sync(envelope.channel);
 			}
 		}));
@@ -198,6 +208,32 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 	}
 
+	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined> {
+		const parsed = parsePullRequestUrl(pullRequestUrl);
+		if (!parsed) {
+			this._logService.debug(`[AgentHostPullRequestStatusService] Lifecycle refresh skipped because the pull request URL could not be parsed: session=${sessionKey}, pr=${pullRequestUrl}`);
+			return undefined;
+		}
+		const credential = await this._gitHubService.credentials.getCredential(this._abortController.signal);
+		if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+			return undefined;
+		}
+		const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
+		const subscription = this._gitHubService.pullRequests.subscribePullRequest(ref, {
+			priority: 'background',
+			core: true,
+		});
+		try {
+			await subscription.refresh('core', undefined, { authoritative: true });
+			return toPullRequestStatus(subscription.resource.snapshot.get());
+		} catch (error) {
+			this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${describeRef(ref)}, error=${error}`);
+			return undefined;
+		} finally {
+			subscription.dispose();
+		}
+	}
+
 	override dispose(): void {
 		this._abortController.abort();
 		this._staleSyncs.clear();
@@ -259,6 +295,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 		const existing = this._watches.get(sessionKey);
 		if (existing && sameRefAndHost(existing.ref, parsed)) {
+			existing.subscription.update(this._getSubscriptionOptions(sessionKey));
+			this._updateStatus(sessionKey, existing, existing.subscription.resource.snapshot.get());
 			return;
 		}
 
@@ -288,11 +326,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 		this._stopWatch(sessionKey, `replaced by ${describeRef(ref)}`);
 		const store = new DisposableStore();
-		const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
-			priority: 'visible',
-			core: true,
-			mergeability: true,
-		}));
+		const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, this._getSubscriptionOptions(sessionKey)));
 		const watch: IWatch = {
 			ref,
 			subscription,
@@ -311,6 +345,25 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			void this._refreshRecreatedMergedWatch(sessionKey, watch);
 		}
 		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${sessionKey}, pr=${describeRef(ref)}`);
+	}
+
+	private _getSubscriptionOptions(sessionKey: string): PullRequestSubscriptionOptions {
+		const visible = this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size > 0;
+		const agentMergeEnabled = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
+		return {
+			priority: visible ? 'visible' : 'background',
+			core: true,
+			...(visible ? { mergeability: true } : {}),
+			...(visible && agentMergeEnabled ? {
+				conversation: {
+					topLevelComments: true,
+					submittedReviews: true,
+					reviewThreads: true,
+					includeBodies: true,
+				},
+				checks: { required: true },
+			} : {}),
+		};
 	}
 
 	private _hasPersistedMergedState(sessionKey: string, ref: PullRequestRef): boolean {
@@ -371,7 +424,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (snapshot.core.status !== 'ready' && (watch.status?.state === 'merged' || persistedMergedStateApplies)) {
 			return;
 		}
-		this._setStatus(sessionKey, watch, toPullRequestStatus(snapshot));
+		const agentMerge = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values);
+		this._setStatus(sessionKey, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined));
 	}
 
 	private _setStatus(sessionKey: string, watch: IWatch, status: IAgentHostPullRequestStatus | undefined): void {
@@ -429,6 +483,7 @@ function describeStatus(status: IAgentHostPullRequestStatus | undefined): string
 		`state=${status.state}`,
 		`draft=${status.draft}`,
 		`mergeReady=${status.mergeReady}`,
+		`agentMergeReadyForReview=${status.agentMergeReadyForReview ?? 'unknown'}`,
 		`autoMergeEnabled=${status.autoMergeEnabled}`,
 		`canEnableAutoMerge=${status.viewerCanEnableAutoMerge}`,
 		`allowedMergeMethods=${status.allowedMergeMethods.join('|') || 'none'}`,
@@ -440,7 +495,7 @@ function describeStatus(status: IAgentHostPullRequestStatus | undefined): string
  * while either fragment the button bar depends on is still unresolved. Holding
  * back on partial data keeps the client from flashing a wrong primary button.
  */
-function toPullRequestStatus(snapshot: PullRequestSnapshot): IAgentHostPullRequestStatus | undefined {
+function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWatermark?: string): IAgentHostPullRequestStatus | undefined {
 	const core = snapshot.core.value;
 	if (!core) {
 		return undefined;
@@ -467,6 +522,9 @@ function toPullRequestStatus(snapshot: PullRequestSnapshot): IAgentHostPullReque
 	if (!mergeability || snapshot.mergeability.headSha !== core.headSha) {
 		return undefined;
 	}
+	const agentMergeReadyForReview = agentMergeCommentWatermark !== undefined
+		? isAgentMergePullRequestReadyForReview(snapshot, agentMergeCommentWatermark)
+		: undefined;
 
 	return {
 		...(core.id ? { pullRequestId: core.id } : {}),
@@ -479,6 +537,7 @@ function toPullRequestStatus(snapshot: PullRequestSnapshot): IAgentHostPullReque
 			&& mergeability.mergeable === 'MERGEABLE'
 			&& mergeability.viewerCanMerge
 			&& MERGEABLE_STATES.has(mergeability.mergeStateStatus?.toUpperCase() ?? 'CLEAN'),
+		...(agentMergeReadyForReview !== undefined ? { agentMergeReadyForReview } : {}),
 		viewerCanEnableAutoMerge: mergeability.viewerCanEnableAutoMerge,
 		autoMergeEnabled: mergeability.autoMergeEnabled,
 		allowedMergeMethods: mergeability.allowedMergeMethods,

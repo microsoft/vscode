@@ -9,79 +9,14 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { createTimeout, timeout } from '../../../../../base/common/async.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
-import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ComponentFixtureContext, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { createMultiDiffEditorFixtureDocuments, createMultiDiffEditorFixtureServices, createMultiDiffEditorFixtureWidget } from './multiDiffEditorFixtureUtils.js';
-
-function renderMultiDiffEditor({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext): void {
-	container.style.width = '800px';
-	container.style.height = '600px';
-	container.style.border = '1px solid var(--vscode-editorWidget-border)';
-
-	const instantiationService = createMultiDiffEditorFixtureServices(disposableStore, theme, new TestDiffProviderFactoryService());
-
-	const textModels = disposableStackStore.add(new DisposableStore());
-	const { doc1, doc2, doc3 } = createMultiDiffEditorFixtureDocuments(instantiationService, textModels);
-	const widget = disposableStackStore.add(createMultiDiffEditorFixtureWidget(instantiationService, container));
-
-	const model: IMultiDiffEditorModel = {
-		documents: ValueWithChangeEvent.const([doc1, doc2, doc3]),
-	};
-
-	const viewModel = disposableStackStore.add(widget.createViewModel(model));
-	widget.setViewModel(viewModel);
-	widget.layout(new Dimension(800, 600));
-
-	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
-}
-
-// A long unchanged prefix/suffix around a single change so `hideUnchangedRegions`
-// collapses the surrounding context into "N hidden lines" widgets.
-const UNCHANGED_BLOCK = Array.from({ length: 20 }, (_, i) => `const value${i} = ${i};`).join('\n');
-const ORIGINAL_HIDDEN = `${UNCHANGED_BLOCK}\nconst changed = 'before';\n${UNCHANGED_BLOCK}`;
-const MODIFIED_HIDDEN = `${UNCHANGED_BLOCK}\nconst changed = 'after';\nconst added = true;\n${UNCHANGED_BLOCK}`;
-
-/**
- * Renders the multi-diff in inline view with `hideOriginalLineNumbers` (the
- * Agents window Changes editor configuration): the original line-number column
- * is dropped so the code sits flush left, while the full expandable
- * hidden-region widgets are still shown.
- */
-function renderMultiDiffEditorHideOriginalLineNumbers({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext): void {
-	container.style.width = '800px';
-	container.style.height = '600px';
-	container.style.border = '1px solid var(--vscode-editorWidget-border)';
-
-	const instantiationService = createMultiDiffEditorFixtureServices(disposableStore, theme, new TestDiffProviderFactoryService());
-
-	const textModels = disposableStackStore.add(new DisposableStore());
-	const original = textModels.add(createTextModel(instantiationService, ORIGINAL_HIDDEN, URI.parse('inmemory://original/settings.ts'), 'typescript'));
-	const modified = textModels.add(createTextModel(instantiationService, MODIFIED_HIDDEN, URI.parse('inmemory://modified/settings.ts'), 'typescript'));
-	const doc = RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original, modified }, { dispose() { } });
-
-	const widget = disposableStackStore.add(createMultiDiffEditorFixtureWidget(instantiationService, container, {
-		hideOriginalLineNumbers: true,
-		hideUnchangedRegions: { enabled: true },
-	}));
-	// `hideOriginalLineNumbers` only affects the inline view.
-	widget.setRenderSideBySide(false);
-
-	const model: IMultiDiffEditorModel = {
-		documents: ValueWithChangeEvent.const([doc]),
-	};
-
-	const viewModel = disposableStackStore.add(widget.createViewModel(model));
-	widget.setViewModel(viewModel);
-	widget.layout(new Dimension(800, 600));
-
-	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
-}
 
 class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
 	declare readonly _serviceBrand: undefined;
@@ -162,7 +97,10 @@ function renderMultiDiffEditorDocumentSwap() {
 		const makeDoc = (origText: string, modText: string, name: string) => {
 			const original = textModels.add(createTextModel(instantiationService, origText, URI.parse(`inmemory://original/${name}`), 'typescript'));
 			const modified = textModels.add(createTextModel(instantiationService, modText, URI.parse(`inmemory://modified/${name}`), 'typescript'));
-			return RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original, modified }, { dispose() { } });
+			return RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(original.uri, original),
+				modified: new DiffItemSource(modified.uri, modified),
+			}, { dispose() { } });
 		};
 
 		// Each document has exactly one line change.
@@ -196,43 +134,43 @@ function renderMultiDiffEditorDocumentSwap() {
 	};
 }
 
-export default defineThemedFixtureGroup({ path: 'editor/' }, {
-	MultiDiffEditor: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (context) => renderMultiDiffEditor(context),
-	}),
-	MultiDiffEditorHideOriginalLineNumbers: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (context) => renderMultiDiffEditorHideOriginalLineNumbers(context),
-	}),
-	MultiDiffEditorIncrementalPending: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: true, durationMs: 1200 },
-		render: renderMultiDiffEditorIncrementalUpdate(),
-	}),
-	MultiDiffEditorIncrementalResolved: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: true, durationMs: 2000 },
-		render: renderMultiDiffEditorIncrementalUpdate(),
-	}),
-	MultiDiffEditorIncrementalResolvedRealtime: defineComponentFixture({
-		labels: { kind: 'animated' },
-		virtualTime: { enabled: false },
-		render: renderMultiDiffEditorIncrementalUpdate(),
-	}),
-	MultiDiffEditorDocumentSwapBefore: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: true, durationMs: 100 },
-		render: renderMultiDiffEditorDocumentSwap(),
-	}),
-	MultiDiffEditorDocumentSwapAfter: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: true, durationMs: 2000 },
-		render: renderMultiDiffEditorDocumentSwap(),
-	}),
-	MultiDiffEditorDocumentSwapRealtime: defineComponentFixture({
-		labels: { kind: 'animated' },
-		virtualTime: { enabled: false },
-		render: renderMultiDiffEditorDocumentSwap(),
+export default defineThemedFixtureGroup({ path: 'editor/multiDiffEditor' }, {
+	loading: defineThemedFixtureGroup({
+		IncrementalPending: defineComponentFixture({
+			themes: ['light'],
+			labels: { kind: 'screenshot' },
+			virtualTime: { enabled: true, durationMs: 1200 },
+			render: renderMultiDiffEditorIncrementalUpdate(),
+		}),
+		IncrementalResolved: defineComponentFixture({
+			themes: ['light'],
+			labels: { kind: 'screenshot' },
+			virtualTime: { enabled: true, durationMs: 2000 },
+			render: renderMultiDiffEditorIncrementalUpdate(),
+		}),
+		IncrementalRealtime: defineComponentFixture({
+			themes: ['light'],
+			labels: { kind: 'animated' },
+			virtualTime: { enabled: false },
+			render: renderMultiDiffEditorIncrementalUpdate(),
+		}),
+		DocumentSwapBefore: defineComponentFixture({
+			themes: ['light'],
+			labels: { kind: 'screenshot' },
+			virtualTime: { enabled: true, durationMs: 100 },
+			render: renderMultiDiffEditorDocumentSwap(),
+		}),
+		DocumentSwapAfter: defineComponentFixture({
+			themes: ['light'],
+			labels: { kind: 'screenshot' },
+			virtualTime: { enabled: true, durationMs: 2000 },
+			render: renderMultiDiffEditorDocumentSwap(),
+		}),
+		DocumentSwapRealtime: defineComponentFixture({
+			themes: ['light'],
+			labels: { kind: 'animated' },
+			virtualTime: { enabled: false },
+			render: renderMultiDiffEditorDocumentSwap(),
+		}),
 	}),
 });

@@ -92,6 +92,19 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 }
 
+export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Copilot;
+
+	constructor(remoteAuthority: string | null) {
+		super(remoteAuthority);
+		this.id = `copilot.${this.remoteAuthority}`;
+	}
+
+	override getFilePath({ copilotHome, homedir }: INativeMcpDiscoveryData): URI | undefined {
+		return URI.joinPath(copilotHome ?? URI.joinPath(homedir, '.copilot'), 'mcp-config.json');
+	}
+}
+
 export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
 	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Windsurf;
 

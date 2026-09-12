@@ -38,6 +38,7 @@ export type PullRequestLifecycleAction = 'mark-ready' | 'merge' | 'enable-auto-m
 export class AgentHostPullRequestLifecycleOperationHandler implements IChangesetOperationHandler {
 
 	public static readonly OPERATION_MARK_READY = AgentHostPullRequestOperationId.MarkReady;
+	public static readonly OPERATION_MARK_READY_WITH_AGENT_MERGE = AgentHostPullRequestOperationId.MarkReadyWithAgentMerge;
 	public static readonly OPERATION_MERGE = AgentHostPullRequestOperationId.Merge;
 	public static readonly OPERATION_ENABLE_AUTO_MERGE = AgentHostPullRequestOperationId.EnableAutoMerge;
 	public static readonly OPERATION_DISABLE_AUTO_MERGE = AgentHostPullRequestOperationId.DisableAutoMerge;

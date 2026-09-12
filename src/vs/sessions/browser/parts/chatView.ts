@@ -8,10 +8,12 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -24,6 +26,16 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
  */
 export interface IChatViewOptions {
 }
+
+export interface ISelectWorkspaceOptions {
+	readonly providerId?: string;
+	readonly preferDevContainer?: boolean;
+	readonly selectionOrigin?: WorkspaceSelectionOrigin;
+	/** Only replace an automatic default in a fresh, empty composer. */
+	readonly isDefault?: boolean;
+}
+
+export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 
 /**
  * Base class for a view that lives inside the {@link SessionsPart} internal grid.
@@ -61,6 +73,20 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	abstract readonly kind: ChatViewKind;
 
 	/**
+	 * Whether the view has a visible transcript turn to retain when a remote
+	 * host disconnects. New and unbound views intentionally report no content.
+	 */
+	readonly hasVisibleTranscriptContent: IObservable<boolean> = constObservable(false);
+
+	/**
+	 * Whether this view is still resolving its chat model, during which
+	 * {@link hasVisibleTranscriptContent} is not yet meaningful — it reads `false` for a transcript
+	 * that simply has not arrived yet as well as for one that does not exist. Views that never load
+	 * a model report `false`, since for them the answer is already final.
+	 */
+	readonly isLoadingTranscript: IObservable<boolean> = constObservable(false);
+
+	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
 	 * this to load the chat model and feed it into the widget.
@@ -70,11 +96,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Select a workspace folder in this view's workspace picker. The default
-	 * implementation is a no-op; subclasses that host a workspace picker
-	 * (e.g. `NewChatView`) override this to forward the selection.
+	 * Select a workspace folder, acknowledging application or preservation of an existing choice.
+	 * Views without a ready workspace picker return notReady.
 	 */
-	selectWorkspace(_folderUri: URI, _providerId?: string): void {
+	selectWorkspace(_folderUri: URI, _options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		return 'notReady';
+	}
+
+	selectNoWorkspace(): void {
 		// no-op by default
 	}
 
@@ -125,6 +154,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * inactive sessions displayed side by side are still visible.
 	 */
 	setVisible(_visible: boolean): void {
+		// no-op by default
+	}
+
+	/**
+	 * Notifies the view whether it occupies the first group in the chat grid.
+	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 */
+	setPrimary(_primary: boolean): void {
 		// no-op by default
 	}
 

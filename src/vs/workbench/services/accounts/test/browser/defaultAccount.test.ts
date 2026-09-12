@@ -28,8 +28,9 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
-import { DefaultAccountProvider } from '../../browser/defaultAccount.js';
+import { DefaultAccountProvider, DefaultAccountService } from '../../browser/defaultAccount.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { AccountPolicyGateState, AccountPolicyService } from '../../../policies/common/accountPolicyService.js';
 
 suite('DefaultAccountProvider', () => {
 
@@ -109,6 +110,78 @@ suite('DefaultAccountProvider', () => {
 			requestCount: 1,
 			cached: cachedPolicy.policyData,
 			forced: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+		});
+	});
+
+	test('entitlement refresh preserves satisfied governed managed settings', async () => {
+		const freshEntitlements = {
+			access_type_sku: 'copilot_business_seat',
+			chat_enabled: true,
+			assigned_date: '2026-01-01',
+			can_signup_for_limited: false,
+			copilot_plan: 'business',
+			organization_login_list: [],
+			analytics_tracking_id: 'tracking-id',
+		};
+		const requestService = new TestRequestService(async options => options.callSite === 'defaultAccount.entitlements'
+			? jsonResponse(freshEntitlements)
+			: Promise.reject(new Error(`Unexpected request: ${options.url}`)));
+		const provider = await createProvider(requestService);
+		const fetchedAt = Date.now() - 1000;
+		const managedSettingsScope = {
+			accountId,
+			authenticationProviderId: 'github',
+			endpointOrigin: 'https://api.github.com',
+		};
+		const cachedPolicy = {
+			...createCachedPolicy(true),
+			managedSettingsScope,
+		};
+		const policyData = {
+			...cachedPolicy,
+			entitlementsFetchedAt: fetchedAt,
+			managedSettingsFetchedAt: fetchedAt,
+		};
+		provider['setDefaultAccount']({
+			defaultAccount: {
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				accountName: sessions[0].account.label,
+				sessionId: sessions[0].id,
+				enterprise: false,
+				entitlementsData: { ...freshEntitlements, copilot_plan: 'individual' },
+			},
+			accountId,
+			policyData,
+			copilotTokenInfo: null,
+		});
+		provider['setManagedSettingsFreshness']({
+			state: ManagedSettingsFreshnessState.Satisfied,
+			source: 'server',
+			scope: managedSettingsScope,
+			lastAttemptAt: fetchedAt,
+			satisfiedAt: fetchedAt,
+		});
+
+		const refreshedEntitlements = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+			{ refreshEntitlements: true }
+		);
+
+		assert.deepStrictEqual({
+			callSites: requestService.requests.map(request => request.callSite),
+			refreshedCopilotPlan: refreshedEntitlements?.defaultAccount.entitlementsData?.copilot_plan,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+		}, {
+			callSites: ['defaultAccount.entitlements'],
+			refreshedCopilotPlan: 'business',
+			freshness: {
+				state: ManagedSettingsFreshnessState.Satisfied,
+				source: 'server',
+				scope: managedSettingsScope,
+				hasLastAttempt: true,
+				hasSatisfiedAt: true,
+			},
 		});
 	});
 
@@ -275,6 +348,26 @@ suite('DefaultAccountProvider', () => {
 			data: { managedSettings: undefined },
 			compatibilityError: null,
 			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+		});
+	});
+
+	test('managed settings 404 does not retry with another authentication session', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}, 404));
+		const provider = await createProvider(requestService);
+
+		const result = await provider['getManagedSettings']([
+			sessions[0],
+			{ ...sessions[0], id: 'second-session' },
+		], undefined);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			status: provider.managedSettingsFetchStatus,
+			data: result.data,
+		}, {
+			requestCount: 1,
+			status: 404,
+			data: { managedSettings: undefined },
 		});
 	});
 
@@ -483,6 +576,168 @@ suite('DefaultAccountProvider', () => {
 		assert.strictEqual(requestService.requestCount, 2);
 	});
 
+	test('managed settings endpoint outage without a refresh requirement keeps freshness non-blocking', async () => {
+		let managedSettingsRequestCount = 0;
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				managedSettingsRequestCount++;
+				if (managedSettingsRequestCount === 1) {
+					return jsonResponse({
+						permissions: { disableBypassPermissionsMode: 'disable' },
+					});
+				}
+				throw new Error('managed settings request timed out');
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(
+			requestService,
+			{},
+			{},
+			'https://api.github.com/copilot_internal/managed_settings',
+			{ getSessions: async () => sessions }
+		);
+
+		await provider.refresh({ forceRefresh: true });
+		const accountService = disposables.add(new DefaultAccountService(TestProductService));
+		accountService.setDefaultAccountProvider(provider);
+		await accountService.refresh();
+		const gateService = disposables.add(new AccountPolicyService(new NullLogService(), accountService));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			managedSettingsRequestCount,
+			requestTimeouts: requestService.requests
+				.filter(request => request.url?.includes('/copilot_internal/managed_settings'))
+				.map(request => request.timeout),
+			defaultAccount: provider.defaultAccount,
+			managedSettings: provider.policyData?.managedSettings,
+			freshness: provider.managedSettingsFreshness,
+			compatibilityError: provider.managedSettingsCompatibilityError,
+			gateState: gateService.gateInfo.state,
+		}, {
+			managedSettingsRequestCount: 2,
+			requestTimeouts: [5000, 5000],
+			defaultAccount: {
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				accountName: 'octocat',
+				sessionId: 'session',
+				enterprise: false,
+				entitlementsData: { chat_enabled: true },
+			},
+			managedSettings: {
+				'permissions.disableBypassPermissionsMode': 'disable',
+			},
+			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+			compatibilityError: null,
+			gateState: AccountPolicyGateState.Inactive,
+		});
+	});
+
+	test('truthy non-boolean server refresh control remains non-blocking after an endpoint outage', async () => {
+		let managedSettingsRequestCount = 0;
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				managedSettingsRequestCount++;
+				if (managedSettingsRequestCount === 1) {
+					return jsonResponse({
+						forceRemoteSettingsRefresh: 'true',
+						permissions: { disableBypassPermissionsMode: 'disable' },
+					});
+				}
+				throw new Error('managed settings request timed out');
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(
+			requestService,
+			{},
+			{},
+			'https://api.github.com/copilot_internal/managed_settings',
+			{ getSessions: async () => sessions }
+		);
+
+		await provider.refresh({ forceRefresh: true });
+
+		assert.deepStrictEqual({
+			managedSettingsRequestCount,
+			managedSettings: provider.policyData?.managedSettings,
+			freshness: provider.managedSettingsFreshness,
+			compatibilityError: provider.managedSettingsCompatibilityError,
+		}, {
+			managedSettingsRequestCount: 2,
+			managedSettings: {
+				forceRemoteSettingsRefresh: 'true',
+				'permissions.disableBypassPermissionsMode': 'disable',
+			},
+			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+			compatibilityError: null,
+		});
+	});
+
+	test('non-466 managed settings failures remain non-blocking without a refresh requirement', async () => {
+		const failures: { name: string; response: () => IRequestContext }[] = [
+			{ name: 'http error', response: () => jsonResponse({}, 500) },
+			{
+				name: 'malformed response',
+				response: () => ({
+					res: { statusCode: 200, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString('{')),
+				}),
+			},
+			{ name: 'rate limited', response: () => jsonResponse({}, 429, { 'retry-after': '60' }) },
+		];
+		const outcomes = [];
+
+		for (const failure of failures) {
+			const requestService = new TestRequestService(async () => failure.response());
+			const provider = await createProvider(requestService);
+			const cachedPolicy = createCachedPolicy(false);
+			const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+			outcomes.push({
+				name: failure.name,
+				status: provider.managedSettingsFetchStatus,
+				data: result.data,
+				keptCachedTimestamp: result.fetchedAt === cachedPolicy.managedSettingsFetchedAt,
+				freshness: provider.managedSettingsFreshness,
+				compatibilityError: provider.managedSettingsCompatibilityError,
+			});
+		}
+
+		assert.deepStrictEqual(outcomes, [
+			{
+				name: 'http error',
+				status: 500,
+				data: createCachedPolicy(false).policyData,
+				keptCachedTimestamp: true,
+				freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+				compatibilityError: null,
+			},
+			{
+				name: 'malformed response',
+				status: 'parse-error',
+				data: createCachedPolicy(false).policyData,
+				keptCachedTimestamp: true,
+				freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+				compatibilityError: null,
+			},
+			{
+				name: 'rate limited',
+				status: 429,
+				data: createCachedPolicy(false).policyData,
+				keptCachedTimestamp: true,
+				freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+				compatibilityError: null,
+			},
+		]);
+	});
+
 	test('managed settings source change preserves a prior blocked state', async () => {
 		const requestService = new TestRequestService(async () => {
 			throw new Error('managed settings unavailable');
@@ -555,6 +810,28 @@ suite('DefaultAccountProvider', () => {
 		], undefined);
 
 		assert.strictEqual(requestService.requestCount, 2);
+	});
+
+	test('matching authentication sessions are not duplicated by overlapping accepted scopes', async () => {
+		const broadSession: AuthenticationSession = {
+			...sessions[0],
+			scopes: ['read:user', 'user:email', 'repo', 'workflow'],
+		};
+		const provider = await createProvider(
+			new TestRequestService(async () => jsonResponse({})),
+			{},
+			{},
+			'',
+			{ getSessions: async () => [broadSession] }
+		);
+
+		const matching = await provider['findMatchingProviderSession']('github', [
+			['read:user', 'user:email', 'repo', 'workflow'],
+			['user:email'],
+			['read:user'],
+		]);
+
+		assert.deepStrictEqual(matching?.map(session => session.id), ['session']);
 	});
 
 	test('first server response can establish and satisfy a refresh requirement', async () => {
