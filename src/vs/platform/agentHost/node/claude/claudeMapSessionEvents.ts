@@ -13,6 +13,7 @@ import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
+import { clientToolUnavailableResult } from './clientTools/claudeClientToolResult.js';
 import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName, isClaudeFileEditTool } from './claudeToolDisplay.js';
 import { claudeToolDenialCode } from './claudeToolDenial.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
@@ -47,7 +48,7 @@ import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkd
  * lifecycle invariants live behind named methods.
  */
 export class ClaudeMapperState {
-	private readonly _activeToolBlocks = new Map<number, { toolUseId: string; toolName: string; isClientTool: boolean }>();
+	private readonly _activeToolBlocks = new Map<number, { toolUseId: string; toolName: string; isClientTool: boolean; ownerless: boolean }>();
 	/**
 	 * Phase 8.5 — cross-message tool-call attribution + input
 	 * accumulation + computed start-info, encapsulated as its own
@@ -88,12 +89,12 @@ export class ClaudeMapperState {
 	 * scopes; the per-message map gets drained on `content_block_stop`,
 	 * the cross-message maps survive until the matching `tool_result`.
 	 */
-	startToolBlock(index: number, toolUseId: string, toolName: string, turnId: string, isClientTool = false): void {
-		this._activeToolBlocks.set(index, { toolUseId, toolName, isClientTool });
+	startToolBlock(index: number, toolUseId: string, toolName: string, turnId: string, isClientTool = false, ownerless = false): void {
+		this._activeToolBlocks.set(index, { toolUseId, toolName, isClientTool, ownerless });
 		this.toolCalls.begin(toolUseId, toolName, turnId, isClientTool);
 	}
 
-	getActiveToolBlock(index: number): { toolUseId: string; toolName: string; isClientTool: boolean } | undefined {
+	getActiveToolBlock(index: number): { toolUseId: string; toolName: string; isClientTool: boolean; ownerless: boolean } | undefined {
 		return this._activeToolBlocks.get(index);
 	}
 
@@ -596,7 +597,8 @@ function mapStreamEvent(
 				// they don't carry the prefix.
 				const toolName = stripClientToolNamePrefix(block.name);
 				const isClientTool = hasClientToolNamePrefix(block.name);
-				state.startToolBlock(event.index, block.id, toolName, turnId, isClientTool);
+				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
+				state.startToolBlock(event.index, block.id, toolName, turnId, isClientTool, isClientTool && toolClientId === undefined);
 				// Phase 12 — subagent correlation bookkeeping. Either this
 				// tool_use is at the top level and (if Task/Agent) spawns a
 				// new subagent, or it is inner and we record its edge to the
@@ -620,7 +622,6 @@ function mapStreamEvent(
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
 				const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
-				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
 				return [{
 					kind: 'action',
 					resource: chat,
@@ -724,6 +725,18 @@ function mapStreamEvent(
 					...(meta ? { _meta: meta } : {}),
 				},
 			});
+			if (tracked.ownerless) {
+				signals.push({
+					kind: 'action',
+					resource: chat,
+					action: {
+						type: ActionType.ChatToolCallComplete,
+						turnId,
+						toolCallId: tracked.toolUseId,
+						result: clientToolUnavailableResult(tracked.toolName),
+					},
+				});
+			}
 			return signals;
 		}
 

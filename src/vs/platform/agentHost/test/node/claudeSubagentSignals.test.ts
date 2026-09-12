@@ -320,6 +320,46 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 		]);
 	});
 
+	test('inner client tools with no owner are failed immediately, tagged with the parent', () => {
+		const state = new ClaudeMapperState();
+		const log = new NullLogService();
+		const registry = r();
+		const parentToolCallId = 'toolu_parent_orphan';
+		mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, parentToolCallId, 'Task')),
+			SESSION, TURN_ID, state, log, registry,
+		);
+
+		const innerAssistant = makeAssistantMessage(SESSION_ID, [
+			{ type: 'tool_use', id: 'toolu_inner_orphan', name: 'mcp__client__lookup', input: { q: 'a' } },
+		]);
+		innerAssistant.parent_tool_use_id = parentToolCallId;
+		const signals = mapSDKMessageToAgentSignals(innerAssistant, SESSION, TURN_ID, state, log, registry, () => undefined);
+
+		assert.deepStrictEqual(signals.map(signal => signal.kind === 'action'
+			? {
+				type: signal.action.type,
+				parentToolCallId: signal.parentToolCallId,
+				...(signal.action.type === ActionType.ChatToolCallStart ? { contributor: signal.action.contributor } : {}),
+				...(signal.action.type === ActionType.ChatToolCallComplete ? { result: signal.action.result } : {}),
+			}
+			: signal.kind), [
+			'subagent_started',
+			'model_call_completed',
+			{ type: ActionType.ChatToolCallStart, parentToolCallId, contributor: undefined },
+			{ type: ActionType.ChatToolCallReady, parentToolCallId },
+			{
+				type: ActionType.ChatToolCallComplete,
+				parentToolCallId,
+				result: {
+					success: false,
+					pastTenseMessage: 'lookup failed',
+					error: { message: 'No client was connected to run lookup', code: 'toolUnavailable' },
+				},
+			},
+		]);
+	});
+
 	test('foreground subagent completion: tool_result for a Task spawn emits ChatToolCallComplete AND IAgentSubagentCompletedSignal, then clears the spawn from the registry', () => {
 		const state = new ClaudeMapperState();
 		const log = new NullLogService();
