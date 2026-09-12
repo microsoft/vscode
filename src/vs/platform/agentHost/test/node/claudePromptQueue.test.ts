@@ -200,7 +200,7 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.isEmpty, true);
 	});
 
-	test('resetForRebind replaces the parked deferred so a subsequent push wakes a new parked next()', async () => {
+	test('resetForRebind retires a parked iterator so it cannot consume the new query\'s prompt', async () => {
 		// Use a controller that we keep un-aborted to isolate the wake mechanic from the abort-done branch.
 		const liveController = new AbortController();
 		const services = new ServiceCollection([ILogService, new NullLogService()]);
@@ -213,26 +213,21 @@ suite('ClaudePromptQueue', () => {
 		const iter = q.iterable[Symbol.asyncIterator]();
 		const parkedA = iter.next();
 
-		// Resetting while parked replaces _pendingPromptDeferred with a fresh one.
-		// The original parked promise is still awaiting the OLD deferred — pushing should
-		// complete the OLD one (because push() calls .complete() on the current field,
-		// which after reset is the new one). So the original parked next() never wakes
-		// from a push alone; it requires a push BEFORE reset OR an entry to drain.
+		// Rebinding must wake and retire the old iterator before a new prompt arrives.
+		// Otherwise both the old and new SDK Query race to shift the same queue head,
+		// and the aborted old Query can silently drop the new Query's first prompt.
 		q.resetForRebind();
-		// Push an entry — the new deferred resolves AND _toYield has the entry, so a fresh next() wakes.
-		void q.push(makeEntry('after-reset'));
 		const iter2 = q.iterable[Symbol.asyncIterator]();
-		const value = await iter2.next();
+		const parkedB = iter2.next();
+		const retired = await parkedA;
+		assert.strictEqual(retired.done, true, 'the pre-rebind iterator is retired');
+
+		const sendPromise = q.push(makeEntry('after-reset'));
+		const value = await parkedB;
 		assert.strictEqual(value.done, false);
 		assert.strictEqual(value.value?.uuid, makeUuid('after-reset'));
-
-		// Original parked promise from the first iterator is still pending; abort to release it.
-		liveController.abort();
-		q.notifyAborted();
-		// notifyAborted completes the (now current) deferred. The OLD deferred from before reset
-		// is leaked-but-settled — the parkedA promise will never resolve. To avoid hanging the test
-		// runner, swap to the fresh iter and abandon parkedA (it's a closure-local promise; GC'd).
-		void parkedA;
+		q.settleHead();
+		await sendPromise;
 	});
 
 	test('isEmpty is true after every pushed entry has been yielded and settled', async () => {
