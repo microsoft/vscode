@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { unavailableCanvases } from '../common/agentHostCanvasesTestUtils.js';
+import { canvasChat, canvasIdentity, canvasSession, createCanvasServices, createCanvasSession } from './agentHostCanvasTestUtils.js';
+import type { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -17,14 +21,14 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { CancelAgentHostCanvasApprovalExtensionMethod, CancelCanvasChatInitializationExtensionMethod, InitializeCanvasChatExtensionMethod, RequestAgentHostCanvasApprovalExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostCanvasChatInitialization, type IAgentHostCanvasApprovalRequest, type IAgentHostExtensionCommandMap } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type CommandMap, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
+import { AUTOMATION_CATALOG_URI, ROOT_STATE_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -389,6 +393,7 @@ suite('ProtocolServerHandler', () => {
 	let telemetryService: TestTelemetryService;
 	let agentHostTelemetryService: AgentHostTelemetryService;
 	let clientConnections: AgentHostClientConnectionService;
+	let canvasService: IAgentHostCanvasesService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -432,6 +437,7 @@ suite('ProtocolServerHandler', () => {
 		telemetryService = new TestTelemetryService();
 		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
+		canvasService = unavailableCanvases;
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
@@ -443,6 +449,12 @@ suite('ProtocolServerHandler', () => {
 			agentHostTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			{
+				...unavailableCanvases,
+				get available() { return canvasService.available; },
+				get readiness() { return canvasService.readiness; },
+				connect: (clientId, requestApproval) => canvasService.connect(clientId, requestApproval),
+			},
 		));
 	});
 
@@ -451,6 +463,253 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('canvas transport', () => {
+		let requestId = 100;
+		const openParams: CommandMap['openCanvas']['params'] = { channel: canvasSession, canvas: 'ahp-canvas:/wire', identity: canvasIdentity, title: 'Counter', requestId: 'open' };
+
+		function enableCanvases() {
+			const fixture = createCanvasServices(disposables, stateManager, clientConnections);
+			canvasService = fixture.service;
+			createCanvasSession(stateManager);
+			return fixture;
+		}
+
+		type CanvasTransportCommands = CommandMap & Pick<IAgentHostExtensionCommandMap, typeof InitializeCanvasChatExtensionMethod | typeof CancelCanvasChatInitializationExtensionMethod>;
+		async function call<M extends keyof CanvasTransportCommands>(transport: MockProtocolTransport, method: M, params: CanvasTransportCommands[M]['params']): Promise<CanvasTransportCommands[M]['result']> {
+			const id = requestId++;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, method, params));
+			const message = await response;
+			assert.ok(isJsonRpcResponse(message));
+			if (hasKey(message, { error: true })) {
+				throw new ProtocolError(message.error.code, message.error.message);
+			}
+			assert.ok(hasKey(message, { result: true }));
+			return message.result as CanvasTransportCommands[M]['result'];
+		}
+
+		async function connect(clientId: string, canvases = true, version = PROTOCOL_VERSION, initialSubscriptions?: string[], transportKind = AgentHostTransportKind.WebSocket) {
+			const transport = disposables.add(new MockProtocolTransport(transportKind));
+			server.simulateConnection(transport);
+			const initialized = await call(transport, 'initialize', { channel: ROOT_STATE_URI, clientId, protocolVersions: [version], capabilities: canvases ? { canvases: {} } : undefined, initialSubscriptions });
+			return { transport, initialized };
+		}
+
+		for (const transportKind of [AgentHostTransportKind.WebSocket, AgentHostTransportKind.MessagePort]) {
+			test(`identity-free initialization is opt-in, cancellable and exact-transport bound over ${transportKind}`, async () => {
+				const f = enableCanvases();
+				f.facet.initialized = false;
+				const first = await connect('same-client', true, PROTOCOL_VERSION, undefined, transportKind);
+				const second = await connect('same-client', true, PROTOCOL_VERSION, undefined, transportKind);
+				f.facet.onInitialize = async (chat, operation) => {
+					assert.strictEqual(await f.service.requestApproval(chat, 'Approve this initializer?', operation.token, operation.clientId, operation.initiator), true);
+				};
+				const params = { channel: canvasChat, requestId: 'initialize' };
+				assert.strictEqual(supportsAgentHostCanvasChatInitialization(second.initialized), true);
+				assert.deepStrictEqual(await call(second.transport, 'listCanvasTypes', { channel: canvasChat }), { types: [] });
+				const initializing = call(second.transport, InitializeCanvasChatExtensionMethod, params);
+				while (!findRequest(second.transport.sent, RequestAgentHostCanvasApprovalExtensionMethod)) {
+					await timeout(0);
+				}
+				const reverse = findRequest(second.transport.sent, RequestAgentHostCanvasApprovalExtensionMethod)!;
+				const approval = reverse.params as IAgentHostCanvasApprovalRequest;
+				await call(first.transport, CancelCanvasChatInitializationExtensionMethod, params);
+				first.transport.simulateClose();
+				assert.strictEqual(findRequest(first.transport.sent, RequestAgentHostCanvasApprovalExtensionMethod), undefined);
+				second.transport.simulateMessage({ jsonrpc: '2.0', id: reverse.id, result: { requestId: approval.requestId, approved: true } });
+				await initializing;
+				assert.deepStrictEqual({
+					chat: approval.chat, calls: f.facet.calls, turn: stateManager.getActiveTurnId(canvasChat),
+					members: stateManager.getChatCanvasStates(canvasChat),
+				}, { chat: canvasChat, calls: ['initialize'], turn: undefined, members: [] });
+			});
+
+			test(`six typed routes share the negotiated handler over ${transportKind}`, async () => {
+				const fixture = enableCanvases();
+				const { transport, initialized } = await connect('canvas-client', true, PROTOCOL_VERSION, undefined, transportKind);
+				const listed = await call(transport, 'listCanvasTypes', { channel: canvasChat });
+				const opened = await call(transport, 'openCanvas', openParams);
+				const subscribed = await call(transport, 'subscribe', { channel: opened.canvas.resource });
+				const source = await call(transport, 'resolveCanvasSource', { channel: opened.canvas.resource });
+				const invoked = await call(transport, 'invokeCanvasAction', { channel: opened.canvas.resource, actionId: 'increment', incarnation: opened.canvas.identity.incarnation, requestId: 'invoke' });
+				const restarted = await call(transport, 'restartCanvasProvider', { channel: opened.canvas.resource, incarnation: opened.canvas.identity.incarnation, requestId: 'restart' });
+				const current = stateManager.getCanvasState(opened.canvas.resource)!;
+				const closed = await call(transport, 'closeCanvas', { channel: current.resource, revision: current.revision, requestId: 'close' });
+				assert.deepStrictEqual({
+					capability: initialized.canvases, types: listed.types.length, subscription: subscribed.snapshot?.resource,
+					source: source.source, result: invoked.result, restarted, closed, remaining: stateManager.getCanvasState(current.resource),
+					calls: fixture.facet.calls,
+				}, {
+					capability: {}, types: 1, subscription: openParams.canvas,
+					source: fixture.facet.resolveResult, result: { count: 1 }, restarted: null, closed: null, remaining: undefined,
+					calls: ['prepare', 'open', 'resolve:canvas-client', 'invoke', 'restart', 'close'],
+				});
+			});
+		}
+
+		test('real MessagePort frames carry canvas initialization and all six routes while management methods stay disabled', async () => {
+			const fixture = enableCanvases();
+			fixture.facet.initialized = false;
+			const ports = disposables.add(new MessagePortProtocolServer<string>());
+			disposables.add(new ProtocolServerHandler(
+				agentService,
+				stateManager,
+				ports,
+				{ allowExtensionMethods: false },
+				disposables.add(new AgentHostFileSystemProvider()),
+				logService,
+				agentHostTelemetryService,
+				managedSettingsService,
+				clientConnections,
+				fixture.service,
+			));
+			const received: ProtocolMessage[] = [];
+			disposables.add(ports.listen<string>('renderer', 'frame')(frame => received.push(JSON.parse(frame))));
+			await ports.call('renderer', 'connect');
+			const send = async <M extends keyof CanvasTransportCommands>(method: M, params: CanvasTransportCommands[M]['params']): Promise<CanvasTransportCommands[M]['result']> => {
+				const id = requestId++;
+				const response = new DeferredPromise<ProtocolMessage>();
+				const listener = disposables.add(ports.listen<string>('renderer', 'frame')(frame => {
+					const message: ProtocolMessage = JSON.parse(frame);
+					if (isJsonRpcResponse(message) && message.id === id) {
+						void response.complete(message);
+					}
+				}));
+				try {
+					await ports.call('renderer', 'send', JSON.stringify(request(id, method, params)));
+					const message = await response.p;
+					assert.ok(hasKey(message, { result: true }), JSON.stringify(message));
+					return message.result as CanvasTransportCommands[M]['result'];
+				} finally {
+					listener.dispose();
+				}
+			};
+			const initialized = await send('initialize', { channel: ROOT_STATE_URI, clientId: 'framed', protocolVersions: [PROTOCOL_VERSION], capabilities: { canvases: {} } });
+			const initialization = { channel: canvasChat, requestId: 'initialize' };
+			await send(InitializeCanvasChatExtensionMethod, initialization);
+			await send(CancelCanvasChatInitializationExtensionMethod, initialization);
+			const shutdownRequest = requestId++;
+			await ports.call('renderer', 'send', JSON.stringify(request(shutdownRequest, 'shutdown', {})));
+			const listed = await send('listCanvasTypes', { channel: canvasChat });
+			const opened = await send('openCanvas', openParams);
+			const subscription = await send('subscribe', { channel: opened.canvas.resource });
+			await ports.call('renderer', 'send', JSON.stringify(notification('dispatchAction', {
+				channel: opened.canvas.resource, clientSeq: 1,
+				action: { type: ActionType.CanvasTitleChanged, title: 'Forged', revision: 100 },
+			})));
+			assert.strictEqual(stateManager.getCanvasState(opened.canvas.resource)?.title, 'Counter');
+			const source = await send('resolveCanvasSource', { channel: opened.canvas.resource });
+			const invoked = await send('invokeCanvasAction', { channel: opened.canvas.resource, incarnation: opened.canvas.identity.incarnation, actionId: 'increment', requestId: 'invoke' });
+			const restarted = await send('restartCanvasProvider', { channel: opened.canvas.resource, incarnation: opened.canvas.identity.incarnation, requestId: 'restart' });
+			const current = stateManager.getCanvasState(opened.canvas.resource)!;
+			const closed = await send('closeCanvas', { channel: current.resource, revision: current.revision, requestId: 'close' });
+			assert.deepStrictEqual({
+				capability: initialized.canvases, initialization: supportsAgentHostCanvasChatInitialization(initialized),
+				shutdown: findResponse(received, shutdownRequest), shutdownCalls: agentService.shutdownCalls,
+				types: listed.types.length, subscription: subscription.snapshot?.resource,
+				source: source.source, result: invoked.result, restarted, closed,
+				canvasDeltas: received.some(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.channel === opened.canvas.resource),
+				remaining: stateManager.getCanvasState(opened.canvas.resource),
+			}, {
+				capability: {}, initialization: true,
+				shutdown: { jsonrpc: '2.0', id: shutdownRequest, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } }, shutdownCalls: 0,
+				types: 1, subscription: openParams.canvas, source: fixture.facet.resolveResult, result: { count: 1 }, restarted: null, closed: null, canvasDeltas: true, remaining: undefined,
+			});
+		});
+
+		test('both peers and the actual provider must support canvases', async () => {
+			const fixture = enableCanvases();
+			const old = await connect('old-peer', true, '0.9.0');
+			const absent = await connect('not-offered', false);
+			fixture.facet.available = false;
+			const unsupported = await connect('unsupported-runtime');
+			for (const connection of [old, absent, unsupported]) {
+				assert.strictEqual(connection.initialized.canvases, undefined);
+				assert.strictEqual(supportsAgentHostCanvasChatInitialization(connection.initialized), false);
+				await assert.rejects(call(connection.transport, 'openCanvas', openParams), error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound);
+				for (const method of [InitializeCanvasChatExtensionMethod, CancelCanvasChatInitializationExtensionMethod] as const) {
+					await assert.rejects(call(connection.transport, method, { channel: canvasChat, requestId: 'initialize' }), error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound);
+				}
+			}
+			assert.deepStrictEqual(fixture.facet.calls, []);
+		});
+
+		test('old and unoffered peers never receive session canvas catalog deltas', async () => {
+			const fixture = enableCanvases();
+			const old = await connect('old-catalog', true, '0.9.0', [canvasSession]);
+			const absent = await connect('absent-catalog', false, PROTOCOL_VERSION, [canvasSession]);
+			const current = await connect('current-catalog', true, PROTOCOL_VERSION, [canvasSession]);
+			for (const { transport } of [old, absent, current]) {
+				transport.sent.length = 0;
+			}
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [fixture.facet.instance()] });
+			await call(current.transport, 'listCanvasTypes', { channel: canvasChat });
+			const added = (transport: MockProtocolTransport) => transport.sent.some(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.action.type === ActionType.SessionCanvasSet);
+			assert.deepStrictEqual([added(old.transport), added(absent.transport), added(current.transport)], [false, false, true]);
+		});
+
+		test('already-started startup readiness is awaited, never initiated by negotiation', async () => {
+			const fixture = enableCanvases();
+			fixture.facet.available = false;
+			const ready = new DeferredPromise<void>();
+			fixture.facet.readiness = ready.p;
+			const connected = connect('waiting-for-runtime');
+			fixture.facet.available = true;
+			await ready.complete();
+			assert.deepStrictEqual([(await connected).initialized.canvases, fixture.facet.calls], [{}, []]);
+		});
+
+		test('request-ID retries deduplicate only on the original transport', async () => {
+			const fixture = enableCanvases();
+			const first = await connect('retry-client');
+			const opened = await call(first.transport, 'openCanvas', openParams);
+			assert.deepStrictEqual(await call(first.transport, 'openCanvas', openParams), opened);
+			await assert.rejects(call(first.transport, 'openCanvas', { ...openParams, title: 'Different bytes' }));
+			first.transport.simulateClose();
+			const second = await connect('retry-client');
+			await call(second.transport, 'openCanvas', openParams);
+			assert.deepStrictEqual(fixture.facet.calls, ['prepare', 'open', 'prepare', 'open']);
+		});
+
+		test('initial canvas subscriptions and malformed reserved channels never restore a provider', async () => {
+			const fixture = enableCanvases();
+			const seed = disposables.add(fixture.service.connect('seed'));
+			const opened = await seed.openCanvas(openParams);
+			fixture.facet.calls.length = 0;
+			const connected = await connect('pure-reader', true, PROTOCOL_VERSION, [opened.canvas.resource]);
+			await call(connected.transport, 'resolveCanvasSource', { channel: opened.canvas.resource });
+			await assert.rejects(call(connected.transport, 'subscribe', { channel: 'ahp-canvas://invalid/authority' }));
+			assert.deepStrictEqual({
+				resources: connected.initialized.snapshots.map(snapshot => snapshot.resource),
+				restores: agentService.subscribeCalls, calls: fixture.facet.calls,
+			}, { resources: [opened.canvas.resource], restores: [], calls: ['resolve:pure-reader'] });
+		});
+
+		test('reverse consent is nonce- and transport-bound, cancelled outside any turn', async () => {
+			const fixture = enableCanvases();
+			const source = await connect('source');
+			const other = await connect('other');
+			const cancellation = disposables.add(new CancellationTokenSource());
+			let settled = false;
+			const approval = fixture.service.requestApproval(canvasChat, 'Allow this exact source?', cancellation.token, 'source').then(value => { settled = true; return value; });
+			const reverse = findRequest(source.transport.sent, RequestAgentHostCanvasApprovalExtensionMethod);
+			assert.ok(reverse);
+			const params = reverse.params as IAgentHostCanvasApprovalRequest;
+			other.transport.simulateMessage({ jsonrpc: '2.0', id: reverse.id, result: { requestId: params.requestId, approved: true } });
+			await Promise.resolve();
+			assert.strictEqual(settled, false);
+			cancellation.cancel();
+			assert.strictEqual(await approval, false);
+			assert.ok(source.transport.sent.some(message => isJsonRpcNotification(message) && String(message.method) === CancelAgentHostCanvasApprovalExtensionMethod));
+			source.transport.simulateMessage({ jsonrpc: '2.0', id: reverse.id, result: { requestId: params.requestId, approved: true } });
+			const next = fixture.service.requestApproval(canvasChat, 'Try with a fresh nonce?', CancellationToken.None, 'source');
+			const fresh = findRequest([...source.transport.sent].reverse(), RequestAgentHostCanvasApprovalExtensionMethod);
+			assert.ok(fresh);
+			source.transport.simulateMessage({ jsonrpc: '2.0', id: fresh.id, result: { requestId: 'wrong-nonce', approved: true } });
+			assert.deepStrictEqual([await next, stateManager.getChatState(canvasChat)?.activeTurn], [false, undefined]);
+		});
+	});
 
 	test('handshake returns initialize response', () => {
 		const transport = connectClient('client-1');
@@ -1152,6 +1411,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			unavailableCanvases,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -2513,6 +2773,7 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				unavailableCanvases,
 			)));
 		}
 
@@ -2558,6 +2819,7 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				unavailableCanvases,
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -2606,6 +2868,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			unavailableCanvases,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2655,6 +2918,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			unavailableCanvases,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2696,6 +2960,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			unavailableCanvases,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2745,6 +3010,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			unavailableCanvases,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -3996,6 +4262,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			unavailableCanvases,
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -4101,6 +4368,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			unavailableCanvases,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4240,6 +4508,7 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				unavailableCanvases,
 			));
 		});
 
@@ -4412,6 +4681,7 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				unavailableCanvases,
 			));
 		});
 

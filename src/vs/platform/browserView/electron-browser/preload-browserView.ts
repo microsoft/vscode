@@ -7,7 +7,7 @@
 /* eslint-disable no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
-import type { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewPreloadLocalizedStrings, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
+import type { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewPreloadLocalizedStrings, IBrowserViewTheme, IBrowserViewRect, IBrowserCanvasTheme } from '../common/browserView.js';
 
 const commentElementSelectionMode = 'comment' as BrowserElementSelectionMode;
 let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
@@ -86,9 +86,9 @@ function init() {
 
 		const isMac = navigator.platform.indexOf('Mac') >= 0;
 
-		// Alt+Key special character handling (Alt + Numpad keys on Windows/Linux, Alt + any key on Mac)
+		// Preserve character entry through Option on macOS and Alt+Numpad on Windows/Linux.
 		if (event.altKey && !event.ctrlKey && !event.metaKey) {
-			if (isMac || /^Numpad\d+$/.test(event.code)) {
+			if ((isMac && !isNonEditingKey) || /^Numpad\d+$/.test(event.code)) {
 				return;
 			}
 		}
@@ -188,6 +188,70 @@ function init() {
 		elementPicker.setTheme(theme);
 		areaPicker.setTheme(theme);
 	});
+	let canvasTheme: IBrowserCanvasTheme | undefined;
+	const canvasStyles = new Map<string, HTMLStyleElement>();
+	const canvasAttributes = new WeakMap<HTMLElement, Map<string, string>>();
+	const applyCanvasTheme = () => {
+		if (window !== window.top || !document.documentElement) {
+			return;
+		}
+		const root = document.documentElement;
+		const style = (name: string, css: string) => {
+			let element = canvasStyles.get(name);
+			if (!element) {
+				element = document.createElement('style');
+				element.setAttribute(name === 'variables' ? 'data-copilot-canvas-theme-defaults' : 'data-copilot-canvas-theme', name);
+				canvasStyles.set(name, element);
+			}
+			if (!element.isConnected) {
+				const parent = document.head ?? root;
+				parent.insertBefore(element, parent.firstChild);
+			}
+			element.textContent = css;
+		};
+		const declarations = Object.entries(canvasTheme?.cssVariables ?? {})
+			.filter(([name, value]) => /^--[a-zA-Z][a-zA-Z0-9-]*$/.test(name) && value.length <= 512 && !/[{};]/.test(value))
+			.map(([name, value]) => `${name}: ${value};`);
+		if (canvasTheme) {
+			declarations.push(`color-scheme: ${canvasTheme.colorScheme};`, '-webkit-font-smoothing: antialiased;', '-moz-osx-font-smoothing: grayscale;');
+		}
+		style('variables', `:root { ${declarations.join(' ')} }`);
+		style('rampa', canvasTheme?.stylesheets.rampa ?? '');
+		for (const element of [root, document.body]) {
+			if (!element) {
+				continue;
+			}
+			const previous = canvasAttributes.get(element) ?? new Map<string, string>();
+			for (const [name, value] of previous) {
+				if (!Object.hasOwn(canvasTheme?.attributes ?? {}, name) && element.getAttribute(name) === value) {
+					element.removeAttribute(name);
+				}
+			}
+			const next = new Map<string, string>();
+			for (const [name, value] of Object.entries(canvasTheme?.attributes ?? {})) {
+				if (!['data-color-mode', 'data-dark-theme', 'data-light-theme', 'data-theme-source', 'data-theme-tone', 'data-visual-mode'].includes(name)) {
+					continue;
+				}
+				if (!element.hasAttribute(name) || element.getAttribute(name) === previous.get(name)) {
+					element.setAttribute(name, value);
+					next.set(name, value);
+				}
+			}
+			canvasAttributes.set(element, next);
+			if (canvasTheme) {
+				element.classList.add('pointer-on-hover');
+			}
+		}
+	};
+	ipcRenderer.on('vscode:browserView:canvasTheme', (_event: unknown, theme: IBrowserCanvasTheme | undefined) => {
+		canvasTheme = theme;
+		applyCanvasTheme();
+	});
+	document.addEventListener('DOMContentLoaded', () => {
+		if (canvasTheme) {
+			applyCanvasTheme();
+		}
+	}, { once: true });
 	ipcRenderer.on('vscode:browserView:setLocalizedStrings', (_event: unknown, strings: IBrowserViewPreloadLocalizedStrings) => {
 		localizedStrings = strings;
 		elementPicker.updateLocalizedStrings();

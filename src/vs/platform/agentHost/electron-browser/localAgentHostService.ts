@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
+import type { CancellationToken } from '../../../base/common/cancellation.js';
+import type { InitializeCanvasChatParams } from '../common/agentHostExtensionProtocol.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
@@ -64,6 +66,7 @@ import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTermi
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import type { CloseCanvasParams, InvokeCanvasActionParams, InvokeCanvasActionResult, ListCanvasTypesParams, ListCanvasTypesResult, OpenCanvasParams, OpenCanvasResult, ResolveCanvasSourceParams, ResolveCanvasSourceResult, RestartCanvasProviderParams } from '../common/state/protocol/channels-canvas/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
@@ -493,6 +496,34 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._requireClient().invokeChangesetOperation(params);
+	}
+
+	listCanvasTypes(params: ListCanvasTypesParams): Promise<ListCanvasTypesResult> {
+		return this._requireClient().listCanvasTypes(params);
+	}
+
+	initializeCanvasChat(params: InitializeCanvasChatParams, token?: CancellationToken): Promise<void> {
+		return this._requireClient().initializeCanvasChat(params, token);
+	}
+
+	openCanvas(params: OpenCanvasParams): Promise<OpenCanvasResult> {
+		return this._requireClient().openCanvas(params);
+	}
+
+	resolveCanvasSource(params: ResolveCanvasSourceParams): Promise<ResolveCanvasSourceResult> {
+		return this._requireClient().resolveCanvasSource(params);
+	}
+
+	invokeCanvasAction(params: InvokeCanvasActionParams): Promise<InvokeCanvasActionResult> {
+		return this._requireClient().invokeCanvasAction(params);
+	}
+
+	restartCanvasProvider(params: RestartCanvasProviderParams): Promise<void> {
+		return this._requireClient().restartCanvasProvider(params);
+	}
+
+	closeCanvas(params: CloseCanvasParams): Promise<void> {
+		return this._requireClient().closeCanvas(params);
 	}
 
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {

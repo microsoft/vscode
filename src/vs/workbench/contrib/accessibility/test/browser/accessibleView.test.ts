@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -42,18 +42,7 @@ suite('AccessibleView', () => {
 
 	test('disposes the toolbar menu when the context view hides', () => {
 		let disposeCount = 0;
-		let delegate: IContextViewDelegate | undefined;
-		const contextViewService = new class extends mock<IContextViewService>() {
-			override showContextView(contextViewDelegate: IContextViewDelegate): IOpenContextView {
-				delegate = contextViewDelegate;
-				return { close: () => this.hideContextView() };
-			}
-
-			override hideContextView(): void {
-				delegate?.onHide?.();
-				delegate = undefined;
-			}
-		};
+		const contextViewService = createContextViewService();
 		const instantiationService = workbenchInstantiationService({}, disposables);
 		instantiationService.stub(IContextViewService, contextViewService);
 		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
@@ -87,4 +76,40 @@ suite('AccessibleView', () => {
 		accessibleView.dispose();
 		assert.strictEqual(disposeCount, 1);
 	});
+
+	test('releases live content subscriptions when the context view closes', () => {
+		const changes = disposables.add(new Emitter<void>());
+		const contextViewService = createContextViewService();
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IContextViewService, contextViewService);
+		const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+		const provider = disposables.add(new AccessibleContentProvider(
+			AccessibleViewProviderId.Editor,
+			{ type: AccessibleViewType.View },
+			() => 'updated user content',
+			() => { },
+			'test.verbosity',
+			undefined, undefined, undefined, undefined,
+			changes.event,
+		));
+		accessibleView.show(provider);
+		const open = changes.hasListeners();
+		contextViewService.hideContextView();
+		assert.deepStrictEqual({ open, closed: changes.hasListeners() }, { open: true, closed: false });
+	});
 });
+
+function createContextViewService(): IContextViewService {
+	let delegate: IContextViewDelegate | undefined;
+	return new class extends mock<IContextViewService>() {
+		override showContextView(contextViewDelegate: IContextViewDelegate): IOpenContextView {
+			delegate = contextViewDelegate;
+			return { close: () => this.hideContextView() };
+		}
+
+		override hideContextView(): void {
+			delegate?.onHide?.();
+			delegate = undefined;
+		}
+	};
+}

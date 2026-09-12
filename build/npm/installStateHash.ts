@@ -13,11 +13,11 @@ export const stateFile = path.join(root, 'node_modules', '.postinstall-state');
 export const stateContentsFile = path.join(root, 'node_modules', '.postinstall-state-contents');
 export const forceInstallMessage = 'Run \x1b[36mnode build/npm/fast-install.ts --force\x1b[0m to force a full install.';
 
-export function collectInputFiles(): string[] {
+export function collectInputFiles(repositoryRoot: string = root): string[] {
 	const files: string[] = [];
 
 	for (const dir of dirs) {
-		const base = dir === '' ? root : path.join(root, dir);
+		const base = dir === '' ? repositoryRoot : path.join(repositoryRoot, dir);
 		for (const file of ['package.json', 'package-lock.json', '.npmrc']) {
 			const filePath = path.join(base, file);
 			if (fs.existsSync(filePath)) {
@@ -26,7 +26,17 @@ export function collectInputFiles(): string[] {
 		}
 	}
 
-	files.push(path.join(root, '.nvmrc'));
+	files.push(path.join(repositoryRoot, '.nvmrc'));
+	for (const file of [
+		'build/npm/postinstall.ts',
+		'build/npm/fast-install.ts',
+		'build/npm/installStateHash.ts',
+		'build/npm/copilotSdkCanvasPatch.ts',
+		'build/npm/copilot-sdk-canvas.json',
+		'build/npm/copilot-sdk-canvas.patch',
+	]) {
+		files.push(path.join(repositoryRoot, file));
+	}
 
 	return files;
 }
@@ -87,10 +97,11 @@ function hashContent(content: string): string {
 	return hash.digest('hex');
 }
 
-export function computeState(options?: { ignoreNodeVersion?: boolean }): PostinstallState {
+export function computeState(options?: { ignoreNodeVersion?: boolean; repositoryRoot?: string }): PostinstallState {
+	const repositoryRoot = options?.repositoryRoot ?? root;
 	const fileHashes: Record<string, string> = {};
-	for (const filePath of collectInputFiles()) {
-		const key = path.relative(root, filePath);
+	for (const filePath of collectInputFiles(repositoryRoot)) {
+		const key = path.relative(repositoryRoot, filePath);
 		try {
 			fileHashes[key] = hashContent(normalizeFileContent(filePath));
 		} catch {

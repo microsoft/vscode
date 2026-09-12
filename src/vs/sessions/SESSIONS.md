@@ -117,6 +117,12 @@ Turn-level file changes route through `IChatResponseFileChangesService`. The edi
 
 Sessions may expose the artifacts and references recorded by the agent. Both share one session-scoped observable and are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. Consumers that surface one category must filter on that field rather than assuming the observable holds artifacts alone. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
 
+### Canvases
+
+Provider-owned application instances are exposed separately from artifacts through the optional `ISessionsProvider.getSessionCanvases(sessionId, chat)` facet. Management verifies the exact session/chat pair before routing it, without a main-chat fallback. The observable facade separates live declarations, logical membership, and full instance state; provider-specific resource translation and execution remain in the provider.
+
+Canvas editors persist only provider/session/chat/member references. Presentation leases follow the represented owner and visibility; disposing an editor or restoring a working set does not logically close a canvas or execute its provider. The owning [canvas contribution](contrib/canvases/README.md) specifies explicit close/recovery, source resolution, and native isolation.
+
 ## Provider contract
 
 `ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A provider represents one compute environment. A provider may advertise multiple session types, and multiple providers may advertise the same logical type.
@@ -139,7 +145,11 @@ A provider that must establish backend state before presenting a session may imp
 
 ### Drafts
 
-`createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
+`createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. A canvas-capable provider may also commit a draft when its backend publishes a ready session with durable canvas membership or retained execution intent, without a conversation turn. Explicit provider initialization can retain an owner before any canvas is opened; an empty catalog alone cannot. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
+
+Replacing a pending draft with a committed facade releases the management service's draft pointer without discarding the backend owner. The visible session and its working set follow the ordinary replacement lifecycle, including same-resource canvas-first promotion.
+
+Within a committed session, authoritative canvas membership likewise makes its owning chat non-empty. Providers must not continue advertising that chat as an untitled draft eligible for reuse.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 

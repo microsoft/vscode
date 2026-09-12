@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SimpleMessageAttachment } from '../../common/state/protocol/state.js';
+export { extensionContextToProtocol, readExtensionContext } from '../../common/meta/copilotCanvasMeta.js';
 
 const attachmentDisplayKindParameter = 'x-vscode-display-kind=';
 const simpleAttachmentMimeType = 'text/x-vscode-simple-attachment';

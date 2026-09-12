@@ -16,6 +16,7 @@ import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
+import type { IAgentCanvasApprovalClient, IAgentCanvasConnection } from './agentHostCanvases.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
@@ -992,7 +993,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext, canvasInitiator?: IAgentCanvasApprovalClient): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1060,7 +1061,7 @@ export interface IAgentService {
  * Implementations wrap an {@link IAgentService} and layer subscription
  * management and optimistic write-ahead on top.
  */
-export interface IAgentConnection {
+export interface IAgentConnection extends IAgentCanvasConnection {
 
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;

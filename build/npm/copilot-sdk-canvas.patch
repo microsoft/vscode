@@ -1,0 +1,1152 @@
+diff --git a/dist/cjs/client.js b/dist/cjs/client.js
+index f559ca2..55c8707 100644
+--- a/dist/cjs/client.js
++++ b/dist/cjs/client.js
+@@ -39,6 +39,7 @@ var import_node_path = require("node:path");
+ var import_node = require("vscode-jsonrpc/node.js");
+ var import_rpc = require("./generated/rpc.js");
+ var import_sdkProtocolVersion = require("./sdkProtocolVersion.js");
++var import_extensionLaunchProvider = require("./extensionLaunchProvider.js");
+ var import_session = require("./session.js");
+ var import_runtimeArtifacts = require("./runtimeArtifacts.js");
+ var import_cliVersion = require("./cliVersion.js");
+@@ -241,6 +242,8 @@ class CopilotClient {
+   runtimePort = null;
+   actualHost = "localhost";
+   state = "disconnected";
++  /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
++  startPromise = null;
+   sessions = /* @__PURE__ */ new Map();
+   stderrBuffer = "";
+   // Captures CLI stderr for error messages
+@@ -270,6 +273,8 @@ class CopilotClient {
+   /** Connection-level session filesystem config, set via constructor option. */
+   sessionFsConfig = null;
+   requestHandler = null;
++  extensionLaunchProvider;
++  extensionLaunchProviderConnection;
+   builtinPluginDirectories = [];
+   onGitHubTelemetry;
+   clientGlobalHandlers = {};
+@@ -279,7 +284,7 @@ class CopilotClient {
+    * @throws Error if the client is not connected
+    */
+   get rpc() {
+-    if (!this.connection) {
++    if (!this.connection || this.connectionClosed) {
+       throw new Error("Client is not connected. Call start() first.");
+     }
+     if (!this._rpc) {
+@@ -427,6 +432,7 @@ class CopilotClient {
+     this.onGetTraceContext = options.onGetTraceContext;
+     this.sessionFsConfig = options.sessionFs ?? null;
+     this.requestHandler = options.requestHandler ?? null;
++    this.extensionLaunchProvider = options.extensionLaunchProvider;
+     this.onGitHubTelemetry = options.onGitHubTelemetry;
+     this.setupClientGlobalHandlers();
+     const connEnv = conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : void 0;
+@@ -618,6 +624,20 @@ class CopilotClient {
+     if (this.state === "connected") {
+       return;
+     }
++    if (this.startPromise) {
++      return this.startPromise;
++    }
++    this.startPromise = this.doStart();
++    try {
++      await this.startPromise;
++    } finally {
++      this.startPromise = null;
++    }
++  }
++  async doStart() {
++    if (this.connectionClosed) {
++      await this.forceStop();
++    }
+     this.forceStopping = false;
+     this.connectionClosed = false;
+     this.processTransportError = null;
+@@ -629,6 +649,7 @@ class CopilotClient {
+         await this.startCLIServer();
+       }
+       await this.connectToServer();
++      const launchProviderConnection = this.extensionLaunchProviderConnection;
+       await this.verifyProtocolVersion();
+       if (this.builtinPluginDirectories.length > 0) {
+         try {
+@@ -651,6 +672,7 @@ class CopilotClient {
+       if (this.requestHandler) {
+         await this.connection.sendRequest("llmInference.setProvider", {});
+       }
++      await launchProviderConnection?.register();
+       this.state = "connected";
+     } catch (error) {
+       const startupError = this.processTransportError ?? error;
+@@ -685,6 +707,7 @@ class CopilotClient {
+    */
+   async stop() {
+     const errors = [];
++    this.extensionLaunchProviderConnection?.dispose();
+     const activeSessions = [...this.sessions.values()];
+     if (this.connectionConfig.kind === "inprocess") {
+       await Promise.allSettled(activeSessions.map((session) => session.abort()));
+@@ -824,6 +847,7 @@ class CopilotClient {
+     this.runtimePort = null;
+     this.stderrBuffer = "";
+     this.processExitPromise = null;
++    this.extensionLaunchProviderConnection = void 0;
+     return errors;
+   }
+   /**
+@@ -868,6 +892,7 @@ class CopilotClient {
+    */
+   async forceStop() {
+     this.forceStopping = true;
++    this.extensionLaunchProviderConnection?.dispose();
+     for (const session of this.sessions.values()) {
+       session._markDisconnected();
+     }
+@@ -916,6 +941,7 @@ class CopilotClient {
+     this.runtimePort = null;
+     this.stderrBuffer = "";
+     this.processExitPromise = null;
++    this.extensionLaunchProviderConnection = void 0;
+   }
+   /**
+    * Creates a new conversation session with the Copilot CLI.
+@@ -1079,7 +1105,7 @@ class CopilotClient {
+     if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
+       throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+     }
+-    if (!this.connection) {
++    if (!this.connection || this.startPromise || this.connectionClosed) {
+       await this.start();
+     }
+     const modeDefaults = this.configDefaultsForMode();
+@@ -1204,6 +1230,7 @@ class CopilotClient {
+         enableSessionTelemetry: config.enableSessionTelemetry,
+         enableCitations: config.enableCitations,
+         enableFileChangeTracking: config.enableFileChangeTracking,
++        enableScriptSafety: config.enableScriptSafety,
+         sessionLimits: config.sessionLimits,
+         modelCapabilities: config.modelCapabilities,
+         largeOutput: toWireLargeOutput(config.largeOutput),
+@@ -1329,7 +1356,7 @@ class CopilotClient {
+     if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
+       throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+     }
+-    if (!this.connection) {
++    if (!this.connection || this.startPromise || this.connectionClosed) {
+       await this.start();
+     }
+     const session = new import_session.CopilotSession(
+@@ -1413,6 +1440,7 @@ class CopilotClient {
+         excludedBuiltinAgents: config.excludedBuiltinAgents,
+         enableCitations: config.enableCitations,
+         enableFileChangeTracking: config.enableFileChangeTracking,
++        enableScriptSafety: config.enableScriptSafety,
+         sessionLimits: config.sessionLimits,
+         tools: config.tools?.map((tool) => ({
+           name: tool.name,
+@@ -2061,8 +2089,13 @@ stderr: ${stderrOutput}`
+       case "inprocess":
+         return this.connectViaFfi();
+       case "tcp":
+-      case "uri":
+         return this.connectViaTcp();
++      case "uri": {
++        const { host, port } = this.parseCliUrl(this.connectionConfig.url);
++        this.actualHost = host;
++        this.runtimePort = port;
++        return this.connectViaTcp();
++      }
+     }
+   }
+   /** Starts the in-process FFI runtime with SDK-managed typed options. */
+@@ -2259,15 +2292,28 @@ stderr: ${stderrOutput}` : ""}`
+       if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
+       return session.clientSessionApis;
+     });
+-    (0, import_rpc.registerClientGlobalApiHandlers)(this.connection, this.clientGlobalHandlers);
++    const connection = this.connection;
++    const globalHandlers = { ...this.clientGlobalHandlers };
++    this._rpc = (0, import_rpc.createServerRpc)(connection);
++    if (this.extensionLaunchProvider) {
++      const provider = new import_extensionLaunchProvider.ExtensionLaunchProviderConnection(
++        this.extensionLaunchProvider,
++        this._rpc.registerExtensionLaunchProvider
++      );
++      this.extensionLaunchProviderConnection = provider;
++      this._rpc.registerExtensionLaunchProvider = () => provider.register();
++      globalHandlers.extensionLaunchProvider = provider.handler;
++    }
++    const launchProviderConnection = this.extensionLaunchProviderConnection;
++    (0, import_rpc.registerClientGlobalApiHandlers)(connection, globalHandlers);
+     this.connection.onRequest(
+       "hooks.invoke",
+       async (params) => {
+         return await this.handleHooksInvoke(params);
+       }
+     );
+-    const connection = this.connection;
+     const markDisconnected = () => {
++      launchProviderConnection?.dispose();
+       if (this.connection !== connection) {
+         return;
+       }
+@@ -2280,11 +2326,8 @@ stderr: ${stderrOutput}` : ""}`
+       this.githubTokenProviders.clear();
+     };
+     this.connection.onClose(markDisconnected);
+-    this.connection.onError(() => {
+-      if (this.connection === connection) {
+-        this.state = "disconnected";
+-      }
+-    });
++    this.connection.onDispose(markDisconnected);
++    this.connection.onError(markDisconnected);
+   }
+   handleSessionEventNotification(notification) {
+     if (typeof notification !== "object" || !notification || !("sessionId" in notification) || typeof notification.sessionId !== "string" || !("event" in notification)) {
+diff --git a/dist/cjs/extensionLaunchProvider.js b/dist/cjs/extensionLaunchProvider.js
+new file mode 100644
+index 0000000..a0fdd1c
+--- /dev/null
++++ b/dist/cjs/extensionLaunchProvider.js
+@@ -0,0 +1,117 @@
++"use strict";
++var __defProp = Object.defineProperty;
++var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
++var __getOwnPropNames = Object.getOwnPropertyNames;
++var __hasOwnProp = Object.prototype.hasOwnProperty;
++var __export = (target, all) => {
++  for (var name in all)
++    __defProp(target, name, { get: all[name], enumerable: true });
++};
++var __copyProps = (to, from, except, desc) => {
++  if (from && typeof from === "object" || typeof from === "function") {
++    for (let key of __getOwnPropNames(from))
++      if (!__hasOwnProp.call(to, key) && key !== except)
++        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
++  }
++  return to;
++};
++var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
++var extensionLaunchProvider_exports = {};
++__export(extensionLaunchProvider_exports, {
++  ExtensionLaunchProviderConnection: () => ExtensionLaunchProviderConnection
++});
++module.exports = __toCommonJS(extensionLaunchProvider_exports);
++var import_node = require("vscode-jsonrpc/node.js");
++function cancelled() {
++  return new import_node.ResponseError(-32800, "Extension launch provider request cancelled");
++}
++async function withCancellation(run, token) {
++  if (token.isCancellationRequested) {
++    throw cancelled();
++  }
++  let subscription;
++  const cancellation = new Promise((_, reject) => {
++    subscription = token.onCancellationRequested(() => reject(cancelled()));
++  });
++  try {
++    const operation = (async () => run())();
++    const result = await Promise.race([operation, cancellation]);
++    if (token.isCancellationRequested) {
++      throw cancelled();
++    }
++    return result;
++  } finally {
++    subscription?.dispose();
++  }
++}
++class ExtensionLaunchProviderConnection {
++  constructor(provider, registerProvider) {
++    this.provider = provider;
++    this.registerProvider = registerProvider;
++  }
++  provider;
++  registerProvider;
++  lifetime = new import_node.CancellationTokenSource();
++  registration;
++  registered = false;
++  handler = {
++    resolve: (params, token) => this.resolve(params, token)
++  };
++  async register() {
++    if (this.lifetime.token.isCancellationRequested) {
++      throw cancelled();
++    }
++    this.registration ??= withCancellation(async () => {
++      const result = await this.registerProvider();
++      if (result?.contractVersion !== 1) {
++        throw new Error(
++          "Extension launch provider requires contract version 1; the runtime did not acknowledge it."
++        );
++      }
++      if (this.lifetime.token.isCancellationRequested) {
++        throw cancelled();
++      }
++      this.registered = true;
++      return result;
++    }, this.lifetime.token);
++    return this.registration;
++  }
++  dispose() {
++    if (this.lifetime.token.isCancellationRequested) {
++      return;
++    }
++    this.lifetime.cancel();
++    this.lifetime.dispose();
++  }
++  async resolve(params, token) {
++    if (!this.registered) {
++      throw new Error("Extension launch provider contract has not been acknowledged");
++    }
++    const request = new import_node.CancellationTokenSource();
++    const requestToken = request.token;
++    const cancelRequest = () => {
++      if (!requestToken.isCancellationRequested) {
++        request.cancel();
++      }
++    };
++    const connectionSubscription = this.lifetime.token.onCancellationRequested(cancelRequest);
++    const requestSubscription = token?.onCancellationRequested(cancelRequest);
++    if (this.lifetime.token.isCancellationRequested || token?.isCancellationRequested) {
++      cancelRequest();
++    }
++    try {
++      return await withCancellation(
++        () => this.provider.resolve(params, requestToken),
++        requestToken
++      );
++    } finally {
++      connectionSubscription.dispose();
++      requestSubscription?.dispose();
++      request.dispose();
++    }
++  }
++}
++// Annotate the CommonJS export names for ESM import in node:
++0 && (module.exports = {
++  ExtensionLaunchProviderConnection
++});
+diff --git a/dist/cjs/generated/rpc.js b/dist/cjs/generated/rpc.js
+index 7622b8d..56a7226 100644
+--- a/dist/cjs/generated/rpc.js
++++ b/dist/cjs/generated/rpc.js
+@@ -211,7 +211,9 @@ function createServerRpc(connection) {
+       disable: async (params) => connection.sendRequest("extensions.disable", params)
+     },
+     /**
+-     * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
++     * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
++     *
++     * @returns Authoritative capability acknowledgement for the registered extension launch provider.
+      *
+      * @experimental
+      */
+@@ -688,6 +690,15 @@ function createServerRpc(connection) {
+        * @returns Outcome of an agentRegistry.spawn call.
+        */
+       spawn: async (params) => connection.sendRequest("agentRegistry.spawn", params)
++    },
++    /** @experimental */
++    session: {
++      /**
++       * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++       *
++       * @param params Identifies the target session.
++       */
++      retain: async (params) => connection.sendRequest("session.retain", params)
+     }
+   };
+ }
+@@ -770,6 +781,12 @@ function createInternalServerRpc(connection) {
+ }
+ function createSessionRpc(connection, sessionId) {
+   return {
++    /**
++     * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++     *
++     * @experimental
++     */
++    retain: async () => connection.sendRequest("session.retain", { sessionId }),
+     /**
+      * Suspends the session while preserving persisted state for later resume.
+      *
+@@ -2906,30 +2923,30 @@ function registerClientSessionApiHandlers(connection, getHandlers) {
+   });
+ }
+ function registerClientGlobalApiHandlers(connection, handlers) {
+-  connection.onRequest("extensionLaunchProvider.resolve", async (params) => {
++  connection.onRequest("extensionLaunchProvider.resolve", async (params, token) => {
+     const handler = handlers.extensionLaunchProvider;
+     if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
+-    return handler.resolve(params);
++    return handler.resolve(params, token);
+   });
+-  connection.onRequest("llmInference.httpRequestStart", async (params) => {
++  connection.onRequest("llmInference.httpRequestStart", async (params, token) => {
+     const handler = handlers.llmInference;
+     if (!handler) throw new Error("No llmInference client-global handler registered");
+-    return handler.httpRequestStart(params);
++    return handler.httpRequestStart(params, token);
+   });
+-  connection.onRequest("llmInference.httpRequestChunk", async (params) => {
++  connection.onRequest("llmInference.httpRequestChunk", async (params, token) => {
+     const handler = handlers.llmInference;
+     if (!handler) throw new Error("No llmInference client-global handler registered");
+-    return handler.httpRequestChunk(params);
++    return handler.httpRequestChunk(params, token);
+   });
+   connection.onNotification("gitHubTelemetry.event", async (params) => {
+     const handler = handlers.gitHubTelemetry;
+     if (!handler) return;
+     await handler.event(params);
+   });
+-  connection.onRequest("gitHubToken.getToken", async (params) => {
++  connection.onRequest("gitHubToken.getToken", async (params, token) => {
+     const handler = handlers.gitHubToken;
+     if (!handler) throw new Error("No gitHubToken client-global handler registered");
+-    return handler.getToken(params);
++    return handler.getToken(params, token);
+   });
+ }
+ // Annotate the CommonJS export names for ESM import in node:
+diff --git a/dist/client.d.ts b/dist/client.d.ts
+index 1b75a01..f163f76 100644
+--- a/dist/client.d.ts
++++ b/dist/client.d.ts
+@@ -12,6 +12,8 @@ export declare class CopilotClient {
+     private runtimePort;
+     private actualHost;
+     private state;
++    /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
++    private startPromise;
+     private sessions;
+     private stderrBuffer;
+     /** Resolved connection mode chosen in the constructor. */
+@@ -39,6 +41,8 @@ export declare class CopilotClient {
+     /** Connection-level session filesystem config, set via constructor option. */
+     private sessionFsConfig;
+     private requestHandler;
++    private extensionLaunchProvider?;
++    private extensionLaunchProviderConnection?;
+     private builtinPluginDirectories;
+     private onGitHubTelemetry?;
+     private clientGlobalHandlers;
+@@ -122,6 +126,7 @@ export declare class CopilotClient {
+      * ```
+      */
+     start(): Promise<void>;
++    private doStart;
+     /**
+      * Stops the CLI server and closes all active sessions.
+      *
+diff --git a/dist/client.js b/dist/client.js
+index 35c5f86..cd8ca63 100644
+--- a/dist/client.js
++++ b/dist/client.js
+@@ -17,6 +17,7 @@ import {
+   registerClientSessionApiHandlers
+ } from "./generated/rpc.js";
+ import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
++import { ExtensionLaunchProviderConnection } from "./extensionLaunchProvider.js";
+ import { CopilotSession } from "./session.js";
+ import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
+ import { COPILOT_CLI_VERSION } from "./cliVersion.js";
+@@ -219,6 +220,8 @@ class CopilotClient {
+   runtimePort = null;
+   actualHost = "localhost";
+   state = "disconnected";
++  /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
++  startPromise = null;
+   sessions = /* @__PURE__ */ new Map();
+   stderrBuffer = "";
+   // Captures CLI stderr for error messages
+@@ -248,6 +251,8 @@ class CopilotClient {
+   /** Connection-level session filesystem config, set via constructor option. */
+   sessionFsConfig = null;
+   requestHandler = null;
++  extensionLaunchProvider;
++  extensionLaunchProviderConnection;
+   builtinPluginDirectories = [];
+   onGitHubTelemetry;
+   clientGlobalHandlers = {};
+@@ -257,7 +262,7 @@ class CopilotClient {
+    * @throws Error if the client is not connected
+    */
+   get rpc() {
+-    if (!this.connection) {
++    if (!this.connection || this.connectionClosed) {
+       throw new Error("Client is not connected. Call start() first.");
+     }
+     if (!this._rpc) {
+@@ -405,6 +410,7 @@ class CopilotClient {
+     this.onGetTraceContext = options.onGetTraceContext;
+     this.sessionFsConfig = options.sessionFs ?? null;
+     this.requestHandler = options.requestHandler ?? null;
++    this.extensionLaunchProvider = options.extensionLaunchProvider;
+     this.onGitHubTelemetry = options.onGitHubTelemetry;
+     this.setupClientGlobalHandlers();
+     const connEnv = conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : void 0;
+@@ -596,6 +602,20 @@ class CopilotClient {
+     if (this.state === "connected") {
+       return;
+     }
++    if (this.startPromise) {
++      return this.startPromise;
++    }
++    this.startPromise = this.doStart();
++    try {
++      await this.startPromise;
++    } finally {
++      this.startPromise = null;
++    }
++  }
++  async doStart() {
++    if (this.connectionClosed) {
++      await this.forceStop();
++    }
+     this.forceStopping = false;
+     this.connectionClosed = false;
+     this.processTransportError = null;
+@@ -607,6 +627,7 @@ class CopilotClient {
+         await this.startCLIServer();
+       }
+       await this.connectToServer();
++      const launchProviderConnection = this.extensionLaunchProviderConnection;
+       await this.verifyProtocolVersion();
+       if (this.builtinPluginDirectories.length > 0) {
+         try {
+@@ -629,6 +650,7 @@ class CopilotClient {
+       if (this.requestHandler) {
+         await this.connection.sendRequest("llmInference.setProvider", {});
+       }
++      await launchProviderConnection?.register();
+       this.state = "connected";
+     } catch (error) {
+       const startupError = this.processTransportError ?? error;
+@@ -663,6 +685,7 @@ class CopilotClient {
+    */
+   async stop() {
+     const errors = [];
++    this.extensionLaunchProviderConnection?.dispose();
+     const activeSessions = [...this.sessions.values()];
+     if (this.connectionConfig.kind === "inprocess") {
+       await Promise.allSettled(activeSessions.map((session) => session.abort()));
+@@ -802,6 +825,7 @@ class CopilotClient {
+     this.runtimePort = null;
+     this.stderrBuffer = "";
+     this.processExitPromise = null;
++    this.extensionLaunchProviderConnection = void 0;
+     return errors;
+   }
+   /**
+@@ -846,6 +870,7 @@ class CopilotClient {
+    */
+   async forceStop() {
+     this.forceStopping = true;
++    this.extensionLaunchProviderConnection?.dispose();
+     for (const session of this.sessions.values()) {
+       session._markDisconnected();
+     }
+@@ -894,6 +919,7 @@ class CopilotClient {
+     this.runtimePort = null;
+     this.stderrBuffer = "";
+     this.processExitPromise = null;
++    this.extensionLaunchProviderConnection = void 0;
+   }
+   /**
+    * Creates a new conversation session with the Copilot CLI.
+@@ -1057,7 +1083,7 @@ class CopilotClient {
+     if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
+       throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+     }
+-    if (!this.connection) {
++    if (!this.connection || this.startPromise || this.connectionClosed) {
+       await this.start();
+     }
+     const modeDefaults = this.configDefaultsForMode();
+@@ -1182,6 +1208,7 @@ class CopilotClient {
+         enableSessionTelemetry: config.enableSessionTelemetry,
+         enableCitations: config.enableCitations,
+         enableFileChangeTracking: config.enableFileChangeTracking,
++        enableScriptSafety: config.enableScriptSafety,
+         sessionLimits: config.sessionLimits,
+         modelCapabilities: config.modelCapabilities,
+         largeOutput: toWireLargeOutput(config.largeOutput),
+@@ -1307,7 +1334,7 @@ class CopilotClient {
+     if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
+       throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+     }
+-    if (!this.connection) {
++    if (!this.connection || this.startPromise || this.connectionClosed) {
+       await this.start();
+     }
+     const session = new CopilotSession(
+@@ -1391,6 +1418,7 @@ class CopilotClient {
+         excludedBuiltinAgents: config.excludedBuiltinAgents,
+         enableCitations: config.enableCitations,
+         enableFileChangeTracking: config.enableFileChangeTracking,
++        enableScriptSafety: config.enableScriptSafety,
+         sessionLimits: config.sessionLimits,
+         tools: config.tools?.map((tool) => ({
+           name: tool.name,
+@@ -2039,8 +2067,13 @@ stderr: ${stderrOutput}`
+       case "inprocess":
+         return this.connectViaFfi();
+       case "tcp":
+-      case "uri":
+         return this.connectViaTcp();
++      case "uri": {
++        const { host, port } = this.parseCliUrl(this.connectionConfig.url);
++        this.actualHost = host;
++        this.runtimePort = port;
++        return this.connectViaTcp();
++      }
+     }
+   }
+   /** Starts the in-process FFI runtime with SDK-managed typed options. */
+@@ -2237,15 +2270,28 @@ stderr: ${stderrOutput}` : ""}`
+       if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
+       return session.clientSessionApis;
+     });
+-    registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
++    const connection = this.connection;
++    const globalHandlers = { ...this.clientGlobalHandlers };
++    this._rpc = createServerRpc(connection);
++    if (this.extensionLaunchProvider) {
++      const provider = new ExtensionLaunchProviderConnection(
++        this.extensionLaunchProvider,
++        this._rpc.registerExtensionLaunchProvider
++      );
++      this.extensionLaunchProviderConnection = provider;
++      this._rpc.registerExtensionLaunchProvider = () => provider.register();
++      globalHandlers.extensionLaunchProvider = provider.handler;
++    }
++    const launchProviderConnection = this.extensionLaunchProviderConnection;
++    registerClientGlobalApiHandlers(connection, globalHandlers);
+     this.connection.onRequest(
+       "hooks.invoke",
+       async (params) => {
+         return await this.handleHooksInvoke(params);
+       }
+     );
+-    const connection = this.connection;
+     const markDisconnected = () => {
++      launchProviderConnection?.dispose();
+       if (this.connection !== connection) {
+         return;
+       }
+@@ -2258,11 +2304,8 @@ stderr: ${stderrOutput}` : ""}`
+       this.githubTokenProviders.clear();
+     };
+     this.connection.onClose(markDisconnected);
+-    this.connection.onError(() => {
+-      if (this.connection === connection) {
+-        this.state = "disconnected";
+-      }
+-    });
++    this.connection.onDispose(markDisconnected);
++    this.connection.onError(markDisconnected);
+   }
+   handleSessionEventNotification(notification) {
+     if (typeof notification !== "object" || !notification || !("sessionId" in notification) || typeof notification.sessionId !== "string" || !("event" in notification)) {
+diff --git a/dist/extensionLaunchProvider.d.ts b/dist/extensionLaunchProvider.d.ts
+new file mode 100644
+index 0000000..616f0f0
+--- /dev/null
++++ b/dist/extensionLaunchProvider.d.ts
+@@ -0,0 +1,14 @@
++import type { ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult } from "./generated/rpc.js";
++/** One launch-provider registration and its outstanding requests on a single connection. */
++export declare class ExtensionLaunchProviderConnection {
++    private readonly provider;
++    private readonly registerProvider;
++    private readonly lifetime;
++    private registration?;
++    private registered;
++    readonly handler: ExtensionLaunchProviderHandler;
++    constructor(provider: ExtensionLaunchProviderHandler, registerProvider: () => Promise<ExtensionLaunchProviderRegistrationResult>);
++    register(): Promise<ExtensionLaunchProviderRegistrationResult>;
++    dispose(): void;
++    private resolve;
++}
+diff --git a/dist/extensionLaunchProvider.js b/dist/extensionLaunchProvider.js
+new file mode 100644
+index 0000000..0860be5
+--- /dev/null
++++ b/dist/extensionLaunchProvider.js
+@@ -0,0 +1,96 @@
++import {
++  CancellationTokenSource,
++  ResponseError
++} from "vscode-jsonrpc/node.js";
++function cancelled() {
++  return new ResponseError(-32800, "Extension launch provider request cancelled");
++}
++async function withCancellation(run, token) {
++  if (token.isCancellationRequested) {
++    throw cancelled();
++  }
++  let subscription;
++  const cancellation = new Promise((_, reject) => {
++    subscription = token.onCancellationRequested(() => reject(cancelled()));
++  });
++  try {
++    const operation = (async () => run())();
++    const result = await Promise.race([operation, cancellation]);
++    if (token.isCancellationRequested) {
++      throw cancelled();
++    }
++    return result;
++  } finally {
++    subscription?.dispose();
++  }
++}
++class ExtensionLaunchProviderConnection {
++  constructor(provider, registerProvider) {
++    this.provider = provider;
++    this.registerProvider = registerProvider;
++  }
++  provider;
++  registerProvider;
++  lifetime = new CancellationTokenSource();
++  registration;
++  registered = false;
++  handler = {
++    resolve: (params, token) => this.resolve(params, token)
++  };
++  async register() {
++    if (this.lifetime.token.isCancellationRequested) {
++      throw cancelled();
++    }
++    this.registration ??= withCancellation(async () => {
++      const result = await this.registerProvider();
++      if (result?.contractVersion !== 1) {
++        throw new Error(
++          "Extension launch provider requires contract version 1; the runtime did not acknowledge it."
++        );
++      }
++      if (this.lifetime.token.isCancellationRequested) {
++        throw cancelled();
++      }
++      this.registered = true;
++      return result;
++    }, this.lifetime.token);
++    return this.registration;
++  }
++  dispose() {
++    if (this.lifetime.token.isCancellationRequested) {
++      return;
++    }
++    this.lifetime.cancel();
++    this.lifetime.dispose();
++  }
++  async resolve(params, token) {
++    if (!this.registered) {
++      throw new Error("Extension launch provider contract has not been acknowledged");
++    }
++    const request = new CancellationTokenSource();
++    const requestToken = request.token;
++    const cancelRequest = () => {
++      if (!requestToken.isCancellationRequested) {
++        request.cancel();
++      }
++    };
++    const connectionSubscription = this.lifetime.token.onCancellationRequested(cancelRequest);
++    const requestSubscription = token?.onCancellationRequested(cancelRequest);
++    if (this.lifetime.token.isCancellationRequested || token?.isCancellationRequested) {
++      cancelRequest();
++    }
++    try {
++      return await withCancellation(
++        () => this.provider.resolve(params, requestToken),
++        requestToken
++      );
++    } finally {
++      connectionSubscription.dispose();
++      requestSubscription?.dispose();
++      request.dispose();
++    }
++  }
++}
++export {
++  ExtensionLaunchProviderConnection
++};
+diff --git a/dist/generated/rpc.d.ts b/dist/generated/rpc.d.ts
+index 8696a7d..93412ee 100644
+--- a/dist/generated/rpc.d.ts
++++ b/dist/generated/rpc.d.ts
+@@ -2,7 +2,7 @@
+  * AUTO-GENERATED FILE - DO NOT EDIT
+  * Generated from: api.schema.json
+  */
+-import type { MessageConnection } from "vscode-jsonrpc/node.js";
++import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
+ import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+ /** A value that can be represented losslessly on the SDK JSON wire. */
+ export type JsonValue = null | boolean | number | string | JsonValue[] | {
+@@ -7117,16 +7117,24 @@ export interface ExtensionLaunchProviderResolveRequest {
+      */
+     modulePath: string;
+     source: ExtensionSource;
++    /**
++     * Owning runtime session identifier, when known.
++     */
++    sessionId?: string;
++    defaultLaunch?: ExtensionLaunchProfile;
+ }
+ /**
+- * The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
++ * The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
+  *
+  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+  * via the `definition` "ExtensionLaunchProviderResolveResult".
+  */
+ /** @experimental */
+ export interface ExtensionLaunchProviderResolveResult {
+-    launch?: ExtensionLaunchProfile;
++    /**
++     * Approved launch profile, or absent/null to deny this candidate without fallback.
++     */
++    launch?: ExtensionLaunchProfile | null;
+ }
+ /**
+  * Extensions discovered for the session, with their current status.
+@@ -22757,6 +22765,32 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
+      */
+     operation: string;
+ }
++/**
++ * Authoritative capability acknowledgement for the registered extension launch provider.
++ *
++ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
++ * via the `definition` "ExtensionLaunchProviderRegistrationResult".
++ */
++/** @experimental */
++export interface ExtensionLaunchProviderRegistrationResult {
++    /**
++     * Supported extension launch-provider contract version. Clients requiring this contract must check for version 1 before creating or resuming sessions.
++     */
++    contractVersion: 1;
++}
++/**
++ * Identifies the target session.
++ *
++ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
++ * via the `definition` "SessionRetainRequest".
++ */
++/** @experimental */
++export interface SessionRetainRequest {
++    /**
++     * Target session identifier
++     */
++    sessionId: string;
++}
+ /** @experimental */
+ export interface SessionModelListRequest {
+     /**
+@@ -23066,11 +23100,13 @@ export declare function createServerRpc(connection: MessageConnection): {
+         disable: (params: DiscoveredExtensionsDisableRequest) => Promise<void>;
+     };
+     /**
+-     * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
++     * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
++     *
++     * @returns Authoritative capability acknowledgement for the registered extension launch provider.
+      *
+      * @experimental
+      */
+-    registerExtensionLaunchProvider: () => Promise<void>;
++    registerExtensionLaunchProvider: () => Promise<ExtensionLaunchProviderRegistrationResult>;
+     /** @experimental */
+     catalog: {
+         /**
+@@ -23544,9 +23580,24 @@ export declare function createServerRpc(connection: MessageConnection): {
+          */
+         spawn: (params: AgentRegistrySpawnRequest) => Promise<AgentRegistrySpawnResult>;
+     };
++    /** @experimental */
++    session: {
++        /**
++         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++         *
++         * @param params Identifies the target session.
++         */
++        retain: (params: SessionRetainRequest) => Promise<null>;
++    };
+ };
+ /** Create typed session-scoped RPC methods. */
+ export declare function createSessionRpc(connection: MessageConnection, sessionId: string): {
++    /**
++     * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++     *
++     * @experimental
++     */
++    retain: () => Promise<null>;
+     /**
+      * Suspends the session while preserving persisted state for later resume.
+      *
+@@ -25494,13 +25545,13 @@ export declare function registerClientSessionApiHandlers(connection: MessageConn
+ /** @experimental */
+ export interface ExtensionLaunchProviderHandler {
+     /**
+-     * Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.
++     * Asks the registered SDK client to approve a launch profile immediately before every extension launch or reload. Return defaultLaunch unchanged to approve the runtime's built-in launcher, or return another profile. An absent or null launch denies execution with no fallback. The provider must respond within 15 seconds. Approval does not sandbox code or freeze mutable files; the host is responsible for approved package contents.
+      *
+      * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+      *
+-     * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
++     * @returns The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
+      */
+-    resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
++    resolve(params: ExtensionLaunchProviderResolveRequest, token?: CancellationToken): Promise<ExtensionLaunchProviderResolveResult>;
+ }
+ /** Handler for `llmInference` client global API methods. */
+ /** @experimental */
+@@ -25512,7 +25563,7 @@ export interface LlmInferenceHandler {
+      *
+      * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
+      */
+-    httpRequestStart(params: LlmInferenceHttpRequestStartRequest): Promise<LlmInferenceHttpRequestStartResult>;
++    httpRequestStart(params: LlmInferenceHttpRequestStartRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestStartResult>;
+     /**
+      * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
+      *
+@@ -25520,7 +25571,7 @@ export interface LlmInferenceHandler {
+      *
+      * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
+      */
+-    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
++    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestChunkResult>;
+ }
+ /** Handler for `gitHubTelemetry` client global API methods. */
+ /** @experimental */
+@@ -25542,7 +25593,7 @@ export interface GitHubTokenHandler {
+      *
+      * @returns SDK host response to a GitHub credential request.
+      */
+-    getToken(params: GitHubTokenAcquireRequest): Promise<GitHubTokenAcquireResult>;
++    getToken(params: GitHubTokenAcquireRequest, token?: CancellationToken): Promise<GitHubTokenAcquireResult>;
+ }
+ /** All client global API handler groups. */
+ export interface ClientGlobalApiHandlers {
+diff --git a/dist/generated/rpc.js b/dist/generated/rpc.js
+index 92fb384..98ca002 100644
+--- a/dist/generated/rpc.js
++++ b/dist/generated/rpc.js
+@@ -183,7 +183,9 @@ function createServerRpc(connection) {
+       disable: async (params) => connection.sendRequest("extensions.disable", params)
+     },
+     /**
+-     * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
++     * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
++     *
++     * @returns Authoritative capability acknowledgement for the registered extension launch provider.
+      *
+      * @experimental
+      */
+@@ -660,6 +662,15 @@ function createServerRpc(connection) {
+        * @returns Outcome of an agentRegistry.spawn call.
+        */
+       spawn: async (params) => connection.sendRequest("agentRegistry.spawn", params)
++    },
++    /** @experimental */
++    session: {
++      /**
++       * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++       *
++       * @param params Identifies the target session.
++       */
++      retain: async (params) => connection.sendRequest("session.retain", params)
+     }
+   };
+ }
+@@ -742,6 +753,12 @@ function createInternalServerRpc(connection) {
+ }
+ function createSessionRpc(connection, sessionId) {
+   return {
++    /**
++     * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++     *
++     * @experimental
++     */
++    retain: async () => connection.sendRequest("session.retain", { sessionId }),
+     /**
+      * Suspends the session while preserving persisted state for later resume.
+      *
+@@ -2878,30 +2895,30 @@ function registerClientSessionApiHandlers(connection, getHandlers) {
+   });
+ }
+ function registerClientGlobalApiHandlers(connection, handlers) {
+-  connection.onRequest("extensionLaunchProvider.resolve", async (params) => {
++  connection.onRequest("extensionLaunchProvider.resolve", async (params, token) => {
+     const handler = handlers.extensionLaunchProvider;
+     if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
+-    return handler.resolve(params);
++    return handler.resolve(params, token);
+   });
+-  connection.onRequest("llmInference.httpRequestStart", async (params) => {
++  connection.onRequest("llmInference.httpRequestStart", async (params, token) => {
+     const handler = handlers.llmInference;
+     if (!handler) throw new Error("No llmInference client-global handler registered");
+-    return handler.httpRequestStart(params);
++    return handler.httpRequestStart(params, token);
+   });
+-  connection.onRequest("llmInference.httpRequestChunk", async (params) => {
++  connection.onRequest("llmInference.httpRequestChunk", async (params, token) => {
+     const handler = handlers.llmInference;
+     if (!handler) throw new Error("No llmInference client-global handler registered");
+-    return handler.httpRequestChunk(params);
++    return handler.httpRequestChunk(params, token);
+   });
+   connection.onNotification("gitHubTelemetry.event", async (params) => {
+     const handler = handlers.gitHubTelemetry;
+     if (!handler) return;
+     await handler.event(params);
+   });
+-  connection.onRequest("gitHubToken.getToken", async (params) => {
++  connection.onRequest("gitHubToken.getToken", async (params, token) => {
+     const handler = handlers.gitHubToken;
+     if (!handler) throw new Error("No gitHubToken client-global handler registered");
+-    return handler.getToken(params);
++    return handler.getToken(params, token);
+   });
+ }
+ export {
+diff --git a/dist/generated/session-events.d.ts b/dist/generated/session-events.d.ts
+index 104be67..1d703ba 100644
+--- a/dist/generated/session-events.d.ts
++++ b/dist/generated/session-events.d.ts
+@@ -9,7 +9,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | {
+ /**
+  * Union of all session event variants emitted by the Copilot CLI runtime.
+  */
+-export type SessionEvent = StartEvent | ResumeEvent | RemoteSteerableChangedEvent | ErrorEvent | IdleEvent | TitleChangedEvent | ScheduleCreatedEvent | ScheduleCancelledEvent | ScheduleRearmedEvent | AutopilotObjectiveChangedEvent | InfoEvent | WarningEvent | ModelChangeEvent | AutoTierSwitchFailedEvent | ModeChangedEvent | ModeNoticeDeliveredEvent | SessionLimitsChangedEvent | PermissionsChangedEvent | PlanChangedEvent | TodosChangedEvent | WorkspaceFileChangedEvent | HandoffEvent | TruncationEvent | SnapshotRewindEvent | ShutdownEvent | UsageCheckpointEvent | ContextChangedEvent | UsageInfoEvent | ContextClearedEvent | CompactionStartEvent | CompactionCompleteEvent | TaskCompleteEvent | CompletionReceiptEvent | FusionRouteStartedEvent | FusionRouteFailedEvent | FusionResolvedEvent | FusionCompletedEvent | UserMessageEvent | PendingMessagesModifiedEvent | AssistantTurnStartEvent | AssistantIntentEvent | AssistantFusionPhaseStartedEvent | AssistantFusionPhaseActivityEvent | AssistantFusionPhaseCompletedEvent | AssistantFusionPhaseFailedEvent | AssistantServerToolProgressEvent | AssistantReasoningEvent | AssistantReasoningDeltaEvent | AssistantToolCallDeltaEvent | AssistantStreamingDeltaEvent | AssistantMessageEvent | AssistantMessageStartEvent | AssistantMessageDeltaEvent | AssistantTurnEndEvent | AssistantIdleEvent | AssistantUsageEvent | ModelCallFailureEvent | ModelCallFinishedEvent | AbortEvent | ToolUserRequestedEvent | ToolExecutionStartEvent | ToolExecutionPartialResultEvent | ToolExecutionProgressEvent | ToolExecutionCompleteEvent | ToolSearchActivatedEvent | SkillInvokedEvent | SubagentStartedEvent | SubagentConfiguredEvent | SubagentCompletedEvent | SubagentFailedEvent | SubagentSelectedEvent | SubagentDeselectedEvent | HookStartEvent | HookEndEvent | HookProgressEvent | BinaryAssetEvent | SystemMessageEvent | SystemNotificationEvent | PermissionRequestedEvent | PermissionCompletedEvent | UserInputRequestedEvent | UserInputCompletedEvent | ElicitationRequestedEvent | ElicitationCompletedEvent | SamplingRequestedEvent | SamplingCompletedEvent | McpOauthRequiredEvent | McpOauthCompletedEvent | McpHeadersRefreshRequiredEvent | McpHeadersRefreshCompletedEvent | CustomNotificationEvent | UIEphemeralQueryEvent | ExternalToolRequestedEvent | ExternalToolCompletedEvent | CommandQueuedEvent | CommandExecuteEvent | CommandCompletedEvent | AutoModeSwitchRequestedEvent | AutoModeSwitchCompletedEvent | SessionLimitsExhaustedRequestedEvent | SessionLimitsExhaustedCompletedEvent | AutoModeResolvedEvent | ManagedSettingsResolvedEvent | ManagedSettingsEnforcedEvent | CommandsChangedEvent | CapabilitiesChangedEvent | ExitPlanModeRequestedEvent | ExitPlanModeCompletedEvent | ToolsUpdatedEvent | BackgroundTasksChangedEvent | FactoryRunUpdatedEvent | FactoryRunStartedEvent | FactoryRunSettledEvent | SkillsLoadedEvent | CustomAgentsUpdatedEvent | McpServersLoadedEvent | McpServerStatusChangedEvent | McpServerRemovedEvent | McpServerNeedsReconnectEvent | McpToolsListChangedEvent | McpResourcesListChangedEvent | McpPromptsListChangedEvent | ExtensionsLoadedEvent | CanvasOpenedEvent | CanvasRegistryChangedEvent | CanvasClosedEvent | CanvasUnavailableEvent | CanvasRecordedEvent | CanvasRemovedEvent | ExtensionsAttachmentsPushedEvent | McpAppToolCallCompleteEvent;
++export type SessionEvent = StartEvent | ResumeEvent | RemoteSteerableChangedEvent | ErrorEvent | IdleEvent | TitleChangedEvent | ScheduleCreatedEvent | ScheduleCancelledEvent | ScheduleRearmedEvent | AutopilotObjectiveChangedEvent | RetainedEvent | InfoEvent | WarningEvent | ModelChangeEvent | AutoTierSwitchFailedEvent | ModeChangedEvent | ModeNoticeDeliveredEvent | SessionLimitsChangedEvent | PermissionsChangedEvent | PlanChangedEvent | TodosChangedEvent | WorkspaceFileChangedEvent | HandoffEvent | TruncationEvent | SnapshotRewindEvent | ShutdownEvent | UsageCheckpointEvent | ContextChangedEvent | UsageInfoEvent | ContextClearedEvent | CompactionStartEvent | CompactionCompleteEvent | TaskCompleteEvent | CompletionReceiptEvent | FusionRouteStartedEvent | FusionRouteFailedEvent | FusionResolvedEvent | FusionCompletedEvent | UserMessageEvent | PendingMessagesModifiedEvent | AssistantTurnStartEvent | AssistantIntentEvent | AssistantFusionPhaseStartedEvent | AssistantFusionPhaseActivityEvent | AssistantFusionPhaseCompletedEvent | AssistantFusionPhaseFailedEvent | AssistantServerToolProgressEvent | AssistantReasoningEvent | AssistantReasoningDeltaEvent | AssistantToolCallDeltaEvent | AssistantStreamingDeltaEvent | AssistantMessageEvent | AssistantMessageStartEvent | AssistantMessageDeltaEvent | AssistantTurnEndEvent | AssistantIdleEvent | AssistantUsageEvent | ModelCallFailureEvent | ModelCallFinishedEvent | AbortEvent | ToolUserRequestedEvent | ToolExecutionStartEvent | ToolExecutionPartialResultEvent | ToolExecutionProgressEvent | ToolExecutionCompleteEvent | ToolSearchActivatedEvent | SkillInvokedEvent | SubagentStartedEvent | SubagentConfiguredEvent | SubagentCompletedEvent | SubagentFailedEvent | SubagentSelectedEvent | SubagentDeselectedEvent | HookStartEvent | HookEndEvent | HookProgressEvent | BinaryAssetEvent | SystemMessageEvent | SystemNotificationEvent | PermissionRequestedEvent | PermissionCompletedEvent | UserInputRequestedEvent | UserInputCompletedEvent | ElicitationRequestedEvent | ElicitationCompletedEvent | SamplingRequestedEvent | SamplingCompletedEvent | McpOauthRequiredEvent | McpOauthCompletedEvent | McpHeadersRefreshRequiredEvent | McpHeadersRefreshCompletedEvent | CustomNotificationEvent | UIEphemeralQueryEvent | ExternalToolRequestedEvent | ExternalToolCompletedEvent | CommandQueuedEvent | CommandExecuteEvent | CommandCompletedEvent | AutoModeSwitchRequestedEvent | AutoModeSwitchCompletedEvent | SessionLimitsExhaustedRequestedEvent | SessionLimitsExhaustedCompletedEvent | AutoModeResolvedEvent | ManagedSettingsResolvedEvent | ManagedSettingsEnforcedEvent | CommandsChangedEvent | CapabilitiesChangedEvent | ExitPlanModeRequestedEvent | ExitPlanModeCompletedEvent | ToolsUpdatedEvent | BackgroundTasksChangedEvent | FactoryRunUpdatedEvent | FactoryRunStartedEvent | FactoryRunSettledEvent | SkillsLoadedEvent | CustomAgentsUpdatedEvent | McpServersLoadedEvent | McpServerStatusChangedEvent | McpServerRemovedEvent | McpServerNeedsReconnectEvent | McpToolsListChangedEvent | McpResourcesListChangedEvent | McpPromptsListChangedEvent | ExtensionsLoadedEvent | CanvasOpenedEvent | CanvasRegistryChangedEvent | CanvasClosedEvent | CanvasUnavailableEvent | CanvasRecordedEvent | CanvasRemovedEvent | ExtensionsAttachmentsPushedEvent | McpAppToolCallCompleteEvent;
+ /**
+  * Routing preference used when the session model is `auto`.
+  */
+@@ -1564,6 +1564,43 @@ export interface AutopilotObjectiveChangedData {
+     operation: AutopilotObjectiveChangedOperation;
+     status?: AutopilotObjectiveChangedStatus;
+ }
++/**
++ * Session event "session.retained". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
++ */
++/** @experimental */
++export interface RetainedEvent {
++    /**
++     * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
++     */
++    agentId?: string;
++    data: RetainedData;
++    /**
++     * When true, the event is transient and not persisted to the session event log on disk
++     */
++    ephemeral?: boolean;
++    /**
++     * Unique event identifier (UUID v4), generated when the event is emitted
++     */
++    id: string;
++    /**
++     * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
++     */
++    parentId: string | null;
++    /**
++     * ISO 8601 timestamp when the event was created
++     */
++    timestamp: string;
++    /**
++     * Type discriminator. Always "session.retained".
++     */
++    type: "session.retained";
++}
++/**
++ * Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
++ */
++/** @experimental */
++export interface RetainedData {
++}
+ /**
+  * Session event "session.info". Informational message for timeline display with categorization
+  */
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index f480b4d..9fbbcda 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -11,5 +11,5 @@ export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./facto
+ export { Canvas, CanvasError, createCanvas, type CanvasAction, type CanvasDeclaration, type CanvasHostContext, type CanvasHostContextCapabilities, type CanvasJsonSchema, type CanvasOptions, } from "./canvas.js";
+ export { defineTool, approveAll, createAttributedPermissionResult, convertMcpCallToolResult, createSessionFsAdapter, CopilotRequestHandler, CopilotWebSocketHandler, CopilotWebSocketCloseStatus, CopilotWebSocketForwarder, SessionFsSqliteTransactionFailure, SYSTEM_MESSAGE_SECTIONS, } from "./types.js";
+ export type * from "./generated/session-events.js";
+-export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionInfo, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, MessageOptions, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
++export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionInfo, ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, MessageOptions, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionRetainRequest, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
+ export type { RunOptions, ResumeOptions, FactoryResumeErrorCode, SessionFactoryApi, FactoryAgentOptions, FactoryContext, FactoryDefinition, FactoryHandle, FactoryJsonSchema, JsonValue, FactoryPipelineStage, FactoryStepOptions, FactoryRunResult, FactoryRunStatus, FactoryRunSummary, FactoryListRunsOptions, FactoryRunsPage, FactoryRunDetail, FactoryProgressPage, FactoryProgressLine, FactoryPhaseObservation, FactoryPhaseStatus, FactoryAgentSummary, } from "./factory.js";
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 006c541..3f1d81e 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -7,10 +7,11 @@ import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
+ import type { AutoTier, PermissionRequest as GeneratedPermissionRequest, PermissionRequestedData as GeneratedPermissionRequestedData, PermissionRequestedEvent as GeneratedPermissionRequestedEvent, ReasoningSummary, SessionLimitsConfig, SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+ import type { CopilotSession } from "./session.js";
+ import type { FactoryJsonSchema, JsonValue } from "./factory.js";
+-import type { GitHubTokenAcquireRequest, GitHubTokenAcquireResult, GitHubTelemetryNotification, ModelBillingTokenPrices, OpenCanvasInstance, RemoteSessionMode, CurrentToolMetadata } from "./generated/rpc.js";
++import type { ExtensionLaunchProviderHandler, GitHubTokenAcquireRequest, GitHubTokenAcquireResult, GitHubTelemetryNotification, ModelBillingTokenPrices, OpenCanvasInstance, RemoteSessionMode, CurrentToolMetadata, SessionOpenOptions } from "./generated/rpc.js";
+ import type { ToolSet } from "./toolSet.js";
+ export type { RemoteSessionMode } from "./generated/rpc.js";
+ export type { CurrentToolMetadata } from "./generated/rpc.js";
++export type { ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, SessionRetainRequest, } from "./generated/rpc.js";
+ export type { GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, } from "./generated/rpc.js";
+ /**
+  * Arguments passed to a session's {@link GitHubTokenProvider}.
+@@ -371,6 +372,29 @@ export interface CopilotClientOptions {
+      * @experimental
+      */
+     requestHandler?: CopilotRequestHandler;
++    /**
++     * Connection-owned extension launch admission handler.
++     *
++     * Attached before the RPC handshake. `start()` registers it and requires an explicit
++     * contract-version-1 acknowledgement before create/resume can proceed.
++     * Missing support, invalid acknowledgements, and registration errors reject
++     * startup; they never opt back into the runtime's legacy launcher.
++     *
++     * Each resolve receives the original source identity and optional runtime
++     * session/default-launch context. Return `defaultLaunch` unchanged only
++     * after approving the source and completing any required retention through
++     * `client.rpc.session.retain({ sessionId })`. An absent or null launch denies
++     * execution. The optional cancellation token is cancelled on request
++     * cancellation, disconnect, or stop; late results are not reused.
++     *
++     * Reconnecting negotiates a new registration and resolves each launch anew.
++     * A runtime that keeps a disconnected provider authoritative may refuse
++     * replacement; that error is propagated rather than bypassing the old owner.
++     * Omitting this option preserves legacy runtime extension behavior.
++     *
++     * @experimental
++     */
++    extensionLaunchProvider?: ExtensionLaunchProviderHandler;
+     /**
+      * Experimental. Receives GitHub telemetry events the runtime forwards to
+      * this connection. When set, the client opts each session it creates or
+@@ -2087,6 +2111,17 @@ export interface SessionConfigBase {
+      * reconstruct changes from earlier untracked turns.
+      */
+     enableFileChangeTracking?: boolean;
++    /**
++     * Enables read-only classification of built-in shell commands. When true,
++     * commands classified as read-only may run without a permission prompt,
++     * subject to runtime policy. This is not an extension sandbox.
++     *
++     * Applied during session creation or resume, before new extension
++     * initialization. Omission preserves the runtime's existing behavior.
++     *
++     * @experimental
++     */
++    enableScriptSafety?: SessionOpenOptions["enableScriptSafety"];
+     /**
+      * Limits applied to this session's current accounting window.
+      *

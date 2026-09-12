@@ -23,7 +23,7 @@ import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
-import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
+import { extensionContextToProtocol, readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -550,7 +550,7 @@ export async function mapSessionEvents(
 				const d = e.data;
 				const messageId = d.interactionId ?? '';
 				const content = stripPromptScaffolding(d.content ?? '');
-				const attachments = sdkAttachmentsToProtocol(d.attachments);
+				const attachments = sdkAttachmentsToProtocol(d.attachments, routingChatUri.toString());
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
@@ -846,15 +846,16 @@ export async function mapSessionEvents(
  * copy of the bytes / paths it actually saw on send, which is the
  * authoritative record for replay.
  */
-function sdkAttachmentsToProtocol(
+export function sdkAttachmentsToProtocol(
 	attachments: readonly Attachment[] | undefined,
+	chat?: string,
 ): MessageAttachment[] | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
 	const out: MessageAttachment[] = [];
 	for (const a of attachments) {
-		const converted = sdkAttachmentToProtocol(a);
+		const converted = sdkAttachmentToProtocol(a, chat);
 		if (converted) {
 			out.push(converted);
 		}
@@ -864,8 +865,11 @@ function sdkAttachmentsToProtocol(
 
 function sdkAttachmentToProtocol(
 	attachment: Attachment,
+	chat: string | undefined,
 ): MessageAttachment | undefined {
 	switch (attachment.type) {
+		case 'extension_context':
+			return extensionContextToProtocol(attachment, chat);
 		case 'file': {
 			return {
 				type: MessageAttachmentKind.Resource,

@@ -183,6 +183,12 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	getTurnDelegations(): Promise<Map<string, string>>;
 
+	/** Persists host-observed message provenance, with the same lifetime and fork mapping as its turn. */
+	setTurnMessageOrigin(turnId: string, origin: string): Promise<void>;
+
+	/** Restores message provenance keyed by both host turn ID and provider event ID. */
+	getTurnMessageOrigins(): Promise<Map<string, string>>;
+
 	/**
 	 * Persists the JSON-serialized successful workspace transition for a turn.
 	 * Idempotent — last writer wins per turn.

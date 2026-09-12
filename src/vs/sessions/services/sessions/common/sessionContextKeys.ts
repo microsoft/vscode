@@ -20,6 +20,7 @@ import {
 	SessionIsStickyContext,
 	SessionProviderIdContext,
 	SessionSupportsDeleteContext,
+	SessionSupportsCanvasesContext,
 	SessionSupportsMultipleChatsContext,
 	SessionSupportsForkContext,
 	SessionSupportsSideChatContext,
@@ -54,6 +55,7 @@ interface ISessionContextKeys {
 	readonly supportsSideChat: IContextKey<boolean>;
 	readonly supportsRename: IContextKey<boolean>;
 	readonly supportsDelete: IContextKey<boolean>;
+	readonly supportsCanvases: IContextKey<boolean>;
 	readonly workspaceIsVirtual: IContextKey<boolean>;
 	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
@@ -97,6 +99,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			supportsSideChat: SessionSupportsSideChatContext.bindTo(contextKeyService),
 			supportsRename: SessionSupportsRenameContext.bindTo(contextKeyService),
 			supportsDelete: SessionSupportsDeleteContext.bindTo(contextKeyService),
+			supportsCanvases: SessionSupportsCanvasesContext.bindTo(contextKeyService),
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
 			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
@@ -150,6 +153,7 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.supportsSideChat.set(capabilities?.supportsSideChat ?? false);
 	keys.supportsRename.set(capabilities?.supportsRename ?? false);
 	keys.supportsDelete.set(capabilities?.supportsDelete ?? false);
+	keys.supportsCanvases.set(capabilities?.supportsCanvases ?? false);
 	const workspace = session?.workspace.read(reader);
 	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);

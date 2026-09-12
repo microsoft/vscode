@@ -29,6 +29,7 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { IAction } from '../../../../base/common/actions.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { focusWebContentsViewContainer } from './webContentsViewHost.js';
 
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
@@ -48,13 +49,6 @@ export enum BrowserActionGroup {
 	Data = '4_data',
 	Settings = '5_settings'
 }
-
-/**
- * Get the original implementation of HTMLElement focus (without window auto-focusing)
- * before it gets overridden by the workbench.
- */
-const originalHtmlElementFocus = HTMLElement.prototype.focus;
-
 
 /**
  * Base class for browser editor services that track the model lifecycle.
@@ -636,8 +630,7 @@ export class BrowserEditor extends EditorPane {
 	 * Make the browser container the active element without moving focus from the browser view.
 	 */
 	ensureBrowserFocus(): void {
-		originalHtmlElementFocus.call(this._browserContainer);
-		this.window.document.getSelection()?.removeAllRanges();
+		focusWebContentsViewContainer(this._browserContainer);
 	}
 
 	/**

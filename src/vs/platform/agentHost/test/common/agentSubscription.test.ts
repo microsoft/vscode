@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,6 +15,8 @@ import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, Chan
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
+import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type CanvasEntry, type CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import { AhpErrorCodes, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 
 // Helpers
 
@@ -889,7 +892,7 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationState; fromSeq: number }> = async resource => {
+	function createManager(subscribe: (resource: URI) => Promise<IStateSnapshot> = async resource => {
 		const key = resource.toString();
 		subscribedResources.push(key);
 		if (key.endsWith('/annotations')) {
@@ -1279,6 +1282,197 @@ suite('AgentSubscriptionManager', () => {
 			[{ kind: StateComponents.Session, status: 'error' }],
 		);
 		ref.dispose();
+	});
+
+	suite('cold canvas subscriptions', () => {
+		const canvas: CanvasState = {
+			resource: 'ahp-canvas:/cold-triage',
+			identity: {
+				chat: chatUri, source: { kind: CanvasSourceKind.Extension, extensionId: 'project:triage' },
+				canvasType: 'triage', instanceId: 'board', incarnation: 'cold',
+			},
+			title: 'Triage', trust: { status: CanvasTrustStatus.Pending },
+			availability: { status: CanvasAvailabilityStatus.NotLoaded }, revision: 6,
+		};
+		const membership: CanvasEntry = { ...canvas, availability: canvas.availability.status };
+
+		test('an initial missing canvas subscription recovers when its exact owner snapshot arrives', async () => {
+			const restored = new DeferredPromise<IStateSnapshot>();
+			const missing = new ProtocolError(AhpErrorCodes.NotFound, 'Canvas membership was not found.');
+			let canvasReads = 0;
+			const mgr = createManager(async resource => {
+				subscribedResources.push(resource.toString());
+				if (resource.toString() === sessionUri) {
+					return restored.p;
+				}
+				if (++canvasReads === 1) {
+					throw missing;
+				}
+				return { resource: canvas.resource, state: canvas, fromSeq: 6 };
+			});
+			disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'Owner'));
+			const ref = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, URI.parse(canvas.resource), 'Editor'));
+			await timeout(0);
+			const originalError = ref.object.value;
+			await restored.complete({
+				resource: sessionUri, state: makeSessionState(sessionUri, { canvases: [membership] }), fromSeq: 5,
+			});
+			await timeout(0);
+			const cold = ref.object.value;
+			const availability: CanvasState['availability'] = { status: CanvasAvailabilityStatus.Ready, actions: [] };
+			mgr.receiveEnvelope(makeEnvelope({
+				type: ActionType.CanvasAvailabilityChanged, availability, revision: 7,
+			}, 7, undefined, undefined, canvas.resource));
+			assert.deepStrictEqual({
+				originalErrorPreserved: originalError === missing, subscribedResources, cold, current: ref.object.value,
+			}, {
+				originalErrorPreserved: true, subscribedResources: [sessionUri, canvas.resource, canvas.resource],
+				cold: canvas, current: { ...canvas, availability, revision: 7 },
+			});
+		});
+
+		test('the owner snapshot may arrive before the initial NotFound response', async () => {
+			const initial = new DeferredPromise<IStateSnapshot>();
+			let canvasReads = 0;
+			const mgr = createManager(async resource => {
+				if (resource.toString() === sessionUri) {
+					return { resource: sessionUri, state: makeSessionState(sessionUri, { canvases: [membership] }), fromSeq: 5 };
+				}
+				return ++canvasReads === 1 ? initial.p : { resource: canvas.resource, state: canvas, fromSeq: 6 };
+			});
+			disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'Owner'));
+			const ref = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, URI.parse(canvas.resource), 'Editor'));
+			await timeout(0);
+			await initial.error(new ProtocolError(AhpErrorCodes.NotFound, 'Canvas membership was not found.'));
+			await timeout(0);
+			assert.deepStrictEqual({ canvasReads, state: ref.object.value }, { canvasReads: 2, state: canvas });
+		});
+
+		test('an authoritative membership action can recover an initial missing canvas', async () => {
+			let canvasReads = 0;
+			const mgr = createManager(async resource => {
+				if (resource.toString() === sessionUri) {
+					return { resource: sessionUri, state: makeSessionState(sessionUri), fromSeq: 5 };
+				}
+				if (++canvasReads === 1) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Canvas membership was not found.');
+				}
+				return { resource: canvas.resource, state: canvas, fromSeq: 6 };
+			});
+			disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'Owner'));
+			const ref = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, URI.parse(canvas.resource), 'Editor'));
+			await timeout(0);
+			mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionCanvasSet, canvas: membership }, 6));
+			await timeout(0);
+			assert.deepStrictEqual({ canvasReads, state: ref.object.value }, { canvasReads: 2, state: canvas });
+		});
+
+		for (const error of [new Error('Original transport failure'), new ProtocolError(AhpErrorCodes.PermissionDenied, 'Original permission denial')]) {
+			test(`membership does not retry ${error.message}`, async () => {
+				let canvasReads = 0;
+				const mgr = createManager(async resource => {
+					if (resource.toString() === sessionUri) {
+						return { resource: sessionUri, state: makeSessionState(sessionUri, { canvases: [membership] }), fromSeq: 5 };
+					}
+					canvasReads++;
+					throw error;
+				});
+				disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'Owner'));
+				const ref = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, URI.parse(canvas.resource), 'Editor'));
+				await timeout(0);
+				mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionCanvasSet, canvas: membership }, 6));
+				await timeout(0);
+				assert.deepStrictEqual({ canvasReads, originalErrorPreserved: ref.object.value === error }, { canvasReads: 1, originalErrorPreserved: true });
+			});
+		}
+
+		for (const announced of [
+			{ ...membership, resource: 'ahp-canvas:/different-resource' },
+			{ ...membership, identity: { ...membership.identity, chat: buildDefaultChatUri('copilot:/different-owner') } },
+		]) {
+			test(`membership must match the subscribed resource and owner: ${announced.resource}, ${announced.identity.chat}`, async () => {
+				const missing = new ProtocolError(AhpErrorCodes.NotFound, 'Original missing membership');
+				let canvasReads = 0;
+				const mgr = createManager(async resource => {
+					if (resource.toString() === sessionUri) {
+						return { resource: sessionUri, state: makeSessionState(sessionUri, { canvases: [announced] }), fromSeq: 5 };
+					}
+					canvasReads++;
+					throw missing;
+				});
+				disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'Owner'));
+				const ref = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, URI.parse(canvas.resource), 'Editor'));
+				await timeout(0);
+				assert.deepStrictEqual({ canvasReads, originalErrorPreserved: ref.object.value === missing }, { canvasReads: 1, originalErrorPreserved: true });
+			});
+		}
+
+		test('recovery is shared by holders and bounded to one read per confirmed incarnation', async () => {
+			const recovery = new DeferredPromise<IStateSnapshot>();
+			const initialError = new ProtocolError(AhpErrorCodes.NotFound, 'Original missing membership');
+			const recoveryError = new ProtocolError(AhpErrorCodes.NotFound, 'Original recovery failure');
+			let canvasReads = 0;
+			const mgr = createManager(async resource => {
+				if (resource.toString() === sessionUri) {
+					return { resource: sessionUri, state: makeSessionState(sessionUri, { canvases: [membership] }), fromSeq: 5 };
+				}
+				if (++canvasReads === 1) {
+					throw initialError;
+				}
+				if (canvasReads === 2) {
+					return recovery.p;
+				}
+				throw recoveryError;
+			});
+			disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'Owner'));
+			const uri = URI.parse(canvas.resource);
+			const ref = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, uri, 'Editor'));
+			await timeout(0);
+			const other = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, uri, 'Other holder'));
+			const duringRecovery = { reads: canvasReads, sameSubscription: other.object === ref.object, originalError: ref.object.value === initialError };
+			mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionCanvasSet, canvas: membership }, 6));
+			await recovery.error(recoveryError);
+			await timeout(0);
+			mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionCanvasSet, canvas: { ...membership, revision: 7 } }, 7));
+			await timeout(0);
+			const afterFailure = { reads: canvasReads, originalError: ref.object.value === recoveryError };
+			mgr.receiveEnvelope(makeEnvelope({
+				type: ActionType.SessionCanvasSet, canvas: { ...membership, identity: { ...membership.identity, incarnation: 'next' }, revision: 8 },
+			}, 8));
+			await timeout(0);
+			assert.deepStrictEqual({ duringRecovery, afterFailure, finalReads: canvasReads, finalErrorPreserved: ref.object.value === recoveryError }, {
+				duringRecovery: { reads: 2, sameSubscription: true, originalError: true },
+				afterFailure: { reads: 2, originalError: true }, finalReads: 3, finalErrorPreserved: true,
+			});
+		});
+
+		test('a disposed recovery cannot overwrite a replacement subscription', async () => {
+			const recovery = new DeferredPromise<IStateSnapshot>();
+			let canvasReads = 0;
+			const replacement: CanvasState = { ...canvas, identity: { ...canvas.identity, incarnation: 'replacement' }, revision: 8 };
+			const mgr = createManager(async resource => {
+				if (resource.toString() === sessionUri) {
+					return { resource: sessionUri, state: makeSessionState(sessionUri, { canvases: [membership] }), fromSeq: 5 };
+				}
+				if (++canvasReads === 1) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Canvas membership was not found.');
+				}
+				return canvasReads === 2 ? recovery.p : { resource: canvas.resource, state: replacement, fromSeq: 8 };
+			});
+			disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'Owner'));
+			const uri = URI.parse(canvas.resource);
+			const old = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, uri, 'Old editor'));
+			await timeout(0);
+			old.dispose();
+			const current = disposables.add(mgr.getSubscription<CanvasState>(StateComponents.Canvas, uri, 'New editor'));
+			await timeout(0);
+			await recovery.complete({ resource: canvas.resource, state: canvas, fromSeq: 6 });
+			await timeout(0);
+			old.dispose();
+			assert.deepStrictEqual({ canvasReads, state: current.object.value, unsubscribedResources }, {
+				canvasReads: 3, state: replacement, unsubscribedResources: [canvas.resource],
+			});
+		});
 	});
 
 	suite('ordinary optimistic reconnect state', () => {

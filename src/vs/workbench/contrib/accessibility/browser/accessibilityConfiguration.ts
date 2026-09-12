@@ -74,6 +74,7 @@ export const enum AccessibilityVerbositySettingId {
 	Survey = 'accessibility.verbosity.survey',
 	Automations = 'accessibility.verbosity.automations',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
+	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
 }
 
@@ -235,6 +236,10 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.BrowserElementCommenting]: {
 			description: localize('verbosity.browserElementCommenting', 'Provide information about how to access element commenting accessibility help in the Integrated Browser.'),
 			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionCanvas]: {
+			description: localize('verbosity.sessionCanvas', "Provide accessibility help hints in session canvas views."),
+			...baseVerbosityProperty,
 		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {
 			description: localize('verbosity.chatPetAchievements', 'Provide information about how to access chat pet achievements accessibility help when the Achievements modal is focused.'),

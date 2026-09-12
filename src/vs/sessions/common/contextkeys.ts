@@ -18,6 +18,7 @@ export const SessionHasGitRepositoryContext = new RawContextKey<boolean>('sessio
 export const SessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('sessionUsesCombinedConfigPicker', false, localize('sessionUsesCombinedConfigPicker', "Whether the session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const SessionSupportsRenameContext = new RawContextKey<boolean>('sessionSupportsRename', false, localize('sessionSupportsRename', "Whether the session can be renamed"));
 export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionSupportsDelete', false, localize('sessionSupportsDelete', "Whether the session can be deleted"));
+export const SessionSupportsCanvasesContext = new RawContextKey<boolean>('sessionSupportsCanvases', false, localize('sessionSupportsCanvases', "Whether the session supports live canvases"));
 
 //#endregion
 

@@ -10,6 +10,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { isCanvasRecord } from './agentHostCanvasValidation.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -52,6 +53,15 @@ const MAX_LOG_LINE_LENGTH = 1024 * 1024;
 // length. Generous enough to keep messages useful for debugging.
 const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
 
+/** Uses the response shape so logging enabled after a request still cannot persist presentation credentials. */
+function redactCanvasSourceResponse(message: object): object {
+	if (isCanvasRecord(message) && isCanvasRecord(message.result)
+		&& typeof message.result.availability === 'string' && typeof message.result.incarnation === 'string'
+		&& typeof message.result.revision === 'number' && isCanvasRecord(message.result.source) && typeof message.result.source.url === 'string') {
+		return { ...message, result: { ...message.result, source: { redacted: true } } };
+	}
+	return message;
+}
 
 export class AhpJsonlLogger extends Disposable {
 
@@ -94,7 +104,7 @@ export class AhpJsonlLogger extends Disposable {
 			transport: this._options.transport,
 			...(typeof byteLength === 'number' ? { byteLength } : {}),
 		};
-		const entry = { ...message, _ahpLog: meta };
+		const entry = { ...redactCanvasSourceResponse(message), _ahpLog: meta };
 		// Fast path: serialize once. The vast majority of messages are small, so
 		// we only pay a single stringify and use its length to decide whether the
 		// rare oversized-message path below is needed.

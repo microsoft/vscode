@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewStorageScope, externalBrowserViewStorageAffinity, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -42,9 +42,11 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { raceTimeout } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
+import { createBrowserCanvasTheme } from './browserCanvasTheme.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
@@ -74,6 +76,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _known = new Map<string, BrowserEditorInput>();
+	private readonly _knownInputListeners = this._register(new DisposableMap<string>());
+	private readonly _externalModels = this._register(new DisposableMap<string, IBrowserViewModel>());
+	private readonly _externalModelListeners = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _externalPending = new Map<string, { resource: URI; promise: Promise<IBrowserViewModel> }>();
 	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
 	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
 	private readonly _mainWindowId: number;
@@ -140,17 +146,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Send the full per-window configuration as a single unit, and resend it
 		// whenever any of its inputs change.
-		this._updateWindowConfiguration();
+		void this._updateWindowConfiguration();
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
-		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateWindowConfiguration()));
-		this._register(this.themeService.onDidColorThemeChange(() => this._updateWindowConfiguration()));
-		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this._updateWindowConfiguration()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._updateWindowConfiguration()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this._updateWindowConfiguration()));
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateWindowConfiguration()));
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => void this._updateWindowConfiguration()));
+		this._register(this.themeService.onDidColorThemeChange(() => void this._updateWindowConfiguration()));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => void this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => void this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => void this._updateWindowConfiguration()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => void this._updateWindowConfiguration()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
-				this._updateWindowConfiguration();
+				void this._updateWindowConfiguration();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -162,7 +168,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				this.notificationService.info(localize('browser.networkFilteringEnabled', "Agent access to browser tabs was revoked because network filtering was enabled."));
 			}
 			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
-				this._updateWindowConfiguration();
+				void this._updateWindowConfiguration();
 			}
 		}));
 
@@ -186,7 +192,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Listen for new browser views
 		this._register(this._browserViewService.onDidCreateBrowserView(e => {
-			if (e.info.host.windowId !== this._mainWindowId) {
+			if (e.info.host.windowId !== this._mainWindowId || e.info.presentation) {
 				return; // Not for this window
 			}
 
@@ -214,7 +220,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void {
 		this._remoteProxyInfo = info;
-		this._updateWindowConfiguration();
+		void this._updateWindowConfiguration();
 	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
@@ -367,8 +373,55 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return this._getOrCreateLazy(data);
 	}
 
+	async getOrCreateExternalBrowserView(id: string, resource: URI, initialUrl: string): Promise<IBrowserViewModel> {
+		if (this._known.has(id)) {
+			throw new Error('An ordinary browser input already owns this native view.');
+		}
+		const pending = this._externalPending.get(id);
+		if (pending) {
+			if (!isEqual(pending.resource, resource)) {
+				throw new Error('A different external presentation already owns this native view.');
+			}
+			return pending.promise;
+		}
+		const promise = this._createExternalModel(id, resource, initialUrl);
+		this._externalPending.set(id, { resource, promise });
+		try {
+			return await promise;
+		} finally {
+			this._externalPending.delete(id);
+		}
+	}
+
+	private async _createExternalModel(id: string, resource: URI, initialUrl: string): Promise<IBrowserViewModel> {
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		await this._updateWindowConfiguration();
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const info = await this._browserViewService.getOrCreateBrowserView(id, {
+			presentation: { type: 'external', resource },
+			host: { windowId: this._mainWindowId },
+			owner: { type: 'user' },
+			initialAudiences: [],
+			session: { scope: BrowserViewStorageScope.Agent, affinity: externalBrowserViewStorageAffinity(resource) },
+			initialUrl
+		});
+		if (this._store.isDisposed) {
+			await this._browserViewService.destroyBrowserView(info.id);
+			throw new CancellationError();
+		}
+		return this._createModel(info);
+	}
+
 	private _getOrCreateLazy(data: IBrowserEditorInputData, model?: IBrowserViewModel, createOptions?: IBrowserViewWorkbenchCreateOptions): BrowserEditorInput {
 		const { id, associatedResource } = data;
+		if (this._externalModels.has(id) || this._externalPending.has(id)) {
+			throw new Error('An external presentation already owns this native view.');
+		}
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
 				const info = await this._browserViewService.getOrCreateBrowserView(
@@ -387,10 +440,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				);
 				return this._createModel(info);
 			});
-			input.onWillDispose(() => {
+			this._knownInputListeners.set(id, input.onWillDispose(() => {
+				this._knownInputListeners.deleteAndDispose(id);
 				this._known.delete(id);
 				this._onDidChangeBrowserViews.fire();
-			});
+			}));
 			if (model) {
 				input.model = model;
 			}
@@ -441,7 +495,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private async _initializeExistingViews(): Promise<void> {
 		const views = await this._browserViewService.getBrowserViews(this._mainWindowId);
 		for (const info of views) {
-			this._createModel(info);
+			if (!info.presentation) {
+				this._createModel(info);
+			}
 		}
 	}
 
@@ -449,7 +505,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const associatedResource = URI.revive(info.associatedResource);
 		// Don't double-create
 		const input = this._known.get(info.id);
-		const existing = input?.model;
+		if (info.presentation ? input !== undefined : this._externalModels.has(info.id)) {
+			throw new Error('Native browser presentation cannot change its editor registration.');
+		}
+		const existing = input?.model ?? this._externalModels.get(info.id);
 		if (existing) {
 			return existing;
 		}
@@ -464,7 +523,19 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			: initialUrl
 				? { ...info.state, url: initialUrl }
 				: info.state;
-		const model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService);
+		const model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService, info.presentation);
+
+		if (info.presentation) {
+			const listeners = new DisposableStore();
+			this._externalModelListeners.set(info.id, listeners);
+			this._externalModels.set(info.id, model);
+			listeners.add(model.onWillDispose(() => {
+				this._externalModels.deleteAndLeak(info.id);
+				this._externalModelListeners.deleteAndDispose(info.id);
+			}));
+			listeners.add(model.onDidClose(() => model.dispose()));
+			return model;
+		}
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
 		this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
@@ -542,9 +613,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return undefined;
 	}
 
-	private _updateWindowConfiguration(): void {
-		void this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
+	private _updateWindowConfiguration(): Promise<void> {
+		const result = this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
 			theme: this._getTheme(),
+			canvasTheme: createBrowserCanvasTheme(this.themeService.getColorTheme(), DEFAULT_FONT_FAMILY),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
@@ -552,6 +624,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			trustedFileRoots: this._getTrustedFileRoots(),
 			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
+		void result.catch(error => this.logService.error('[BrowserViewWorkbenchService] Failed to update native browser configuration.', error));
+		return result;
 	}
 
 	private _getKeybindings(): { [commandId: string]: string } {

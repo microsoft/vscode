@@ -96,6 +96,13 @@ class MockAgentConnection implements IAgentConnection {
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
 	async runAutomation(_params: RunAutomationParams): Promise<RunAutomationResult> { throw new Error('Not implemented'); }
 	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return {}; }
+	async initializeCanvasChat(): ReturnType<IAgentConnection['initializeCanvasChat']> { throw new Error('Not implemented'); }
+	async listCanvasTypes(): ReturnType<IAgentConnection['listCanvasTypes']> { throw new Error('Not implemented'); }
+	async openCanvas(): ReturnType<IAgentConnection['openCanvas']> { throw new Error('Not implemented'); }
+	async resolveCanvasSource(): ReturnType<IAgentConnection['resolveCanvasSource']> { throw new Error('Not implemented'); }
+	async invokeCanvasAction(): ReturnType<IAgentConnection['invokeCanvasAction']> { throw new Error('Not implemented'); }
+	async restartCanvasProvider(): ReturnType<IAgentConnection['restartCanvasProvider']> { throw new Error('Not implemented'); }
+	async closeCanvas(): ReturnType<IAgentConnection['closeCanvas']> { throw new Error('Not implemented'); }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async createChat(_session: URI, _chat: URI): Promise<void> { }

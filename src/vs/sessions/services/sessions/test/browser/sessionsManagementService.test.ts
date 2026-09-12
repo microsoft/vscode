@@ -49,6 +49,7 @@ import { ISessionsProvidersService } from '../../browser/sessionsProvidersServic
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { ISessionCanvases } from '../../common/sessionCanvases.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -309,6 +310,101 @@ function createView(
 suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getSessionCanvases routes exact peers to their provider and never falls back to the main chat', () => {
+		const peer = { ...stubChat, resource: URI.parse('test:/owned#peer') };
+		const session = stubSession({ sessionId: 'canvases', providerId: 'test', chats: constObservable([stubChat, peer]) });
+		const collection = new class extends mock<ISessionCanvases>() { }();
+		const calls: { session: string; chat: string }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override getSessionCanvases(sessionId: string, chat: URI): ISessionCanvases {
+				calls.push({ session: sessionId, chat: chat.toString() });
+				return collection;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const found = service.getSessionCanvases(session.resource, peer.resource);
+		const unknownChat = service.getSessionCanvases(session.resource, URI.parse('test:/other#peer'));
+		const unknownSession = service.getSessionCanvases(URI.parse('test:/unknown'), peer.resource);
+		assert.deepStrictEqual({ found: found === collection, unknownChat, unknownSession, calls }, {
+			found: true, unknownChat: undefined, unknownSession: undefined, calls: [{ session: session.sessionId, chat: peer.resource.toString() }],
+		});
+	});
+
+	test('getSessionCanvases leaves providers without the optional facet unsupported', () => {
+		const session = stubSession({ sessionId: 'no-canvases', providerId: 'test', chats: constObservable([stubChat]) });
+		const { service } = createSessionsManagementService(session, disposables);
+		assert.strictEqual(service.getSessionCanvases(session.resource, stubChat.resource), undefined);
+	});
+
+	test('getSessionCanvases resolves the real composer draft before its first turn', async () => {
+		const draft = stubSession({
+			sessionId: 'canvas-draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+			chats: constObservable([stubChat]),
+		});
+		const collection = new class extends mock<ISessionCanvases>() { }();
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return []; }
+			override resolveWorkspace(folder: URI): ISessionWorkspace {
+				return { uri: folder, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override getSessionCanvases(sessionId: string, chat: URI): ISessionCanvases {
+				calls.push(`${sessionId}/${chat.toString()}`);
+				return collection;
+			}
+		}(draft);
+		const { service, view } = createSessionsManagementService(draft, disposables, provider);
+		await view.openNewSession({ folderUri: URI.parse('test:///folder') });
+
+		assert.deepStrictEqual({
+			active: extUriBiasedIgnorePathCase.isEqual(view.activeSession.get()?.resource, draft.resource),
+			listed: service.getSessions(),
+			defaultLookup: service.getSession(draft.resource),
+			draftLookup: service.getSession(draft.resource, { includeDrafts: true }) === draft,
+			canvases: service.getSessionCanvases(draft.resource, stubChat.resource) === collection,
+			otherChat: service.getSessionCanvases(draft.resource, URI.parse('test:///other-chat')),
+			calls,
+		}, {
+			active: true, listed: [], defaultLookup: undefined, draftLookup: true,
+			canvases: true, otherChat: undefined, calls: [`${draft.sessionId}/${stubChat.resource.toString()}`],
+		});
+	});
+
+	test('draft lookup follows replacement and disposal without changing catalog lookup', () => {
+		const drafts = ['first', 'automation', 'replacement'].map(sessionId =>
+			stubSession({ sessionId, providerId: 'test', status: constObservable(SessionStatus.Untitled) }));
+		let nextDraft = 0;
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return []; }
+			override createNewSession(): ISession { return drafts[nextDraft++]; }
+			override resolveWorkspace(folder: URI): ISessionWorkspace {
+				return { uri: folder, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+		const folder = URI.parse('test:///folder');
+		service.createNewSession(folder);
+		service.createAutomationSession(folder);
+		const lookup = () => drafts.map(draft => service.getSession(draft.resource, { includeDrafts: true })?.sessionId);
+		const states = [lookup()];
+		service.createNewSession(folder);
+		states.push(lookup());
+		service.discardNewSession();
+		states.push(lookup());
+		service.discardAutomationSession(drafts[1]);
+		states.push(lookup());
+
+		assert.deepStrictEqual({ states, catalog: service.getSessions() }, {
+			states: [
+				['first', 'automation', undefined],
+				[undefined, 'automation', 'replacement'],
+				[undefined, 'automation', undefined],
+				[undefined, undefined, undefined],
+			],
+			catalog: [],
+		});
+	});
 
 	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
@@ -3354,6 +3450,38 @@ suite('SessionsManagementService', () => {
 		onDidReplaceSession.fire({ from: before, to: after });
 
 		assert.strictEqual(view.activeSession.get()?.resource.toString(), after.resource.toString());
+	});
+
+	test('canvas-first replacement clears the pending draft without discarding the committed owner', async () => {
+		const draft = stubSession({ sessionId: 'canvas-first', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		const committed = { ...draft, status: constObservable(SessionStatus.Completed) };
+		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		const discarded: string[] = [];
+		let sent = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidReplaceSession = onDidReplaceSession.event;
+			constructor() { super(draft); }
+			override resolveWorkspace(folder: URI): ISessionWorkspace {
+				return { uri: folder, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override deleteNewSession(sessionId: string): void { discarded.push(sessionId); }
+			override async sendRequest(): Promise<ISession> { sent++; return committed; }
+		};
+		const { service, view } = createSessionsManagementService(draft, disposables, provider);
+		let discardedEvents = 0;
+		disposables.add(service.onDidDiscardNewSession(() => discardedEvents++));
+		await view.openNewSession({ folderUri: URI.parse('test:///folder') });
+		const before = service.newSession.get()?.sessionId;
+		onDidReplaceSession.fire({ from: draft, to: committed });
+		service.discardNewSession(draft);
+
+		assert.deepStrictEqual({
+			before, pending: service.newSession.get(), active: view.activeSession.get()?.sessionId,
+			status: view.activeSession.get()?.status.get(), discarded, discardedEvents, sent,
+		}, {
+			before: draft.sessionId, pending: undefined, active: committed.sessionId,
+			status: SessionStatus.Completed, discarded: [], discardedEvents: 0, sent: 0,
+		});
 	});
 
 	test('replacing a non-active session leaves the active session unchanged', async () => {
