@@ -37,9 +37,28 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
 const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
+const canvasServices = new WeakMap<AgentService, IAgentHostCanvasesService>();
+const clientConnections = new WeakMap<AgentService, IAgentHostClientConnectionService>();
+
+export function getTestAgentHostCanvases(service: AgentService): IAgentHostCanvasesService {
+	const canvases = canvasServices.get(service);
+	if (!canvases) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return canvases;
+}
+
+export function getTestAgentHostClientConnections(service: AgentService): IAgentHostClientConnectionService {
+	const connections = clientConnections.get(service);
+	if (!connections) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return connections;
+}
 
 class MutableTestAgentHostWorktreeIsolation extends Disposable {
 	private _delegate: IAgentHostWorktreeIsolation = new NullAgentHostWorktreeIsolation();
@@ -230,6 +249,8 @@ export function createTestAgentService(
 		composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
 		compositions.set(composition.agentService, composition);
 		worktreeIsolations.set(composition.agentService, worktreeIsolation);
+		canvasServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCanvasesService)));
+		clientConnections.set(composition.agentService, clientConnectionService);
 		return composition.agentService;
 	} catch (error) {
 		composition.agentService.dispose();

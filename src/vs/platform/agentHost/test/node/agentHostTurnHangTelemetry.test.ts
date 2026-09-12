@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { unavailableCanvases } from '../common/agentHostCanvasesTestUtils.js';
+import { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -228,6 +230,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[ISessionDataService, sessionDataService],
 			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
 			[IAgentHostClientConnectionService, clientConnections],
+			[IAgentHostCanvasesService, unavailableCanvases],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
 				requestSessionWorkspaceUpdate: () => { },

@@ -51,6 +51,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	clearPending(sessionId: string): void;
 	getResolvedWorktree(sessionId: string): URI | undefined;
 	resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
+	resolveForInitialization(request: IResolveWorkingDirectoryRequest): Promise<URI>;
 	createDetachedWorktree(request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree(handle: string): Promise<void>;
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
@@ -498,6 +499,33 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			} finally {
 				this.clearPending(request.sessionId);
 			}
+		});
+	}
+
+	/** Prepares actual isolation before execution outside a turn; folder fallback and unfinished cleanup are not success. */
+	async resolveForInitialization(request: IResolveWorkingDirectoryRequest): Promise<URI> {
+		return this._sequencer.queue(request.sessionId, async () => {
+			if (request.config?.[SessionConfigKey.Isolation] !== 'worktree' || this._worktreeDeletionRetries.has(request.sessionId)) {
+				throw new Error('The isolated worktree cannot be prepared while cleanup is pending.');
+			}
+			const metadata = await this.readWorktreeMetadata(request.sessionUri);
+			if (metadata?.worktreePath && metadata.repositoryRoot) {
+				const resolved = await this._resolveWorkingDirectoryForResume(request.sessionUri, request.sessionId, metadata.worktreePath);
+				if (!isEqual(resolved, metadata.worktreePath) || isEqual(resolved, metadata.repositoryRoot)) {
+					throw new Error('Canvas initialization cannot fall back to the original repository.');
+				}
+				this.clearPending(request.sessionId);
+				return resolved;
+			}
+			const resolved = await this.resolveWorkingDirectory(request);
+			const materialized = this._materializedWorktrees.get(request.sessionId);
+			const persisted = await this.readWorktreeMetadata(request.sessionUri);
+			if (!resolved || !materialized || !isEqual(materialized.worktree, resolved) || isEqual(resolved, materialized.repositoryRoot)
+				|| !persisted?.worktreePath || !isEqual(resolved, persisted.worktreePath) || this._worktreeDeletionRetries.has(request.sessionId)) {
+				throw new Error('The isolated worktree was not prepared and persisted. Canvas initialization was not started.');
+			}
+			this.clearPending(request.sessionId);
+			return resolved;
 		});
 	}
 
@@ -1559,6 +1587,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	clearPending(_sessionId: string): void { }
 	getResolvedWorktree(_sessionId: string): URI | undefined { return undefined; }
 	async resolveOnFirstSend(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
+	async resolveForInitialization(_request: IResolveWorkingDirectoryRequest): Promise<URI> { throw new Error('Worktree isolation is unavailable.'); }
 	async createDetachedWorktree(_request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }> { throw new Error('Worktree isolation is not supported.'); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { }
 	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { }

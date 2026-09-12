@@ -5,9 +5,51 @@
 
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
+
+/** Live SDK notifications received before the owning chat has installed its handlers. */
+export class CopilotSessionEventBuffer {
+	private _events: SessionEvent[] = [];
+	private _length = 0;
+	private _overflow = false;
+	private _claimed = false;
+
+	capture(event: SessionEvent): void {
+		if (!this._claimed) {
+			this.append(event);
+		}
+	}
+
+	claim(): void {
+		this._claimed = true;
+	}
+
+	append(event: SessionEvent): void {
+		if (this._overflow) {
+			return;
+		}
+		this._length += JSON.stringify(event).length;
+		if (this._events.length >= 1024 || this._length > 8 * 1024 * 1024) {
+			this._events = [];
+			this._overflow = true;
+			return;
+		}
+		this._events.push(event);
+	}
+
+	take(): readonly SessionEvent[] {
+		if (this._overflow) {
+			throw new Error('Early SDK notifications exceeded the bounded buffer. The chat must be reconciled without replaying effects.');
+		}
+		const events = this._events;
+		this._events = [];
+		this._length = 0;
+		return events;
+	}
+}
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
 
@@ -37,29 +79,147 @@ export class CopilotSessionWrapper extends Disposable {
 	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
 	readonly onModelCallFinished = this._onModelCallFinished.event;
 	private readonly _shutdown = new DeferredPromise<void>();
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	readonly onDidDispose = this._onDidDispose.event;
 	private _disconnectPromise: Promise<void> | undefined;
 	private _disconnectCompleted = false;
+	private readonly _eventDispatchers = new Map<SessionEventType, (event: SessionEvent) => void>();
+	private readonly _ready = new DeferredPromise<CopilotSession | undefined>();
+	readonly whenReady = this._ready.p;
+	private readonly _sessionId: string;
+	private _session: CopilotSession | undefined;
+	private _earlyEvents: CopilotSessionEventBuffer | undefined;
+	private _acknowledgements = 0;
+	private _acknowledged: DeferredPromise<void> | undefined;
+	private _observationError: unknown;
+	private _observationFailed = false;
+	readonly acceptsExternalMessages: boolean;
 
-	constructor(readonly session: CopilotSession) {
+	constructor(session: CopilotSession | string, earlyEvents?: CopilotSessionEventBuffer) {
 		super();
-		const unsubscribeAll = session.on(event => {
-			if (event.type === 'session.shutdown') {
-				void this._shutdown.complete();
-			}
-			const modelCallFinished = parseModelCallFinishedEvent(event);
-			if (modelCallFinished) {
-				this._onModelCallFinished.fire(modelCallFinished);
-			} else if (!this._handledEventTypes.has(event.type)) {
-				this._onUnhandledEvent.fire(event);
-			}
-		});
-		this._register(toDisposable(unsubscribeAll));
+		this._sessionId = typeof session === 'string' ? session : session.sessionId;
+		this._earlyEvents = earlyEvents;
+		earlyEvents?.claim();
+		this.acceptsExternalMessages = typeof session === 'string' || earlyEvents !== undefined;
+		this._register(toDisposable(() => { this._earlyEvents = undefined; }));
+		if (typeof session !== 'string') {
+			this._attach(session);
+		}
 		this._register(toDisposable(() => {
 			void this.disconnect().catch(() => { /* best-effort */ });
 		}));
 	}
 
-	get sessionId(): string { return this.session.sessionId; }
+	get isReady(): boolean { return this._session !== undefined; }
+	get session(): CopilotSession {
+		if (!this._session) {
+			throw new Error('The SDK session is not ready.');
+		}
+		return this._session;
+	}
+
+	/** Attaches the public SDK object after create/resume; early events already have live host listeners. */
+	async attachSession(session: CopilotSession): Promise<void> {
+		if (this._store.isDisposed) {
+			await session.disconnect();
+			throw new CancellationError();
+		}
+		if (this._session || session.sessionId !== this._sessionId) {
+			throw new Error('The SDK session does not match its pending event owner.');
+		}
+		this._attach(session);
+	}
+
+	private _attach(session: CopilotSession): void {
+		this._session = session;
+		this._register(toDisposable(session.on(event => this.acceptSessionEvent(event))));
+		void this._ready.complete(session);
+	}
+
+	acceptSessionEvent(event: SessionEvent): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (event.type === 'session.shutdown') {
+			void this._shutdown.complete();
+		}
+		if (this._earlyEvents) {
+			this._earlyEvents.append(event);
+		} else {
+			this._dispatch(event);
+		}
+	}
+
+	/** Defers observations until a send acknowledgement supplies its real SDK message IDs. */
+	bufferEventsUntilAcknowledged(): IDisposable {
+		if (this._earlyEvents && !this._acknowledged) {
+			throw new Error('The SDK observation buffer already has an owner.');
+		}
+		this._acknowledged ??= new DeferredPromise<void>();
+		this._earlyEvents ??= new CopilotSessionEventBuffer();
+		this._earlyEvents.claim();
+		this._acknowledgements++;
+		return toDisposable(() => {
+			if (--this._acknowledgements === 0) {
+				const acknowledged = this._acknowledged;
+				this._acknowledged = undefined;
+				try {
+					this.releaseBufferedEvents();
+				} catch (error) {
+					this._observationError = error;
+					this._observationFailed = true;
+					throw error;
+				} finally {
+					void acknowledged?.complete();
+				}
+			}
+		});
+	}
+
+	async whenMessagesAcknowledged(): Promise<void> {
+		await this._acknowledged?.p;
+		if (this._observationFailed) {
+			throw this._observationError;
+		}
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+	}
+
+	/** Replays observations only, after all chat handlers exist; never reissues an SDK operation. */
+	releaseBufferedEvents(): void {
+		if (!this._earlyEvents || this._acknowledgements > 0) {
+			return;
+		}
+		const buffer = this._earlyEvents;
+		this._earlyEvents = undefined;
+		const events = buffer.take();
+		for (const event of events) {
+			this._dispatch(event);
+		}
+	}
+
+	private _dispatch(event: SessionEvent): void {
+		const modelCallFinished = parseModelCallFinishedEvent(event);
+		if (modelCallFinished) {
+			this._onModelCallFinished.fire(modelCallFinished);
+		} else if (!this._handledEventTypes.has(event.type)) {
+			this._onUnhandledEvent.fire(event);
+		}
+		this._eventDispatchers.get(event.type)?.(event);
+	}
+
+	get sessionId(): string { return this._sessionId; }
+	override dispose(): void {
+		if (!this._store.isDisposed) {
+			void this._acknowledged?.complete();
+			if (!this._ready.isSettled) {
+				void this._ready.complete(undefined);
+			}
+			this._onDidDispose.fire();
+		}
+		super.dispose();
+	}
 	get lifecycleState(): AgentTurnProviderSessionState {
 		return this._shutdown.isSettled
 			? 'shutdown'
@@ -72,6 +232,10 @@ export class CopilotSessionWrapper extends Disposable {
 
 	/** Disconnects once the request completes or the SDK reports session shutdown. */
 	disconnect(): Promise<void> {
+		if (!this._session) {
+			this._disconnectCompleted = true;
+			return Promise.resolve();
+		}
 		if (this._shutdown.isSettled) {
 			return this._shutdown.p;
 		}
@@ -361,8 +525,13 @@ export class CopilotSessionWrapper extends Disposable {
 			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
 			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
 		}));
-		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
-		this._register(toDisposable(unsubscribe));
+		const matches = (event: SessionEvent): event is SessionEventPayload<K> => event.type === eventType;
+		this._eventDispatchers.set(eventType, event => {
+			if (matches(event)) {
+				emitter.fire(event);
+			}
+		});
+		this._register(toDisposable(() => this._eventDispatchers.delete(eventType)));
 		return emitter.event;
 	}
 }

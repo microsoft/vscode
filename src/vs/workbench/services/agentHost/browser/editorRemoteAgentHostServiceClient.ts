@@ -10,6 +10,8 @@
 // connection (and AHP handshake) happens asynchronously in the background.
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
+import type { InitializeCanvasChatParams } from '../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,6 +25,7 @@ import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platf
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import type { CloseCanvasParams, InvokeCanvasActionParams, InvokeCanvasActionResult, ListCanvasTypesParams, ListCanvasTypesResult, OpenCanvasParams, OpenCanvasResult, ResolveCanvasSourceParams, ResolveCanvasSourceResult, RestartCanvasProviderParams } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
@@ -307,6 +310,34 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._requireClient().invokeChangesetOperation(params);
+	}
+
+	listCanvasTypes(params: ListCanvasTypesParams): Promise<ListCanvasTypesResult> {
+		return this._requireClient().listCanvasTypes(params);
+	}
+
+	initializeCanvasChat(params: InitializeCanvasChatParams, token?: CancellationToken): Promise<void> {
+		return this._requireClient().initializeCanvasChat(params, token);
+	}
+
+	openCanvas(params: OpenCanvasParams): Promise<OpenCanvasResult> {
+		return this._requireClient().openCanvas(params);
+	}
+
+	resolveCanvasSource(params: ResolveCanvasSourceParams): Promise<ResolveCanvasSourceResult> {
+		return this._requireClient().resolveCanvasSource(params);
+	}
+
+	invokeCanvasAction(params: InvokeCanvasActionParams): Promise<InvokeCanvasActionResult> {
+		return this._requireClient().invokeCanvasAction(params);
+	}
+
+	restartCanvasProvider(params: RestartCanvasProviderParams): Promise<void> {
+		return this._requireClient().restartCanvasProvider(params);
+	}
+
+	closeCanvas(params: CloseCanvasParams): Promise<void> {
+		return this._requireClient().closeCanvas(params);
 	}
 
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {

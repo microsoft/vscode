@@ -1,0 +1,1840 @@
+diff --git a/nodejs/src/client.ts b/nodejs/src/client.ts
+index eb92cf0..c218bdc 100644
+--- a/nodejs/src/client.ts
++++ b/nodejs/src/client.ts
+@@ -33,6 +33,7 @@ import {
+ } from "./generated/rpc.js";
+ import type {
+     ConnectClientInfo,
++    ExtensionLaunchProviderHandler,
+     GitHubTelemetryNotification,
+     GitHubTokenAcquireRequest,
+     GitHubTokenAcquireResult,
+@@ -41,6 +42,7 @@ import type {
+     TaskKind,
+ } from "./generated/rpc.js";
+ import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
++import { ExtensionLaunchProviderConnection } from "./extensionLaunchProvider.js";
+ import { CopilotSession } from "./session.js";
+ import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
+ import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
+@@ -448,6 +450,8 @@ export class CopilotClient {
+     private runtimePort: number | null = null;
+     private actualHost: string = "localhost";
+     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
++    /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
++    private startPromise: Promise<void> | null = null;
+     private sessions: Map<string, CopilotSession> = new Map();
+     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
+     /** Resolved connection mode chosen in the constructor. */
+@@ -489,6 +493,8 @@ export class CopilotClient {
+     /** Connection-level session filesystem config, set via constructor option. */
+     private sessionFsConfig: SessionFsConfig | null = null;
+     private requestHandler: CopilotRequestHandler | null = null;
++    private extensionLaunchProvider?: ExtensionLaunchProviderHandler;
++    private extensionLaunchProviderConnection?: ExtensionLaunchProviderConnection;
+     private builtinPluginDirectories: string[] = [];
+     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
+     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+@@ -502,7 +508,7 @@ export class CopilotClient {
+      * @throws Error if the client is not connected
+      */
+     get rpc(): ReturnType<typeof createServerRpc> {
+-        if (!this.connection) {
++        if (!this.connection || this.connectionClosed) {
+             throw new Error("Client is not connected. Call start() first.");
+         }
+         if (!this._rpc) {
+@@ -687,6 +693,7 @@ export class CopilotClient {
+         this.onGetTraceContext = options.onGetTraceContext;
+         this.sessionFsConfig = options.sessionFs ?? null;
+         this.requestHandler = options.requestHandler ?? null;
++        this.extensionLaunchProvider = options.extensionLaunchProvider;
+         this.onGitHubTelemetry = options.onGitHubTelemetry;
+         this.setupClientGlobalHandlers();
+ 
+@@ -935,6 +942,23 @@ export class CopilotClient {
+             return;
+         }
+ 
++        // Concurrent callers share one in-progress start instead of each spawning a CLI.
++        if (this.startPromise) {
++            return this.startPromise;
++        }
++
++        this.startPromise = this.doStart();
++        try {
++            await this.startPromise;
++        } finally {
++            this.startPromise = null;
++        }
++    }
++
++    private async doStart(): Promise<void> {
++        if (this.connectionClosed) {
++            await this.forceStop();
++        }
+         this.forceStopping = false;
+         this.connectionClosed = false;
+         this.processTransportError = null;
+@@ -950,6 +974,7 @@ export class CopilotClient {
+ 
+             // Connect to the server
+             await this.connectToServer();
++            const launchProviderConnection = this.extensionLaunchProviderConnection;
+ 
+             // Verify protocol version compatibility
+             await this.verifyProtocolVersion();
+@@ -982,6 +1007,7 @@ export class CopilotClient {
+                 await this.connection!.sendRequest("llmInference.setProvider", {});
+             }
+ 
++            await launchProviderConnection?.register();
+             this.state = "connected";
+         } catch (error) {
+             const startupError = this.processTransportError ?? error;
+@@ -1017,6 +1043,7 @@ export class CopilotClient {
+      */
+     async stop(): Promise<Error[]> {
+         const errors: Error[] = [];
++        this.extensionLaunchProviderConnection?.dispose();
+ 
+         // Disconnect all active sessions with retry logic
+         const activeSessions = [...this.sessions.values()];
+@@ -1202,6 +1229,7 @@ export class CopilotClient {
+         this.runtimePort = null;
+         this.stderrBuffer = "";
+         this.processExitPromise = null;
++        this.extensionLaunchProviderConnection = undefined;
+ 
+         return errors;
+     }
+@@ -1249,6 +1277,7 @@ export class CopilotClient {
+      */
+     async forceStop(): Promise<void> {
+         this.forceStopping = true;
++        this.extensionLaunchProviderConnection?.dispose();
+ 
+         // Clear sessions immediately without trying to destroy them
+         for (const session of this.sessions.values()) {
+@@ -1315,6 +1344,7 @@ export class CopilotClient {
+         this.runtimePort = null;
+         this.stderrBuffer = "";
+         this.processExitPromise = null;
++        this.extensionLaunchProviderConnection = undefined;
+     }
+ 
+     /**
+@@ -1510,7 +1540,7 @@ export class CopilotClient {
+         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
+             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+         }
+-        if (!this.connection) {
++        if (!this.connection || this.startPromise || this.connectionClosed) {
+             await this.start();
+         }
+ 
+@@ -1666,6 +1696,7 @@ export class CopilotClient {
+                 enableSessionTelemetry: config.enableSessionTelemetry,
+                 enableCitations: config.enableCitations,
+                 enableFileChangeTracking: config.enableFileChangeTracking,
++                enableScriptSafety: config.enableScriptSafety,
+                 sessionLimits: config.sessionLimits,
+                 modelCapabilities: config.modelCapabilities,
+                 largeOutput: toWireLargeOutput(config.largeOutput),
+@@ -1817,7 +1848,7 @@ export class CopilotClient {
+         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
+             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+         }
+-        if (!this.connection) {
++        if (!this.connection || this.startPromise || this.connectionClosed) {
+             await this.start();
+         }
+ 
+@@ -1910,6 +1941,7 @@ export class CopilotClient {
+                 excludedBuiltinAgents: config.excludedBuiltinAgents,
+                 enableCitations: config.enableCitations,
+                 enableFileChangeTracking: config.enableFileChangeTracking,
++                enableScriptSafety: config.enableScriptSafety,
+                 sessionLimits: config.sessionLimits,
+                 tools: config.tools?.map((tool) => ({
+                     name: tool.name,
+@@ -2787,8 +2819,13 @@ export class CopilotClient {
+             case "inprocess":
+                 return this.connectViaFfi();
+             case "tcp":
+-            case "uri":
+                 return this.connectViaTcp();
++            case "uri": {
++                const { host, port } = this.parseCliUrl(this.connectionConfig.url);
++                this.actualHost = host;
++                this.runtimePort = port;
++                return this.connectViaTcp();
++            }
+         }
+     }
+ 
+@@ -3048,7 +3085,20 @@ export class CopilotClient {
+         // Register client *global* API handlers (e.g. LLM inference) on the
+         // same connection. These methods carry no implicit sessionId dispatch
+         // — the runtime calls into a single handler for the whole connection.
+-        registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
++        const connection = this.connection;
++        const globalHandlers = { ...this.clientGlobalHandlers };
++        this._rpc = createServerRpc(connection);
++        if (this.extensionLaunchProvider) {
++            const provider = new ExtensionLaunchProviderConnection(
++                this.extensionLaunchProvider,
++                this._rpc.registerExtensionLaunchProvider
++            );
++            this.extensionLaunchProviderConnection = provider;
++            this._rpc.registerExtensionLaunchProvider = () => provider.register();
++            globalHandlers.extensionLaunchProvider = provider.handler;
++        }
++        const launchProviderConnection = this.extensionLaunchProviderConnection;
++        registerClientGlobalApiHandlers(connection, globalHandlers);
+ 
+         // `hooks.invoke` is an internal RPC method: the runtime calls it to
+         // invoke a hook callback on the client. Route each call to the matching
+@@ -3061,8 +3111,8 @@ export class CopilotClient {
+             }
+         );
+ 
+-        const connection = this.connection;
+         const markDisconnected = () => {
++            launchProviderConnection?.dispose();
+             if (this.connection !== connection) {
+                 return;
+             }
+@@ -3075,11 +3125,8 @@ export class CopilotClient {
+             this.githubTokenProviders.clear();
+         };
+         this.connection.onClose(markDisconnected);
+-        this.connection.onError(() => {
+-            if (this.connection === connection) {
+-                this.state = "disconnected";
+-            }
+-        });
++        this.connection.onDispose(markDisconnected);
++        this.connection.onError(markDisconnected);
+     }
+ 
+     private handleSessionEventNotification(notification: unknown): void {
+diff --git a/nodejs/src/extensionLaunchProvider.ts b/nodejs/src/extensionLaunchProvider.ts
+new file mode 100644
+index 0000000..f434f7c
+--- /dev/null
++++ b/nodejs/src/extensionLaunchProvider.ts
+@@ -0,0 +1,117 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *--------------------------------------------------------------------------------------------*/
++
++import {
++    CancellationTokenSource,
++    ResponseError,
++    type CancellationToken,
++    type Disposable,
++} from "vscode-jsonrpc/node.js";
++import type {
++    ExtensionLaunchProviderHandler,
++    ExtensionLaunchProviderRegistrationResult,
++    ExtensionLaunchProviderResolveRequest,
++    ExtensionLaunchProviderResolveResult,
++} from "./generated/rpc.js";
++
++function cancelled(): ResponseError {
++    return new ResponseError(-32800, "Extension launch provider request cancelled");
++}
++
++async function withCancellation<T>(run: () => Promise<T>, token: CancellationToken): Promise<T> {
++    if (token.isCancellationRequested) {
++        throw cancelled();
++    }
++    let subscription: Disposable | undefined;
++    const cancellation = new Promise<never>((_, reject) => {
++        subscription = token.onCancellationRequested(() => reject(cancelled()));
++    });
++    try {
++        // Invoke synchronously, but turn throws into promises before observing both race inputs.
++        const operation = (async () => run())();
++        const result = await Promise.race([operation, cancellation]);
++        if (token.isCancellationRequested) {
++            throw cancelled();
++        }
++        return result;
++    } finally {
++        subscription?.dispose();
++    }
++}
++
++/** One launch-provider registration and its outstanding requests on a single connection. */
++export class ExtensionLaunchProviderConnection {
++    private readonly lifetime = new CancellationTokenSource();
++    private registration?: Promise<ExtensionLaunchProviderRegistrationResult>;
++    private registered = false;
++
++    readonly handler: ExtensionLaunchProviderHandler = {
++        resolve: (params, token) => this.resolve(params, token),
++    };
++
++    constructor(
++        private readonly provider: ExtensionLaunchProviderHandler,
++        private readonly registerProvider: () => Promise<ExtensionLaunchProviderRegistrationResult>
++    ) {}
++
++    async register(): Promise<ExtensionLaunchProviderRegistrationResult> {
++        if (this.lifetime.token.isCancellationRequested) {
++            throw cancelled();
++        }
++        this.registration ??= withCancellation(async () => {
++            const result = await this.registerProvider();
++            if (result?.contractVersion !== 1) {
++                throw new Error(
++                    "Extension launch provider requires contract version 1; the runtime did not acknowledge it."
++                );
++            }
++            if (this.lifetime.token.isCancellationRequested) {
++                throw cancelled();
++            }
++            this.registered = true;
++            return result;
++        }, this.lifetime.token);
++        return this.registration;
++    }
++
++    dispose(): void {
++        // Materialize the lazy token before cancelling, and make teardown reentrant.
++        if (this.lifetime.token.isCancellationRequested) {
++            return;
++        }
++        this.lifetime.cancel();
++        this.lifetime.dispose();
++    }
++
++    private async resolve(
++        params: ExtensionLaunchProviderResolveRequest,
++        token?: CancellationToken
++    ): Promise<ExtensionLaunchProviderResolveResult> {
++        if (!this.registered) {
++            throw new Error("Extension launch provider contract has not been acknowledged");
++        }
++        const request = new CancellationTokenSource();
++        const requestToken = request.token;
++        const cancelRequest = () => {
++            if (!requestToken.isCancellationRequested) {
++                request.cancel();
++            }
++        };
++        const connectionSubscription = this.lifetime.token.onCancellationRequested(cancelRequest);
++        const requestSubscription = token?.onCancellationRequested(cancelRequest);
++        if (this.lifetime.token.isCancellationRequested || token?.isCancellationRequested) {
++            cancelRequest();
++        }
++        try {
++            return await withCancellation(
++                () => this.provider.resolve(params, requestToken),
++                requestToken
++            );
++        } finally {
++            connectionSubscription.dispose();
++            requestSubscription?.dispose();
++            request.dispose();
++        }
++    }
++}
+diff --git a/nodejs/src/generated/rpc.ts b/nodejs/src/generated/rpc.ts
+index f4978de..8f58bce 100644
+--- a/nodejs/src/generated/rpc.ts
++++ b/nodejs/src/generated/rpc.ts
+@@ -3,7 +3,7 @@
+  * Generated from: api.schema.json
+  */
+ 
+-import type { MessageConnection } from "vscode-jsonrpc/node.js";
++import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
+ 
+ import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+ 
+@@ -7483,16 +7483,24 @@ export interface ExtensionLaunchProviderResolveRequest {
+    */
+   modulePath: string;
+   source: ExtensionSource;
++  /**
++   * Owning runtime session identifier, when known.
++   */
++  sessionId?: string;
++  defaultLaunch?: ExtensionLaunchProfile;
+ }
+ /**
+- * The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
++ * The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
+  *
+  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+  * via the `definition` "ExtensionLaunchProviderResolveResult".
+  */
+ /** @experimental */
+ export interface ExtensionLaunchProviderResolveResult {
+-  launch?: ExtensionLaunchProfile;
++  /**
++   * Approved launch profile, or absent/null to deny this candidate without fallback.
++   */
++  launch?: ExtensionLaunchProfile | null;
+ }
+ /**
+  * Extensions discovered for the session, with their current status.
+@@ -23577,6 +23585,32 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
+    */
+   operation: string;
+ }
++/**
++ * Authoritative capability acknowledgement for the registered extension launch provider.
++ *
++ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
++ * via the `definition` "ExtensionLaunchProviderRegistrationResult".
++ */
++/** @experimental */
++export interface ExtensionLaunchProviderRegistrationResult {
++  /**
++   * Supported extension launch-provider contract version. Clients requiring this contract must check for version 1 before creating or resuming sessions.
++   */
++  contractVersion: 1;
++}
++/**
++ * Identifies the target session.
++ *
++ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
++ * via the `definition` "SessionRetainRequest".
++ */
++/** @experimental */
++export interface SessionRetainRequest {
++  /**
++   * Target session identifier
++   */
++  sessionId: string;
++}
+ 
+ /** @experimental */
+ export interface SessionModelListRequest {
+@@ -23919,11 +23953,13 @@ export function createServerRpc(connection: MessageConnection) {
+                 connection.sendRequest("extensions.disable", params),
+         },
+         /**
+-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
++         * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
++         *
++         * @returns Authoritative capability acknowledgement for the registered extension launch provider.
+          *
+          * @experimental
+          */
+-        registerExtensionLaunchProvider: async (): Promise<void> =>
++        registerExtensionLaunchProvider: async (): Promise<ExtensionLaunchProviderRegistrationResult> =>
+             connection.sendRequest("registerExtensionLaunchProvider", {}),
+         /** @experimental */
+         catalog: {
+@@ -24456,6 +24492,16 @@ export function createServerRpc(connection: MessageConnection) {
+             spawn: async (params: AgentRegistrySpawnRequest): Promise<AgentRegistrySpawnResult> =>
+                 connection.sendRequest("agentRegistry.spawn", params),
+         },
++        /** @experimental */
++        session: {
++            /**
++             * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++             *
++             * @param params Identifies the target session.
++             */
++            retain: async (params: SessionRetainRequest): Promise<null> =>
++                connection.sendRequest("session.retain", params),
++        },
+     };
+ }
+ 
+@@ -24554,6 +24600,13 @@ export function createInternalServerRpc(connection: MessageConnection) {
+ /** Create typed session-scoped RPC methods. */
+ export function createSessionRpc(connection: MessageConnection, sessionId: string) {
+     return {
++        /**
++         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
++         *
++         * @experimental
++         */
++        retain: async (): Promise<null> =>
++            connection.sendRequest("session.retain", { sessionId }),
+         /**
+          * Suspends the session while preserving persisted state for later resume.
+          *
+@@ -27160,13 +27213,13 @@ export function registerClientSessionApiHandlers(
+ /** @experimental */
+ export interface ExtensionLaunchProviderHandler {
+     /**
+-     * Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.
++     * Asks the registered SDK client to approve a launch profile immediately before every extension launch or reload. Return defaultLaunch unchanged to approve the runtime's built-in launcher, or return another profile. An absent or null launch denies execution with no fallback. The provider must respond within 15 seconds. Approval does not sandbox code or freeze mutable files; the host is responsible for approved package contents.
+      *
+      * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+      *
+-     * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
++     * @returns The approved launch profile. An absent or null launch denies execution; the runtime never falls back to its built-in launcher.
+      */
+-    resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
++    resolve(params: ExtensionLaunchProviderResolveRequest, token?: CancellationToken): Promise<ExtensionLaunchProviderResolveResult>;
+ }
+ 
+ /** Handler for `llmInference` client global API methods. */
+@@ -27179,7 +27232,7 @@ export interface LlmInferenceHandler {
+      *
+      * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
+      */
+-    httpRequestStart(params: LlmInferenceHttpRequestStartRequest): Promise<LlmInferenceHttpRequestStartResult>;
++    httpRequestStart(params: LlmInferenceHttpRequestStartRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestStartResult>;
+     /**
+      * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
+      *
+@@ -27187,7 +27240,7 @@ export interface LlmInferenceHandler {
+      *
+      * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
+      */
+-    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest): Promise<LlmInferenceHttpRequestChunkResult>;
++    httpRequestChunk(params: LlmInferenceHttpRequestChunkRequest, token?: CancellationToken): Promise<LlmInferenceHttpRequestChunkResult>;
+ }
+ 
+ /** Handler for `gitHubTelemetry` client global API methods. */
+@@ -27211,7 +27264,7 @@ export interface GitHubTokenHandler {
+      *
+      * @returns SDK host response to a GitHub credential request.
+      */
+-    getToken(params: GitHubTokenAcquireRequest): Promise<GitHubTokenAcquireResult>;
++    getToken(params: GitHubTokenAcquireRequest, token?: CancellationToken): Promise<GitHubTokenAcquireResult>;
+ }
+ 
+ /** All client global API handler groups. */
+@@ -27233,29 +27286,29 @@ export function registerClientGlobalApiHandlers(
+     connection: MessageConnection,
+     handlers: ClientGlobalApiHandlers,
+ ): void {
+-    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
++    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest, token: CancellationToken) => {
+         const handler = handlers.extensionLaunchProvider;
+         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
+-        return handler.resolve(params);
++        return handler.resolve(params, token);
+     });
+-    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
++    connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest, token: CancellationToken) => {
+         const handler = handlers.llmInference;
+         if (!handler) throw new Error("No llmInference client-global handler registered");
+-        return handler.httpRequestStart(params);
++        return handler.httpRequestStart(params, token);
+     });
+-    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest) => {
++    connection.onRequest("llmInference.httpRequestChunk", async (params: LlmInferenceHttpRequestChunkRequest, token: CancellationToken) => {
+         const handler = handlers.llmInference;
+         if (!handler) throw new Error("No llmInference client-global handler registered");
+-        return handler.httpRequestChunk(params);
++        return handler.httpRequestChunk(params, token);
+     });
+     connection.onNotification("gitHubTelemetry.event", async (params: GitHubTelemetryNotification) => {
+         const handler = handlers.gitHubTelemetry;
+         if (!handler) return;
+         await handler.event(params);
+     });
+-    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest) => {
++    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest, token: CancellationToken) => {
+         const handler = handlers.gitHubToken;
+         if (!handler) throw new Error("No gitHubToken client-global handler registered");
+-        return handler.getToken(params);
++        return handler.getToken(params, token);
+     });
+ }
+diff --git a/nodejs/src/generated/session-events.ts b/nodejs/src/generated/session-events.ts
+index 02fbad6..08fdfc1 100644
+--- a/nodejs/src/generated/session-events.ts
++++ b/nodejs/src/generated/session-events.ts
+@@ -20,6 +20,7 @@ export type SessionEvent =
+   | ScheduleCancelledEvent
+   | ScheduleRearmedEvent
+   | AutopilotObjectiveChangedEvent
++  | RetainedEvent
+   | InfoEvent
+   | WarningEvent
+   | ModelChangeEvent
+@@ -1782,6 +1783,42 @@ export interface AutopilotObjectiveChangedData {
+   operation: AutopilotObjectiveChangedOperation;
+   status?: AutopilotObjectiveChangedStatus;
+ }
++/**
++ * Session event "session.retained". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
++ */
++/** @experimental */
++export interface RetainedEvent {
++  /**
++   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
++   */
++  agentId?: string;
++  data: RetainedData;
++  /**
++   * When true, the event is transient and not persisted to the session event log on disk
++   */
++  ephemeral?: boolean;
++  /**
++   * Unique event identifier (UUID v4), generated when the event is emitted
++   */
++  id: string;
++  /**
++   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
++   */
++  parentId: string | null;
++  /**
++   * ISO 8601 timestamp when the event was created
++   */
++  timestamp: string;
++  /**
++   * Type discriminator. Always "session.retained".
++   */
++  type: "session.retained";
++}
++/**
++ * Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
++ */
++/** @experimental */
++export interface RetainedData {}
+ /**
+  * Session event "session.info". Informational message for timeline display with categorization
+  */
+diff --git a/nodejs/src/index.ts b/nodejs/src/index.ts
+index 2007679..0609b13 100644
+--- a/nodejs/src/index.ts
++++ b/nodejs/src/index.ts
+@@ -92,6 +92,12 @@ export type {
+     ExitPlanModeRequest,
+     ExitPlanModeResult,
+     ExtensionInfo,
++    ExtensionLaunchProfile,
++    ExtensionLaunchProviderHandler,
++    ExtensionLaunchProviderRegistrationResult,
++    ExtensionLaunchProviderResolveRequest,
++    ExtensionLaunchProviderResolveResult,
++    ExtensionSource,
+     ForegroundSessionInfo,
+     GetAuthStatusResponse,
+     GetStatusResponse,
+@@ -170,6 +176,7 @@ export type {
+     SessionContext,
+     SessionListFilter,
+     SessionMetadata,
++    SessionRetainRequest,
+     SessionUiApi,
+     SessionFsConfig,
+     SessionFsProvider,
+diff --git a/nodejs/src/types.ts b/nodejs/src/types.ts
+index 0f15749..9a8d03e 100644
+--- a/nodejs/src/types.ts
++++ b/nodejs/src/types.ts
+@@ -22,6 +22,7 @@ import type {
+ import type { CopilotSession } from "./session.js";
+ import type { FactoryJsonSchema, JsonValue } from "./factory.js";
+ import type {
++    ExtensionLaunchProviderHandler,
+     GitHubTokenAcquireRequest,
+     GitHubTokenAcquireResult,
+     GitHubTelemetryNotification,
+@@ -29,10 +30,20 @@ import type {
+     OpenCanvasInstance,
+     RemoteSessionMode,
+     CurrentToolMetadata,
++    SessionOpenOptions,
+ } from "./generated/rpc.js";
+ import type { ToolSet } from "./toolSet.js";
+ export type { RemoteSessionMode } from "./generated/rpc.js";
+ export type { CurrentToolMetadata } from "./generated/rpc.js";
++export type {
++    ExtensionLaunchProfile,
++    ExtensionLaunchProviderHandler,
++    ExtensionLaunchProviderRegistrationResult,
++    ExtensionLaunchProviderResolveRequest,
++    ExtensionLaunchProviderResolveResult,
++    ExtensionSource,
++    SessionRetainRequest,
++} from "./generated/rpc.js";
+ export type {
+     GitHubTokenAcquireReason,
+     GitHubTokenAcquireResult,
+@@ -484,6 +495,30 @@ export interface CopilotClientOptions {
+      */
+     requestHandler?: CopilotRequestHandler;
+ 
++    /**
++     * Connection-owned extension launch admission handler.
++     *
++     * Attached before the RPC handshake. `start()` registers it and requires an explicit
++     * contract-version-1 acknowledgement before create/resume can proceed.
++     * Missing support, invalid acknowledgements, and registration errors reject
++     * startup; they never opt back into the runtime's legacy launcher.
++     *
++     * Each resolve receives the original source identity and optional runtime
++     * session/default-launch context. Return `defaultLaunch` unchanged only
++     * after approving the source and completing any required retention through
++     * `client.rpc.session.retain({ sessionId })`. An absent or null launch denies
++     * execution. The optional cancellation token is cancelled on request
++     * cancellation, disconnect, or stop; late results are not reused.
++     *
++     * Reconnecting negotiates a new registration and resolves each launch anew.
++     * A runtime that keeps a disconnected provider authoritative may refuse
++     * replacement; that error is propagated rather than bypassing the old owner.
++     * Omitting this option preserves legacy runtime extension behavior.
++     *
++     * @experimental
++     */
++    extensionLaunchProvider?: ExtensionLaunchProviderHandler;
++
+     /**
+      * Experimental. Receives GitHub telemetry events the runtime forwards to
+      * this connection. When set, the client opts each session it creates or
+@@ -2563,6 +2598,18 @@ export interface SessionConfigBase {
+      */
+     enableFileChangeTracking?: boolean;
+ 
++    /**
++     * Enables read-only classification of built-in shell commands. When true,
++     * commands classified as read-only may run without a permission prompt,
++     * subject to runtime policy. This is not an extension sandbox.
++     *
++     * Applied during session creation or resume, before new extension
++     * initialization. Omission preserves the runtime's existing behavior.
++     *
++     * @experimental
++     */
++    enableScriptSafety?: SessionOpenOptions["enableScriptSafety"];
++
+     /**
+      * Limits applied to this session's current accounting window.
+      *
+diff --git a/nodejs/test/client.test.ts b/nodejs/test/client.test.ts
+index 3db96ea..40daf5f 100644
+--- a/nodejs/test/client.test.ts
++++ b/nodejs/test/client.test.ts
+@@ -62,6 +62,64 @@ describe("approveAll", () => {
+ });
+ 
+ describe("CopilotClient", () => {
++    it("start() is single-flight: concurrent callers share one startup", async () => {
++        const client = new CopilotClient({ autoStart: false });
++        onTestFinished(() => client.forceStop());
++
++        // Stub the underlying startup (doStart) that the single-flight guard
++        // dedupes. Transport-independent: this is the same regardless of the
++        // stdio vs in-process connection path. The delay makes all three
++        // start() calls overlap; on success it marks the client connected like
++        // the real doStart does.
++        const doStart = vi.fn().mockImplementation(
++            () =>
++                new Promise<void>((resolve) =>
++                    setTimeout(() => {
++                        (client as any).state = "connected";
++                        resolve();
++                    }, 50)
++                )
++        );
++        (client as any).doStart = doStart;
++
++        // Before the fix, each concurrent caller ran startup (and spawned its own
++        // CLI, orphaning all but the last). With single-flight they share one.
++        await Promise.all([client.start(), client.start(), client.start()]);
++
++        expect(doStart).toHaveBeenCalledTimes(1);
++        expect((client as any).state).toBe("connected");
++
++        // Once connected, a further start() is a no-op (no extra startup).
++        await client.start();
++        expect(doStart).toHaveBeenCalledTimes(1);
++    });
++
++    it("start() retries after a failed attempt (single-flight guard is cleared)", async () => {
++        const client = new CopilotClient({ autoStart: false });
++        onTestFinished(() => client.forceStop());
++
++        // Stub the underlying startup: fail once, then succeed. Transport-
++        // independent (does not depend on the stdio vs in-process path).
++        const doStart = vi
++            .fn()
++            .mockImplementationOnce(async () => {
++                (client as any).state = "error";
++                throw new Error("boom");
++            })
++            .mockImplementationOnce(async () => {
++                (client as any).state = "connected";
++            });
++        (client as any).doStart = doStart;
++
++        await expect(client.start()).rejects.toThrow(/boom/);
++        expect((client as any).state).toBe("error");
++
++        // The guard must have cleared so a later start() can retry.
++        await client.start();
++        expect(doStart).toHaveBeenCalledTimes(2);
++        expect((client as any).state).toBe("connected");
++    });
++
+     it.each([
+         {
+             source: "connection path",
+@@ -4072,6 +4130,7 @@ describe("CopilotClient", () => {
+                 onNotification: vi.fn(),
+                 onRequest: vi.fn(),
+                 onClose: vi.fn(),
++                onDispose: vi.fn(),
+                 onError: vi.fn(),
+             };
+ 
+diff --git a/nodejs/test/extension-launch-provider.test.ts b/nodejs/test/extension-launch-provider.test.ts
+new file mode 100644
+index 0000000..7a075da
+--- /dev/null
++++ b/nodejs/test/extension-launch-provider.test.ts
+@@ -0,0 +1,947 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *--------------------------------------------------------------------------------------------*/
++
++import { randomUUID } from "node:crypto";
++import { once } from "node:events";
++import { createServer, type Socket } from "node:net";
++import { setTimeout } from "node:timers/promises";
++import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
++import {
++    CancellationTokenSource,
++    createMessageConnection,
++    ErrorCodes,
++    ResponseError,
++    StreamMessageReader,
++    StreamMessageWriter,
++    type CancellationToken,
++    type MessageConnection,
++} from "vscode-jsonrpc/node.js";
++import {
++    CopilotClient,
++    RuntimeConnection,
++    type CopilotClientOptions,
++    type ExtensionLaunchProfile,
++    type ExtensionLaunchProviderHandler,
++    type ExtensionLaunchProviderRegistrationResult,
++    type ExtensionLaunchProviderResolveRequest,
++    type ExtensionLaunchProviderResolveResult,
++    type ExtensionSource,
++    type PermissionRequestedEvent,
++    type ResumeSessionConfig,
++    type RetainedEvent,
++    type SessionConfig,
++    type SessionEvent,
++    type SessionRetainRequest,
++} from "../src/index.js";
++import { ExtensionLaunchProviderConnection } from "../src/extensionLaunchProvider.js";
++import type { PermissionDecisionRequest, SessionOpenOptions } from "../src/generated/rpc.js";
++
++function deferred<T>() {
++    let resolve!: (value: T | PromiseLike<T>) => void;
++    const promise = new Promise<T>((complete) => {
++        resolve = complete;
++    });
++    return { promise, resolve };
++}
++
++// A synthetic loopback runtime peer, not an injected client connection or handler table.
++async function runtimePeer(configure: (connection: MessageConnection) => void = () => {}) {
++    const peers: { connection: MessageConnection; socket: Socket }[] = [];
++    const clients: CopilotClient[] = [];
++    const server = createServer((socket) => {
++        const connection = createMessageConnection(
++            new StreamMessageReader(socket),
++            new StreamMessageWriter(socket)
++        );
++        peers.push({ connection, socket });
++        connection.onRequest("connect", () => ({ protocolVersion: 3 }));
++        connection.onRequest("registerExtensionLaunchProvider", () => ({ contractVersion: 1 }));
++        connection.onRequest("session.create", (params: { sessionId: string }) => ({
++            sessionId: params.sessionId,
++        }));
++        connection.onRequest("session.resume", (params: { sessionId: string }) => ({
++            sessionId: params.sessionId,
++        }));
++        connection.onRequest("session.detach", () => ({ success: true }));
++        connection.onClose(() => connection.dispose());
++        configure(connection);
++        connection.listen();
++    });
++    onTestFinished(async () => {
++        const errors: Error[] = [];
++        try {
++            for (const client of clients) {
++                errors.push(...(await client.stop()));
++            }
++        } finally {
++            for (const peer of peers) {
++                peer.connection.dispose();
++                peer.socket.destroy();
++            }
++            await new Promise<void>((resolve, reject) => {
++                server.close((error) => (error ? reject(error) : resolve()));
++            });
++        }
++        expect(errors).toEqual([]);
++    });
++    server.listen(0, "127.0.0.1");
++    await once(server, "listening");
++    const address = server.address();
++    if (!address || typeof address === "string") {
++        throw new Error("Expected a loopback TCP listener");
++    }
++    return {
++        peers,
++        client(options: Omit<CopilotClientOptions, "connection"> = {}) {
++            const client = new CopilotClient({
++                ...options,
++                connection: RuntimeConnection.forUri(`127.0.0.1:${address.port}`),
++            });
++            clients.push(client);
++            return client;
++        },
++    };
++}
++
++const profile: ExtensionLaunchProfile = {
++    executable: "/synthetic/bin/node",
++    args: ["--import", "/original directory/bootstrap.mjs", "/original directory/extension.mjs"],
++    env: { SYNTHETIC_LITERAL: "literal value", COPILOT_SDK_PATH: "/runtime-selected/sdk" },
++};
++const candidate: ExtensionLaunchProviderResolveRequest = {
++    id: "project:fixture",
++    name: "fixture",
++    modulePath: "/original directory/extension.mjs",
++    source: "project",
++    sessionId: "unit-session",
++    defaultLaunch: profile,
++};
++const grant: ExtensionLaunchProviderHandler = {
++    resolve: async (request) => ({ launch: request.defaultLaunch }),
++};
++
++describe("public script safety lifecycle configuration", () => {
++    it("uses the canonical optional setting for both public configs", () => {
++        expectTypeOf<SessionConfig["enableScriptSafety"]>().toEqualTypeOf<
++            SessionOpenOptions["enableScriptSafety"]
++        >();
++        expectTypeOf<ResumeSessionConfig["enableScriptSafety"]>().toEqualTypeOf<
++            boolean | undefined
++        >();
++    });
++
++    describe.each(["create", "resume"])("%s", (operation) => {
++        it.each([undefined, false, true])(
++            "forwards %j before the resolver and pre-return permission handling",
++            async (enableScriptSafety) => {
++                let returned = false;
++                const order: string[] = [];
++                const events: SessionEvent[] = [];
++                const responded = deferred<void>();
++                const runtime = await runtimePeer((connection) => {
++                    connection.onRequest(
++                        "session.permissions.handlePendingPermissionRequest",
++                        (params: PermissionDecisionRequest & SessionRetainRequest) => {
++                            expect(params).toEqual({
++                                sessionId: "script-safety-session",
++                                requestId: "early-permission",
++                                result: { kind: "reject" },
++                            });
++                            order.push("permission-response");
++                            responded.resolve();
++                            return { success: true };
++                        }
++                    );
++                    connection.onRequest(
++                        `session.${operation}`,
++                        async (
++                            params: SessionRetainRequest &
++                                Pick<SessionOpenOptions, "enableScriptSafety">
++                        ) => {
++                            expect(params.enableScriptSafety).toBe(enableScriptSafety);
++                            expect(Object.hasOwn(params, "enableScriptSafety")).toBe(
++                                enableScriptSafety !== undefined
++                            );
++                            order.push("initial-request");
++                            await expect(
++                                connection.sendRequest("extensionLaunchProvider.resolve", {
++                                    ...candidate,
++                                    sessionId: params.sessionId,
++                                })
++                            ).resolves.toEqual({ launch: profile });
++                            const event: PermissionRequestedEvent = {
++                                type: "permission.requested",
++                                id: randomUUID(),
++                                timestamp: new Date().toISOString(),
++                                parentId: null,
++                                data: {
++                                    requestId: "early-permission",
++                                    permissionRequest: {
++                                        kind: "shell",
++                                        canOfferSessionApproval: false,
++                                        commands: [],
++                                        fullCommandText: "pwd",
++                                        hasWriteFileRedirection: false,
++                                        intention: "Synthetic early permission routing",
++                                        possiblePaths: [],
++                                        possibleUrls: [],
++                                    },
++                                },
++                            };
++                            await connection.sendNotification("session.event", {
++                                sessionId: params.sessionId,
++                                event,
++                            });
++                            await responded.promise;
++                            expect(returned).toBe(false);
++                            return { sessionId: params.sessionId };
++                        }
++                    );
++                });
++                const client = runtime.client({
++                    extensionLaunchProvider: {
++                        resolve: async () => {
++                            expect(returned).toBe(false);
++                            order.push("resolver");
++                            return { launch: profile };
++                        },
++                    },
++                });
++                const config: SessionConfig = {
++                    ...(enableScriptSafety === undefined ? {} : { enableScriptSafety }),
++                    requestExtensions: true,
++                    onEvent: (event) => events.push(event),
++                    onPermissionRequest: (_, context) => {
++                        expect(returned).toBe(false);
++                        expect(context.sessionId).toBe("script-safety-session");
++                        order.push("permission-handler");
++                        return { kind: "reject" };
++                    },
++                };
++                const session =
++                    operation === "create"
++                        ? await client.createSession({
++                              ...config,
++                              sessionId: "script-safety-session",
++                          })
++                        : await client.resumeSession("script-safety-session", config);
++                returned = true;
++                expect(session.sessionId).toBe("script-safety-session");
++                expect(order).toEqual([
++                    "initial-request",
++                    "resolver",
++                    "permission-handler",
++                    "permission-response",
++                ]);
++                expect(events.map((event) => event.type)).toEqual(["permission.requested"]);
++            }
++        );
++    });
++});
++
++describe("public extension launch provider attachment", () => {
++    it("does not register a provider when the option is omitted", async () => {
++        const register = vi.fn(() => ({ contractVersion: 1 }));
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("registerExtensionLaunchProvider", register);
++        });
++        const client = runtime.client();
++        const session = await client.createSession({});
++        await client.resumeSession(session.sessionId, {});
++        expect(register).not.toHaveBeenCalled();
++    });
++
++    describe.each(["start", "create", "resume"])("%s negotiation", (operation) => {
++        it.each([
++            null,
++            undefined,
++            {},
++            { contractVersion: 0 },
++            { contractVersion: 2 },
++            { contractVersion: "1" },
++        ])(
++            "rejects an old or invalid acknowledgement %j before creating/resuming",
++            async (acknowledgement) => {
++                const create = vi.fn();
++                const resume = vi.fn();
++                const runtime = await runtimePeer((connection) => {
++                    connection.onRequest("registerExtensionLaunchProvider", () => acknowledgement);
++                    connection.onRequest("session.create", create);
++                    connection.onRequest("session.resume", resume);
++                });
++                const client = runtime.client({ extensionLaunchProvider: grant });
++                const result =
++                    operation === "start"
++                        ? client.start()
++                        : operation === "create"
++                          ? client.createSession({})
++                          : client.resumeSession("unit-session", {});
++                await expect(result).rejects.toThrow("requires contract version 1");
++                expect(create).not.toHaveBeenCalled();
++                expect(resume).not.toHaveBeenCalled();
++                expect(() => client.rpc).toThrow("not connected");
++            }
++        );
++    });
++
++    it.each([ErrorCodes.MethodNotFound, -32001])(
++        "preserves registration error %s without a fallback",
++        async (code) => {
++            const runtime = await runtimePeer((connection) => {
++                connection.onRequest(
++                    "registerExtensionLaunchProvider",
++                    () =>
++                        new ResponseError(code, "registration refused", { owner: "another-client" })
++                );
++            });
++            const client = runtime.client({ extensionLaunchProvider: grant });
++            await expect(client.start()).rejects.toMatchObject({
++                code,
++                message: "registration refused",
++                data: { owner: "another-client" },
++            });
++            expect(() => client.rpc).toThrow("not connected");
++        }
++    );
++
++    it("gates overlapping start/create/resume calls and registers once per connection", async () => {
++        const entered = deferred<void>();
++        const acknowledgement = deferred<ExtensionLaunchProviderRegistrationResult>();
++        const register = vi.fn(() => {
++            entered.resolve();
++            return acknowledgement.promise;
++        });
++        const create = vi.fn((params: { sessionId: string }) => ({ sessionId: params.sessionId }));
++        const resume = vi.fn((params: { sessionId: string }) => ({ sessionId: params.sessionId }));
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("registerExtensionLaunchProvider", register);
++            connection.onRequest("session.create", create);
++            connection.onRequest("session.resume", resume);
++        });
++        const client = runtime.client({ extensionLaunchProvider: grant });
++        const start = client.start();
++        await entered.promise;
++        const creating = client.createSession({ sessionId: "created" });
++        const resuming = client.resumeSession("resumed", {});
++        await setTimeout(20);
++        expect(create).not.toHaveBeenCalled();
++        expect(resume).not.toHaveBeenCalled();
++        acknowledgement.resolve({ contractVersion: 1 });
++        await Promise.all([start, client.start(), creating, resuming]);
++        await expect(client.rpc.registerExtensionLaunchProvider()).resolves.toEqual({
++            contractVersion: 1,
++        });
++        await expect(client.rpc.registerExtensionLaunchProvider()).resolves.toEqual({
++            contractVersion: 1,
++        });
++        expect(register).toHaveBeenCalledTimes(1);
++        expect(create).toHaveBeenCalledTimes(1);
++        expect(resume).toHaveBeenCalledTimes(1);
++    });
++
++    it("attaches before registration but does not approve before acknowledgement", async () => {
++        const resolve = vi.fn(grant.resolve);
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("registerExtensionLaunchProvider", async () => {
++                await expect(
++                    connection.sendRequest("extensionLaunchProvider.resolve", candidate)
++                ).rejects.toThrow("has not been acknowledged");
++                return { contractVersion: 1 };
++            });
++        });
++        const client = runtime.client({ extensionLaunchProvider: { resolve } });
++        await client.start();
++        expect(resolve).not.toHaveBeenCalled();
++        await expect(
++            runtime.peers[0].connection.sendRequest("extensionLaunchProvider.resolve", candidate)
++        ).resolves.toEqual({ launch: profile });
++        expect(resolve).toHaveBeenCalledTimes(1);
++    });
++
++    it.each<ExtensionSource>(["project", "user", "plugin", "session"])(
++        "preserves %s source, path, identity, context and opaque launch recipe",
++        async (source) => {
++            const request: ExtensionLaunchProviderResolveRequest = {
++                ...candidate,
++                id: `${source}:fixture`,
++                source,
++            };
++            const resolve = vi.fn(grant.resolve);
++            const runtime = await runtimePeer();
++            const client = runtime.client({ extensionLaunchProvider: { resolve } });
++            await client.start();
++            await expect(
++                runtime.peers[0].connection.sendRequest("extensionLaunchProvider.resolve", request)
++            ).resolves.toEqual({ launch: profile });
++            expect(resolve.mock.calls[0][0]).toEqual(request);
++            expect(resolve.mock.calls[0][1]?.isCancellationRequested).toBe(false);
++        }
++    );
++
++    it("does not invent optional session or bootstrap context", async () => {
++        const request: ExtensionLaunchProviderResolveRequest = {
++            id: candidate.id,
++            name: candidate.name,
++            modulePath: candidate.modulePath,
++            source: candidate.source,
++        };
++        const resolve = vi.fn(async () => ({}));
++        const runtime = await runtimePeer();
++        const client = runtime.client({ extensionLaunchProvider: { resolve } });
++        await client.start();
++        await expect(
++            runtime.peers[0].connection.sendRequest("extensionLaunchProvider.resolve", request)
++        ).resolves.toEqual({});
++        expect(resolve).toHaveBeenCalledWith(request, expect.anything());
++    });
++
++    it.each<ExtensionLaunchProviderResolveResult>([{}, { launch: null }])(
++        "preserves an explicit denial %j",
++        async (denial) => {
++            const runtime = await runtimePeer();
++            const client = runtime.client({
++                extensionLaunchProvider: { resolve: async () => denial },
++            });
++            await client.start();
++            await expect(
++                runtime.peers[0].connection.sendRequest(
++                    "extensionLaunchProvider.resolve",
++                    candidate
++                )
++            ).resolves.toEqual(denial);
++        }
++    );
++
++    it("preserves callback error codes and data, with no success-shaped fallback", async () => {
++        const runtime = await runtimePeer();
++        const client = runtime.client({
++            extensionLaunchProvider: {
++                resolve: () => {
++                    throw new ResponseError(-32005, "source approval failed", {
++                        stage: "revision",
++                    });
++                },
++            },
++        });
++        await client.start();
++        await expect(
++            runtime.peers[0].connection.sendRequest("extensionLaunchProvider.resolve", candidate)
++        ).rejects.toMatchObject({
++            code: -32005,
++            message: "source approval failed",
++            data: { stage: "revision" },
++        });
++    });
++
++    it.each<"stop" | "forceStop">(["stop", "forceStop"])(
++        "observes cancellation when a resolver synchronously calls %s and throws",
++        async (operation) => {
++            const runtime = await runtimePeer();
++            const failure = new Error("synchronous provider failure");
++            let stopping: Promise<void | Error[]> | undefined;
++            let cancelledSynchronously: boolean | undefined;
++            const resolve = vi.fn<ExtensionLaunchProviderHandler["resolve"]>((_request, token) => {
++                stopping = client[operation]();
++                cancelledSynchronously = token?.isCancellationRequested;
++                throw failure;
++            });
++            const client = runtime.client({ extensionLaunchProvider: { resolve } });
++            await client.start();
++            await expect(
++                runtime.peers[0].connection.sendRequest(
++                    "extensionLaunchProvider.resolve",
++                    candidate
++                )
++            ).rejects.toBeInstanceOf(Error);
++            expect(resolve).toHaveBeenCalledTimes(1);
++            if (!stopping) throw new Error("The resolver did not initiate shutdown");
++            expect(await stopping).toEqual(operation === "stop" ? [] : undefined);
++            expect(cancelledSynchronously).toBe(true);
++            await setTimeout(0);
++        }
++    );
++
++    it("cancels in-flight resolution and never reuses a late grant", async () => {
++        const entered = deferred<void>();
++        const lateGrant = deferred<ExtensionLaunchProviderResolveResult>();
++        let observedToken: CancellationToken | undefined;
++        const resolve = vi.fn<ExtensionLaunchProviderHandler["resolve"]>(
++            async (_request, token) => {
++                observedToken = token;
++                entered.resolve();
++                return lateGrant.promise;
++            }
++        );
++        const runtime = await runtimePeer();
++        const client = runtime.client({ extensionLaunchProvider: { resolve } });
++        await client.start();
++        const cancellation = new CancellationTokenSource();
++        onTestFinished(() => cancellation.dispose());
++        const request = runtime.peers[0].connection.sendRequest(
++            "extensionLaunchProvider.resolve",
++            candidate,
++            cancellation.token
++        );
++        await entered.promise;
++        cancellation.cancel();
++        await expect(request).rejects.toMatchObject({ code: -32800 });
++        expect(observedToken?.isCancellationRequested).toBe(true);
++        lateGrant.resolve({ launch: profile });
++        await expect(
++            runtime.peers[0].connection.sendRequest("extensionLaunchProvider.resolve", candidate)
++        ).resolves.toEqual({ launch: profile });
++        expect(resolve).toHaveBeenCalledTimes(2);
++    });
++
++    it.each(["stop", "forceStop", "disconnect"])(
++        "%s cancels outstanding grants and reconnects with a fresh registration",
++        async (operation) => {
++            const entered = deferred<void>();
++            const lateGrant = deferred<ExtensionLaunchProviderResolveResult>();
++            const register = vi.fn(() => ({ contractVersion: 1 }));
++            let observedToken: CancellationToken | undefined;
++            const resolve = vi.fn<ExtensionLaunchProviderHandler["resolve"]>(
++                async (_request, token) => {
++                    observedToken = token;
++                    entered.resolve();
++                    return lateGrant.promise;
++                }
++            );
++            const runtime = await runtimePeer((connection) => {
++                connection.onRequest("registerExtensionLaunchProvider", register);
++            });
++            const client = runtime.client({ extensionLaunchProvider: { resolve } });
++            await client.start();
++            const originalRpc = client.rpc;
++            const pending = runtime.peers[0].connection.sendRequest(
++                "extensionLaunchProvider.resolve",
++                candidate
++            );
++            const rejected = expect(pending).rejects.toBeInstanceOf(Error);
++            await entered.promise;
++            if (operation === "stop") {
++                expect(await client.stop()).toEqual([]);
++            } else if (operation === "forceStop") {
++                await client.forceStop();
++            } else {
++                runtime.peers[0].socket.destroy();
++            }
++            await rejected;
++            await expect.poll(() => observedToken?.isCancellationRequested).toBe(true);
++            lateGrant.resolve({ launch: profile });
++            await expect(originalRpc.registerExtensionLaunchProvider()).rejects.toMatchObject({
++                code: -32800,
++            });
++            await client.start();
++            expect(register).toHaveBeenCalledTimes(2);
++            expect(resolve).toHaveBeenCalledTimes(1);
++            await expect(
++                runtime.peers[1].connection.sendRequest(
++                    "extensionLaunchProvider.resolve",
++                    candidate
++                )
++            ).resolves.toEqual({ launch: profile });
++            expect(resolve).toHaveBeenCalledTimes(2);
++        }
++    );
++
++    it("surfaces a shared runtime's refusal to replace a disconnected provider", async () => {
++        let registrations = 0;
++        const create = vi.fn();
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("registerExtensionLaunchProvider", () => {
++                if (++registrations === 1) return { contractVersion: 1 };
++                return new ResponseError(
++                    -32603,
++                    "Another client is already the extension launch provider."
++                );
++            });
++            connection.onRequest("session.create", create);
++        });
++        const client = runtime.client({ extensionLaunchProvider: grant });
++        await client.start();
++        expect(await client.stop()).toEqual([]);
++        await expect(client.createSession({})).rejects.toThrow(
++            "already the extension launch provider"
++        );
++        expect(registrations).toBe(2);
++        expect(create).not.toHaveBeenCalled();
++        expect(() => client.rpc).toThrow("not connected");
++    });
++
++    it("stopping during negotiation rejects startup instead of accepting a late acknowledgement", async () => {
++        const entered = deferred<void>();
++        const acknowledgement = deferred<ExtensionLaunchProviderRegistrationResult>();
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("registerExtensionLaunchProvider", () => {
++                entered.resolve();
++                return acknowledgement.promise;
++            });
++        });
++        const client = runtime.client({ extensionLaunchProvider: grant });
++        const starting = client.start();
++        const rejected = expect(starting).rejects.toBeInstanceOf(Error);
++        await entered.promise;
++        expect(await client.stop()).toEqual([]);
++        await rejected;
++        acknowledgement.resolve({ contractVersion: 1 });
++        expect(() => client.rpc).toThrow("not connected");
++    });
++});
++
++describe("extension launch cancellation adapter", () => {
++    it("disposes an unused connection repeatedly and refuses later registration", async () => {
++        const register = vi.fn<() => Promise<ExtensionLaunchProviderRegistrationResult>>(
++            async () => ({ contractVersion: 1 })
++        );
++        const connection = new ExtensionLaunchProviderConnection(grant, register);
++        onTestFinished(() => connection.dispose());
++        connection.dispose();
++        connection.dispose();
++        await expect(connection.register()).rejects.toMatchObject({ code: -32800 });
++        await expect(connection.register()).rejects.toMatchObject({ code: -32800 });
++        expect(register).not.toHaveBeenCalled();
++    });
++
++    it("handles synchronous overlapping wire and lifetime cancellation before callback entry", async () => {
++        const resolve = vi.fn(grant.resolve);
++        const connection = new ExtensionLaunchProviderConnection({ resolve }, async () => ({
++            contractVersion: 1,
++        }));
++        onTestFinished(() => connection.dispose());
++        await connection.register();
++        const subscriptionDisposed = vi.fn();
++        const token: CancellationToken = {
++            isCancellationRequested: true,
++            onCancellationRequested(listener) {
++                listener(undefined);
++                connection.dispose();
++                listener(undefined);
++                return { dispose: subscriptionDisposed };
++            },
++        };
++        await expect(connection.handler.resolve(candidate, token)).rejects.toMatchObject({
++            code: -32800,
++        });
++        expect(resolve).not.toHaveBeenCalled();
++        expect(subscriptionDisposed).toHaveBeenCalledTimes(1);
++        await expect(connection.register()).rejects.toMatchObject({ code: -32800 });
++    });
++
++    it("preserves synchronous invocation and the original error when the resolver disposes then throws", async () => {
++        const failure = new Error("synchronous provider failure");
++        let entered = false;
++        const connection = new ExtensionLaunchProviderConnection(
++            {
++                resolve() {
++                    entered = true;
++                    connection.dispose();
++                    throw failure;
++                },
++            },
++            async () => ({ contractVersion: 1 })
++        );
++        onTestFinished(() => connection.dispose());
++        await connection.register();
++        const resolving = connection.handler.resolve(candidate);
++        expect(entered).toBe(true);
++        await expect(resolving).rejects.toBe(failure);
++        await setTimeout(0);
++    });
++});
++
++describe("public launch provider cancellation lifecycle", () => {
++    it.each(["start", "create", "resume"])(
++        "%s preserves handshake failures before provider registration and supports repeated cleanup",
++        async (operation) => {
++            const diagnostics = vi.spyOn(console, "error");
++            onTestFinished(() => diagnostics.mockRestore());
++            let rejectHandshake = true;
++            const registration = vi.fn(() => ({ contractVersion: 1 }));
++            const resolve = vi.fn(grant.resolve);
++            const runtime = await runtimePeer((connection) => {
++                connection.onRequest("connect", () =>
++                    rejectHandshake
++                        ? new ResponseError(-32041, "synthetic handshake failure", {
++                              phase: "before-registration",
++                          })
++                        : { protocolVersion: 3 }
++                );
++                connection.onRequest("registerExtensionLaunchProvider", registration);
++            });
++            const client = runtime.client({ extensionLaunchProvider: { resolve } });
++            const operationResult =
++                operation === "start"
++                    ? client.start()
++                    : operation === "create"
++                      ? client.createSession({})
++                      : client.resumeSession("unit-session", {});
++            await expect(operationResult).rejects.toMatchObject({
++                code: -32041,
++                message: "synthetic handshake failure",
++                data: { phase: "before-registration" },
++            });
++            expect(registration).not.toHaveBeenCalled();
++            expect(resolve).not.toHaveBeenCalled();
++            expect(() => client.rpc).toThrow("not connected");
++            await client.forceStop();
++            expect(await client.stop()).toEqual([]);
++            await client.forceStop();
++            expect(diagnostics).not.toHaveBeenCalled();
++
++            rejectHandshake = false;
++            await client.start();
++            expect(registration).toHaveBeenCalledTimes(1);
++            expect(resolve).not.toHaveBeenCalled();
++            expect(await client.stop()).toEqual([]);
++            expect(await client.stop()).toEqual([]);
++            await client.forceStop();
++            expect(diagnostics).not.toHaveBeenCalled();
++        }
++    );
++
++    it.each(["stop", "forceStop", "disconnect"])(
++        "%s before handshake completion safely cancels an unused provider lifetime",
++        async (operation) => {
++            const diagnostics = vi.spyOn(console, "error");
++            onTestFinished(() => diagnostics.mockRestore());
++            const entered = deferred<void>();
++            const handshake = deferred<{ protocolVersion: number }>();
++            const registration = vi.fn(() => ({ contractVersion: 1 }));
++            const runtime = await runtimePeer((connection) => {
++                connection.onRequest("connect", () => {
++                    entered.resolve();
++                    return handshake.promise;
++                });
++                connection.onRequest("registerExtensionLaunchProvider", registration);
++            });
++            const client = runtime.client({ extensionLaunchProvider: grant });
++            const starting = client.start();
++            const failure = starting.catch((error: unknown) => error);
++            await entered.promise;
++            const originalRpc = client.rpc;
++            if (operation === "disconnect") {
++                runtime.peers[0].socket.destroy();
++                await expect
++                    .poll(() => {
++                        try {
++                            return client.rpc;
++                        } catch (error) {
++                            return error;
++                        }
++                    })
++                    .toBeInstanceOf(Error);
++                await client.forceStop();
++            } else if (operation === "forceStop") {
++                await client.forceStop();
++            } else {
++                expect(await client.stop()).toEqual([]);
++            }
++            await expect(failure).resolves.toMatchObject({
++                code: ErrorCodes.PendingResponseRejected,
++            });
++            handshake.resolve({ protocolVersion: 3 });
++            await expect(originalRpc.registerExtensionLaunchProvider()).rejects.toMatchObject({
++                code: -32800,
++            });
++            expect(registration).not.toHaveBeenCalled();
++            expect(await client.stop()).toEqual([]);
++            await client.forceStop();
++            expect(diagnostics).not.toHaveBeenCalled();
++        }
++    );
++
++    it.each(["stop", "forceStop", "disconnect"])(
++        "overlapping wire cancellation and %s notify once and cannot replay a late grant",
++        async (operation) => {
++            const entered = deferred<void>();
++            const late = deferred<ExtensionLaunchProviderResolveResult>();
++            const notified = deferred<void>();
++            const diagnostics = vi.spyOn(console, "error");
++            onTestFinished(() => diagnostics.mockRestore());
++            const registration = vi.fn(() => ({ contractVersion: 1 }));
++            const runtime = await runtimePeer((connection) => {
++                connection.onRequest("registerExtensionLaunchProvider", registration);
++            });
++            const freshProfile: ExtensionLaunchProfile = {
++                ...profile,
++                args: [...profile.args, "--fresh-resolution"],
++            };
++            let notifications = 0;
++            let stopping: Promise<PromiseSettledResult<void | Error[]>[]> | undefined;
++            const resolve = vi
++                .fn<ExtensionLaunchProviderHandler["resolve"]>()
++                .mockImplementationOnce(async (_request, token) => {
++                    if (!token) throw new Error("Expected the public cancellation token");
++                    token.onCancellationRequested(() => {
++                        notifications++;
++                        if (operation === "disconnect") {
++                            runtime.peers[0].socket.destroy();
++                            stopping = Promise.resolve([]);
++                        } else {
++                            stopping = Promise.allSettled([
++                                operation === "stop" ? client.stop() : client.forceStop(),
++                            ]);
++                        }
++                        notified.resolve();
++                    });
++                    entered.resolve();
++                    return late.promise;
++                })
++                .mockResolvedValue({ launch: freshProfile });
++            const client = runtime.client({ extensionLaunchProvider: { resolve } });
++            await client.start();
++            const oldRpc = client.rpc;
++            const wireCancellation = new CancellationTokenSource();
++            onTestFinished(() => wireCancellation.dispose());
++            const pending = runtime.peers[0].connection.sendRequest(
++                "extensionLaunchProvider.resolve",
++                candidate,
++                wireCancellation.token
++            );
++            const failed = expect(pending).rejects.toBeInstanceOf(Error);
++            await entered.promise;
++            wireCancellation.cancel();
++            wireCancellation.cancel();
++            await notified.promise;
++            if (!stopping) throw new Error("Cancellation did not initiate connection teardown");
++            for (const result of await stopping) {
++                expect(result.status).toBe("fulfilled");
++                if (result.status === "fulfilled") {
++                    expect(result.value).toEqual(operation === "stop" ? [] : undefined);
++                }
++            }
++            await failed;
++            await client.forceStop();
++            expect(await client.stop()).toEqual([]);
++            expect(notifications).toBe(1);
++            late.resolve({ launch: profile });
++            await expect(oldRpc.registerExtensionLaunchProvider()).rejects.toMatchObject({
++                code: -32800,
++            });
++            await client.start();
++            expect(registration).toHaveBeenCalledTimes(2);
++            expect(resolve).toHaveBeenCalledTimes(1);
++            await expect(
++                runtime.peers[1].connection.sendRequest(
++                    "extensionLaunchProvider.resolve",
++                    candidate
++                )
++            ).resolves.toEqual({ launch: freshProfile });
++            expect(resolve).toHaveBeenCalledTimes(2);
++            expect(diagnostics).not.toHaveBeenCalled();
++        }
++    );
++});
++
++describe("public no-turn retention bindings", () => {
++    it("retains reentrantly before create returns and delivers the early retained event", async () => {
++        let createReturned = false;
++        const events: SessionEvent[] = [];
++        const retained: SessionRetainRequest[] = [];
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("session.retain", async (params: SessionRetainRequest) => {
++                retained.push(params);
++                const event: RetainedEvent = {
++                    type: "session.retained",
++                    id: randomUUID(),
++                    timestamp: new Date().toISOString(),
++                    parentId: null,
++                    data: {},
++                };
++                await connection.sendNotification("session.event", {
++                    sessionId: params.sessionId,
++                    event,
++                });
++                return null;
++            });
++            connection.onRequest("session.create", async (params: { sessionId: string }) => {
++                await expect(
++                    connection.sendRequest("extensionLaunchProvider.resolve", {
++                        ...candidate,
++                        sessionId: params.sessionId,
++                    })
++                ).resolves.toEqual({ launch: profile });
++                return { sessionId: params.sessionId };
++            });
++        });
++        const client = runtime.client({
++            extensionLaunchProvider: {
++                async resolve(request) {
++                    expect(createReturned).toBe(false);
++                    if (!request.sessionId)
++                        throw new Error("Expected actual runtime session correlation");
++                    const result = await client.rpc.session.retain({
++                        sessionId: request.sessionId,
++                    });
++                    expectTypeOf(result).toEqualTypeOf<null>();
++                    expect(result).toBeNull();
++                    return { launch: request.defaultLaunch };
++                },
++            },
++        });
++        const session = await client.createSession({ onEvent: (event) => events.push(event) });
++        createReturned = true;
++        expectTypeOf<Awaited<ReturnType<typeof session.rpc.retain>>>().toEqualTypeOf<null>();
++        expectTypeOf<
++            Parameters<typeof client.rpc.session.retain>[0]
++        >().toEqualTypeOf<SessionRetainRequest>();
++        expect(events.map((event) => event.type)).toEqual(["session.retained"]);
++        expect(retained).toEqual([{ sessionId: session.sessionId }]);
++        await expect(session.rpc.retain()).resolves.toBeNull();
++        expect(retained).toEqual([
++            { sessionId: session.sessionId },
++            { sessionId: session.sessionId },
++        ]);
++    });
++
++    it.each([
++        [ErrorCodes.MethodNotFound, "unsupported"],
++        [-32001, "persistence unavailable"],
++        [-32002, "writer flush failed"],
++        [-32800, "retention cancelled"],
++    ])("propagates %s (%s) from both bindings", async (code, message) => {
++        const retain = vi.fn(() => new ResponseError(code, message, { operation: "retain" }));
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("session.retain", retain);
++        });
++        const client = runtime.client();
++        const session = await client.createSession({});
++        await expect(
++            client.rpc.session.retain({ sessionId: session.sessionId })
++        ).rejects.toMatchObject({
++            code,
++            message,
++            data: { operation: "retain" },
++        });
++        await expect(session.rpc.retain()).rejects.toMatchObject({
++            code,
++            message,
++            data: { operation: "retain" },
++        });
++        expect(retain).toHaveBeenCalledTimes(2);
++    });
++
++    it("rejects connection loss during retention and never retries the effect", async () => {
++        const entered = deferred<void>();
++        const flush = deferred<null>();
++        const retain = vi.fn(() => {
++            entered.resolve();
++            return flush.promise;
++        });
++        const runtime = await runtimePeer((connection) => {
++            connection.onRequest("session.retain", retain);
++        });
++        const client = runtime.client();
++        await client.start();
++        const pending = client.rpc.session.retain({ sessionId: "unit-session" });
++        const rejected = expect(pending).rejects.toBeInstanceOf(Error);
++        await entered.promise;
++        await client.forceStop();
++        await rejected;
++        flush.resolve(null);
++        await client.start();
++        expect(retain).toHaveBeenCalledTimes(1);
++    });
++});
+diff --git a/nodejs/tsconfig.test.json b/nodejs/tsconfig.test.json
+index 2957487..aa9d0de 100644
+--- a/nodejs/tsconfig.test.json
++++ b/nodejs/tsconfig.test.json
+@@ -5,6 +5,10 @@
+         "emitDeclarationOnly": false,
+         "types": ["node"]
+     },
+-    "include": ["src/**/*", "test/session-event-types.test.ts"],
++    "include": [
++        "src/**/*",
++        "test/session-event-types.test.ts",
++        "test/extension-launch-provider.test.ts"
++    ],
+     "exclude": ["node_modules", "dist"]
+ }
+diff --git a/scripts/codegen/typescript.ts b/scripts/codegen/typescript.ts
+index f5e8acb..cdbe983 100644
+--- a/scripts/codegen/typescript.ts
++++ b/scripts/codegen/typescript.ts
+@@ -52,6 +52,8 @@ import {
+ } from "./utils.js";
+ 
+ const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
++// Retention must also be callable before a create/resume response exposes a session.
++const CONNECTION_SESSION_METHODS = new Set(["session.retain"]);
+ const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
+     "session-events.schema.json": "./session-events.js",
+ };
+@@ -678,7 +680,9 @@ function tsNullableResultTypeName(method: RpcMethod): string | undefined {
+ }
+ 
+ function tsResultType(method: RpcMethod): string {
+-    if (isVoidSchema(getMethodResultSchema(method))) return "void";
++    if (isVoidSchema(getMethodResultSchema(method))) {
++        return CONNECTION_SESSION_METHODS.has(method.rpcMethod) ? "null" : "void";
++    }
+     return tsNullableResultTypeName(method) ?? resultTypeName(method);
+ }
+ 
+@@ -717,7 +721,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
+  * Generated from: api.schema.json
+  */
+ 
+-import type { MessageConnection } from "vscode-jsonrpc/node.js";
++import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
+ `);
+ 
+     const externalSchemaRefs = collectExternalSchemaRefNames(schema);
+@@ -794,7 +798,11 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
+             if (paramsExternalRef) {
+                 continue;
+             }
+-            if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
++            if (
++                method.rpcMethod.startsWith("session.") &&
++                !CONNECTION_SESSION_METHODS.has(method.rpcMethod) &&
++                resolvedParams?.properties
++            ) {
+                 const filtered: JSONSchema7 = {
+                     ...resolvedParams,
+                     properties: Object.fromEntries(
+@@ -889,6 +897,14 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
+         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
+         lines.push(`    return {`);
+         lines.push(...emitGroup(schema.server, "        ", false, false, false, "public"));
++        const connectionSessionMethods = Object.fromEntries(
++            Object.entries(schema.session ?? {}).filter(
++                ([, method]) => isRpcMethod(method) && CONNECTION_SESSION_METHODS.has(method.rpcMethod)
++            )
++        );
++        if (Object.keys(connectionSessionMethods).length > 0) {
++            lines.push(...emitGroup({ session: connectionSessionMethods }, "        ", false, false, false, "public"));
++        }
+         lines.push(`    };`);
+         lines.push(`}`);
+         lines.push("");
+@@ -1211,7 +1227,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
+                 includeExperimental: method.stability === "experimental" && !groupExperimental,
+             });
+             if (hasParams) {
+-                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
++                const cancellationParam = method.notification ? "" : ", token?: CancellationToken";
++                lines.push(`    ${name}(params: ${pType}${cancellationParam}): Promise<${rType}>;`);
+             } else {
+                 lines.push(`    ${name}(): Promise<${rType}>;`);
+             }
+@@ -1270,10 +1287,10 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
+                     lines.push(`    });`);
+                 }
+             } else if (hasParams) {
+-                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
++                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}, token: CancellationToken) => {`);
+                 lines.push(`        const handler = handlers.${groupName};`);
+                 lines.push(`        if (!handler) throw new Error("No ${groupName} client-global handler registered");`);
+-                lines.push(`        return handler.${name}(params);`);
++                lines.push(`        return handler.${name}(params, token);`);
+                 lines.push(`    });`);
+             } else {
+                 lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);

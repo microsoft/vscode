@@ -38,6 +38,7 @@ export const Menus = {
 
 	/** Header actions of the test custom view. */
 	CustomViewTest: new MenuId('SessionsCustomViewTest'),
+	Canvas: new MenuId('SessionsCanvas'),
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),

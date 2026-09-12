@@ -5,10 +5,7 @@
 
 import { session } from 'electron';
 import { createHash } from 'crypto';
-import { normalize } from '../../../base/common/path.js';
-import { isLinux } from '../../../base/common/platform.js';
-import { joinPath } from '../../../base/common/resources.js';
-import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { isEqual, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { BrowserViewStorageScope, IBrowserViewSessionOptions } from '../common/browserView.js';
@@ -16,9 +13,9 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
+import { BrowserSessionFileAccess } from './browserSessionFileAccess.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { localize } from '../../../nls.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 
 /**
@@ -38,6 +35,21 @@ import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFi
  * the internal registry stays consistent.
  */
 export class BrowserSession {
+	private _externalResource: URI | undefined;
+	private _presentationValidated = false;
+
+	validatePresentation(resource: URI | undefined): void {
+		if (this._presentationValidated && !isEqual(this._externalResource, resource)) {
+			throw new Error('Externally presented pages cannot share storage with another presentation.');
+		}
+		if (resource) {
+			if (this.storageScope !== BrowserViewStorageScope.Agent) {
+				throw new Error('External presentations require isolated, network-filtered storage.');
+			}
+		}
+		this._externalResource = resource;
+		this._presentationValidated = true;
+	}
 
 	// #region Static registry
 
@@ -218,20 +230,13 @@ export class BrowserSession {
 		}
 	}
 
-	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
-	private static _trustAllFiles = false;
+	static readonly fileAccess = new BrowserSessionFileAccess();
 
 	/**
 	 * Set trusted file roots for all browser sessions.
 	 */
 	static setTrustedFileRoots(roots: readonly string[], trustAllFiles: boolean): void {
-		BrowserSession._trustAllFiles = trustAllFiles;
-		BrowserSession._trustedFileRoots.clear();
-		for (const root of roots) {
-			if (root) {
-				BrowserSession._trustedFileRoots.set(normalize(root), true);
-			}
-		}
+		BrowserSession.fileAccess.setTrustedFileRoots(roots, trustAllFiles);
 	}
 
 	// #endregion
@@ -338,13 +343,10 @@ export class BrowserSession {
 			type: 'frame',
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
 		});
-		this.electronSession.protocol.handle(Schemas.file, request => {
-			const filePath = normalize(URI.parse(request.url).fsPath);
-			if (!BrowserSession._trustAllFiles && !BrowserSession._trustedFileRoots.findSubstr(filePath)) {
-				return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
-			}
-			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });
-		});
+		this.electronSession.protocol.handle(Schemas.file, request => BrowserSession.fileAccess.handleRequest(
+			request,
+			request => this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true }),
+		));
 	}
 
 	/**

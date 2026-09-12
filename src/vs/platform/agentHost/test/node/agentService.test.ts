@@ -67,7 +67,9 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostCanvases, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import { TestCanvases } from './agentHostCanvasTestUtils.js';
+import { isCanvasSessionRetained } from '../../common/meta/agentCanvasSessionMeta.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -10280,6 +10282,136 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- createChat (multi-chat) ----------------------------------------
 
 	suite('createChat', () => {
+		test('no-turn retained canvas intent survives picker abandonment and empty-draft garbage collection', async () => {
+			const canvases = getTestAgentHostCanvases(service);
+			const facet = disposables.add(new TestCanvases());
+			const agent = new class extends MockAgent { readonly canvases = facet; }('copilot');
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			facet.snapshot = { ...facet.snapshot, chat };
+			facet.initialized = false;
+			facet.onInitialize = (chat, operation) => canvases.retainChat(chat, operation.token);
+			const connection = disposables.add(canvases.connect('owner'));
+			await connection.initializeCanvasChat({ channel: chat, requestId: 'initialize' });
+			const before = getStateManager(service).getSessionState(session.toString())!;
+			assert.deepStrictEqual({
+				retained: isCanvasSessionRetained(getStateManager(service).getSessionSummary(session.toString())),
+				unused: getStateManager(service).isUnusedDraft(session.toString()),
+				turns: before.turns, active: before.activeTurn, members: getStateManager(service).getChatCanvasStates(chat),
+			}, { retained: true, unused: false, turns: [], active: undefined, members: [] });
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.addSubscriber(session, 'owner');
+				service.unsubscribe(session, 'owner');
+				connection.dispose();
+				await timeout(30_000);
+			});
+			await service.restoreSession(session);
+			await timeout(0);
+			assert.deepStrictEqual({
+				disposed: agent.disposeSessionCalls,
+				retained: isCanvasSessionRetained(getStateManager(service).getSessionSummary(session.toString())),
+				registered: (await service.getRegisteredSessions()).some(candidate => candidate.toString() === session.toString()),
+				initialized: facet.calls,
+			}, { disposed: [], retained: true, registered: true, initialized: ['initialize'] });
+		});
+
+		for (const kind of ['main', 'peer', 'fork'] as const) {
+			test(`canvas ${kind} creation ingests native turns before publishing the real chat`, async () => {
+				const canvases = getTestAgentHostCanvases(service);
+				const session = AgentSession.uri('copilot', `pending-${kind}`);
+				const target = kind === 'main' ? buildDefaultChatUri(session) : buildChatUri(session, kind);
+				let pendingGeneration: string | undefined;
+				class InitializingAgent extends MockAgent {
+					readonly canvases = disposables.add(new TestCanvases());
+					override async createChat(): Promise<void> { }
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+						createChat: async (chat, context, options) => {
+							if (chat.toString() === target) {
+								const lease = canvases.getChatInitialization(target);
+								assert.ok(lease);
+								lease.willExecute();
+								pendingGeneration = getStateManager(service).getChatGeneration(target);
+								assert.strictEqual(getStateManager(service).getSnapshot(target), undefined);
+								this.fireProgress({
+									kind: 'action', resource: chat, action: {
+										type: ActionType.ChatTurnStarted, turnId: `native-${kind}`, startedAt: '2026-01-01T00:00:00Z',
+										message: { text: 'Native initialization', origin: { kind: MessageKind.Tool } },
+									}
+								});
+								this.fireProgress({ kind: 'action', resource: chat, action: { type: ActionType.ChatTurnComplete, turnId: `native-${kind}`, duration: 0 } });
+							}
+							return base.createChat(chat, context, options);
+						},
+					}));
+				}
+				const agent = new InitializingAgent('copilot');
+				registerTestAgentProvider(service, agent);
+				const config = { mode: 'plan' };
+				await service.createSession({ provider: 'copilot', session, config });
+				if (kind !== 'main') {
+					getStateManager(service).seedDefaultChatTurns(session.toString(), [{
+						id: 'source-turn', state: TurnState.Complete, message: { text: 'Source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined,
+					}]);
+					await service.createChat(session, URI.parse(target), kind === 'fork' ? { fork: { source: session, turnId: 'source-turn' } } : undefined);
+				}
+				assert.deepStrictEqual({
+					lastTurn: getStateManager(service).getChatState(target)?.turns.at(-1)?.id,
+					sameGeneration: getStateManager(service).getChatGeneration(target) === pendingGeneration,
+					held: canvases.holdsSession(session.toString()), unused: getStateManager(service).isUnusedDraft(session.toString()),
+					registered: getStateManager(service).getSessionState(session.toString())?.chats.some(chat => chat.resource === target),
+					mode: getStateManager(service).getSessionState(session.toString())?.config?.values.mode,
+				}, { lastTurn: `native-${kind}`, sameGeneration: true, held: false, unused: false, registered: true, mode: 'plan' });
+			});
+
+			test(`canvas ${kind} creation cannot publish after its initializing transport disconnects`, async () => {
+				const canvases = getTestAgentHostCanvases(service);
+				const entered = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const session = AgentSession.uri('copilot', `cancelled-${kind}`);
+				const target = kind === 'main' ? buildDefaultChatUri(session) : buildChatUri(session, kind);
+				class InitializingAgent extends MockAgent {
+					readonly canvases = disposables.add(new TestCanvases());
+					override async createChat(): Promise<void> { }
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+						createChat: async (chat, context, options) => {
+							if (chat.toString() === target) {
+								assert.ok(canvases.getChatInitialization(target));
+								await entered.complete();
+								await release.p;
+							}
+							return base.createChat(chat, context, options);
+						},
+					}));
+				}
+				const agent = new InitializingAgent('copilot');
+				registerTestAgentProvider(service, agent);
+				if (kind !== 'main') {
+					await service.createSession({ provider: 'copilot', session });
+				}
+				if (kind === 'fork') {
+					getStateManager(service).seedDefaultChatTurns(session.toString(), [{
+						id: 'source-turn', state: TurnState.Complete, message: { text: 'Source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined,
+					}]);
+				}
+				const connection = disposables.add(canvases.connect('creator'));
+				const lease = disposables.add(connection.beginChatCreation(target));
+				const creating = kind === 'main'
+					? service.createSession({ provider: 'copilot', session })
+					: service.createChat(session, URI.parse(target), kind === 'fork' ? { fork: { source: session, turnId: 'source-turn' } } : undefined);
+				const rejected = assert.rejects(creating, /Canceled/);
+				await entered.p;
+				connection.dispose();
+				await release.complete();
+				await rejected;
+				lease.dispose();
+				assert.deepStrictEqual({
+					state: getStateManager(service).getChatState(target),
+					registered: getStateManager(service).getSessionState(session.toString())?.chats.some(chat => chat.resource === target) ?? false,
+					held: canvases.holdsSession(session.toString()),
+				}, { state: undefined, registered: false, held: false });
+			});
+		}
 
 		test('routes to the provider for a restored session not tracked in the provider map', async () => {
 			// A session restored after a host restart lives in the state manager

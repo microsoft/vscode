@@ -848,6 +848,8 @@ export function toSessionId(providerId: string, resource: URI): string {
  * Consumers check these before surfacing session-specific features in the UI.
  */
 export interface ISessionCapabilities {
+	/** Whether the current local runtime and client negotiate live canvas presentation. */
+	readonly supportsCanvases?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
 	/** Whether this session supports multiple chats. */

@@ -5,9 +5,7 @@
 
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
-import type { InitializeResult } from './state/protocol/common/commands.js';
-import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
-
+export { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCanvasChatInitialization, supportsAgentHostChatStateFile, supportsAgentHostDetachedWorktrees, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionInitializeResultMeta } from './meta/agentHostExtensionProtocolMeta.js';
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
@@ -19,38 +17,19 @@ export const ReconcileAgentHostDetachedWorktreesExtensionMethod = 'vscode/reconc
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
+export const RequestAgentHostCanvasApprovalExtensionMethod = 'vscode/requestCanvasApproval';
+export const CancelAgentHostCanvasApprovalExtensionMethod = 'vscode/cancelCanvasApproval';
+export const InitializeCanvasChatExtensionMethod = 'vscode/initializeCanvasChat';
+export const CancelCanvasChatInitializationExtensionMethod = 'vscode/cancelCanvasChatInitialization';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 
-const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
-const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
+export const initializeCanvasChatParamsValidator = vObj({
+	channel: vString(),
+	requestId: vString(),
+});
 
-export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
-	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
-	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
-	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
-}
-
-export interface IAgentHostExtensionInitializeResult extends InitializeResult {
-	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
-}
-
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true): IAgentHostExtensionInitializeResultMeta {
-	return {
-		[AgentHostChatStateFileCapabilityMetaKey]: true,
-		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
-		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
-	};
-}
-
-export function supportsAgentHostChatStateFile(result: IAgentHostExtensionInitializeResult | undefined): boolean {
-	const meta = result?._meta;
-	return meta?.[AgentHostChatStateFileCapabilityMetaKey] === true;
-}
-
-export function supportsAgentHostDetachedWorktrees(result: IAgentHostExtensionInitializeResult | undefined): boolean {
-	const meta = result?._meta;
-	return meta?.[AgentHostDetachedWorktreeCapabilityMetaKey] === true;
-}
+/** An exact chat and transport-scoped idempotency key for executable registry initialization. */
+export type InitializeCanvasChatParams = ValidatorType<typeof initializeCanvasChatParamsValidator>;
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({
 	session: vOptionalProp(vString()),
@@ -66,6 +45,8 @@ export const removeSessionArtifactParamsValidator = vObj({
 });
 
 export interface IAgentHostExtensionCommandMap {
+	[InitializeCanvasChatExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
+	[CancelCanvasChatInitializationExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
@@ -114,7 +95,18 @@ export interface IAgentHostWorkspaceTrustRequest {
 	readonly trustedParent?: string;
 }
 
+/** Out-of-turn, user-only approval. The nonce and exact chat are connection-bound. */
+export interface IAgentHostCanvasApprovalRequest {
+	readonly requestId: string;
+	readonly chat: string;
+	readonly message: string;
+}
+
 export interface IAgentHostExtensionServerCommandMap {
+	[RequestAgentHostCanvasApprovalExtensionMethod]: {
+		params: IAgentHostCanvasApprovalRequest;
+		result: { requestId: string; approved: boolean };
+	};
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };

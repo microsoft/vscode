@@ -9,3 +9,5 @@ ThirdPartyNotices.txt eol=crlf
 *.sh eol=lf
 *.rtf -text
 **/*.json linguist-language=jsonc
+build/npm/copilot-sdk-canvas.patch -text -whitespace
+build/npm/copilot-sdk-canvas.source.patch -text -whitespace

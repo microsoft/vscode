@@ -6,9 +6,19 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { matchesBrowserViewGroupFilter } from '../../common/browserViewGroup.js';
+import { URI } from '../../../../base/common/uri.js';
 
 suite('BrowserViewGroup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('external presentations are excluded even by an explicit browser id or wildcard audience', () => {
+		const presentation = { type: 'external' as const, resource: URI.parse('test-canvas:/instance') };
+		assert.deepStrictEqual({
+			explicitId: matchesBrowserViewGroupFilter('canvas', [], { browserIds: ['canvas'] }, presentation),
+			wildcard: matchesBrowserViewGroupFilter('canvas', [{ type: 'agent' }], { audience: { type: 'agent' } }, presentation),
+			ordinary: matchesBrowserViewGroupFilter('browser', [], { browserIds: ['browser'] }),
+		}, { explicitId: false, wildcard: false, ordinary: true });
+	});
 
 	test('matches browser IDs and audiences', () => {
 		const sessionAudience = [{ type: 'agent', sessionId: 'session' }] as const;

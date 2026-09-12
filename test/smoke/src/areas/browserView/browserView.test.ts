@@ -184,6 +184,18 @@ export function setup(logger: Logger): void {
 			await input.pressSequentially('x');
 			assert.strictEqual(await input.inputValue(), 'x');
 
+			await input.press(`${modifier}+Alt+c`);
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
+			await workbenchPage.locator('.browser-root [aria-label^="Comment on Elements"][aria-pressed="true"]').waitFor();
+			await browserPage.keyboard.press('Alt+F1');
+			const accessibilityHelp = workbenchPage.locator('.accessible-view');
+			await accessibilityHelp.waitFor();
+			await accessibilityHelp.locator('.view-line', { hasText: 'You are in Integrated Browser element commenting mode.' }).waitFor();
+			await workbenchPage.keyboard.press('Escape');
+			await accessibilityHelp.waitFor({ state: 'hidden' });
+			await browserPage.keyboard.press('Escape');
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'detached' });
+
 			await input.press(`${modifier}+Shift+p`);
 			await workbenchPage.locator('.quick-input-widget:visible input[placeholder*="Type the name of a command"]').waitFor();
 			await workbenchPage.keyboard.press('Escape');

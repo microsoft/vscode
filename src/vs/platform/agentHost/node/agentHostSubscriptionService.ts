@@ -6,11 +6,14 @@
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostSubscriptionService implements IAgentHostSubscriptionService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _subscribers = new ResourceMap<Set<string>>();
+
+	constructor(@IAgentHostStateManager private readonly _state?: AgentHostStateManager) { }
 
 	get subscribedResources(): Iterable<URI> {
 		return this._subscribers.keys();
@@ -45,9 +48,9 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 	}
 
 	hasSessionSubscribers(resource: URI): boolean {
-		const sessionKey = resolveAgentHostSession(resource).toString();
+		const sessionKey = resolveAgentHostSession(resource, this._state?.getCanvasState(resource.toString())?.identity.chat).toString();
 		for (const subscribedResource of this._subscribers.keys()) {
-			if (resolveAgentHostSession(subscribedResource).toString() === sessionKey) {
+			if (resolveAgentHostSession(subscribedResource, this._state?.getCanvasState(subscribedResource.toString())?.identity.chat).toString() === sessionKey) {
 				return true;
 			}
 		}

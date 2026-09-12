@@ -62,6 +62,24 @@ suite('BrowserOverlayManager', () => {
 		assert.deepStrictEqual(overlays, []);
 	});
 
+	test('detects accessible content outside its zero-sized context view anchor', () => {
+		const browserContainer = addElement('browser-container', {
+			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'
+		});
+		const contextView = addElement('context-view', {
+			position: 'absolute', left: '20px', top: '20px', width: '0px', height: '0px', zIndex: '2575'
+		});
+		const accessibleView = addElement('accessible-view', {
+			position: 'absolute', left: '0px', top: '0px', width: '400px', height: '200px'
+		}, contextView);
+
+		const visible = manager.getOverlappingOverlays(browserContainer).map(overlay => overlay.type);
+		accessibleView.style.display = 'none';
+		const hidden = manager.getOverlappingOverlays(browserContainer).map(overlay => overlay.type);
+
+		assert.deepStrictEqual({ visible, hidden }, { visible: [BrowserOverlayType.Unknown], hidden: [] });
+	});
+
 	test('detects an overlay beneath detached webview content', () => {
 		const browserContainer = addElement('browser-container', {
 			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'

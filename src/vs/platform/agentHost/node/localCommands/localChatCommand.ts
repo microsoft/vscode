@@ -179,6 +179,11 @@ export class AgentHostLocalCommands extends Disposable {
 		return undefined;
 	}
 
+	/** Tests command recognition without executing its returned handling. */
+	canHandle(request: ILocalChatCommandRequest): boolean {
+		return this._commands.some(command => command.tryHandle(request) !== undefined);
+	}
+
 	private async _run(command: ILocalChatCommand, handling: ILocalChatCommandHandling, request: ILocalChatCommandRequest): Promise<void> {
 		const stopWatch = StopWatch.create(false);
 		try {

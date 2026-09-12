@@ -25,11 +25,12 @@ registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationTy
 registerSingleton(IAccessibleViewInformationService, AccessibleViewInformationService, InstantiationType.Delayed);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);
+// Register command handlers before an interactive surface can receive its first accessibility shortcut.
+registerWorkbenchContribution2(EditorAccessibilityHelpContribution.ID, EditorAccessibilityHelpContribution, WorkbenchPhase.BlockRestore);
 workbenchRegistry.registerWorkbenchContribution(UnfocusedViewDimmingContribution, LifecyclePhase.Restored);
 
-workbenchRegistry.registerWorkbenchContribution(AccesibleViewHelpContribution, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(AccesibleViewContributions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(AccesibleViewHelpContribution.ID, AccesibleViewHelpContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(AccesibleViewContributions.ID, AccesibleViewContributions, WorkbenchPhase.BlockRestore);
 
 registerWorkbenchContribution2(AccessibilityStatus.ID, AccessibilityStatus, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ExtensionAccessibilityHelpDialogContribution.ID, ExtensionAccessibilityHelpDialogContribution, WorkbenchPhase.BlockRestore);

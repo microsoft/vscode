@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { unavailableCanvases } from '../common/agentHostCanvasesTestUtils.js';
+import { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -834,6 +836,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, new RecordingWorktreeIsolation(observed)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostCanvasesService, unavailableCanvases],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
@@ -884,6 +887,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[ISessionDataService, sessionDataService],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostCanvasesService, unavailableCanvases],
 	);
 	let conversionPending = false;
 	services.set(ISessionWorkspaceConversionService, {

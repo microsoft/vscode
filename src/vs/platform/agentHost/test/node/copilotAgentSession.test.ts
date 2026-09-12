@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -15,6 +15,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -39,7 +40,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -53,7 +54,9 @@ import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { type IShellInitScript } from '../../common/shellInitScript.js';
-import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { CopilotSessionEventBuffer, CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from '../../node/copilot/copilotSessionWrapper.js';
+import { extensionContextToProtocol } from '../../node/copilot/copilotAttachmentUtils.js';
+import { CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN } from '../../common/agentHostCanvases.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -73,6 +76,12 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestAgentService, getTestAgentHostCanvases, getTestAgentHostClientConnections, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { canvasChat, canvasSession, TestCanvases } from './agentHostCanvasTestUtils.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { type IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -127,6 +136,8 @@ class MockCopilotSession {
 	shellInitScriptUpdateSuccess = true;
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
+	queuePendingItems: Awaited<ReturnType<CopilotSession['rpc']['queue']['pendingItems']>>['items'] = [];
+	readonly queueRemoveAtCalls: Parameters<CopilotSession['rpc']['queue']['removeAt']>[0][] = [];
 	modelGate: Promise<void> | undefined;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	agentSelectGate: Promise<void> | undefined;
@@ -313,6 +324,15 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		queue: {
+			pendingItems: async (): ReturnType<CopilotSession['rpc']['queue']['pendingItems']> => ({ items: this.queuePendingItems, steeringMessages: [] }),
+			removeAt: async (params: Parameters<CopilotSession['rpc']['queue']['removeAt']>[0]): ReturnType<CopilotSession['rpc']['queue']['removeAt']> => {
+				this.queueRemoveAtCalls.push(params);
+				const before = this.queuePendingItems.length;
+				this.queuePendingItems = this.queuePendingItems.filter(item => item.id !== params.id);
+				return { removed: this.queuePendingItems.length !== before };
+			},
+		},
 		agent: {
 			select: async () => { await this.agentSelectGate; },
 			deselect: async () => { await this.agentDeselectGate; },
@@ -836,6 +856,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
+	/** Actual early runtime notifications, delivered before the public SDK session is returned. */
+	canvasEvents?: readonly SessionEvent[];
+	onSignal?: (signal: AgentSignal) => void;
+	onSessionCreated?: (session: CopilotAgentSession) => void;
+	beforeSdkReturn?: (runtime: ICopilotSessionRuntime, session: MockCopilotSession, emit: (event: SessionEvent) => void) => Promise<void>;
 	realpath?: (path: string) => Promise<string>;
 }): Promise<{
 	session: CopilotAgentSession;
@@ -860,6 +885,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	disposables.add(progressEmitter.event(signal => {
 		signals.push(signal);
+		options?.onSignal?.(signal);
 		for (let i = waiters.length - 1; i >= 0; i--) {
 			if (waiters[i].predicate(signal)) {
 				const { deferred } = waiters[i];
@@ -920,6 +946,16 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchedRuntime = runtime;
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
+			}
+			if (options?.canvasEvents) {
+				const wrapper = new CopilotSessionWrapper(mockSession.sessionId);
+				runtime.onSessionStarting?.(wrapper);
+				for (const event of options.canvasEvents) {
+					wrapper.acceptSessionEvent(event);
+				}
+				await options.beforeSdkReturn?.(runtime, mockSession, event => wrapper.acceptSessionEvent(event));
+				await wrapper.attachSession(mockSession as unknown as CopilotSession);
+				return wrapper;
 			}
 			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
 		}
@@ -1130,6 +1166,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		},
 	));
 
+	options?.onSessionCreated?.(session);
 	await session.initializeSession();
 	if (!launchedRuntime) {
 		throw new Error('Expected session runtime');
@@ -1212,6 +1249,54 @@ function createTestShellManager(disposables: DisposableStore, workingDirectory: 
 		dispose: () => { },
 	} as unknown as ShellManager;
 	return { shellManager, preflightCalls: () => preflightCalls, setCalls };
+}
+
+async function createNativeHostComposition(disposables: DisposableStore, canvasEvents: readonly SessionEvent[] = []) {
+	const logService = new NullLogService();
+	const files = disposables.add(new FileService(logService));
+	disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const service = disposables.add(createTestAgentService(logService, files, createSessionDataService(), new class extends mock<IProductService>() { }(), createNoopGitService()));
+	const state = getTestAgentStateManager(service);
+	const canvases = getTestAgentHostCanvases(service);
+	const facet = disposables.add(new TestCanvases());
+	facet.initialized = false;
+	facet.defersHostTurnStart = true;
+	let native: Awaited<ReturnType<typeof createAgentSession>> | undefined;
+	let nativeSession: CopilotAgentSession | undefined;
+	const initialized = new DeferredPromise<void>();
+	const agent = new class extends MockAgent {
+		readonly canvases = facet;
+		constructor() {
+			super('copilot');
+			this.chats.abort = async (_chat, _context, turnId) => {
+				assert.ok(nativeSession);
+				await nativeSession.abort(turnId);
+			};
+		}
+		override async sendMessage(...args: Parameters<MockAgent['sendMessage']>): Promise<void> {
+			await super.sendMessage(...args);
+			assert.ok(nativeSession);
+			await nativeSession.send(args[2], args[3], args[4], undefined, args[5], args[6]);
+		}
+		override respondToPermissionRequest(requestId: string, approved: boolean): void {
+			assert.ok(nativeSession);
+			nativeSession.respondToPermissionRequest(requestId, approved);
+		}
+	}();
+	registerTestAgentProvider(service, agent);
+	await service.createSession({ provider: 'copilot', session: URI.parse(canvasSession) });
+	facet.onInitialize = async chat => {
+		native = await createAgentSession(disposables, {
+			sessionUri: URI.parse(canvasSession), chatChannelUri: URI.parse(chat),
+			canvasEvents, onSignal: signal => agent.fireProgress(signal), onSessionCreated: session => { nativeSession = session; },
+		});
+		await initialized.complete();
+	};
+	return {
+		service, state, canvases, facet, agent, initialized: initialized.p,
+		bindNativeSession: (session: CopilotAgentSession) => { nativeSession = session; },
+		get native() { assert.ok(native); return native; },
+	};
 }
 
 suite('CopilotAgentSession', () => {
@@ -1809,6 +1894,39 @@ suite('CopilotAgentSession', () => {
 			}]);
 		});
 
+		for (const buffering of ['startup', 'send acknowledgement'] as const) {
+			test(`model.call_finished survives ${buffering} buffering without replaying effects`, () => {
+				const mockSession = new MockCopilotSession();
+				const wrapper = disposables.add(new CopilotSessionWrapper(
+					mockSession as unknown as CopilotSession,
+					buffering === 'startup' ? new CopilotSessionEventBuffer() : undefined,
+				));
+				const acknowledgement = buffering === 'send acknowledgement' ? disposables.add(wrapper.bufferEventsUntilAcknowledged()) : undefined;
+				const events: ICopilotModelCallFinishedEvent[] = [];
+				const unhandled: string[] = [];
+				disposables.add(wrapper.onModelCallFinished(event => events.push(event)));
+				disposables.add(wrapper.onUnhandledEvent(event => unhandled.push(event.type)));
+				const event: ICopilotModelCallFinishedEvent = {
+					id: 'buffered-model-call', agentId: undefined,
+					data: {
+						turnId: 'sdk-turn', interactionId: 'interaction', dispatchDurationMs: 125,
+						outcome: 'success', containsBuiltInFileEditRequest: true, editClassifierVersion: 1,
+					},
+				};
+				mockSession.fireRaw({ ...event, type: 'model.call_finished', ephemeral: true });
+				const beforeRelease = events.slice();
+				if (acknowledgement) {
+					acknowledgement.dispose();
+				} else {
+					wrapper.releaseBufferedEvents();
+				}
+				wrapper.releaseBufferedEvents();
+				assert.deepStrictEqual({
+					beforeRelease, events, unhandled, sends: mockSession.sendRequests, messageSends: mockSession.sendMessagesRequests,
+				}, { beforeRelease: [], events: [event], unhandled: [], sends: [], messageSends: [] });
+			});
+		}
+
 		test('reports a completed disconnect separately from a pending disconnect', async () => {
 			const disconnectGate = new DeferredPromise<void>();
 			const mockSession = new MockCopilotSession();
@@ -2285,6 +2403,321 @@ suite('CopilotAgentSession', () => {
 		}];
 
 		assert.deepStrictEqual((await session.getMessages())[0].message.attachments, [attachment]);
+	});
+
+	test('early native messages retain their own turn boundaries and never resend through the SDK', async () => {
+		const database = new TestSessionDatabase();
+		const metadata = { timestamp: '2026-01-01T00:00:00Z', parentId: null };
+		const chat = URI.parse(buildChatUri('copilotcli:/test-session-1', 'peer'));
+		const { signals, mockSession } = await createAgentSession(disposables, {
+			sessionDatabase: database, chatChannelUri: chat,
+			canvasEvents: [
+				{ ...metadata, type: 'user.message', id: 'native-first', data: { content: 'First native message' } },
+				{ ...metadata, type: 'assistant.message_delta', id: 'delta-first', ephemeral: true, data: { messageId: 'response-first', deltaContent: 'First response' } },
+				{ ...metadata, type: 'user.message', id: 'native-second', data: { content: 'Second native message' } },
+				{ ...metadata, type: 'assistant.message_delta', id: 'delta-second', ephemeral: true, data: { messageId: 'response-second', deltaContent: 'Second response' } },
+			],
+		});
+		mockSession.fire('user.message', { content: 'Duplicate observation' }, { id: 'native-second' });
+		const starts = getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted);
+		const responses = getActions(signals).flatMap(action =>
+			action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+				? [[starts.findIndex(start => start.turnId === action.turnId), action.part.content]]
+				: action.type === ActionType.ChatDelta
+					? [[starts.findIndex(start => start.turnId === action.turnId), action.content]]
+					: []);
+		const origins = await database.getTurnMessageOrigins();
+		assert.deepStrictEqual({
+			messages: starts.map(action => [action.message.text, action.message.origin.kind]),
+			responses,
+			chats: [...new Set(signals.filter((signal): signal is IAgentActionSignal => signal.kind === 'action').map(signal => signal.resource.toString()))],
+			sends: [mockSession.sendRequests, mockSession.sendMessagesRequests],
+			origins: [origins.get('native-first'), origins.get('native-second')],
+		}, {
+			messages: [['First native message', MessageKind.Tool], ['Second native message', MessageKind.Tool]],
+			responses: [[0, 'First response'], [1, 'Second response']],
+			chats: [chat.toString()], sends: [[], []], origins: [CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN, CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN],
+		});
+	});
+
+	test('native messages during a live chat do not steal an existing SDK echo', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { canvasEvents: [] });
+		await session.send('The host echo', undefined, 'host-turn');
+		mockSession.fire('user.message', { content: 'The host echo', messageId: 'message-1' }, { id: 'host-echo' });
+		mockSession.fire('user.message', { content: 'Native follow-up' }, { id: 'native-follow-up' });
+		const starts = getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted);
+		assert.deepStrictEqual(starts.map(action => [action.turnId, action.message.text, action.message.origin.kind]), [
+			['host-turn', 'The host echo', MessageKind.User], ['native-follow-up', 'Native follow-up', MessageKind.Tool],
+		]);
+	});
+
+	test('host composition initializes before admission and correlates the original user echo before its ACK', async () => {
+		const metadata = { timestamp: '2026-01-01T00:00:00Z', parentId: null };
+		const f = await createNativeHostComposition(disposables, [
+			{ ...metadata, type: 'user.message', id: 'native-first', data: { content: 'Native initialization' } },
+			{ ...metadata, type: 'assistant.message_delta', id: 'native-response', ephemeral: true, data: { messageId: 'response-native', deltaContent: 'Native answer' } },
+			{ ...metadata, type: 'session.idle', id: 'native-idle', ephemeral: true, data: {} },
+		]);
+		const echoed: Array<{ id: string; clientId: string | undefined }> = [];
+		disposables.add(f.state.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatTurnStarted) {
+				echoed.push({ id: envelope.action.turnId, clientId: envelope.origin?.clientId });
+			}
+		}));
+		f.service.dispatchAction(canvasChat, {
+			type: ActionType.ChatTurnStarted, turnId: 'host-turn', startedAt: '2026-01-01T00:00:01Z',
+			message: { text: 'Original host input', origin: { kind: MessageKind.User }, _meta: { original: true } },
+		}, 'owner', 1);
+		await f.initialized;
+		const acknowledgement = new DeferredPromise<void>();
+		f.native.mockSession.sendGate = acknowledgement.p;
+		while (!f.native.mockSession.sendRequests.length) {
+			await timeout(0);
+		}
+		assert.deepStrictEqual([f.state.getActiveTurnId(canvasChat), f.state.getDeferredTurnId(canvasChat)], [undefined, 'host-turn']);
+		f.native.mockSession.fire('user.message', { content: 'SDK-scaffolded host input', messageId: 'message-1' }, { id: 'host-event' });
+		f.native.mockSession.fire('assistant.message_delta', { messageId: 'host-response', deltaContent: 'Host answer' }, { id: 'host-delta' });
+		f.native.mockSession.fire('session.idle', {}, { id: 'host-idle' });
+		await acknowledgement.complete();
+		await timeout(0);
+		await timeout(0);
+		assert.deepStrictEqual({
+			echoed,
+			turns: f.state.getChatState(canvasChat)?.turns.map(turn => ({
+				id: turn.id, message: turn.message, response: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []),
+			})),
+			sends: f.native.mockSession.sendRequests.length,
+		}, {
+			echoed: [{ id: 'native-first', clientId: undefined }, { id: 'host-turn', clientId: 'owner' }],
+			turns: [
+				{ id: 'native-first', message: { text: 'Native initialization', origin: { kind: MessageKind.Tool }, attachments: undefined, _meta: { copilotOrigin: CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN, sdkEventId: 'native-first' } }, response: ['Native answer'] },
+				{ id: 'host-turn', message: { text: 'Original host input', origin: { kind: MessageKind.User }, _meta: { original: true } }, response: ['Host answer'] },
+			],
+			sends: 1,
+		});
+	});
+
+	test('host composition keeps a native turn before the host ACK distinct from the deferred host turn', async () => {
+		const f = await createNativeHostComposition(disposables);
+		const connection = disposables.add(f.canvases.connect('owner'));
+		await connection.initializeCanvasChat({ channel: canvasChat, requestId: 'initialize' });
+		const acknowledgement = new DeferredPromise<void>();
+		f.native.mockSession.sendGate = acknowledgement.p;
+		f.service.dispatchAction(canvasChat, {
+			type: ActionType.ChatTurnStarted, turnId: 'host-turn', startedAt: '2026-01-01T00:00:01Z',
+			message: { text: 'Host', origin: { kind: MessageKind.User } },
+		}, 'owner', 1);
+		while (!f.native.mockSession.sendRequests.length) {
+			await timeout(0);
+		}
+		f.native.mockSession.fire('user.message', { content: 'Native', messageId: 'native-message-id' }, { id: 'native-event' });
+		f.native.mockSession.fire('assistant.message_delta', { messageId: 'native-answer', deltaContent: 'Native answer' }, { id: 'native-delta' });
+		f.native.mockSession.fire('user.message', { content: 'Host', messageId: 'message-1' }, { id: 'host-event' });
+		f.native.mockSession.fire('assistant.message_delta', { messageId: 'host-answer', deltaContent: 'Host answer' }, { id: 'host-delta' });
+		f.native.mockSession.fire('session.idle', {}, { id: 'idle' });
+		await acknowledgement.complete();
+		await timeout(0);
+		await timeout(0);
+		assert.deepStrictEqual(f.state.getChatState(canvasChat)?.turns.map(turn => [
+			turn.id, turn.message.origin.kind, turn.message.text,
+			turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []),
+		]), [
+			['native-event', MessageKind.Tool, 'Native', ['Native answer']],
+			['host-turn', MessageKind.User, 'Host', ['Host answer']],
+		]);
+		assert.strictEqual(f.native.mockSession.sendRequests.length, 1);
+	});
+
+	test('canvas preflight leaves local commands local and the archived-chat gate synchronous', async () => {
+		const f = await createNativeHostComposition(disposables);
+		f.service.dispatchAction(canvasChat, {
+			type: ActionType.ChatTurnStarted, turnId: 'rename', startedAt: '2026-01-01T00:00:00Z',
+			message: { text: '/rename New Title', origin: { kind: MessageKind.User } },
+		}, 'owner', 1);
+		assert.strictEqual(f.state.getSessionState(canvasSession)?.title, 'New Title');
+		await timeout(0);
+		f.state.dispatchServerAction(canvasSession, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		f.service.dispatchAction(canvasChat, {
+			type: ActionType.ChatTurnStarted, turnId: 'rejected', startedAt: '2026-01-01T00:00:01Z',
+			message: { text: 'Must not initialize', origin: { kind: MessageKind.User } },
+		}, 'owner', 2);
+		assert.deepStrictEqual({
+			active: f.state.getActiveTurnId(canvasChat),
+			last: f.state.getChatState(canvasChat)?.turns.at(-1)?.id,
+			parts: f.state.getChatState(canvasChat)?.turns.at(-1)?.responseParts.map(part => part.kind),
+			calls: f.facet.calls, sends: f.agent.sendMessageCalls,
+		}, { active: undefined, last: 'rejected', parts: [ResponsePartKind.Error], calls: [], sends: [] });
+	});
+
+	for (const queued of [false, true]) {
+		test(`host composition cancels only its ${queued ? 'queued' : 'direct'} pending send and preserves a native subagent`, async () => {
+			const f = await createNativeHostComposition(disposables);
+			const connection = disposables.add(f.canvases.connect('owner'));
+			await connection.initializeCanvasChat({ channel: canvasChat, requestId: 'initialize' });
+			const acknowledgement = new DeferredPromise<void>();
+			f.native.mockSession.sendGate = acknowledgement.p;
+			f.service.dispatchAction(canvasChat, queued ? {
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued',
+				message: { text: 'Host', origin: { kind: MessageKind.User } },
+			} : {
+				type: ActionType.ChatTurnStarted, turnId: 'host-turn', startedAt: '2026-01-01T00:00:01Z',
+				message: { text: 'Host', origin: { kind: MessageKind.User } },
+			}, 'owner', 1);
+			while (!f.native.mockSession.sendRequests.length) {
+				await timeout(0);
+			}
+			const turnId = f.state.getDeferredTurnId(canvasChat);
+			assert.ok(turnId);
+			f.native.mockSession.queuePendingItems = [
+				{ id: 'host-queue', messageId: 'message-1', kind: 'message', displayText: 'Host', agentMode: 'interactive' },
+				{ id: 'other-queue', messageId: 'other-message', kind: 'message', displayText: 'Other', agentMode: 'interactive' },
+			];
+			f.native.mockSession.fire('user.message', { content: 'Native', messageId: 'native-message' }, { id: 'native-event' });
+			f.native.mockSession.fire('subagent.started', {
+				toolCallId: 'native-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Native child',
+			}, { agentId: 'native-child' });
+			await acknowledgement.complete();
+			await timeout(0);
+			await timeout(0);
+			const childChat = buildSubagentChatUri(canvasSession, 'native-task');
+			const childTurn = f.state.getActiveTurnId(childChat);
+			assert.ok(childTurn);
+			f.service.dispatchAction(canvasChat, { type: ActionType.ChatTurnCancelled, turnId, duration: 0 }, 'owner', 2);
+			await timeout(0);
+			const childSurvived = f.state.getActiveTurnId(childChat) === childTurn;
+			f.native.mockSession.fire('assistant.message_delta', { messageId: 'native-answer', deltaContent: 'Native answer' });
+			f.native.mockSession.fire('session.idle', {});
+			await timeout(0);
+			await timeout(0);
+			assert.deepStrictEqual({
+				childSurvived,
+				removed: f.native.mockSession.queueRemoveAtCalls,
+				remainingSdkQueue: f.native.mockSession.queuePendingItems.map(item => item.id),
+				aborts: f.native.mockSession.abortCalls,
+				turns: f.state.getChatState(canvasChat)?.turns.map(turn => turn.id),
+				deferred: f.state.getDeferredTurnId(canvasChat),
+				queue: f.state.getChatState(canvasChat)?.queuedMessages,
+				sends: f.native.mockSession.sendRequests.length,
+			}, {
+				childSurvived: true, removed: [{ id: 'host-queue' }], remainingSdkQueue: ['other-queue'], aborts: 0,
+				turns: ['native-event'], deferred: undefined, queue: undefined, sends: 1,
+			});
+		});
+	}
+
+	test('native pending-turn cancellation rejects a batch containing another message', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { canvasEvents: [] });
+		await session.send('Host', undefined, 'host-turn');
+		mockSession.fire('user.message', { content: 'Native' }, { id: 'native-event' });
+		mockSession.queuePendingItems = [
+			{ id: 'batch', messageId: 'message-1', kind: 'message', displayText: 'Host', agentMode: 'interactive' },
+			{ id: 'batch', messageId: 'other-message', kind: 'message', displayText: 'Other', agentMode: 'interactive' },
+		];
+		await assert.rejects(session.abort('host-turn'), /contains another turn/);
+		assert.deepStrictEqual([mockSession.queueRemoveAtCalls, mockSession.abortCalls], [[], 0]);
+	});
+
+	test('cold queued sends initialize before committing their original queue identity', async () => {
+		const f = await createNativeHostComposition(disposables);
+		f.service.dispatchAction(canvasChat, {
+			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued',
+			message: { text: 'Queued host input', origin: { kind: MessageKind.User } },
+		}, 'owner', 1);
+		await f.initialized;
+		while (!f.native.mockSession.sendRequests.length) {
+			await timeout(0);
+		}
+		const turnId = f.state.getDeferredTurnId(canvasChat);
+		assert.ok(turnId);
+		assert.deepStrictEqual(f.state.getChatState(canvasChat)?.queuedMessages?.map(message => message.id), ['queued']);
+		f.native.mockSession.fire('user.message', { content: 'Queued host input', messageId: 'message-1' }, { id: 'queued-event' });
+		f.native.mockSession.fire('assistant.message_delta', { messageId: 'answer', deltaContent: 'Queued answer' }, { id: 'queued-delta' });
+		f.native.mockSession.fire('session.idle', {}, { id: 'queued-idle' });
+		await timeout(0);
+		assert.deepStrictEqual({
+			turns: f.state.getChatState(canvasChat)?.turns.map(turn => [turn.id, turn.message.text]),
+			queue: f.state.getChatState(canvasChat)?.queuedMessages, sends: f.native.mockSession.sendRequests.length,
+		}, { turns: [[turnId, 'Queued host input']], queue: undefined, sends: 1 });
+	});
+
+	test('an observation buffer failure does not replace the original rejected SDK send error', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { canvasEvents: [] });
+		const acknowledgement = new DeferredPromise<void>();
+		mockSession.sendGate = acknowledgement.p;
+		const error = new Error('Original SDK failure');
+		const rejected = assert.rejects(session.send('Host', undefined, 'host-turn'), candidate => candidate === error);
+		while (!mockSession.sendRequests.length) {
+			await timeout(0);
+		}
+		for (let index = 0; index < 1025; index++) {
+			mockSession.fire('assistant.message_delta', { messageId: 'response', deltaContent: 'x' }, { id: `event-${index}` });
+		}
+		await acknowledgement.error(error);
+		await rejected;
+	});
+
+	test('pre-return native tools settle against pending peer state and the original human approval', async () => {
+		const f = await createNativeHostComposition(disposables);
+		disposables.add(getTestAgentHostClientConnections(f.service).registerSource({
+			hasSeenClient: id => id === 'owner',
+			isClientConnected: id => id === 'owner',
+			getConnectedClientTransportCounts: () => new Map([['owner', 1]]),
+			requestWorkspaceTrust: async () => false,
+		}));
+		const approvals: string[] = [];
+		const connection = disposables.add(f.canvases.connect('owner', async request => {
+			approvals.push(request.chat);
+			return true;
+		}));
+		const peer = buildChatUri(canvasSession, 'before-return');
+		const lease = disposables.add(connection.beginChatCreation(peer));
+		const metadata = { timestamp: '2026-01-01T00:00:00Z', parentId: null };
+		let permission: PermissionRequestResult | undefined;
+		const native = await createAgentSession(disposables, {
+			sessionUri: URI.parse(canvasSession), chatChannelUri: URI.parse(peer),
+			onSignal: signal => f.agent.fireProgress(signal), onSessionCreated: f.bindNativeSession,
+			canvasEvents: [
+				{ ...metadata, type: 'user.message', id: 'native-before-return', data: { content: 'Initialize with a native tool' } },
+				{ ...metadata, type: 'tool.execution_start', id: 'tool-start', data: { toolCallId: 'native-tool', toolName: 'bash', arguments: { command: 'echo hello' } } },
+			],
+			beforeSdkReturn: async (runtime, _session, emit) => {
+				permission = await runtime.handlePermissionRequest(toPermissionRequest({
+					kind: 'shell', fullCommandText: 'echo hello', toolCallId: 'native-tool', managedApprovalRequired: true,
+				}));
+				assert.strictEqual(f.state.getSnapshot(peer), undefined);
+				emit({ ...metadata, type: 'tool.execution_complete', id: 'tool-complete', data: { toolCallId: 'native-tool', success: true, result: { content: 'hello' } } });
+				emit({ ...metadata, type: 'session.idle', id: 'idle-before-return', ephemeral: true, data: {} });
+			},
+		});
+		f.state.addChat(canvasSession, peer);
+		lease.commit();
+		lease.dispose();
+		await timeout(0);
+		assert.deepStrictEqual({
+			permission, approvals, input: f.state.getChatState(peer)?.turns.map(turn => turn.message.text),
+			tools: f.state.getChatState(peer)?.turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [[part.toolCall.toolCallId, part.toolCall.status]] : [])),
+			sends: native.mockSession.sendRequests, mainTurns: f.state.getChatState(canvasChat)?.turns,
+		}, { permission: { kind: 'approve-once' }, approvals: [peer], input: ['Initialize with a native tool'], tools: [['native-tool', ToolCallStatus.Completed]], sends: [], mainTurns: [] });
+	});
+
+	test('extension context uses public sendMessages and steering keeps its mode on the outer request', async () => {
+		const chat = URI.parse(buildChatUri('copilotcli:/test-session-1', 'peer'));
+		const { session, mockSession } = await createAgentSession(disposables, { chatChannelUri: chat });
+		const context = { type: 'extension_context', extensionId: 'project:counter', canvasId: 'counter', instanceId: 'main', title: 'Counter state', capturedAt: '2026-01-01T00:00:00Z', payload: { count: 7 } } as const;
+		const attachment = extensionContextToProtocol(context, chat.toString());
+		await session.send('Use this state', [attachment]);
+		await session.sendSteering({ id: 'steer', message: { text: 'And this state', origin: { kind: MessageKind.User }, attachments: [attachment] } });
+		assert.deepStrictEqual([mockSession.sendRequests, mockSession.sendMessagesRequests], [[], [
+			{ messages: [{ prompt: 'Use this state', attachments: [context] }] },
+			{ messages: [{ prompt: 'And this state', attachments: [context] }], mode: 'immediate' },
+		]]);
+	});
+
+	test('extension-context metadata cannot acquire another chat routing identity', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const attachment = extensionContextToProtocol({ type: 'extension_context', extensionId: 'project:counter', title: 'State', capturedAt: '2026-01-01T00:00:00Z', payload: { count: 1 } }, buildChatUri('copilotcli:/other', 'default'));
+		await session.send('User-supplied text', [attachment]);
+		assert.deepStrictEqual([mockSession.sendMessagesRequests.length, mockSession.sendRequests.length], [0, 1]);
 	});
 
 	test('forwards an embedded resource with a selection as its already-sliced inline blob', async () => {

@@ -112,6 +112,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		setSessionSandboxPolicy: () => { },
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
+		undefined,
 		configurationService,
 		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
@@ -480,7 +481,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		// The launcher's other dependencies are unused by the BYOK path and
 		// resolve to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, undefined);
 	}
 
 	test('memoizes the handle, and disposeByokProxyHandle releases it so the next launch mints a fresh nonce', async () => {
@@ -570,6 +571,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 	test('passes Agent Host defaults, managed permissions, and exit-plan handler to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		const initialScriptSafety: (boolean | undefined)[] = [];
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
@@ -578,11 +580,13 @@ suite('CopilotSessionLauncher shared session config', () => {
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				initialScriptSafety.push(config.enableScriptSafety);
 				reportManagedSettings(config);
 				createConfigs.push(config);
 				return session;
 			},
 			resumeSession: async (_sessionId: string, config: Parameters<CopilotClient['resumeSession']>[1]) => {
+				initialScriptSafety.push(config.enableScriptSafety);
 				reportManagedSettings(config);
 				resumeConfigs.push(config);
 				return session;
@@ -680,6 +684,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
 
 			assert.deepStrictEqual({
+				initialScriptSafety,
 				createClientName: createConfigs[0].clientName,
 				createGitHubMcpToolConfig: createConfigs[0].githubMcpToolConfig,
 				createPluginDirectories: createConfigs[0].pluginDirectories,
@@ -716,6 +721,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 					testWorkingDirectory.fsPath,
 				].filter(value => logService.traces.some(message => message.includes('MCP launch projection:') && message.includes(value))),
 			}, {
+				initialScriptSafety: [true, true, true],
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -800,8 +806,9 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	}
 
-	function createResumeFailingLaunch(message: string, code = -32603, sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number } {
+	function createResumeFailingLaunch(message: string, code = -32603, sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number; readonly initialScriptSafety: readonly (boolean | undefined)[] } {
 		let createSessionCalls = 0;
+		const initialScriptSafety: (boolean | undefined)[] = [];
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
@@ -810,11 +817,13 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: ResumeSessionConfig) => {
+				initialScriptSafety.push(config.enableScriptSafety);
 				reportManagedSettings(config);
 				createSessionCalls++;
 				return session;
 			},
-			resumeSession: async () => {
+			resumeSession: async (_sessionId: string, config: ResumeSessionConfig) => {
+				initialScriptSafety.push(config.enableScriptSafety);
 				throw new TestSdkError(message, code);
 			},
 		};
@@ -833,16 +842,17 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				fallback: { model: undefined },
 			},
 			getCreateSessionCalls: () => createSessionCalls,
+			initialScriptSafety,
 		};
 	}
 
 	test('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
-		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch(`Request session.resume failed with message: LocalRpcSession: 'session.getMessages' returned no events for session session-1`);
+		const { launcher, plan, getCreateSessionCalls, initialScriptSafety } = createResumeFailingLaunch(`Request session.resume failed with message: LocalRpcSession: 'session.getMessages' returned no events for session session-1`);
 
 		const sessions = new DisposableStore();
 		try {
 			sessions.add(await launcher.launch(plan, testRuntime));
-			assert.strictEqual(getCreateSessionCalls(), 1);
+			assert.deepStrictEqual({ createSessionCalls: getCreateSessionCalls(), initialScriptSafety }, { createSessionCalls: 1, initialScriptSafety: [true, true] });
 		} finally {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
@@ -1465,7 +1475,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		// The launcher's other dependencies are unused by this path and resolve
 		// to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, undefined);
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */
