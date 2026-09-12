@@ -4934,7 +4934,7 @@ export const globalfunctions: IEntries = {
 	},
 	array_filter: {
 		description: 'Filters elements of an array using a callback function',
-		signature: '( array $array [, callable $callback [, int $flag = 0 ]]): array'
+		signature: '( array $array [, callable $callback [, int $mode = 0 ]]): array'
 	},
 	array_flip: {
 		description: 'Exchanges all keys with their associated values in an array',
