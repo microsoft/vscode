@@ -29,6 +29,7 @@ import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js'
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
+import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 
 suite('Sessions - Chat View', () => {
@@ -693,6 +694,42 @@ suite('Sessions - Chat View', () => {
 		}, {
 			backgroundColor: 'rgb(32, 32, 32)',
 			backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			plainBackgroundColor: 'rgba(255, 255, 255, 0.3)',
+			plainBackgroundImage: 'none',
+		});
+	});
+
+	test('keeps the side-chat request origin opaque over the chat background', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
+		const appendOrigin = (part: HTMLElement) => {
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			return dom.append(chatView, dom.$('.chat-request-origin'));
+		};
+		const backgroundPart = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+		const origin = appendOrigin(backgroundPart);
+		const delegationOrigin = appendOrigin(backgroundPart);
+		delegationOrigin.classList.add('delegation');
+		const plainOrigin = appendOrigin(dom.append(workbench, dom.$('.part.sessionspart')));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const style = dom.getWindow(origin).getComputedStyle(origin);
+		const delegationStyle = dom.getWindow(delegationOrigin).getComputedStyle(delegationOrigin);
+		const plainStyle = dom.getWindow(plainOrigin).getComputedStyle(plainOrigin);
+		assert.deepStrictEqual({
+			backgroundColor: style.backgroundColor,
+			backgroundImage: style.backgroundImage,
+			delegationBackgroundColor: delegationStyle.backgroundColor,
+			delegationBackgroundImage: delegationStyle.backgroundImage,
+			plainBackgroundColor: plainStyle.backgroundColor,
+			plainBackgroundImage: plainStyle.backgroundImage,
+		}, {
+			backgroundColor: 'rgb(32, 32, 32)',
+			backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			delegationBackgroundColor: 'rgba(0, 0, 0, 0)',
+			delegationBackgroundImage: 'none',
 			plainBackgroundColor: 'rgba(255, 255, 255, 0.3)',
 			plainBackgroundImage: 'none',
 		});
