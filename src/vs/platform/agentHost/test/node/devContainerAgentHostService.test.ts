@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -54,6 +54,7 @@ class TestLogService extends NullLogService {
 class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainService {
 	readonly relay = new TestRelay();
 	readonly execCommands: string[] = [];
+	readonly devContainerArgs: string[][] = [];
 	relayCommand: string | undefined;
 	endpointPollsBeforeAvailable = 0;
 	endpointPolls = 0;
@@ -166,7 +167,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	}
 
 	protected override _runDevContainer(connectionId: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
-		assert.deepStrictEqual(args, ['up', '--workspace-folder', '/workspace']);
+		this.devContainerArgs.push([...args]);
+		if (args[0] === 'exec') {
+			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
+		}
+		assert.deepStrictEqual(args, ['up', '--log-level', 'debug', '--workspace-folder', '/workspace']);
 		this._reportOutput(connectionId, 'Starting Dev Container\n');
 		return Promise.resolve({
 			stdout: `[1 ms] Starting...\n${JSON.stringify({ outcome: 'success', containerId: 'container-id', remoteWorkspaceFolder: this.remoteWorkspaceFolder })}\n`,
@@ -185,6 +190,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	protected override _isHostDirectoryOwnedByCurrentUser(path: string): Promise<boolean> {
 		this.checkedHostDirectories.push(path);
 		return Promise.resolve(this.hostDirectoryOwnedByCurrentUser);
+	}
+
+	createDevContainerExec(connectionId: string, workspaceFolder: string, token: CancellationToken): ISshExec {
+		return super._createExec(connectionId, workspaceFolder, token);
 	}
 
 	protected override _createExec(): ISshExec {
@@ -457,6 +466,7 @@ suite('Dev Container Agent Host Main Service', () => {
 
 		assert.deepStrictEqual({
 			result,
+			devContainerArgs: service.devContainerArgs,
 			relayCommand: service.relayCommand,
 			sent: service.relay.sent,
 			disposed: service.relay.disposed,
@@ -468,6 +478,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				name: 'Project Dev Container',
 				remoteWorkspaceFolder: '/workspaces/project',
 			},
+			devContainerArgs: [['up', '--log-level', 'debug', '--workspace-folder', '/workspace']],
 			relayCommand: '~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay \'instance\' --user-data-dir \'/home/vscode/.config/Code\'',
 			sent: ['{"jsonrpc":"2.0"}'],
 			disposed: true,
@@ -557,6 +568,31 @@ suite('Dev Container Agent Host Main Service', () => {
 			warning: '[DevContainerAgentHost] Failed to configure Git safe.directory after <duration>',
 			error: 'Mount inspection failed',
 		});
+	});
+
+	test('runs Dev Container exec commands with debug logging', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const exec = service.createDevContainerExec('connection', '/workspace', CancellationToken.None);
+
+		await exec('printf test');
+
+		assert.deepStrictEqual(service.devContainerArgs, [[
+			'exec',
+			'--log-level',
+			'debug',
+			'--workspace-folder',
+			'/workspace',
+			'/bin/sh',
+			'-c',
+			'printf test',
+		]]);
+	});
+
+	test('runs the relay Dev Container exec command with debug logging', () => {
+		assert.deepStrictEqual(
+			getDevContainerExecArgs('/workspace', 'relay command'),
+			['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '/bin/sh', '-c', 'relay command'],
+		);
 	});
 
 	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

@@ -126,13 +126,6 @@ const combinedPickerOptions: ChatInputFixtureOptions = {
 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
-	RequestInProgress: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The running request shows a red Stop icon while the other chat input controls retain their normal appearance.'],
-		virtualTime: { enabled: false },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderChatInput(context, { requestInProgress: true }),
-	}),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
 	CompactWithProviderIcon: defineComponentFixture({

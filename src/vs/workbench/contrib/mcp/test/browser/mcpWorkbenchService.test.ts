@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -20,29 +22,32 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILoggerService, ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
 import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { TestContextService, TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { McpServerEditorInput } from '../../browser/mcpServerEditorInput.js';
 import { McpWorkbenchService } from '../../browser/mcpWorkbenchService.js';
-import { IMcpServer, IMcpService, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerInstallState } from '../../common/mcpTypes.js';
+import { IMcpServer, IMcpService, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerInstallState, McpServerLaunch } from '../../common/mcpTypes.js';
 import { InstalledMcpServersDiscovery } from '../../common/discovery/installedMcpServersDiscovery.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
+import { McpRegistry } from '../../common/mcpRegistry.js';
+import { McpService } from '../../common/mcpService.js';
 
 interface IResolveRequest {
 	readonly infos: readonly { name: string; id?: string }[];
@@ -273,7 +278,7 @@ suite('McpWorkbenchService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IMcpServer[] = []) {
+	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IObservable<readonly IMcpServer[]> = constObservable([])) {
 		const galleryService = new TestMcpGalleryService(store);
 		const manifestService = new TestMcpGalleryManifestService(store);
 		const managementService = new TestWorkbenchMcpManagementService(store);
@@ -310,7 +315,7 @@ suite('McpWorkbenchService', () => {
 			[ILogService, logService],
 			[IExtensionsWorkbenchService, upcastPartial<IExtensionsWorkbenchService>({})],
 			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: allowedMcpServersEmitter.event })],
-			[IMcpService, upcastPartial<IMcpService>({ servers: constObservable(runtimeServers) })],
+			[IMcpService, upcastPartial<IMcpService>({ servers: runtimeServers })],
 			[IURLService, upcastPartial<IURLService>({ registerHandler: () => Disposable.None })],
 			[IFileService, upcastPartial<IFileService>({})],
 		);
@@ -820,6 +825,104 @@ suite('McpWorkbenchService', () => {
 		}
 	});
 
+	test('notifies once for each runtime inventory or enablement change', async () => {
+		const local = createLocal('server');
+		const servers = observableValue<readonly IMcpServer[]>('servers', []);
+		const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+		const runtime = upcastPartial<IMcpServer>({
+			definition: upcastPartial<McpServerDefinition>({ id: local.id }),
+			enablement,
+		});
+		const { service, galleryService } = await createFixture([local], McpAccessValue.All, undefined, servers);
+		await complete(await galleryService.nextRequest(), new Map([[local.name, notFound()]]));
+		const observed: (McpServerEnablementState | undefined)[] = [];
+		store.add(service.onChange(() => observed.push(service.local[0].runtimeStatus?.state)));
+
+		servers.set([runtime], undefined);
+		enablement.set(ContributionEnablementState.DisabledWorkspace, undefined);
+		enablement.set(ContributionEnablementState.EnabledProfile, undefined);
+		servers.set([], undefined);
+
+		assert.deepStrictEqual(observed, [
+			undefined,
+			McpServerEnablementState.DisabledWorkspace,
+			undefined,
+			McpServerEnablementState.Disabled,
+		]);
+	});
+
+	for (const duplicateNames of [false, true]) {
+		test(`installed discovery settles with ${duplicateNames ? 'duplicate' : 'distinct'} server names across workspace roots`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Native WebCrypto completion is not controlled by the virtual clock.
+			const launchHash = sinon.stub(McpServerLaunch, 'hash').callsFake(async launch => JSON.stringify(launch));
+			store.add(toDisposable(() => launchHash.restore()));
+			const workspaceA = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace-a/.vscode/mcp.json') };
+			const secondName = duplicateNames ? 'same' : 'different';
+			const workspaceB = { ...createLocal(secondName, LocalMcpServerScope.Workspace), id: `mcp.config.ws1.${secondName}`, mcpResource: URI.file('/workspace-b/.vscode/mcp.json') };
+			const configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All });
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			const services = new ServiceCollection(
+				[IConfigurationService, configurationService],
+				[IFileService, upcastPartial<IFileService>({ registerProvider: () => Disposable.None })],
+				[IStorageService, store.add(new TestStorageService())],
+				[ILoggerService, store.add(new TestLoggerService())],
+				[ILogService, new NullLogService()],
+				[IWorkspaceContextService, new TestContextService()],
+				[IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({})],
+				[ITelemetryService, NullTelemetryService],
+				[IProductService, TestProductService],
+				[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true })],
+			);
+			const instantiationService = store.add(new TestInstantiationService(services));
+			const registry = store.add(instantiationService.createInstance(McpRegistry));
+			instantiationService.stub(IMcpRegistry, registry);
+			const runtime = store.add(instantiationService.createInstance(McpService));
+			const { service, workspaceService, galleryService, logService } = await createFixture([workspaceA, workspaceB], McpAccessValue.All, undefined, runtime.servers);
+			workspaceService.setWorkspace({
+				id: 'multi-root',
+				folders: [toWorkspaceFolder(URI.file('/workspace-a')), new WorkspaceFolder({ uri: URI.file('/workspace-b'), name: 'workspace-b', index: 1 })],
+			});
+			await complete(await galleryService.nextRequest(), new Map([
+				[workspaceA.name, notFound()],
+				[workspaceB.name, notFound()],
+			]));
+			let sourceReads = 0;
+			const discovery = store.add(new InstalledMcpServersDiscovery(service, registry, upcastPartial<ITextModelService>({
+				createModelReference: async () => {
+					sourceReads++;
+					throw new Error('No editor model');
+				},
+			}), logService));
+			const observed: string[][] = [];
+			store.add(autorun(reader => {
+				const ids = runtime.servers.read(reader).map(server => server.definition.id).sort();
+				if (ids.length) {
+					observed.push(ids);
+				}
+			}));
+			try {
+				discovery.start();
+				await waitForState(runtime.servers, servers => servers.length > 0);
+				// Allow six 500ms collection refresh cycles to detect self-sustaining discovery.
+				await timeout(3_000);
+				assert.deepStrictEqual({
+					observed,
+					displayOrder: service.local.map(server => server.id),
+					sourceReads,
+					errors: logService.errors,
+				}, {
+					observed: [duplicateNames ? [workspaceB.id] : [workspaceA.id, workspaceB.id]],
+					displayOrder: [workspaceB.id, workspaceA.id],
+					sourceReads: duplicateNames ? 2 : 4,
+					errors: [],
+				});
+			} finally {
+				discovery.dispose();
+				runtime.dispose();
+			}
+		}));
+	}
+
 	test('keeps same-name root and legacy lifecycle events independent', async () => {
 		const legacy = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace/.vscode/mcp.json') };
 		const root = { ...legacy, id: 'workspace-dot-mcp.0.same', mcpResource: URI.file('/workspace/.mcp.json'), format: McpResourceFormat.WorkspaceRoot };
@@ -1008,7 +1111,7 @@ suite('McpWorkbenchService', () => {
 			definition: upcastPartial<McpServerDefinition>({ id: root.id }),
 			enablement: constObservable(ContributionEnablementState.EnabledProfile),
 		});
-		const { service } = await createFixture([legacy, root], McpAccessValue.All, undefined, [runtime]);
+		const { service } = await createFixture([legacy, root], McpAccessValue.All, undefined, constObservable([runtime]));
 		assert.deepStrictEqual(service.local.map(server => ({ id: server.id, status: server.runtimeStatus?.state })).sort((a, b) => a.id.localeCompare(b.id)), [
 			{ id: legacy.id, status: McpServerEnablementState.Disabled },
 			{ id: root.id, status: undefined },

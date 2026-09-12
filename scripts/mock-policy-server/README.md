@@ -48,9 +48,9 @@ the right sidebar on the Policies page. It provides per-platform commands
 (macOS, Windows PowerShell, Linux) that write the current response body to
 `managed-settings.json` at its documented location. Copy one, run it on the
 client device, and restart the client. On macOS and Linux the command uses
-`sudo` so the file is the root-owned, non-writable regular file Copilot CLI
-requires. Each platform section also provides a removal command to unset the
-file-based policy.
+`sudo` and explicitly sets root ownership and mode `0644`, as required by the
+Copilot SDK/runtime. Each platform section also provides a removal command to
+unset the file-based policy.
 
 | Operating system | `managed-settings.json` location |
 | --- | --- |

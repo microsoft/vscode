@@ -17,6 +17,8 @@ export interface IResolvedSessionPullRequest {
 	readonly pullRequest: IGitHubPullRequest | undefined;
 	readonly icon: ThemeIcon | undefined;
 	readonly status: IPullRequestIconStatus;
+	/** Overall checks status for open pull requests, including drafts. */
+	readonly ciStatus?: GitHubCIOverallStatus;
 }
 
 /**
@@ -38,7 +40,10 @@ export class SessionPullRequestPresentationModel extends Disposable {
 		this.pullRequests = derived(this, reader => pullRequestRefs.read(reader).map((ref, index) => {
 			const reference = reader.store.add(gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number));
 			const pullRequest = reference.object.pullRequest.read(reader);
-			const status = pullRequest ? computePullRequestIconStatus(reader, gitHubService, ref.owner, ref.repo, pullRequest) : {};
+			const ciStatus = pullRequest?.state === GitHubPullRequestState.Open
+				? reader.store.add(gitHubService.createPullRequestCIModelReference(ref.owner, ref.repo, pullRequest.number, pullRequest.headSha)).object.overallStatus.read(reader)
+				: undefined;
+			const status = pullRequest ? computePullRequestIconStatus(reader, gitHubService, ref.owner, ref.repo, pullRequest, ciStatus) : {};
 			const icon = pullRequest
 				? computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state, status)
 				: ref.icon ?? (index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined);
@@ -46,6 +51,7 @@ export class SessionPullRequestPresentationModel extends Disposable {
 				ref,
 				pullRequest,
 				status,
+				ciStatus,
 				icon: icon ? getAgentMergeAwarePullRequestIcon(icon, agentMergeConfiguration.read(reader), status) : undefined,
 			};
 		}));
@@ -62,13 +68,13 @@ export class SessionPullRequestPresentationModel extends Disposable {
  * (where a failing CI check or an unresolved review comment changes the icon), so for
  * draft, closed, or merged pull requests an empty status is returned.
  */
-export function computePullRequestIconStatus(reader: IReaderWithStore, gitHubService: IGitHubService, owner: string, repo: string, livePR: IGitHubPullRequest): IPullRequestIconStatus {
+export function computePullRequestIconStatus(reader: IReaderWithStore, gitHubService: IGitHubService, owner: string, repo: string, livePR: IGitHubPullRequest, ciStatus?: GitHubCIOverallStatus): IPullRequestIconStatus {
 	if (livePR.isDraft || livePR.state !== GitHubPullRequestState.Open) {
 		return {};
 	}
 
-	const ciRef = reader.store.add(gitHubService.createPullRequestCIModelReference(owner, repo, livePR.number, livePR.headSha));
-	const hasFailingChecks = ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure;
+	const resolvedCIStatus = ciStatus ?? reader.store.add(gitHubService.createPullRequestCIModelReference(owner, repo, livePR.number, livePR.headSha)).object.overallStatus.read(reader);
+	const hasFailingChecks = resolvedCIStatus === GitHubCIOverallStatus.Failure;
 
 	const reviewThreadsRef = reader.store.add(gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, livePR.number));
 	const hasUnresolvedComments = reviewThreadsRef.object.reviewThreads.read(reader).some(thread => !thread.isResolved);

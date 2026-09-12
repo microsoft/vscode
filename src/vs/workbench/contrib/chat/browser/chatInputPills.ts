@@ -262,6 +262,10 @@ export class ChatInputPills extends Disposable {
 		return this._pills.getPillElements();
 	}
 
+	focusFirst(): boolean {
+		return this._pills.focusFirst();
+	}
+
 	private _getTargetKind(target: HTMLElement | null): SessionChatPillKind | undefined {
 		const targetPill = this._pills.getPill(target);
 		if (!targetPill) {

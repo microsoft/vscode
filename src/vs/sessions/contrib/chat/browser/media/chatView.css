@@ -80,6 +80,16 @@
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
 }
 
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-request-origin:not(.delegation) {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-request-origin:not(.delegation):hover {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
+}
+
 .agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-agent-merge > .chat-agent-merge-card {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-statusBackground), var(--vscode-chat-statusBackground));

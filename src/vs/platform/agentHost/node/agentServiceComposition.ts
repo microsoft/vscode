@@ -207,7 +207,7 @@ export function createAgentServiceComposition(
 				archiveSession: session => agentService!.archiveSession(session),
 				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
 				cleanupWorktree: (session, sessionId) => agentService!.cleanupWorktree(session, sessionId),
-				deleteSession: (session, validate) => agentService!.disposeSessionIf(session, validate),
+				deleteSession: (session, validate, canCommit) => agentService!.disposeSessionIf(session, validate, canCommit),
 			},
 			configurationService,
 			stateManager,

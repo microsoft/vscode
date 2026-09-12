@@ -15,7 +15,7 @@ import { getGitHubPullRequestRefs, ISession } from '../../../services/sessions/c
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
-import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
+import { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
@@ -25,7 +25,7 @@ import './issueActions.js';
 
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
-export { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING };
+export { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING };
 
 /**
  * Resolved PR identity for a session's poller, or the specific stage at which
@@ -274,21 +274,25 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			pollReader.store.add(model.startPolling());
 		}));
 
-		// Poll CI checks and review threads so the session's PR icon can reflect
-		// failing checks / unresolved comments even when the session is not active.
-		// Only open, non-draft PRs need this (merged/closed/draft don't surface it).
+		// Poll CI checks for every open PR so reference hovers can surface the
+		// current status. Review threads only refine non-draft PR icons.
 		reader.store.add(autorun(statusReader => {
 			const prDetails = model.pullRequest.read(statusReader);
-			if (!prDetails || prDetails.isDraft || prDetails.state !== GitHubPullRequestState.Open) {
+			if (!prDetails || prDetails.state !== GitHubPullRequestState.Open) {
 				return;
 			}
 
-			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting CI + review-thread polling for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
+			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting CI polling for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
 
 			const ciModelRef = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(owner, repo, prNumber, prDetails.headSha));
 			ciModelRef.object.refresh();
 			statusReader.store.add(ciModelRef.object.startPolling());
 
+			if (prDetails.isDraft) {
+				return;
+			}
+
+			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting review-thread polling for ${owner}/${repo}#${prNumber}`);
 			const reviewThreadsModelRef = statusReader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, prNumber));
 			reviewThreadsModelRef.object.refresh();
 			statusReader.store.add(reviewThreadsModelRef.object.startPolling());

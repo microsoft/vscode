@@ -125,9 +125,11 @@ suite('Pull Request Actions', () => {
 
 		assert.deepStrictEqual({
 			entryIcon: model.pullRequests.get()[0].icon?.id,
+			ciStatus: model.pullRequests.get()[0].ciStatus,
 			summaryIcon: model.icon.get().id,
 		}, {
 			entryIcon: Codicon.gitPullRequest.id,
+			ciStatus: GitHubCIOverallStatus.Failure,
 			summaryIcon: Codicon.gitPullRequest.id,
 		});
 	});

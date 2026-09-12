@@ -43,7 +43,7 @@ import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../../base/common/paging.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { autorun, runOnChange } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 
@@ -372,16 +372,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			this._local = this.sort(this._local);
 			this._onChange.fire(undefined);
 		}));
-		this._register(runOnChange(mcpService.servers, () => {
-			this._local = this.sort(this._local);
-			this._onChange.fire(undefined);
-		}));
-
-		// React to enablement changes on individual servers
 		this._register(autorun(reader => {
 			for (const server of mcpService.servers.read(reader)) {
 				server.enablement.read(reader);
 			}
+			this._local = this.sort(this._local);
 			this._onChange.fire(undefined);
 		}));
 	}
@@ -631,7 +626,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const userRemote: IWorkbenchLocalMcpServer[] = [];
 		const workspace: IWorkbenchLocalMcpServer[] = [];
 
-		for (const server of this.local) {
+		// Discovery precedence must not depend on runtime-dependent display ordering.
+		for (const server of this.local.toSorted((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))) {
 			// Root servers are published independently; exclude them before resolving installed-name precedence.
 			if (server.local?.format === McpResourceFormat.WorkspaceRoot) {
 				continue;

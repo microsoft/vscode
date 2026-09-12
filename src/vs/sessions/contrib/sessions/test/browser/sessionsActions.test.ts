@@ -402,6 +402,61 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
+	test('New Session replaces a quick-chat draft only for a primary open when the unified workspace picker is disabled', async () => {
+		const run = async (unifiedWorkspacePicker: boolean, toSide?: boolean) => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const composerService = disposables.add(new NewSessionComposerService());
+			instantiationService.stub(INewSessionComposerService, composerService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
+			}));
+			const { session } = createTestSession('quick-chat-draft');
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				isCreated: constObservable(false),
+				isQuickChat: constObservable(true),
+			});
+			let unsetNewSessionCalls = 0;
+			const requests: (IOpenNewSessionOptions | undefined)[] = [];
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(activeSession);
+				override unsetNewSession(): void {
+					unsetNewSessionCalls++;
+				}
+				override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+					requests.push(options);
+					return { session: undefined, trustDeclined: false };
+				}
+			});
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+
+			const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+			assert.ok(command);
+			await command.handler(instantiationService, toSide ? { toSide } : undefined);
+			return { navigationVersion: composerService.userNavigationVersion.get(), unsetNewSessionCalls, requests };
+		};
+
+		assert.deepStrictEqual({
+			disabled: {
+				primary: await run(false),
+				toSide: await run(false, true),
+			},
+			enabled: {
+				primary: await run(true),
+				toSide: await run(true, true),
+			},
+		}, {
+			disabled: {
+				primary: { navigationVersion: 1, unsetNewSessionCalls: 1, requests: [] },
+				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
+			},
+			enabled: {
+				primary: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: undefined }] },
+				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
+			},
+		});
+	});
+
 	test('choosing a workspace section cancels older defaults before waiting for its composer', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
