@@ -18,6 +18,7 @@
 	"config.npm.scriptRunner.bun": "Use bun as the script runner.",
 	"config.npm.scriptRunner.node": "Use Node.js as the script runner.",
 	"config.npm.scriptRunner.vp": "Use Vite+ (vp) as the script runner.",
+	"config.npm.scriptRunner.nub": "Use Nub as the script runner.",
 	"config.npm.scriptRunner.auto": "Auto-detect which script runner to use based on lock files and installed package managers.",
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
 	"config.npm.scriptExplorerAction": "The default click action used in the NPM Scripts Explorer: `open` or `run`, the default is `open`.",
