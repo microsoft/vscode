@@ -156,7 +156,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				this._workspaceResolvedPromiseResolve();
 
 				if (!this.environmentService.remoteAuthority) {
-					this._workspaceTrustInitializedPromiseResolve();
+					// Apply `--trust-folder` before signalling workspace trust initialization.
+					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				}
 			});
 
@@ -169,7 +170,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					await this.updateWorkspaceTrust();
 				})
 				.finally(() => {
-					this._workspaceTrustInitializedPromiseResolve();
+					// Apply remote `--trust-folder` values after resolver canonicalization is available.
+					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				});
 		}
 
@@ -280,6 +282,30 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._onDidChangeTrustedFolders.fire();
 
 		await this.updateWorkspaceTrust();
+	}
+
+	private async addTrustedFoldersFromCli(): Promise<void> {
+		const folders = this.environmentService.trustedFolders;
+		if (!folders?.length) {
+			return;
+		}
+
+		for (const folder of folders) {
+			let uri: URI;
+			try {
+				uri = folder.includes('://') ? URI.parse(folder) : URI.file(folder);
+				uri = this.uriIdentityService.extUri.removeTrailingPathSeparator(uri);
+			} catch {
+				continue; // ignore a malformed --trust-folder value
+			}
+
+			try {
+				// Isolate resolution failures so valid `--trust-folder` entries are still applied.
+				await this.setUrisTrust([uri], true);
+			} catch {
+				// Never block workspace trust initialization on a bad --trust-folder value
+			}
+		}
 	}
 
 	private getWorkspaceUris(): URI[] {
