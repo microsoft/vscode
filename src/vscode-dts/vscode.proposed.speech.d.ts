@@ -70,5 +70,11 @@ declare module 'vscode' {
 	export namespace speech {
 
 		export function registerSpeechProvider(id: string, provider: SpeechProvider): Disposable;
+
+		/**
+		 * An event that fires when the voice chat in progress state changes.
+		 * The event value is `true` when a voice chat session starts, and `false` when it stops.
+		 */
+		export const onDidChangeVoiceChatInProgress: Event<boolean>;
 	}
 }
