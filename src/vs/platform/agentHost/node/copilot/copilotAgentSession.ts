@@ -925,6 +925,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
+	/** Retained until the abort's terminal idle, even if a replacement finishes first. */
 	private _abortingTurn: CopilotTurn | undefined;
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
@@ -5524,9 +5525,14 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			const turn = this._currentTurn.value;
 			const abortingTurn = this._abortingTurn;
-			this._abortingTurn = undefined;
 			if (e.data.aborted) {
+				this._abortingTurn = undefined;
+				if (abortingTurn && turn && turn !== abortingTurn) {
+					this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from cancelled turn ${abortingTurn.id}; replacement turn ${turn.id} is ${turn.state}`);
+					return;
+				}
 				this._resetAbortToken();
 			}
 			if (this._hasActivity) {
@@ -5536,20 +5542,11 @@ export class CopilotAgentSession extends Disposable {
 					activity: undefined,
 				});
 			}
-			const turn = this._currentTurn.value;
 			if (!turn) {
 				return;
 			}
-			// An abort drives the loop to idle. That terminal idle must never
-			// complete a turn:
-			//  - if `turn` is the aborted (running) turn, the client-dispatched
-			//    `ChatTurnCancelled` finalizes the protocol turn; drop our handle
-			//    so a later idle can't complete it.
-			//  - if `turn` is the pending failed-turn continuation being aborted,
-			//    drop it before the provider starts.
-			//  - any other pending turn is a queued message started after the
-			//    abort; leave it open for its own non-abort idle.
-			if (e.data.aborted && (!abortingTurn || turn === abortingTurn)) {
+			// Client cancellation finalizes the original; an aborted idle must never complete a turn.
+			if (e.data.aborted) {
 				this._cancelActiveRepoInfoTelemetry();
 				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
@@ -5563,13 +5560,6 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} turn ${turn.id} open`);
 				}
 				return;
-			}
-			if (e.data.aborted && !turn.isRunning) {
-				this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} replacement turn ${turn.id} open`);
-				return;
-			}
-			if (e.data.aborted) {
-				this._logService.trace(`[Copilot:${sessionId}] Idle from abort reached running replacement turn ${turn.id}; completing replacement`);
 			}
 			if (turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
