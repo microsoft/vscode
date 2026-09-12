@@ -81,9 +81,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      # Set the private NPM registry to the global npmrc file
-      # so that authentication works for subfolders like build/, remote/, extensions/ etc
-      # which does not have their own .npmrc file
+      # Set the private registry globally so authentication works in subfolders without their own .npmrc file
       exec { npm config set registry "$env:NPM_REGISTRY" }
       $NpmrcPath = (npm config get userconfig)
       echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
@@ -129,7 +127,7 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/common/listNodeModules.ts .build/apiscan_node_modules_list.txt }
-      exec { mkdir -Force .build/apiscan_node_modules_cache }
+      mkdir -Force .build/apiscan_node_modules_cache
       exec { 7z.exe a .build/apiscan_node_modules_cache/cache.7z -mx3 `@.build/apiscan_node_modules_list.txt }
     condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
     displayName: Create API Scan node_modules archive
