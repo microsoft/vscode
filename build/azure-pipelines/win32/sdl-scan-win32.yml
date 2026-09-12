@@ -26,32 +26,6 @@ steps:
       KeyVaultName: vscode-oss-build-secrets
       SecretsFilter: "github-token-code-oss"
 
-  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Registry
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      # Set the private NPM registry to the global npmrc file
-      # so that authentication works for subfolders like build/, remote/, extensions/ etc
-      # which does not have their own .npmrc file
-      exec { npm config set registry "$env:NPM_REGISTRY" }
-      $NpmrcPath = (npm config get userconfig)
-      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM
-
-  - task: npmAuthenticate@0
-    inputs:
-      workingFile: $(NPMRC_PATH)
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Authentication
-
-  - template: ../common/foundry-local.yml@self
-    parameters:
-      phase: prepare
-
   - pwsh: |
       $includes = @'
         {
@@ -83,6 +57,49 @@ steps:
       echo $includes > "~/.gyp/include.gypi"
     displayName: Create include.gypi
 
+  - pwsh: |
+      mkdir .build -ea 0
+      $gypConfigHash = (Get-FileHash "~/.gyp/include.gypi" -Algorithm SHA256).Hash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ parameters.VSCODE_ARCH }} $(node -p process.arch) apiscan $gypConfigHash > .build/apiscan-packagelockhash
+    displayName: Prepare API Scan node_modules cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"node_modules-apiscan" | .build/apiscan-packagelockhash'
+      path: .build/apiscan_node_modules_cache
+      cacheHitVar: APISCAN_NODE_MODULES_RESTORED
+    displayName: Restore API Scan node_modules cache
+
+  - powershell: 7z.exe x .build/apiscan_node_modules_cache/cache.7z -aoa
+    condition: and(succeeded(), eq(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract API Scan node_modules cache
+
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - template: ../common/foundry-local.yml@self
+    parameters:
+      phase: prepare
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
@@ -95,13 +112,27 @@ steps:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
+    condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
 
   - template: ../common/foundry-local.yml@self
     parameters:
       phase: install
 
+  - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+    displayName: Verify native optional dependency binaries
+
   - script: node build/azure-pipelines/distro/mixin-npm.ts
+    condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/azure-pipelines/common/listNodeModules.ts .build/apiscan_node_modules_list.txt }
+      exec { mkdir -Force .build/apiscan_node_modules_cache }
+      exec { 7z.exe a .build/apiscan_node_modules_cache/cache.7z -mx3 `@.build/apiscan_node_modules_list.txt }
+    condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
+    displayName: Create API Scan node_modules archive
 
   - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
