@@ -184,6 +184,51 @@ suite('CellOutput', () => {
 
 	});
 
+	/**
+	 * Test that verifies the fix for memory leak where toolbar attachment state was not properly managed.
+	 * Previously, rapid visibility changes would create multiple menu service listeners without proper cleanup.
+	 */
+	test('Toolbar does not leak menu listeners when visibility changes', async function () {
+		const outputItem = { data: VSBuffer.fromString('output content'), mime: 'text/plain' };
+		const output1: IOutputDto = { outputId: 'abc', outputs: [outputItem] };
+
+		await withTestNotebook(
+			[
+				['print(output content)', 'python', CellKind.Code, [output1], {}],
+			],
+			(editor, viewModel, disposables, accessor) => {
+
+				const cell = viewModel.viewCells[0] as CodeCellViewModel;
+				const cellTemplate = createCellTemplate(disposables);
+				const output = disposables.add(accessor.createInstance(CellOutputContainer, editor, cell, cellTemplate, { limit: 100 }));
+				output.render();
+				
+				// Initially hidden, should not create menu
+				assert.strictEqual(outputMenus.length, 0, 'should not have output menus when hidden');
+				
+				// Show first output - should create menu
+				cell.outputsViewModels[0].setVisible(true);
+				assert.strictEqual(outputMenus.length, 1, 'should have 1 output menu when visible');
+				
+				// Hide output - should not change menu count (menus are cleared but not destroyed)
+				cell.outputsViewModels[0].setVisible(false);
+				assert.strictEqual(outputMenus.length, 1, 'should still have 1 output menu');
+				
+				// Show again - should not create additional menu (testing for the leak fix)
+				cell.outputsViewModels[0].setVisible(true);
+				assert.strictEqual(outputMenus.length, 1, 'should still have only 1 output menu after showing again');
+				
+				// Multiple visibility toggles should not create additional menus
+				cell.outputsViewModels[0].setVisible(false);
+				cell.outputsViewModels[0].setVisible(true);
+				cell.outputsViewModels[0].setVisible(false);
+				cell.outputsViewModels[0].setVisible(true);
+				assert.strictEqual(outputMenus.length, 1, 'should still have only 1 output menu after multiple toggles');
+			},
+			instantiationService
+		);
+	});
+
 
 });
 
