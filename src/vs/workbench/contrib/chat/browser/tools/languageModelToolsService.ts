@@ -627,8 +627,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
 
 				// In Autopilot, run the risk classifier on an auto-approved call that would
-				// otherwise show a confirmation. A "red" rating skips the call; anything else
-				// (including a classifier failure) keeps the original auto-confirmation.
+				// otherwise show a confirmation. A "red" rating skips the call; terminal
+				// assessment failures also skip because the command cannot be classified safely.
 				const { autoConfirmed, skipExplanation: riskSkipExplanation } = await this._maybeApplyAutopilotRiskGate(tool, dto, preparedInvocation, preResolvedAutoConfirmed, token);
 
 				// Important: a tool invocation that will be autoconfirmed should never
@@ -945,8 +945,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	/**
 	 * In Autopilot, runs the risk classifier on an auto-approved call and skips it when the rating
-	 * is {@link ToolRiskLevel.Red}. Any other result returns the original auto-confirmation
-	 * unchanged.
+	 * is {@link ToolRiskLevel.Red}. Terminal calls also skip when they cannot be assessed.
 	 *
 	 * To keep the classifier off the hot path, it only runs when all of these hold:
 	 * - the call was auto-approved by the session approving everything, or is a `run_in_terminal` /
@@ -959,8 +958,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * confirmation risk badge. CLI and agent-host sessions handle their own confirmations and are
 	 * excluded.
 	 *
-	 * Fails open: a cancelled, unavailable, or failed assessment keeps the original
-	 * auto-confirmation so Autopilot keeps moving.
+	 * Unavailable or failed non-terminal assessments keep the original auto-confirmation.
 	 */
 	private async _maybeApplyAutopilotRiskGate(
 		tool: IToolEntry,
@@ -1012,11 +1010,27 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return { autoConfirmed };
 		}
 
+		const skipUnassessedTerminal = (): { autoConfirmed: ConfirmedReason; skipExplanation: string } => {
+			const explanation = localize('autopilotTerminalRiskUnavailable', "The terminal command could not be assessed safely.");
+			this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping terminal command without a risk assessment`);
+			return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
+		};
+		const terminalCommandForRiskAssessment = preparedInvocation?.toolSpecificData?.kind === 'terminal'
+			? preparedInvocation.toolSpecificData.commandLine.forRiskAssessment
+			: undefined;
+		if (isTerminalTool && terminalCommandForRiskAssessment === undefined) {
+			return skipUnassessedTerminal();
+		}
+		const assessmentParameters = isTerminalTool ? { command: terminalCommandForRiskAssessment } : dto.parameters;
+
 		try {
 			// ignoreEnablement: assess even when the risk-badge setting is off.
-			const assessment = await this._riskAssessmentService.assess(tool.data, dto.parameters, token, undefined, { ignoreEnablement: true });
+			const assessment = await this._riskAssessmentService.assess(tool.data, assessmentParameters, token, undefined, { ignoreEnablement: true });
 			if (token.isCancellationRequested) {
 				return { autoConfirmed };
+			}
+			if (!assessment && isTerminalTool) {
+				return skipUnassessedTerminal();
 			}
 			if (assessment?.risk === ToolRiskLevel.Red) {
 				const fallbackExplanation = localize('autopilotRiskSkipFallback', "The action was assessed as potentially destructive or irreversible.");
@@ -1025,10 +1039,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
 			}
 		} catch (err) {
+			if (isTerminalTool) {
+				this._logService.warn(`[LanguageModelToolsService#invokeTool] Autopilot terminal risk assessment failed, skipping: ${toErrorMessage(err)}`);
+				return skipUnassessedTerminal();
+			}
 			this._logService.warn(`[LanguageModelToolsService#invokeTool] Autopilot risk assessment failed for tool ${tool.data.id}, allowing: ${toErrorMessage(err)}`);
 		}
 
-		// Green/orange, no assessment, or a failure: keep the original auto-confirmation (fail open).
+		// Green/orange, or an unavailable non-terminal assessment: keep the original auto-confirmation.
 		return { autoConfirmed };
 	}
 

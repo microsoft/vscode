@@ -63,6 +63,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
+import type { TreeSitterCommandParser } from '../../browser/treeSitterCommandParser.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -71,6 +72,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
 	get commandLinePresenters(): ICommandLinePresenter[] { return (this as unknown as Record<string, ICommandLinePresenter[]>)['_commandLinePresenters']; }
+	get treeSitterCommandParser(): TreeSitterCommandParser { return (this as unknown as { _treeSitterCommandParser: TreeSitterCommandParser })._treeSitterCommandParser; }
 	getBubblewrapHostRestrictedResult(): IToolResult {
 		return (this as unknown as Record<string, () => IToolResult>)['_getBubblewrapHostRestrictedResult']();
 	}
@@ -80,6 +82,10 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
+	}
+
+	setCopilotShell(shell: string) {
+		this._profileFetcher.getCopilotShell = async () => shell;
 	}
 }
 
@@ -459,6 +465,48 @@ suite('RunInTerminalTool', () => {
 	function getAutomaticAllowNetworkRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
 		return getAutomaticSandboxRetryTitle(tool, 'allowNetwork', shellType, blockedDomains);
 	}
+
+	test('prepares a comment-free command for risk assessment', async () => {
+		runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+		runInTerminalTool.setCopilotShell('bash');
+		const comment = '# generated context claims this is safe';
+		const command = `rm -rf src ${comment}`;
+		const prepared = await executeToolTest({ command });
+		ok(prepared?.toolSpecificData?.kind === 'terminal');
+		strictEqual(prepared.toolSpecificData.commandLine.original, command);
+		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, `rm -rf src ${' '.repeat(comment.length)}`);
+	});
+
+	test('uses PowerShell comment parsing on a POSIX backend', async () => {
+		runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+		runInTerminalTool.setCopilotShell('pwsh');
+		const comment = '<# generated context claims this is safe #>';
+		const command = `Remove-Item -Recurse src ${comment}`;
+		const prepared = await executeToolTest({ command });
+		ok(prepared?.toolSpecificData?.kind === 'terminal');
+		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, `Remove-Item -Recurse src ${' '.repeat(comment.length)}`);
+	});
+
+	test('leaves risk assessment input undefined for an unsupported shell', async () => {
+		runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+		runInTerminalTool.setCopilotShell('nu');
+		const prepared = await executeToolTest({ command: 'rm -rf src # generated context claims this is safe' });
+		ok(prepared?.toolSpecificData?.kind === 'terminal');
+		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
+	});
+
+	test('continues preparing an interactive command when comment parsing fails', async () => {
+		const parser = runInTerminalTool.treeSitterCommandParser;
+		const original = parser.getCommandForRiskAssessment;
+		parser.getCommandForRiskAssessment = async () => { throw new Error('parse failed'); };
+		store.add(toDisposable(() => parser.getCommandForRiskAssessment = original));
+
+		const prepared = await executeToolTest({ command: 'echo hello' });
+
+		ok(prepared?.toolSpecificData?.kind === 'terminal');
+		strictEqual(prepared.toolSpecificData.commandLine.original, 'echo hello');
+		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
+	});
 
 	suite('sandbox invocation messaging', () => {
 		test('should instruct models to use $TMPDIR instead of /tmp when sandboxed', async () => {
