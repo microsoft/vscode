@@ -18,11 +18,6 @@ export const gitAutoApproveRules: Readonly<Record<string, boolean>> = {
 	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
 	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
 
-	// git grep
-	// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
-	// - See notes on `grep` in the terminal auto-approval configuration.
-	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
-
 	// git branch
 	// - `-d`, `-D`, `--delete`: Prevent branch deletion
 	// - `-m`, `-M`: Prevent branch renaming

@@ -94,7 +94,7 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('keeps the Git directory option case-sensitive', async () => {
-			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep pattern', 'branch'];
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'branch'];
 			const commands = [
 				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
 				'GIT -C repo DIFF',
@@ -112,6 +112,22 @@ suite('CommandLineAutoApprover', () => {
 					false,
 				]
 			);
+		});
+
+		test('requires confirmation for Git grep', async () => {
+			const commands = [
+				'git grep needle',
+				'git grep -O needle',
+				'git grep -Osh -e needle',
+				'git grep --open-files-in-pager=sh -e needle',
+				'git --no-pager -C repo grep --"op=sh" -e needle',
+				'git "grep" -Osh -e needle',
+			];
+			for (const [testShell, testOs] of [['bash', OperatingSystem.Linux], ['pwsh', OperatingSystem.Windows]] as const) {
+				shell = testShell;
+				os = testOs;
+				deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+			}
 		});
 	});
 
