@@ -589,6 +589,12 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 	}
 
 	private async _localStrReplace(params: IStrReplaceParams, scope: MemoryScope, sessionResource?: string): Promise<MemoryToolResult> {
+		if (!params.old_str) {
+			// An empty old_str makes indexOf match at every position (never -1),
+			// which would send the occurrence scan below into an infinite loop.
+			this.logService.debug(`[MemoryTool] str_replace failed - empty old_str in ${params.path}`);
+			return { text: `No replacement was performed. 'old_str' must be a non-empty string.`, outcome: 'error' };
+		}
 		const uri = this._resolveUri(params.path, scope, sessionResource);
 		if (scope === 'session') {
 			this.memoryCleanupService.markAccessed(uri);
