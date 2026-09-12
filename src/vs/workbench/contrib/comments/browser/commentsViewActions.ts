@@ -193,12 +193,13 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	}
 });
 
-const commentSortSubmenu = new MenuId('submenu.filter.commentSort');
-MenuRegistry.appendMenuItem(viewFilterSubmenu, {
+const commentSortSubmenu = new MenuId('submenu.commentSort');
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	submenu: commentSortSubmenu,
 	title: localize('comment sorts', "Sort By"),
-	group: '2_sort',
-	icon: Codicon.history,
+	group: 'navigation',
+	order: 1,
+	icon: Codicon.sortPrecedence,
 	when: ContextKeyExpr.equals('view', COMMENTS_VIEW_ID),
 });
 
@@ -208,7 +209,6 @@ registerAction2(class extends ViewAction<ICommentsView> {
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByUpdatedAt`,
 			title: localize('toggle sorting by updated at', "Updated Time"),
 			category: localize('comments', "Comments"),
-			icon: Codicon.history,
 			viewId: COMMENTS_VIEW_ID,
 			toggled: {
 				condition: ContextKeyExpr.equals(CONTEXT_KEY_SORT_BY.key, CommentsSortOrder.UpdatedAtDescending),
@@ -234,7 +234,6 @@ registerAction2(class extends ViewAction<ICommentsView> {
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByResource`,
 			title: localize('toggle sorting by resource', "Position in File"),
 			category: localize('comments', "Comments"),
-			icon: Codicon.history,
 			viewId: COMMENTS_VIEW_ID,
 			toggled: {
 				condition: ContextKeyExpr.equals(CONTEXT_KEY_SORT_BY.key, CommentsSortOrder.ResourceAscending),
