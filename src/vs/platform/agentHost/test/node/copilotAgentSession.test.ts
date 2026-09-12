@@ -3986,6 +3986,8 @@ suite('CopilotAgentSession', () => {
 
 		// The subagent routes its own model call; the parent never picked this model.
 		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		const beforeUsage = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []);
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 5,
@@ -4000,11 +4002,156 @@ suite('CopilotAgentSession', () => {
 				}]
 				: []);
 
-		assert.deepStrictEqual(routed, [
-			// The parent aggregate keeps describing the parent's own model call...
-			{ parentToolCallId: undefined, chosenModel: undefined },
-			// ...while the subagent's own component carries the routing.
-			{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+		assert.deepStrictEqual({ beforeUsage, routed }, {
+			beforeUsage: [{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.5', _meta: { autoModeResolved: { chosenModel: 'gpt-5.5' } } } }],
+			routed: [
+				{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+				{ parentToolCallId: undefined, chosenModel: undefined },
+				{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+			],
+		});
+	});
+
+	for (const executionMode of ['sync', 'background']) {
+		test(`reports a ${executionMode} subagent model before its first usage event`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+				executionMode, model: 'gpt-5.4-mini',
+			}, { agentId: 'agent-1' });
+			const afterStart = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+				? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []);
+			mockSession.fire('subagent.configured', { model: 'claude-sonnet-4.6', multiTurn: executionMode === 'background' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'claude-sonnet-4.6' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				afterStart,
+				modelUpdates: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+					? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []),
+			}, {
+				afterStart: [{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.4-mini' } }],
+				modelUpdates: [
+					{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.4-mini' } },
+					{ parentToolCallId: 'tc-subagent', usage: { model: 'claude-sonnet-4.6' } },
+				],
+			});
+		});
+	}
+
+	test('reports the model when a background child starts after its parent turn finishes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		session.resetTurnState('');
+		mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'gpt-5.4-mini' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []), [
+			{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.4-mini' } },
+		]);
+	});
+
+	test('subagent model updates preserve prior usage without charging again', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5', inputTokens: 5, outputTokens: 7,
+		}, { agentId: 'agent-1' });
+		const childUsage = () => signals.flatMap(signal => signal.kind === 'action'
+			&& signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+			? [signal.action.usage] : []);
+		const before = childUsage().at(-1);
+		mockSession.fire('subagent.configured', { model: 'claude-sonnet-4.6', multiTurn: true }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(childUsage(), [before, { ...before, model: 'claude-sonnet-4.6' }]);
+	});
+
+	test('does not attribute an unknown subagent model to the parent', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.configured', { model: 'gpt-5.4-mini', multiTurn: true }, { agentId: 'unknown-agent' });
+		mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'gpt-5.4-mini' }, { agentId: 'unknown-agent' });
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage), []);
+	});
+
+	test('keeps the routed subagent model when later configuration still says Auto', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('subagent.configured', { model: 'auto', multiTurn: true }, { agentId: 'agent-1' });
+		mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [signal.action.usage] : []), [
+			{ model: 'auto' },
+			{ model: 'gpt-5.5', _meta: { autoModeResolved: { chosenModel: 'gpt-5.5' } } },
+		]);
+	});
+
+	test('preserves subagent Auto routing and usage across same-model configuration changes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 5, outputTokens: 7 }, { agentId: 'agent-1' });
+		const before = signals.length;
+
+		mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.slice(before).filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage), []);
+	});
+
+	test('reports an explicit child model change without retaining earlier Auto routing', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'claude-sonnet-4.6' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []), [
+			{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.5', _meta: { autoModeResolved: { chosenModel: 'gpt-5.5' } } } },
+			{ parentToolCallId: 'tc-subagent', usage: { model: 'claude-sonnet-4.6' } },
+		]);
+	});
+
+	test('republishes an early model selection when a retained background child resumes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Explore tests',
+			status: 'idle', agentType: 'explore', prompt: 'Initial request',
+			startedAt: new Date(0).toISOString(), idleSince: new Date(1).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		const afterRouting = signals.length;
+		mockSession.fire('user.message', { content: 'Review the follow-up', source: 'agent-parent' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.slice(afterRouting).flatMap<{ kind: 'subagent_resumed' | ActionType.ChatUsage; model?: string; parentToolCallId?: string }>(signal =>
+			signal.kind === 'subagent_resumed' ? [{ kind: signal.kind }]
+				: signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+					? [{ kind: signal.action.type, model: signal.action.usage.model, parentToolCallId: signal.parentToolCallId }] : []), [
+			{ kind: 'subagent_resumed' },
+			{ kind: ActionType.ChatUsage, model: 'gpt-5.5', parentToolCallId: 'tc-subagent' },
 		]);
 	});
 
@@ -4055,7 +4202,7 @@ suite('CopilotAgentSession', () => {
 				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
 				: []);
 
-		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5', 'gpt-5.5']);
 	});
 
 	test('keeps a subagent Auto resolution when the root turn has already been cleared', async () => {
@@ -4085,7 +4232,7 @@ suite('CopilotAgentSession', () => {
 				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
 				: []);
 
-		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5', 'gpt-5.5']);
 	});
 
 	test('accumulates whole-turn token totals per model across parent and subagent calls', async () => {

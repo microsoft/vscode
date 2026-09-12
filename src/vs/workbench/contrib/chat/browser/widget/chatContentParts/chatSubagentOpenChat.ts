@@ -51,6 +51,7 @@ export interface IOpenSubagentChatContext {
 	readonly confirmationActive?: boolean;
 	readonly startedAt?: number;
 	readonly duration?: number;
+	readonly modelId?: string;
 	readonly modelName?: string;
 	/** Copilot credits (AIC) this subagent has consumed so far. */
 	readonly credits?: number;
@@ -114,12 +115,8 @@ export function getSubagentEditorResource(context: IOpenSubagentChatContext): UR
 	}
 }
 
-/**
- * Whether the subagent's model is worth showing next to the parent's. It is not when
- * it merely repeats the parent's, nor when it is "Auto", which names no real model.
- * Under an Auto parent a concrete model always shows, since the parent only says "Auto".
- */
-export function shouldShowSubagentModel(subagentModelName: string | undefined, parentModelId: string | undefined, parentModelName: string | undefined, parentModelMetadataId: string | undefined): boolean {
+/** Compares known model identities, falling back to labels for legacy invocations. A concrete model always shows under an Auto parent. */
+export function shouldShowSubagentModel(subagentModelName: string | undefined, parentModelId: string | undefined, parentModelName: string | undefined, parentModelMetadataId: string | undefined, subagentModelId?: string): boolean {
 	const normalize = (value: string | undefined) => value?.trim().toLowerCase();
 	const subagent = normalize(subagentModelName);
 	if (!subagent || subagent === AUTO_RAW_MODEL_ID) {
@@ -130,7 +127,13 @@ export function shouldShowSubagentModel(subagentModelName: string | undefined, p
 	// The picker can move to Auto after the request starts, so decide Auto from the
 	// request's own model id and consult the live selection only when it is absent.
 	const autoCandidates = parentModelId ? [parentModelId, parentIdSuffix].map(normalize) : parents;
-	return autoCandidates.includes(AUTO_RAW_MODEL_ID) || !parents.includes(subagent);
+	if (autoCandidates.includes(AUTO_RAW_MODEL_ID)) {
+		return true;
+	}
+	if (subagentModelId && parentModelId) {
+		return subagentModelId !== parentModelId;
+	}
+	return !parents.includes(subagent);
 }
 
 export function formatCompactSubagentDuration(startedAt: number, duration: number | undefined, now: number = Date.now()): string {
@@ -375,7 +378,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._setAgentType(context?.agentType);
 		this._reportedModelName = context?.modelName;
 		const parentModel = context?.parentModelId ? this.languageModelsService.lookupLanguageModel(context.parentModelId) : undefined;
-		const contextModelName = shouldShowSubagentModel(context?.modelName, context?.parentModelId, context?.parentModelName ?? parentModel?.name, context?.parentResolvedModelId ?? parentModel?.id)
+		const contextModelName = shouldShowSubagentModel(context?.modelName, context?.parentModelId, context?.parentModelName ?? parentModel?.name, context?.parentResolvedModelId ?? parentModel?.id, context?.modelId)
 			? context?.modelName
 			: undefined;
 		this._setModelName(contextModelName);

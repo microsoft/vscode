@@ -1205,6 +1205,8 @@ export interface IChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	/** Chat-layer model identifier, independent of its provider-qualified display name. */
+	modelId?: string;
 	modelName?: string;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
