@@ -60,7 +60,7 @@ steps:
   - pwsh: |
       mkdir .build -ea 0
       $gypConfigHash = (Get-FileHash "~/.gyp/include.gypi" -Algorithm SHA256).Hash
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ parameters.VSCODE_ARCH }} $(node -p process.arch) apiscan $gypConfigHash > .build/apiscan-packagelockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ parameters.VSCODE_ARCH }} $(node -p process.arch) apiscan $gypConfigHash "$env:NPM_REGISTRY" > .build/apiscan-packagelockhash
     displayName: Prepare API Scan node_modules cache key
 
   - task: Cache@2
