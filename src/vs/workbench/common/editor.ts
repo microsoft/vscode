@@ -1311,6 +1311,7 @@ interface IEditorPartConfiguration {
 	swipeToNavigate?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	tabHoverInformation?: 'short' | 'long' | 'detail';
 	restoreViewState?: boolean;
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';

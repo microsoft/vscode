@@ -636,14 +636,39 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}
 
+	/**
+	 * The text shown when hovering over an editor tab, honouring the
+	 * `workbench.editor.tabHoverInformation` setting: `short` is the name of the
+	 * file, `long` (the default) its absolute path and `detail` both of them,
+	 * the name on the first line and the path on the second.
+	 */
+	protected getHoverTitleText(editor: EditorInput): string {
+		switch (this.groupsView.partOptions.tabHoverInformation) {
+			case 'short':
+				return editor.getTitle(Verbosity.SHORT);
+			case 'detail':
+				return `${editor.getTitle(Verbosity.SHORT)}\n${editor.getTitle(Verbosity.LONG)}`;
+			default:
+				return editor.getTitle(Verbosity.LONG);
+		}
+	}
+
 	protected getHoverTitle(editor: EditorInput): string | IManagedHoverTooltipMarkdownString {
-		const title = editor.getTitle(Verbosity.LONG);
+		const title = this.getHoverTitleText(editor);
 		if (!this.tabsModel.isPinned(editor)) {
 			return {
 				markdown: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).
 					appendText(title).
 					appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))'),
 				markdownNotSupportedFallback: title + ' (preview)'
+			};
+		}
+		if (title.includes('\n')) {
+			// Only a multi-line hover needs markdown; `appendText` turns the
+			// newline into a paragraph break.
+			return {
+				markdown: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).appendText(title),
+				markdownNotSupportedFallback: title
 			};
 		}
 		return title;

@@ -930,6 +930,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
+			oldOptions.tabHoverInformation !== newOptions.tabHoverInformation ||
 			oldOptions.tabActionLocation !== newOptions.tabActionLocation ||
 			oldOptions.tabActionCloseVisibility !== newOptions.tabActionCloseVisibility ||
 			oldOptions.tabActionUnpinVisibility !== newOptions.tabActionUnpinVisibility ||
