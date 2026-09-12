@@ -1815,6 +1815,10 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+<<<<<<< HEAD
+=======
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+>>>>>>> f9a273540ca ([cherry-pick] agentHost: Preserve workspace transition boundaries (#334694))
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
