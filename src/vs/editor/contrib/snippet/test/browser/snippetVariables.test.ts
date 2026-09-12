@@ -41,7 +41,7 @@ suite('Snippet Variables Resolver', function () {
 		].join('\n'), undefined, undefined, URI.parse('file:///foo/files/text.txt'));
 
 		resolver = new CompositeSnippetVariableResolver([
-			new ModelBasedVariableResolver(labelService, model),
+			new ModelBasedVariableResolver(labelService, model, undefined),
 			new SelectionBasedVariableResolver(model, new Selection(1, 1, 1, 1), 0, undefined),
 		]);
 	});
@@ -64,6 +64,63 @@ suite('Snippet Variables Resolver', function () {
 		}
 	}
 
+	function createMockWorkspaceLabelService(rootPath: string): ILabelService {
+		return new class extends mock<ILabelService>() {
+			override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+				const rootFsPath = URI.file(rootPath).fsPath + sep;
+				const fsPath = uri.fsPath;
+				if (options.relative && rootPath && fsPath.startsWith(rootFsPath)) {
+					return fsPath.substring(rootFsPath.length);
+				}
+				return fsPath;
+			}
+			override getSeparator() {
+				return sep as '/' | '\\';
+			}
+		};
+	}
+
+	function createMockWorkspaceContextService(rootPath: string | undefined): IWorkspaceContextService {
+		const folders = rootPath ? [toWorkspaceFolder(URI.file(rootPath))] : [];
+		const workspace = new Workspace('', folders);
+		return new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() { return workspace; }
+			override getWorkspaceFolder(resource: URI) {
+				return workspace.getFolder(resource);
+			}
+		};
+	}
+
+	function createUriLabelService(folderUri: URI | undefined, separator: '/' | '\\'): ILabelService {
+		return new class extends mock<ILabelService>() {
+			override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+				if (options.relative && folderUri && uri.scheme === folderUri.scheme && uri.authority === folderUri.authority) {
+					const folderPath = folderUri.path;
+					if (uri.path === folderPath) {
+						return '';
+					}
+					const folderPrefix = folderPath.endsWith('/') ? folderPath : folderPath + '/';
+					if (uri.path.startsWith(folderPrefix)) {
+						return uri.path.substring(folderPrefix.length).replace(/\//g, separator);
+					}
+				}
+				return uri.path.replace(/\//g, separator);
+			}
+			override getSeparator() {
+				return separator;
+			}
+		};
+	}
+
+	function createUriWorkspaceContextService(folderUri: URI | undefined): IWorkspaceContextService {
+		const folders = folderUri ? [toWorkspaceFolder(folderUri)] : [];
+		const workspace = new Workspace('', folders);
+		return new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() { return workspace; }
+			override getWorkspaceFolder(resource: URI) { return workspace.getFolder(resource); }
+		};
+	}
+
 	test('editor variables, basics', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'text.txt');
 		assertVariableResolve(resolver, 'something', undefined);
@@ -82,7 +139,8 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			disposables.add(createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))),
+			undefined
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
@@ -93,7 +151,8 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:fff.ts')))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:fff.ts'))),
+			undefined
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
 		assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', '');
@@ -112,7 +171,7 @@ suite('Snippet Variables Resolver', function () {
 
 		const model = createTextModel([].join('\n'), undefined, undefined, URI.parse('foo:///foo/files/text.txt'));
 
-		const resolver = new CompositeSnippetVariableResolver([new ModelBasedVariableResolver(labelService, model)]);
+		const resolver = new CompositeSnippetVariableResolver([new ModelBasedVariableResolver(labelService, model, undefined)]);
 
 		assertVariableResolve(resolver, 'TM_FILEPATH', '|foo|files|text.txt');
 
@@ -172,19 +231,22 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			disposables.add(createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))),
+			undefined
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:.git')))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:.git'))),
+			undefined
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:foo.')))
+			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:foo.'))),
+			undefined
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 
@@ -429,31 +491,17 @@ suite('Snippet Variables Resolver', function () {
 		}
 	});
 
-	test('Add RELATIVE_FILEPATH snippet variable #114208', function () {
+	test('Add RELATIVE_FILEPATH and REVERSE_RELATIVE_FILEPATH snippet variables #114208', function () {
 
 		let resolver: VariableResolver;
-
-		// Mock a label service (only coded for file uris)
-		const workspaceLabelService = ((rootPath: string): ILabelService => {
-			const labelService = new class extends mock<ILabelService>() {
-				override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
-					const rootFsPath = URI.file(rootPath).fsPath + sep;
-					const fsPath = uri.fsPath;
-					if (options.relative && rootPath && fsPath.startsWith(rootFsPath)) {
-						return fsPath.substring(rootFsPath.length);
-					}
-					return fsPath;
-				}
-			};
-			return labelService;
-		});
 
 		const model = createTextModel('', undefined, undefined, URI.parse('file:///foo/files/text.txt'));
 
 		// empty workspace
 		resolver = new ModelBasedVariableResolver(
-			workspaceLabelService(''),
-			model
+			createMockWorkspaceLabelService(''),
+			model,
+			createMockWorkspaceContextService(undefined)
 		);
 
 		if (!isWindows) {
@@ -461,18 +509,103 @@ suite('Snippet Variables Resolver', function () {
 		} else {
 			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '\\foo\\files\\text.txt');
 		}
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
 
 		// single folder workspace
 		resolver = new ModelBasedVariableResolver(
-			workspaceLabelService('/foo'),
-			model
+			createMockWorkspaceLabelService('/foo'),
+			model,
+			createMockWorkspaceContextService('/foo')
 		);
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files/text.txt');
 		} else {
 			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files\\text.txt');
 		}
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..');
+
+		const workspaceRootModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/text.txt'));
+		resolver = new ModelBasedVariableResolver(
+			createMockWorkspaceLabelService('/foo'),
+			workspaceRootModel,
+			createMockWorkspaceContextService('/foo')
+		);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '.');
+		workspaceRootModel.dispose();
+
+		const aboveWorkspaceModel = createTextModel('', undefined, undefined, URI.parse('file:///bar/text.txt'));
+		resolver = new ModelBasedVariableResolver(
+			createMockWorkspaceLabelService('/foo'),
+			aboveWorkspaceModel,
+			createMockWorkspaceContextService('/foo')
+		);
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '/bar/text.txt');
+		} else {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '\\bar\\text.txt');
+		}
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
+		aboveWorkspaceModel.dispose();
 
 		model.dispose();
+	});
+
+	test('REVERSE_RELATIVE_FILEPATH handles deeply nested paths and platform-specific separators', function () {
+
+		const deepModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/dir/sub/text.txt'));
+		const resolver: VariableResolver = new ModelBasedVariableResolver(
+			createMockWorkspaceLabelService('/foo'),
+			deepModel,
+			createMockWorkspaceContextService('/foo')
+		);
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '../..');
+		} else {
+			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
+		}
+		deepModel.dispose();
+	});
+
+	test('REVERSE_RELATIVE_FILEPATH handles remote scenarios and is robust to filename characters', function () {
+
+		const remoteWorkspaceUri = URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace');
+		const remoteLabelService = createUriLabelService(remoteWorkspaceUri, '/');
+		const remoteWorkspaceService = createUriWorkspaceContextService(remoteWorkspaceUri);
+
+		// In-workspace remote URI: the file lives one directory deep inside the workspace,
+		// so the reverse path from the file's directory back to the workspace root is `..`.
+		const remoteModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/dir/file.ts'));
+		let resolver: VariableResolver = new ModelBasedVariableResolver(remoteLabelService, remoteModel, remoteWorkspaceService);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..');
+
+		// Out-of-workspace remote URI resolves to undefined.
+		const remoteOutsideModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/other/place/file.ts'));
+		resolver = new ModelBasedVariableResolver(remoteLabelService, remoteOutsideModel, remoteWorkspaceService);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
+
+		// Backslash in a POSIX/remote filename must not be treated as a directory separator.
+		const remoteBackslashModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/foo%5Cbar.txt'));
+		resolver = new ModelBasedVariableResolver(remoteLabelService, remoteBackslashModel, remoteWorkspaceService);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '.');
+
+		remoteModel.dispose();
+		remoteOutsideModel.dispose();
+		remoteBackslashModel.dispose();
+	});
+
+	test('REVERSE_RELATIVE_FILEPATH handles Windows drive-letter workspace and file URIs', function () {
+
+		// Windows drive-letter file URI: `file:///c%3A/workspace/dir/sub/text.txt` and folder `file:///c%3A/workspace`.
+		const driveFolderUri = URI.parse('file:///c%3A/workspace');
+		const driveFileUri = URI.parse('file:///c%3A/workspace/dir/sub/text.txt');
+
+		const labelService = createUriLabelService(driveFolderUri, '\\');
+		const workspaceService = createUriWorkspaceContextService(driveFolderUri);
+
+		const driveModel = createTextModel('', undefined, undefined, driveFileUri);
+		const resolver: VariableResolver = new ModelBasedVariableResolver(labelService, driveModel, workspaceService);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
+
+		driveModel.dispose();
 	});
 });
