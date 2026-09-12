@@ -2232,6 +2232,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ToolsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows Built-in Tools and an Extension Tools section with a count of eight.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
@@ -2277,6 +2278,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PromptMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,

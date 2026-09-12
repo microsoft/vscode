@@ -1034,6 +1034,8 @@ export interface ComponentFixtureContext {
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	/** Reveal headless fixtures only after async setup and virtual-time layout have completed. */
+	deferPaint?: boolean;
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	/** Base color themes to render; defaults to both dark and light. */
@@ -1061,6 +1063,7 @@ if (logOutsideTime) {
 }
 
 let fixtureRenderCounter = 0;
+let sourceMapsInitialized = false;
 
 /**
  * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
@@ -1099,6 +1102,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// The tracker is global and therefore unsafe when fixtures render in parallel,
 			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
 			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
+			if (leakDetectionEnabled && !sourceMapsInitialized) {
+				// Initialize source maps before async render timeouts start, not on the first fixture error.
+				void new Error().stack;
+				sourceMapsInitialized = true;
+			}
 			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
 			// starts so its long-lived `DisposableStore` (created on first
 			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
@@ -1209,7 +1217,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
 					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
-						const stackTrace = new Error().stack;
+						const stackTrace = new Error();
 						const trace = TraceContext.instance.currentTrace().child('runWhenIdle', stackTrace);
 						return clock.schedule({
 							time: clock.now,
@@ -1222,7 +1230,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 							},
 							source: {
 								toString() { return 'runWhenIdle'; },
-								stackTrace,
+								get stackTrace() { return stackTrace.stack; },
 							},
 							trace,
 						});
@@ -1273,10 +1281,21 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// setTimeout/rAF calls that led to it.
 			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
 
-			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
-				// Trace-reset escapes virtual time so it actually fires.
-				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
-			});
+			const deferPaint = options.deferPaint === true && context.host.kind === 'headless';
+			const originalOpacity = fixtureHost.style.opacity;
+			if (deferPaint) {
+				fixtureHost.style.opacity = '0';
+			}
+			try {
+				await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
+					// Trace-reset escapes virtual time so it actually fires.
+					afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
+				});
+			} finally {
+				if (deferPaint) {
+					fixtureHost.style.opacity = originalOpacity;
+				}
+			}
 
 			if (input.outputTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
