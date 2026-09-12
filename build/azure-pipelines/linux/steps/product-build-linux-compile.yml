@@ -35,10 +35,6 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
-  - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
-    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
-      displayName: Disable Foundry Local Native Install
-
   - template: ../../distro/download-distro.yml@self
 
   - task: AzureKeyVault@2
@@ -104,9 +100,8 @@ steps:
     displayName: Setup NPM Authentication
 
   - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
-    - template: ../../common/foundry-local.yml@self
-      parameters:
-        phase: prepare
+    - task: NuGetAuthenticate@1
+      displayName: Setup NuGet Authentication
 
   - script: |
       set -e
@@ -164,13 +159,13 @@ steps:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       ONNXRUNTIME_NODE_INSTALL: skip
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
+        FOUNDRY_LOCAL_SKIP_INSTALL: "1"
+      ${{ else }}:
+        FOUNDRY_LOCAL_NUGET_MODE: dotnet
+        FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
-    - template: ../../common/foundry-local.yml@self
-      parameters:
-        phase: install
 
   - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries

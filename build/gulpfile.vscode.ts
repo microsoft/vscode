@@ -31,7 +31,7 @@ import { copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
-import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
+import { getRuntimeTargetForBuild, readDictationRuntimeResults } from './dictation-runtime/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -252,19 +252,20 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// foundry-local-sdk (on-device chat dictation) ships a prebuilt N-API addon
-// (`foundry_local_napi.node`) inside its tarball, and its native core libraries
-// are fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install
-// time. The addon requires a newer glibc than VS Code's minimum supported Linux
-// distros, so we deliberately do NOT ship any of this native payload: it is
-// downloaded on demand at runtime, only on supported platforms, into a per-user
-// cache (see `src/vs/platform/localTranscription/node/foundryLocalRuntime.ts`).
-// Exclude every prebuilt addon and core library from the package here.
-function getFoundryLocalExcludeFilter(): string[] {
+// foundry-local-sdk (on-device chat dictation) loads two N-API addons from its
+// package, while configureNativeLoader redirects its shared libraries to the
+// per-user runtime cache. Keep the target platform's addons but exclude the
+// shared libraries, which require a newer glibc than VS Code's minimum supported
+// Linux distros.
+function getFoundryLocalExcludeFilter(platform: string, arch: string): string[] {
+	const target = getRuntimeTargetForBuild(platform, arch);
 	return [
 		'**',
 		'!**/foundry-local-sdk/prebuilds/**',
-		'!**/foundry-local-sdk/foundry-local-core/**',
+		...(target ? [
+			`**/foundry-local-sdk/prebuilds/${target}/foundry_local_node.node`,
+			`**/foundry-local-sdk/prebuilds/${target}/foundry_local_preload.node`,
+		] : []),
 	];
 }
 
@@ -394,7 +395,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getMxcExcludeFilter(arch)))
-			.pipe(filter(getFoundryLocalExcludeFilter()))
+			.pipe(filter(getFoundryLocalExcludeFilter(platform, arch)))
 			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))

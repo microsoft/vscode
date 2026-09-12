@@ -27,10 +27,6 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
-  - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
-    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
-      displayName: Disable Foundry Local Native Install
-
   - template: ../../distro/download-distro.yml@self
 
   - task: AzureKeyVault@2
@@ -84,9 +80,8 @@ steps:
     displayName: Setup NPM Authentication
 
   - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
-    - template: ../../common/foundry-local.yml@self
-      parameters:
-        phase: prepare
+    - task: NuGetAuthenticate@1
+      displayName: Setup NuGet Authentication
 
   - task: PipAuthenticate@1
     inputs:
@@ -112,6 +107,11 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
+        FOUNDRY_LOCAL_SKIP_INSTALL: "1"
+      ${{ else }}:
+        FOUNDRY_LOCAL_NUGET_MODE: dotnet
+        FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
       # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
       # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
       # flipped the default to support legacy linux distros which shouldn't happen
@@ -119,11 +119,6 @@ steps:
       GYP_DEFINES: "kerberos_use_rtld=false"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
-    - template: ../../common/foundry-local.yml@self
-      parameters:
-        phase: install
 
   - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries

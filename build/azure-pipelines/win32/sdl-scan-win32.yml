@@ -48,9 +48,8 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - template: ../common/foundry-local.yml@self
-    parameters:
-      phase: prepare
+  - task: NuGetAuthenticate@1
+    displayName: Setup NuGet Authentication
 
   - pwsh: |
       $includes = @'
@@ -93,12 +92,10 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      FOUNDRY_LOCAL_NUGET_MODE: dotnet
+      FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
-
-  - template: ../common/foundry-local.yml@self
-    parameters:
-      phase: install
 
   - script: node build/azure-pipelines/distro/mixin-npm.ts
     displayName: Mixin distro node modules
