@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
-import { addArg } from '../../node/argvHelper.js';
+import { buildHelpMessage, ErrorReporter, formatOptions, Option, OptionDescriptions, OPTIONS, parseArgs, Subcommand } from '../../node/argv.js';
+import { addArg, CliUsageError, getUpdateCliRequest, parseCLIProcessArgv } from '../../node/argvHelper.js';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
 	return {
@@ -216,6 +216,86 @@ suite('parseArgs', () => {
 			{ testcmd: { testArg: 'foo', testX: true, '_': [] }, '_': [] },
 			[]
 		);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('update command', () => {
+	function parseUpdateArgs(args: string[]) {
+		const appPath = process.env['VSCODE_DEV'] ? ['.'] : [];
+		return parseCLIProcessArgv(['node', 'cli.js', ...appPath, ...args]);
+	}
+
+	test('parses status and install', () => {
+		assert.deepStrictEqual(
+			[
+				parseUpdateArgs(['update', 'status', '--json']),
+				parseUpdateArgs(['--verbose', 'update', 'install', '--version', '1.2.3', '--force']),
+				parseUpdateArgs(['update', 'status', '--verbose'])
+			],
+			[
+				{ update: { status: { json: true, help: false, verbose: false, _: [] }, _: [] }, _: [] },
+				{ update: { install: { version: '1.2.3', force: true, help: false, verbose: true, _: [] }, _: [] }, _: [] },
+				{ update: { status: { json: false, help: false, verbose: true, _: [] }, _: [] }, _: [] }
+			]
+		);
+	});
+
+	test('creates update requests', () => {
+		assert.deepStrictEqual(
+			[
+				getUpdateCliRequest(parseUpdateArgs(['update', 'status', '--json'])),
+				getUpdateCliRequest(parseUpdateArgs(['update', 'install', '--version', '1.2.3', '--force'])),
+				getUpdateCliRequest(parseUpdateArgs(['--help']))
+			],
+			[
+				{ command: 'status', json: true },
+				{ command: 'install', version: '1.2.3', force: true },
+				undefined
+			]
+		);
+	});
+
+	test('rejects removed and invalid forms', () => {
+		const inputs = [
+			['update', 'download'],
+			['update', 'install', '--commit', '0123456789abcdef'],
+			['--close'],
+			['--force-close'],
+			['update', 'status', 'file.txt'],
+			['update', 'install', '--version', '12.124.124.124'],
+			['update', 'install', '--version', '1.2'],
+			['update', 'install', '--version', '01.2.3'],
+			['update', 'install', '--version', '1.2.3-insider']
+		];
+		const results = inputs.map(input => {
+			try {
+				const result = parseUpdateArgs(input);
+				return result.update ? 'accepted update command' : 'not an update command';
+			} catch (error) {
+				return error instanceof CliUsageError ? error.exitCode : String(error);
+			}
+		});
+
+		assert.deepStrictEqual(results, [2, 2, 2, 2, 2, 2, 2, 2, 2]);
+	});
+
+	test('builds nested help usage', () => {
+		const helpMessages = [
+			buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options, { noInputFiles: true, noPipe: true, commandPath: ['update'] }),
+			buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options.status.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'status'] }),
+			buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options.install.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'install'] })
+		];
+
+		assert.deepStrictEqual(helpMessages.map(message => ({
+			usage: message.match(/Usage: .*/)?.[0],
+			hasStdinHint: message.includes('To read from stdin')
+		})), [
+			{ usage: 'Usage: code update [options]', hasStdinHint: false },
+			{ usage: 'Usage: code update status [options]', hasStdinHint: false },
+			{ usage: 'Usage: code update install [options]', hasStdinHint: false }
+		]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

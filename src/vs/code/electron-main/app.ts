@@ -29,6 +29,8 @@ import { IProxyAuthService, ProxyAuthService } from '../../platform/native/elect
 import { localize } from '../../nls.js';
 import { IBackupMainService } from '../../platform/backup/electron-main/backup.js';
 import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
+import { ICliControlMainService } from '../../platform/cli/common/cliControl.js';
+import { CliControlMainService } from '../../platform/cli/electron-main/cliControlMainService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
 import { IDiagnosticsService, IGPULogMessage } from '../../platform/diagnostics/common/diagnostics.js';
@@ -42,7 +44,7 @@ import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
-import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
+import { getUpdateCliRequest, isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
 import { getResolvedShellEnv } from '../../platform/shell/node/shellEnv.js';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from '../../platform/extensions/common/extensionHostStarter.js';
 import { ExtensionHostStarter } from '../../platform/extensions/electron-main/extensionHostStarter.js';
@@ -776,6 +778,19 @@ export class CodeApplication extends Disposable {
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
+		const updateCliRequest = getUpdateCliRequest(this.environmentMainService.args);
+		if (updateCliRequest) {
+			const result = await appInstantiationService.invokeFunction(accessor => accessor.get(ICliControlMainService).runUpdateCommand(updateCliRequest));
+			if (result.stdout) {
+				process.stdout.write(result.stdout);
+			}
+			if (result.stderr) {
+				process.stderr.write(result.stderr);
+			}
+			this.lifecycleMainService.kill(result.exitCode);
+			return;
+		}
+
 		// Open Windows
 		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
 
@@ -1200,6 +1215,9 @@ export class CodeApplication extends Disposable {
 		// Launch
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService, undefined, false /* proxied to other processes */));
 
+		// CLI Control
+		services.set(ICliControlMainService, new SyncDescriptor(CliControlMainService, undefined, false /* proxied to other processes */));
+
 		// Diagnostics
 		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, false /* proxied to other processes */));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
@@ -1333,6 +1351,9 @@ export class CodeApplication extends Disposable {
 
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), disposables, { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
+
+		const cliControlChannel = ProxyChannel.fromService(accessor.get(ICliControlMainService), disposables, { disableMarshalling: true });
+		this.mainProcessNodeIpcServer.registerChannel('cliControl', cliControlChannel);
 
 		// Policies (main & shared process)
 		const policyChannel = disposables.add(new PolicyChannel(accessor.get(IPolicyService)));

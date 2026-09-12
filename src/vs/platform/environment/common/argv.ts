@@ -35,6 +35,21 @@ export interface NativeParsedArgs {
 		profile?: string;
 		help?: boolean;
 	};
+	update?: {
+		_: string[];
+		help?: boolean;
+		status?: {
+			_: string[];
+			json?: boolean;
+			help?: boolean;
+		};
+		install?: {
+			_: string[];
+			version?: string;
+			force?: boolean;
+			help?: boolean;
+		};
+	};
 
 	// arguments
 	_: string[];

@@ -27,13 +27,14 @@ import { Client as NodeIPCClient } from '../../base/parts/ipc/common/ipc.net.js'
 import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
 import { CodeApplication } from './app.js';
 import { localize } from '../../nls.js';
+import { ICliCommandResult, ICliControlMainService } from '../../platform/cli/common/cliControl.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
 import { IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
 import { DiagnosticsService } from '../../platform/diagnostics/node/diagnosticsService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { EnvironmentMainService, IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
-import { addArg, parseMainProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { addArg, getUpdateCliRequest, parseMainProcessArgv } from '../../platform/environment/node/argvHelper.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';
@@ -88,6 +89,12 @@ import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
  * try to communicate with an existing instance to prevent that 2 VS Code instances
  * are running at the same time.
  */
+class ExpectedExitError extends ExpectedError {
+	constructor(readonly exitCode: number, message?: string) {
+		super(message);
+	}
+}
+
 class CodeMain {
 
 	main(): void {
@@ -419,7 +426,7 @@ class CodeMain {
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
 			let startupWarningDialogHandle: Timeout | undefined = undefined;
-			if (!environmentMainService.args.wait && !environmentMainService.args.status) {
+			if (!environmentMainService.args.wait && !environmentMainService.args.status && !environmentMainService.args.update) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
 						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", productService.nameShort),
@@ -431,6 +438,7 @@ class CodeMain {
 
 			const otherInstanceLaunchMainService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
 			const otherInstanceDiagnosticsMainService = ProxyChannel.toService<IDiagnosticsMainService>(client.getChannel('diagnostics'), { disableMarshalling: true });
+			const otherInstanceCliControlMainService = ProxyChannel.toService<ICliControlMainService>(client.getChannel('cliControl'), { disableMarshalling: true });
 
 			// Process Info
 			if (environmentMainService.args.status) {
@@ -443,6 +451,37 @@ class CodeMain {
 
 					throw new ExpectedError();
 				});
+			}
+
+			const updateCliRequest = getUpdateCliRequest(environmentMainService.args);
+			if (updateCliRequest) {
+				try {
+					const capabilities = await otherInstanceLaunchMainService.getCliCapabilities();
+					if (!capabilities.update) {
+						throw new Error('Update CLI control is unavailable.');
+					}
+				} catch (error) {
+					client.dispose();
+					console.error(localize('updateRunningInstanceUnsupported', "The running instance of {0} does not support update commands. Restart {0} and try again.", productService.nameShort));
+					throw new ExpectedExitError(1, toErrorMessage(error));
+				}
+
+				let result: ICliCommandResult;
+				try {
+					result = await otherInstanceCliControlMainService.runUpdateCommand(updateCliRequest);
+				} finally {
+					client.dispose();
+					if (startupWarningDialogHandle) {
+						clearTimeout(startupWarningDialogHandle);
+					}
+				}
+				if (result.stdout) {
+					process.stdout.write(result.stdout);
+				}
+				if (result.stderr) {
+					process.stderr.write(result.stderr);
+				}
+				throw new ExpectedExitError(result.exitCode, 'Update CLI command completed in running instance. Terminating...');
 			}
 
 			// Windows: allow to set foreground
@@ -527,6 +566,9 @@ class CodeMain {
 
 		if (reason) {
 			if ((reason as ExpectedError).isExpected) {
+				if (reason instanceof ExpectedExitError) {
+					exitCode = reason.exitCode;
+				}
 				if (reason.message) {
 					logService.trace(reason.message);
 				}
