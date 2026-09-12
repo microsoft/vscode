@@ -21,10 +21,10 @@ import { TerminalChatAgentToolsSettingId } from '../../../../common/terminalChat
 const npmRunPatterns = [
 	// npm run <script>
 	// npm run-script <script>
-	/^(?<command>npm)\s+(?:run(?:-script)?)\s+(?<scriptName>[^\s&|;]+)/i,
+	/^(?<command>npm)\s+(?:run(?:-script)?)\s+(?<scriptName>(?![-@])[A-Za-z0-9_:@./-]+)(?:\s+--(?:\s+.*)?|\s*)$/i,
 	// npm test, npm start, npm stop, npm restart (shorthand commands)
 	// See https://docs.npmjs.com/cli/v10/commands/npm-run-script
-	/^(?<command>npm)\s+(?<scriptName>test|start|stop|restart)\b/i,
+	/^(?<command>npm)\s+(?<scriptName>test|start|stop|restart)(?:\s+--(?:\s+.*)?|\s*)$/i,
 	// yarn <script>
 	// yarn run <script>
 	/^(?<command>yarn)\s+(?:run\s+)?(?<scriptName>[^\s&|;]+)/i,
