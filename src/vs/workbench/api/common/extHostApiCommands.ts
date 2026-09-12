@@ -302,7 +302,10 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.Uri, ApiCommandArgument.Number.with('itemResolveCount', 'Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)').optional()],
 		new ApiCommandResult<languages.CodeLens[], vscode.CodeLens[] | undefined>('A promise that resolves to an array of CodeLens-instances.', (value, _args, converter) => {
 			return tryMapWith<languages.CodeLens, vscode.CodeLens>(item => {
-				return new types.CodeLens(typeConverters.Range.to(item.range), item.command && converter.fromInternal(item.command));
+				const command = languages.isExecutableCodeLensCommand(item.command)
+					? converter.fromInternal(item.command)
+					: undefined;
+				return new types.CodeLens(typeConverters.Range.to(item.range), command);
 			})(value);
 		})
 	),
