@@ -488,7 +488,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				}, editorOptions, electronOptions);
 			},
 			(v, params) => this.showContextMenu(v, params),
-			options
+			options,
+			undefined
 		);
 		this.browserViews.set(id, view);
 		if (windowConfiguration?.theme) {

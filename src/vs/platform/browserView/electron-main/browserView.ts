@@ -132,6 +132,7 @@ export class BrowserView extends Disposable {
 		private readonly _createChildView: (owner: IBrowserViewOwner, url: string, electronOptions: Electron.WebContentsViewConstructorOptions | undefined, editorOptions: IBrowserViewEditorOpenOptions) => BrowserView,
 		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
+		createWebContentsView: (options: Electron.WebContentsViewConstructorOptions) => WebContentsView = options => new WebContentsView(options),
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
 		@ILogService private readonly logService: ILogService,
@@ -157,7 +158,7 @@ export class BrowserView extends Disposable {
 			focusOnNavigation: false
 		};
 
-		this._view = new WebContentsView({
+		this._view = createWebContentsView({
 			webPreferences,
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
@@ -323,9 +324,18 @@ export class BrowserView extends Disposable {
 		webContents.on('page-favicon-updated', (_event, favicons) => {
 			void faviconLoader.load(favicons).catch(error => this.logService.warn('[BrowserView] Failed to update favicon.', error));
 		});
-		webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+		const resetFaviconForNavigation = (currentUrl: string, targetUrl: string) => {
+			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
+			if (URL.parse(targetUrl)?.host !== URL.parse(currentUrl)?.host) {
+				faviconLoader.invalidate();
+				this._lastFavicon = undefined;
+			}
+		};
+		let pendingNavigationUrl: string | undefined;
+		webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
 			if (isMainFrame && !isInPlace) {
 				faviconLoader.invalidate();
+				pendingNavigationUrl = url;
 			}
 		});
 		webContents.on('will-navigate', (event) => {
@@ -333,16 +343,16 @@ export class BrowserView extends Disposable {
 				event.preventDefault();
 				return;
 			}
-			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
-			const host = URL.parse(event.url)?.host;
-			const currHost = URL.parse(this.webContents.getURL())?.host;
-			if (host !== currHost) {
-				this._lastFavicon = undefined;
-			}
+			resetFaviconForNavigation(webContents.getURL(), event.url);
 		});
 		webContents.on('will-redirect', event => {
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
+				return;
+			}
+			if (event.isMainFrame && !event.isSameDocument) {
+				resetFaviconForNavigation(pendingNavigationUrl ?? webContents.getURL(), event.url);
+				pendingNavigationUrl = event.url;
 			}
 		});
 
