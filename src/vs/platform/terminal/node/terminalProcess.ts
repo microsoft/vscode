@@ -22,6 +22,7 @@ import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
 import { isNumber } from '../../../base/common/types.js';
 import { getWindowsBuildNumberSync } from '../../../base/node/windowsVersion.js';
+import { TerminalInputBuffer } from './terminalInputBuffer.js';
 
 const enum ShutdownConstants {
 	/**
@@ -104,6 +105,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _exitMessage: string | undefined;
 	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
+	private _inputBuffer: TerminalInputBuffer | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
@@ -197,6 +199,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}));
 		this._register(toDisposable(() => {
 			this._ptyProcess = undefined;
+			this._inputBuffer = undefined;
 			this._processStartupComplete = undefined;
 		}));
 	}
@@ -315,6 +318,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, sanitizedOptions);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
+		this._inputBuffer = this._register(new TerminalInputBuffer(data => ptyProcess.write(data), isMacintosh));
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._register(this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value })));
 		this._processStartupComplete = new Promise<void>(c => {
@@ -485,9 +489,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	input(data: string, isBinary: boolean = false): void {
 		this._logService.trace('node-pty.IPty#write', data, isBinary);
 		if (isBinary) {
-			this._ptyProcess!.write(Buffer.from(data, 'binary'));
+			this._inputBuffer!.write(Buffer.from(data, 'binary'));
 		} else {
-			this._ptyProcess!.write(data);
+			this._inputBuffer!.write(data);
 		}
 		this._childProcessMonitor?.handleInput();
 	}
