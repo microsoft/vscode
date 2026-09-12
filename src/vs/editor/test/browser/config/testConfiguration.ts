@@ -48,6 +48,8 @@ export class TestConfiguration extends EditorConfiguration {
 			middotWidth: 10,
 			wsmiddotWidth: 10,
 			maxDigitWidth: 10,
+			fontAscent: 15,
+			fontDescent: 4,
 		}, true);
 	}
 }
