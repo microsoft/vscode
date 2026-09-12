@@ -8047,6 +8047,56 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		}, { resume: sid, sessionId: undefined });
 	});
 
+	test('the rebind after an abort drains the aborted turn tool attribution so the next turn does not inherit it', async () => {
+		const log = new CapturingLogService();
+		const ctx = createTestContext(disposables, { logService: log });
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
+		const sid = created.sdkSessionId;
+		const TOOL_USE_ID = 'toolu_aborted_read';
+
+		// Park after the tool_use so the abort lands with the tool still in flight and no result ever arrives.
+		const stall = new DeferredPromise<void>();
+		ctx.sdk.queryAdvance = async (i) => { if (i === 5) { await stall.p; } };
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeStreamEvent(sid, makeMessageStart()),
+			makeStreamEvent(sid, makeContentBlockStartToolUse(0, TOOL_USE_ID, 'Read')),
+			makeStreamEvent(sid, makeContentBlockStop(0)),
+			makeStreamEvent(sid, makeMessageStop()),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		await tick();
+		await tick();
+
+		await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+		await assert.rejects(inFlight, (err: unknown) => isCancellationError(err));
+		ctx.sdk.queryAdvance = undefined;
+		stall.complete();
+		await tick();
+
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeUserToolResultMessage(sid, TOOL_USE_ID, 'late content'),
+			makeResultSuccess(sid),
+		];
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.deepStrictEqual({
+			toolCallCompletes: signals.flatMap(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete ? [s.action.turnId] : []),
+			drainedOnRebind: log.warns.some(w => w.includes(`turn turn-1 ended with pending tool_use ${TOOL_USE_ID}`)),
+			warnedUnknown: log.warns.some(w => w.includes(`tool_result for unknown tool_use_id ${TOOL_USE_ID}`)),
+		}, {
+			toolCallCompletes: [],
+			drainedOnRebind: true,
+			warnedUnknown: true,
+		});
+	});
+
 	test('abortSession denies any parked permission requests so the SDK canUseTool callback unwinds with deny instead of leaving stale UI behind', async () => {
 		const ctx = createTestContext(disposables);
 		await ctx.agent.authenticate('https://api.github.com', 'tok');
@@ -8392,6 +8442,47 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 		assert.deepStrictEqual(turns, []);
 		assert.ok(log.warns.some(w => w.includes('getSessionMessages SDK fetch failed')),
 			`expected warn-log; got: ${log.warns.join(' | ')}`);
+	});
+
+	test('a resumed session hydrates replay attribution, so a late tool_result lands on its committed turn instead of the new one', async () => {
+		const log = new CapturingLogService();
+		const ctx = createTestContext(disposables, { logService: log });
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		await tick();
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
+		const sid = created.sdkSessionId;
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		// Cross-window restart: turn `u1` announced a Read whose tool_result never landed before the process went away.
+		await releaseDefaultChat(ctx.agent, created.session);
+		ctx.sdk.sessionList = [{ sessionId: sid, cwd: '/workspace', summary: '', lastModified: Date.now() }];
+		ctx.sdk.sessionMessagesById.set(sid, [
+			makeUserSessionMessage('u1', 'first'),
+			{
+				...makeAssistantMessage(sid, [{ type: 'tool_use', id: 'tu_pre_restart', name: 'Read', input: { file_path: '/tmp/x' } }]),
+				parent_agent_id: null,
+			},
+		]);
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeUserToolResultMessage(sid, 'tu_pre_restart', 'late content'),
+			makeResultSuccess(sid),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.deepStrictEqual({
+			toolCallCompletes: signals.flatMap(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete ? [s.action.turnId] : []),
+			warnedUnknown: log.warns.some(w => w.includes('tool_result for unknown tool_use_id tu_pre_restart')),
+			attributedToCommittedTurn: log.infos.some(i => i.includes('tool_result for restored tool_use tu_pre_restart belongs to committed turn u1')),
+		}, {
+			toolCallCompletes: [],
+			warnedUnknown: false,
+			attributedToCommittedTurn: true,
+		});
 	});
 
 	// Note: Phase 12 step 8 priming used to be tested here against a

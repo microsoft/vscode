@@ -30,6 +30,8 @@ import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKin
 import type { ClientPluginCustomization, CustomizationEnablement } from '../../common/state/protocol/channels-session/state.js';
 import { CustomizationType, parseRequiredSessionUriFromChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
+import { buildAttributionSeed, type IClaudeAttributionSeed } from './claudeAttributionResolver.js';
+import { replaySessionMessages } from './claudeReplayMapper.js';
 import { buildClientMcpServers, buildOptions, toClaudeMcpServers, type ClaudeDeniedMcpServerSpec } from './claudeSdkOptions.js';
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
@@ -684,6 +686,9 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
+		if (ctx.isResume) {
+			pipeline.seedReplayAttribution(this._readAttributionSeed());
+		}
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {
 				return;
@@ -812,6 +817,21 @@ export class ClaudeAgentSession extends Disposable {
 		// client-pushed slice; firing here prompts the workbench to refetch
 		// and pick up the bundled `Discovered in Claude` entry.
 		this._onDidCustomizationsChange.fire();
+	}
+
+	/**
+	 * Read the resumed conversation's transcript and partition its tool uses so the
+	 * router can re-seed live attribution. Resolves `undefined` when the read fails.
+	 */
+	private async _readAttributionSeed(): Promise<IClaudeAttributionSeed | undefined> {
+		try {
+			const messages = await this._sdkService.getSessionMessages(this.sessionId, { includeSystemMessages: true });
+			const { attribution } = replaySessionMessages(messages, this._chatChannelUri, this._logService);
+			return buildAttributionSeed(attribution);
+		} catch (err) {
+			this._logService.warn(`[Claude:${this.sessionId}] replay attribution seed read failed`, err);
+			return undefined;
+		}
 	}
 
 	/**
