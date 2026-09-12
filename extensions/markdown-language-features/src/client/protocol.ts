@@ -32,7 +32,23 @@ export const getReferencesToFileInWorkspace = new RequestType<{ uri: string }, l
 export const getEditForFileRenames = new RequestType<Array<FileRename>, { participatingRenames: readonly FileRename[]; edit: lsp.WorkspaceEdit }, any>('markdown/getEditForFileRenames');
 
 export const prepareUpdatePastedLinks = new RequestType<{ uri: string; ranges: lsp.Range[] }, string, any>('markdown/prepareUpdatePastedLinks');
-export const getUpdatePastedLinksEdit = new RequestType<{ pasteIntoDoc: string; metadata: string; edits: lsp.TextEdit[] }, lsp.TextEdit[] | undefined, any>('markdown/getUpdatePastedLinksEdit');
+/** Text edit wire format expected by vscode-markdown-languageserver. */
+export type SerializedTextEdit = {
+	readonly range: readonly [lsp.Position, lsp.Position];
+	readonly newText: string;
+};
+
+export function serializeTextEdit(edit: vscode.TextEdit): SerializedTextEdit {
+	return {
+		range: [
+			{ line: edit.range.start.line, character: edit.range.start.character },
+			{ line: edit.range.end.line, character: edit.range.end.character },
+		],
+		newText: edit.newText,
+	};
+}
+
+export const getUpdatePastedLinksEdit = new RequestType<{ pasteIntoDoc: string; metadata: string; edits: SerializedTextEdit[] }, lsp.TextEdit[] | undefined, any>('markdown/getUpdatePastedLinksEdit');
 
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
 
