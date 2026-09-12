@@ -14,7 +14,7 @@ import { chatInputWorkingBorderColor1, chatInputWorkingBorderColor2, chatInputWo
 suite('Chat colors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('allows opaque animation colors and deprecates unused accents', () => {
+	test('allows opaque animation colors and deprecates only unused accents', () => {
 		const ids = [chatThinkingShimmer, chatInputWorkingBorderColor1, chatInputWorkingBorderColor2, chatInputWorkingBorderColor3];
 		const colors = getColorRegistry().getColors();
 
@@ -24,7 +24,7 @@ suite('Chat colors', () => {
 		}), [
 			{ id: chatThinkingShimmer, needsTransparency: false, deprecated: false },
 			{ id: chatInputWorkingBorderColor1, needsTransparency: false, deprecated: false },
-			{ id: chatInputWorkingBorderColor2, needsTransparency: false, deprecated: true },
+			{ id: chatInputWorkingBorderColor2, needsTransparency: false, deprecated: false },
 			{ id: chatInputWorkingBorderColor3, needsTransparency: false, deprecated: true },
 		]);
 	});

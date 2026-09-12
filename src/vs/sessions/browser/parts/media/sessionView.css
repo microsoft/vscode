@@ -97,7 +97,8 @@
  * lightness — unlike mixing toward a fixed gray, this keeps the accent's
  * lightness intact so high-contrast themes (white/black accents) still read. */
 .session-view:not(.is-active) .interactive-session .chat-input-container.working {
-	--chat-input-working-border-color1: hsl(from var(--vscode-chat-inputWorkingBorderColor1) h 0% l);
+	--chat-input-working-border-color1: hsl(from var(--chat-input-working-border-listening-color, var(--vscode-chat-inputWorkingBorderColor1)) h 0% l);
+	--chat-input-working-border-color2: hsl(from var(--chat-input-working-border-speaking-color, var(--vscode-chat-inputWorkingBorderColor2)) h 0% l);
 }
 
 /* Desaturate the send button so it reads as muted while still discoverable. */
