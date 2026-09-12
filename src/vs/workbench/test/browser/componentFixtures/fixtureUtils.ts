@@ -1061,6 +1061,7 @@ if (logOutsideTime) {
 }
 
 let fixtureRenderCounter = 0;
+let sourceMapsInitialized = false;
 
 /**
  * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
@@ -1099,6 +1100,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// The tracker is global and therefore unsafe when fixtures render in parallel,
 			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
 			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
+			if (leakDetectionEnabled && !sourceMapsInitialized) {
+				// Initialize source maps before async render timeouts start, not on the first fixture error.
+				void new Error().stack;
+				sourceMapsInitialized = true;
+			}
 			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
 			// starts so its long-lived `DisposableStore` (created on first
 			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
@@ -1209,7 +1215,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
 					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
-						const stackTrace = new Error().stack;
+						const stackTrace = new Error();
 						const trace = TraceContext.instance.currentTrace().child('runWhenIdle', stackTrace);
 						return clock.schedule({
 							time: clock.now,
@@ -1222,7 +1228,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 							},
 							source: {
 								toString() { return 'runWhenIdle'; },
-								stackTrace,
+								get stackTrace() { return stackTrace.stack; },
 							},
 							trace,
 						});
