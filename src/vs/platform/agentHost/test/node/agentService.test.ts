@@ -10325,7 +10325,7 @@ suite('AgentService (node dispatcher)', () => {
 				class InitializingAgent extends MockAgent {
 					readonly canvases = disposables.add(new TestCanvases());
 					override async createChat(): Promise<void> { }
-					override readonly chats = withChatOverrides(this.chats, base => ({
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 						createChat: async (chat, context, options) => {
 							if (chat.toString() === target) {
 								const lease = canvases.getChatInitialization(target);
@@ -10373,7 +10373,7 @@ suite('AgentService (node dispatcher)', () => {
 				class InitializingAgent extends MockAgent {
 					readonly canvases = disposables.add(new TestCanvases());
 					override async createChat(): Promise<void> { }
-					override readonly chats = withChatOverrides(this.chats, base => ({
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 						createChat: async (chat, context, options) => {
 							if (chat.toString() === target) {
 								assert.ok(canvases.getChatInitialization(target));
