@@ -873,6 +873,106 @@ suite('ActionListWidget', () => {
 		}, { typed: [], prevented: [] });
 	});
 
+	test('restarts a cancelled dynamic filter when IME composition leaves the query unchanged', async () => {
+		const first = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const second = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const filters: string[] = [];
+		const tokens: CancellationToken[] = [];
+		const widget = createActionListWidget(disposables, {
+			onFilter: (filter, token) => {
+				filters.push(filter);
+				tokens.push(token);
+				return filters.length === 1 ? first.p : second.p;
+			},
+		});
+
+		typeFilter(widget, 'release');
+		widget.filterInput!.dispatchEvent(new Event('compositionstart'));
+		typeFilter(widget, 'releases');
+		widget.filterInput!.value = 'release';
+		widget.filterInput!.dispatchEvent(new Event('compositionend'));
+		typeFilter(widget, 'release');
+		await first.complete([action('release-stale-result')]);
+		await second.complete([action('release-fresh-result')]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			filters,
+			cancelled: tokens.map(token => token.isCancellationRequested),
+			staleVisible: widget.domNode.textContent?.includes('release-stale-result'),
+			freshVisible: widget.domNode.textContent?.includes('release-fresh-result'),
+		}, {
+			filters: ['release', 'release'],
+			cancelled: [true, false],
+			staleVisible: false,
+			freshVisible: true,
+		});
+	});
+
+	for (const outcome of ['completed', 'failed'] as const) {
+		test(`does not retry a ${outcome} dynamic filter when IME composition leaves the query unchanged`, async () => {
+			const result = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+			const filters: string[] = [];
+			const tokens: CancellationToken[] = [];
+			const widget = createActionListWidget(disposables, {
+				onFilter: (filter, token) => {
+					filters.push(filter);
+					tokens.push(token);
+					return result.p;
+				},
+			});
+			typeFilter(widget, 'release');
+			if (outcome === 'completed') {
+				await result.complete([action('release-result')]);
+			} else {
+				await result.error(new Error('Search failed'));
+			}
+			await timeout(0);
+			const rows = getVisibleRowText(widget);
+			widget.filterInput!.dispatchEvent(new Event('compositionstart'));
+			typeFilter(widget, 'releases');
+			widget.filterInput!.value = 'release';
+			widget.filterInput!.dispatchEvent(new Event('compositionend'));
+			typeFilter(widget, 'release');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				filters,
+				cancelled: tokens.map(token => token.isCancellationRequested),
+				rows: getVisibleRowText(widget),
+			}, { filters: ['release'], cancelled: [false], rows });
+		});
+	}
+
+	test('settling a superseded dynamic filter preserves IME retry for the pending request', async () => {
+		const first = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const second = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const retry = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const filters: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			onFilter: filter => {
+				filters.push(filter);
+				return filters.length === 1 ? first.p : filters.length === 2 ? second.p : retry.p;
+			},
+		});
+		typeFilter(widget, 'old');
+		typeFilter(widget, 'release');
+		await first.complete([action('old-result')]);
+		await timeout(0);
+		widget.filterInput!.dispatchEvent(new Event('compositionstart'));
+		widget.filterInput!.dispatchEvent(new Event('compositionend'));
+		typeFilter(widget, 'release');
+		await second.complete([action('release-stale-result')]);
+		await retry.complete([action('release-fresh-result')]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			filters,
+			staleVisible: widget.domNode.textContent?.includes('release-stale-result'),
+			freshVisible: widget.domNode.textContent?.includes('release-fresh-result'),
+		}, { filters: ['old', 'release', 'release'], staleVisible: false, freshVisible: true });
+	});
+
 	test('batches row width writes before reading layout', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
