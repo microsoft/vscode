@@ -133,6 +133,11 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
 .ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
@@ -145,7 +150,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+	color: inherit;
 	opacity: 1;
 }
 
@@ -257,12 +262,6 @@
 .tools-list-widget > .section-title-header,
 .tools-list-widget > .tools-list-search-and-button-container {
 	width: min(100%, 840px);
-	margin-inline: auto;
-	box-sizing: border-box;
-}
-
-.tools-list-widget > .tools-gallery-container {
-	width: min(calc(100% - var(--vscode-spacing-size40)), 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
 }
@@ -448,7 +447,7 @@
 .ai-customization-list-widget .list-container {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -796,15 +795,9 @@ per-word capitalization does not survive translation. */
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px 0;
-	/* Reserve space for ~2 lines so the header height is stable across sections. */
-	/* Rounded up to a whole pixel so naturally-wrapped 2-line descriptions and */
-	/* shorter 1-line descriptions render at the same height instead of differing */
-	/* by a sub-pixel rounding. */
-	min-height: 38px;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-fontSize-body1);
@@ -820,7 +813,6 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -828,7 +820,6 @@ per-word capitalization does not survive translation. */
 
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
@@ -946,7 +937,8 @@ per-word capitalization does not survive translation. */
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	padding: 40px 40px 16px;
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-size160);
+	padding-inline: var(--vscode-spacing-size400);
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border);
 	border-radius: 6px;
@@ -954,10 +946,48 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .prompts-content-container,
+.ai-customization-management-editor .prompt-migration-content-container,
+.ai-customization-management-editor .tools-content-container {
+	padding-inline: var(--vscode-spacing-sizeNone);
+}
+
+/* The scroll hosts reach the pane edge while their content retains the panel inset. */
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .section-title-header,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-header,
+.ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
+.ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer,
+.ai-customization-management-editor .prompt-migration-list,
+.ai-customization-management-editor .tools-content-container > .tools-list-widget > .section-title-header,
+.ai-customization-management-editor .tools-content-container > .tools-list-widget > .tools-list-search-and-button-container,
+.ai-customization-management-editor .tools-list-tree {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	margin-inline: auto;
+}
+
+.ai-customization-management-editor .tools-content-container > .tools-list-widget > .tools-gallery-container {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400) - var(--vscode-spacing-size40)), 840px);
+	margin-inline: auto;
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable {
+	max-width: none;
+}
+
 .ai-customization-management-editor .prompt-migration-list-scrollable {
 	position: relative;
 	flex: 1;
 	min-height: 0;
+	width: 100%;
+}
+
+.ai-customization-management-editor .prompt-migration-list-scrollable > .prompt-migration-scroll-container {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .prompt-migration-footer {
@@ -965,7 +995,7 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
 	padding-top: var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
@@ -973,6 +1003,37 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompt-migration-selected-count {
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .prompt-migration-settings-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-height: 56px;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .prompt-migration-settings-item-text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .prompt-migration-settings-item-label {
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .prompt-migration-settings-item-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
+.ai-customization-management-editor .prompt-migration-settings-item.disabled .prompt-migration-settings-item-text {
+	cursor: default;
+	opacity: 0.6;
 }
 
 .ai-customization-management-editor .prompt-migration-state {
@@ -1005,25 +1066,21 @@ per-word capitalization does not survive translation. */
 	width: auto;
 }
 
-/* Migration copy is dynamic; don't reserve the two-line section-header height. */
-.ai-customization-management-editor .prompt-migration-content-container .section-title-description {
-	min-height: 0;
+.ai-customization-management-editor .prompt-migration-content-container .section-title-header {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container .section-title-header .section-title-row {
 	margin-bottom: 0;
 }
 
-/* Migration banner — an Inner-tier callout for customizations needing attention. */
 .ai-customization-management-editor .customization-migration-banner {
 	flex-shrink: 0;
-	margin: var(--vscode-spacing-size120) 0;
-	padding: var(--vscode-spacing-size120);
-	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
-	border-radius: var(--vscode-cornerRadius-medium);
+	margin: 0 0 var(--vscode-spacing-size240);
+	padding: 0;
+	background: transparent;
+	border: 0;
 	box-sizing: border-box;
-}
-
-.vscode-high-contrast .ai-customization-management-editor .customization-migration-banner {
-	border-color: var(--vscode-contrastBorder);
 }
 
 .ai-customization-management-editor .customization-migration-banner-content {
@@ -1047,6 +1104,19 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-foreground);
 }
 
+.ai-customization-management-editor .customization-migration-banner-message.rendered-markdown p {
+	margin: 0;
+}
+
+.ai-customization-management-editor .customization-migration-banner-message.rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.ai-customization-management-editor .customization-migration-banner-message.rendered-markdown a:hover,
+.ai-customization-management-editor .customization-migration-banner-message.rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .ai-customization-management-editor .customization-migration-banner-consequence {
 	margin: 0;
 	font-size: var(--vscode-fontSize-body2);
@@ -1059,23 +1129,37 @@ per-word capitalization does not survive translation. */
 	margin-top: 0;
 }
 
+.ai-customization-management-editor .customization-migration-banner .section-title-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .customization-migration-banner .section-title-link:hover,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .customization-migration-page-destinations {
+	margin-top: var(--vscode-spacing-size120);
+}
+
 .ai-customization-management-editor .prompt-migration-list {
-	position: absolute;
-	inset: 0;
+	height: 100%;
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	padding-bottom: var(--vscode-spacing-size60);
+	gap: var(--vscode-spacing-size100);
+	padding: 0;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .prompt-migration-group {
 	display: flex;
 	flex-direction: column;
-	margin-bottom: var(--vscode-spacing-size200);
-}
-
-.ai-customization-management-editor .prompt-migration-group + .prompt-migration-group {
-	margin-top: var(--vscode-spacing-size40);
+	margin: 0;
 }
 
 .ai-customization-management-editor .prompt-migration-group-header {
@@ -1093,6 +1177,36 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
 	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-section-toggle {
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	line-height: var(--vscode-spacing-size160);
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .customization-section-toggle:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-management-editor .customization-section-toggle:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.ai-customization-management-editor .distributed-section-layout.virtualized-section-layout-overflow {
+	padding-right: var(--vscode-spacing-size100);
+}
+
+.vscode-high-contrast .ai-customization-management-editor .customization-section-toggle:focus-visible {
+	outline-color: var(--vscode-contrastActiveBorder);
 }
 
 .ai-customization-management-editor .prompt-migration-group-title {
@@ -1138,6 +1252,14 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 }
 
+.ai-customization-management-editor .prompt-migration-group-items.virtualized-section-list {
+	display: block;
+}
+
+.ai-customization-management-editor .prompt-migration-group-items.virtualized-section-list .monaco-list-row {
+	box-sizing: border-box;
+}
+
 .ai-customization-management-editor .prompt-migration-group-empty {
 	padding: var(--vscode-spacing-size160);
 	color: var(--vscode-descriptionForeground);
@@ -1154,8 +1276,8 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .prompt-migration-item:not(:last-child) {
-	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
+.ai-customization-management-editor .prompt-migration-group-items.virtualized-section-list .monaco-list-row:not(:first-child) {
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border);
 }
 
 .ai-customization-management-editor .prompt-migration-checkbox {
@@ -1333,17 +1455,23 @@ per-word capitalization does not survive translation. */
 	position: relative;
 	flex: 1;
 	min-height: 0;
+	width: 100%;
 }
 
-/* The scrolled element: bound it to the wrapper so clientHeight < scrollHeight when content overflows. */
-.ai-customization-management-editor .tools-list-tree {
+.ai-customization-management-editor .tools-list-tree-scrollable > .tools-list-scroll-container {
 	position: absolute;
 	inset: 0;
 	overflow: hidden;
+}
+
+.ai-customization-management-editor .tools-list-tree {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size240);
-	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
+	gap: var(--vscode-spacing-size100);
+	padding: 0 0 var(--vscode-spacing-size200);
 	box-sizing: border-box;
 }
 
@@ -1455,23 +1583,14 @@ per-word capitalization does not survive translation. */
 	outline-offset: -1px;
 }
 
-.ai-customization-management-editor .tools-list-setrow:not(:last-child),
-.ai-customization-management-editor .tools-list-children:not(:last-child) .tools-list-toolrow:last-child {
-	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
-}
-
 .ai-customization-management-editor .tools-list-setrow:hover,
 .ai-customization-management-editor .tools-list-toolrow:hover {
 	background: var(--vscode-list-hoverBackground);
 }
 
-/* Match the other customization lists' focus ring: :focus-within for inner checkbox/chevron, :focus for a row click. */
-.ai-customization-management-editor .tools-list-setrow:focus,
-.ai-customization-management-editor .tools-list-setrow:focus-within,
-.ai-customization-management-editor .tools-list-toolrow:focus,
-.ai-customization-management-editor .tools-list-toolrow:focus-within {
-	outline: 1px solid var(--vscode-list-focusOutline);
-	background: var(--vscode-list-focusBackground, var(--vscode-list-hoverBackground));
+/* A row-to-row divider between every adjacent row (set-to-set, set-to-tool, tool-to-tool, tool-to-set). */
+.ai-customization-management-editor .tools-inventory-list .monaco-list-row:not(:first-child) {
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border);
 }
 
 .ai-customization-management-editor .tools-list-chevron {
@@ -1488,13 +1607,7 @@ per-word capitalization does not survive translation. */
 	margin-left: auto;
 }
 
-/* Child tool row (indented under the tool set) */
-.ai-customization-management-editor .tools-list-children {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
+/* Tool row: visually indented under its tool set via its own `padding-inline-start` (no DOM nesting). */
 .ai-customization-management-editor .tools-list-toolrow {
 	display: flex;
 	align-items: center;
@@ -1691,10 +1804,27 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-empty {
-	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	margin: var(--vscode-spacing-size80) calc(var(--vscode-spacing-size160) - var(--vscode-spacing-size40)) var(--vscode-spacing-size160);
+	padding-inline: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-leading-slot:empty {
+	display: none;
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-header {
+	gap: var(--vscode-spacing-size80);
+	padding-inline: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .mcp-detail-container .editor-back-button {
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+}
+
+.ai-customization-management-editor .mcp-detail-container .mcp-detail-definition-empty {
+	margin-inline-start: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size280) + var(--vscode-spacing-size80) - var(--vscode-spacing-size40));
 }
 
 /* The tools detail lists many short tool descriptions, so let it use the full editor width. */
@@ -2107,7 +2237,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
-	padding: 8px 0;
+	padding-block: var(--vscode-spacing-size80);
 }
 
 /* Included tools list (tool extension detail) */
@@ -2380,6 +2510,46 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
+.mcp-server-item.has-error {
+	align-items: flex-start;
+	padding-top: var(--vscode-spacing-size120);
+	padding-bottom: var(--vscode-spacing-size120);
+}
+
+.mcp-server-item .mcp-server-description.error {
+	color: var(--vscode-errorForeground);
+	margin-top: var(--vscode-spacing-size80);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	overflow: visible;
+	text-overflow: clip;
+}
+
+.mcp-server-item .mcp-server-description.error:not(.expanded) {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	max-height: 3lh;
+	overflow: hidden;
+}
+
+.mcp-server-item .mcp-server-error-toggle.monaco-button {
+	align-self: flex-start;
+	width: auto;
+	min-width: 0;
+	padding: 0;
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-textLink-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	border: 0;
+	background: transparent;
+}
+
+.mcp-server-item .mcp-server-error-toggle.monaco-button:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
 .mcp-server-item .mcp-server-actions {
 	flex-shrink: 0;
 	display: flex;
@@ -2406,19 +2576,6 @@ per-word capitalization does not survive translation. */
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.mcp-server-item .mcp-server-status-action.monaco-button {
-	min-width: var(--vscode-spacing-size240);
-	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size40);
-	border: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	background-color: transparent;
-}
-
-.mcp-server-item .mcp-server-status-action.monaco-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
 .mcp-server-item .mcp-server-status.running {
 	color: var(--vscode-charts-green);
 }
@@ -2429,10 +2586,6 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-status.auth-required {
 	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
-}
-
-.mcp-server-item .mcp-server-status.error {
-	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
 }
 
 .mcp-server-item.disabled {
@@ -2488,9 +2641,29 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
+}
+
+.plugin-list-widget .plugin-card-grid.plugin-inventory-list.virtualized-section-list {
+	display: block;
+}
+
+.plugin-list-widget .virtualized-section-list .monaco-list-row {
+	box-sizing: border-box;
+}
+
+.plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item {
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.plugin-list-widget .virtualized-section-list .monaco-list-row:not(:first-child) {
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .plugin-list-widget .plugin-home-row {
@@ -2541,7 +2714,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-home-row:not(:last-child) {
-	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .plugin-list-widget .plugin-home-row:hover {
@@ -2658,10 +2831,15 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-list-item-action {
+	display: flex;
+	align-items: center;
+	flex-flow: row nowrap;
+	gap: var(--vscode-spacing-size40);
 	flex-shrink: 0;
+	margin-left: auto;
 }
 
-.plugin-list-widget .plugin-home-row .plugin-card-icon-button.monaco-button {
+.plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button {
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
@@ -2671,67 +2849,38 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 }
 
-.plugin-list-widget .plugin-home-row .plugin-card-icon-button.monaco-button:hover {
-	background: transparent;
-	border-color: var(--vscode-widget-border);
+.plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-color: transparent;
 	color: var(--vscode-textLink-activeForeground);
+}
+
+.plugin-list-widget .mcp-server-actions .plugin-card-icon-button.monaco-button {
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-color: transparent;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+
+.plugin-list-widget .mcp-server-actions .plugin-card-icon-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-color: transparent;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.vscode-high-contrast .plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button:focus-visible,
+.vscode-high-contrast .plugin-list-widget .mcp-server-actions .plugin-card-icon-button.monaco-button:focus-visible {
+	border-color: var(--vscode-contrastActiveBorder);
 }
 
 .plugin-list-widget .customization-home-row:hover {
 	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 65%, transparent);
 }
 
-.plugin-list-widget .plugin-enable-switch {
-	position: relative;
-	flex: 0 0 auto;
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size160);
-	padding: 0;
-	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-descriptionForeground) 36%, transparent);
-	cursor: pointer;
-	transition: background-color 120ms ease, border-color 120ms ease;
-}
-
-.plugin-list-widget .plugin-enable-switch.checked {
-	background: var(--vscode-button-background);
-	border-color: var(--vscode-button-background);
-}
-
-.plugin-list-widget .plugin-enable-switch:disabled {
-	cursor: default;
-	opacity: 0.5;
-}
-
-.plugin-list-widget .plugin-enable-switch:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-}
-
-.plugin-list-widget .plugin-enable-switch-thumb {
-	position: absolute;
-	top: var(--vscode-strokeThickness);
-	left: var(--vscode-strokeThickness);
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-button-foreground);
-	transition: transform 120ms ease;
-}
-
-.plugin-list-widget .plugin-enable-switch.checked .plugin-enable-switch-thumb {
-	transform: translateX(var(--vscode-spacing-size120));
-}
-
-.vscode-high-contrast .plugin-list-widget .plugin-enable-switch {
-	border-color: var(--vscode-contrastBorder);
-}
-
-.monaco-workbench.monaco-reduce-motion .plugin-list-widget .plugin-enable-switch,
-.monaco-workbench.monaco-reduce-motion .plugin-list-widget .plugin-enable-switch-thumb {
-	transition: none;
-}
+/* The enablement switch is the shared `Switch` widget; its styling lives in base. */
 
 .plugin-list-widget .plugin-list-item-install-button {
 	font-size: var(--vscode-agents-fontSize-body2);
@@ -2748,11 +2897,50 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 }
 
+.plugin-list-widget .plugin-card-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+	max-width: 840px;
+	margin: 0 auto;
+}
+
+.plugin-list-widget .plugin-card-scrollable > .plugin-card-container {
+	position: absolute;
+	inset: 0;
+}
+
 .plugin-list-widget .plugin-card-scroll {
 	height: 100%;
 	overflow: auto;
-	padding: 0 max(var(--vscode-spacing-size20), calc((100% - 840px) / 2)) var(--vscode-spacing-size200);
+	padding: 0 0 var(--vscode-spacing-size200);
 	box-sizing: border-box;
+}
+
+.plugin-list-widget .plugin-card-scroll.distributed-section-layout {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+	height: 100%;
+	min-height: 0;
+	padding-bottom: 0;
+	overflow: hidden;
+}
+
+.plugin-list-widget .distributed-section-layout > .plugin-card-section {
+	flex: 0 0 auto;
+	margin-bottom: 0;
+}
+
+.plugin-list-widget .distributed-section-layout .plugin-card-section-header {
+	margin-bottom: var(--vscode-spacing-size20);
+}
+
+.plugin-list-widget .plugin-card-scroll-content {
+	height: auto;
+	overflow: visible;
+	padding: 0 0 var(--vscode-spacing-size200);
 }
 
 .plugin-list-widget .plugin-marketplace-back-container {
@@ -2764,10 +2952,6 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .plugin-card-section {
 	margin-bottom: var(--vscode-spacing-size240);
-}
-
-.plugin-list-widget .plugin-discovery-section {
-	margin-bottom: var(--vscode-spacing-size320);
 }
 
 .plugin-list-widget .plugin-card-section-header {
@@ -2790,7 +2974,7 @@ per-word capitalization does not survive translation. */
 	width: auto;
 }
 
-.plugin-list-widget .plugin-card-section-actions .plugin-update-available-button.monaco-button {
+.plugin-list-widget .plugin-card-section-actions .plugin-update-button.monaco-button {
 	width: var(--vscode-spacing-size280);
 	min-width: var(--vscode-spacing-size280);
 	padding: var(--vscode-spacing-size40) 0;
@@ -2866,6 +3050,15 @@ per-word capitalization does not survive translation. */
 	line-height: 16px;
 }
 
+.plugin-list-widget .virtualized-section-loading {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	padding-inline: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
 .plugin-list-widget .plugin-marketplace-home-row .plugin-list-item-install-button.monaco-button {
 	width: auto;
 	flex: 0 0 auto;
@@ -2875,7 +3068,6 @@ per-word capitalization does not survive translation. */
 	margin-bottom: 0;
 }
 
-.plugin-list-widget.wide-layout .plugin-discovery-section .plugin-card-grid,
 .plugin-list-widget.wide-layout .plugin-marketplace-recommended-section .plugin-card-grid {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -2889,7 +3081,6 @@ per-word capitalization does not survive translation. */
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-large);
-	background: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
 	box-sizing: border-box;
 	cursor: pointer;
@@ -2927,14 +3118,6 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-card:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.plugin-list-widget .plugin-discovery-section .plugin-card {
-	background: transparent;
-}
-
-.plugin-list-widget .plugin-discovery-section .plugin-card:hover {
 	background: var(--vscode-list-hoverBackground);
 }
 
@@ -3537,3 +3720,23 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */
+
+/* Migrations dashboard scroll container */
+.ai-customization-management-editor .prompt-migration-content-container.showing-dashboard {
+	padding: 0;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-container {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	box-sizing: border-box;
+	padding: 0 var(--vscode-spacing-size160) 0 0;
+}

@@ -63,15 +63,6 @@
 			-webkit-user-select: text;
 
 			.rendered-markdown {
-				a {
-					color: var(--vscode-textLink-foreground);
-				}
-
-				a:hover,
-				a:active {
-					color: var(--vscode-textLink-activeForeground);
-				}
-
 				p {
 					margin: 0;
 				}
@@ -93,6 +84,27 @@
 			flex-shrink: 0;
 		}
 	}
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.hc-black .chat-question-carousel-container .rendered-markdown a,
+.hc-light .chat-question-carousel-container .rendered-markdown a {
+	text-decoration: underline;
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a:hover,
+.interactive-session .chat-question-carousel-container .rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+	text-decoration-thickness: 2px;
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
@@ -206,11 +218,6 @@
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 
-			.chat-question-list-label,
-			.chat-question-list-label-title {
-				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
-			}
-
 			.chat-question-list-label-desc {
 				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
@@ -245,7 +252,8 @@
 				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 			}
 		}
-		.chat-question-list-item.selected:hover {
+
+		&:not(:focus) .chat-question-list-item.selected:hover {
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
 

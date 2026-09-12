@@ -21,7 +21,7 @@ import { join } from '../../../util/vs/base/common/path';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IExtensionContribution } from '../../common/contributions';
-import { unificationStateObservable } from '../../completions/vscode-node/completionsUnificationContribution';
+import { learnMoreCommandId, learnMoreLink } from '../common/inlineEditCommands';
 import { TelemetrySender } from '../node/nextEditProviderTelemetry';
 import { ContinuousEnhancedTelemetrySender } from '../node/continuousEnhancedTelemetrySender';
 import { ExpectedEditCaptureController } from './components/expectedEditCaptureController';
@@ -33,29 +33,11 @@ import { InlineEditModel } from './inlineEditModel';
 import { InlineEditLogger } from './parts/inlineEditLogger';
 import { VSCodeWorkspace } from './parts/vscodeWorkspace';
 import { makeSettable } from './utils/observablesUtils';
+import { observeUnifiedCompletions } from './unifiedCompletions';
 
 const useEnhancedNotebookNESContextKey = 'github.copilot.chat.enableEnhancedNotebookNES';
 
 export class InlineEditProviderFeatureContribution extends Disposable implements IExtensionContribution {
-
-	constructor(
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IExperimentationService _experimentationService: IExperimentationService,
-	) {
-		super();
-
-		const logger = this._logService.createSubLogger(['NES', 'Feature']);
-
-		const inlineEditProviderFeature = this._instantiationService.createInstance(InlineEditProviderFeature);
-		this._register(inlineEditProviderFeature.registerProvider());
-		this._register(inlineEditProviderFeature.setContext());
-
-		logger.trace('Return: void');
-	}
-}
-
-export class InlineEditProviderFeature {
 
 	private readonly _inlineEditsProviderId = makeSettable(this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsProviderId, this._expService));
 
@@ -64,11 +46,9 @@ export class InlineEditProviderFeature {
 	private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
-	// Read reactively: on a fetched `/models` deployment this resolves async, so a brief cold-start
-	// window can emit completions until `onModelListUpdated` fires and re-registers with the excludes.
-	private readonly _supportsUnifiedCompletions = observableFromEvent(this, this._modelService.onModelListUpdated, () => this._modelService.selectedModelConfiguration().supportsUnifiedCompletions ?? false);
+	private readonly _unifiedCompletions = observeUnifiedCompletions(this, this._configurationService, this._expService, this._modelService);
 
-	public readonly inlineEditsEnabled = derived(this, (reader) => {
+	private readonly inlineEditsEnabled = derived(this, (reader) => {
 		const copilotToken = this._copilotToken.read(reader);
 		if (copilotToken === undefined) {
 			return false;
@@ -83,7 +63,7 @@ export class InlineEditProviderFeature {
 		return !!this._copilotToken.read(reader)?.isInternal && !this._hideInternalInterface.read(reader);
 	});
 
-	public readonly isInlineEditsLogFileEnabledObservable = this._configurationService.getConfigObservable(ConfigKey.TeamInternal.InlineEditsLogContextRecorderEnabled);
+	private readonly isInlineEditsLogFileEnabledObservable = this._configurationService.getConfigObservable(ConfigKey.TeamInternal.InlineEditsLogContextRecorderEnabled);
 
 	private readonly _workspace = derivedDisposable(this, _reader => {
 		return this._instantiationService.createInstance(VSCodeWorkspace);
@@ -97,13 +77,22 @@ export class InlineEditProviderFeature {
 		@IEnvService private readonly _envService: IEnvService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
+		@ILogService logService: ILogService,
 	) {
+		super();
+
+		const logger = logService.createSubLogger(['NES', 'Feature']);
+
+		this._register(this.registerProvider());
+		this._register(this.setContext());
+
+		logger.trace('Return: void');
 	}
 
-	public setContext(): IDisposable {
+	private setContext(): IDisposable {
 		// TODO: this should be reactive to config changes
 		const enableEnhancedNotebookNES = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.UseAlternativeNESNotebookFormat, this._expService) || this._configurationService.getExperimentBasedConfig(ConfigKey.UseAlternativeNESNotebookFormat, this._expService);
-		commands.executeCommand('setContext', useEnhancedNotebookNESContextKey, enableEnhancedNotebookNES);
+		void commands.executeCommand('setContext', useEnhancedNotebookNESContextKey, enableEnhancedNotebookNES);
 
 		// Set context key for inline edits enabled state (used for keybindings)
 		return autorun((reader) => {
@@ -112,9 +101,7 @@ export class InlineEditProviderFeature {
 		});
 	}
 
-	public registerProvider(): IDisposable {
-		const unificationState = unificationStateObservable(this);
-
+	private registerProvider(): IDisposable {
 		return autorun(reader => {
 			if (!this.inlineEditsEnabled.read(reader)) { return; }
 
@@ -160,12 +147,9 @@ export class InlineEditProviderFeature {
 				model.debugRecorder
 			));
 
-			const provider = this._instantiationService.createInstance(InlineCompletionProviderImpl, model, logger, logContextRecorder, inlineEditDebugComponent, telemetrySender, expectedEditCaptureController);
+			const provider = reader.store.add(this._instantiationService.createInstance(InlineCompletionProviderImpl, model, logger, logContextRecorder, inlineEditDebugComponent, telemetrySender, expectedEditCaptureController));
 
-			const unificationStateValue = unificationState.read(reader);
-			// Unify when the selected model's strategy bakes in `supportsUnifiedCompletions`, or when the
-			// core deployment/ExP `modelUnification` toggle is set.
-			const modelUnification = this._supportsUnifiedCompletions.read(reader) || (unificationStateValue?.modelUnification ?? false);
+			const modelUnification = this._unifiedCompletions.read(reader);
 			let excludes = this._excludedProviders.read(reader);
 			if (modelUnification) {
 				excludes = excludes.slice(0);
@@ -230,13 +214,9 @@ export class InlineEditProviderFeature {
 	}
 }
 
-export const learnMoreCommandId = 'github.copilot.debug.inlineEdit.learnMore';
-
-export const learnMoreLink = 'https://aka.ms/vscode-nes';
-
-export const clearCacheCommandId = 'github.copilot.debug.inlineEdit.clearCache';
-export const reportNotebookNESIssueCommandId = 'github.copilot.debug.inlineEdit.reportNotebookNESIssue';
-export const captureExpectedStartCommandId = 'github.copilot.nes.captureExpected.start';
-export const captureExpectedConfirmCommandId = 'github.copilot.nes.captureExpected.confirm';
-export const captureExpectedAbortCommandId = 'github.copilot.nes.captureExpected.abort';
-export const captureExpectedSubmitCommandId = 'github.copilot.nes.captureExpected.submit';
+const clearCacheCommandId = 'github.copilot.debug.inlineEdit.clearCache';
+const reportNotebookNESIssueCommandId = 'github.copilot.debug.inlineEdit.reportNotebookNESIssue';
+const captureExpectedStartCommandId = 'github.copilot.nes.captureExpected.start';
+const captureExpectedConfirmCommandId = 'github.copilot.nes.captureExpected.confirm';
+const captureExpectedAbortCommandId = 'github.copilot.nes.captureExpected.abort';
+const captureExpectedSubmitCommandId = 'github.copilot.nes.captureExpected.submit';

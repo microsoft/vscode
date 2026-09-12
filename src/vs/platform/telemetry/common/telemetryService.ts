@@ -151,8 +151,12 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
-	setCommonProperty(name: string, value: string | boolean): void {
-		this._commonProperties[name] = value;
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
+		if (value === undefined) {
+			delete this._commonProperties[name];
+		} else {
+			this._commonProperties[name] = value;
+		}
 	}
 
 	private _flushPendingEvents(): void {

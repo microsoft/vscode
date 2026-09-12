@@ -9,7 +9,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
+import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatTurnPillsContentPart } from '../../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
@@ -19,7 +19,7 @@ import { IChatTurnPillsPart } from '../../../../common/model/chatViewModel.js';
 suite('ChatTurnPillsContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps the turn changes summary once it has been shown', () => {
+	test('keeps transient empty changes and clears authoritative empty changes', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('turnChanges', []);
 		instantiationService.stub(IChatResponseFileChangesService, {
@@ -60,11 +60,14 @@ suite('ChatTurnPillsContentPart', () => {
 		// The changeset recompute at turn end briefly reports no files.
 		diffs.set([], undefined);
 		states.push(readState());
+		diffs.set(AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, undefined);
+		states.push(readState());
 
 		assert.deepStrictEqual(states, [
 			{ display: 'none', files: '0 files changed', additions: '+0', deletions: '-0' },
 			{ display: '', files: '2 files changed', additions: '+8', deletions: '-3' },
 			{ display: '', files: '2 files changed', additions: '+8', deletions: '-3' },
+			{ display: 'none', files: '0 files changed', additions: '+0', deletions: '-0' },
 		]);
 	});
 

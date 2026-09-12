@@ -22,6 +22,7 @@ suite('SessionEditorComments', () => {
 	test('merges and sorts feedback and PR review comments by resource and range', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'review-a', pullRequest, uri: fileA, range: new Range(3, 1, 3, 1), body: 'review a', author: 'reviewer' },
 				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
@@ -43,6 +44,7 @@ suite('SessionEditorComments', () => {
 	test('groups nearby comments only within the same resource', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'review-a', pullRequest, uri: fileA, range: new Range(13, 1, 13, 1), body: 'review a', author: 'reviewer' },
 				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(11, 1, 11, 1), body: 'review b', author: 'reviewer' },
@@ -66,6 +68,7 @@ suite('SessionEditorComments', () => {
 	test('filters resource comments and detects authored feedback presence', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
 			],
@@ -82,6 +85,7 @@ suite('SessionEditorComments', () => {
 	test('includes PR review comments when prReviewState is loaded', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 				{ id: 'pr-thread-2', pullRequest, uri: fileB, range: new Range(1, 1, 1, 1), body: 'Looks wrong', author: 'reviewer' },
@@ -102,6 +106,7 @@ suite('SessionEditorComments', () => {
 	test('merges PR review comments with feedback sorted correctly', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(7, 1, 7, 1), body: 'PR comment', author: 'reviewer' },
 			],
@@ -124,6 +129,18 @@ suite('SessionEditorComments', () => {
 		assert.strictEqual(comments.length, 0);
 	});
 
+	test('omits raw PR review comments when Agent Host annotations are authoritative', () => {
+		const prState: IPRReviewState = {
+			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
+			comments: [
+				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+			],
+		};
+
+		assert.deepStrictEqual(getSessionEditorComments(session, [], prState, undefined, false), []);
+	});
+
 	test('excludes resolved feedback from the editor comments', () => {
 		const feedback = [
 			{ id: 'feedback-accepted', text: 'accepted', resourceUri: fileA, range: new Range(2, 1, 2, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
@@ -141,9 +158,10 @@ suite('SessionEditorComments', () => {
 		});
 	});
 
-	test('hides a created PR-review mirror and shows the raw PR comment instead', () => {
+	test('shows the Agent Host PR-review annotation and hides the raw PR comment', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 			],
@@ -152,12 +170,13 @@ suite('SessionEditorComments', () => {
 			{ id: 'mirror-1', text: 'Please fix this', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'pr-thread-1', state: AgentFeedbackState.Created },
 		], prState);
 
-		assert.deepStrictEqual(comments.map(c => `${c.source}:${c.sourceId}`), ['prReview:pr-thread-1']);
+		assert.deepStrictEqual(comments.map(c => `${c.source}:${c.sourceId}:${c.state}`), ['agentFeedback:mirror-1:created']);
 	});
 
 	test('shows an accepted PR-review mirror and hides the superseded raw PR comment', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 			],

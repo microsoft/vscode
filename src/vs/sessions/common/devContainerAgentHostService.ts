@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../base/common/cancellation.js';
+import { Event } from '../../base/common/event.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
-import { IAgentConnection } from '../../platform/agentHost/common/agentService.js';
+import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 
-/** Hidden setting that enables Dev Container Agent Host sessions. */
+/** Experimental setting that enables Dev Container Agent Host sessions. */
 export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
 
-/** Connected Agent Host and workspace mapping produced by a Dev Container connector. */
+/** Hidden experimental setting that enables combining Dev Container execution with a new worktree. */
+export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer.worktree.enabled';
+
+/** Agent Host transport and workspace mapping produced by a Dev Container connector. */
 export interface IDevContainerAgentHostConnection {
 	/**
 	 * Stable address that uniquely identifies this source workspace's running
@@ -20,7 +24,7 @@ export interface IDevContainerAgentHostConnection {
 	 */
 	readonly address: string;
 	readonly name: string;
-	readonly connection: IAgentConnection & IDisposable;
+	readonly transportFactory: () => IProtocolTransport;
 	readonly transportDisposable?: IDisposable;
 	readonly workspaceUri: URI;
 	readonly defaultDirectory?: string;
@@ -30,7 +34,7 @@ export interface IDevContainerAgentHostConnection {
 export interface IDevContainerAgentHostConnector {
 	/** Whether the workspace has a supported configuration and Docker is available. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostConnection>;
+	createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection>;
 }
 
 /** Sessions provider and workspace selected after connecting a Dev Container. */
@@ -43,10 +47,11 @@ export interface IDevContainerAgentHostTarget {
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
-/** Coordinates Dev Container connectors with dynamic remote Sessions providers. */
+/** Coordinates Dev Container connectors with persistent remote Sessions providers. */
 export interface IDevContainerAgentHostService {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidChangeAvailability: Event<void>;
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;

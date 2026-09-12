@@ -6,10 +6,9 @@
 import type { Language, Parser, Query, QueryCapture } from '@vscode/tree-sitter-wasm';
 import * as fs from 'fs';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { FileAccess } from '../../../base/common/network.js';
 import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
-import { getAppNodeModulesPath } from './appNodeModules.js';
+import { getAppNodeModulesUri } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
 import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/common/autoApprove/autoApproveParseSafety.js';
 import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
@@ -193,7 +192,7 @@ function getTreeSitterResources(): Promise<ITreeSitterResources> {
 
 async function loadTreeSitterResources(): Promise<ITreeSitterResources> {
 	const { default: TreeSitter } = await import('@vscode/tree-sitter-wasm');
-	const moduleRoot = URI.joinPath(FileAccess.asFileUri(getAppNodeModulesPath()), '@vscode', 'tree-sitter-wasm', 'wasm');
+	const moduleRoot = URI.joinPath(getAppNodeModulesUri(), '@vscode', 'tree-sitter-wasm', 'wasm');
 	const wasmPath = URI.joinPath(moduleRoot, 'tree-sitter.wasm').fsPath;
 
 	await TreeSitter.Parser.init({

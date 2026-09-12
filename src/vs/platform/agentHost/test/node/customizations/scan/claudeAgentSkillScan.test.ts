@@ -45,6 +45,22 @@ suite('claudeAgentSkillScan', () => {
 		].sort((a, b) => a.uri.localeCompare(b.uri)));
 	});
 
+	test('preserves invocation metadata for skills and commands', async () => {
+		await seed('/workspace/.claude/skills/s/SKILL.md', '---\nname: skill\nuser-invocable: false\ndisable-model-invocation: true\n---\nbody');
+		await seed('/workspace/.claude/commands/c.md', '---\nname: command\nuser-invocable: false\ndisable-model-invocation: true\n---\nbody');
+
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+
+		assert.deepStrictEqual(discovered.map(item => ({
+			name: item.name,
+			disableModelInvocation: item.customization.disableModelInvocation,
+			disableUserInvocation: item.customization.disableUserInvocation,
+		})).sort((a, b) => a.name.localeCompare(b.name)), [
+			{ name: 'command', disableModelInvocation: true, disableUserInvocation: true },
+			{ name: 'skill', disableModelInvocation: true, disableUserInvocation: true },
+		]);
+	});
+
 	test('a skill wins over a same-named command (spec §3 priority)', async () => {
 		const skill = await seed('/workspace/.claude/skills/dup/SKILL.md', '---\nname: dup\ndescription: The skill\n---\nbody');
 		await seed('/workspace/.claude/commands/dup.md', '---\nname: dup\ndescription: The command\n---\nbody');

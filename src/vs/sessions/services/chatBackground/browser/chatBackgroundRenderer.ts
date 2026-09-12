@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatBackground.css';
-import { clearNode, DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
+import { $, clearNode, DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -49,6 +49,18 @@ const codiconChoices = [
 	Codicon.tools,
 	Codicon.wand,
 	Codicon.zap,
+	Codicon.agent,
+	Codicon.robot,
+	Codicon.bug,
+	Codicon.circuitBoard,
+	Codicon.telescope,
+	Codicon.compass,
+	Codicon.layers,
+	Codicon.package,
+	Codicon.server,
+	Codicon.graphLine,
+	Codicon.searchFuzzy,
+	Codicon.squirrel,
 ];
 
 function hashCodiconCell(row: number, column: number, salt: number): number {
@@ -61,19 +73,18 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 
 	private readonly backgroundLayer: HTMLElement;
 	private readonly codiconLayer: HTMLElement;
+	private readonly codiconCells = new Map<string, HTMLElement>();
 	private background: ISessionsChatBackground | undefined;
 	private codiconGridSize: string | undefined;
 
 	constructor(private readonly element: HTMLElement) {
 		super();
 
-		this.backgroundLayer = element.ownerDocument.createElement('div');
-		this.backgroundLayer.className = 'sessions-chat-background';
+		this.backgroundLayer = $('.sessions-chat-background');
 		this.backgroundLayer.ariaHidden = 'true';
 		this.backgroundLayer.hidden = true;
 
-		this.codiconLayer = element.ownerDocument.createElement('div');
-		this.codiconLayer.className = 'sessions-chat-codicon-background';
+		this.codiconLayer = $('.sessions-chat-codicon-background');
 		this.codiconLayer.ariaHidden = 'true';
 		this.codiconLayer.hidden = true;
 		this.backgroundLayer.appendChild(this.codiconLayer);
@@ -112,6 +123,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			this.renderCodicons(this.element.clientWidth, this.element.clientHeight);
 		} else {
 			this.codiconGridSize = undefined;
+			this.codiconCells.clear();
 			clearNode(this.codiconLayer);
 		}
 	}
@@ -129,25 +141,88 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		}
 		this.codiconGridSize = gridSize;
 
-		const fragment = this.element.ownerDocument.createDocumentFragment();
+		const newIcons: HTMLElement[] = [];
+		const visibleCells = new Set<string>();
 		for (let row = 0; row < rows; row++) {
 			for (let column = 0; column < columns; column++) {
 				if (hashCodiconCell(row, column, 0) % 9 === 0) {
 					continue;
 				}
+
+				const cell = `${row}:${column}`;
+				visibleCells.add(cell);
+				if (this.codiconCells.has(cell)) {
+					continue;
+				}
+
 				const icon = renderIcon(codiconChoices[hashCodiconCell(row, column, 1) % codiconChoices.length]);
 				icon.ariaHidden = 'true';
 				const horizontalOffset = ((hashCodiconCell(row, column, 2) % 71) - 35) / 100;
 				const verticalOffset = ((hashCodiconCell(row, column, 3) % 65) - 32) / 100;
 				const rotation = (hashCodiconCell(row, column, 4) % 71) - 35;
-				icon.style.left = `${((column + 0.5 + horizontalOffset) / columns) * 100}%`;
-				icon.style.top = `${((row + 0.5 + verticalOffset) / rows) * 100}%`;
+				icon.style.left = `${(column + 0.5 + horizontalOffset) * codiconCellSize}px`;
+				icon.style.top = `${(row + 0.5 + verticalOffset) * codiconCellSize}px`;
 				icon.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
 				icon.style.opacity = `${0.65 + (hashCodiconCell(row, column, 5) % 36) / 100}`;
-				fragment.append(icon);
+				this.codiconCells.set(cell, icon);
+				newIcons.push(icon);
 			}
 		}
-		clearNode(this.codiconLayer);
-		this.codiconLayer.append(fragment);
+
+		for (const [cell, icon] of this.codiconCells) {
+			if (!visibleCells.has(cell)) {
+				icon.remove();
+				this.codiconCells.delete(cell);
+			}
+		}
+		this.codiconLayer.append(...newIcons);
+	}
+}
+
+export class SessionsChatBackgroundReplica extends Disposable {
+
+	private readonly viewport: HTMLElement;
+	private readonly element: HTMLElement;
+	private readonly renderer: SessionsChatBackgroundRenderer;
+
+	constructor(
+		private readonly source: HTMLElement,
+		private readonly container: HTMLElement,
+	) {
+		super();
+
+		this.viewport = $('.sessions-chat-background-replica-viewport');
+		this.viewport.ariaHidden = 'true';
+		this.viewport.hidden = true;
+		this.element = $('.sessions-chat-background-replica');
+		this.element.ariaHidden = 'true';
+		this.viewport.appendChild(this.element);
+		this.container.prepend(this.viewport);
+		this._register(toDisposable(() => this.viewport.remove()));
+		this.layout();
+
+		this.renderer = this._register(new SessionsChatBackgroundRenderer(this.element));
+
+		const resizeObserver = this._register(new DisposableResizeObserver(
+			'SessionsChatBackgroundReplica',
+			() => this.layout(),
+			getWindow(source)
+		));
+		this._register(resizeObserver.observe(source));
+		this._register(resizeObserver.observe(container));
+	}
+
+	setBackground(background: ISessionsChatBackground | undefined): void {
+		this.viewport.hidden = !background;
+		this.renderer.setBackground(background);
+	}
+
+	layout(): void {
+		const sourceBounds = this.source.getBoundingClientRect();
+		const containerBounds = this.container.getBoundingClientRect();
+		this.element.style.left = `${sourceBounds.left - containerBounds.left}px`;
+		this.element.style.top = `${sourceBounds.top - containerBounds.top}px`;
+		this.element.style.width = `${sourceBounds.width}px`;
+		this.element.style.height = `${sourceBounds.height}px`;
 	}
 }
