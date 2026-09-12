@@ -9,19 +9,30 @@ fi
 
 export VSCODE_CLIENT_SYSROOT_DIR=$PWD/.build/sysroots/glibc-2.28-gcc-10.5.0
 export VSCODE_REMOTE_SYSROOT_DIR=$PWD/.build/sysroots/glibc-2.28-gcc-8.5.0
-if [ -d "$VSCODE_CLIENT_SYSROOT_DIR" ]; then
-  echo "Using cached client sysroot"
+echo "Ensuring client sysroot"
+SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_CLIENT_SYSROOT_DIR" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+
+echo "Ensuring remote sysroot"
+SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_REMOTE_SYSROOT_DIR" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+
+if [ "$npm_config_arch" == "x64" ]; then
+  VSCODE_CLIENT_TOOLCHAIN_TRIPLE="x86_64-linux-gnu"
+  VSCODE_CLIENT_LIBRARY_TRIPLE="x86_64-linux-gnu"
+elif [ "$npm_config_arch" == "arm64" ]; then
+  VSCODE_CLIENT_TOOLCHAIN_TRIPLE="aarch64-linux-gnu"
+  VSCODE_CLIENT_LIBRARY_TRIPLE="aarch64-linux-gnu"
+elif [ "$npm_config_arch" == "arm" ]; then
+  VSCODE_CLIENT_TOOLCHAIN_TRIPLE="arm-rpi-linux-gnueabihf"
+  VSCODE_CLIENT_LIBRARY_TRIPLE="arm-linux-gnueabihf"
 else
-  echo "Downloading client sysroot"
-  SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_CLIENT_SYSROOT_DIR" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+  echo "Unsupported npm architecture: $npm_config_arch" >&2
+  exit 1
 fi
 
-if [ -d "$VSCODE_REMOTE_SYSROOT_DIR" ]; then
-  echo "Using cached remote sysroot"
-else
-  echo "Downloading remote sysroot"
-  SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_REMOTE_SYSROOT_DIR" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
-fi
+VSCODE_CLIENT_SYSROOT="$VSCODE_CLIENT_SYSROOT_DIR/$VSCODE_CLIENT_TOOLCHAIN_TRIPLE/$VSCODE_CLIENT_TOOLCHAIN_TRIPLE/sysroot"
+export PKG_CONFIG_SYSROOT_DIR="$VSCODE_CLIENT_SYSROOT"
+export PKG_CONFIG_LIBDIR="$VSCODE_CLIENT_SYSROOT/usr/lib/$VSCODE_CLIENT_LIBRARY_TRIPLE/pkgconfig:$VSCODE_CLIENT_SYSROOT/usr/lib/pkgconfig:$VSCODE_CLIENT_SYSROOT/usr/share/pkgconfig"
+unset PKG_CONFIG_PATH
 
 mkdir -p "$HOME/.gyp"
 cat > "$HOME/.gyp/include.gypi" << 'EOF'

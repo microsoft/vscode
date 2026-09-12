@@ -160,7 +160,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IUserDataSyncEnablementService, disposables.add(instantiationService.createInstance(UserDataSyncEnablementService)));
 
 	instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
-	instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: Event.None });
+	instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, whenInitialized: Promise.resolve(), onDidChangeIsConnectionMetered: Event.None });
 	instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 }

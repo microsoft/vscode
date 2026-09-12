@@ -64,6 +64,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 	}
 
 	private async _triggerAutoUpdate(marketplaceIds: ReadonlySet<string>): Promise<void> {
+		await this._meteredConnectionService.whenInitialized;
 		if (this._store.isDisposed || this._updateInFlight || this._meteredConnectionService.isConnectionMetered) {
 			return;
 		}

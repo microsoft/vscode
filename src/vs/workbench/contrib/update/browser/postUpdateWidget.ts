@@ -75,7 +75,8 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		if (this.meteredConnectionService.isConnectionMetered) {
+		await this.meteredConnectionService.whenInitialized;
+		if (this._store.isDisposed || this.meteredConnectionService.isConnectionMetered) {
 			return;
 		}
 
