@@ -312,6 +312,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		this._editorControlDisposables.add(tree.onDidOpen(async e => {
 			const myId = ++idPool;
 			const isDoubleClick = e.browserEvent?.type === 'dblclick';
+			const isShiftClick = dom.isMouseEvent(e.browserEvent) && e.browserEvent.shiftKey;
 			if (!isDoubleClick) {
 				// workaround for https://github.com/microsoft/vscode/issues/206424
 				await timeout(150);
@@ -319,7 +320,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 					return;
 				}
 			}
-			await newOutline.reveal(e.element, e.editorOptions, e.sideBySide, isDoubleClick);
+			await newOutline.reveal(e.element, e.editorOptions, e.sideBySide, isDoubleClick || isShiftClick);
 		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
