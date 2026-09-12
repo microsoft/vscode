@@ -739,6 +739,14 @@ abstract class ResourceNavigator<T> extends Disposable {
 			return;
 		}
 
+		// If opening on single-click, the element has already been opened by the first
+		// click; opening again on double-click would re-fire with preserveFocus:false and
+		// move focus to the editor, which can have unintended side effects (e.g. outline
+		// follow-cursor changing the focused entry). See #205823.
+		if (this.openOnSingleClick) {
+			return;
+		}
+
 		// copied from AbstractTree
 		const target = browserEvent.target as HTMLElement;
 		const onTwistie = target.classList.contains('monaco-tl-twistie')
