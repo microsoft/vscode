@@ -3,21 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from './assert.js';
+
 enum LazyValueState {
 	Uninitialized,
 	Running,
 	Completed,
 }
 
+type LazyValueExecutor<T> = () => T;
+
 export class Lazy<T> {
 
+	private _executor: LazyValueExecutor<T> | null;
 	private _state = LazyValueState.Uninitialized;
 	private _value?: T;
 	private _error: Error | undefined;
 
-	constructor(
-		private readonly executor: () => T,
-	) { }
+	constructor(executor: LazyValueExecutor<T>) {
+		this._executor = executor;
+	}
 
 	/**
 	 * True if the lazy value has been resolved.
@@ -32,11 +37,14 @@ export class Lazy<T> {
 	 */
 	get value(): T {
 		if (this._state === LazyValueState.Uninitialized) {
+			const executor = this._executor;
+			assert(executor !== null, 'Lazy executor must not be null for uninitialized lazy');
 			this._state = LazyValueState.Running;
+			this._executor = null;
 			try {
-				this._value = this.executor();
+				this._value = executor();
 			} catch (err) {
-				this._error = err;
+				this._error = err instanceof Error ? err : new Error(String(err));
 			} finally {
 				this._state = LazyValueState.Completed;
 			}
