@@ -4,17 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IChannel, IChannelClient } from '../../../../base/parts/ipc/common/ipc.js';
+import { IChannel, IChannelClient, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService, NullLoggerService } from '../../../log/common/log.js';
+import { localPtyServiceUnbufferedEvents } from '../../common/terminal.js';
 import { IPtyHostConnection, IPtyHostStarter } from '../../node/ptyHost.js';
 import { PtyHostService } from '../../node/ptyHostService.js';
 
 suite('PtyHostService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('localPty channel', () => {
+		for (const eventName of ['onProcessData', 'onProcessReady', 'onProcessReplay', 'onProcessOrphanQuestion', 'onDidRequestDetach', 'onDidChangeProperty', 'onProcessExit']) {
+			test(`${eventName} only subscribes while an IPC listener is attached`, () => {
+				const emitter = store.add(new Emitter<string>());
+				const channel = ProxyChannel.fromService({ [eventName]: emitter.event }, store, {
+					unbufferedEvents: localPtyServiceUnbufferedEvents
+				});
+				const onEvent = channel.listen<string>(undefined, eventName);
+				const listenerStates = [emitter.hasListeners()];
+				const messages: string[] = [];
+
+				emitter.fire('before');
+				const firstListener = store.add(onEvent(e => messages.push(e)));
+				listenerStates.push(emitter.hasListeners());
+				emitter.fire('first');
+				firstListener.dispose();
+				listenerStates.push(emitter.hasListeners());
+
+				emitter.fire('between');
+				const secondListener = store.add(onEvent(e => messages.push(e)));
+				listenerStates.push(emitter.hasListeners());
+				emitter.fire('second');
+				secondListener.dispose();
+				listenerStates.push(emitter.hasListeners());
+				emitter.fire('after');
+
+				deepStrictEqual({ listenerStates, messages }, {
+					listenerStates: [false, true, false, true, false],
+					messages: ['first', 'second']
+				});
+			});
+		}
+
+		for (const eventName of ['onPtyHostExit', 'onPtyHostStart', 'onPtyHostUnresponsive', 'onPtyHostResponsive', 'onPtyHostRequestResolveVariables']) {
+			test(`${eventName} remains buffered until an IPC listener attaches`, async () => {
+				const emitter = store.add(new Emitter<number>());
+				const channel = ProxyChannel.fromService({ [eventName]: emitter.event }, store, {
+					unbufferedEvents: localPtyServiceUnbufferedEvents
+				});
+
+				emitter.fire(1);
+
+				deepStrictEqual(await Event.toPromise(channel.listen<number>(undefined, eventName)), 1);
+			});
+		}
+	});
 
 	test('restartPtyHost disposes listeners registered during pty host startup', async () => {
 		// Track active listener counts per event across pty host restarts. Without the
