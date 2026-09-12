@@ -36,9 +36,9 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
-import { openSessionToTheSide } from './views/sessionsView.js';
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -163,6 +163,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _isRendering = false;
 	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
 	private _isQuickChat = false;
+	private readonly _sessionTitle: string | undefined;
 
 	/** The currently open blocked-sessions dropdown, if any. */
 	private _openContextView: IOpenContextView | undefined;
@@ -189,9 +190,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super(undefined, action, options);
 
+		this._sessionTitle = environmentService.sessionTitle?.replace(/\s+/g, ' ').trim() || undefined;
 		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
 
 		// Replay the attention blink when the model reports a genuinely new, not-yet-
@@ -351,7 +354,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _renderActiveSession(): void {
 		const container = this._container!;
-		container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
+		container.setAttribute('aria-label', this._sessionTitle
+			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", this._sessionTitle)
+			: localize('agentSessionsShowSessions', "Show Sessions"));
 
 		const workspaceInfo = this._workspaceInfo;
 
@@ -366,16 +371,22 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			centerGroup.appendChild(workspaceIconEl);
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = workspaceInfo.label;
+			workspaceEl.textContent = this._sessionTitle ?? workspaceInfo.label;
 			centerGroup.appendChild(workspaceEl);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceInfo.label }));
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceEl.textContent }));
 		} else if (this._isQuickChat) {
 			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
 			centerGroup.appendChild(workspaceIconEl);
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = localize('noWorkspace', "No workspace");
+			workspaceEl.textContent = this._sessionTitle ?? localize('noWorkspace', "No workspace");
 			centerGroup.appendChild(workspaceEl);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceEl.textContent }));
+		} else if (this._sessionTitle) {
+			const titleElement = $('div.agent-sessions-titlebar-workspace');
+			titleElement.textContent = this._sessionTitle;
+			centerGroup.appendChild(titleElement);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(titleElement, { content: this._sessionTitle }));
 		}
 
 		sessionPill.appendChild(centerGroup);
@@ -654,11 +665,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		if (sideBySide) {
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				openSessionToTheSide(this.sessionsService, session, { preserveFocus }).catch(onUnexpectedError);
+				this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
 				return;
 			}
 		}
-		this.sessionsService.openSession(resource, { preserveFocus }).catch(onUnexpectedError);
+		this.sessionsService.openSession(resource, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
 	}
 
 	private _showSessionsPicker(): void {

@@ -38,10 +38,12 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../chatCard.js';
 import { ChatCardListbox } from '../chatCardListbox.js';
 import './media/chatQuestionCarousel.css';
@@ -64,8 +66,13 @@ class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
 		private readonly onDidChangeHeight: () => void,
 		hoverService: IHoverService,
 		configurationService: IConfigurationService,
+		telemetryService: ITelemetryService,
 	) {
-		super(title, context, undefined, hoverService, configurationService);
+		super(title, context, undefined, hoverService, configurationService, telemetryService);
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'questionCarousel';
 	}
 
 	protected override init(): HTMLElement {
@@ -75,7 +82,7 @@ class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
 			const labelElement = this._collapseButton.labelElement;
 			labelElement.textContent = '';
 			const icon = dom.$('span.chat-question-summary-answer-icon');
-			icon.classList.add(...ThemeIcon.asClassNameArray(this.answerIcon));
+			icon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(this.answerIcon)));
 			icon.setAttribute('aria-hidden', 'true');
 			const value = dom.$('span.chat-question-summary-answer-value');
 			value.textContent = this.value;
@@ -164,6 +171,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
@@ -1723,12 +1731,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				answerTitle,
 				answerPrefix,
 				answerValue,
-				options?.answerIcon ?? (this.carousel.autoReply ? Codicon.copilotCompact : Codicon.comment),
+				options?.answerIcon ?? (this.carousel.autoReply ? Codicon.copilotCompact : Codicon.commentCompact),
 				collapsibleContext,
 				question.options?.length ? () => this.renderConversationOptions(question, answer) : undefined,
 				() => this._onDidChangeHeight.fire(),
 				this._hoverService,
 				this._configurationService,
+				this._telemetryService,
 			));
 			answerPart.domNode.classList.add('chat-question-answer-collapsible');
 			decision.appendChild(answerPart.domNode);

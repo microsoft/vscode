@@ -141,6 +141,18 @@ export function computeScrollDownState(isScrolledToBottom: boolean, scrollLock: 
 	};
 }
 
+export function isChatBackgroundContextMenuTarget(target: Element | undefined): boolean {
+	return !!target && !target.closest('.interactive-item-container, .scrollbar');
+}
+
+export function getChatContextMenuTargetContext(target: EventTarget | null): { isKatexElement: boolean; isBackground: boolean } {
+	const element = target instanceof Element ? target : undefined;
+	return {
+		isKatexElement: !!element?.closest(`.${katexContainerClassName}`),
+		isBackground: isChatBackgroundContextMenuTarget(element),
+	};
+}
+
 class UserToggleResizeTracker extends Disposable {
 
 	private readonly state = new UserToggleResizeState(2);
@@ -280,6 +292,12 @@ export interface IChatListWidgetOptions {
 	 * Callback to get the current editing input value.
 	 */
 	readonly getEditingValue?: () => string | undefined;
+
+	/** Scrollable space kept below the last item, for content floating over the list. */
+	readonly paddingBottom?: number;
+
+	/** Tab index applied to the transcript tree root. */
+	readonly tabIndex?: 0 | -1;
 }
 
 /**
@@ -361,6 +379,8 @@ export class ChatListWidget extends Disposable {
 	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
 	private readonly _useTreeHierarchy: boolean;
+	/** Scrollable space kept below the last item, see {@link IChatListWidgetOptions.paddingBottom}. */
+	private _paddingBottom: number;
 
 	//#endregion
 
@@ -368,6 +388,14 @@ export class ChatListWidget extends Disposable {
 
 	get domNode(): HTMLElement {
 		return this._container;
+	}
+
+	get stickyScrollDomNode(): HTMLElement | undefined {
+		return this._tree.stickyScrollDomNode;
+	}
+
+	get onDidChangeStickyScrollDomNode(): Event<HTMLElement | undefined> {
+		return this._tree.onDidChangeStickyScrollDomNode;
 	}
 
 	get scrollTop(): number {
@@ -447,6 +475,7 @@ export class ChatListWidget extends Disposable {
 		this._getSelectedModelRequestOptions = options.getSelectedModelRequestOptions;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._useTreeHierarchy = !options.filter;
+		this._paddingBottom = options.paddingBottom ?? 0;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
 
@@ -555,6 +584,7 @@ export class ChatListWidget extends Disposable {
 				horizontalScrolling: false,
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
+				paddingBottom: this._paddingBottom,
 				hideTwistiesOfChildlessElements: true,
 				enableStickyScroll: this.isTreeStickyScrollEnabled(),
 				stickyScrollMaxItemCount: 1,
@@ -565,6 +595,7 @@ export class ChatListWidget extends Disposable {
 				expandOnlyOnTwistieClick: true,
 				allowNonCollapsibleParents: true,
 				renderIndentGuides: RenderIndentGuides.None,
+				findWidgetEnabled: false,
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>
@@ -595,6 +626,9 @@ export class ChatListWidget extends Disposable {
 				}
 			}
 		));
+		if (options.tabIndex !== undefined) {
+			this._tree.getHTMLElement().tabIndex = options.tabIndex;
+		}
 
 		// Create scroll-down button
 		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
@@ -805,14 +839,13 @@ export class ChatListWidget extends Disposable {
 
 		const selected = e.element;
 
-		// Check if the context menu was opened on a KaTeX element
-		const target = e.browserEvent.target as HTMLElement;
-		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
+		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
-			[ChatContextKeys.isKatexMathElement.key, isKatexElement]
+			[ChatContextKeys.isKatexMathElement.key, targetContext.isKatexElement],
+			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground]
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
@@ -1119,6 +1152,12 @@ export class ChatListWidget extends Disposable {
 		if (lastElement) {
 			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
 			this._tree.reveal(lastElement, offset);
+			if (this._paddingBottom) {
+				// `reveal` stops at the last item's edge, leaving the padding
+				// unscrolled - which would keep the list from ever reporting that
+				// it is at the bottom. Overshoot is clamped.
+				this._tree.scrollTop += this._paddingBottom;
+			}
 		}
 	}
 
@@ -1226,6 +1265,19 @@ export class ChatListWidget extends Disposable {
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
 		this._renderer.updateOptions(options);
+	}
+
+	setPaddingBottom(paddingBottom: number): void {
+		const value = Math.max(0, paddingBottom);
+		if (value === this._paddingBottom) {
+			return;
+		}
+		const wasScrolledToBottom = this.isScrolledToBottom;
+		this._paddingBottom = value;
+		this._tree.updateOptions({ paddingBottom: value });
+		if (wasScrolledToBottom) {
+			this.scrollToEnd();
+		}
 	}
 
 	/**

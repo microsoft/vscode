@@ -104,7 +104,53 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			responseParts: [],
 			usage: undefined,
 			state: TurnState.Complete,
-			error: undefined,
+		});
+	});
+
+	test('resumes and completes one turn while preserving durable errors', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'first', message: 'failed' }, resumable: true },
+		});
+		state = chatReducer(state, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 200,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'second', message: 'failed again' }, resumable: true },
+		});
+		state = chatReducer(state, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		state = chatReducer(state, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 300 });
+
+		assert.deepStrictEqual({
+			activeTurn: state.activeTurn,
+			turns: state.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				duration: turn.duration,
+				errors: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error),
+			})),
+		}, {
+			activeTurn: undefined,
+			turns: [{
+				id: 'turn-1',
+				message: 'hello',
+				state: TurnState.Complete,
+				duration: 300,
+				errors: [
+					{ kind: ResponsePartKind.Error, error: { errorType: 'first', message: 'failed' }, resumable: true },
+					{ kind: ResponsePartKind.Error, error: { errorType: 'second', message: 'failed again' }, resumable: true },
+				],
+			}],
 		});
 	});
 
@@ -214,7 +260,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 	});
 
-	test('ChatInputRequested replacement preserves purpose and synchronized answers through completion', () => {
+	test('ChatInputRequested replacement preserves synchronized answers through completion', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,

@@ -410,6 +410,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				// matched here — it is pure JavaScript that the agent host loads via
 				// `import` (ASAR-aware), so it stays in the archive.
 				'**/@github/copilot-{darwin,linux,linuxmusl,win32}-*/**',
+				// The Dev Container CLI is spawned as an external Node process,
+				// so its bundled entrypoint must be available outside the ASAR.
+				'**/@devcontainers/cli/**',
 				'**/@microsoft/mxc-sdk/bin/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
@@ -645,6 +648,8 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
+			// TODO@anthonykim1 Remove once @github/copilot ships OneAuthInterop.dll with complete version information.
+			glob('**/OneAuthInterop.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));

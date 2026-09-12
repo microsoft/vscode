@@ -3,16 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hash } from '../../../../base/common/hash.js';
+import { hash, StringSHA1 } from '../../../../base/common/hash.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
+import { linkKey } from '../../../common/sessionLinks.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
-/** Storage key for the cumulative number of times this client has been launched. */
-const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
+function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullRequestStatus | undefined {
+	const state = pullRequest.liveState ?? pullRequest.state;
+	if (state !== 'open') {
+		return state;
+	}
+	return pullRequest.liveState !== undefined && getPullRequestStatusFromIcon(pullRequest.icon) === 'draft' ? 'draft' : state;
+}
+
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
 /** Storage key for the cumulative number of sessions started from the Agents window across all workspaces and providers. */
@@ -23,6 +31,35 @@ const WORKSPACE_SESSIONS_KEY = 'agentSessions.telemetry.workspaceSessions';
 const PROVIDER_SESSIONS_KEY = 'agentSessions.telemetry.providerSessions';
 /** Hard cap on the number of tracked sessions to prevent unbounded storage growth. Exported for tests. */
 export const MAX_TRACKED_SESSIONS = 2000;
+/**
+ * Hard cap on the number of distinct typed-in files remembered per session.
+ * Beyond this the reported count saturates, which keeps persisted state
+ * bounded for sessions that touch very many files. Exported for tests.
+ */
+export const MAX_TYPED_FILES_PER_SESSION = 250;
+
+/**
+ * Length of the persisted per-file digests.
+ *
+ * A truncated SHA-1 rather than {@link hash}: that is a 32-bit polynomial
+ * string hash whose collisions are structural rather than random, so ordinary
+ * sibling paths collide outright (`.../Aa.ts` and `.../BB.ts` hash equal) and
+ * silently undercount distinct files. 48 bits of a cryptographic digest keeps
+ * the stored rows small while making a collision within the
+ * {@link MAX_TYPED_FILES_PER_SESSION} cap a birthday-bound accident of roughly
+ * one in ten billion.
+ */
+const TYPED_FILE_HASH_LENGTH = 12;
+
+/**
+ * Derives the stored identity of a typed-in file. Only used to tell files
+ * apart when counting; the digest itself is never reported.
+ */
+function hashTypedFilePath(resource: URI): string {
+	const sha1 = new StringSHA1();
+	sha1.update(resource.toString());
+	return sha1.digest().substring(0, TYPED_FILE_HASH_LENGTH);
+}
 
 /** Reason a session is considered "done" and the summary is emitted. */
 export type SessionDoneReason = 'archived' | 'deleted' | 'archivedRemotely' | 'deletedRemotely';
@@ -66,6 +103,8 @@ interface IStoredSessionStats {
 	isExternal?: boolean;
 	// Topology fields are optional so rows persisted before they existed still
 	// load; `createEntry` always sets them and `buildSummary` defaults them.
+	// Refreshed on every interaction, since a session's workspace resolves
+	// asynchronously and can gain folders after tracking started.
 	isMultiRoot?: boolean;
 	folderCount?: number;
 	gitFolderCount?: number;
@@ -110,6 +149,15 @@ interface IStoredSessionStats {
 	fixCIChecks: number;
 	taskRun: number;
 
+	// Characters the user manually typed into the session's workspace folders
+	// from this client. Optional so rows persisted before the field existed
+	// still load; `createEntry` always sets it and `buildSummary` defaults it.
+	typedCharacters?: number;
+	// Hashes of the distinct files the user typed into. Hashed rather than
+	// stored as paths so persisted state discloses nothing about the user's
+	// file system; only the count is ever reported.
+	typedFileHashes?: string[];
+
 	// End state (refreshed on every interaction)
 	filesChanged: number;
 	linesAdded: number;
@@ -118,6 +166,16 @@ interface IStoredSessionStats {
 	// the fields existed still load; `buildSummary` defaults them.
 	pullRequestCount?: number;
 	pullRequestStatus?: PullRequestStatus;
+	// Artifact and reference counts are optional so rows persisted before these
+	// fields existed still load; `buildSummary` defaults them.
+	pullRequestArtifactMergedCount?: number;
+	pullRequestArtifactOpenCount?: number;
+	pullRequestArtifactDraftCount?: number;
+	pullRequestArtifactClosedCount?: number;
+	issueArtifactCount?: number;
+	otherArtifactCount?: number;
+	artifactCount?: number;
+	referenceCount?: number;
 }
 
 /**
@@ -167,11 +225,21 @@ export interface ISessionLifecycleSummary {
 	sessionRenamed: number;
 	fixCIChecks: number;
 	taskRun: number;
+	typedCharacters: number;
+	typedFileCount: number;
 	filesChanged: number;
 	linesAdded: number;
 	linesDeleted: number;
 	pullRequestCount: number;
 	pullRequestStatus: PullRequestStatus | undefined;
+	pullRequestArtifactMergedCount: number;
+	pullRequestArtifactOpenCount: number;
+	pullRequestArtifactDraftCount: number;
+	pullRequestArtifactClosedCount: number;
+	issueArtifactCount: number;
+	otherArtifactCount: number;
+	artifactCount: number;
+	referenceCount: number;
 	userSessionsTotal: number;
 	userSessionsInWorkspace: number;
 	userSessionsForProvider: number;
@@ -195,13 +263,13 @@ export class SessionsLifecycleTracker extends Disposable {
 	private readonly _appLaunchCount: number;
 	private readonly _stats: Map<string, IStoredSessionStats>;
 
-	constructor(private readonly _storageService: IStorageService) {
+	constructor(
+		private readonly _storageService: IStorageService,
+		appLaunchCount: number,
+	) {
 		super();
 
-		const previousAppLaunches = this._storageService.getNumber(APP_LAUNCH_COUNT_KEY, StorageScope.APPLICATION, 0);
-		this._appLaunchCount = previousAppLaunches + 1;
-		this._storageService.store(APP_LAUNCH_COUNT_KEY, this._appLaunchCount, StorageScope.APPLICATION, StorageTarget.MACHINE);
-
+		this._appLaunchCount = appLaunchCount;
 		this._stats = this._load();
 	}
 
@@ -249,6 +317,29 @@ export class SessionsLifecycleTracker extends Disposable {
 		const entry = this._ensure(session);
 		entry[key]++;
 		this._updateObservedState(entry, session);
+		this._save();
+	}
+
+	/**
+	 * Adds characters the user manually typed into `resource`, which must live
+	 * in the session's workspace folders. Unlike {@link bumpCounter} this never
+	 * starts tracking a session: editing a folder is not by itself an
+	 * interaction with the session that happens to use it.
+	 *
+	 * `resource` is only used to tell files apart for {@link ISessionLifecycleSummary.typedFileCount}
+	 * and is stored as a hash, never as a path.
+	 */
+	addTypedCharacters(sessionId: string, resource: URI, characters: number): void {
+		const entry = this._stats.get(sessionId);
+		if (!entry || characters <= 0) {
+			return;
+		}
+		entry.typedCharacters = (entry.typedCharacters ?? 0) + characters;
+		const fileHash = hashTypedFilePath(resource);
+		const typedFileHashes = entry.typedFileHashes ?? (entry.typedFileHashes = []);
+		if (typedFileHashes.length < MAX_TYPED_FILES_PER_SESSION && !typedFileHashes.includes(fileHash)) {
+			typedFileHashes.push(fileHash);
+		}
 		this._save();
 	}
 
@@ -395,8 +486,29 @@ export class SessionsLifecycleTracker extends Disposable {
 		// Provenance is only known once the session metadata has loaded, which
 		// may happen after the entry was created.
 		entry.isExternal = session.isExternal?.get() ?? entry.isExternal ?? false;
+		this._updateWorkspaceTopology(entry, session);
 		this._updatePullRequestState(entry, session);
+		this._updateArtifactCounts(entry, session);
 		this._updateChangesSummary(entry, session);
+	}
+
+	/**
+	 * Refreshes the folder counts. A session's workspace is resolved
+	 * asynchronously and can gain folders later, so the counts known when
+	 * tracking started are not what the user ended up working with.
+	 */
+	private _updateWorkspaceTopology(entry: IStoredSessionStats, session: ISession): void {
+		const folders = session.workspace.get()?.folders;
+		if (!folders || folders.length === 0) {
+			// Keep the last known values rather than reporting an unresolved
+			// or torn-down workspace as an empty one.
+			return;
+		}
+		const topology = classifySessionWorkspaceTopology(folders.length, folders.filter(folder => folder.gitRepository !== undefined).length);
+		entry.isMultiRoot = topology.isMultiRoot;
+		entry.folderCount = topology.folderCount;
+		entry.gitFolderCount = topology.gitFolderCount;
+		entry.nonGitFolderCount = topology.nonGitFolderCount;
 	}
 
 	private _updatePullRequestState(entry: IStoredSessionStats, session: ISession): void {
@@ -409,6 +521,74 @@ export class SessionsLifecycleTracker extends Disposable {
 		const pullRequests = gitHubInfo.pullRequests;
 		entry.pullRequestCount = pullRequests?.length ?? (gitHubInfo.pullRequest ? 1 : 0);
 		entry.pullRequestStatus = getPullRequestStatusFromIcon(gitHubInfo.pullRequest?.icon ?? pullRequests?.[0]?.icon);
+	}
+
+	private _updateArtifactCounts(entry: IStoredSessionStats, session: ISession): void {
+		const artifacts = session.artifacts?.get();
+		if (!artifacts) {
+			return;
+		}
+
+		const pullRequestStatuses = new Map<string, PullRequestStatus>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
+				const status = getResolvedPullRequestStatus(pullRequest);
+				if (status) {
+					pullRequestStatuses.set(linkKey(pullRequest.uri.toString()), status);
+				}
+			}
+		}
+
+		let pullRequestArtifactMergedCount = 0;
+		let pullRequestArtifactOpenCount = 0;
+		let pullRequestArtifactDraftCount = 0;
+		let pullRequestArtifactClosedCount = 0;
+		let issueArtifactCount = 0;
+		let otherArtifactCount = 0;
+		let artifactCount = 0;
+		let referenceCount = 0;
+
+		for (const artifact of artifacts) {
+			if (!artifact.isArtifact) {
+				referenceCount++;
+				continue;
+			}
+
+			artifactCount++;
+			if (artifact.kind === SessionArtifactKind.Issue) {
+				issueArtifactCount++;
+				continue;
+			}
+			if (artifact.kind !== SessionArtifactKind.PullRequest) {
+				otherArtifactCount++;
+				continue;
+			}
+
+			const status = artifact.link ? pullRequestStatuses.get(linkKey(artifact.link.toString())) : undefined;
+			switch (status) {
+				case 'merged':
+					pullRequestArtifactMergedCount++;
+					break;
+				case 'open':
+					pullRequestArtifactOpenCount++;
+					break;
+				case 'draft':
+					pullRequestArtifactDraftCount++;
+					break;
+				case 'closed':
+					pullRequestArtifactClosedCount++;
+					break;
+			}
+		}
+
+		entry.pullRequestArtifactMergedCount = pullRequestArtifactMergedCount;
+		entry.pullRequestArtifactOpenCount = pullRequestArtifactOpenCount;
+		entry.pullRequestArtifactDraftCount = pullRequestArtifactDraftCount;
+		entry.pullRequestArtifactClosedCount = pullRequestArtifactClosedCount;
+		entry.issueArtifactCount = issueArtifactCount;
+		entry.otherArtifactCount = otherArtifactCount;
+		entry.artifactCount = artifactCount;
+		entry.referenceCount = referenceCount;
 	}
 
 	private _updateChangesSummary(entry: IStoredSessionStats, session: ISession): void {
@@ -457,7 +637,15 @@ export class SessionsLifecycleTracker extends Disposable {
 			if (parsed && typeof parsed === 'object') {
 				for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
 					if (value && typeof value === 'object') {
-						map.set(id, value as IStoredSessionStats);
+						const entry = value as IStoredSessionStats;
+						// File identities were briefly persisted as 32-bit
+						// numbers. They cannot be compared against the digests
+						// written now, so drop them rather than double-count
+						// files the user already typed into.
+						if (entry.typedFileHashes?.some(fileHash => typeof fileHash !== 'string')) {
+							entry.typedFileHashes = [];
+						}
+						map.set(id, entry);
 					}
 				}
 			}
@@ -529,11 +717,21 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 		sessionRenamed: 0,
 		fixCIChecks: 0,
 		taskRun: 0,
+		typedCharacters: 0,
+		typedFileHashes: [],
 		filesChanged: 0,
 		linesAdded: 0,
 		linesDeleted: 0,
 		pullRequestCount: 0,
 		pullRequestStatus: undefined,
+		pullRequestArtifactMergedCount: 0,
+		pullRequestArtifactOpenCount: 0,
+		pullRequestArtifactDraftCount: 0,
+		pullRequestArtifactClosedCount: 0,
+		issueArtifactCount: 0,
+		otherArtifactCount: 0,
+		artifactCount: 0,
+		referenceCount: 0,
 	};
 }
 
@@ -582,11 +780,21 @@ function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: Ses
 		sessionRenamed: entry.sessionRenamed,
 		fixCIChecks: entry.fixCIChecks,
 		taskRun: entry.taskRun,
+		typedCharacters: entry.typedCharacters ?? 0,
+		typedFileCount: entry.typedFileHashes?.length ?? 0,
 		filesChanged: entry.filesChanged,
 		linesAdded: entry.linesAdded,
 		linesDeleted: entry.linesDeleted,
 		pullRequestCount: entry.pullRequestCount ?? 0,
 		pullRequestStatus: entry.pullRequestStatus,
+		pullRequestArtifactMergedCount: entry.pullRequestArtifactMergedCount ?? 0,
+		pullRequestArtifactOpenCount: entry.pullRequestArtifactOpenCount ?? 0,
+		pullRequestArtifactDraftCount: entry.pullRequestArtifactDraftCount ?? 0,
+		pullRequestArtifactClosedCount: entry.pullRequestArtifactClosedCount ?? 0,
+		issueArtifactCount: entry.issueArtifactCount ?? 0,
+		otherArtifactCount: entry.otherArtifactCount ?? 0,
+		artifactCount: entry.artifactCount ?? 0,
+		referenceCount: entry.referenceCount ?? 0,
 		userSessionsTotal: requestCounters.userSessionsTotal,
 		userSessionsInWorkspace: requestCounters.userSessionsInWorkspace,
 		userSessionsForProvider: requestCounters.userSessionsForProvider,

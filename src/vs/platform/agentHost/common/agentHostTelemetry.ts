@@ -18,6 +18,7 @@ export const enum AgentHostClientConnectionKind {
 	Local = 'local',
 	DirectWebSocket = 'direct_websocket',
 	DevTunnel = 'dev_tunnel',
+	DevContainer = 'dev_container',
 	SSH = 'ssh',
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
@@ -30,6 +31,13 @@ export const enum AgentHostTransportKind {
 	WebSocket = 'websocket',
 	Unknown = 'unknown',
 }
+
+/**
+ * The stage a turn reached before it failed. Declared here rather than beside the
+ * telemetry reporter so `common` consumers (such as the chat contribution
+ * admission hook) can name a failure stage without importing from `node`.
+ */
+export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
 
 export interface IAgentHostClientTelemetryContext {
 	readonly clientType: AgentHostClientType;
@@ -76,6 +84,7 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		case AgentHostClientConnectionKind.Local:
 		case AgentHostClientConnectionKind.DirectWebSocket:
 		case AgentHostClientConnectionKind.DevTunnel:
+		case AgentHostClientConnectionKind.DevContainer:
 		case AgentHostClientConnectionKind.SSH:
 		case AgentHostClientConnectionKind.WSL:
 		case AgentHostClientConnectionKind.RemoteExtensionHost:

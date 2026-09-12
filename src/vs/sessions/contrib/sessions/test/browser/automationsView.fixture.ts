@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -17,18 +18,22 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
@@ -78,11 +83,13 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 
 	override readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	override readonly runs: IObservable<readonly IAutomationRun[]>;
+	override readonly catalogueState: IObservable<AutomationCatalogueState>;
 
-	constructor(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[]) {
+	constructor(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState) {
 		super();
 		this.automations = constObservable(automations);
 		this.runs = constObservable(runs);
+		this.catalogueState = constObservable(catalogueState);
 	}
 
 	override async deleteRun(): Promise<void> { }
@@ -160,6 +167,9 @@ interface IAutomationsFixtureOptions {
 	readonly width: number;
 	readonly height: number;
 	readonly populated: boolean;
+	readonly catalogueState?: AutomationCatalogueState;
+	readonly pluginTemplate?: boolean;
+	readonly showDropTarget?: boolean;
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
@@ -169,7 +179,55 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 	Empty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 520, populated: false }),
+	}),
+	PluginTemplates: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, pluginTemplate: true }),
+	}),
+	PluginTemplatesPopulated: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, pluginTemplate: true }),
+	}),
+	DropTarget: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: true, showDropTarget: true }),
+	}),
+	NarrowEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 520, height: 620, populated: false }),
+	}),
+	ShortEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 360, populated: false }),
+	}),
+	Loading: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'loading' }),
+	}),
+	Unavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable' }),
+	}),
+	NarrowUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 520, height: 620, populated: false, catalogueState: 'unavailable' }),
+	}),
+	PartialLoading: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'loading' }),
+	}),
+	PartialUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable' }),
+	}),
+	PartialError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'error' }),
+	}),
+	Error: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'error' }),
 	}),
 	Narrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -185,8 +243,28 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const contextKeyService = new ContextKeyService(configurationService);
 	const actionViewItemService = new FixtureActionViewItemService();
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
-	const automationService = new FixtureAutomationService(data.automations, data.runs);
+	const automationService = new FixtureAutomationService(data.automations, data.runs, options.catalogueState ?? 'ready');
 	const sessionsManagementService = new FixtureSessionsManagementService(data.runs);
+	const agentPluginService = new class extends mock<IAgentPluginService>() {
+		override readonly plugins = constObservable(options.pluginTemplate ? [
+			new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/repository-maintenance');
+				override readonly label = 'Repository maintenance';
+				override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+				override readonly automations = constObservable([{
+					uri: URI.file('/plugins/repository-maintenance/automations/dependency-review.automation.md'),
+					blueprint: {
+						version: 1 as const,
+						id: 'dependency-review',
+						name: 'Dependency review',
+						description: 'Review dependency health and suggest focused updates.',
+						prompt: 'Review this repository dependencies and recommend focused updates.',
+						schedule: { interval: 'weekly' as const, scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+					},
+				}]);
+			}(),
+		] : []);
+	}();
 	ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -196,15 +274,18 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.define(IMenuService, MenuService);
 			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IContextKeyService, contextKeyService);
+			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());
 			reg.defineInstance(IAutomationService, automationService);
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
 			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
+			reg.defineInstance(IAgentPluginService, agentPluginService);
 			reg.defineInstance(ICustomViewService, customViewService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
@@ -254,6 +335,15 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	node.element.style.height = '100%';
 	ctx.container.appendChild(node.element);
 	node.layout(options.width, options.height);
+	if (options.showDropTarget) {
+		const dataTransfer = new DataTransfer();
+		dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([URI.file('/shared/review.automation.md').toString()]));
+		node.element.querySelector<HTMLElement>('.automations-cards-widget')?.dispatchEvent(new DragEvent('dragenter', {
+			bubbles: true,
+			cancelable: true,
+			dataTransfer,
+		}));
+	}
 }
 
 function createPopulatedData(): IAutomationsFixtureData {

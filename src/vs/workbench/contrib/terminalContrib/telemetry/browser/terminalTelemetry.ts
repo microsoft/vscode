@@ -14,9 +14,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalLocation, type IShellLaunchConfig, type ShellIntegrationInjectionFailureReason } from '../../../../../platform/terminal/common/terminal.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import type { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ITerminalEditorService, ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { TerminalProfileConfigurationTelemetry } from './terminalProfileConfigurationTelemetry.js';
 
 export class TerminalTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'terminalTelemetry';
@@ -25,9 +27,12 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+
+		this._register(new TerminalProfileConfigurationTelemetry(configurationService, this._telemetryService));
 
 		this._register(terminalService.onDidCreateInstance(async instance => {
 			const store = new DisposableStore();

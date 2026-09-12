@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -85,6 +85,123 @@ suite('Chat Pet Achievements Editor', () => {
 		await command.handler(accessor);
 
 		assert.strictEqual(openCount, 0);
+	});
+
+	test('shows locked hints and rewards without revealing achievement names', () => {
+		const parent = mainWindow.document.createElement('div');
+		parent.style.setProperty('--vscode-fontSize-heading3', '13px');
+		parent.style.setProperty('--vscode-fontSize-label1', '12px');
+		mainWindow.document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override readonly enabled = constObservable(true);
+			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
+			override readonly unseenAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
+			override readonly selectedAccessory = constObservable<ChatPetAccessoryId | undefined>(undefined);
+			override readonly variant = constObservable<ChatPetVariant>('stable');
+		}();
+		store.add(new ChatPetAchievementsWidget(
+			parent,
+			() => { },
+			chatPetService,
+			new TestThemeService(),
+			store.add(new NullLogService()),
+		));
+
+		const lockedCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.TopHatMonocle}"]`);
+		assert.ok(lockedCard);
+		const title = lockedCard.querySelector('h3');
+		const state = lockedCard.querySelector('.chat-pet-achievement-state');
+		const hint = lockedCard.querySelector('.chat-pet-achievement-description');
+		const reward = lockedCard.querySelector('.chat-pet-achievement-reward');
+		assert.deepStrictEqual({
+			title: title?.textContent,
+			state: state?.textContent,
+			hint: hint?.textContent,
+			reward: reward?.textContent,
+			ariaLabel: lockedCard.getAttribute('aria-label'),
+			containsAchievementName: lockedCard.textContent?.includes('Second Draft'),
+			fontSizes: {
+				title: title && mainWindow.getComputedStyle(title).fontSize,
+				state: state && mainWindow.getComputedStyle(state).fontSize,
+				hint: hint && mainWindow.getComputedStyle(hint).fontSize,
+				reward: reward && mainWindow.getComputedStyle(reward).fontSize,
+			},
+		}, {
+			title: 'Locked',
+			state: 'Hint',
+			hint: 'An earlier request may deserve a second pass.',
+			reward: 'Rewards: Grand Top Hat & Monocle',
+			ariaLabel: 'Locked. Hint: An earlier request may deserve a second pass. Rewards: Grand Top Hat & Monocle.',
+			containsAchievementName: false,
+			fontSizes: {
+				title: '13px',
+				state: '12px',
+				hint: '12px',
+				reward: '12px',
+			},
+		});
+	});
+
+	test('renders each unlocked hat as its own achievement card', () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const selectedAccessory = observableValue<ChatPetAccessoryId | undefined>(store, undefined);
+		let selected: ChatPetAccessoryId | undefined;
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override readonly enabled = constObservable(true);
+			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([
+				ChatPetAchievementIds.FirstChatMessage,
+				ChatPetAchievementIds.AgentChangesReviewed,
+			]);
+			override readonly unseenAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
+			override readonly selectedAccessory = selectedAccessory;
+			override readonly variant = constObservable<ChatPetVariant>('stable');
+
+			override markAchievementSeen(): boolean {
+				return false;
+			}
+
+			override setAccessory(accessory: ChatPetAccessoryId | undefined): void {
+				selected = accessory;
+				selectedAccessory.set(accessory, undefined);
+			}
+		}();
+		store.add(new ChatPetAchievementsWidget(
+			parent,
+			() => { },
+			chatPetService,
+			new TestThemeService(),
+			store.add(new NullLogService()),
+		));
+
+		const unlockedCards = Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-achievement-card.monaco-button:not(.locked)'));
+		const bambooHatCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.BambooHat}"]`);
+		assert.ok(bambooHatCard);
+		bambooHatCard.click();
+
+		assert.deepStrictEqual({
+			unlockedCardIds: unlockedCards.map(card => card.dataset.accessoryId),
+			firstMessageTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Welcome to the Wild West').length,
+			trustButVerifyTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Trust but Verify').length,
+			selected,
+			bambooHatSelected: bambooHatCard.getAttribute('aria-pressed'),
+			bambooHatAriaLabel: bambooHatCard.getAttribute('aria-label'),
+			bambooHatState: bambooHatCard.querySelector('.chat-pet-achievement-state')?.textContent,
+		}, {
+			unlockedCardIds: [
+				'none',
+				ChatPetAccessoryIds.CowboyHat,
+				ChatPetAccessoryIds.BambooHat,
+			],
+			firstMessageTitleCount: 1,
+			trustButVerifyTitleCount: 1,
+			selected: ChatPetAccessoryIds.BambooHat,
+			bambooHatSelected: 'true',
+			bambooHatAriaLabel: 'Trust but Verify. Reward: Bamboo Hat. Wearing',
+			bambooHatState: 'Wearing',
+		});
 	});
 
 	test('requests modal close when Escape is pressed on a selectable card', () => {

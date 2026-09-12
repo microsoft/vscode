@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, MutableDisposable, type IReference } from '../../../base/common/lifecycle.js';
+import { Disposable, type IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -12,12 +12,11 @@ import { AgentSession } from '../common/agentService.js';
 import { ISessionDataService, type ISessionDatabase } from '../common/sessionDataService.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, readSessionWorkspaceless } from '../common/state/sessionState.js';
-import { ActionType } from '../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import type { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 
 const STORAGE_KEY = 'customizationEnablement';
 const LRU_STORAGE_KEY = 'customizationEnablementLru';
@@ -92,14 +91,9 @@ export interface ICustomizationEnablementChangeEvent {
 
 export const IAgentHostCustomizationEnablementService = createDecorator<IAgentHostCustomizationEnablementService>('agentHostCustomizationEnablementService');
 
-export interface IAgentHostCustomizationEnablementWorktreeBinding {
-	setWorktreeIsolation(worktree: IAgentHostWorktreeIsolation): void;
-}
-
 export interface IAgentHostCustomizationEnablementService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<ICustomizationEnablementChangeEvent>;
-	readonly setWorktreeIsolation?: IAgentHostCustomizationEnablementWorktreeBinding['setWorktreeIsolation'];
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
@@ -107,12 +101,6 @@ export interface IAgentHostCustomizationEnablementService {
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution;
 	whenIdle(): Promise<void>;
-}
-
-export function supportsCustomizationEnablementWorktreeBinding(
-	service: IAgentHostCustomizationEnablementService,
-): service is IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding {
-	return typeof service.setWorktreeIsolation === 'function';
 }
 
 /**
@@ -168,21 +156,23 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	private readonly _sessionLoads = new Map<string, Promise<void>>();
 	private readonly _sessionsById = new Map<string, string>();
 	private readonly _pendingSessionWrites = new Set<Promise<void>>();
+	private readonly _pendingWorkingDirectoryChanges = new Set<string>();
 	/**
 	 * Retains writes made before session metadata or directory registration resolves.
 	 * Replayed after either session load or a working-directory event, while resolution reports `pending` rather than no decision.
 	 */
 	private readonly _pendingReplacements = new Map<string, IPendingReplacement>();
-	private _worktree: IAgentHostWorktreeIsolation | undefined;
-	private readonly _worktreePendingListener = this._register(new MutableDisposable());
+	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	constructor(
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostStateManager private readonly _sessionState: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
+		this._worktree = worktree;
 		this._persistent = this._readPersistentEnablement();
 		this._lru = this._readLru();
 		this._reconcileLru();
@@ -193,20 +183,22 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			if (session !== undefined) {
 				this._sessionsById.set(AgentSession.id(session), session);
 				void this.initializeSession(session);
-				if (envelope.action.type === ActionType.SessionWorkingDirectorySet || envelope.action.type === ActionType.SessionWorkingDirectoryRemoved) {
-					const affectedSessions = this._applyPendingReplacements(session);
-					affectedSessions.add(session);
-					this._notifyDecisionChanged(affectedSessions);
-				}
 			}
 		}));
-	}
-
-	/** Bound after orchestration composition because WorktreeIsolation depends on its ICopilotApiService registration. */
-	setWorktreeIsolation(worktree: IAgentHostWorktreeIsolation): void {
-		this._worktree = worktree;
-		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
-		this._worktreePendingListener.value = onDidChangeWorkingDirectoryPending?.(sessionId => {
+		this._register(this._sessionState.onDidChangeSessionWorkingDirectories(({ session }) => {
+			const sessionKey = session.toString();
+			if (this._sessionState.getActiveTurnId(session)) {
+				this._pendingWorkingDirectoryChanges.add(sessionKey);
+				return;
+			}
+			this._notifyWorkingDirectoryChanged(sessionKey);
+		}));
+		this._register(this._sessionState.onDidChangeSessionActiveTurn(({ session, active }) => {
+			if (!active && this._pendingWorkingDirectoryChanges.delete(session)) {
+				this._notifyWorkingDirectoryChanged(session);
+			}
+		}));
+		this._register(this._worktree.onDidChangeWorkingDirectoryPending(sessionId => {
 			const session = this._sessionsById.get(sessionId);
 			if (session === undefined) {
 				// A worktree can become pending before this service initializes its
@@ -215,7 +207,13 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				return;
 			}
 			this._notifyDecisionChanged([session]);
-		});
+		}));
+	}
+
+	private _notifyWorkingDirectoryChanged(session: string): void {
+		const affectedSessions = this._applyPendingReplacements(session);
+		affectedSessions.add(session);
+		this._notifyDecisionChanged(affectedSessions);
 	}
 
 	async initializeSession(session: string): Promise<void> {
@@ -235,7 +233,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		if (readSessionWorkspaceless(summary?._meta)) {
 			return { kind: 'workspaceless' };
 		}
-		if (this._worktree?.isWorkingDirectoryPending(AgentSession.id(session))) {
+		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
 			return { kind: 'pending' };
 		}
 		const directory = getEffectiveWorkingDirectories(this._sessionState, session)?.[0];

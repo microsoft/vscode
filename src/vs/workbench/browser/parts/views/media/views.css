@@ -266,7 +266,7 @@
 	padding-left: 4px;
 }
 
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.monaco-icon-label[class*="monaco-decoration-"]) .actions {
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.monaco-icon-label:is(.monaco-decoration-itemColor, .monaco-decoration-badge)) .actions {
 	right: max(calc(var(--list-scroll-right-offset, 0px) - 17px),
 			0px) !important;
 }

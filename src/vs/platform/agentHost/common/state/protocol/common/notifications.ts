@@ -12,11 +12,15 @@ import type { ProtectedResourceMetadata, URI } from './state.js';
  * Reason why authentication is required.
  *
  * @category Protocol Notifications
+ * @nonexhaustive
  */
 export const enum AuthRequiredReason {
 	/** The client has not yet authenticated for the resource */
 	Required = 'required',
-	/** A previously valid token has expired or been revoked */
+	/**
+	 * A previously valid token has expired or been revoked. The client must
+	 * acquire or renew the credential rather than replaying the challenged token.
+	 */
 	Expired = 'expired',
 }
 
@@ -31,8 +35,9 @@ export const enum AuthRequiredReason {
  * to; the `resource` field carries the complete OAuth protected resource
  * metadata (per RFC 9728).
  *
- * Clients should obtain a fresh token and push it via the `authenticate`
- * command.
+ * Clients should obtain or renew the credential and push the resulting token
+ * via the `authenticate` command. When `reason` is `expired`, clients MUST NOT
+ * blindly replay the challenged token.
  *
  * @category Protocol Notifications
  * @method auth/required
