@@ -22,7 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService } from '../../../browser/chat.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -38,6 +38,7 @@ import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
+import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
 import '../../../browser/widget/media/chat.css';
 
 function nextFrame(): Promise<void> {
@@ -64,6 +65,49 @@ async function waitForStableLayout(widget: ChatListWidget, maxFrames = 120): Pro
 
 suite('ChatListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('identifies transcript background context menu targets', () => {
+		const row = mainWindow.document.createElement('div');
+		row.className = 'monaco-list-row';
+		const rowGutter = mainWindow.document.createElement('div');
+		rowGutter.className = 'monaco-tl-row';
+		row.appendChild(rowGutter);
+		const content = mainWindow.document.createElement('div');
+		content.className = 'interactive-item-container';
+		row.appendChild(content);
+		const contentChild = mainWindow.document.createElement('div');
+		content.appendChild(contentChild);
+		const katexContainer = mainWindow.document.createElement('span');
+		katexContainer.className = katexContainerClassName;
+		content.appendChild(katexContainer);
+		const svg = mainWindow.document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		katexContainer.appendChild(svg);
+		const svgPath = mainWindow.document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		svg.appendChild(svgPath);
+		const scrollbar = mainWindow.document.createElement('div');
+		scrollbar.className = 'scrollbar';
+
+		assert.deepStrictEqual({
+			row: isChatBackgroundContextMenuTarget(row),
+			rowGutter: isChatBackgroundContextMenuTarget(rowGutter),
+			content: isChatBackgroundContextMenuTarget(content),
+			contentChild: isChatBackgroundContextMenuTarget(contentChild),
+			svgPath: getChatContextMenuTargetContext(svgPath),
+			scrollbar: isChatBackgroundContextMenuTarget(scrollbar),
+			missing: isChatBackgroundContextMenuTarget(undefined),
+		}, {
+			row: true,
+			rowGutter: true,
+			content: false,
+			contentChild: false,
+			svgPath: {
+				isKatexElement: true,
+				isBackground: false,
+			},
+			scrollbar: false,
+			missing: false,
+		});
+	});
 
 	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false) {
 		const disposables = store.add(new DisposableStore());
