@@ -171,6 +171,7 @@ class MockCopilotSession {
 		}>;
 	} = { commands: [] };
 	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
+	commandInvokeError: Error | undefined;
 	messages: SessionEvent[] = [];
 	usageMetricsResult = {
 		totalPremiumRequestCost: 0,
@@ -415,6 +416,9 @@ class MockCopilotSession {
 			invoke: async (params: { name: string; input?: string }) => {
 				this.operationLog.push('commands.invoke');
 				this.commandInvokeCalls.push(params);
+				if (this.commandInvokeError) {
+					throw this.commandInvokeError;
+				}
 				return this.commandInvokeResult;
 			},
 		},
@@ -798,6 +802,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	fileWriteError?: Error;
 	shellInitWriteFailures?: number;
 	fileAtomicWrite?: boolean;
 	shellInitWriteGate?: Promise<void>;
@@ -961,6 +966,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			resource.path.includes('/agentHost/shellInit/'),
 		writeFile: async (resource: URI, content: VSBuffer, writeOptions?: IWriteFileOptions) => {
 			fileWriteOptions.set(resource.fsPath, writeOptions);
+			if (options?.fileWriteError) {
+				throw options.fileWriteError;
+			}
 			if (resource.path.includes('/agentHost/shellInit/')) {
 				options?.onShellInitWrite?.();
 				await options?.shellInitWriteGate;
@@ -3021,6 +3029,373 @@ suite('CopilotAgentSession', () => {
 		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
 
 		assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, turnEndCount }, { hasActiveTurn: false, turnEndCount: 1 });
+	});
+
+	suite('/sandbox-policy', () => {
+		async function createSandboxSession(options?: Parameters<typeof createAgentSession>[1]) {
+			const result = await createAgentSession(disposables, options);
+			result.mockSession.commandListResult = {
+				commands: [{ name: 'sandbox', kind: 'builtin', description: 'Configure sandbox', allowDuringAgentExecution: true }],
+			};
+			return result;
+		}
+
+		for (const { name, result, content } of [
+			{
+				name: 'markdown policy',
+				result: { kind: 'text', text: '## Effective sandbox policy\n\nEnabled: true', markdown: true },
+				content: '## Effective sandbox policy\n\nEnabled: true',
+			},
+			{
+				name: 'markdown policy with terminal styling',
+				result: { kind: 'text', text: '## \x1b[1mEffective sandbox policy\x1b[22m\n\nEnabled: true', markdown: true },
+				content: '## Effective sandbox policy\n\nEnabled: true',
+			},
+			{
+				name: 'terminal policy report',
+				result: {
+					kind: 'text',
+					text: [
+						'Effective sandbox policy for C:\\work\\project',
+						'',
+						'\x1b[1mSystem:\x1b[22m',
+						'  Read-only paths (2):',
+						'    C:\\',
+						'    C:\\Program Files\\tools_[local]',
+						'  Read-write paths (1):',
+						'    C:\\Temp',
+						'',
+						'\x1b[1mWorking directory:\x1b[22m',
+						'  Read-write paths (1):',
+						'    C:\\work\\project',
+						'',
+						'\x1b[1mCurrent session:\x1b[22m',
+						'  Read-write paths (1):',
+						'    C:\\session\\files',
+						'',
+						'\x1b[1mNetwork:\x1b[22m',
+						'  Outbound: allowed',
+						'  Local network: blocked',
+						'',
+						'\x1b[1mDev-tool access:\x1b[22m',
+						'  Detected tools: (none)',
+						'  More tools can be granted access based on the command you run.',
+						'',
+						'Denial capture: off',
+						'',
+						'\x1b[1mNotes:\x1b[22m',
+						'  - readwritePaths entry "C:\\missing.py" does not exist.',
+						'',
+					].join('\r\n'),
+					markdown: false,
+				},
+				content: [
+					'# Effective sandbox policy',
+					'',
+					'`C:\\work\\project`',
+					'',
+					'## System',
+					'',
+					'### Read-only paths \\(2\\)',
+					'',
+					'- `C:\\`',
+					'- `C:\\Program Files\\tools_[local]`',
+					'',
+					'### Read-write paths \\(1\\)',
+					'',
+					'- `C:\\Temp`',
+					'',
+					'## Working directory',
+					'',
+					'### Read-write paths \\(1\\)',
+					'',
+					'- `C:\\work\\project`',
+					'',
+					'## Current session',
+					'',
+					'### Read-write paths \\(1\\)',
+					'',
+					'- `C:\\session\\files`',
+					'',
+					'## Network',
+					'',
+					'- Outbound: allowed',
+					'- Local network: blocked',
+					'',
+					'## Dev-tool access',
+					'',
+					'- Detected tools: \\(none\\)',
+					'- More tools can be granted access based on the command you run.',
+					'',
+					'Denial capture: off',
+					'',
+					'## Notes',
+					'',
+					'- readwritePaths entry "C:\\\\missing.py" does not exist.',
+					'',
+				].join('\n'),
+			},
+			{
+				name: 'unrecognized terminal output with styling',
+				result: { kind: 'text', text: '\x1b[33mSandbox is disabled.\x1b[0m' },
+				content: '\n```text\nSandbox is disabled.\n```\n',
+			},
+			{
+				name: 'uncolored Unix policy report',
+				result: {
+					kind: 'text',
+					text: 'Effective sandbox policy for /work/project\n\nWorking directory:\n  Read-write paths (1):\n    /work/project`name\n',
+				},
+				content: '# Effective sandbox policy\n\n`/work/project`\n\n## Working directory\n\n### Read-write paths \\(1\\)\n\n- ``/work/project`name``\n',
+			},
+			{
+				name: 'plain text policy',
+				result: { kind: 'text', text: '*allowed*: example.com\n- blocked: other.example', markdown: false },
+				content: '\n```text\n*allowed*: example.com\n- blocked: other.example\n```\n',
+			},
+			{
+				name: 'plain text policy containing a code fence',
+				result: { kind: 'text', text: '```\npolicy\n```' },
+				content: '\n````text\n```\npolicy\n```\n````\n',
+			},
+			{
+				name: 'disabled sandbox',
+				result: { kind: 'completed', message: 'Sandbox is disabled.' },
+				content: 'Sandbox is disabled.',
+			},
+		] satisfies { name: string; result: MockCopilotSession['commandInvokeResult']; content: string }[]) {
+			test(`links to a Markdown file containing ${name} without a model turn`, async () => {
+				const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
+				mockSession.commandInvokeResult = result;
+
+				await session.send('/sandbox-policy', undefined, 'turn-policy');
+
+				const actions = getActions(signals);
+				const [resource] = storedFileContents.keys();
+				assert.match(resource, /^inmemory:\/session-data\/test-session-1\/diagnostics\/[\da-f-]+\/sandbox-policy\.md$/);
+				assert.deepStrictEqual({
+					commandListCalls: mockSession.commandListCalls,
+					commandInvokeCalls: mockSession.commandInvokeCalls,
+					sendRequests: mockSession.sendRequests,
+					files: [...storedFileContents],
+					responseParts: actions
+						.filter(a => a.type === ActionType.ChatResponsePart)
+						.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+					turnComplete: actions
+						.filter(a => a.type === ActionType.ChatTurnComplete)
+						.map(a => a.turnId),
+					hasActiveTurn: session.hasActiveTurn,
+				}, {
+					commandListCalls: [],
+					commandInvokeCalls: [{ name: 'sandbox', input: 'policy' }],
+					sendRequests: [],
+					files: [[resource, content]],
+					responseParts: [`[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`],
+					turnComplete: ['turn-policy'],
+					hasActiveTurn: false,
+				});
+			});
+		}
+
+		test('preserves previous policy snapshots across invocations and session disposal', async () => {
+			const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
+			mockSession.commandInvokeResult = { kind: 'text', text: '# First policy', markdown: true };
+			await session.send('/sandbox-policy', undefined, 'turn-policy-1');
+			mockSession.commandInvokeResult = { kind: 'text', text: '# Second policy', markdown: true };
+			await session.send('/sandbox-policy', undefined, 'turn-policy-2');
+			session.dispose();
+
+			const resources = [...storedFileContents.keys()];
+			assert.deepStrictEqual({
+				contents: [...storedFileContents.values()],
+				responseParts: getActions(signals)
+					.filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+			}, {
+				contents: ['# First policy', '# Second policy'],
+				responseParts: resources.map(resource => `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`),
+			});
+		});
+
+		test('does not emit a broken link when writing the Markdown file fails', async () => {
+			const { session, mockSession, signals, storedFileContents } = await createSandboxSession({
+				fileWriteError: new Error('Policy file write failed'),
+			});
+			mockSession.commandInvokeResult = { kind: 'text', text: '# Effective policy', markdown: true };
+
+			await assert.rejects(() => session.send('/sandbox-policy', undefined, 'turn-policy'), /Policy file write failed/);
+
+			assert.deepStrictEqual({
+				files: [...storedFileContents],
+				responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				files: [],
+				responseParts: [],
+				hasActiveTurn: false,
+			});
+		});
+
+		for (const result of [
+			{ kind: 'text', text: '' },
+			{ kind: 'completed' },
+			{ kind: 'agent-prompt', prompt: 'Find the policy', displayPrompt: 'Find the policy' },
+		] satisfies MockCopilotSession['commandInvokeResult'][]) {
+			test(`rejects a ${result.kind} result without policy content`, async () => {
+				const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
+				mockSession.commandInvokeResult = result;
+
+				await assert.rejects(() => session.send('/sandbox-policy', undefined, 'turn-policy'), /did not return a sandbox policy/);
+
+				assert.deepStrictEqual({
+					files: [...storedFileContents],
+					sendRequests: mockSession.sendRequests,
+					responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+					hasActiveTurn: session.hasActiveTurn,
+				}, {
+					files: [],
+					sendRequests: [],
+					responseParts: [],
+					hasActiveTurn: false,
+				});
+			});
+		}
+
+		test('applies the effective mode before invoking the policy command', async () => {
+			const { session, mockSession } = await createSandboxSession();
+			await session.applyMode('plan');
+			mockSession.operationLog.length = 0;
+			mockSession.commandInvokeResult = { kind: 'completed', message: 'Sandbox is disabled.' };
+
+			await session.send('/sandbox-policy', undefined, 'turn-policy', 'interactive');
+
+			assert.deepStrictEqual({
+				operations: mockSession.operationLog.filter(operation => operation === 'mode.set' || operation === 'commands.invoke'),
+				lastModeApplied: mockSession.modeSetCalls.at(-1),
+			}, {
+				operations: ['mode.set', 'commands.invoke'],
+				lastModeApplied: { mode: 'interactive' },
+			});
+		});
+
+		test('propagates SDK failures without falling back to the model', async () => {
+			const { session, mockSession, signals } = await createSandboxSession();
+			mockSession.commandInvokeError = new Error('Sandbox policy unavailable');
+
+			await assert.rejects(() => session.send('/sandbox-policy', undefined, 'turn-policy'), /Sandbox policy unavailable/);
+
+			assert.deepStrictEqual({
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				sendRequests: mockSession.sendRequests,
+				responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				commandInvokeCalls: [{ name: 'sandbox', input: 'policy' }],
+				sendRequests: [],
+				responseParts: [],
+				hasActiveTurn: false,
+			});
+		});
+
+		test('renders policy output for a runtime alias while preserving raw SDK input', async () => {
+			const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
+			mockSession.commandListResult.commands[0].aliases = ['sb'];
+			mockSession.commandInvokeResult = { kind: 'completed', message: 'Sandbox is disabled.' };
+
+			await session.send('/SB   policy   ', undefined, 'turn-policy');
+
+			assert.deepStrictEqual({
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				contents: [...storedFileContents.values()],
+				responseParts: getActions(signals)
+					.filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+			}, {
+				commandInvokeCalls: [{ name: 'sandbox', input: 'policy   ' }],
+				contents: ['Sandbox is disabled.'],
+				responseParts: [...storedFileContents.keys()].map(resource => `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`),
+			});
+		});
+
+		for (const input of ['', 'off', 'policy extra']) {
+			test(`leaves SDK handling and output unchanged for /sandbox ${input}`, async () => {
+				const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
+				mockSession.commandInvokeResult = { kind: 'text', text: 'Runtime response', markdown: true };
+
+				await session.send(`/sandbox${input ? ' ' + input : ''}`, undefined, 'turn-sandbox');
+
+				assert.deepStrictEqual({
+					commandInvokeCalls: mockSession.commandInvokeCalls,
+					files: [...storedFileContents],
+					responseParts: getActions(signals)
+						.filter(a => a.type === ActionType.ChatResponsePart)
+						.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+				}, {
+					commandInvokeCalls: [{ name: 'sandbox', ...(input ? { input } : {}) }],
+					files: [],
+					responseParts: ['Runtime response'],
+				});
+			});
+		}
+
+		test('does not format a client command named sandbox as a policy report', async () => {
+			const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
+			mockSession.commandListResult.commands[0].kind = 'client';
+			mockSession.commandInvokeResult = { kind: 'completed', message: 'Client response' };
+
+			await session.send('/sandbox policy', undefined, 'turn-client');
+
+			assert.deepStrictEqual({
+				files: [...storedFileContents],
+				responseParts: getActions(signals)
+					.filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+			}, {
+				files: [],
+				responseParts: ['Client response'],
+			});
+		});
+
+		test('reserves the command name over a runtime skill and accepts casing and trailing whitespace', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = {
+				commands: [{ name: 'sandbox-policy', kind: 'skill', description: 'A skill', allowDuringAgentExecution: true }],
+			};
+			mockSession.commandInvokeResult = { kind: 'completed', message: 'Sandbox is disabled.' };
+
+			const commands = await session.getRuntimeSlashCommands();
+			await session.send('/SANDBOX-POLICY   ', undefined, 'turn-policy');
+
+			assert.deepStrictEqual({
+				commands: commands.map(command => ({ name: command.name, kind: command.kind })),
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				sendRequests: mockSession.sendRequests,
+			}, {
+				commands: [{ name: 'sandbox-policy', kind: 'builtin' }],
+				commandInvokeCalls: [{ name: 'sandbox', input: 'policy' }],
+				sendRequests: [],
+			});
+		});
+
+		test('rejects arguments before changing mode or invoking the SDK', async () => {
+			const { session, mockSession, storedFileContents } = await createSandboxSession();
+
+			await assert.rejects(() => session.send('/sandbox-policy off', undefined, 'turn-policy', 'plan'), /does not accept arguments/);
+
+			assert.deepStrictEqual({
+				modeSetCalls: mockSession.modeSetCalls,
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				sendRequests: mockSession.sendRequests,
+				files: [...storedFileContents],
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				modeSetCalls: [],
+				commandInvokeCalls: [],
+				sendRequests: [],
+				files: [],
+				hasActiveTurn: false,
+			});
+		});
 	});
 
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {

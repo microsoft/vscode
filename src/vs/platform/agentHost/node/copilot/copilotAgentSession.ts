@@ -94,13 +94,13 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
+import { renderCopilotSlashCommandOutput, type CopilotSlashCommandResult, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
+import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
-type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
-type RuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['commands']['list']>>['commands'][number];
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
@@ -1219,9 +1219,14 @@ export class CopilotAgentSession extends Disposable {
 		this._ownerSessionUri = options.sessionUri;
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this.resourceUri = options.resource ?? options.sessionUri;
-		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
 		this._storageUri = this.resourceUri;
+		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
+		this._slashCommandProvider = new CopilotSlashCommandProvider(
+			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
+			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) },
+			this._logService,
+		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
@@ -2885,29 +2890,34 @@ export class CopilotAgentSession extends Disposable {
 			}
 			// Skills can be passed as is to the runtime.
 			if (runtimeSlashCommand && runtimeSlashCommand.kind !== 'skill') {
+				const invocation = runtimeSlashCommand.getInvocation?.(slashCommand.rawRest) ?? {
+					name: runtimeSlashCommand.name,
+					...(slashCommand.rawRest.length > 0 ? { input: slashCommand.rawRest } : {}),
+				};
 				// Apply the effective mode before invoking the runtime command so it runs
 				// under the correct SDK mode (issue #8837). An `agent-prompt` result may
 				// override the mode; that override is applied again before `session.send`.
 				await this.applyMode(mode);
-				let result: CopilotCommandInvocationResult;
+				let result: CopilotSlashCommandResult;
 				try {
-					result = await this._wrapper.session.rpc.commands.invoke({
-						name: runtimeSlashCommand.name,
-						...(slashCommand.rawRest.length > 0 ? { input: slashCommand.rawRest } : {}),
-					});
+					result = await this._wrapper.session.rpc.commands.invoke(invocation);
 				} catch (err) {
 					this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
 					throw err;
 				}
+				const output = await runtimeSlashCommand.getOutput?.(slashCommand.rest, result);
+				const renderedOutput = output ? renderCopilotSlashCommandOutput(output) : undefined;
 				switch (result.kind) {
 					case 'text':
-						this._emitMarkdownDelta(result.markdown === true ? result.text : escapeMarkdownSyntaxTokens(result.text), undefined, true);
+						this._emitMarkdownDelta(renderedOutput ?? (result.markdown === true ? result.text : escapeMarkdownSyntaxTokens(result.text)), undefined, true);
 						break;
-					case 'completed':
-						if (result.message) {
-							this._emitMarkdownDelta(result.message, undefined, true);
+					case 'completed': {
+						const message = renderedOutput ?? result.message;
+						if (message) {
+							this._emitMarkdownDelta(message, undefined, true);
 						}
 						break;
+					}
 					case 'agent-prompt': {
 						const runtimeMode = toCopilotSdkMode(result.mode);
 						if (runtimeMode) {
