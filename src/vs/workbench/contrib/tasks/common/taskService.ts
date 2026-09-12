@@ -104,7 +104,7 @@ export interface ITaskService {
 
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
-	registerTaskSystem(scheme: string, taskSystemInfo: ITaskSystemInfo): void;
+	registerTaskSystem(scheme: string, taskSystemInfo: ITaskSystemInfo): IDisposable;
 	readonly onDidChangeTaskSystemInfo: Event<void>;
 	readonly onDidChangeTaskConfig: Event<void>;
 	readonly hasTaskSystemInfo: boolean;
