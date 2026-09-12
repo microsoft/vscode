@@ -8,6 +8,7 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import Severity from '../../../../../../base/common/severity.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
@@ -378,6 +379,93 @@ suite('ChatModelsViewModel', () => {
 			providerLabels: ['ChatGPT', 'ChatGPT'],
 		});
 	});
+
+	for (const modelGroup of [undefined, { id: 'chatgpt', sourceId: 'chatgptSubscription' }]) {
+		test(`keeps local and remote agent-host models distinguishable (modelGroup: ${!!modelGroup})`, async () => {
+			const service = new MockLanguageModelsService();
+			const local = 'agent-host-codex';
+			const remote = 'remote-hex-77736c3a5562756e7475-codex';
+			for (const [vendor, displayName] of [[local, 'Codex'], [remote, 'Codex [WSL: Ubuntu]']]) {
+				service.addVendor({ vendor, displayName, managementCommand: undefined, when: undefined, configuration: undefined });
+				store.add(languageModelSourcePresentationRegistry.register({ ownerVendor: vendor, sourceId: 'chatgptSubscription', label: 'ChatGPT', icon: Codicon.account, description: 'Subscription models' }));
+				for (const id of ['gpt-5.5', 'gpt-5.6']) {
+					service.addModel(vendor, `${vendor}:${id}`, {
+						extension: new ExtensionIdentifier('vscode.agent-host'),
+						id, name: id, family: id, version: '1.0', vendor,
+						maxInputTokens: 8192, maxOutputTokens: 4096, isDefaultForLocation: {},
+						targetChatSessionType: vendor, modelGroup,
+					});
+				}
+			}
+			const model = store.add(new ChatModelsViewModel(service));
+			await model.refresh();
+			const groups = model.filter('').filter(isLanguageModelProviderEntry);
+			const localGroup = groups.find(group => group.vendorEntry.vendor.vendor === local)!;
+			const remoteGroup = groups.find(group => group.vendorEntry.vendor.vendor === remote)!;
+			model.toggleGroupHidden(localGroup);
+			model.toggleCollapsed(localGroup);
+			assert.deepStrictEqual({
+				labels: [localGroup.label, remoteGroup.label],
+				groupCount: groups.length,
+				localIds: model.getModelsForGroup(localGroup).map(model => model.identifier),
+				remoteIds: model.getModelsForGroup(remoteGroup).map(model => model.identifier),
+				hidden: service.getHiddenModelIds(),
+				visibleAfterCollapse: model.filter('').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
+				filteredIds: model.filter('@provider:"Codex [WSL: Ubuntu]"').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
+			}, {
+				labels: modelGroup ? ['ChatGPT: Codex [Local]', 'ChatGPT: Codex [WSL: Ubuntu]'] : ['Codex [Local]', 'Codex [WSL: Ubuntu]'],
+				groupCount: 2,
+				localIds: [`${local}:gpt-5.5`, `${local}:gpt-5.6`],
+				remoteIds: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
+				hidden: [`${local}:gpt-5.5`, `${local}:gpt-5.6`],
+				visibleAfterCollapse: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
+				filteredIds: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
+			});
+		});
+	}
+
+	for (const withModels of [false, true]) {
+		test(`preserves host identity in provider error groups (with models: ${withModels})`, async () => {
+			const service = new MockLanguageModelsService();
+			const local = 'agent-host-codex';
+			const remote = 'remote-hex-77736c3a5562756e7475-codex';
+			const vendors = [[local, 'Codex'], [remote, 'Codex [WSL: Ubuntu]'], ['custom', 'Custom']];
+			for (const [vendor, displayName] of vendors) {
+				service.addVendor({ vendor, displayName, managementCommand: undefined, when: undefined, configuration: undefined });
+				const group = Object.freeze({ vendor, name: displayName });
+				service.getLanguageModelGroups(vendor).push({
+					group, modelIdentifiers: [], status: { message: `${vendor} failed`, severity: Severity.Error },
+				});
+				if (withModels) {
+					service.addModel(vendor, `${vendor}:model`, {
+						extension: new ExtensionIdentifier('test'), id: 'model', name: 'Model', family: 'test', version: '1', vendor,
+						maxInputTokens: 8192, maxOutputTokens: 4096, isDefaultForLocation: {}, targetChatSessionType: vendor,
+					});
+				}
+			}
+			const model = store.add(new ChatModelsViewModel(service));
+			await model.refresh();
+			const entries = [...model.filter('')];
+			const groups = entries.filter(isLanguageModelProviderEntry);
+			const localGroup = groups.find(group => group.vendorEntry.vendor.vendor === local)!;
+			model.toggleCollapsed(localGroup);
+			assert.deepStrictEqual({
+				groups: groups.map(group => ({ label: group.label, sessionType: group.vendorEntry.sessionType, models: model.getModelsForGroup(group).length })),
+				statuses: entries.filter(entry => entry.type === 'status').map(entry => entry.message).sort(),
+				collapsed: model.filter('').filter(isLanguageModelProviderEntry).filter(group => group.collapsed).map(group => group.label),
+				originalLabels: vendors.map(([vendor]) => service.getLanguageModelGroups(vendor)[0].group?.name),
+			}, {
+				groups: [
+					{ label: 'Codex [Local]', sessionType: local, models: withModels ? 1 : 0 },
+					{ label: 'Codex [WSL: Ubuntu]', sessionType: remote, models: withModels ? 1 : 0 },
+					{ label: 'Custom', sessionType: undefined, models: withModels ? 1 : 0 },
+				],
+				statuses: vendors.map(([vendor]) => `${vendor} failed`).sort(),
+				collapsed: ['Codex [Local]'],
+				originalLabels: vendors.map(([, displayName]) => displayName),
+			});
+		});
+	}
 
 	test('shows the first-party ChatGPT subscription header even when it is the only group', async () => {
 		const service = new MockLanguageModelsService();
