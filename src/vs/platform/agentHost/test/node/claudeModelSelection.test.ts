@@ -110,14 +110,32 @@ suite('claudeModelSelection', () => {
 		);
 
 		test('fills only native models with an observation, matching on the date-less SDK id, and leaves Copilot limits alone', () => {
+			// The prompt limit is the window minus the output cap so consumers that
+			// sum the two recover the window the SDK reported.
 			const limits = new Map([['claude-sonnet-4-5', { contextWindow: 200_000, maxOutputTokens: 64_000 }]]);
 			assert.deepStrictEqual(
 				applyObservedNativeModelLimits(merged, limits).map(m => ({ id: m.id, maxContextWindow: m.maxContextWindow, maxPromptTokens: m.maxPromptTokens, maxOutputTokens: m.maxOutputTokens })),
 				[
 					{ id: '@provider=copilot:claude-sonnet-4.5', maxContextWindow: 128_000, maxPromptTokens: 128_000, maxOutputTokens: 4_096 },
-					{ id: '@provider=anthropic:claude-sonnet-4-5-20250929', maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 64_000 },
+					{ id: '@provider=anthropic:claude-sonnet-4-5-20250929', maxContextWindow: 200_000, maxPromptTokens: 136_000, maxOutputTokens: 64_000 },
 					{ id: '@provider=anthropic:claude-haiku-4-5-20251001', maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
 				],
+			);
+		});
+
+		test('an observation without a usable output cap publishes the whole window as the prompt limit', () => {
+			const catalog = mergeClaudeModelCatalogs([], [{ provider: CLAUDE_AGENT_PROVIDER_ID, id: 'claude-sonnet-4-5-20250929', name: 'Sonnet', supportsVision: false }]);
+			const limitsOf = (limits: Map<string, { contextWindow: number; maxOutputTokens: number }>) =>
+				applyObservedNativeModelLimits(catalog, limits).map(m => ({ maxContextWindow: m.maxContextWindow, maxPromptTokens: m.maxPromptTokens, maxOutputTokens: m.maxOutputTokens }));
+			assert.deepStrictEqual(
+				{
+					noCap: limitsOf(new Map([['claude-sonnet-4-5', { contextWindow: 200_000, maxOutputTokens: 0 }]])),
+					capExceedsWindow: limitsOf(new Map([['claude-sonnet-4-5', { contextWindow: 200_000, maxOutputTokens: 200_000 }]])),
+				},
+				{
+					noCap: [{ maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 0 }],
+					capExceedsWindow: [{ maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 200_000 }],
+				},
 			);
 		});
 

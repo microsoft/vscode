@@ -1671,10 +1671,42 @@ suite('ClaudeAgent', () => {
 				{ id: sonnet, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
 			],
 			after: [
-				{ id: haiku, maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 64_000 },
+				{ id: haiku, maxContextWindow: 200_000, maxPromptTokens: 136_000, maxOutputTokens: 64_000 },
 				{ id: sonnet, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
 			],
 		});
+	});
+
+	test('a Copilot-routed turn does not fill native model limits', async () => {
+		// The pipeline reports `modelUsage` limits on every transport, but only a
+		// native turn describes the native catalog: the session forwards
+		// observations to the agent for native turns only, so a proxy turn cannot
+		// overwrite the native rows.
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		await agent.authenticate('https://api.github.com', 'tok');
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		const copilotOpus = toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6');
+		const nativeSonnet = toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929');
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: copilotOpus } });
+		const result = makeResultSuccess(created.sdkSessionId);
+		result.modelUsage = {
+			'claude-sonnet-4-5-20250929': { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 64_000 },
+		};
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const native = agent.models.get().find(m => m.id === nativeSonnet);
+		assert.deepStrictEqual(
+			{ found: native !== undefined, maxContextWindow: native?.maxContextWindow, maxPromptTokens: native?.maxPromptTokens, maxOutputTokens: native?.maxOutputTokens },
+			{ found: true, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
+		);
 	});
 
 	test('an SDK account report of "nothing configured" publishes an empty catalog instead of the SDK static list', async () => {

@@ -186,15 +186,17 @@ class ControllableWarmQuery extends FakeWarmQuery {
 }
 
 /**
- * A {@link Query} that behaves like a live SDK turn: it pulls one prompt off
- * the pipeline's prompt iterable (so the queue marks it in-flight), yields the
- * scripted messages, then parks until abort. `getContextUsage` is scripted
- * and every call is recorded.
+ * A {@link Query} that behaves like a live SDK stream: at the start of each
+ * turn (before the first message and after every `result`) it pulls a prompt
+ * off the pipeline's prompt iterable (so the queue marks it in-flight), then
+ * yields the scripted messages, and parks until abort once they run out.
+ * `getContextUsage` is scripted and every call is recorded.
  */
 class ScriptedQuery extends ImmediatelyDoneQuery {
 	readonly contextUsageCalls: Array<Parameters<Query['getContextUsage']>[0]> = [];
 	private _index = 0;
-	private _pulledPrompt = false;
+	private _needsPrompt = true;
+	private _promptIterator: AsyncIterator<SDKUserMessage> | undefined;
 
 	constructor(
 		private readonly _prompt: AsyncIterable<SDKUserMessage>,
@@ -204,12 +206,15 @@ class ScriptedQuery extends ImmediatelyDoneQuery {
 	) { super(); }
 
 	override async next(): Promise<IteratorResult<SDKMessage, void>> {
-		if (!this._pulledPrompt) {
-			this._pulledPrompt = true;
-			await this._prompt[Symbol.asyncIterator]().next();
+		if (this._needsPrompt) {
+			this._needsPrompt = false;
+			this._promptIterator ??= this._prompt[Symbol.asyncIterator]();
+			await this._promptIterator.next();
 		}
 		if (this._index < this._messages.length) {
-			return { done: false, value: this._messages[this._index++] };
+			const value = this._messages[this._index++];
+			this._needsPrompt = value.type === 'result';
+			return { done: false, value };
 		}
 		if (this._signal.aborted) {
 			return { done: true, value: undefined };
@@ -709,6 +714,25 @@ suite('ClaudeSdkPipeline', () => {
 			await pipeline.send(makePrompt('p1'), 'turn-1');
 
 			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatTurnComplete]);
+		});
+
+		test('a getContextUsage still pending from an earlier turn is not stacked: the next turn skips enrichment and still completes', async () => {
+			// The timeout stops awaiting but cannot cancel the SDK control request.
+			// Without the guard every timed-out turn would queue one more request
+			// in the subprocess.
+			const warm = new ScriptedWarmQuery([makeResultWithUsage(), makeResultWithUsage()], () => new Promise<SDKControlGetContextUsageResponse>(() => { /* never resolves */ }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			(pipeline as unknown as { _contextUsageTimeoutMs: number })._contextUsageTimeoutMs = 5;
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+			await pipeline.send(makePrompt('p2'), 'turn-2');
+
+			assert.deepStrictEqual(
+				{ contextUsageCalls: warm.queries[0].contextUsageCalls.length, actions: actionTypesOf(signals) },
+				{ contextUsageCalls: 1, actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete, ActionType.ChatUsage, ActionType.ChatTurnComplete] },
+			);
 		});
 	});
 

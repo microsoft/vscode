@@ -687,7 +687,14 @@ export class ClaudeAgentSession extends Disposable {
 			throw err;
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
-		this._register(pipeline.onDidObserveModelLimits(limits => this._onDidObserveModelLimits.fire(limits)));
+		this._register(pipeline.onDidObserveModelLimits(limits => {
+			// Only a native turn describes the native catalog. The agent applies
+			// observations to `@provider=anthropic` rows only, so a proxy turn's
+			// `modelUsage` would overwrite the native rows' limits if forwarded.
+			if (this._transportKind === 'native') {
+				this._onDidObserveModelLimits.fire(limits);
+			}
+		}));
 		this._pipeline = pipeline;
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {

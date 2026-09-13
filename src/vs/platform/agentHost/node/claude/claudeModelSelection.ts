@@ -183,9 +183,15 @@ export interface IClaudeModelLimits {
  * serving model's window and output cap, so the agent records those and
  * re-publishes the catalog through this helper. Copilot-routed models already
  * carry CAPI's limits and are left untouched; a native model with no
- * observation yet is also left untouched. Mirrors the CAPI convention the
- * proxied projection uses: `maxPromptTokens` is the full window and
- * `maxOutputTokens` is reported alongside it.
+ * observation yet is also left untouched.
+ *
+ * The SDK's `contextWindow` is the whole window, shared by prompt and
+ * completion. Consumers derive the total window as `maxPromptTokens +
+ * maxOutputTokens` (the workbench's context-usage widget and its language
+ * model provider), so the prompt limit is published as the window minus the
+ * output cap, matching how CAPI reports `max_prompt_tokens` for Copilot-routed
+ * models. An observation without a usable output cap publishes the whole
+ * window as the prompt limit so the sum still equals the window.
  *
  * The SDK catalog names most models by alias (`sonnet`, `opus`, `haiku`) and
  * only carries the concrete id in `resolvedModel`, while `modelUsage` keys by
@@ -207,10 +213,11 @@ export function applyObservedNativeModelLimits(models: readonly IAgentModelInfo[
 		if (!observed) {
 			return model;
 		}
+		const hasOutputCap = observed.maxOutputTokens > 0 && observed.maxOutputTokens < observed.contextWindow;
 		return {
 			...model,
 			maxContextWindow: observed.contextWindow,
-			maxPromptTokens: observed.contextWindow,
+			maxPromptTokens: hasOutputCap ? observed.contextWindow - observed.maxOutputTokens : observed.contextWindow,
 			maxOutputTokens: observed.maxOutputTokens,
 		};
 	});

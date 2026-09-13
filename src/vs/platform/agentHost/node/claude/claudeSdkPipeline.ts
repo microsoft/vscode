@@ -216,11 +216,28 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * hang on it. Any failure or timeout logs at trace and leaves the base
 	 * `ChatUsage` as the turn's final word. Skipped when the query was swapped
 	 * or aborted while awaiting, so a stale report never lands on a new turn.
+	 *
+	 * The timeout stops awaiting but cannot cancel the control request, which
+	 * stays pending in the subprocess. While one is pending on this query, later
+	 * turns skip enrichment instead of queueing another request behind it. A
+	 * rebind swaps the query and lifts the guard.
 	 */
 	private async _emitContextUsage(query: Query, message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>, turnId: string): Promise<void> {
+		if (this._pendingContextUsage?.query === query) {
+			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage still pending from an earlier turn, skipping enrichment`);
+			return;
+		}
 		let contextUsage: SDKControlGetContextUsageResponse | undefined;
 		try {
-			contextUsage = await raceTimeout(query.getContextUsage({ detail: 'summary' }), this._contextUsageTimeoutMs);
+			const request = query.getContextUsage({ detail: 'summary' });
+			const pending = { query };
+			this._pendingContextUsage = pending;
+			request.then(() => undefined, () => undefined).then(() => {
+				if (this._pendingContextUsage === pending) {
+					this._pendingContextUsage = undefined;
+				}
+			});
+			contextUsage = await raceTimeout(request, this._contextUsageTimeoutMs);
 		} catch (err) {
 			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage failed: ${err}`);
 			return;
@@ -275,6 +292,8 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/** Upper bound on the post-result `getContextUsage` control round-trip. Overridable by tests. */
 	protected _contextUsageTimeoutMs = 2000;
+	/** The `getContextUsage` request still unanswered on its query, if any. See {@link _emitContextUsage}. */
+	private _pendingContextUsage: { readonly query: Query } | undefined;
 	private _abortController: AbortController;
 
 	private readonly _queue: ClaudePromptQueue;
