@@ -198,6 +198,8 @@ suite('CommandAutoApprover', () => {
 				'tree -o output.txt .',
 				'tree -io output.txt .',
 				'tree -R -L 2 .',
+				'tree "-o" output.txt .',
+				'tree \\-\\o output.txt .',
 			];
 			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command)), [
 				'noMatch',
@@ -206,6 +208,8 @@ suite('CommandAutoApprover', () => {
 				'denied',
 				'denied',
 				'noMatch',
+				'denied',
+				'denied',
 			]);
 			assert.strictEqual(approver.shouldAutoApprove('tree .', { autoApproveRules: { '/^tree\\b/': true } }), 'approved');
 			assert.strictEqual(approver.shouldAutoApprove('tree -io output.txt .', { autoApproveRules: { '/^tree\\b/': true, '/^tree\\b.*\\s-[^-\\s]*o/': false } }), 'denied');
