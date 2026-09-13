@@ -55,6 +55,34 @@ suite('ChatErrorMessages', () => {
 			});
 		});
 
+		// Also accept _meta.chatError when it is a JSON-stringified payload.
+		test('parses a stringified forwarded rate-limit error', () => {
+			const payload = JSON.stringify({
+				fetchError: {
+					type: ChatFetchResponseType.RateLimited,
+					retryAfter: 60,
+					capiError: { code: 'user_global_rate_limited', message: 'slow down' },
+				},
+				copilotPlan: 'free',
+			});
+
+			const details = getChatErrorDetailsFromMeta(errorInfo({ chatError: payload }));
+			assert.deepStrictEqual(details, {
+				code: ChatFetchResponseType.RateLimited,
+				message: 'You\'ve hit your session rate limit. Please upgrade your plan or wait 60 seconds for your limit to reset. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				level: ChatErrorLevel.Info,
+				isRateLimited: true,
+			});
+		});
+
+		// Malformed JSON should not throw — return undefined so callers fall back
+		// to generic error handling.
+		test('invalid JSON in forwarded chatError returns undefined (safe fallback)', () => {
+			const payload = '{ fetchError: { type: "rateLimited", retryAfter: 60 }'; // missing closing brace
+			const details = getChatErrorDetailsFromMeta(errorInfo({ chatError: payload }));
+			assert.strictEqual(details, undefined);
+		});
+
 		test('context overrides the forwarded plan (free user)', () => {
 			const details = getChatErrorDetailsFromMeta(errorInfo({
 				chatError: {
