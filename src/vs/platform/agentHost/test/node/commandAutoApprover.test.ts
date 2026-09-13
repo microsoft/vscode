@@ -585,6 +585,23 @@ suite('CommandAutoApprover', () => {
 			assert.deepStrictEqual(seen, ['../../outside.txt', '../../outside.txt', '../../outside.txt']);
 		});
 
+		test('detects every PowerShell redirect in a generic token', () => {
+			const seen: string[] = [];
+			const options = {
+				...pwsh,
+				isWriteDestApproved: (dest: string) => {
+					seen.push(dest);
+					return dest === '/workspace/inside';
+				},
+			};
+
+			assert.strictEqual(
+				approver.shouldAutoApprove('Write-Host hi>/workspace/inside>/outside', options),
+				'noMatch'
+			);
+			assert.deepStrictEqual(seen, ['/workspace/inside', '/outside']);
+		});
+
 		// The grammar parses `--flag=value` as an assignment expression that
 		// truncates the command (microsoft/vscode#294010). Without masking, the
 		// truncated capture could match an allow rule while the real command
