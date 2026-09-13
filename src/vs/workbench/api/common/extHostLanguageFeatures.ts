@@ -2109,6 +2109,9 @@ class DocumentDropEditAdapter {
 		}
 
 		const editsArray = asArray(edits);
+		if (editsArray.length === 0) {
+			return undefined;
+		}
 		const cacheId = this._cache.add(editsArray);
 
 		return editsArray.map((edit, i): extHostProtocol.IDocumentDropEditDto => ({
