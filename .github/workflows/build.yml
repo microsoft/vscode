@@ -27,14 +27,18 @@ jobs:
             platform: darwin
             arch: arm64
             gulp_task: vscode-darwin-arm64-min
-          - os: macos-latest
+          # macos-latest is arm64. Building the x64 package there is a
+          # cross-architecture build, which is what the note above warns
+          # against — it installs only the arm64 platform packages. Intel
+          # macOS needs an Intel runner.
+          - os: macos-13
             platform: darwin
             arch: x64
             gulp_task: vscode-darwin-x64-min
           - os: windows-latest
             platform: win32
             arch: x64
-            gulp_task: vscode-win32-x64
+            gulp_task: vscode-win32-x64-min
 
     runs-on: ${{ matrix.os }}
 
@@ -75,14 +79,33 @@ jobs:
       - name: Build platform package
         run: npm run gulp ${{ matrix.gulp_task }}
 
+      # The gulp packaging tasks write to the *parent* of the repository
+      # (../VSCode-<platform>-<arch>). upload-artifact refuses any path
+      # containing '..', so move the output inside the workspace first.
+      - name: Collect build output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          shopt -s nullglob
+          found=0
+          for dir in ../VSCode-*; do
+            mv "$dir" artifacts/
+            found=1
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No VSCode-* build output found beside the repository" >&2
+            exit 1
+          fi
+          ls -la artifacts
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: kente-workbench-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            ../VSCode-darwin-*/**
-            ../VSCode-win32-*/**
-          if-no-files-found: warn
+          path: artifacts/**
+          # An artifact that silently fails to upload is worse than a red build.
+          if-no-files-found: error
           retention-days: 14
 
   # Fast local-iteration check — runs on every push, doesn't produce a package.
