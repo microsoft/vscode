@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { window, workspace } from 'vscode';
-import { assertNoRpc, closeAllEditors } from '../utils';
+import { assertNoRpc, closeAllEditors, poll } from '../utils';
 
 /**
  * We only care about target-lifecycle and browser-level events.
@@ -178,6 +179,74 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 	}
 
 	// #endregion
+
+	(vscode.env.remoteName ? test.skip : test)('favicons follow native document navigation and redirect history', async function () {
+		this.timeout(30_000);
+		const red = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>').toString('base64');
+		const blue = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="blue"/></svg>').toString('base64');
+		const server = http.createServer((request, response) => {
+			const url = new URL(request.url ?? '/', 'http://localhost');
+			if (url.pathname === '/redirect') {
+				response.writeHead(302, { Location: url.searchParams.get('to')! });
+				response.end();
+			} else if (url.pathname === '/favicon.ico') {
+				response.writeHead(404);
+				response.end();
+			} else {
+				const icon = url.pathname === '/first' ? red : url.pathname === '/second' ? blue : undefined;
+				response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
+				response.end(`<!doctype html><html><head><title>${url.pathname}</title>${icon ? `<link rel="icon" href="${icon}">` : ''}</head><body>${url.pathname}</body></html>`);
+			}
+		});
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, '127.0.0.1', () => {
+				server.off('error', reject);
+				resolve();
+			});
+		});
+		try {
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			const firstUrl = `http://127.0.0.1:${address.port}/first`;
+			const secondUrl = `http://localhost:${address.port}/second`;
+			const tab = await window.openBrowserTab(firstUrl);
+			const session = await tab.startCDPSession();
+			try {
+				const { cdpSend } = createHarness(session);
+				const browser: { sessionId: string } = await cdpSend('Target.attachToBrowserTarget');
+				const targets: { targetInfos: { targetId: string; type: string; url: string }[] } = await cdpSend('Target.getTargets', {}, browser.sessionId);
+				const target = targets.targetInfos.find(target => target.type === 'page' && target.url === firstUrl);
+				assert.ok(target);
+				const page: { sessionId: string } = await cdpSend('Target.attachToTarget', { targetId: target.targetId, flatten: true }, browser.sessionId);
+				const waitForIcon = (url: string, icon: string) => poll(
+					async () => ({ url: tab.url, icon: tab.icon instanceof vscode.Uri ? tab.icon.toString(true) : tab.icon instanceof vscode.ThemeIcon ? tab.icon.id : undefined }),
+					state => state.url === url && state.icon === icon,
+					`Browser favicon for ${url} should be ${icon}`,
+				);
+				await waitForIcon(firstUrl, red);
+				await cdpSend('Page.navigate', { url: secondUrl }, page.sessionId);
+				await waitForIcon(secondUrl, blue);
+				const history: { currentIndex: number; entries: { id: number }[] } = await cdpSend('Page.getNavigationHistory', {}, page.sessionId);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: history.entries[history.currentIndex - 1].id }, page.sessionId);
+				await waitForIcon(firstUrl, red);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: history.entries[history.currentIndex].id }, page.sessionId);
+				await waitForIcon(secondUrl, blue);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: history.entries[history.currentIndex - 1].id }, page.sessionId);
+				await waitForIcon(firstUrl, red);
+
+				const finalUrl = `http://127.0.0.1:${address.port}/iconless`;
+				const intermediate = `http://localhost:${address.port}/redirect?to=${encodeURIComponent(finalUrl)}`;
+				await cdpSend('Page.navigate', { url: `http://127.0.0.1:${address.port}/redirect?to=${encodeURIComponent(intermediate)}` }, page.sessionId);
+				await waitForIcon(finalUrl, 'globe');
+			} finally {
+				await session.close();
+			}
+		} finally {
+			server.closeAllConnections();
+			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+		}
+	});
 
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote
 	// workspaces: the workspace folder is a `vscode-remote://` URI so it
