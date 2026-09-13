@@ -16,7 +16,7 @@ import { Schemas } from '../../base/common/network.js';
 import { MenuSettings } from '../../platform/window/common/window.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, isDiffEditorInput } from './editor.js';
+import { EditorResourceAccessor, isDiffEditorInput } from './editor.js';
 
 //#region < --- Workbench --- >
 
@@ -355,13 +355,6 @@ export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor:
 }
 
 function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService): string[] {
-	// Non text editor untitled files cannot be easily serialized between
-	// extensions so instead we disable this context key to prevent common
-	// commands that act on the active editor.
-	if (editor.resource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
-		return [];
-	}
-
 	// Diff editors. The original and modified resources of a diff editor
 	// *should* be the same, but calculate the set intersection just to be safe.
 	if (isDiffEditorInput(editor)) {
