@@ -9,6 +9,7 @@ import { IAction, Action, Separator, SubmenuAction, IActionChangeEvent } from '.
 import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
+import { basename } from '../../../../base/common/resources.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
@@ -2452,18 +2453,22 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		super(id, label);
 	}
 
-	protected openExtensionsFile(extensionsFileResource: URI): Promise<any> {
-		return this.getOrCreateExtensionsFile(extensionsFileResource)
-			.then(({ created, content }) =>
-				this.getSelectionPosition(content, extensionsFileResource, ['recommendations'])
-					.then(selection => this.editorService.openEditor({
-						resource: extensionsFileResource,
-						options: {
-							pinned: created,
-							selection
-						}
-					})),
-				error => Promise.reject(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+	protected async openExtensionsFile(extensionsFileResource: URI): Promise<any> {
+		let targetResource = extensionsFileResource;
+		try {
+			targetResource = await this.resolveExtensionsFileResource(extensionsFileResource);
+			const { created, content } = await this.getOrCreateExtensionsFile(targetResource);
+			const selection = await this.getSelectionPosition(content, targetResource, ['recommendations']);
+			return this.editorService.openEditor({
+				resource: targetResource,
+				options: {
+					pinned: created,
+					selection
+				}
+			});
+		} catch (error) {
+			return Promise.reject(new Error(localize('OpenExtensionsFile.failed', "Unable to open or create '{0}' file inside the '.vscode' folder ({1}).", basename(targetResource), error)));
+		}
 	}
 
 	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<any> {
@@ -2520,6 +2525,19 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				return { created: true, extensionsFileResource, content: ExtensionsConfigurationInitialContent };
 			});
 		});
+	}
+
+	private async resolveExtensionsFileResource(resource: URI): Promise<URI> {
+		if (await this.fileService.exists(resource)) {
+			return resource;
+		}
+		if (resource.path.endsWith('.json')) {
+			const jsoncResource = resource.with({ path: `${resource.path.slice(0, -'.json'.length)}.jsonc` });
+			if (await this.fileService.exists(jsoncResource)) {
+				return jsoncResource;
+			}
+		}
+		return resource;
 	}
 }
 
