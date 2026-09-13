@@ -8,10 +8,12 @@ import assert from 'assert';
 import { PassThrough } from 'stream';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -45,7 +47,10 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
+import type { CommandExecutionApprovalDecision } from '../../../node/codex/protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
+import type { ItemGuardianApprovalReviewCompletedNotification } from '../../../node/codex/protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
+import type { Turn } from '../../../node/codex/protocol/generated/v2/Turn.js';
 import type { JsonValue } from '../../../node/codex/protocol/generated/serde_json/JsonValue.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
@@ -326,6 +331,11 @@ function respondToHooksList(peer: ITestPeer, request: ITestWireRequest, cwd: str
 
 class RecordingLogService extends NullLogService {
 	readonly warnings: string[] = [];
+	readonly traces: string[] = [];
+
+	override trace(message: string): void {
+		this.traces.push(message);
+	}
 
 	override warn(message: string, ...args: unknown[]): void {
 		this.warnings.push([message, ...args].map(String).join(' '));
@@ -412,6 +422,646 @@ function readNextMessage(stream: PassThrough): Promise<{ readonly id?: number; r
 suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const providerStarted of [false, true]) {
+		test(`cancelled completion ${providerStarted ? 'after' : 'before'} provider start preserves the replacement`, async () => {
+			const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
+			const session = AgentSession.uri('codex', 'cancelled-completion');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [URI.file('/workspace')],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const turn = (id: string, status: Turn['status']): Turn => ({
+				id, status, items: [], itemsView: 'notLoaded', error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			});
+			entry.currentTurnId = 'original';
+			agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'inProgress') });
+			const originalApproval = entry.pendingCommandApprovals.register('original-approval');
+			entry.pendingGuardianReviewCards.set('original-approval', { hostTurnId: 'original', appTurnId: 'app-original' });
+
+			entry.currentTurnId = 'replacement';
+			entry.agentMergeTurn = true;
+			agent['_startTurnStopWatch'](entry);
+			const replacementStopWatch = entry.turnStopWatch;
+			if (providerStarted) {
+				agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'inProgress') });
+				entry.mapState.itemToPartId.set('replacement-message', 'replacement-part');
+			}
+			const replacementApproval = entry.pendingCommandApprovals.register('replacement-approval');
+			entry.pendingGuardianReviewCards.set('replacement-approval', { hostTurnId: 'replacement', appTurnId: 'app-replacement' });
+			const cancelledActions = agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'interrupted') });
+			const afterCancelledCompletion = {
+				hostTurn: entry.currentTurnId,
+				appTurn: entry.currentAppTurnId,
+				agentMergeTurn: entry.agentMergeTurn,
+				stopWatchPreserved: entry.turnStopWatch === replacementStopWatch,
+				responseParts: [...entry.mapState.itemToPartId],
+				originalApprovalPending: entry.pendingCommandApprovals.has('original-approval'),
+				approvalPending: entry.pendingCommandApprovals.has('replacement-approval'),
+				cancelledTurns: cancelledActions.filter(action => action.type === ActionType.ChatTurnCancelled).map(action => action.turnId),
+			};
+
+			if (!providerStarted) {
+				agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'inProgress') });
+			}
+			const completedActions = agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'completed') });
+			assert.deepStrictEqual({
+				afterCancelledCompletion,
+				hostTurn: entry.currentTurnId,
+				appTurn: entry.currentAppTurnId,
+				originalApprovalResult: await originalApproval,
+				approvalResult: await replacementApproval,
+				duplicateApprovalAccepted: entry.pendingCommandApprovals.respond('replacement-approval', 'accept'),
+				pendingApprovals: [...entry.pendingCommandApprovals.entries()],
+				pendingGuardianCards: [...entry.pendingGuardianReviewCards],
+				completedTurns: completedActions.filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, {
+				afterCancelledCompletion: {
+					hostTurn: 'replacement',
+					appTurn: providerStarted ? 'app-replacement' : undefined,
+					agentMergeTurn: true,
+					stopWatchPreserved: true,
+					responseParts: providerStarted ? [['replacement-message', 'replacement-part']] : [],
+					originalApprovalPending: false,
+					approvalPending: true,
+					cancelledTurns: ['original'],
+				},
+				hostTurn: undefined,
+				appTurn: undefined,
+				originalApprovalResult: 'cancel',
+				approvalResult: 'cancel',
+				duplicateApprovalAccepted: false,
+				pendingApprovals: [],
+				pendingGuardianCards: [],
+				completedTurns: ['replacement'],
+			});
+		});
+	}
+
+	for (const status of ['interrupted', 'completed'] as const) {
+		test(`unmatched old terminals preserve the replacement until its own ${status === 'interrupted' ? 'abort' : 'completion'}`, async () => {
+			const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'unmatched-completion');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [URI.file('/workspace')],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'thread';
+			const turn = (id: string, status: Turn['status']): Turn => ({
+				id, status, items: [], itemsView: 'notLoaded', error: null,
+				startedAt: null, completedAt: null, durationMs: 42,
+			});
+			entry.currentTurnId = 'original';
+			agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'inProgress') });
+			const originalActions = agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'interrupted') });
+
+			entry.currentTurnId = 'replacement';
+			agent['_startTurnStopWatch'](entry);
+			const replacementStopWatch = entry.turnStopWatch;
+			const snapshots = [];
+			for (const providerStarted of [false, true]) {
+				if (providerStarted) {
+					agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'inProgress') });
+					entry.mapState.itemToPartId.set('replacement-message', 'replacement-part');
+				}
+				const actions = ['unknown-old-turn', 'app-original'].flatMap(id =>
+					agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn(id, 'interrupted') }));
+				snapshots.push({
+					actions,
+					hostTurn: entry.currentTurnId,
+					appTurn: entry.currentAppTurnId,
+					mapperTurn: entry.mapState.currentTurnId,
+					responseParts: [...entry.mapState.itemToPartId],
+					stopWatchPreserved: entry.turnStopWatch === replacementStopWatch,
+					liveMappings: [...entry.hostTurnIdByAppTurnId],
+					retainedMappings: [...entry.codexTurnIdByHostTurnId],
+				});
+			}
+			let interruptRequest: ITestWireRequest | undefined;
+			if (status === 'interrupted') {
+				const abort = agent.chats.abort(chat, { configurationResource: session, resource: chat });
+				interruptRequest = await readNextRequest(peer.outbound);
+				peer.push({ id: interruptRequest.id, result: {} });
+				await abort;
+			}
+			const replacementCompletion = { threadId: 'thread', turn: turn('app-replacement', status) };
+			const replacementActions = agent['_handleTurnCompletedNotification'](entry, replacementCompletion);
+			const duplicateActions = agent['_handleTurnCompletedNotification'](entry, replacementCompletion);
+
+			assert.deepStrictEqual({
+				originalActions,
+				snapshots,
+				interruptRequest: interruptRequest ? { method: interruptRequest.method, params: interruptRequest.params } : undefined,
+				replacementActions,
+				duplicateActions,
+				hostTurn: entry.currentTurnId,
+				appTurn: entry.currentAppTurnId,
+				mapperTurn: entry.mapState.currentTurnId,
+				responseParts: [...entry.mapState.itemToPartId],
+				stopWatch: entry.turnStopWatch,
+				liveMappings: [...entry.hostTurnIdByAppTurnId],
+				retainedMappings: [...entry.codexTurnIdByHostTurnId],
+			}, {
+				originalActions: [{ type: ActionType.ChatTurnCancelled, turnId: 'original', duration: 42 }],
+				snapshots: [false, true].map(providerStarted => ({
+					actions: [],
+					hostTurn: 'replacement',
+					appTurn: providerStarted ? 'app-replacement' : undefined,
+					mapperTurn: providerStarted ? 'replacement' : undefined,
+					responseParts: providerStarted ? [['replacement-message', 'replacement-part']] : [],
+					stopWatchPreserved: true,
+					liveMappings: providerStarted ? [['app-replacement', 'replacement']] : [],
+					retainedMappings: [['original', 'app-original']],
+				})),
+				interruptRequest: status === 'interrupted' ? { method: 'turn/interrupt', params: { threadId: 'thread', turnId: 'app-replacement' } } : undefined,
+				replacementActions: [{ type: status === 'interrupted' ? ActionType.ChatTurnCancelled : ActionType.ChatTurnComplete, turnId: 'replacement', duration: 42 }],
+				duplicateActions: [],
+				hostTurn: undefined,
+				appTurn: undefined,
+				mapperTurn: undefined,
+				responseParts: [],
+				stopWatch: undefined,
+				liveMappings: [],
+				retainedMappings: [['original', 'app-original'], ['replacement', 'app-replacement']],
+			});
+		});
+	}
+
+	for (const originalCompletedBeforeAbort of [false, true]) {
+		test(`cancelling a starting replacement ${originalCompletedBeforeAbort ? 'after' : 'before'} original completion interrupts only the replacement`, async () => {
+			const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'abort-starting-replacement');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [URI.file('/workspace')],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'thread';
+			const requests: ITestWireRequest[] = [];
+			disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(data => {
+				const request: ITestWireRequest = JSON.parse(data.toString());
+				requests.push(request);
+				peer.push({ id: request.id, result: {} });
+			}));
+			const turn = (id: string, status: Turn['status']): Turn => ({
+				id, status, items: [], itemsView: 'notLoaded', error: null,
+				startedAt: null, completedAt: null, durationMs: 0,
+			});
+			entry.currentTurnId = 'original';
+			agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'inProgress') });
+			entry.currentTurnId = 'replacement';
+			const completeOriginal = () => agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'interrupted') });
+			if (originalCompletedBeforeAbort) {
+				completeOriginal();
+			}
+			await agent.chats.abort(chat, context);
+			const requestsBeforeStart = requests.map(request => ({ method: request.method, params: request.params }));
+			const pendingBeforeStart = [...entry.pendingAbortTurnIds];
+			if (!originalCompletedBeforeAbort) {
+				completeOriginal();
+			}
+			const appTurnBeforeStart = entry.currentAppTurnId;
+			agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'inProgress') });
+			await new Promise<void>(resolve => setImmediate(resolve));
+			const completion = agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'interrupted') });
+
+			assert.deepStrictEqual({
+				requestsBeforeStart,
+				pendingBeforeStart,
+				appTurnBeforeStart,
+				requests: requests.map(request => ({ method: request.method, params: request.params })),
+				completion,
+				activeHostTurn: entry.currentTurnId,
+				activeAppTurn: entry.currentAppTurnId,
+				pendingAfterCompletion: [...entry.pendingAbortTurnIds],
+			}, {
+				requestsBeforeStart: [],
+				pendingBeforeStart: ['replacement'],
+				appTurnBeforeStart: undefined,
+				requests: [{ method: 'turn/interrupt', params: { threadId: 'thread', turnId: 'app-replacement' } }],
+				completion: [{ type: ActionType.ChatTurnCancelled, turnId: 'replacement', duration: 0 }],
+				activeHostTurn: undefined,
+				activeAppTurn: undefined,
+				pendingAfterCompletion: [],
+			});
+		});
+	}
+
+	test('disposing a starting replacement clears its queued cancellation', async () => {
+		const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
+		const session = AgentSession.uri('codex', 'dispose-pending-abort');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/workspace')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.currentTurnId = 'replacement';
+		await agent.chats.abort(chat, context);
+		const beforeDispose = [...entry.pendingAbortTurnIds];
+		agent.dispose();
+		assert.deepStrictEqual({
+			beforeDispose,
+			afterDispose: [...entry.pendingAbortTurnIds],
+		}, {
+			beforeDispose: ['replacement'],
+			afterDispose: [],
+		});
+	});
+
+	suite('delayed provider start ownership', () => {
+		async function createDelayedStartSession() {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'delayed-starts');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			const folder = URI.file('/repo/delayed-starts');
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const materialize = await readNextRequest(peer.outbound);
+			assert.strictEqual(materialize.method, 'thread/start');
+			peer.push({ id: materialize.id, result: { thread: { id: 'thread', cwd: folder.fsPath } } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			await entry.materializePromise;
+			const interrupts: ITestWireRequest[] = [];
+			disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(data => {
+				const request: ITestWireRequest = JSON.parse(data.toString());
+				if (request.method === 'turn/interrupt') {
+					interrupts.push(request);
+					peer.push({ id: request.id, result: {} });
+				}
+			}));
+			const turn = (id: string, status: Turn['status']): Turn => ({
+				id, status, items: [], itemsView: 'notLoaded', error: null,
+				startedAt: null, completedAt: null, durationMs: 0,
+			});
+			const issueStart = async (hostTurnId: string, prompt = hostTurnId) => {
+				const nextRequest = readNextRequest(peer.outbound);
+				const sending = agent.chats.sendMessage(chat, prompt, [folder], undefined, hostTurnId, undefined, undefined, context);
+				const request = await nextRequest;
+				assert.strictEqual(request.method, prompt === '/compact' ? 'thread/compact/start' : 'turn/start');
+				return { request, sending };
+			};
+			const send = async (hostTurnId: string) => {
+				const { request, sending } = await issueStart(hostTurnId);
+				peer.push({ id: request.id, result: { turn: turn(`app-${hostTurnId}`, 'inProgress') } });
+				await sending;
+			};
+			const started = (appTurnId: string) => agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn(appTurnId, 'inProgress') });
+			const completed = (appTurnId: string) => agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn(appTurnId, 'interrupted') });
+			return { agent, peer, entry, chat, context, interrupts, issueStart, send, started, completed };
+		}
+
+		for (const firstCompletedBeforeSecondStart of [false, true]) {
+			test(`delayed starts retain their issuing host turns with duplicate start ${firstCompletedBeforeSecondStart ? 'after' : 'before'} completion`, async () => {
+				const fixture = await createDelayedStartSession();
+				const { entry } = fixture;
+				for (const hostTurnId of ['first', 'second']) {
+					await fixture.send(hostTurnId);
+					await fixture.agent.chats.abort(fixture.chat, fixture.context);
+				}
+				fixture.started('app-first');
+				const afterFirstStart = {
+					firstHost: entry.hostTurnIdByAppTurnId.get('app-first'),
+					pendingAborts: [...entry.pendingAbortTurnIds],
+					pendingStarts: entry.pendingTurnStarts.map(start => start.hostTurnId),
+					activeHost: entry.currentTurnId,
+					activeApp: entry.currentAppTurnId,
+					mapperTurn: entry.mapState.currentTurnId,
+				};
+				const cancellations = [];
+				if (firstCompletedBeforeSecondStart) {
+					cancellations.push(...fixture.completed('app-first'));
+				}
+				fixture.started('app-first');
+				fixture.started('app-second');
+				const secondHost = entry.hostTurnIdByAppTurnId.get('app-second');
+				if (!firstCompletedBeforeSecondStart) {
+					cancellations.push(...fixture.completed('app-first'));
+				}
+				cancellations.push(...fixture.completed('app-second'));
+				await new Promise<void>(resolve => setImmediate(resolve));
+
+				assert.deepStrictEqual({
+					afterFirstStart,
+					secondHost,
+					interrupts: fixture.interrupts.map(request => request.params),
+					cancelledTurns: cancellations.filter(action => action.type === ActionType.ChatTurnCancelled).map(action => action.turnId),
+					pendingAborts: [...entry.pendingAbortTurnIds],
+					pendingStarts: entry.pendingTurnStarts.map(start => start.hostTurnId),
+					activeHost: entry.currentTurnId,
+					activeApp: entry.currentAppTurnId,
+				}, {
+					afterFirstStart: {
+						firstHost: 'first',
+						pendingAborts: ['second'],
+						pendingStarts: ['second'],
+						activeHost: 'second',
+						activeApp: undefined,
+						mapperTurn: undefined,
+					},
+					secondHost: 'second',
+					interrupts: [
+						{ threadId: 'thread', turnId: 'app-first' },
+						{ threadId: 'thread', turnId: 'app-second' },
+					],
+					cancelledTurns: ['first', 'second'],
+					pendingAborts: [],
+					pendingStarts: [],
+					activeHost: undefined,
+					activeApp: undefined,
+				});
+			});
+		}
+
+		test('a failed start cannot consume the ownership of a later start', async () => {
+			const fixture = await createDelayedStartSession();
+			const first = await fixture.issueStart('first');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			await fixture.send('second');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			fixture.peer.push({ id: first.request.id, error: { code: -32000, message: 'injected start failure' } });
+			await first.sending;
+			fixture.started('app-second');
+			const secondHost = fixture.entry.hostTurnIdByAppTurnId.get('app-second');
+			fixture.completed('app-second');
+			await new Promise<void>(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual({
+				secondHost,
+				interrupts: fixture.interrupts.map(request => request.params),
+				pendingAborts: [...fixture.entry.pendingAbortTurnIds],
+				pendingStarts: fixture.entry.pendingTurnStarts.map(start => start.hostTurnId),
+			}, {
+				secondHost: 'second',
+				interrupts: [{ threadId: 'thread', turnId: 'app-second' }],
+				pendingAborts: [],
+				pendingStarts: [],
+			});
+		});
+
+		test('compact starts retain their request owner before a replacement starts', async () => {
+			const fixture = await createDelayedStartSession();
+			const compact = await fixture.issueStart('first', '/compact');
+			fixture.peer.push({ id: compact.request.id, result: {} });
+			await compact.sending;
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			await fixture.send('second');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			fixture.started('app-first');
+			fixture.completed('app-first');
+			fixture.started('app-second');
+			fixture.completed('app-second');
+			await new Promise<void>(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual({
+				owners: [...fixture.entry.codexTurnIdByHostTurnId],
+				interrupts: fixture.interrupts.map(request => request.params),
+				pendingStarts: fixture.entry.pendingTurnStarts.map(start => start.hostTurnId),
+			}, {
+				owners: [['first', 'app-first'], ['second', 'app-second']],
+				interrupts: [{ threadId: 'thread', turnId: 'app-first' }, { threadId: 'thread', turnId: 'app-second' }],
+				pendingStarts: [],
+			});
+		});
+
+		test('disposal clears queued start ownership and cancellation together', async () => {
+			const fixture = await createDelayedStartSession();
+			await fixture.send('first');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			const queued = fixture.entry.pendingTurnStarts.map(start => start.hostTurnId);
+			fixture.agent.dispose();
+			assert.deepStrictEqual({
+				queued,
+				pendingStarts: fixture.entry.pendingTurnStarts.map(start => start.hostTurnId),
+				pendingAborts: [...fixture.entry.pendingAbortTurnIds],
+				interrupts: fixture.interrupts,
+			}, {
+				queued: ['first'],
+				pendingStarts: [],
+				pendingAborts: [],
+				interrupts: [],
+			});
+		});
+	});
+
+	suite('guardian cancellation ownership', () => {
+		async function createGuardianSession() {
+			const logService = new RecordingLogService();
+			const agent = await createAgent(disposables, { sessionStore: createTestSessionStore(), logService });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'guardian-ownership');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [URI.file('/workspace')],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'guardian-thread';
+			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+			const connection = agent['_connection'];
+			assert.ok(connection.kind === 'ready');
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			const sentMethods: string[] = [];
+			disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(data => {
+				const request: ITestWireRequest = JSON.parse(data.toString());
+				sentMethods.push(request.method);
+			}));
+			const turn = (id: string, status: Turn['status']): Turn => ({
+				id, status, items: [], itemsView: 'notLoaded', error: null,
+				startedAt: null, completedAt: null, durationMs: 0,
+			});
+			const begin = (hostTurnId: string, appTurnId: string) => {
+				entry.currentTurnId = hostTurnId;
+				agent['_handleTurnStartedNotification'](entry, { threadId: entry.threadId!, turn: turn(appTurnId, 'inProgress') });
+			};
+			const complete = (appTurnId: string, status: 'completed' | 'interrupted' = 'completed') =>
+				agent['_handleTurnCompletedNotification'](entry, { threadId: entry.threadId!, turn: turn(appTurnId, status) });
+			const notify = (notification: ItemGuardianApprovalReviewCompletedNotification) =>
+				agent['_handleGuardianReviewCompleted'](connection.client, notification);
+			const request = (reviewId: string, appTurnId: string) => {
+				const notification: ItemGuardianApprovalReviewCompletedNotification = {
+					threadId: entry.threadId!, turnId: appTurnId, reviewId, targetItemId: 'same-provider-item',
+					startedAtMs: 10, completedAtMs: 20, decisionSource: 'agent',
+					review: { status: 'denied', riskLevel: null, userAuthorization: null, rationale: 'Denied by the reviewer.' },
+					action: { type: 'networkAccess', target: 'https://example.com', host: 'example.com', protocol: 'https', port: 443 },
+				};
+				const completion = notify(notification);
+				const started = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart ? [signal.action] : []).at(-1);
+				assert.ok(started);
+				return { notification, completion, toolCallId: started.toolCallId };
+			};
+			return { agent, peer, entry, chat, context, logService, sentMethods, signals, begin, complete, notify, request };
+		}
+
+		test('captures host and provider ownership and settles only the completed execution', async () => {
+			const fixture = await createGuardianSession();
+			const { entry } = fixture;
+			fixture.begin('original', 'app-original');
+			const original = fixture.request('review-original', 'app-original');
+			fixture.begin('replacement', 'app-replacement');
+			const replacement = fixture.request('review-replacement', 'app-replacement');
+			const ownership = [...entry.pendingGuardianReviewCards.values()];
+			await fixture.notify(original.notification);
+			await fixture.notify(replacement.notification);
+			const requestIds = [...entry.pendingGuardianReviewCards.keys()];
+
+			fixture.complete('app-original', 'interrupted');
+			await original.completion;
+			const afterOriginal = {
+				pendingCards: [...entry.pendingGuardianReviewCards.keys()],
+				pendingCallbacks: [...entry.pendingCommandApprovals.entries()].map(([id]) => id),
+				activeTurn: entry.currentTurnId,
+			};
+			const duplicateOriginal = fixture.complete('app-original', 'interrupted');
+			fixture.complete('app-replacement');
+			await replacement.completion;
+			const duplicateReplacement = fixture.complete('app-replacement');
+
+			assert.deepStrictEqual({
+				ownership,
+				uniqueRequestIds: requestIds.length === 2 && new Set(requestIds).size === 2 && requestIds.every(isUUID),
+				afterOriginal,
+				duplicateOriginal,
+				duplicateReplacement,
+				pendingCards: [...entry.pendingGuardianReviewCards],
+				pendingCallbacks: [...entry.pendingCommandApprovals.entries()],
+				duplicateResponseAccepted: entry.pendingCommandApprovals.respond(replacement.toolCallId, 'accept'),
+				sentMethods: fixture.sentMethods,
+			}, {
+				ownership: [
+					{ hostTurnId: 'original', appTurnId: 'app-original' },
+					{ hostTurnId: 'replacement', appTurnId: 'app-replacement' },
+				],
+				uniqueRequestIds: true,
+				afterOriginal: { pendingCards: [replacement.toolCallId], pendingCallbacks: [replacement.toolCallId], activeTurn: 'replacement' },
+				duplicateOriginal: [],
+				duplicateReplacement: [],
+				pendingCards: [],
+				pendingCallbacks: [],
+				duplicateResponseAccepted: false,
+				sentMethods: [],
+			});
+		});
+
+		for (const reject of [false, true]) {
+			test(`${reject ? 'rejected' : 'denied'} guardian cleanup cannot remove a newer request reusing its slot`, async () => {
+				const fixture = await createGuardianSession();
+				const { entry } = fixture;
+				fixture.begin('original', 'app-original');
+				const original = fixture.request('review-original', 'app-original');
+				if (reject) {
+					entry.pendingCommandApprovals.rejectAll(new CancellationError());
+				} else {
+					fixture.agent.respondToPermissionRequest(original.toolCallId, false);
+				}
+				fixture.begin('replacement', 'app-replacement');
+				const replacement = fixture.request('review-replacement', 'app-replacement');
+				const newerRequest = entry.pendingGuardianReviewCards.get(replacement.toolCallId)!;
+				entry.pendingGuardianReviewCards.set(original.toolCallId, newerRequest);
+				let reusedSlotResult: CommandExecutionApprovalDecision | undefined;
+				const reusedSlot = entry.pendingCommandApprovals.register(original.toolCallId).then(result => { reusedSlotResult = result; });
+				try {
+					await original.completion;
+					const newerRequestPreserved = entry.pendingGuardianReviewCards.get(original.toolCallId) === newerRequest;
+					fixture.complete('app-original', 'interrupted');
+					const newerCallbackPreserved = entry.pendingCommandApprovals.has(original.toolCallId);
+					fixture.complete('app-replacement');
+					await replacement.completion;
+
+					assert.deepStrictEqual({
+						newerRequestPreserved,
+						newerCallbackPreserved,
+						reusedSlotResult,
+						pendingCards: [...entry.pendingGuardianReviewCards],
+						pendingCallbacks: [...entry.pendingCommandApprovals.entries()],
+						rejectionLogged: fixture.logService.traces.some(message => message.includes('guardian approval cancelled for reviewId=review-original')),
+						sentMethods: fixture.sentMethods,
+					}, {
+						newerRequestPreserved: true,
+						newerCallbackPreserved: true,
+						reusedSlotResult: 'cancel',
+						pendingCards: [],
+						pendingCallbacks: [],
+						rejectionLogged: reject,
+						sentMethods: [],
+					});
+				} finally {
+					entry.pendingCommandApprovals.denyAll('decline');
+					await reusedSlot;
+				}
+			});
+		}
+
+		for (const dispose of [false, true]) {
+			test(`${dispose ? 'disposal' : 'abort'} settles pending guardians without approval or leaks`, async () => {
+				const fixture = await createGuardianSession();
+				fixture.begin('active', 'app-active');
+				const guardian = fixture.request('review-active', 'app-active');
+				if (dispose) {
+					fixture.agent.dispose();
+				} else {
+					const nextRequest = readNextRequest(fixture.peer.outbound);
+					const abort = fixture.agent.chats.abort(fixture.chat, fixture.context);
+					const request = await nextRequest;
+					fixture.peer.push({ id: request.id, result: {} });
+					await abort;
+					fixture.complete('app-active', 'interrupted');
+				}
+				await guardian.completion;
+				assert.deepStrictEqual({
+					pendingCards: [...fixture.entry.pendingGuardianReviewCards],
+					pendingCallbacks: [...fixture.entry.pendingCommandApprovals.entries()],
+					duplicateResponseAccepted: fixture.entry.pendingCommandApprovals.respond(guardian.toolCallId, 'accept'),
+					sentMethods: fixture.sentMethods,
+				}, {
+					pendingCards: [],
+					pendingCallbacks: [],
+					duplicateResponseAccepted: false,
+					sentMethods: dispose ? [] : ['turn/interrupt'],
+				});
+			});
+		}
+
+		test('an explicit current-turn approval still performs exactly one approval RPC', async () => {
+			const fixture = await createGuardianSession();
+			fixture.begin('active', 'app-active');
+			const guardian = fixture.request('review-active', 'app-active');
+			const methodsBeforeApproval = [...fixture.sentMethods];
+			const nextRequest = readNextRequest(fixture.peer.outbound);
+			fixture.agent.respondToPermissionRequest(guardian.toolCallId, true);
+			const request = await nextRequest;
+			fixture.peer.push({ id: request.id, result: {} });
+			await guardian.completion;
+			await fixture.notify(guardian.notification);
+			assert.deepStrictEqual({
+				methodsBeforeApproval,
+				sentMethods: fixture.sentMethods,
+				pendingCards: [...fixture.entry.pendingGuardianReviewCards],
+				pendingCallbacks: [...fixture.entry.pendingCommandApprovals.entries()],
+				toolResults: fixture.signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete ? [signal.action.result.success] : []),
+			}, {
+				methodsBeforeApproval: [],
+				sentMethods: ['thread/approveGuardianDeniedAction'],
+				pendingCards: [],
+				pendingCallbacks: [],
+				toolResults: [true],
+			});
+		});
+	});
 
 	test('advertises chat fork and side-chat support', async () => {
 		const agent = await createAgent(disposables);
