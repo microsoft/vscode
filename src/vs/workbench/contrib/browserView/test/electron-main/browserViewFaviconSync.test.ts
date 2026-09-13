@@ -106,4 +106,35 @@ suite('BrowserView native favicon synchronization', () => {
 			});
 		});
 	}
+
+	for (const completeBeforeFailure of [true, false]) {
+		test(`clears the model favicon after a failed load with icon completion ${completeBeforeFailure ? 'before' : 'after'} the failure`, async () => {
+			const models = store.add(new DisposableStore());
+			const native = createTestBrowserView(store);
+			const oldIcon = 'data:image/png;base64,b2xk';
+			await native.setIcon(oldIcon);
+			const model = createModel(native, models);
+			await native.settle();
+			const target = 'https://first.example/failure';
+			const iconUrl = 'https://first.example/provisional.png';
+			native.navigate(target);
+			native.events.emit('page-favicon-updated', {}, [iconUrl]);
+			if (completeBeforeFailure) {
+				await native.completeFavicon(iconUrl, 'new');
+			}
+			native.events.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', target, true);
+			native.events.emit('did-stop-loading');
+			if (!completeBeforeFailure) {
+				await native.completeFavicon(iconUrl, 'new');
+			}
+
+			assert.deepStrictEqual({
+				favicon: model.favicon, nativeIcon: native.view.getNavigationState().lastFavicon,
+				url: model.url, error: model.error?.errorCode, historyIcon: native.history[0].favicon,
+			}, {
+				favicon: undefined, nativeIcon: undefined,
+				url: target, error: -105, historyIcon: oldIcon,
+			});
+		});
+	}
 });

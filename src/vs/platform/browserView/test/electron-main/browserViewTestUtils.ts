@@ -30,6 +30,7 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 	const permissionsChanged = store.add(new Emitter<void>());
 	let url = associatedResource?.toString() ?? 'https://first.example/page';
 	let historyTarget = url;
+	let activeHistoryIndex = -1;
 	let destroyed = false;
 	let closeCalls = 0;
 	let childCreates = 0;
@@ -62,7 +63,7 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 		loadURL: async target => { programmaticCalls.push('loadURL'); startNavigation(target); },
 		close: () => { closeCalls++; destroyed = true; events.emit('destroyed'); },
 		navigationHistory: upcastPartial<Electron.NavigationHistory>({
-			canGoBack: () => true, canGoForward: () => true, getActiveIndex: () => history.length,
+			canGoBack: () => true, canGoForward: () => true, getActiveIndex: () => activeHistoryIndex,
 			goBack: () => { programmaticCalls.push('back'); startNavigation(historyTarget); },
 			goForward: () => { programmaticCalls.push('forward'); startNavigation(historyTarget); },
 		}),
@@ -106,9 +107,16 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 		upcastPartial<IAuxiliaryWindowsMainService>({}), new NullLogService(), NullTelemetryService,
 	));
 	const settle = () => new Promise<void>(resolve => nextMacrotask(realTimeApi, resolve));
-	const commit = (target: string) => {
+	const commit = (target: string, options?: { replace?: boolean; sameDocument?: boolean }) => {
 		url = target;
-		events.emit('did-navigate', {}, url);
+		if (!options?.replace) {
+			activeHistoryIndex++;
+		}
+		if (options?.sameDocument) {
+			events.emit('did-navigate-in-page', {}, url, true);
+		} else {
+			events.emit('did-navigate', {}, url);
+		}
 	};
 	commit(url);
 	const navigate = (target: string) => {

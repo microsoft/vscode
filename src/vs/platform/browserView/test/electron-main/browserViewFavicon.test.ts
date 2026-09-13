@@ -238,4 +238,131 @@ suite('BrowserView favicon navigation', () => {
 			favicon: oldIcon, favicons: [],
 		});
 	});
+
+	for (const success of [true, false]) {
+		for (const commit of [true, false]) {
+			test(`defers a provisional favicon ${success ? 'update' : 'clear'} until navigation ${commit ? 'commits' : 'aborts'}`, async () => {
+				const testCase = createView();
+				await testCase.setIcon(oldIcon);
+				const target = 'https://first.example/next';
+				const iconUrl = 'https://first.example/provisional.png';
+				const provisionalIcon = success ? 'data:image/png;base64,bmV3' : undefined;
+				testCase.navigate(target);
+				testCase.events.emit('page-favicon-updated', {}, [iconUrl]);
+				await testCase.completeFavicon(iconUrl, 'new', success ? 200 : 404);
+				const duringNavigation = {
+					favicon: testCase.view.getNavigationState().lastFavicon,
+					history: testCase.history.map(entry => ({ ...entry })),
+				};
+				if (commit) {
+					testCase.commit(target);
+				}
+				testCase.events.emit('did-stop-loading');
+
+				assert.deepStrictEqual({
+					duringNavigation,
+					favicon: testCase.view.getNavigationState().lastFavicon,
+					history: testCase.history,
+				}, {
+					duringNavigation: {
+						favicon: provisionalIcon,
+						history: [{ url: 'https://first.example/page', favicon: oldIcon }],
+					},
+					favicon: commit ? provisionalIcon : oldIcon,
+					history: [
+						{ url: 'https://first.example/page', favicon: oldIcon },
+						...(commit ? [{ url: target, favicon: provisionalIcon }] : []),
+					],
+				});
+			});
+		}
+
+		test(`records a provisional favicon ${success ? 'update' : 'clear'} when the document replaces its history entry`, async () => {
+			const testCase = createView();
+			await testCase.setIcon(oldIcon);
+			const target = 'https://first.example/replacement';
+			const iconUrl = 'https://first.example/provisional.png';
+			testCase.navigate(target);
+			testCase.events.emit('page-favicon-updated', {}, [iconUrl]);
+			await testCase.completeFavicon(iconUrl, 'new', success ? 200 : 404);
+			const beforeCommit = testCase.history[0].favicon;
+			testCase.commit(target, { replace: true });
+
+			assert.deepStrictEqual({
+				beforeCommit,
+				favicon: testCase.view.getNavigationState().lastFavicon,
+				history: testCase.history.map(({ url, favicon }) => ({ url, favicon })),
+			}, {
+				beforeCommit: oldIcon,
+				favicon: success ? 'data:image/png;base64,bmV3' : undefined,
+				history: [{ url: target, favicon: success ? 'data:image/png;base64,bmV3' : null }],
+			});
+		});
+	}
+
+	test('same-document history updates during a provisional load keep the committed favicon', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		testCase.navigate('https://second.example/destination');
+		await testCase.setIcon('data:image/png;base64,bmV3');
+		testCase.commit('https://first.example/page#pending', { sameDocument: true, replace: true });
+		const duringNavigation = testCase.history[0].favicon;
+		testCase.events.emit('did-stop-loading');
+
+		assert.deepStrictEqual({
+			duringNavigation, favicon: testCase.view.getNavigationState().lastFavicon,
+			history: testCase.history.map(({ url, favicon }) => ({ url, favicon })),
+		}, {
+			duringNavigation: oldIcon, favicon: oldIcon,
+			history: [{ url: 'https://first.example/page#pending', favicon: oldIcon }],
+		});
+	});
+
+	for (const sameHost of [true, false]) {
+		for (const completeBeforeFailure of [true, false]) {
+			test(`rejects a ${sameHost ? 'same-host' : 'cross-host'} favicon completed ${completeBeforeFailure ? 'before' : 'after'} a failed navigation`, async () => {
+				const testCase = createView();
+				await testCase.setIcon(oldIcon);
+				const target = `https://${sameHost ? 'first' : 'second'}.example/destination`;
+				const iconUrl = 'https://first.example/provisional.png';
+				const favicons: (string | undefined)[] = [];
+				store.add(testCase.view.onDidChangeFavicon(event => favicons.push(event.favicon)));
+				testCase.navigate(target);
+				testCase.events.emit('page-favicon-updated', {}, [iconUrl]);
+				if (completeBeforeFailure) {
+					await testCase.completeFavicon(iconUrl, 'new');
+				}
+				testCase.events.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', target, true);
+				testCase.events.emit('did-stop-loading');
+				if (!completeBeforeFailure) {
+					await testCase.completeFavicon(iconUrl, 'new');
+				}
+				const state = testCase.view.getNavigationState();
+
+				assert.deepStrictEqual({
+					favicon: state.lastFavicon, error: state.lastError?.errorCode,
+					historyIcon: testCase.history[0].favicon, favicons,
+				}, {
+					favicon: undefined, error: -105, historyIcon: oldIcon,
+					favicons: completeBeforeFailure ? ['data:image/png;base64,bmV3', undefined] : sameHost ? [undefined] : [],
+				});
+			});
+		}
+	}
+
+	test('subframe failures leave current favicon work active', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		const iconUrl = 'https://first.example/current.png';
+		testCase.events.emit('page-favicon-updated', {}, [iconUrl]);
+		testCase.events.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://frame.example/', false);
+		await testCase.completeFavicon(iconUrl, 'new');
+
+		assert.deepStrictEqual({
+			favicon: testCase.view.getNavigationState().lastFavicon,
+			historyIcon: testCase.history[0].favicon,
+		}, {
+			favicon: 'data:image/png;base64,bmV3', historyIcon: 'data:image/png;base64,bmV3',
+		});
+	});
 });

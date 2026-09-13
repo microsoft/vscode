@@ -287,6 +287,7 @@ export class BrowserView extends Disposable {
 
 		// Favicon events
 		let lastEmittedFavicon: string | undefined;
+		let pendingNavigationFavicon: { favicon: string | undefined } | undefined;
 		const fireFaviconEvent = () => {
 			lastEmittedFavicon = this._lastFavicon;
 			this._onDidChangeFavicon.fire({ navigationStateVersion: ++this._navigationStateVersion, favicon: this._lastFavicon });
@@ -322,7 +323,9 @@ export class BrowserView extends Disposable {
 				}
 				this._lastFavicon = favicon;
 				fireFaviconEvent();
-				this._currentHistoryHandle?.update({ favicon: favicon ?? null });
+				if (!pendingNavigationFavicon) {
+					this._currentHistoryHandle?.update({ favicon: favicon ?? null });
+				}
 			},
 			this.logService,
 		));
@@ -337,7 +340,6 @@ export class BrowserView extends Disposable {
 			}
 		};
 		let pendingNavigationUrl: string | undefined;
-		let pendingNavigationFavicon: { favicon: string | undefined } | undefined;
 		webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
 			if (isMainFrame && !isInPlace && !this._shouldRedirectPinnedNavigation(url)) {
 				pendingNavigationFavicon ??= { favicon: this._lastFavicon };
@@ -379,7 +381,7 @@ export class BrowserView extends Disposable {
 				canGoForward: webContents.navigationHistory.canGoForward(),
 				certificateError: this.session.trust.getCertificateError(url)
 			});
-			this._recordNavigation(url);
+			this._recordNavigation(url, pendingNavigationFavicon ? pendingNavigationFavicon.favicon : this._lastFavicon);
 			if (lastEmittedFavicon !== this._lastFavicon) {
 				fireFaviconEvent();
 			}
@@ -420,6 +422,11 @@ export class BrowserView extends Disposable {
 					return;
 				}
 
+				faviconLoader.invalidate();
+				if (this._lastFavicon !== undefined) {
+					this._lastFavicon = undefined;
+					fireFaviconEvent();
+				}
 				pendingNavigationFavicon = undefined;
 				pendingNavigationUrl = undefined;
 				this._lastError = {
@@ -611,7 +618,7 @@ export class BrowserView extends Disposable {
 	/**
 	 * Record a committed navigation in the session's history.
 	 */
-	private _recordNavigation(url: string): void {
+	private _recordNavigation(url: string, favicon: string | undefined): void {
 		const webContents = this._view.webContents;
 		const activeIndex = webContents.navigationHistory.getActiveIndex();
 
@@ -626,7 +633,7 @@ export class BrowserView extends Disposable {
 		// a duplicate.
 		const handle = this._currentHistoryHandle;
 		if (handle && activeIndex === this._lastCommittedEntryIndex) {
-			handle.update({ url, title: webContents.getTitle() });
+			handle.update({ url, title: webContents.getTitle(), favicon: favicon ?? null });
 			return;
 		}
 		this._lastCommittedEntryIndex = activeIndex;
@@ -636,7 +643,7 @@ export class BrowserView extends Disposable {
 		this._currentHistoryHandle = this.session.history.add(
 			url,
 			webContents.getTitle(),
-			this._lastFavicon,
+			favicon,
 			userInitiated,
 		);
 	}
