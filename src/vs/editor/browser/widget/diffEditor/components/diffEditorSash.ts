@@ -5,8 +5,11 @@
 
 import { IBoundarySashes, ISashEvent, Orientation, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 import { IObservable, IReader, ISettableObservable, autorun, derivedWithSetter, observableValue } from '../../../../../base/common/observable.js';
 import { DiffEditorOptions } from '../diffEditorOptions.js';
+
+const MINIMUM_EDITOR_WIDTH = 100;
 
 export class SashLayout {
 	public readonly sashLeft = derivedWithSetter(this, reader => {
@@ -18,6 +21,20 @@ export class SashLayout {
 	});
 
 	private readonly _sashRatio = observableValue<number | undefined>(this, undefined);
+
+	public getGutterEdges(gutterWidth: number, reader: IReader | undefined): { left: number; right: number } {
+		const contentWidth = this.dimensions.width.read(reader);
+		const halfGutter = gutterWidth / 2;
+		const leftMost = MINIMUM_EDITOR_WIDTH + halfGutter;
+		const rightMost = contentWidth - MINIMUM_EDITOR_WIDTH - halfGutter;
+		const sashLeft = leftMost > rightMost
+			? contentWidth / 2
+			: clamp(this.sashLeft.read(reader), leftMost, rightMost);
+		return {
+			left: Math.floor(sashLeft - halfGutter),
+			right: contentWidth - Math.floor(contentWidth - sashLeft - halfGutter),
+		};
+	}
 
 	public resetSash(): void {
 		this._sashRatio.set(undefined, undefined);
@@ -32,10 +49,9 @@ export class SashLayout {
 	/** @pure */
 	private _computeSashLeft(desiredRatio: number, reader: IReader | undefined): number {
 		const contentWidth = this.dimensions.width.read(reader);
-		const midPoint = Math.floor(this._options.splitViewDefaultRatio.read(reader) * contentWidth);
-		const sashLeft = this._options.enableSplitViewResizing.read(reader) ? Math.floor(desiredRatio * contentWidth) : midPoint;
+		const midPoint = this._options.splitViewDefaultRatio.read(reader) * contentWidth;
+		const sashLeft = this._options.enableSplitViewResizing.read(reader) ? desiredRatio * contentWidth : midPoint;
 
-		const MINIMUM_EDITOR_WIDTH = 100;
 		if (contentWidth <= MINIMUM_EDITOR_WIDTH * 2) {
 			return midPoint;
 		}

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { SashLayout } from '../../../browser/widget/diffEditor/components/diffEditorSash.js';
 import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
 import { UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
@@ -93,6 +95,73 @@ suite('DiffEditorWidget2', () => {
 			}, {
 				narrow: false,
 				wideAfterLayoutChange: true,
+			});
+		});
+	});
+
+	suite('gutter layout', () => {
+		const gutterWidth = 35;
+
+		function createSashLayout() {
+			const contentWidth = observableValue<number>('contentWidth', 0);
+			const options = new DiffEditorOptions({ renderSideBySide: true }, new TestAccessibilityService());
+			const sashLayout = new SashLayout(options, { width: contentWidth, height: constObservable(0) });
+			return {
+				edges(width: number, gutter: number) {
+					contentWidth.set(width, undefined);
+					const { left, right } = sashLayout.getGutterEdges(gutter, undefined);
+					return { original: left, modified: width - right, gutter: right - left };
+				},
+				dragSashTo(position: number) {
+					sashLayout.sashLeft.set(position, undefined);
+				},
+			};
+		}
+
+		test('takes the gutter from both sides equally', () => {
+			const { edges } = createSashLayout();
+			assert.deepStrictEqual({
+				evenWidth: edges(1000, gutterWidth),
+				oddWidth: edges(1001, gutterWidth),
+				evenWidthAndGutter: edges(1000, gutterWidth + 1),
+				oddWidthEvenGutter: edges(1001, gutterWidth + 1),
+				withoutGutter: edges(1000, 0),
+				oddWidthWithoutGutter: edges(1001, 0),
+			}, {
+				evenWidth: { original: 482, modified: 482, gutter: 36 },
+				oddWidth: { original: 483, modified: 483, gutter: 35 },
+				evenWidthAndGutter: { original: 482, modified: 482, gutter: 36 },
+				oddWidthEvenGutter: { original: 482, modified: 482, gutter: 37 },
+				withoutGutter: { original: 500, modified: 500, gutter: 0 },
+				oddWidthWithoutGutter: { original: 500, modified: 500, gutter: 1 },
+			});
+		});
+
+		test('keeps both editors at their minimum width when the sash is dragged to a limit', () => {
+			const { edges, dragSashTo } = createSashLayout();
+			edges(1000, gutterWidth);
+			dragSashTo(20);
+			const atTheLeftLimit = edges(1000, gutterWidth);
+			dragSashTo(980);
+			assert.deepStrictEqual({
+				atTheLeftLimit,
+				atTheRightLimit: edges(1000, gutterWidth),
+			}, {
+				atTheLeftLimit: { original: 100, modified: 865, gutter: 35 },
+				atTheRightLimit: { original: 865, modified: 100, gutter: 35 },
+			});
+		});
+
+		test('keeps whole pixels when a dragged sash is resized to a fractional position', () => {
+			const { edges, dragSashTo } = createSashLayout();
+			edges(1000, gutterWidth);
+			dragSashTo(321);
+			assert.deepStrictEqual({
+				atTheWidthItWasDraggedAt: edges(1000, gutterWidth),
+				afterResizingByOnePixel: edges(1001, gutterWidth),
+			}, {
+				atTheWidthItWasDraggedAt: { original: 303, modified: 661, gutter: 36 },
+				afterResizingByOnePixel: { original: 303, modified: 662, gutter: 36 },
 			});
 		});
 	});
