@@ -11,10 +11,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import product from '../../../../platform/product/common/product.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
@@ -38,6 +42,7 @@ import { SessionsCustomizationHarnessService } from './customizationHarnessServi
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ChatViewFactory } from './chatView.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
@@ -45,22 +50,22 @@ import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contr
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigurationMigration } from './unifiedWorkspacePickerConfiguration.js';
+import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
+import { INewSessionComposerService } from './newSessionComposerService.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
-const CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.clearAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(IsSessionsWindowContext, SessionsChatBackgroundAvailableContext);
-const CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundConfiguredContext);
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundImageConfiguredContext);
 
 type RecentChatBackgroundTypeItem = IQuickPickItem & {
@@ -69,10 +74,14 @@ type RecentChatBackgroundTypeItem = IQuickPickItem & {
 };
 
 type ChatBackgroundTypeItem = IQuickPickItem & ({
-	readonly kind: 'codicons' | 'image';
+	readonly kind: 'none' | 'codicons' | 'image';
 }) | RecentChatBackgroundTypeItem;
 
 const chatBackgroundTypeItems: ChatBackgroundTypeItem[] = [{
+	kind: 'none',
+	label: localize('chat.agentSessions.backgroundType.none.label', "No Background"),
+	detail: localize('chat.agentSessions.backgroundType.none.detail', "Remove the current chat background."),
+}, {
 	kind: 'codicons',
 	label: localize('chat.agentSessions.backgroundType.codicons.label', "Codicons"),
 	detail: localize('chat.agentSessions.backgroundType.codicons.detail', "Use a theme-aware pattern of built-in VS Code icons."),
@@ -138,6 +147,12 @@ const chatBackgroundImageLayoutItems = chatBackgroundImageLayoutValues.map(layou
 	...chatBackgroundImageLayoutMetadata[layout],
 }));
 
+const chatBackgroundImageLayoutEnumConfiguration = {
+	enum: [...chatBackgroundImageLayoutValues],
+	enumItemLabels: chatBackgroundImageLayoutItems.map(item => item.label),
+	enumDescriptions: chatBackgroundImageLayoutItems.map(item => item.detail),
+};
+
 class NewChatInSessionsWindowAction extends Action2 {
 
 	constructor() {
@@ -178,7 +193,8 @@ class NewChatInSessionsWindowAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
+	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean }): Promise<void> {
+		accessor.get(INewSessionComposerService).notifyUserNavigation();
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const activeSession = sessionsService.activeSession.get();
@@ -186,12 +202,20 @@ class NewChatInSessionsWindowAction extends Action2 {
 		// intent (any scratch working directory must not seed the workspace
 		// composer), so it always falls to the New Session composer's folder picker.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		if (isQuickChat
+			&& activeSession?.isCreated?.get() === false
+			&& !options?.toSide
+			&& !accessor.get(IConfigurationService).getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
+			sessionsService.unsetNewSession();
+			return;
+		}
 		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
 		// Inherit the active session's harness so the new session defaults to
 		// the kind the user is working in — but only while the folder still
 		// offers it (see `inheritableSessionTarget`).
-		sessionsService.openNewSession({
+		await sessionsService.openNewSession({
 			folderUri,
+			toSide: options?.toSide,
 			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
 		});
 	}
@@ -215,6 +239,11 @@ class SetChatBackgroundAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: SessionsChatBackgroundAvailableContext,
+			}, {
+				id: MenuId.ChatContext,
+				group: 'zz_background',
+				order: 1,
+				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, ChatContextKeys.contextMenuIsBackground),
 			}],
 		});
 	}
@@ -223,7 +252,7 @@ class SetChatBackgroundAction extends Action2 {
 		const backgroundService = accessor.get(ISessionsChatBackgroundService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const fileDialogService = accessor.get(IFileDialogService);
-		const backgroundKind = backgroundService.getBackground()?.kind;
+		const backgroundKind = backgroundService.getBackground()?.kind ?? 'none';
 		const recentImages = backgroundService.getRecentBackgroundImages();
 		const recentItems: RecentChatBackgroundTypeItem[] = recentImages.map(image => ({
 			kind: 'recentImage',
@@ -247,6 +276,11 @@ class SetChatBackgroundAction extends Action2 {
 				: chatBackgroundTypeItems.find(item => item.kind === backgroundKind),
 		});
 		if (!backgroundType) {
+			return;
+		}
+		if (backgroundType.kind === 'none') {
+			await backgroundService.clearBackground();
+			status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
 			return;
 		}
 		if (backgroundType.kind === 'codicons') {
@@ -301,6 +335,11 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext),
+			}, {
+				id: MenuId.ChatContext,
+				group: 'zz_background',
+				order: 2,
+				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN, ChatContextKeys.contextMenuIsBackground),
 			}],
 		});
 	}
@@ -327,35 +366,6 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 
 registerAction2(ChangeChatBackgroundLayoutAction);
 
-class ClearChatBackgroundAction extends Action2 {
-
-	constructor() {
-		super({
-			id: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID,
-			title: localize2('chat.agentSessions.clearBackground', "Clear Background"),
-			category: CHAT_CATEGORY,
-			precondition: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN,
-			}, {
-				id: Menus.SessionChatBackgroundContext,
-				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.and(SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext),
-			}],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ISessionsChatBackgroundService).clearBackground();
-		status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
-	}
-}
-
-registerAction2(ClearChatBackgroundAction);
-
-
 // register actions
 registerAction2(BranchChatSessionAction);
 
@@ -366,6 +376,7 @@ registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSession
 registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreatedTaskDispatcher, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsChatPetAchievementContribution.ID, SessionsChatPetAchievementContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
@@ -377,6 +388,7 @@ registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);
 registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);
 registerSingleton(IChatResponseFileChangesService, SessionsChatResponseFileChangesService, InstantiationType.Delayed);
 registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService, InstantiationType.Delayed);
+registerSingleton(ISessionArchiveNudgeService, SessionArchiveNudgeService, InstantiationType.Eager);
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
@@ -384,6 +396,20 @@ AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		[SESSION_ARCHIVE_NUDGE_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session when all of its GitHub pull request artifacts have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			deprecationMessage: localize('chat.agentSessions.consolidatedRemoteWorkspaces.deprecated', "Deprecated. Use the unified workspace picker setting instead."),
+		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
 			default: true,
@@ -414,15 +440,25 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			ignoreSync: true,
 		},
-		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
+		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
 			type: 'string',
-			enum: [...chatBackgroundImageLayoutValues],
-			enumItemLabels: chatBackgroundImageLayoutItems.map(item => item.label),
-			enumDescriptions: chatBackgroundImageLayoutItems.map(item => item.detail),
+			...chatBackgroundImageLayoutEnumConfiguration,
 			default: 'repeat',
-			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('chat.agentSessions.backgroundImageLayout', "Controls how the dark and light chat background images are laid out in the Agents Window."),
+			scope: ConfigurationScope.MACHINE,
+			markdownDescription: localize('chat.agentSessions.preferredDarkBackgroundImageLayout', "Controls how the chat background image is laid out in the Agents Window when using a dark color theme."),
 			tags: ['experimental'],
+			ignoreSync: true,
+		},
+		[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
+			type: 'string',
+			...chatBackgroundImageLayoutEnumConfiguration,
+			default: 'repeat',
+			scope: ConfigurationScope.MACHINE,
+			markdownDescription: localize('chat.agentSessions.preferredLightBackgroundImageLayout', "Controls how the chat background image is laid out in the Agents Window when using a light color theme."),
+			tags: ['experimental'],
+			ignoreSync: true,
 		},
 	},
 });
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([unifiedWorkspacePickerConfigurationMigration]);

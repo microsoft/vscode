@@ -14,7 +14,7 @@ import { IVSCodeExtensionContext } from '../../../platform/extContext/common/ext
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
-import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
+import { getGithubRepoIdFromFetchUrl, GithubRepoId, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem } from '../../../platform/github/common/githubAPI';
 import { CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
 import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../conversation/common/languageModelAccess';
@@ -228,6 +228,72 @@ const OPEN_PULL_REQUEST_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPull
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
 const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
+
+type RepositoryQuickPickItem = vscode.QuickPickItem & {
+	readonly repository?: string;
+	readonly cloneUrl?: string;
+};
+
+export function getRepositoryQuickPickItems(
+	repositories: readonly vscode.ChatSessionProviderOptionItem[],
+	value: string,
+	allowRepositoryUrl: boolean,
+): RepositoryQuickPickItem[] {
+	const repositoryUrl = value.trim();
+	const canCloneUrl = allowRepositoryUrl
+		&& (/^(?:https?|ssh|git):\/\/\S+$/i.test(repositoryUrl) || /^[^@\s]+@[^:\s]+:\S+$/.test(repositoryUrl));
+	return [
+		...(canCloneUrl ? [{
+			label: l10n.t('Clone from URL'),
+			description: repositoryUrl,
+			cloneUrl: repositoryUrl,
+		}] : []),
+		...repositories.map(repo => ({ label: repo.name, repository: repo.name })),
+	];
+}
+
+export function parseGitHubContextUrl(value: string, kind: 'issue' | 'pullRequest'): { readonly repoId: string; readonly url: string; readonly label: string } | undefined {
+	const match = /^https:\/\/(?:www\.)?github\.com\/(?<owner>[^/?#]+)\/(?<repository>[^/?#]+)\/(?<resource>issues|pull)\/(?<number>[1-9]\d*)\/?(?:[?#].*)?$/i.exec(value.trim());
+	if (!match?.groups) {
+		return undefined;
+	}
+	const resource = match.groups.resource.toLowerCase();
+	if ((resource === 'issues') !== (kind === 'issue')) {
+		return undefined;
+	}
+
+	const repoId = `${match.groups.owner}/${match.groups.repository}`;
+	return {
+		repoId,
+		url: `https://github.com/${repoId}/${resource}/${match.groups.number}`,
+		label: `${repoId}#${match.groups.number}`,
+	};
+}
+
+export async function resolveGitHubContextRepository(gitService: IGitService, repository: string | vscode.Uri | undefined): Promise<string | undefined> {
+	if (!repository || typeof repository === 'string') {
+		return repository;
+	}
+
+	const repositoryInfo = await gitService.getRepositoryFetchUrls(repository);
+	for (const remoteUrl of repositoryInfo?.remoteFetchUrls ?? []) {
+		const repositoryId = remoteUrl && getGithubRepoIdFromFetchUrl(remoteUrl);
+		if (repositoryId) {
+			return toGithubNwo(repositoryId);
+		}
+	}
+	return undefined;
+}
+
+export async function resolveOrPickGitHubContextRepository(
+	gitService: IGitService,
+	repository: string | vscode.Uri | undefined,
+	pickRepository: () => Promise<string | undefined>,
+): Promise<string | undefined> {
+	const repositoryId = await resolveGitHubContextRepository(gitService, repository);
+	return repository && !repositoryId ? pickRepository() : repositoryId;
+}
+
 /** Context key gating the chat-input "Create pull request" toolbar action: true while the viewed cloud task is settled and has no PR yet. */
 const CAN_CREATE_PULL_REQUEST_CONTEXT_KEY = 'github.copilot.chat.cloudTaskCanCreatePullRequest';
 /** Context key gating the chat-input "Open pull request" toolbar action: true once the viewed cloud task has a pull request. */
@@ -560,10 +626,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this._register(vscode.commands.registerCommand('github.copilot.chat.openPullRequestReroute', openPullRequestReroute));
 
 		// Command for browsing repositories in the repository picker
-		const openRepositoryCommand = async (sessionItemResource?: vscode.Uri): Promise<string | undefined> => {
-			const quickPick = vscode.window.createQuickPick();
+		const openRepositoryCommand = async (
+			sessionItemResource?: vscode.Uri,
+			options?: { readonly allowRepositoryUrl?: boolean },
+		): Promise<string | undefined> => {
+			const quickPick = vscode.window.createQuickPick<RepositoryQuickPickItem>();
 			const quickPickDisposables = new DisposableStore();
-			quickPick.placeholder = l10n.t('Search for a repository...');
+			quickPick.placeholder = options?.allowRepositoryUrl
+				? l10n.t('Search for a repository or paste a repository URL...')
+				: l10n.t('Search for a repository...');
 			quickPick.matchOnDescription = true;
 			quickPick.matchOnDetail = true;
 			quickPick.busy = true;
@@ -572,7 +643,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			// Load initial repositories
 			try {
 				const repos = await this.fetchAllRepositoriesFromGitHub();
-				quickPick.items = repos.map(repo => ({ label: repo.name }));
+				quickPick.items = getRepositoryQuickPickItems(repos, '', options?.allowRepositoryUrl === true);
 			} catch (error) {
 				this.logService.error(`Error fetching initial repositories: ${error}`);
 			} finally {
@@ -599,7 +670,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						quickPick.busy = true;
 						try {
 							const searchResults = await this.fetchAllRepositoriesFromGitHub(value);
-							quickPick.items = searchResults.map(repo => ({ label: repo.name }));
+							quickPick.items = getRepositoryQuickPickItems(searchResults, value, options?.allowRepositoryUrl === true);
 						} finally {
 							quickPick.busy = false;
 						}
@@ -608,19 +679,19 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 				quickPickDisposables.add(quickPick.onDidAccept(() => {
 					const selected = quickPick.selectedItems[0];
-					if (selected && sessionItemResource) {
-						this.sessionRepositoryMap.set(sessionItemResource, selected.label);
+					if (selected?.repository && sessionItemResource) {
+						this.sessionRepositoryMap.set(sessionItemResource, selected.repository);
 						// Save user-selected repo so it appears in the recent repos list
-						this.saveUserSelectedRepository(selected.label);
+						this.saveUserSelectedRepository(selected.repository);
 						this._onDidChangeChatSessionOptions.fire({
 							resource: sessionItemResource,
 							updates: [{
 								optionId: REPOSITORIES_OPTION_GROUP_ID,
-								value: { id: selected.label, name: selected.label, icon: new vscode.ThemeIcon('repo') }
+								value: { id: selected.repository, name: selected.repository, icon: new vscode.ThemeIcon('repo') }
 							}]
 						});
 					}
-					doResolve(selected?.label);
+					doResolve(selected?.cloneUrl ?? selected?.repository);
 					quickPick.hide();
 				}));
 
@@ -706,6 +777,18 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						clearTimeout(searchTimeout);
 					}
 					const query = value.trim();
+					const pastedSelection = parseGitHubContextUrl(query, kind);
+					if (pastedSelection) {
+						searchGeneration++;
+						quickPick.busy = false;
+						quickPick.items = [{
+							label: pastedSelection.label,
+							description: pastedSelection.repoId,
+							alwaysShow: true,
+							selection: pastedSelection,
+						}];
+						return;
+					}
 					if (query.length < 2) {
 						if (query.length === 0) {
 							void search('', ++searchGeneration);
@@ -736,8 +819,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				}));
 			});
 		};
-		this._register(vscode.commands.registerCommand(OPEN_ISSUE_COMMAND_ID, (repoId?: string) => openGitHubContext('issue', repoId)));
-		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_COMMAND_ID, (repoId?: string) => openGitHubContext('pullRequest', repoId)));
+		this._register(vscode.commands.registerCommand(OPEN_ISSUE_COMMAND_ID, async (repository?: string | vscode.Uri) =>
+			openGitHubContext('issue', await resolveOrPickGitHubContextRepository(this._gitService, repository, openRepositoryCommand))));
+		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_COMMAND_ID, async (repository?: string | vscode.Uri) =>
+			openGitHubContext('pullRequest', await resolveOrPickGitHubContextRepository(this._gitService, repository, openRepositoryCommand))));
 
 		this._register(vscode.commands.registerCommand(CLEAR_CACHES_COMMAND_ID, () => {
 			this.logService.debug('copilotCloudSessionsProvider#clearCaches: clearing all cloud agent caches');

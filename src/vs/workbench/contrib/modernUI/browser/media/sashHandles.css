@@ -17,6 +17,9 @@
  * existing full-length highlight (see base sash.css), so behaviour while
  * dragging is unchanged.
  *
+ * The grip color is themeable through `modernSash.gripForeground`, which also
+ * carries the opaque high contrast default.
+ *
  * All rules are gated behind the `.modern-ui` class, which the
  * ModernUIContribution toggles onto the workbench container(s) when the
  * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
@@ -31,8 +34,9 @@
 	width: 2px;
 	height: 2px;
 	border-radius: 50%;
-	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	opacity: 0.75;
+	background: var(--vscode-modernSash-gripForeground);
+	/* The orientation rules below repeat the dot via `box-shadow`, which reads `currentColor`. */
+	color: var(--vscode-modernSash-gripForeground);
 }
 
 .monaco-enable-motion .modern-ui .monaco-sash:not(.disabled)::after {
@@ -45,7 +49,6 @@
 	left: 50%;
 	transform: translate(-50%, -50%);
 	box-shadow: 0 -5px currentColor, 0 5px currentColor;
-	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 }
 
 /* Horizontal sash: three dots in a row, centered. */
@@ -54,13 +57,6 @@
 	top: 50%;
 	transform: translate(-50%, -50%);
 	box-shadow: -5px 0 currentColor, 5px 0 currentColor;
-	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-}
-
-:is(.hc-black, .hc-light).modern-ui .monaco-sash:not(.disabled)::after {
-	background: var(--vscode-foreground);
-	color: var(--vscode-foreground);
-	opacity: 1;
 }
 
 /* While hovering/dragging, defer to the base full-length highlight. */
@@ -91,11 +87,8 @@
 }
 
 @media (forced-colors: active) {
-	.modern-ui .monaco-sash:not(.disabled)::after,
-	.modern-ui .monaco-sash.vertical:not(.disabled)::after,
-	.modern-ui .monaco-sash.horizontal:not(.disabled)::after {
+	.modern-ui .monaco-sash:not(.disabled)::after {
 		background: CanvasText;
 		color: CanvasText;
-		opacity: 1;
 	}
 }

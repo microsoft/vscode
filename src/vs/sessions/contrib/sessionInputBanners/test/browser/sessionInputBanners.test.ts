@@ -14,6 +14,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -37,9 +39,13 @@ import { SessionInputBanners } from '../../browser/sessionInputBanners.js';
 suite('SessionInputBanners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('groups actionable PRs, scopes the combined request, and dismisses one carousel item', async () => {
+	for (const isDraft of [false, true]) {
+		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
+	}
+
+	async function testActionablePullRequests(isDraft: boolean): Promise<void> {
 		const sessionResource = URI.parse('local-agent-host:/session-1');
-		const pullRequests = [pullRequest(42), pullRequest(41)];
+		const pullRequests = [pullRequest(42), pullRequest(41), pullRequest(40), pullRequest(39)];
 		const session = new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'session-1';
 			override readonly resource = sessionResource;
@@ -73,12 +79,10 @@ suite('SessionInputBanners', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		}();
-		let agentMergeEnabled = false;
-		const onDidChangeSessionConfig = store.add(new Emitter<string>());
+		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-			override readonly onDidChangeSessionConfig = onDidChangeSessionConfig.event;
-			override getAgentMergeSessionState() { return { enabled: agentMergeEnabled }; }
+			override getAgentMergeClientStateObservable() { return agentMergeState; }
 		}();
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
@@ -87,12 +91,16 @@ suite('SessionInputBanners', () => {
 		}();
 
 		const prModels = new Map([
-			[42, pullRequestModel(42, 'Newest pull request')],
-			[41, pullRequestModel(41, 'Older pull request')],
+			[42, pullRequestModel(42, 'Newest pull request', isDraft)],
+			[41, pullRequestModel(41, 'Older pull request', isDraft)],
+			[40, pullRequestModel(40, 'Closed pull request', isDraft, GitHubPullRequestState.Closed)],
+			[39, pullRequestModel(39, 'Merged pull request', false, GitHubPullRequestState.Merged)],
 		]);
 		const ciModels = new Map([
 			[42, ciModel([failedCheck(1), failedCheck(2)])],
 			[41, ciModel([])],
+			[40, ciModel([failedCheck(3)])],
+			[39, ciModel([failedCheck(4)])],
 		]);
 		const gitHubService = new class extends mock<IGitHubService>() {
 			override createPullRequestModelReference(_owner: string, _repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
@@ -104,7 +112,7 @@ suite('SessionInputBanners', () => {
 		}();
 
 		let feedbackItems: IAgentFeedback[] = [
-			{ ...prFeedback('pr-42-a', sessionResource, 42), sourcePullRequest: undefined },
+			prFeedback('pr-42-a', sessionResource, 42),
 			prFeedback('pr-42-b', sessionResource, 42),
 			prFeedback('pr-41', sessionResource, 41),
 			agentFeedback('agent', sessionResource),
@@ -141,6 +149,7 @@ suite('SessionInputBanners', () => {
 		const banners = store.add(new SessionInputBanners(
 			sessionsService,
 			sessionsProvidersService,
+			new TestConfigurationService(),
 			gitHubService,
 			feedbackService,
 			new class extends mock<ICommandService>() { }(),
@@ -151,30 +160,54 @@ suite('SessionInputBanners', () => {
 		));
 		banners.setActive(true);
 
-		assert.deepStrictEqual(currentBanner(banners), {
-			position: '1/3',
-			reference: '#42',
-			text: '2 Checks Failing | 2 PR Comments',
-			splitButtons: 2,
+		assert.deepStrictEqual({
+			current: currentBanner(banners),
+			ciPolling: [...ciModels].map(([number, model]) => ({
+				number,
+				refreshCalls: model.refreshCalls,
+				startPollingCalls: model.startPollingCalls,
+			})),
+		}, {
+			current: {
+				position: '1/3',
+				reference: '#42',
+				text: '2 Checks Failing | 2 PR Comments',
+				splitButtons: 1,
+				actions: ['Fix Checks & Address Comments'],
+			},
+			ciPolling: [
+				{ number: 42, refreshCalls: 1, startPollingCalls: 1 },
+				{ number: 41, refreshCalls: 1, startPollingCalls: 1 },
+				{ number: 40, refreshCalls: 0, startPollingCalls: 0 },
+				{ number: 39, refreshCalls: 0, startPollingCalls: 0 },
+			],
 		});
 
-		agentMergeEnabled = true;
-		onDidChangeSessionConfig.fire(session.sessionId);
+		agentMergeState.set({ enabled: true }, undefined);
 		assert.deepStrictEqual(currentBanner(banners), {
 			position: undefined,
 			reference: undefined,
 			text: '1 Agent Comment',
 			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
 		});
-		agentMergeEnabled = false;
-		onDidChangeSessionConfig.fire(session.sessionId);
+		agentMergeState.set({ enabled: true, overrides: { fixCI: false } }, undefined);
+		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.previous')?.click();
+		assert.deepStrictEqual(currentBanner(banners), {
+			position: '1/2',
+			reference: '#42',
+			text: '2 Checks Failing',
+			splitButtons: 0,
+			actions: ['Fix Checks', 'Reveal'],
+		});
+		agentMergeState.set({ enabled: false }, undefined);
 
-		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 		assert.deepStrictEqual(currentBanner(banners), {
 			position: '1/3',
 			reference: '#42',
 			text: '2 Checks Failing | 2 PR Comments',
-			splitButtons: 2,
+			splitButtons: 1,
+			actions: ['Fix Checks & Address Comments'],
 		});
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 		assert.deepStrictEqual(currentBanner(banners), {
@@ -182,6 +215,7 @@ suite('SessionInputBanners', () => {
 			reference: '#41',
 			text: '1 PR Comment',
 			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
 		});
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 		assert.deepStrictEqual(currentBanner(banners), {
@@ -189,6 +223,7 @@ suite('SessionInputBanners', () => {
 			reference: 'Agent Review',
 			text: '1 Agent Comment',
 			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
 		});
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 
@@ -209,6 +244,7 @@ suite('SessionInputBanners', () => {
 				reference: '#41',
 				text: '1 PR Comment',
 				splitButtons: 0,
+				actions: ['Address Comments', 'Reveal'],
 			},
 		});
 
@@ -222,10 +258,11 @@ suite('SessionInputBanners', () => {
 				reference: undefined,
 				text: '1 Agent Comment',
 				splitButtons: 0,
+				actions: ['Address Comments', 'Reveal'],
 			},
 			dismissed: ['session-1:pullRequest:owner/repo#41'],
 		});
-	});
+	}
 });
 
 function pullRequest(number: number): IGitHubPullRequestRef {
@@ -237,12 +274,12 @@ function pullRequest(number: number): IGitHubPullRequestRef {
 	};
 }
 
-function pullRequestModel(number: number, title: string): GitHubPullRequestModel {
+function pullRequestModel(number: number, title: string, isDraft: boolean, state = GitHubPullRequestState.Open): GitHubPullRequestModel {
 	const pullRequest = upcastPartial<IGitHubPullRequest>({
 		number,
 		title,
-		state: GitHubPullRequestState.Open,
-		isDraft: false,
+		state,
+		isDraft,
 		headSha: `sha-${number}`,
 	});
 	return new class extends mock<GitHubPullRequestModel>() {
@@ -252,12 +289,20 @@ function pullRequestModel(number: number, title: string): GitHubPullRequestModel
 	}();
 }
 
-function ciModel(checks: readonly IGitHubCICheck[]): GitHubPullRequestCIModel {
+function ciModel(checks: readonly IGitHubCICheck[]) {
 	return new class extends mock<GitHubPullRequestCIModel>() {
+		refreshCalls = 0;
+		startPollingCalls = 0;
 		override readonly checks = observableValue('checks', checks);
 		override readonly fixRequested = observableValue('fixRequested', false);
-		override refresh(): Promise<void> { return Promise.resolve(); }
-		override startPolling(): IDisposable { return Disposable.None; }
+		override refresh(): Promise<void> {
+			this.refreshCalls++;
+			return Promise.resolve();
+		}
+		override startPolling(): IDisposable {
+			this.startPollingCalls++;
+			return Disposable.None;
+		}
 		override getCheckRunAnnotations(): Promise<string> { return Promise.resolve('failure details'); }
 		override markFixRequested(): void { this.fixRequested.set(true, undefined); }
 	}();
@@ -301,11 +346,12 @@ function agentFeedback(id: string, sessionResource: URI): IAgentFeedback {
 	};
 }
 
-function currentBanner(banners: SessionInputBanners): { position: string | undefined; reference: string | undefined; text: string | undefined; splitButtons: number } {
+function currentBanner(banners: SessionInputBanners): { position: string | undefined; reference: string | undefined; text: string | undefined; splitButtons: number; actions: string[] } {
 	return {
 		position: banners.domNode.querySelector('.session-input-banner-position')?.textContent ?? undefined,
 		reference: banners.domNode.querySelector('.session-input-banner-reference')?.textContent ?? undefined,
 		text: banners.domNode.querySelector('.session-input-banner-text')?.textContent ?? undefined,
 		splitButtons: banners.domNode.querySelectorAll('.monaco-button-dropdown').length,
+		actions: [...banners.domNode.querySelectorAll<HTMLElement>('.session-input-banner-actions > .session-input-banner-action')].map(action => action.querySelector(':scope > .monaco-button:first-child')?.textContent ?? action.textContent ?? ''),
 	};
 }

@@ -123,6 +123,14 @@
 	outline-offset: -2px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-connected-edge {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge {
+	display: none;
+}
+
 /* Tab Background Color in/active group/tab */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
 	background-color: var(--vscode-tab-unfocusedInactiveBackground);

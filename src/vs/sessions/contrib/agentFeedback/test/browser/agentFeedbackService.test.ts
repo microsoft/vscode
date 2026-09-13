@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService, shouldIncludeRawPRReviewComments } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -36,6 +36,31 @@ function r(startLine: number, endLine: number = startLine): Range {
 function feedbackSummary(items: readonly { resourceUri: URI; range: { startLineNumber: number } }[]): string[] {
 	return items.map(f => `${f.resourceUri.path}:${f.range.startLineNumber}`);
 }
+
+suite('AgentFeedbackService - PR review authority', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes raw PR comments until Agent Host feedback has loaded', () => {
+		let loaded = false;
+		const service = new class extends mock<IAgentFeedbackService>() {
+			override isAgentHostSession(): boolean { return true; }
+			override hasLoadedFeedback(): boolean { return loaded; }
+		}();
+		const session = URI.parse('vscode-agent-session://test/session');
+
+		const beforeLoad = shouldIncludeRawPRReviewComments(service, session);
+		loaded = true;
+
+		assert.deepStrictEqual({
+			beforeLoad,
+			afterLoad: shouldIncludeRawPRReviewComments(service, session),
+		}, {
+			beforeLoad: true,
+			afterLoad: false,
+		});
+	});
+});
 
 suite('AgentFeedbackService - Ordering', () => {
 
@@ -809,6 +834,16 @@ suite('AgentFeedbackService - State', () => {
 
 		service.acceptFeedback(session, created.id);
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('backfills a missing source pull request without replacing an existing one', () => {
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created);
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest);
+		service.updateFeedbackSourcePullRequest(session, created.id, { owner: 'owner', repo: 'repo', number: 43 });
+
+		assert.deepStrictEqual(service.getFeedback(session)[0].sourcePullRequest, sourcePullRequest);
 	});
 
 	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {

@@ -32,7 +32,7 @@ function addColorVariable(declarations: string[], name: string, color: Color | u
 	}
 }
 
-function flattenActionBackground(color: Color, editorBackgroundColor: Color | undefined): Color {
+function flattenTabBackground(color: Color, editorBackgroundColor: Color | undefined): Color {
 	return editorBackgroundColor ? color.makeOpaque(editorBackgroundColor) : color;
 }
 
@@ -79,22 +79,22 @@ registerThemingParticipant((theme, collector) => {
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-hover-border', resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_BORDER, [], TAB_HOVER_BORDER));
 
 	if (activeBackground && !hasModernActiveActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-background', flattenActionBackground(activeBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-background', flattenTabBackground(activeBackground, editorBackgroundColor));
 	}
 	if (unfocusedActiveBackground && !hasModernActiveActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-background', flattenActionBackground(unfocusedActiveBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-background', flattenTabBackground(unfocusedActiveBackground, editorBackgroundColor));
 	}
 	if (hoverBackground && !hasModernHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-hover-background', flattenActionBackground(hoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-hover-background', flattenTabBackground(hoverBackground, editorBackgroundColor));
 	}
 	if (unfocusedHoverBackground && !hasModernHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-hover-background', flattenActionBackground(unfocusedHoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-hover-background', flattenTabBackground(unfocusedHoverBackground, editorBackgroundColor));
 	}
 	if (activeHoverBackground && !hasModernActiveHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-hover-background', flattenActionBackground(activeHoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-hover-background', flattenTabBackground(activeHoverBackground, editorBackgroundColor));
 	}
 	if (unfocusedActiveHoverBackground && !hasModernActiveHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-hover-background', flattenActionBackground(unfocusedActiveHoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-hover-background', flattenTabBackground(unfocusedActiveHoverBackground, editorBackgroundColor));
 	}
 
 	if (declarations.length > 0) {

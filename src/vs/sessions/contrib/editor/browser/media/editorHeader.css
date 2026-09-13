@@ -4,27 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 .agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) {
-	flex-wrap: wrap;
+	flex-direction: column;
+	align-items: flex-start;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs)::after {
 	display: none;
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .editor-group-header {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-border, var(--vscode-editorGroup-border));
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .single-tab-and-actions-container {
+	position: relative;
+	flex: 0 0 auto;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .single-tab-and-actions-container::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	right: var(--vscode-spacing-size20);
+	left: var(--vscode-spacing-size20);
+	z-index: 9;
+	height: var(--vscode-strokeThickness);
+	background: var(--modern-ui-editor-tabs-border);
+	pointer-events: none;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .title > .editor-group-header {
 	position: relative;
 	display: flex;
-	flex: 0 0 100%;
 	align-items: center;
 	box-sizing: border-box;
 	width: 100%;
-	min-height: 29px;
+	min-height: var(--vscode-spacing-size320);
 	overflow: hidden;
-	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px) var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size80, 8px);
+	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .title:not(.tabs) > .editor-group-header {
+	flex: 0 0 auto;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container.editor-tabs-compact-height .title > .editor-group-header {
+	min-height: var(--vscode-spacing-size280);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions {
@@ -33,6 +54,7 @@
 	align-items: center;
 	min-width: 0;
 	flex: 1 1 auto;
+	gap: var(--vscode-spacing-size20, 2px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions {
@@ -63,6 +85,9 @@
 	flex-shrink: 0;
 }
 
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container,
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar,
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar,
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container {

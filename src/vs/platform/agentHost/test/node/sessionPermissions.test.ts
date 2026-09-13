@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -205,6 +205,8 @@ suite('SessionPermissionManager', () => {
 				join('.CLAUDE', 'settings.json'),
 				join('.CLAUDE', 'settings.local.json'),
 				join('.claude', 'SETTINGS.LOCAL.JSON'),
+				join('.CODEX', 'hooks.json'),
+				join('.codex', 'CONFIG.TOML'),
 			];
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
@@ -273,6 +275,9 @@ suite('SessionPermissionManager', () => {
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
+			join('.codex', 'agents', 'dev-helper.md'),
+			join('.codex', 'config.toml'),
+			join('.codex', 'hooks.json'),
 		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {
@@ -583,6 +588,18 @@ suite('SessionPermissionManager', () => {
 		// The global setting is a superset of all settings but does not change the
 		// session's own approval level (the permissions picker stays at default).
 		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), true);
+		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
+	});
+
+	test('managed policy disables a persisted session auto-approve level', () => {
+		manager.setSessionConfig(sessionUri, {
+			schema: platformSessionSchema.toProtocol(),
+			values: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+		});
+		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), true);
+
+		configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+
 		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
 	});
 

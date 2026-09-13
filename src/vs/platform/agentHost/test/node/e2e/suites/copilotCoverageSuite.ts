@@ -496,6 +496,43 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		assert.ok(toolNames.includes('bash') && toolNames.includes('read_bash') && toolNames.includes('stop_bash'));
 	});
 
+	test('stopping an asynchronous shell allows a follow-up turn', async function () {
+		this.timeout(180_000);
+		const { sessionUri } = await createWorkspaceSession('stopped-shell-followup');
+		const shellTool = expandShellToolName('${shell}');
+		const turnId = 'turn-stop-shell';
+		const stopped = await driveTurnToCompletion(context.client, sessionUri, turnId,
+			'Use your shell tool to run exactly `node -e "setInterval(() => {}, 1000)"` with mode "async" and shellId "e2e-stopped-shell". ' +
+			'Then immediately call your stop-shell tool with shellId "e2e-stopped-shell". Do not leave the process running. Reply exactly "STOPPED".', 1);
+		const toolNames = startedToolNames(context, turnId);
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-stop-shell', 'Reply exactly "FOLLOWUP_DONE".', 2);
+		assert.deepStrictEqual({
+			tools: toolNames,
+			stopped: stopped.responseText.trim(),
+			followup: followup.responseText.trim(),
+		}, {
+			tools: [shellTool, expandShellToolName('${stop_shell}')],
+			stopped: 'STOPPED',
+			followup: 'FOLLOWUP_DONE',
+		});
+	});
+
+	test('shell output preserves public GitHub MCP metadata', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('public-mcp-metadata');
+		const turnId = 'turn-public-mcp-metadata';
+		await driveTurnToCompletion(context.client, sessionUri, turnId,
+			'Run exactly `node -e "console.log(\'https://github.com/github/copilot-sdk/pull/1\')"` with your shell tool. Then reply exactly "DONE".', 1);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId,
+			toolNames: [config.shellToolName],
+			workspace,
+			expected: [/https:\/\/github\.com\/github\/copilot-sdk\/pull\/1/],
+			success: true,
+		});
+	});
+
 	(context.runRecordOnlyTests ? test : test.skip)('managed shell sessions can be listed after asynchronous execution', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('managed-shell-list');

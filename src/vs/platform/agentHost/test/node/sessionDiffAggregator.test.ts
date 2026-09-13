@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
@@ -523,6 +524,43 @@ suite('computeUnionedDiffs', () => {
 			createTestDiffService(),
 		);
 		assert.deepStrictEqual(result, []);
+	});
+
+	test('waits for every database read before rejecting a failed source', async () => {
+		const pending = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		let peerReadFinished = false;
+		class FailingDatabase extends TestSessionDatabase {
+			override async getAllFileEdits(): Promise<never> { throw new Error('source unavailable'); }
+		}
+		class DelayedDatabase extends TestSessionDatabase {
+			override async getAllFileEdits() {
+				started.complete();
+				await pending.p;
+				peerReadFinished = true;
+				return super.getAllFileEdits();
+			}
+		}
+		const result = computeUnionedDiffs([
+			{ sessionUri: TEST_SESSION_URI, db: new FailingDatabase() },
+			{ sessionUri: PEER_CHAT_URI, db: new DelayedDatabase() },
+		], createTestDiffService());
+		const rejected = assert.rejects(result, error => {
+			assert.strictEqual(peerReadFinished, true);
+			return error instanceof Error && error.message === 'source unavailable';
+		});
+		await started.p;
+		pending.complete();
+		await rejected;
+	});
+
+	test('rejects a file-content failure instead of returning a partial diff list', async () => {
+		class FailingDatabase extends TestSessionDatabase {
+			override async readFileEditContent(): Promise<never> { throw new Error('content unavailable'); }
+		}
+		const db = new FailingDatabase();
+		db.addEdit({ turnId: 'turn', toolCallId: 'edit', filePath: '/a.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('before'), afterContent: encodeString('after') });
+		await assert.rejects(computeUnionedDiffs([{ sessionUri: TEST_SESSION_URI, db }], createTestDiffService()), /content unavailable/);
 	});
 
 	test('unions edits from the session DB and a peer chat DB', async () => {

@@ -23,7 +23,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
+import { findSessionForOpenSessionLink, ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
 
 suite('OpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -70,7 +70,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
-			override resolveSessionResource() {
+			override readonly onDidChangeSessionResolution = Event.None;
+			override resolveSessionResourceIdentity() {
 				return undefined;
 			}
 		};
@@ -138,7 +139,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
-			override resolveSessionResource() {
+			override readonly onDidChangeSessionResolution = Event.None;
+			override resolveSessionResourceIdentity() {
 				return undefined;
 			}
 		};
@@ -168,6 +170,23 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const result = await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, undefined, 'turn-1'));
 
 		assert.deepStrictEqual({ result, opened }, { result: true, opened: ['chat:copilotcli:/session-1'] });
+	});
+
+	test('finds a client session from its backend link resource', () => {
+		const backendSession = URI.parse('copilotcli:/session-1');
+		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session-1') });
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] {
+				return [session];
+			}
+		};
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity() {
+				return upcastPartial<NonNullable<ReturnType<IAgentHostConnectionsService['resolveSessionResourceIdentity']>>>({ backendSession });
+			}
+		};
+
+		assert.strictEqual(findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService), session);
 	});
 
 	test('uses a contextual placeholder without opening the linked chat', () => {
@@ -208,7 +227,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsManagementService,
 			new class extends mock<ISessionsService>() { },
 			new class extends mock<IAgentHostConnectionsService>() {
-				override resolveSessionResource() { return undefined; }
+				override resolveSessionResourceIdentity() { return undefined; }
 			},
 			linkPresentationService,
 			sessionsProvidersService,
@@ -271,7 +290,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsManagementService,
 			new class extends mock<ISessionsService>() { },
 			new class extends mock<IAgentHostConnectionsService>() {
-				override resolveSessionResource() { return undefined; }
+				override resolveSessionResourceIdentity() { return undefined; }
 			},
 			new class extends mock<ILinkPresentationService>() {
 				override registerLinkPresentationProvider(): IDisposable { return Disposable.None; }

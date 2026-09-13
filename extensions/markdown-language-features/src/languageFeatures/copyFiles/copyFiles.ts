@@ -101,7 +101,7 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 	]);
 
 	return outDest.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}\/])+)\/(?<replacement>(?:\\\/|[^\}\/])*)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {
-		if (groups?.['escape']) {
+		if (groups?.escape) {
 			return '$';
 		}
 
