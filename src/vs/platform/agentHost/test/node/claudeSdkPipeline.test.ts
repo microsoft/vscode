@@ -23,7 +23,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
-import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
+import { ClaudeSdkPipeline, IRematerializer, type IClaudeObservedModelLimits } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { makeContextUsageResponse } from './claudeContextUsage.test.js';
@@ -660,11 +660,14 @@ suite('ClaudeSdkPipeline', () => {
 			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
 			const signals: AgentSignal[] = [];
 			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+			const observedLimits: IClaudeObservedModelLimits[] = [];
+			disposables.add(pipeline.onDidObserveModelLimits(l => observedLimits.push(l)));
 
 			await pipeline.send(makePrompt('p1'), 'turn-1');
 
 			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatUsage, ActionType.ChatTurnComplete]);
 			assert.deepStrictEqual(warm.queries[0].contextUsageCalls, [{ detail: 'summary' }]);
+			assert.deepStrictEqual(observedLimits, [{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 }]);
 			const [base, enriched] = usageActionsOf(signals);
 			assert.deepStrictEqual(base.usage, { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' });
 			assert.deepStrictEqual(enriched.usage, {

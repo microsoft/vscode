@@ -19,9 +19,16 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { toClaudeContextAttribution } from './claudeContextUsage.js';
 import { buildClaudeUsageInfo } from './claudeMapSessionEvents.js';
+import type { IClaudeModelLimits } from './claudeModelSelection.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+
+/** A model named in a result's `modelUsage`, with the limits the SDK reported for it. */
+export interface IClaudeObservedModelLimits extends IClaudeModelLimits {
+	/** SDK model id exactly as `modelUsage` keys it. */
+	readonly model: string;
+}
 
 /**
  * Callback the agent supplies via {@link ClaudeSdkPipeline.attachRematerializer}
@@ -179,6 +186,19 @@ export class ClaudeSdkPipeline extends Disposable {
 		return this._query!;
 	}
 
+	/** Report every model's SDK-declared limits from a successful result's `modelUsage`. */
+	private _observeModelLimits(message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>): void {
+		for (const [model, usage] of Object.entries(message.modelUsage)) {
+			if (Number.isFinite(usage.contextWindow) && usage.contextWindow > 0) {
+				this._onDidObserveModelLimits.fire({
+					model,
+					contextWindow: usage.contextWindow,
+					maxOutputTokens: Number.isFinite(usage.maxOutputTokens) && usage.maxOutputTokens > 0 ? usage.maxOutputTokens : 0,
+				});
+			}
+		}
+	}
+
 	/**
 	 * Re-emit the turn's `ChatUsage` enriched with the SDK's context-window
 	 * breakdown (`_meta.contextAttribution`) so the context-usage widget can
@@ -300,6 +320,15 @@ export class ClaudeSdkPipeline extends Disposable {
 	 *     a steering entry to the SDK.
 	 */
 	readonly onDidProduceSignal: Event<AgentSignal> = this._onDidProduceSignal.event;
+
+	private readonly _onDidObserveModelLimits = this._register(new Emitter<IClaudeObservedModelLimits>());
+	/**
+	 * Fires once per model named in a successful `result`'s `modelUsage` with
+	 * the context window and output cap the SDK reports for it. The agent folds
+	 * these into the native model catalog, which the SDK otherwise publishes
+	 * without limits.
+	 */
+	readonly onDidObserveModelLimits: Event<IClaudeObservedModelLimits> = this._onDidObserveModelLimits.event;
 
 	private readonly _router: ClaudeSdkMessageRouter;
 
@@ -748,6 +777,9 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result') {
+					if (message.subtype === 'success') {
+						this._observeModelLimits(message);
+					}
 					if (message.subtype === 'success' && turnId !== undefined) {
 						// Must land before `ChatTurnComplete`: the chat reducer
 						// only applies `ChatUsage` to the active turn.
