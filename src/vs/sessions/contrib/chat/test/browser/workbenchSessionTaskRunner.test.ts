@@ -131,10 +131,11 @@ suite('WorkbenchSessionTaskRunner', () => {
 			}
 			override async terminate(task: Task) {
 				terminationAttempts.push({ label: task._label });
-				if (activeTasks.delete(task._label)) {
+				const success = activeTasks.delete(task._label);
+				if (success) {
 					terminatedTasks.push({ label: task._label });
 				}
-				return { success: true, task };
+				return { success, task };
 			}
 		});
 

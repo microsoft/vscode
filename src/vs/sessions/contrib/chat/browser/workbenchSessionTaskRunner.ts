@@ -64,12 +64,29 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 			return undefined;
 		}
 		const terminatedTaskIds = new Set<string>();
+		const terminatingTaskIds = new Set<string>();
+		const retryTasks = new Map<string, Task>();
 		const terminate = (task: Task) => {
 			if (terminatedTaskIds.has(task._id)) {
 				return;
 			}
-			terminatedTaskIds.add(task._id);
-			this._taskService.terminate(task);
+			if (terminatingTaskIds.has(task._id)) {
+				retryTasks.set(task._id, task);
+				return;
+			}
+			terminatingTaskIds.add(task._id);
+			this._taskService.terminate(task).then(result => {
+				if (result.success) {
+					terminatedTaskIds.add(task._id);
+				}
+			}).finally(() => {
+				terminatingTaskIds.delete(task._id);
+				const retryTask = retryTasks.get(task._id);
+				retryTasks.delete(task._id);
+				if (retryTask && !terminatedTaskIds.has(task._id)) {
+					terminate(retryTask);
+				}
+			});
 		};
 		if (options?.token) {
 			let cancelled = false;
