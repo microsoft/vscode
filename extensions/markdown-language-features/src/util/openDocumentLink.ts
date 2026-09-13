@@ -48,6 +48,22 @@ export class MdLinkOpener {
 				if (locationFragment) {
 					uri = uri.with({ fragment: locationFragment });
 					rangeSelection = getSelectionFromLocationFragment(locationFragment);
+				} else {
+					const hashIndex = linkText.indexOf('#');
+					if (hashIndex !== -1) {
+						const rawSlice = linkText.slice(hashIndex + 1);
+						if (rawSlice) {
+							let raw: string | undefined;
+							try {
+								raw = decodeURIComponent(rawSlice);
+							} catch {
+								raw = undefined;
+							}
+							if (raw) {
+								uri = uri.with({ fragment: raw });
+							}
+						}
+					}
 				}
 			}
 		}
