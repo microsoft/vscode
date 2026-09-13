@@ -477,6 +477,30 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.allowRead.includes('/mnt/users/user'), 'Canonical home should not be readable');
 		ok(config.filesystem.allowRead.includes('/home/user/.rbenv/shims'), 'Dedicated Ruby shim symlink should remain readable');
 		ok(config.filesystem.allowRead.includes('/opt/ruby-shims'), 'Dedicated external Ruby shim directory should remain readable');
+
+		for (const sensitiveTarget of ['/home/user/.ssh', '/home/user/.gem/credentials', '/mnt/users/user/.gem/credentials']) {
+			fileService.setRealpath('/home/user/.gem/ruby', sensitiveTarget);
+			const sensitiveEngine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+			await sensitiveEngine.wrapCommand('ruby --version', false, undefined, undefined, [{ keyword: 'ruby', args: ['--version'] }]);
+
+			const sensitiveConfigPath = await sensitiveEngine.getSandboxConfigPath();
+			ok(sensitiveConfigPath, 'Config path should be defined');
+			const sensitiveConfig = JSON.parse(createdFiles.get(sensitiveConfigPath)!);
+			ok(!sensitiveConfig.filesystem.allowRead.includes('/home/user/.gem/ruby'), `Ruby alias should be excluded for sensitive target: ${sensitiveTarget}`);
+			ok(!sensitiveConfig.filesystem.allowRead.includes(sensitiveTarget), `Sensitive Ruby target should be excluded: ${sensitiveTarget}`);
+		}
+
+		fileService.setRealpath('/home/user/.gem/ruby', '/mnt/users/user/.gem/specs/cache');
+		const safeEngine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		await safeEngine.wrapCommand('ruby --version', false, undefined, undefined, [{ keyword: 'ruby', args: ['--version'] }]);
+
+		const safeConfigPath = await safeEngine.getSandboxConfigPath();
+		ok(safeConfigPath, 'Config path should be defined');
+		const safeConfig = JSON.parse(createdFiles.get(safeConfigPath)!);
+		ok(safeConfig.filesystem.allowRead.includes('/home/user/.gem/ruby'), 'Ruby alias to an intended gem subtree should remain readable');
+		ok(safeConfig.filesystem.allowRead.includes('/mnt/users/user/.gem/specs/cache'), 'Intended canonical gem subtree should remain readable');
 	});
 
 	test('keeps filesystem paths without symlinks when writing the config', async () => {
