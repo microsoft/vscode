@@ -4,16 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventEmitter } from 'events';
+import { PassThrough } from 'stream';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
+import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, RipgrepTextSearchEngine, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
 import { Range, TextSearchMatch2, TextSearchQuery2, TextSearchResult2 } from '../../common/searchExtTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from '../../common/search.js';
+import { Progress } from '../../../../../platform/progress/common/progress.js';
 
 suite('RipgrepTextSearchEngine', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cancellation settles when ripgrep does not close', async () => {
+		class TestRipgrepProcess extends EventEmitter {
+			readonly stdout = new PassThrough();
+			readonly stderr = new PassThrough();
+			killCallCount = 0;
+
+			kill(): boolean {
+				this.killCallCount++;
+				return true;
+			}
+		}
+
+		const process = new TestRipgrepProcess();
+		const engine = new RipgrepTextSearchEngine({ appendLine() { } }, undefined, () => process);
+		const tokenSource = new CancellationTokenSource();
+		const options: RipgrepTextSearchOptions = {
+			folderOptions: {
+				folder: URI.file('/workspace'),
+				includes: [],
+				excludes: [],
+				followSymlinks: false,
+				useIgnoreFiles: { local: false, parent: false, global: false },
+				encoding: 'utf8'
+			},
+			maxResults: 100,
+			previewOptions: DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS,
+			surroundingContext: 0
+		};
+
+		const search = engine.provideTextSearchResultsWithRgOptions(
+			{ pattern: 'needle' },
+			options,
+			new Progress(() => { }),
+			tokenSource.token
+		);
+		tokenSource.cancel();
+
+		assert.deepStrictEqual(await search, { limitHit: false });
+		assert.strictEqual(process.killCallCount, 1);
+		process.emit('close');
+		tokenSource.dispose();
+	});
+
 	test('unicodeEscapesToPCRE2', async () => {
 		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234'), '\\x{1234}');
 		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234\\u0001'), '\\x{1234}\\x{0001}');

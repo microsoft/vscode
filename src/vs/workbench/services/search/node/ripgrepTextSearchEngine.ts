@@ -10,6 +10,7 @@ import { coalesce, mapArrayOrNot } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { splitGlobAware } from '../../../../base/common/glob.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
@@ -21,9 +22,23 @@ import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 
+interface IRipgrepProcess {
+	readonly stdout: NodeJS.ReadableStream;
+	readonly stderr: NodeJS.ReadableStream;
+	kill(signal?: NodeJS.Signals | number): boolean;
+	on(event: 'error', listener: (error: Error) => void): this;
+	on(event: 'close', listener: () => void): this;
+}
+
+type RipgrepSpawn = (command: string, args: readonly string[], options: cp.SpawnOptionsWithoutStdio) => IRipgrepProcess;
+
 export class RipgrepTextSearchEngine {
 
-	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
+	constructor(
+		private outputChannel: IOutputChannel,
+		private readonly _numThreads?: number | undefined,
+		private readonly _spawn: RipgrepSpawn = cp.spawn
+	) { }
 
 	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): Promise<TextSearchComplete2> {
 		return Promise.all(options.folderOptions.map(folderOption => {
@@ -60,8 +75,6 @@ export class RipgrepTextSearchEngine {
 		const resolvedRgDiskPath = await rgDiskPath();
 
 		return new Promise((resolve, reject) => {
-			token.onCancellationRequested(() => cancel());
-
 			const extendedOptions: RipgrepTextSearchOptions = {
 				...options,
 				numThreads: this._numThreads
@@ -75,11 +88,34 @@ export class RipgrepTextSearchEngine {
 				.join(' ');
 			this.outputChannel.appendLine(`${resolvedRgDiskPath} ${escapedArgs}\n - cwd: ${cwd}`);
 
-			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(resolvedRgDiskPath, rgArgs, { cwd });
+			let rgProc: Maybe<IRipgrepProcess> = this._spawn(resolvedRgDiskPath, rgArgs, { cwd });
+			let limitHit = false;
+			let isSettled = false;
+			let forceKillTimeout: ReturnType<typeof setTimeout> | undefined;
+			const complete = () => {
+				if (isSettled) {
+					return;
+				}
+
+				isSettled = true;
+				tokenListener?.dispose();
+				resolve({ limitHit });
+			};
+
+			const fail = (error: Error) => {
+				if (isSettled) {
+					return;
+				}
+
+				isSettled = true;
+				tokenListener?.dispose();
+				reject(error);
+			};
+
 			rgProc.on('error', e => {
 				console.error(e);
 				this.outputChannel.appendLine('Error: ' + (e && e.message));
-				reject(serializeSearchError(new SearchError(e && e.message, SearchErrorCode.rgProcessError)));
+				fail(serializeSearchError(new SearchError(e && e.message, SearchErrorCode.rgProcessError)));
 			});
 
 			let gotResult = false;
@@ -92,14 +128,30 @@ export class RipgrepTextSearchEngine {
 
 			let isDone = false;
 			const cancel = () => {
+				if (isDone) {
+					return;
+				}
+
 				isDone = true;
 
-				rgProc?.kill();
+				const process = rgProc;
+				if (process) {
+					forceKillTimeout = setTimeout(() => {
+						try {
+							process.kill('SIGKILL');
+						} catch { /* ignore */ }
+					}, 2_000);
+
+					try {
+						process.kill();
+					} catch { /* ignore */ }
+				}
 
 				ripgrepParser?.cancel();
+
+				complete();
 			};
 
-			let limitHit = false;
 			ripgrepParser.on('hitLimit', () => {
 				limitHit = true;
 				cancel();
@@ -126,7 +178,18 @@ export class RipgrepTextSearchEngine {
 				}
 			});
 
+			const tokenListener: IDisposable = token.onCancellationRequested(cancel);
+
 			rgProc.on('close', () => {
+				if (forceKillTimeout) {
+					clearTimeout(forceKillTimeout);
+					forceKillTimeout = undefined;
+				}
+
+				if (isSettled) {
+					return;
+				}
+
 				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
 				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
 				if (dataWithoutResult) {
@@ -136,16 +199,16 @@ export class RipgrepTextSearchEngine {
 				this.outputChannel.appendLine('');
 
 				if (isDone) {
-					resolve({ limitHit });
+					complete();
 				} else {
 					// Trigger last result
 					ripgrepParser.flush();
 					rgProc = null;
 					let searchError: Maybe<SearchError>;
 					if (stderr && !gotData && (searchError = rgErrorMsgForDisplay(stderr))) {
-						reject(serializeSearchError(new SearchError(searchError.message, searchError.code)));
+						fail(serializeSearchError(new SearchError(searchError.message, searchError.code)));
 					} else {
-						resolve({ limitHit });
+						complete();
 					}
 				}
 			});
