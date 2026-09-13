@@ -7390,6 +7390,29 @@ suite('AgentSideEffects', () => {
 
 	suite('changeset forwarders', () => {
 
+		test('edit-applied notification refreshes its owning session without dispatching a tool action', () => {
+			setupSession();
+			startTurn('turn-1');
+			const changesets = new FakeChangesetService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+			}, undefined, NullTelemetryService, changesets);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			const before = stateManager.getSessionState(defaultChatUri);
+
+			agent.fireProgress({ kind: 'file_edits_applied', chat: URI.parse(defaultChatUri), turnId: 'turn-1' });
+
+			assert.deepStrictEqual({
+				edits: changesets.toolCallEdits,
+				chat: stateManager.getSessionState(defaultChatUri),
+			}, {
+				edits: [{ session: sessionUri.toString(), turnId: 'turn-1' }],
+				chat: before,
+			});
+		});
+
 		test('stale tool completion does not attribute edits to the active turn', () => {
 			setupSession();
 			startTurn('turn-1');
