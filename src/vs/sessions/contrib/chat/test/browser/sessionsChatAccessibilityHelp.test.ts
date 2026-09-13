@@ -15,6 +15,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
+import { OPEN_NEW_CHAT_MODEL_PICKER_COMMAND_ID } from '../../browser/newChatInput.js';
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
@@ -34,6 +35,19 @@ suite('SessionsChatAccessibilityHelp', () => {
 			provider.provideContent().split('\n').find(line => line.startsWith('Alt-click')),
 			'Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork\'s context menu.',
 		);
+	});
+
+	test('documents the new-chat model picker shortcut', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+
+		assert.ok(provider.provideContent().includes(`<keybinding:${OPEN_NEW_CHAT_MODEL_PICKER_COMMAND_ID}>`));
 	});
 
 	for (const { wording, action, dismiss } of [
