@@ -4969,6 +4969,7 @@ export class CopilotAgentSession extends Disposable {
 			// even though it completes without an assistant.turn_start event.
 			this._dropLateRootTurnEvents = false;
 			const turnId = generateUuid();
+			this._resetAbortToken();
 			this.resetTurnState(turnId);
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,

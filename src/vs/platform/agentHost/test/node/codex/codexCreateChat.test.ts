@@ -678,6 +678,183 @@ suite('CodexAgent createChat', () => {
 		});
 	});
 
+	suite('delayed provider start ownership', () => {
+		async function createDelayedStartSession() {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'delayed-starts');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			const folder = URI.file('/repo/delayed-starts');
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const materialize = await readNextRequest(peer.outbound);
+			assert.strictEqual(materialize.method, 'thread/start');
+			peer.push({ id: materialize.id, result: { thread: { id: 'thread', cwd: folder.fsPath } } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			await entry.materializePromise;
+			const interrupts: ITestWireRequest[] = [];
+			disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(data => {
+				const request: ITestWireRequest = JSON.parse(data.toString());
+				if (request.method === 'turn/interrupt') {
+					interrupts.push(request);
+					peer.push({ id: request.id, result: {} });
+				}
+			}));
+			const turn = (id: string, status: Turn['status']): Turn => ({
+				id, status, items: [], itemsView: 'notLoaded', error: null,
+				startedAt: null, completedAt: null, durationMs: 0,
+			});
+			const issueStart = async (hostTurnId: string, prompt = hostTurnId) => {
+				const nextRequest = readNextRequest(peer.outbound);
+				const sending = agent.chats.sendMessage(chat, prompt, [folder], undefined, hostTurnId, undefined, undefined, context);
+				const request = await nextRequest;
+				assert.strictEqual(request.method, prompt === '/compact' ? 'thread/compact/start' : 'turn/start');
+				return { request, sending };
+			};
+			const send = async (hostTurnId: string) => {
+				const { request, sending } = await issueStart(hostTurnId);
+				peer.push({ id: request.id, result: { turn: turn(`app-${hostTurnId}`, 'inProgress') } });
+				await sending;
+			};
+			const started = (appTurnId: string) => agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn(appTurnId, 'inProgress') });
+			const completed = (appTurnId: string) => agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn(appTurnId, 'interrupted') });
+			return { agent, peer, entry, chat, context, interrupts, issueStart, send, started, completed };
+		}
+
+		for (const firstCompletedBeforeSecondStart of [false, true]) {
+			test(`delayed starts retain their issuing host turns with duplicate start ${firstCompletedBeforeSecondStart ? 'after' : 'before'} completion`, async () => {
+				const fixture = await createDelayedStartSession();
+				const { entry } = fixture;
+				for (const hostTurnId of ['first', 'second']) {
+					await fixture.send(hostTurnId);
+					await fixture.agent.chats.abort(fixture.chat, fixture.context);
+				}
+				fixture.started('app-first');
+				const afterFirstStart = {
+					firstHost: entry.hostTurnIdByAppTurnId.get('app-first'),
+					pendingAborts: [...entry.pendingAbortTurnIds],
+					pendingStarts: entry.pendingTurnStarts.map(start => start.hostTurnId),
+					activeHost: entry.currentTurnId,
+					activeApp: entry.currentAppTurnId,
+					mapperTurn: entry.mapState.currentTurnId,
+				};
+				const cancellations = [];
+				if (firstCompletedBeforeSecondStart) {
+					cancellations.push(...fixture.completed('app-first'));
+				}
+				fixture.started('app-first');
+				fixture.started('app-second');
+				const secondHost = entry.hostTurnIdByAppTurnId.get('app-second');
+				if (!firstCompletedBeforeSecondStart) {
+					cancellations.push(...fixture.completed('app-first'));
+				}
+				cancellations.push(...fixture.completed('app-second'));
+				await new Promise<void>(resolve => setImmediate(resolve));
+
+				assert.deepStrictEqual({
+					afterFirstStart,
+					secondHost,
+					interrupts: fixture.interrupts.map(request => request.params),
+					cancelledTurns: cancellations.filter(action => action.type === ActionType.ChatTurnCancelled).map(action => action.turnId),
+					pendingAborts: [...entry.pendingAbortTurnIds],
+					pendingStarts: entry.pendingTurnStarts.map(start => start.hostTurnId),
+					activeHost: entry.currentTurnId,
+					activeApp: entry.currentAppTurnId,
+				}, {
+					afterFirstStart: {
+						firstHost: 'first',
+						pendingAborts: ['second'],
+						pendingStarts: ['second'],
+						activeHost: 'second',
+						activeApp: undefined,
+						mapperTurn: undefined,
+					},
+					secondHost: 'second',
+					interrupts: [
+						{ threadId: 'thread', turnId: 'app-first' },
+						{ threadId: 'thread', turnId: 'app-second' },
+					],
+					cancelledTurns: ['first', 'second'],
+					pendingAborts: [],
+					pendingStarts: [],
+					activeHost: undefined,
+					activeApp: undefined,
+				});
+			});
+		}
+
+		test('a failed start cannot consume the ownership of a later start', async () => {
+			const fixture = await createDelayedStartSession();
+			const first = await fixture.issueStart('first');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			await fixture.send('second');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			fixture.peer.push({ id: first.request.id, error: { code: -32000, message: 'injected start failure' } });
+			await first.sending;
+			fixture.started('app-second');
+			const secondHost = fixture.entry.hostTurnIdByAppTurnId.get('app-second');
+			fixture.completed('app-second');
+			await new Promise<void>(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual({
+				secondHost,
+				interrupts: fixture.interrupts.map(request => request.params),
+				pendingAborts: [...fixture.entry.pendingAbortTurnIds],
+				pendingStarts: fixture.entry.pendingTurnStarts.map(start => start.hostTurnId),
+			}, {
+				secondHost: 'second',
+				interrupts: [{ threadId: 'thread', turnId: 'app-second' }],
+				pendingAborts: [],
+				pendingStarts: [],
+			});
+		});
+
+		test('compact starts retain their request owner before a replacement starts', async () => {
+			const fixture = await createDelayedStartSession();
+			const compact = await fixture.issueStart('first', '/compact');
+			fixture.peer.push({ id: compact.request.id, result: {} });
+			await compact.sending;
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			await fixture.send('second');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			fixture.started('app-first');
+			fixture.completed('app-first');
+			fixture.started('app-second');
+			fixture.completed('app-second');
+			await new Promise<void>(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual({
+				owners: [...fixture.entry.codexTurnIdByHostTurnId],
+				interrupts: fixture.interrupts.map(request => request.params),
+				pendingStarts: fixture.entry.pendingTurnStarts.map(start => start.hostTurnId),
+			}, {
+				owners: [['first', 'app-first'], ['second', 'app-second']],
+				interrupts: [{ threadId: 'thread', turnId: 'app-first' }, { threadId: 'thread', turnId: 'app-second' }],
+				pendingStarts: [],
+			});
+		});
+
+		test('disposal clears queued start ownership and cancellation together', async () => {
+			const fixture = await createDelayedStartSession();
+			await fixture.send('first');
+			await fixture.agent.chats.abort(fixture.chat, fixture.context);
+			const queued = fixture.entry.pendingTurnStarts.map(start => start.hostTurnId);
+			fixture.agent.dispose();
+			assert.deepStrictEqual({
+				queued,
+				pendingStarts: fixture.entry.pendingTurnStarts.map(start => start.hostTurnId),
+				pendingAborts: [...fixture.entry.pendingAbortTurnIds],
+				interrupts: fixture.interrupts,
+			}, {
+				queued: ['first'],
+				pendingStarts: [],
+				pendingAborts: [],
+				interrupts: [],
+			});
+		});
+	});
+
 	suite('guardian cancellation ownership', () => {
 		async function createGuardianSession() {
 			const logService = new RecordingLogService();

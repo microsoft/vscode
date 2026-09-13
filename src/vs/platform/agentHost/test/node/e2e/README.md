@@ -233,6 +233,8 @@ Paused-turn cancellation scenarios must retain one cancelled original and comple
 
 Successive cancellations must retain every outstanding abort owner in terminal order. A replacement cancelled before its provider starts must wait for its own interrupt target, never reuse the completed original's provider turn ID.
 
+Provider starts must retain the host owner captured when their start or compact RPC was issued; delayed or duplicate notifications cannot consume another turn's cancellation. A system notification that starts a fresh turn must renew its cancellation token even when the original's aborted idle is still pending.
+
 Teardown resolves the default chat's active turn and dispatches the client-supported `chat/turnCancelled` action before disposing the session. Any cancellation, disposal, replay-verification, or server-shutdown failure fails teardown and forces a fresh shared server; cleanup is never silently treated as success.
 
 > Historical note: an older comment warned that "Claude's mid-turn dispose leaves the agent host in a bad state." That dates from the live real-SDK era (real streaming turns actually in flight). In the deterministic replay suite the only mid-turn paths are gone — the abort test is record-only, and turns drain — so all providers reuse the server safely. Recording still uses a fresh proxy + fixture per test regardless of the flag (a proxy records to one fixture at a time).

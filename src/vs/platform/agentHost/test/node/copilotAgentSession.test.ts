@@ -7599,6 +7599,57 @@ Use the attached image as context.
 			});
 		});
 
+		for (const idleBeforeCallback of [false, true]) {
+			test(`system turns after an aborted resume accept input with late idle ${idleBeforeCallback ? 'before' : 'during'} the callback`, async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+				await session.resume('cancelled-resume');
+				const cancelledToken = session['_abortToken'];
+				await session.abort();
+				mockSession.fire('system.notification', {
+					content: 'Detached shell finished.',
+					kind: { type: 'shell_detached_completed', shellId: 'detached-shell' },
+				});
+				const systemTurnId = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted)?.turnId;
+				assert.ok(systemTurnId);
+				if (idleBeforeCallback) {
+					mockSession.fire('session.idle', { aborted: true });
+				}
+				const input = runtime.handleUserInputRequest({ question: 'Continue?' }, { sessionId: mockSession.sessionId });
+				const request = getActions(signals).find(action => action.type === ActionType.ChatInputRequested)?.request;
+				if (!idleBeforeCallback) {
+					mockSession.fire('session.idle', { aborted: true });
+				}
+				if (request) {
+					session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+						[request.questions![0].id]: {
+							state: ChatInputAnswerState.Submitted,
+							value: { kind: ChatInputAnswerValueKind.Text, value: 'continue' },
+						},
+					});
+				}
+				const result = await input;
+				mockSession.fire('session.idle', {});
+
+				assert.deepStrictEqual({
+					originalCancelled: cancelledToken.isCancellationRequested,
+					replacementCancelled: session['_abortToken'].isCancellationRequested,
+					inputRequested: request !== undefined,
+					result,
+					pendingInputs: [...session['_pendingUserInputs'].entries()],
+					active: session.hasActiveTurn,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				}, {
+					originalCancelled: true,
+					replacementCancelled: false,
+					inputRequested: true,
+					result: { answer: 'continue', wasFreeform: true },
+					pendingInputs: [],
+					active: false,
+					completedTurns: [systemTurnId],
+				});
+			});
+		}
+
 		test('a root user-message echo establishes the boundary for a no-op replacement turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			await session.resume('turn-1');
