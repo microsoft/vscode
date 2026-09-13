@@ -132,7 +132,7 @@ function getPwshGenericTokenRedirects(token: string): string[] {
 		}
 		if (char === '>' && !inSingleQuote && !inDoubleQuote) {
 			if (token[i - 1] !== '>') {
-				redirectStarts.push(i);
+				redirectStarts.push(i > 0 && /[1-6*]/.test(token[i - 1]) ? i - 1 : i);
 			}
 		}
 	}
