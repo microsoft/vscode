@@ -405,10 +405,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
 		restricted: true,
 		type: 'boolean',
-		// Only commands that select a workspace script without npm CLI options are auto-approved.
+		// Only commands that select a workspace script without additional npm arguments are auto-approved.
 		default: true,
 		tags: ['experimental'],
-		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. npm CLI options after the script name require explicit approval unless they follow a standalone `--`."),
+		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. npm arguments after the script name require explicit approval unless they follow a standalone `--`."),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
 		restricted: true,
