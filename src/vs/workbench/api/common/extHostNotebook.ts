@@ -269,6 +269,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	$releaseNotebookCellStatusBarItems(cacheId: number): void {
+		this._statusBarCache.get(cacheId, 0)?.dispose();
 		this._statusBarCache.delete(cacheId);
 	}
 
