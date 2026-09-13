@@ -112,7 +112,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 	(isWindows ? suite.skip : suite)('bash', () => {
 		const cwd = URI.file('/workspace/project');
 
-		async function t(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0, workspaceFolders: URI[] = [cwd]) {
+		async function t(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0, workspaceFolders: URI[] = [cwd], shell: string = 'bash') {
 			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, blockDetectedFileWrites);
 
 			// Setup workspace folders
@@ -122,7 +122,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine,
 				cwd,
-				shell: 'bash',
+				shell,
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
@@ -382,6 +382,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				t('sed -i \'s/x/y/\' =node', 'outsideWorkspace', false, 1));
 			test('sed repetition glob is blocked before normalization', () =>
 				t('sed -i \'s/x/y/\' README.md#', 'outsideWorkspace', false, 1));
+			test('sed zsh numeric range glob is blocked before parsing', () =>
+				t('sed --follow-symlinks -i \'s/x/y/\' <5-5>', 'outsideWorkspace', false, 0, [cwd], '/bin/zsh'));
 			test('sed expanded backup path is blocked before normalization', () =>
 				t('sed --in-place=$HOME/../outside/* \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
 			test('sed literal quote filename canonicalizes the runtime path', async () => {

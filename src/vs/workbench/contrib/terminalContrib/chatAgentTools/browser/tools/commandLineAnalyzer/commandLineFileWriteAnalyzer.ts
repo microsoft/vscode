@@ -39,6 +39,10 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
+		if (this._hasUnquotedZshNumericRange(options.commandLine, options.shell)) {
+			this._log('File writes blocked because the command contains an unquoted zsh numeric range');
+			return { isAutoApproveAllowed: false };
+		}
 		let fileWrites: FileWrite[];
 		let hasSequentialCommands: boolean;
 		let hasUnquotedPathExpansion: boolean;
@@ -58,6 +62,33 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			};
 		}
 		return this._getResult(options, fileWrites, hasSequentialCommands, hasUnquotedPathExpansion, hasUnanalyzablePath);
+	}
+
+	private _hasUnquotedZshNumericRange(commandLine: string, shell: string): boolean {
+		if (!/(^|[/\\])zsh(?:\s|$)/i.test(shell)) {
+			return false;
+		}
+		let inSingleQuote = false;
+		let inDoubleQuote = false;
+		for (let i = 0; i < commandLine.length; i++) {
+			const char = commandLine[i];
+			if (char === '\\' && !inSingleQuote) {
+				i++;
+				continue;
+			}
+			if (char === '\'' && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+				continue;
+			}
+			if (char === '"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+				continue;
+			}
+			if (char === '<' && !inSingleQuote && !inDoubleQuote && /^<\d+-\d+>/.test(commandLine.slice(i))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<{ fileWrites: FileWrite[]; hasUnquotedPathExpansion: boolean; hasUnanalyzablePath: boolean }> {
