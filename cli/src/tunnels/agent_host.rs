@@ -21,7 +21,13 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-use tokio_tungstenite::tungstenite::protocol::Role;
+use tokio_tungstenite::tungstenite::protocol::{
+	frame::{
+		coding::{Data, OpCode},
+		Frame,
+	},
+	Role,
+};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
@@ -2149,8 +2155,8 @@ enum GatewayTargetWs {
 /// injecting its connection token as the `tkn` query parameter the same
 /// way [`inject_connection_token`] does for the legacy per-request proxy.
 /// No AHP-level handshake is performed here -- once selection completes
-/// the gateway proxies frames verbatim, so this only needs to reach the
-/// WebSocket layer.
+/// the gateway forwards application messages unchanged, so this only needs
+/// to reach the WebSocket layer.
 async fn dial_gateway_target(
 	endpoint: &AgentHostEndpointMetadata,
 ) -> Result<GatewayTargetWs, AnyError> {
@@ -2196,7 +2202,43 @@ async fn dial_gateway_target(
 	}
 }
 
-/// Bidirectionally forwards WebSocket frames between the tunnel client
+// Browser tunnel clients limit individual frames to 1 MiB, even though
+// assembled messages may be larger. Tungstenite reassembles incoming frames,
+// so split large chat snapshots again on the final hop to the browser.
+const GATEWAY_MAX_FRAME_PAYLOAD: usize = 512 * 1024;
+
+async fn send_gateway_message<S>(
+	client: &mut WebSocketStream<S>,
+	message: Message,
+) -> Result<(), tokio_tungstenite::tungstenite::Error>
+where
+	S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+	match message {
+		Message::Text(text) if text.len() > GATEWAY_MAX_FRAME_PAYLOAD => {
+			let chunks = text.as_bytes().chunks(GATEWAY_MAX_FRAME_PAYLOAD);
+			let last = chunks.len() - 1;
+			for (index, chunk) in chunks.enumerate() {
+				let opcode = if index == 0 {
+					Data::Text
+				} else {
+					Data::Continue
+				};
+				client
+					.send(Message::Frame(Frame::message(
+						chunk.to_vec(),
+						OpCode::Data(opcode),
+						index == last,
+					)))
+					.await?;
+			}
+			Ok(())
+		}
+		message => client.send(message).await,
+	}
+}
+
+/// Bidirectionally forwards WebSocket messages between the tunnel client
 /// and the selected target until either side closes or errors. Generic
 /// over both stream types so it is shared between the `Tcp` and `Socket`
 /// [`GatewayTargetWs`] variants.
@@ -2232,7 +2274,7 @@ async fn proxy_gateway_frames<A, B>(
 					return;
 				}
 				Some(Ok(m)) => {
-					if let Err(e) = client.send(m).await {
+					if let Err(e) = send_gateway_message(&mut client, m).await {
 						debug!(log, "Gateway proxy: failed forwarding target frame to client: {:?}", e);
 						return;
 					}
@@ -2251,6 +2293,61 @@ mod tests {
 	use super::*;
 	use crate::util::http::ReqwestSimpleHttp;
 	use std::path::Path;
+
+	#[tokio::test]
+	async fn gateway_proxy_fragments_large_snapshots() {
+		use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
+
+		tokio::time::timeout(Duration::from_secs(5), async {
+			let (browser_io, client_io) = tokio::io::duplex(64 * 1024);
+			let (target_io, server_io) = tokio::io::duplex(64 * 1024);
+			let client = WebSocketStream::from_raw_socket(client_io, Role::Server, None).await;
+			let target = WebSocketStream::from_raw_socket(target_io, Role::Client, None).await;
+			let proxy = tokio::spawn(async move {
+				proxy_gateway_frames(&log::Logger::test(), client, target).await;
+			});
+
+			// Exceed the browser's 1 MiB frame limit and split UTF-8 characters
+			// across the gateway's continuation-frame boundaries.
+			let payload = "🦀x".repeat(300_000);
+			let expected = payload.clone();
+			let server = tokio::spawn(async move {
+				let mut server =
+					WebSocketStream::from_raw_socket(server_io, Role::Server, None).await;
+				server.send(Message::Text(payload.into())).await.unwrap();
+				server
+					.send(Message::Text("after snapshot".into()))
+					.await
+					.unwrap();
+				server.next().await.unwrap().unwrap().into_text().unwrap()
+			});
+
+			// Match the limits in webSocketOverDuplex.ts used by Agents web.
+			let config = WebSocketConfig::default()
+				.max_frame_size(Some(1024 * 1024))
+				.max_message_size(Some(8 * 1024 * 1024));
+			let mut browser =
+				WebSocketStream::from_raw_socket(browser_io, Role::Client, Some(config)).await;
+			let snapshot = browser.next().await.unwrap().unwrap().into_text().unwrap();
+			let following = browser.next().await.unwrap().unwrap().into_text().unwrap();
+			browser
+				.send(Message::Text("request after snapshot".into()))
+				.await
+				.unwrap();
+			let request = server.await.unwrap();
+			proxy.await.unwrap();
+			assert_eq!(
+				(snapshot.as_str(), following.as_str(), request.as_str()),
+				(
+					expected.as_str(),
+					"after snapshot",
+					"request after snapshot"
+				)
+			);
+		})
+		.await
+		.expect("gateway should remain usable after a large snapshot");
+	}
 
 	fn make_test_manager(cache_dir: &Path) -> Arc<AgentHostManager> {
 		AgentHostManager::new(
