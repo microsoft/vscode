@@ -7,7 +7,6 @@ import assert from 'assert';
 import { cp, mkdir, mkdtemp, readFile, realpath, rm } from 'fs/promises';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
-import { fileURLToPath } from 'url';
 import { CopilotClient, RuntimeConnection, type CopilotSession, type SessionConfig, type SessionEvent } from '@github/copilot-sdk';
 import { dirname, join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
