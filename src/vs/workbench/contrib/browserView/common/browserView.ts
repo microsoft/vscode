@@ -698,9 +698,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		const didChange = event.url !== this._url
 			|| event.canGoBack !== this._canGoBack
 			|| event.canGoForward !== this._canGoForward
-			|| !structuralEquals(event.certificateError, this._certificateError)
-			|| (shouldApplyNavigationState(event.navigationStateVersion, this._navigationStateVersions.title, isSnapshot) && event.title !== this._title);
+			|| !structuralEquals(event.certificateError, this._certificateError);
 		this._navigationStateVersions.navigation = event.navigationStateVersion;
+
+		if (isSnapshot && !didChange) {
+			return;
+		}
 
 		if (shouldApplyNavigationState(event.navigationStateVersion, this._navigationStateVersions.favicon, isSnapshot) && URL.parse(event.url)?.host !== URL.parse(this._url)?.host) {
 			this._favicon = undefined;
@@ -716,10 +719,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._canGoForward = event.canGoForward;
 		this._certificateError = event.certificateError;
 		this._updateSharingState();
-
-		if (isSnapshot && !didChange) {
-			return;
-		}
 
 		// Chromium resets zoom on cross-origin navigation, even when the host is unchanged.
 		void this.setBrowserZoomIndex(
@@ -740,9 +739,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (!shouldApplyNavigationState(event.navigationStateVersion, this._navigationStateVersions.title, isSnapshot)) {
 			return;
 		}
+		const didChange = event.title !== this._title;
 		this._navigationStateVersions.title = event.navigationStateVersion;
 		this._title = event.title;
-		this._onDidChangeTitle.fire(event);
+		if (!isSnapshot || didChange) {
+			this._onDidChangeTitle.fire(event);
+		}
 	}
 
 	private _updateLoadingState(event: IBrowserViewLoadingEvent, isSnapshot = false): void {
@@ -762,9 +764,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (!shouldApplyNavigationState(event.navigationStateVersion, this._navigationStateVersions.favicon, isSnapshot)) {
 			return;
 		}
+		const didChange = event.favicon !== this._favicon;
 		this._navigationStateVersions.favicon = event.navigationStateVersion;
 		this._favicon = event.favicon;
-		this._onDidChangeFavicon.fire(event);
+		if (!isSnapshot || didChange) {
+			this._onDidChangeFavicon.fire(event);
+		}
 	}
 
 	get url(): string { return this._url; }

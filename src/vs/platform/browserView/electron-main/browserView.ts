@@ -286,6 +286,11 @@ export class BrowserView extends Disposable {
 		});
 
 		// Favicon events
+		let lastEmittedFavicon: string | undefined;
+		const fireFaviconEvent = () => {
+			lastEmittedFavicon = this._lastFavicon;
+			this._onDidChangeFavicon.fire({ navigationStateVersion: ++this._navigationStateVersion, favicon: this._lastFavicon });
+		};
 		const faviconLoader = this._register(new BrowserFaviconLoader(
 			url => {
 				if (!this._faviconRequestCache.has(url)) {
@@ -316,7 +321,7 @@ export class BrowserView extends Disposable {
 					return;
 				}
 				this._lastFavicon = favicon;
-				this._onDidChangeFavicon.fire({ navigationStateVersion: ++this._navigationStateVersion, favicon: this._lastFavicon });
+				fireFaviconEvent();
 				this._currentHistoryHandle?.update({ favicon: favicon ?? null });
 			},
 			this.logService,
@@ -333,7 +338,8 @@ export class BrowserView extends Disposable {
 		};
 		let pendingNavigationUrl: string | undefined;
 		webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
-			if (isMainFrame && !isInPlace) {
+			if (isMainFrame && !isInPlace && !this._shouldRedirectPinnedNavigation(url)) {
+				resetFaviconForNavigation(webContents.getURL(), url);
 				faviconLoader.invalidate();
 				pendingNavigationUrl = url;
 			}
@@ -372,6 +378,9 @@ export class BrowserView extends Disposable {
 				certificateError: this.session.trust.getCertificateError(url)
 			});
 			this._recordNavigation(url);
+			if (lastEmittedFavicon !== this._lastFavicon) {
+				fireFaviconEvent();
+			}
 		};
 
 		const fireLoadingEvent = (loading: boolean) => {
@@ -779,8 +788,12 @@ export class BrowserView extends Disposable {
 		await this._view.webContents.loadURL(url);
 	}
 
+	private _shouldRedirectPinnedNavigation(url: string): boolean {
+		return !!this.associatedResource && !isBrowserViewAssociatedResourceNavigation(this.associatedResource, url);
+	}
+
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+		if (!this._shouldRedirectPinnedNavigation(url)) {
 			return false;
 		}
 

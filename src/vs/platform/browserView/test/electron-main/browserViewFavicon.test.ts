@@ -4,117 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventEmitter } from 'events';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
-import { upcastDeepPartial, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { nextMacrotask, realTimeApi } from '../../../../base/test/common/virtualScheduling/index.js';
-import { IAuxiliaryWindowsMainService } from '../../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
-import { NullLogService } from '../../../log/common/log.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { ICodeWindow } from '../../../window/electron-main/window.js';
-import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
-import { IBrowserHistoryItemHandle } from '../../common/browserHistory.js';
-import { BrowserViewStorageScope } from '../../common/browserView.js';
-import { BrowserSession } from '../../electron-main/browserSession.js';
-import { BrowserView } from '../../electron-main/browserView.js';
+import { createTestBrowserView } from './browserViewTestUtils.js';
 
 suite('BrowserView favicon navigation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const oldIcon = 'data:image/png;base64,b2xk';
 
-	function createView(associatedResource?: URI) {
-		const events = new EventEmitter();
-		const requests = new Map<string, DeferredPromise<Response>>();
-		const history: { url: string; favicon: string | null | undefined }[] = [];
-		let url = associatedResource?.toString() ?? 'https://first.example/page';
-		let destroyed = false;
-		let childCreates = 0;
-		const electronSession = upcastPartial<Electron.Session>({
-			fetch: input => {
-				const request = new DeferredPromise<Response>();
-				requests.set(input.toString(), request);
-				return request.p;
-			},
-		});
-		const webContents: Electron.WebContents = upcastPartial<Electron.WebContents>({
-			on: (event: string | symbol, listener: Parameters<EventEmitter['on']>[1]) => { events.on(event, listener); return webContents; },
-			removeListener: (event: string | symbol, listener: Parameters<EventEmitter['removeListener']>[1]) => { events.removeListener(event, listener); return webContents; },
-			session: electronSession,
-			ipc: upcastPartial<Electron.IpcMain>({ on: () => webContents.ipc }),
-			getURL: () => url,
-			getTitle: () => 'Test page',
-			getUserAgent: () => 'Test',
-			getOrCreateDevToolsTargetId: () => 'target',
-			isDestroyed: () => destroyed,
-			isLoading: () => false,
-			setWindowOpenHandler: () => { },
-			setZoomFactor: () => { },
-			setVisualZoomLevelLimits: async () => { },
-			close: () => { destroyed = true; events.emit('destroyed'); },
-			navigationHistory: upcastPartial<Electron.NavigationHistory>({
-				canGoBack: () => false, canGoForward: () => false, getActiveIndex: () => history.length,
-			}),
-			debugger: upcastPartial<Electron.Debugger>({
-				isAttached: () => true,
-				sendCommand: async () => ({}),
-				removeListener: () => webContents.debugger,
-				detach: () => { },
-			}),
-		});
-		const nativeView = upcastPartial<Electron.WebContentsView>({
-			webContents, setBounds: () => { }, setVisible: () => { }, setBackgroundColor: () => { },
-		});
-		const session = upcastDeepPartial<BrowserSession>({
-			electronSession,
-			storageScope: BrowserViewStorageScope.Ephemeral,
-			remote: { onDidStart: Event.None, onDidStop: Event.None, isRemote: false },
-			permissions: { onDidRequestPermission: Event.None, onDidRequestDevice: Event.None, onDidChange: Event.None },
-			trust: { installCertErrorHandler: () => { }, getCertificateError: () => undefined },
-			history: {
-				add: (entryUrl: string, _title: string, favicon: string | undefined) => {
-					const entry: { url: string; favicon: string | null | undefined } = { url: entryUrl, favicon };
-					history.push(entry);
-					return upcastPartial<IBrowserHistoryItemHandle>({ update: changes => { Object.assign(entry, changes); } });
-				},
-			},
-		});
-		const owner = upcastPartial<ICodeWindow>({
-			onDidClose: Event.None, onWillLoad: Event.None,
-			win: upcastDeepPartial<Electron.BrowserWindow>({ contentView: { addChildView: () => { } } }),
-		});
-		const view: BrowserView = store.add(new BrowserView(
-			'view', { windowId: 1 }, { type: 'user' }, associatedResource, session,
-			() => { childCreates++; return view; }, () => { }, undefined, () => nativeView,
-			upcastPartial<IWindowsMainService>({ getWindowById: () => owner }),
-			upcastPartial<IAuxiliaryWindowsMainService>({}), new NullLogService(), NullTelemetryService,
-		));
-		const settle = () => new Promise<void>(resolve => nextMacrotask(realTimeApi, resolve));
-		const commit = (target: string) => {
-			url = target;
-			events.emit('did-navigate', {}, url);
-		};
-		commit(url);
-		const navigate = (target: string) => {
-			const event = { url: target, preventDefault: () => assert.fail('Unexpected navigation rejection') };
-			events.emit('will-navigate', event);
-			events.emit('did-start-navigation', {}, target, false, true);
-		};
-		const redirect = (target: string, isMainFrame = true) => {
-			let prevented = false;
-			events.emit('will-redirect', {
-				url: target, isMainFrame, isSameDocument: false, preventDefault: () => { prevented = true; },
-			});
-			return prevented;
-		};
-		const setIcon = async (icon: string) => {
-			events.emit('page-favicon-updated', {}, [icon]);
-			await settle();
-		};
-		return { view, requests, history, events, navigate, redirect, commit, setIcon, settle, get childCreates() { return childCreates; } };
-	}
+	const createView = (associatedResource?: URI) => createTestBrowserView(store, associatedResource);
 
 	test('clears the authoritative icon before a cross-host redirect commits', async () => {
 		const testCase = createView();
@@ -141,8 +39,7 @@ suite('BrowserView favicon navigation', () => {
 		testCase.events.emit('page-favicon-updated', {}, ['https://first.example/intermediate.png']);
 		testCase.redirect('https://second.example/destination');
 		testCase.commit('https://second.example/destination');
-		await testCase.requests.get('https://first.example/intermediate.png')!.complete(new Response('stale-icon', { headers: { 'content-type': 'image/png' } }));
-		await testCase.settle();
+		await testCase.completeFavicon('https://first.example/intermediate.png', 'stale-icon');
 
 		assert.deepStrictEqual({ snapshotIcon: testCase.view.getNavigationState().lastFavicon, committedIcon: testCase.history[1].favicon }, {
 			snapshotIcon: undefined, committedIcon: undefined,
@@ -182,4 +79,49 @@ suite('BrowserView favicon navigation', () => {
 			prevented: true, childCreates: 1, favicon: oldIcon,
 		});
 	});
+
+	test('preserves a pending favicon when navigation is diverted after did-start-navigation', async () => {
+		const testCase = createView(URI.file('/workspace/page.html'));
+		const iconUrl = 'https://first.example/pending.png';
+		testCase.events.emit('page-favicon-updated', {}, [iconUrl]);
+		const prevented = testCase.navigate('https://second.example/destination');
+		await testCase.completeFavicon(iconUrl, 'kept');
+
+		assert.deepStrictEqual({
+			prevented, childCreates: testCase.childCreates,
+			favicon: testCase.view.getNavigationState().lastFavicon, historyIcon: testCase.history[0].favicon,
+		}, {
+			prevented: true, childCreates: 1,
+			favicon: 'data:image/png;base64,a2VwdA==', historyIcon: 'data:image/png;base64,a2VwdA==',
+		});
+	});
+
+	test('still discards pending work after an accepted document navigation', async () => {
+		const testCase = createView();
+		const iconUrl = 'https://first.example/pending.png';
+		testCase.events.emit('page-favicon-updated', {}, [iconUrl]);
+		const prevented = testCase.navigate('https://first.example/next');
+		await testCase.completeFavicon(iconUrl, 'stale');
+
+		assert.deepStrictEqual({ prevented, favicon: testCase.view.getNavigationState().lastFavicon }, {
+			prevented: false, favicon: undefined,
+		});
+	});
+
+	for (const method of ['loadURL', 'back', 'forward'] as const) {
+		test(`clears cross-host favicon state for ${method} without will-navigate`, async () => {
+			const testCase = createView();
+			await testCase.setIcon(oldIcon);
+			await testCase.navigateProgrammatically(method, 'https://second.example/destination');
+			const beforeCommit = testCase.view.getNavigationState().lastFavicon;
+			testCase.commit('https://second.example/destination');
+
+			assert.deepStrictEqual({
+				calls: testCase.programmaticCalls, beforeCommit,
+				snapshotIcon: testCase.view.getNavigationState().lastFavicon, historyIcon: testCase.history[1].favicon,
+			}, {
+				calls: [method], beforeCommit: undefined, snapshotIcon: undefined, historyIcon: undefined,
+			});
+		});
+	}
 });

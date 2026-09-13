@@ -16,7 +16,7 @@ import { IAgentNetworkFilterService } from '../../../../../platform/networkFilte
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { BrowserEditorInput, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
 import { BrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 
@@ -130,7 +130,7 @@ suite('BrowserViewModel initial state handoff', () => {
 			loading.fire({ navigationStateVersion: state.navigationStateVersion, loading: false });
 		};
 
-		const adopt = (creationState = initialState) => {
+		const adopt = (creationState = initialState, presentation: Pick<IBrowserEditorInputData, 'title' | 'favicon'> = {}) => {
 			trace.push('create model child');
 			const model = store.add(new BrowserViewModel(
 				'child', { windowId: 1 }, { type: 'user' }, undefined, creationState, service, workbenchService,
@@ -141,7 +141,7 @@ suite('BrowserViewModel initial state handoff', () => {
 			));
 			trace.push('create editor child');
 			const input = store.add(new BrowserEditorInput(
-				{ id: 'child', url: childUrl }, async () => model,
+				{ id: 'child', url: childUrl, ...presentation }, async () => model,
 				upcastPartial<IThemeService>({}), upcastPartial<IInstantiationService>({}), NullTelemetryService, workbenchService,
 			));
 			input.model = model;
@@ -206,6 +206,65 @@ suite('BrowserViewModel initial state handoff', () => {
 		await popup.snapshot.complete(popup.state);
 
 		assert.deepStrictEqual({ title: model.title, navigations }, { title: childTitle, navigations: [] });
+	});
+
+	test('only emits a title change for a title-only snapshot', async () => {
+		const popup = createPopup();
+		popup.commit();
+		const { model, input } = popup.adopt(popup.state);
+		const events: string[] = [];
+		store.add(model.onDidNavigate(() => events.push('navigation')));
+		store.add(model.onDidChangeTitle(() => events.push('title')));
+		store.add(model.onDidChangeFavicon(() => events.push('favicon')));
+		store.add(model.onDidChangeLoadingState(() => events.push('loading')));
+		await popup.snapshot.complete({ ...popup.state, navigationStateVersion: popup.state.navigationStateVersion + 1, title: 'Updated title' });
+
+		assert.deepStrictEqual({ title: model.title, label: input.getName(), events }, {
+			title: 'Updated title', label: 'Updated title', events: ['title'],
+		});
+	});
+
+	test('only emits a favicon change for a favicon-only snapshot', async () => {
+		const popup = createPopup();
+		popup.commit();
+		const { model } = popup.adopt(popup.state);
+		const events: string[] = [];
+		store.add(model.onDidNavigate(() => events.push('navigation')));
+		store.add(model.onDidChangeTitle(() => events.push('title')));
+		store.add(model.onDidChangeFavicon(() => events.push('favicon')));
+		store.add(model.onDidChangeLoadingState(() => events.push('loading')));
+		await popup.snapshot.complete({ ...popup.state, navigationStateVersion: popup.state.navigationStateVersion + 1, lastFavicon: 'data:image/png;base64,aWNvbg==' });
+
+		assert.deepStrictEqual({ favicon: model.favicon, events }, {
+			favicon: 'data:image/png;base64,aWNvbg==', events: ['favicon'],
+		});
+	});
+
+	test('a title-only snapshot can clear restored presentation without navigation', async () => {
+		const popup = createPopup();
+		popup.commit();
+		const { model, input } = popup.adopt(popup.state, { title: childTitle });
+		const navigations: string[] = [];
+		store.add(model.onDidNavigate(event => navigations.push(event.url)));
+		await popup.snapshot.complete({ ...popup.state, title: '' });
+
+		assert.deepStrictEqual({ modelTitle: model.title, label: input.getName(), navigations }, {
+			modelTitle: '', label: 'localhost', navigations: [],
+		});
+	});
+
+	test('a favicon-only snapshot can clear restored presentation without navigation', async () => {
+		const popup = createPopup();
+		popup.commit();
+		const favicon = 'data:image/png;base64,aWNvbg==';
+		const { model, input } = popup.adopt({ ...popup.state, lastFavicon: favicon }, { favicon });
+		const navigations: string[] = [];
+		store.add(model.onDidNavigate(event => navigations.push(event.url)));
+		await popup.snapshot.complete(popup.state);
+
+		assert.deepStrictEqual({ modelIcon: model.favicon, editorIcon: input.favicon, navigations }, {
+			modelIcon: undefined, editorIcon: undefined, navigations: [],
+		});
 	});
 
 	test('does not emit loading changes for an unchanged snapshot', async () => {
