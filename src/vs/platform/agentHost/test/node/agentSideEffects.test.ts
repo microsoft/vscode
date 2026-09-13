@@ -4435,6 +4435,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'write',
 				permissionPath: '/workspace/denied.lock',
 				permissionRequest: {
+					id: 'permission-publication',
 					isPending: () => true,
 					onWillPublish: () => { order.push('publish'); return true; },
 					respond: () => { throw new Error('This request must be confirmed by the user'); },
@@ -4468,6 +4469,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Create superseded.lock', confirmationTitle: 'Create file?',
 				},
 				permissionRequest: {
+					id: 'permission-superseded',
 					isPending: () => pending,
 					onWillPublish: () => { publicationCount++; return pending; },
 					respond: approved => { responses.push(approved); return true; },
@@ -5123,6 +5125,7 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'write',
 				permissionPath: '/workspace/approved.lock',
 				permissionRequest: {
+					id: 'permission-auto-approval',
 					isPending: () => true,
 					onWillPublish: () => { order.push('publish'); return true; },
 					respond: approved => { order.push(`respond:${approved}`); return true; },
@@ -7501,6 +7504,7 @@ suite('AgentSideEffects', () => {
 					permissionKind: 'write',
 					permissionPath: '/session-data/session-1/attachments/abc/Pasted text #1.txt',
 					permissionRequest: requestScoped ? {
+						id: 'permission-snapshot',
 						isPending: () => true,
 						onWillPublish: () => { publicationCount++; return true; },
 						respond: approved => { scopedResponses.push(approved); return true; },

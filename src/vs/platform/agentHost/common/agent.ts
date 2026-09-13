@@ -941,6 +941,9 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only control of the originating permission request, never serialized into AHP. */
 	readonly permissionRequest?: {
+		/** Immutable identity echoed by clients that support scoped confirmations. */
+		readonly id: string;
+		/** Permanently false after settlement, cancellation, disposal, or supersession. */
 		isPending(): boolean;
 		/** Binds the confirmation immediately before AHP publication, returning false if superseded. */
 		onWillPublish(): boolean;

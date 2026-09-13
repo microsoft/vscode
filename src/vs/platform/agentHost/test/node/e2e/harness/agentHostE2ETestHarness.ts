@@ -8,6 +8,7 @@
  */
 
 import assert from 'assert';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../common/meta/agentToolConfirmationMeta.js';
 import { execSync } from 'child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
@@ -622,6 +623,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 					clientSeq: nextClientSeq++,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
+						_meta: withToolConfirmationId({}, readToolConfirmationId(action))._meta,
 						turnId,
 						toolCallId: action.toolCallId,
 						approved: true,
@@ -804,6 +806,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 						clientSeq: ++approvalSeq,
 						action: {
 							type: ActionType.ChatToolCallConfirmed,
+							_meta: withToolConfirmationId({}, readToolConfirmationId(action))._meta,
 							turnId: action.turnId,
 							toolCallId: action.toolCallId, approved: false,
 							reason: ToolCallCancellationReason.Denied,
@@ -820,6 +823,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 					clientSeq: ++approvalSeq,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
+						_meta: withToolConfirmationId({}, readToolConfirmationId(action))._meta,
 						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
 						confirmed: ToolCallConfirmationReason.UserAction,

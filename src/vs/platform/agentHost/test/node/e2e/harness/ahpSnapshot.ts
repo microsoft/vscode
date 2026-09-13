@@ -10,6 +10,7 @@ import { dirname, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { scrubUserName } from './userNameScrub.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../common/meta/agentToolConfirmationMeta.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../common/state/sessionActions.js';
 import type { DispatchActionParams } from '../../../../common/state/protocol/commands.js';
@@ -718,6 +719,10 @@ async function bindPrerequisites(
 		throw new Error('[ahp-snapshot] expected chat/toolCallReady prerequisite');
 	}
 	bindFieldPlaceholder(action, 'toolCallId', readyAction.toolCallId, bindings);
+	const confirmationId = readToolConfirmationId(readyAction);
+	if (confirmationId !== undefined) {
+		action._meta = withToolConfirmationId({}, confirmationId)._meta;
+	}
 }
 
 function bindFieldPlaceholder(record: Record<string, unknown>, key: string, actual: string, bindings: Map<string, string>): void {
@@ -817,13 +822,13 @@ function parseClientAction(value: unknown): StateAction {
 			if (action.approved !== true || action.confirmed !== ToolCallConfirmationReason.UserAction) {
 				throw new Error('[ahp-snapshot] executable tool confirmations currently require user approval');
 			}
-			return {
+			return withToolConfirmationId({
 				type: ActionType.ChatToolCallConfirmed,
 				turnId: readString(action, 'turnId'),
 				toolCallId: readString(action, 'toolCallId'),
 				approved: true,
 				confirmed: ToolCallConfirmationReason.UserAction,
-			};
+			}, readToolConfirmationId({ _meta: action._meta === undefined ? undefined : readRecord(action._meta, '_meta') }));
 		case ActionType.ChatToolCallComplete: {
 			const result = readRecord(action.result, 'result');
 			return {

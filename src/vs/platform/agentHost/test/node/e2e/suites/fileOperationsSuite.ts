@@ -11,6 +11,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../common/meta/agentToolConfirmationMeta.js';
 import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
 import { buildDefaultChatUri, getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
@@ -105,6 +106,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				clientSeq: 2,
 				action: {
 					type: ActionType.ChatToolCallConfirmed,
+					_meta: withToolConfirmationId({}, readToolConfirmationId(ready))._meta,
 					turnId,
 					toolCallId: ready.toolCallId,
 					approved: false,

@@ -52,6 +52,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;
+	private _confirmationGeneration = 0;
 
 	// Streaming-related observables
 	private readonly _partialInput = observableValue<unknown>(this, undefined);
@@ -135,7 +136,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
-				confirm: reason => this._confirm(reason),
+				confirm: this._createConfirmationCallback(),
 			});
 		}
 	}
@@ -163,6 +164,16 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				confirmationMessages: this.confirmationMessages,
 			}, undefined);
 		}
+
+	}
+
+	private _createConfirmationCallback(): (reason: ConfirmedReason) => void {
+		const generation = ++this._confirmationGeneration;
+		return reason => {
+			if (generation === this._confirmationGeneration && this._state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				this._confirm(reason);
+			}
+		};
 	}
 
 	/**
@@ -260,7 +271,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
-				confirm: reason => this._confirm(reason),
+				confirm: this._createConfirmationCallback(),
 			}, undefined);
 		}
 	}
@@ -301,15 +312,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	/** Moves an active invocation into confirmation while preserving the same tool card. */
-	public requestConfirmation(preparedInvocation: IPreparedToolInvocation): void {
+	public requestConfirmation(preparedInvocation: IPreparedToolInvocation, newConfirmation = false): void {
 		const currentType = this._state.get().type;
 		if (currentType === IChatToolInvocation.StateKind.Streaming) {
 			this.transitionFromStreaming(preparedInvocation, this.parameters, undefined);
 			return;
 		}
-		if (currentType === IChatToolInvocation.StateKind.Completed
+		if (!newConfirmation && (currentType === IChatToolInvocation.StateKind.Completed
 			|| currentType === IChatToolInvocation.StateKind.Cancelled
-			|| currentType === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			|| currentType === IChatToolInvocation.StateKind.WaitingForConfirmation)) {
 			return;
 		}
 
@@ -329,7 +340,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 			parameters: this.parameters,
 			confirmationMessages: this.confirmationMessages,
-			confirm: reason => this._confirm(reason),
+			confirm: this._createConfirmationCallback(),
 		}, undefined);
 	}
 

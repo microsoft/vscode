@@ -4941,6 +4941,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		let applyToolConfirmation: (() => void) | undefined;
+		if (action.type === ActionType.ChatToolCallConfirmed) {
+			try {
+				applyToolConfirmation = this._sideEffects.prepareToolCallConfirmation(channel, action);
+			} catch (error) {
+				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+				return;
+			}
+		}
 		if (action.type === ActionType.SessionIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Cannot unarchive a session while it is being deleted.');
 			return;
@@ -5042,7 +5051,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(`[AgentService] Failed to apply Automation configuration: ${toErrorMessage(error)}`);
 			});
 		}
-		this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn);
+		if (applyToolConfirmation) {
+			applyToolConfirmation();
+		} else {
+			this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn);
+		}
 	}
 	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
 		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource)).map(chat => chat.resource);

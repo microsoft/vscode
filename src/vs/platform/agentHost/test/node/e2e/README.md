@@ -511,6 +511,8 @@ The denial scenario waits for interactive readiness and sends one denial; provis
 
 Provider-signal emission is not publication: host auto-approval can still await path resolution. The host-only permission request handle binds the registration immediately before `ChatToolCallReady` is dispatched to AHP, after those checks. Host policy decisions also use that exact request handle, so a delayed check cannot settle a replacement under a reused tool-call ID.
 
+Scoped confirmations carry an opaque `agentHost.confirmationId` in the existing tool-call `_meta`. Clients echo the ID captured from the prompt they acted on, and the host validates it before the reducer or routing/tracking side effects run. Missing, malformed, settled, or superseded scoped IDs are rejected; neither an old approval nor an old denial may affect a replacement. Handle invalidation survives renewal of the session cancellation token. Providers that do not publish scoped IDs retain the legacy unscoped flow, without the stale-decision guarantee; older clients that do not echo IDs cannot answer scoped prompts.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.

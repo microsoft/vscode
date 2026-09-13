@@ -3790,6 +3790,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePermissionRequest(
 		request: PermissionRequest,
 	): Promise<PermissionRequestResult> {
+		const requestToken = this._abortToken;
 		try {
 			const toolCallId = request.toolCallId;
 			if (!toolCallId) {
@@ -3937,10 +3938,14 @@ export class CopilotAgentSession extends Disposable {
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
+			if (requestToken.isCancellationRequested || this._store.isDisposed) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Discarding cancelled permission preparation: toolCallId=${toolCallId}`);
+				return { kind: 'reject' };
+			}
 			this._deletePendingEditContent(toolCallId);
 			const pendingRequest = { managedApprovalRequired };
 			const pendingPermission = this._pendingPermissions.register(toolCallId, pendingRequest);
-			const permissionRequest = this._createPermissionRequestHandle(toolCallId, pendingRequest);
+			const permissionRequest = this._createPermissionRequestHandle(toolCallId, pendingRequest, requestToken);
 			const isPending = permissionRequest.isPending;
 			// Observe supersession while preview or sandbox work is still in flight; awaiters retain the rejection.
 			void pendingPermission.catch(error => this._logService.trace(`[Copilot:${this.sessionId}] Pending permission request failed: toolCallId=${toolCallId}`, error));
@@ -4451,9 +4456,10 @@ export class CopilotAgentSession extends Disposable {
 		return this._completePermissionRequest(requestId, approved);
 	}
 
-	private _createPermissionRequestHandle(requestId: string, pendingRequest: IPendingPermissionRequest): NonNullable<IAgentToolPendingConfirmationSignal['permissionRequest']> {
-		const isPending = () => this._pendingPermissions.getMetadata(requestId) === pendingRequest;
+	private _createPermissionRequestHandle(requestId: string, pendingRequest: IPendingPermissionRequest, token = this._abortToken): NonNullable<IAgentToolPendingConfirmationSignal['permissionRequest']> {
+		const isPending = () => !token.isCancellationRequested && !this._store.isDisposed && this._pendingPermissions.getMetadata(requestId) === pendingRequest;
 		return {
+			id: generateUuid(),
 			isPending,
 			onWillPublish: () => {
 				if (!isPending()) {
