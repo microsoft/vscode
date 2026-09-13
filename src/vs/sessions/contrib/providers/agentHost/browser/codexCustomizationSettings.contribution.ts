@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { derived } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agentService.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AHPAgentSettingsWidget, type IAgentGlobalConfigurationSettingsTarget } from '../../../../../workbench/contrib/chat/browser/aiCustomization/agentGlobalConfigurationSettingsWidget.js';

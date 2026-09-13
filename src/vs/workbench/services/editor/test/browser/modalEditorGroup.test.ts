@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts } from '../../../../test/browser/workbenchTestServices.js';
 import { GroupsOrder, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IKeybindingService, IKeyboardEvent } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResultKind, ResolutionResult } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { MockKeybindingService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -22,8 +28,9 @@ import { EditorService } from '../../browser/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Memento } from '../../../../common/memento.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
+import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 
 suite('Modal Editor Group', () => {
 
@@ -66,6 +73,99 @@ suite('Modal Editor Group', () => {
 		assert.ok(modalPart.activeGroup);
 		assert.strictEqual(typeof modalPart.close, 'function');
 
+		await modalPart.close();
+	});
+
+	test('Escape closes modal before focused controls can stop propagation', async () => {
+		let resolvedCommand = 'test.otherCommand';
+		let dispatchCount = 0;
+		const keybindingService = new class extends MockKeybindingService {
+			override softDispatch(): ResolutionResult {
+				return { kind: ResultKind.KbFound, commandId: resolvedCommand, commandArgs: undefined, isBubble: false };
+			}
+			override dispatchEvent(): boolean {
+				dispatchCount++;
+				dispatchClose?.();
+				return true;
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.stub(IKeybindingService, keybindingService);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const modalPart = await parts.createModalEditorPart();
+		const dispatchClose = () => void modalPart.close();
+		const modalElement = modalPart.modalElement as HTMLElement;
+		const control = modalElement.appendChild(document.createElement('button'));
+		let controlKeydownCount = 0;
+		disposables.add(addDisposableListener(control, EventType.KEY_DOWN, event => {
+			controlKeydownCount++;
+			event.stopPropagation();
+		}));
+		const states: { modalAttached: boolean; controlKeydownCount: number; dispatchCount: number }[] = [];
+
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount, dispatchCount });
+
+		resolvedCommand = CLOSE_MODAL_EDITOR_COMMAND_ID;
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount, dispatchCount });
+
+		assert.deepStrictEqual(states, [
+			{ modalAttached: true, controlKeydownCount: 1, dispatchCount: 0 },
+			{ modalAttached: false, controlKeydownCount: 1, dispatchCount: 1 },
+		]);
+	});
+
+	test('bubble close keybindings reach focused controls and dispatch once', async () => {
+		let dispatchCount = 0;
+		const keybindingService = new class extends MockKeybindingService {
+			override softDispatch(): ResolutionResult {
+				return { kind: ResultKind.KbFound, commandId: CLOSE_MODAL_EDITOR_COMMAND_ID, commandArgs: undefined, isBubble: true };
+			}
+			override dispatchEvent(_event: IKeyboardEvent, _target: IContextKeyServiceTarget): boolean {
+				dispatchCount++;
+				return false;
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.stub(IKeybindingService, keybindingService);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		disposables.add(addDisposableListener(mainWindow, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			keybindingService.dispatchEvent(event, event.target);
+		}));
+
+		const modalPart = await parts.createModalEditorPart();
+		const control = (modalPart.modalElement as HTMLElement).appendChild(document.createElement('button'));
+		let controlKeydownCount = 0;
+		let stopPropagation = false;
+		disposables.add(addDisposableListener(control, EventType.KEY_DOWN, event => {
+			controlKeydownCount++;
+			if (stopPropagation) {
+				event.stopPropagation();
+			}
+		}));
+		const states: { controlKeydownCount: number; dispatchCount: number }[] = [];
+
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ controlKeydownCount, dispatchCount });
+
+		stopPropagation = true;
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ controlKeydownCount, dispatchCount });
+
+		assert.deepStrictEqual(states, [
+			{ controlKeydownCount: 1, dispatchCount: 1 },
+			{ controlKeydownCount: 2, dispatchCount: 2 },
+		]);
 		await modalPart.close();
 	});
 

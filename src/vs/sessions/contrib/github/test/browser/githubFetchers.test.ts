@@ -8,6 +8,8 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
+import { GitHubPullRequestContextFetcher } from '../../browser/fetchers/githubPullRequestContextFetcher.js';
+import { GitHubPullRequestsFetcher } from '../../browser/fetchers/githubPullRequestsFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRecentUserWorkFetcher } from '../../browser/fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
@@ -17,12 +19,20 @@ import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHub
 class MockApiClient {
 
 	private _nextResponse: unknown;
+	private _responses: unknown[] = [];
 	private _nextError: Error | undefined;
 	readonly requestCalls: { method: string; path: string; body?: unknown }[] = [];
 	readonly graphqlCalls: { query: string; variables?: Record<string, unknown>; options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'> }[] = [];
 
 	setNextResponse(data: unknown): void {
 		this._nextResponse = data;
+		this._responses = [];
+		this._nextError = undefined;
+	}
+
+	setResponses(...data: unknown[]): void {
+		this._responses = [...data];
+		this._nextResponse = undefined;
 		this._nextError = undefined;
 	}
 
@@ -36,7 +46,7 @@ class MockApiClient {
 		if (this._nextError) {
 			throw this._nextError;
 		}
-		return { data: this._nextResponse as T, statusCode: 200 };
+		return { data: (this._responses.length > 0 ? this._responses.shift() : this._nextResponse) as T, statusCode: 200 };
 	}
 
 	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>, options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'>): Promise<T> {
@@ -88,6 +98,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 					title: 'Fix CI',
 					url: 'https://github.com/o/r/pull/3',
 					updatedAt: '2026-08-07T12:00:00Z',
+					mergeable: 'CONFLICTING',
 					commits: { nodes: [{ commit: { committedDate: '2026-08-07T09:00:00Z', statusCheckRollup: { state: 'FAILURE' } } }] },
 				}],
 			},
@@ -103,6 +114,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 				title: 'Fix CI',
 				url: 'https://github.com/o/r/pull/3',
 				updatedAt: '2026-08-07T12:00:00Z',
+				hasMergeConflicts: true,
 				statusCheckRollupState: 'FAILURE',
 				latestCommitAt: '2026-08-07T09:00:00Z',
 			}],
@@ -215,6 +227,76 @@ suite('GitHubRepositoryFetcher', () => {
 	});
 });
 
+suite('GitHubPullRequestContextFetcher', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns details, patch, and issue/review comments as one snapshot', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setResponses(
+			{
+				number: 42,
+				html_url: 'https://github.com/owner/repo/pull/42',
+				title: 'Improve sessions',
+				body: 'Description',
+				user: { login: 'author' },
+				draft: false,
+				base: { ref: 'main' },
+				head: { ref: 'feature' },
+				updated_at: '2026-01-01T00:00:00Z',
+			},
+			[{ filename: 'src/a.ts', status: 'modified', additions: 2, deletions: 1, patch: '@@ -1 +1 @@' }],
+			[{ body: 'General comment', user: { login: 'commenter' }, created_at: '2026-01-02T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' }],
+			[{ body: 'Inline comment', user: { login: 'reviewer' }, created_at: '2026-01-03T00:00:00Z', updated_at: '2026-01-03T00:00:00Z', path: 'src/a.ts', line: 7, original_line: null }],
+		);
+		const fetcher = new GitHubPullRequestContextFetcher(mockApi as unknown as GitHubApiClient);
+
+		const context = await fetcher.getPullRequestContext('owner', 'repo', 42);
+
+		assert.deepStrictEqual({
+			context,
+			paths: mockApi.requestCalls.map(call => call.path),
+		}, {
+			context: {
+				owner: 'owner',
+				repo: 'repo',
+				number: 42,
+				url: 'https://github.com/owner/repo/pull/42',
+				title: 'Improve sessions',
+				description: 'Description',
+				author: 'author',
+				isDraft: false,
+				baseRef: 'main',
+				branchName: 'feature',
+				headRef: 'feature',
+				updatedAt: '2026-01-01T00:00:00Z',
+				patch: 'diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@',
+				comments: [{
+					kind: 'issue',
+					author: 'commenter',
+					body: 'General comment',
+					createdAt: '2026-01-02T00:00:00Z',
+					updatedAt: '2026-01-02T00:00:00Z',
+				}, {
+					kind: 'review',
+					author: 'reviewer',
+					body: 'Inline comment',
+					createdAt: '2026-01-03T00:00:00Z',
+					updatedAt: '2026-01-03T00:00:00Z',
+					path: 'src/a.ts',
+					line: 7,
+				}],
+			},
+			paths: [
+				'/repos/owner/repo/pulls/42',
+				'/repos/owner/repo/pulls/42/files?per_page=100&page=1',
+				'/repos/owner/repo/issues/42/comments?per_page=100&page=1',
+				'/repos/owner/repo/pulls/42/comments?per_page=100&page=1',
+			],
+		});
+	});
+});
+
 suite('GitHubPRFetcher', () => {
 
 	const store = new DisposableStore();
@@ -249,10 +331,18 @@ suite('GitHubPRFetcher', () => {
 	});
 
 	test('getPullRequest maps closed PR', async () => {
-		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false }));
+		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false, closed_at: '2024-03-04T00:00:00Z' }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
 		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Closed);
+		assert.strictEqual(pr.data?.closedAt, '2024-03-04T00:00:00Z');
+	});
+
+	test('getPullRequest omits closedAt for an open PR', async () => {
+		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));
+
+		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
+		assert.strictEqual(pr.data?.closedAt, undefined);
 	});
 
 	test('getReviewThreads returns GraphQL thread metadata', async () => {
@@ -307,19 +397,157 @@ suite('GitHubPRFetcher', () => {
 		assert.deepStrictEqual(mockApi.graphqlCalls[0].variables, { threadId: 'thread-a' });
 	});
 
+	test('postPullRequestReviewComment sends a line comment against the head commit', async () => {
+		mockApi.setNextResponse({
+			id: 1,
+			node_id: 'PRR_review',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		});
+
+		await fetcher.postPullRequestReviewComment('owner', 'repo', 1, 'Please update this.', 'abc123', 'src/a.ts', 12);
+
+		assert.deepStrictEqual(mockApi.requestCalls, [{
+			method: 'POST',
+			path: '/repos/owner/repo/pulls/1/reviews',
+			body: {
+				commit_id: 'abc123',
+				comments: [{
+					body: 'Please update this.',
+					path: 'src/a.ts',
+					line: 12,
+					side: 'RIGHT',
+				}],
+			},
+		}]);
+	});
+
+	test('postPullRequestReviewComment adds to an existing pending review without submitting it', async () => {
+		mockApi.setNextResponse({
+			addPullRequestReviewThread: { thread: { id: 'thread-a' } },
+			id: 1,
+			node_id: 'PRR_review',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		});
+
+		await fetcher.postPullRequestReviewComment(
+			'owner',
+			'repo',
+			1,
+			'Please update this.',
+			'abc123',
+			'src/a.ts',
+			12,
+			{ id: 42, nodeId: 'PRR_pending' },
+		);
+
+		assert.deepStrictEqual({
+			graphql: mockApi.graphqlCalls.map(call => call.variables),
+			requests: mockApi.requestCalls,
+		}, {
+			graphql: [{
+				reviewId: 'PRR_pending',
+				body: 'Please update this.',
+				path: 'src/a.ts',
+				line: 12,
+			}],
+			requests: [],
+		});
+	});
+
 	test('getReviews maps API response', async () => {
 		mockApi.setNextResponse([
-			{ id: 1, user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
-			{ id: 2, user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
+			{ id: 1, node_id: 'PRR_1', user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
+			{ id: 2, node_id: 'PRR_2', user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
 		]);
 
 		const reviews = await fetcher.getReviews('owner', 'repo', 1);
 		assert.deepStrictEqual(reviews.data, [
-			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
-			{ id: 2, author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
+			{ id: 1, nodeId: 'PRR_1', author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 2, nodeId: 'PRR_2', author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
 		assert.strictEqual(mockApi.requestCalls.length, 1);
-		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/owner/repo/pulls/1/reviews');
+		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/owner/repo/pulls/1/reviews?per_page=100&page=1');
+	});
+
+	test('getReviews loads pending reviews after the first page', async () => {
+		const firstPage = Array.from({ length: 100 }, (_, index) => ({
+			id: index + 1,
+			node_id: `PRR_${index + 1}`,
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		}));
+		mockApi.setResponses(firstPage, [{
+			id: 101,
+			node_id: 'PRR_pending',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'PENDING',
+			submitted_at: null,
+		}]);
+
+		const reviews = await fetcher.getReviews('owner', 'repo', 1);
+
+		assert.deepStrictEqual({
+			count: reviews.data?.length,
+			pending: reviews.data?.find(review => review.state === 'PENDING'),
+			paths: mockApi.requestCalls.map(call => call.path),
+		}, {
+			count: 101,
+			pending: {
+				id: 101,
+				nodeId: 'PRR_pending',
+				author: { login: 'reviewer', avatarUrl: '' },
+				state: 'PENDING',
+				submittedAt: undefined,
+			},
+			paths: [
+				'/repos/owner/repo/pulls/1/reviews?per_page=100&page=1',
+				'/repos/owner/repo/pulls/1/reviews?per_page=100&page=2',
+			],
+		});
+	});
+
+	test('getChangedFiles loads files after the first page', async () => {
+		const firstPage = Array.from({ length: 100 }, (_, index) => ({
+			filename: `src/file-${index}.ts`,
+			status: 'modified',
+			additions: 1,
+			deletions: 1,
+		}));
+		mockApi.setResponses(firstPage, [{
+			filename: 'src/target.ts',
+			previous_filename: 'src/old-target.ts',
+			status: 'renamed',
+			additions: 2,
+			deletions: 1,
+			patch: '@@ -1 +1 @@\n-old\n+new',
+		}]);
+
+		const files = await fetcher.getChangedFiles('owner', 'repo', 1);
+
+		assert.deepStrictEqual({
+			count: files.length,
+			target: files.at(-1),
+			paths: mockApi.requestCalls.map(call => call.path),
+		}, {
+			count: 101,
+			target: {
+				filename: 'src/target.ts',
+				previous_filename: 'src/old-target.ts',
+				status: 'renamed',
+				additions: 2,
+				deletions: 1,
+				patch: '@@ -1 +1 @@\n-old\n+new',
+			},
+			paths: [
+				'/repos/owner/repo/pulls/1/files?per_page=100&page=1',
+				'/repos/owner/repo/pulls/1/files?per_page=100&page=2',
+			],
+		});
 	});
 
 	test('computeMergeability detects draft blocker', () => {
@@ -339,7 +567,7 @@ suite('GitHubPRFetcher', () => {
 	test('computeMergeability detects changes requested blocker', () => {
 		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: true, mergeableState: 'clean' });
 		const reviews: IGitHubPullRequestReview[] = [
-			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 1, nodeId: 'PRR_1', author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
 		];
 		const result = computeMergeability(pr, reviews);
 		assert.strictEqual(result.canMerge, false);
@@ -351,6 +579,91 @@ suite('GitHubPRFetcher', () => {
 		const result = computeMergeability(pr, []);
 		assert.strictEqual(result.canMerge, true);
 		assert.strictEqual(result.blockers.length, 0);
+	});
+});
+
+suite('GitHubPullRequestsFetcher', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps a lightweight page with pagination and diff stats', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			repository: {
+				pullRequests: {
+					nodes: [{
+						number: 7,
+						title: 'Improve sessions',
+						author: { login: 'author', avatarUrl: 'avatar' },
+						headRefName: 'feature',
+						isCrossRepository: false,
+						isDraft: true,
+						updatedAt: '2026-07-30T12:00:00Z',
+						additions: 12,
+						deletions: 3,
+					}],
+					pageInfo: { endCursor: 'cursor-1', hasNextPage: true },
+				},
+			},
+		});
+		const fetcher = new GitHubPullRequestsFetcher(mockApi as unknown as GitHubApiClient);
+
+		const page = await fetcher.getPullRequests('microsoft', 'vscode');
+
+		assert.deepStrictEqual(page, {
+			pullRequests: [{
+				number: 7,
+				title: 'Improve sessions',
+				author: { login: 'author', avatarUrl: 'avatar' },
+				headRef: 'feature',
+				checkoutRef: 'refs/pull/7/head',
+				isCrossRepository: false,
+				isDraft: true,
+				updatedAt: '2026-07-30T12:00:00Z',
+				additions: 12,
+				deletions: 3,
+				reviewRequestedFromViewer: false,
+				assignedToViewer: false,
+			}],
+			cursor: 'cursor-1',
+			hasNextPage: true,
+		});
+		assert.deepStrictEqual(mockApi.graphqlCalls[0].variables, { owner: 'microsoft', repo: 'vscode', cursor: null });
+	});
+
+	test('loads viewer review and assignment membership with independent small queries', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			search: { nodes: [makePullRequestSearchNode(7), null, makePullRequestSearchNode(9)] },
+		});
+		const fetcher = new GitHubPullRequestsFetcher(mockApi as unknown as GitHubApiClient);
+
+		const reviewRequested = await fetcher.getPullRequestsWaitingForReview('microsoft', 'vscode');
+		mockApi.setNextResponse({
+			search: { nodes: [makePullRequestSearchNode(8), makePullRequestSearchNode(9)] },
+		});
+		const assigned = await fetcher.getPullRequestsAssignedToViewer('microsoft', 'vscode');
+
+		assert.deepStrictEqual({
+			reviewRequested: reviewRequested.map(pullRequest => ({ number: pullRequest.number, reviewRequestedFromViewer: pullRequest.reviewRequestedFromViewer, assignedToViewer: pullRequest.assignedToViewer })),
+			assigned: assigned.map(pullRequest => ({ number: pullRequest.number, reviewRequestedFromViewer: pullRequest.reviewRequestedFromViewer, assignedToViewer: pullRequest.assignedToViewer })),
+			variables: mockApi.graphqlCalls.map(call => call.variables),
+			usesNestedFields: mockApi.graphqlCalls.some(call => call.query.includes('reviewRequests(') || call.query.includes('assignees(')),
+		}, {
+			reviewRequested: [
+				{ number: 7, reviewRequestedFromViewer: true, assignedToViewer: false },
+				{ number: 9, reviewRequestedFromViewer: true, assignedToViewer: false },
+			],
+			assigned: [
+				{ number: 8, reviewRequestedFromViewer: false, assignedToViewer: true },
+				{ number: 9, reviewRequestedFromViewer: false, assignedToViewer: true },
+			],
+			variables: [
+				{ query: 'repo:microsoft/vscode is:pr is:open review-requested:@me sort:updated-desc' },
+				{ query: 'repo:microsoft/vscode is:pr is:open assignee:@me sort:updated-desc' },
+			],
+			usesNestedFields: false,
+		});
 	});
 });
 
@@ -486,12 +799,27 @@ function makePR(overrides: {
 	};
 }
 
+function makePullRequestSearchNode(number: number): unknown {
+	return {
+		number,
+		title: `Pull request ${number}`,
+		author: { login: 'author', avatarUrl: '' },
+		headRefName: `feature-${number}`,
+		isCrossRepository: false,
+		isDraft: false,
+		updatedAt: '2026-07-30T12:00:00Z',
+		additions: number,
+		deletions: 1,
+	};
+}
+
 function makePRResponse(overrides: {
 	state: 'open' | 'closed';
 	merged: boolean;
 	draft: boolean;
 	mergeable?: boolean | null;
 	mergeable_state?: string;
+	closed_at?: string | null;
 }): unknown {
 	return {
 		number: 1,
@@ -505,6 +833,7 @@ function makePRResponse(overrides: {
 		created_at: '2024-01-01T00:00:00Z',
 		updated_at: '2024-01-02T00:00:00Z',
 		merged_at: overrides.merged ? '2024-01-02T00:00:00Z' : null,
+		closed_at: overrides.closed_at ?? (overrides.state === 'closed' ? '2024-01-03T00:00:00Z' : null),
 		mergeable: overrides.mergeable ?? true,
 		mergeable_state: overrides.mergeable_state ?? 'clean',
 		merged: overrides.merged,

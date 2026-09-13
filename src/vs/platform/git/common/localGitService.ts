@@ -22,6 +22,7 @@ export interface ILocalGitService {
 	clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string): Promise<void>;
 	pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean>;
 	checkout(operationId: string, repoPath: string, treeish: string, detached?: boolean): Promise<void>;
+	checkoutCommit(operationId: string, repoPath: string, commit: string): Promise<void>;
 	revParse(repoPath: string, ref: string): Promise<string>;
 	fetch(operationId: string, repoPath: string): Promise<void>;
 	revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number>;

@@ -6,10 +6,10 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
-import type { AgentSignal } from '../../common/agentService.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
@@ -307,8 +307,15 @@ function mapAssistantCanonical(
 	registry: SubagentRegistry,
 	clientToolOwner?: (toolName: string) => string | undefined,
 ): AgentSignal[] {
+	const completedSignal: AgentSignal = {
+		kind: 'model_call_completed',
+		resource: chat,
+		turnId,
+		modelCallId: message.message.id,
+	};
+	const completedSignals = message.aborted ? [] : [completedSignal];
 	if (parentToolUseId === null) {
-		const top: AgentSignal[] = [];
+		const top: AgentSignal[] = [...completedSignals];
 		for (const block of message.message.content) {
 			if (block.type !== 'tool_use' || !SUBAGENT_SPAWNING_TOOL_NAMES.has(block.name)) {
 				continue;
@@ -317,7 +324,7 @@ function mapAssistantCanonical(
 		}
 		return top;
 	}
-	return emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientToolOwner);
+	return [...completedSignals, ...emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientToolOwner)];
 }
 
 /**
@@ -491,10 +498,10 @@ function mapResult(
 				type: ActionType.ChatError,
 				turnId,
 				duration: typeof turnDuration === 'number' && Number.isFinite(turnDuration) ? Math.max(0, turnDuration) : 0,
-				error: {
+				part: createErrorResponsePart({
 					errorType: message.subtype,
 					...extractForwardedErrorInfo(errorText),
-				},
+				}),
 			},
 		});
 	}

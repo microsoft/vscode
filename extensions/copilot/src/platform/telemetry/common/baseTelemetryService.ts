@@ -176,6 +176,14 @@ export class BaseTelemetryService implements ITelemetryService {
 				"ErrorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth"}
 			}
 		*/
+		/* __GDPR__
+			"tas-call" : {
+				"callType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"extensionName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"assignmentContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		if (name === 'abexp.assignmentcontext') {
 			this._setOriginalExpAssignments(value);
 			return;
@@ -188,6 +196,12 @@ export class BaseTelemetryService implements ITelemetryService {
 			...Object.fromEntries(props),
 			...this._sharedProperties
 		};
+		// Mark the queried-feature name trusted so the telemetry cleaner does not redact the
+		// `/vscode/`-scoped key as a `user-file-path`.
+		const queriedFeature = properties['ABExp.queriedFeature'];
+		if (typeof queriedFeature === 'string') {
+			properties['ABExp.queriedFeature'] = new TelemetryTrustedValue(queriedFeature);
+		}
 		this._microsoftTelemetrySender.sendInternalTelemetryEvent(eventName, properties);
 		this._microsoftTelemetrySender.sendTelemetryEvent(eventName, properties);
 	}

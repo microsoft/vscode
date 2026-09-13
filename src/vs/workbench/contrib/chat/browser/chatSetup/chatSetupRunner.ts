@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatSetup.css';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, getWindow, releaseReservedWindowForExternalOpen, reserveWindowForExternalOpen } from '../../../../../base/browser/dom.js';
+import { isSafari, isMobileStandalone } from '../../../../../base/browser/browser.js';
+import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatMicrosoftAuthenticationEnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -28,7 +33,7 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { IChatSetupResult, ChatSetupAnonymous, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
+import { IChatSetupResult, ChatSetupAnonymous, ChatSetupDialogVisibleContext, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -40,6 +45,7 @@ const fallbackProviders = {
 	enterprise: { id: '', name: '' },
 	apple: { id: '', name: '' },
 	google: { id: '', name: '' },
+	microsoft: { id: '', name: '' },
 };
 
 const configuredProviders = product.defaultChatAgent?.provider;
@@ -51,6 +57,7 @@ const defaultChat = {
 		enterprise: configuredProviders?.enterprise ?? fallbackProviders.enterprise,
 		apple: configuredProviders?.apple ?? fallbackProviders.apple,
 		google: configuredProviders?.google ?? fallbackProviders.google,
+		microsoft: configuredProviders?.microsoft ?? fallbackProviders.microsoft,
 	},
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
@@ -68,6 +75,7 @@ export interface IChatSetupDialogProviders {
 	readonly enterprise: { readonly name: string };
 	readonly apple: { readonly name: string };
 	readonly google: { readonly name: string };
+	readonly microsoft: { readonly name: string };
 }
 
 export interface IChatSetupDialogFooterContent {
@@ -87,6 +95,24 @@ export interface IChatSetupDialogOptions {
 	readonly renderFooter?: (container: HTMLElement) => IDisposable | undefined;
 }
 
+/**
+ * Whether this strategy sends the user to a provider's sign-in page. `DefaultSetup`
+ * is excluded: for an already signed-in user it installs and signs up with no
+ * browser round trip.
+ */
+function entersProviderAuthentication(strategy: ChatSetupStrategy): boolean {
+	switch (strategy) {
+		case ChatSetupStrategy.SetupWithEnterpriseProvider:
+		case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
+		case ChatSetupStrategy.SetupWithGoogleProvider:
+		case ChatSetupStrategy.SetupWithAppleProvider:
+		case ChatSetupStrategy.SetupWithMicrosoftProvider:
+			return true;
+		default:
+			return false;
+	}
+}
+
 export class ChatSetupDialog extends Disposable {
 
 	private readonly dialog: Dialog;
@@ -98,8 +124,13 @@ export class ChatSetupDialog extends Disposable {
 		@ILayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		const dialogVisible = ChatSetupDialogVisibleContext.bindTo(contextKeyService);
+		dialogVisible.set(true);
+		this._register(toDisposable(() => dialogVisible.reset()));
 
 		this.dialog = this._register(new Dialog(
 			container,
@@ -124,7 +155,26 @@ export class ChatSetupDialog extends Disposable {
 				},
 				buttonOptions: options.buttons.map(button => {
 					const classes = button.classes;
-					return classes ? { styleButton: control => control.element.classList.add(...classes) } : undefined;
+					// Claim the sign-in window while the click's activation is still live;
+					// see `reserveWindowForExternalOpen`. Only installed mobile apps (fatal,
+					// no tab to fall back to) and Safari (recoverable via "Retry") need this.
+					const opensBrowser = (isMobileStandalone() || isSafari) && entersProviderAuthentication(button.strategy);
+					if (!classes && !opensBrowser) {
+						return undefined;
+					}
+					return {
+						styleButton: (control: IButton) => {
+							if (classes?.length) {
+								control.element.classList.add(...classes);
+							}
+							if (opensBrowser) {
+								this._register(control.onDidClick(() => reserveWindowForExternalOpen(
+									getWindow(control.element),
+									localize('signingInPlaceholder', "Signing in…")
+								)));
+							}
+						}
+					};
 				})
 			}, keybindingService, layoutService, hostService)
 		));
@@ -136,7 +186,43 @@ export class ChatSetupDialog extends Disposable {
 	}
 }
 
-export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined, enterpriseAuthentication: boolean, providers: IChatSetupDialogProviders = defaultChat.provider): IChatSetupDialogButton[] {
+export async function showChatSetupDialogWithCancellation(
+	dialog: Pick<ChatSetupDialog, 'show' | 'dispose'>,
+	cancellationToken: CancellationToken | undefined,
+	onDidDismissDialog?: () => void,
+): Promise<ChatSetupStrategy> {
+	let canceled = false;
+	const cancellationListener = cancellationToken?.onCancellationRequested(() => {
+		canceled = true;
+		dialog.dispose();
+	});
+	try {
+		if (cancellationToken?.isCancellationRequested) {
+			canceled = true;
+			dialog.dispose();
+		}
+		const strategy = canceled ? ChatSetupStrategy.Canceled : await dialog.show();
+		if (!canceled && strategy === ChatSetupStrategy.Canceled) {
+			onDidDismissDialog?.();
+		}
+		return strategy;
+	} finally {
+		cancellationListener?.dispose();
+		dialog.dispose();
+	}
+}
+
+/**
+ * Whether the sign-in dialog should offer "Continue with Microsoft". The dialog treats it as one
+ * more provider button, exactly like Google and Apple: it goes to whichever host the default
+ * account provider points at, and a host that cannot broker a Microsoft identity refuses it in the
+ * authentication extension rather than here.
+ */
+export function shouldShowMicrosoftProvider(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatMicrosoftAuthenticationEnabledSettingId) === true;
+}
+
+export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined, enterpriseAuthentication: boolean, showMicrosoftProvider: boolean, providers: IChatSetupDialogProviders = defaultChat.provider): IChatSetupDialogButton[] {
 	const button = (label: string, strategy: ChatSetupStrategy, ...classes: string[]): IChatSetupDialogButton => ({ label, strategy, classes });
 
 	if (!options?.forceAnonymous && (entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog)) {
@@ -146,10 +232,15 @@ export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options:
 		const enterpriseProviderLink = button(enterpriseProviderButton.label, enterpriseProviderButton.strategy, 'link-button');
 		const googleProviderButton = button(localize('continueWith', "Continue with {0}", providers.google.name), ChatSetupStrategy.SetupWithGoogleProvider, 'continue-button', 'google');
 		const appleProviderButton = button(localize('continueWith', "Continue with {0}", providers.apple.name), ChatSetupStrategy.SetupWithAppleProvider, 'continue-button', 'apple');
+		const microsoftProviderButton = button(localize('continueWith', "Continue with {0}", providers.microsoft.name), ChatSetupStrategy.SetupWithMicrosoftProvider, 'continue-button', 'microsoft');
 
-		return enterpriseAuthentication
-			? [enterpriseProviderButton, googleProviderButton, appleProviderButton, defaultProviderLink]
-			: [defaultProviderButton, googleProviderButton, appleProviderButton, enterpriseProviderLink];
+		const socialProviderButtons = [googleProviderButton, appleProviderButton, ...(showMicrosoftProvider ? [microsoftProviderButton] : [])];
+		const providerButtons = enterpriseAuthentication
+			? [enterpriseProviderButton, ...socialProviderButtons, defaultProviderLink]
+			: [defaultProviderButton, ...socialProviderButtons, enterpriseProviderLink];
+		return options?.allowContinueWithoutSignIn
+			? [...providerButtons, button(localize('continueWithoutSigningIn', "Continue Without Signing In"), ChatSetupStrategy.Canceled, 'link-button')]
+			: providerButtons;
 	}
 
 	return [button(localize('setupAIButton', "Use AI Features"), ChatSetupStrategy.DefaultSetup)];
@@ -202,6 +293,7 @@ export class ChatSetup {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	skipDialog(): void {
@@ -227,6 +319,9 @@ export class ChatSetup {
 
 		const dialogSkipped = this.skipDialogOnce;
 		this.skipDialogOnce = false;
+		if (options?.cancellationToken?.isCancellationRequested) {
+			return { dialogSkipped, success: undefined };
+		}
 
 		const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
@@ -237,6 +332,9 @@ export class ChatSetup {
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 
 			return { dialogSkipped, success: undefined /* canceled */ };
+		}
+		if (options?.cancellationToken?.isCancellationRequested) {
+			return { dialogSkipped, success: undefined };
 		}
 
 		if (!wasTrusted) {
@@ -266,7 +364,7 @@ export class ChatSetup {
 		let success: ChatSetupResultValue = undefined;
 		let setupError: Error | undefined;
 		let errorAlreadyHandled = false;
-		const setupCancellation = new CancellationTokenSource();
+		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
 			if (setupStrategy !== ChatSetupStrategy.Canceled) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
@@ -291,6 +389,9 @@ export class ChatSetup {
 				case ChatSetupStrategy.SetupWithGoogleProvider:
 					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'google', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
+				case ChatSetupStrategy.SetupWithMicrosoftProvider:
+					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'microsoft', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
+					break;
 				case ChatSetupStrategy.DefaultSetup:
 					success = await this.controller.value.setup({ ...options, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
@@ -310,6 +411,10 @@ export class ChatSetup {
 			}
 		} finally {
 			setupCancellation.dispose();
+			// no browser window was opened, so the reservation is still blank
+			releaseReservedWindowForExternalOpen(
+				localize('signInDidNotComplete', "Sign-in did not complete. You can close this window.")
+			);
 		}
 
 		if (success) {
@@ -360,7 +465,12 @@ export class ChatSetup {
 	}
 
 	private async showDialog(options?: IChatSetupRunOptions): Promise<ChatSetupStrategy> {
-		const buttons = getChatSetupDialogButtons(this.context.state.entitlement, options, this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise);
+		if (options?.cancellationToken?.isCancellationRequested) {
+			return ChatSetupStrategy.Canceled;
+		}
+		const enterpriseAuthentication = this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise;
+		const showMicrosoftProvider = shouldShowMicrosoftProvider(this.configurationService);
+		const buttons = getChatSetupDialogButtons(this.context.state.entitlement, options, enterpriseAuthentication, showMicrosoftProvider);
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.layoutService.activeContainer, {
 			title: this.getDialogTitle(options),
 			buttons,
@@ -370,11 +480,7 @@ export class ChatSetup {
 			extraClasses: options?.dialogExtraClasses,
 			renderFooter: options?.renderDialogFooter,
 		});
-		try {
-			return await dialog.show();
-		} finally {
-			dialog.dispose();
-		}
+		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken, options?.onDidDismissDialog);
 	}
 
 	private getDialogTitle(options?: IChatSetupRunOptions): string {

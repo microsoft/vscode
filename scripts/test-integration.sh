@@ -173,7 +173,11 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	echo "### node.js integration tests"
 	echo
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
+		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
+			echo "Skipping Agent Host E2E tests because no relevant files changed."
+		else
+			node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
+		fi
 		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"

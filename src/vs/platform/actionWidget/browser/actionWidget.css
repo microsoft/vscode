@@ -18,17 +18,17 @@
 	box-shadow: var(--vscode-shadow-lg);
 }
 
-.style-override.monaco-enable-motion .action-widget.action-widget-dropdown {
+.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown {
 	animation: action-widget-dropdown-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	transform-origin: bottom left;
 	will-change: transform, opacity;
 }
 
-.style-override.monaco-enable-motion .context-view.bottom .action-widget.action-widget-dropdown {
+.modern-ui.monaco-enable-motion .context-view.bottom .action-widget.action-widget-dropdown {
 	transform-origin: top left;
 }
 
-.style-override.monaco-enable-motion .action-widget.action-widget-dropdown.action-widget-dropdown-closing {
+.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown.action-widget-dropdown-closing {
 	animation: action-widget-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	pointer-events: none;
 }
@@ -67,16 +67,6 @@
 	z-index: -1;
 }
 
-.context-view-pointerBlock {
-	position: fixed;
-	cursor: initial;
-	left: 0;
-	top: 0;
-	width: 100%;
-	height: 100%;
-	z-index: 2;
-}
-
 .action-widget .monaco-list {
 	user-select: none;
 	-webkit-user-select: none;
@@ -108,9 +98,15 @@
 	outline-offset: -2px;
 }
 
+/* Hover changes the focused row without moving DOM focus, including while a combobox owns it. */
+.action-widget .monaco-list.mouse-navigation .monaco-list-row.action.focused:not(.option-disabled),
+.action-widget .monaco-list:not(.keyboard-navigation):not(:focus-visible) .monaco-list-row.action.focused:not(.option-disabled) {
+	outline-color: var(--vscode-contrastActiveBorder, transparent);
+}
+
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: 11px;
 }
 
@@ -224,6 +220,11 @@
 	white-space: nowrap;
 }
 
+.action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) .detail {
+	color: inherit;
+	opacity: 1;
+}
+
 .action-widget .monaco-list-row.action .action-item-badge {
 	padding: 0px 6px;
 	border-radius: 10px;
@@ -310,15 +311,13 @@
 }
 
 /* Items with detail — show detail as subtext below the title */
-.action-widget .monaco-list .monaco-list-row.action {
-	&:has(.detail:not([style*="display: none"])) {
-		flex-wrap: wrap;
-		align-content: center;
-		padding-right: 6px;
+.action-widget .monaco-list .monaco-list-row.action.has-detail {
+	flex-wrap: wrap;
+	align-content: center;
+	padding-right: 6px;
 
-		.title {
-			line-height: 14px;
-		}
+	.title {
+		line-height: 14px;
 	}
 }
 
@@ -331,6 +330,19 @@
 	.title {
 		line-height: 14px;
 	}
+}
+
+/* Standalone toggles are peer settings, so the label and switch share one row. */
+.action-widget .monaco-list-row.action.has-standalone-toggle .title {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.action-widget .monaco-list-row.action.has-standalone-toggle .action-list-item-inline-toggle {
+	order: 100;
+	width: auto;
+	margin-left: auto;
+	padding: var(--vscode-spacing-sizeNone);
 }
 
 .action-widget .monaco-list-row.action .action-list-item-inline-toggle {
@@ -354,58 +366,6 @@
 	line-height: 16px;
 	color: var(--vscode-foreground);
 }
-
-/* Inline pill switch (restyles the base Toggle as an iOS-style switch) */
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch {
-	position: relative;
-	flex-shrink: 0;
-	float: none;
-	margin: 0;
-	padding: 0;
-	width: 26px;
-	height: 16px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	border: var(--vscode-strokeThickness) solid var(--vscode-checkbox-border);
-	background-color: var(--vscode-checkbox-background);
-	overflow: visible;
-	transition: background-color 0.1s ease, border-color 0.1s ease;
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch:hover {
-	background-color: var(--vscode-checkbox-background);
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch::before {
-	content: "";
-	position: absolute;
-	top: 1px;
-	left: 1px;
-	width: 12px;
-	height: 12px;
-	border-radius: 50%;
-	background-color: var(--vscode-checkbox-foreground);
-	transition: left 0.1s ease, background-color 0.1s ease;
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch.checked {
-	background-color: var(--vscode-button-background);
-	border-color: var(--vscode-button-background);
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch.checked:hover {
-	background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background));
-}
-
-.action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch.checked::before {
-	left: 11px;
-	background-color: var(--vscode-button-foreground);
-}
-
-.hc-black .action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch,
-.hc-light .action-widget .action-list-item-inline-toggle .monaco-custom-toggle.action-list-inline-switch {
-	border-color: var(--vscode-contrastBorder);
-}
-
 
 /* Inline description mode — description rendered right after the label */
 .action-widget .inline-description .monaco-list-row.action {
@@ -449,9 +409,19 @@
 	display: none;
 }
 
+.action-widget .monaco-list-row.action.has-toolbar .action-list-item-toolbar {
+	margin-right: var(--vscode-spacing-size100, 10px);
+}
+
+.action-widget .monaco-list-row.action.has-detail.has-toolbar .action-list-item-toolbar {
+	display: flex;
+	visibility: hidden;
+}
+
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
 .action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
 	display: flex;
+	visibility: visible;
 }
 
 .action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
@@ -487,6 +457,7 @@
 
 .action-widget .action-list-filter-input {
 	width: 100%;
+	min-width: 0;
 	flex: 1;
 	box-sizing: border-box;
 	padding: 4px 8px;
@@ -614,13 +585,12 @@
 }
 
 .action-list-submenu-panel {
-	background-color: var(--vscode-menu-background);
-	color: var(--vscode-menu-foreground);
-	border: 1px solid var(--vscode-menu-border, var(--vscode-editorHoverWidget-border));
-	border-radius: 5px;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
 	width: max-content;
+	/* Hug the inner list so rows (and their hover background) fill the panel.
+	 * Otherwise the panel inherits the 100px min-width from `.action-widget`
+	 * and the hover highlight stops short of the right edge. */
+	min-width: 0;
 	outline: none;
 }
 
@@ -632,6 +602,10 @@
 	word-wrap: break-word;
 	-webkit-user-select: text;
 	user-select: text;
+}
+
+.action-list-submenu-hover-header.content-owns-padding {
+	padding: 0;
 }
 
 .action-list-submenu-hover-header a {

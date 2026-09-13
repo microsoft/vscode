@@ -7,7 +7,7 @@ import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ResponsePartKind, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, ResponsePartKind, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { importedTurnsFromChatModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
 
@@ -72,11 +72,16 @@ suite('importedTurnsFromChatModel', () => {
 		return importedTurnsFromChatModel(model).map(turn => ({
 			text: turn.message.text,
 			state: turn.state,
-			error: turn.error,
-			parts: turn.responseParts.map(part =>
-				part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning
-					? { kind: part.kind, content: part.content }
-					: { kind: part.kind, subagent: subagentOf(part) }),
+			error: getTurnError(turn),
+			parts: turn.responseParts.map(part => {
+				if (part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning) {
+					return { kind: part.kind, content: part.content };
+				}
+				if (part.kind === ResponsePartKind.Error) {
+					return { kind: part.kind, error: part.error };
+				}
+				return { kind: part.kind, subagent: subagentOf(part) };
+			}),
 		}));
 	}
 
@@ -198,7 +203,7 @@ suite('importedTurnsFromChatModel', () => {
 			text: 'q',
 			state: TurnState.Error,
 			error: { errorType: 'E1', message: 'boom' },
-			parts: [],
+			parts: [{ kind: ResponsePartKind.Error, error: { errorType: 'E1', message: 'boom' } }],
 		}]);
 	});
 

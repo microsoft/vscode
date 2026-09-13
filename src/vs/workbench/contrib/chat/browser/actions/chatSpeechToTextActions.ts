@@ -36,7 +36,7 @@ import { cancelDictation, isDictating, startDictation, stopDictation } from '../
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
 /** True while the selected dictation backend is preparing. */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
-const ChatSpeechToTextMaiBackend = ContextKeyExpr.equals('config.dictation.model', 'mai');
+const ChatSpeechToTextMaiBackend = ContextKeyExpr.has(ChatContextKeys.speechToTextUsesMai.key);
 /**
  * True unless the user has hidden the chat-input dictation microphone button via
  * {@link DictationSettingId.ShowButton}. Gates only the toolbar button; the
@@ -141,7 +141,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			id: ToggleChatSpeechToTextAction.ID,
 			title: localize2('chat.speechToText.start', "Dictate (Speech to Text)"),
 			category: CHAT_CATEGORY,
-			icon: Codicon.mic,
+			icon: Codicon.micCompact,
 			f1: false,
 			toggled: {
 				condition: ChatContextKeys.speechToTextRecording,

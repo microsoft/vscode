@@ -16,6 +16,7 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { FeedbackInputWidget } from '../../agentFeedback/browser/feedbackInputWidget.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IResolvedResponseSelection, resolveResponseSelection } from './responseSelectionResolver.js';
@@ -109,6 +110,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		private readonly _widget: IChatWidget,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
@@ -392,7 +394,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// below so the user can retry.
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
 		const generation = this._generation;
-		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, session, chat.resource, resolved.response.requestId, query, { text: resolved.text })
+		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, this._sessionsPartService, session, chat.resource, resolved.response.requestId, { query }, { text: resolved.text })
 			.then(() => {
 				// A stale completion after a genuine navigation force-dismissed this overlay must no-op.
 				if (this._generation !== generation) {

@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubChangedFile } from '../common/types.js';
+import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
@@ -15,10 +15,14 @@ import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsMode
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
 import { GitHubIssueModel, GitHubIssueModelReferenceCollection } from './models/githubIssueModel.js';
 import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
+import { GitHubPRFetcher } from './fetchers/githubPRFetcher.js';
 import { GitHubRecentUserWorkFetcher, IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentPullRequestReviewThread } from './fetchers/githubRecentUserWorkFetcher.js';
+import { GitHubPullRequestsFetcher } from './fetchers/githubPullRequestsFetcher.js';
+import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestContextFetcher.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 
 /**
@@ -30,6 +34,7 @@ const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
+	readonly enterpriseHost: string | undefined;
 
 	activeSessionPullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
 	activeSessionPullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
@@ -64,6 +69,14 @@ export interface IGitHubService {
 	 * List files changed between two refs using the GitHub compare API.
 	 */
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
+	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]>;
+	getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string>;
+
+	/** List one page of open pull requests, ordered by most recently updated. */
+	getPullRequests(owner: string, repo: string, cursor?: string): Promise<IGitHubPullRequestsPage>;
+	getPullRequestsWaitingForReview(owner: string, repo: string): Promise<readonly IGitHubPullRequestSummary[]>;
+	getPullRequestsAssignedToViewer(owner: string, repo: string): Promise<readonly IGitHubPullRequestSummary[]>;
+	getPullRequestContext(owner: string, repo: string, number: number): Promise<IGitHubPullRequestContext>;
 
 	/**
 	 * Find the most recently updated pull request whose head branch is
@@ -94,12 +107,19 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	private readonly _changesFetcher: GitHubChangesFetcher;
 	private readonly _recentUserWorkFetcher: GitHubRecentUserWorkFetcher;
+	private readonly _pullRequestsFetcher: GitHubPullRequestsFetcher;
+	private readonly _pullRequestFetcher: GitHubPRFetcher;
+	private readonly _pullRequestContextFetcher: GitHubPullRequestContextFetcher;
 	private readonly _repositoryReferences: GitHubRepositoryModelReferenceCollection;
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
 	private readonly _issueReferences: GitHubIssueModelReferenceCollection;
 	private readonly _apiClient: GitHubApiClient;
+
+	get enterpriseHost(): string | undefined {
+		return this._apiClient.enterpriseHost;
+	}
 
 	/**
 	 * Cache of in-flight / resolved `findPullRequestNumberByHeadBranch`
@@ -122,6 +142,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		this._changesFetcher = new GitHubChangesFetcher(apiClient);
 		this._recentUserWorkFetcher = new GitHubRecentUserWorkFetcher(apiClient);
+		this._pullRequestsFetcher = new GitHubPullRequestsFetcher(apiClient);
+		this._pullRequestFetcher = new GitHubPRFetcher(apiClient);
+		this._pullRequestContextFetcher = new GitHubPullRequestContextFetcher(apiClient);
 
 		this._repositoryReferences = instantiationService.createInstance(GitHubRepositoryModelReferenceCollection, apiClient);
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
@@ -236,6 +259,38 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
 		return this._changesFetcher.getChangedFiles(owner, repo, base, head);
+	}
+
+	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]> {
+		return this._pullRequestFetcher.getChangedFiles(owner, repo, pullRequestNumber);
+	}
+
+	async getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string> {
+		const response = await this._apiClient.request<{ content: string; encoding: string }>(
+			'GET',
+			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}`,
+			'githubApi.getFileContent',
+		);
+		if (!response.data || response.data.encoding !== 'base64') {
+			throw new Error(`GitHub file content not found: ${owner}/${repo}/${path}@${ref}`);
+		}
+		return decodeBase64(response.data.content.replace(/\s/g, '')).toString();
+	}
+
+	getPullRequests(owner: string, repo: string, cursor?: string): Promise<IGitHubPullRequestsPage> {
+		return this._pullRequestsFetcher.getPullRequests(owner, repo, cursor);
+	}
+
+	getPullRequestsWaitingForReview(owner: string, repo: string): Promise<readonly IGitHubPullRequestSummary[]> {
+		return this._pullRequestsFetcher.getPullRequestsWaitingForReview(owner, repo);
+	}
+
+	getPullRequestsAssignedToViewer(owner: string, repo: string): Promise<readonly IGitHubPullRequestSummary[]> {
+		return this._pullRequestsFetcher.getPullRequestsAssignedToViewer(owner, repo);
+	}
+
+	getPullRequestContext(owner: string, repo: string, number: number): Promise<IGitHubPullRequestContext> {
+		return this._pullRequestContextFetcher.getPullRequestContext(owner, repo, number);
 	}
 
 	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {

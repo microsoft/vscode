@@ -5,7 +5,7 @@
 
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { BrowserStorageService } from '../../../../workbench/services/storage/browser/storageService.js';
-import { AUTOMATION_STORAGE_KEY, IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../common/automationStorageService.js';
+import { IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../common/automationStorageService.js';
 
 /**
  * Uses an IndexedDB transaction so automation writes remain atomic across browser tabs.
@@ -25,11 +25,11 @@ export class BrowserAutomationStorageService implements IAutomationStorageServic
 		this.storageService = storageService;
 	}
 
-	async read(): Promise<string | undefined> {
-		return this.storageService.getApplicationStorageValue(AUTOMATION_STORAGE_KEY);
+	async read(key: string): Promise<string | undefined> {
+		return this.storageService.getApplicationStorageValue(key);
 	}
 
-	async compareAndSwap(expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
-		return this.storageService.compareAndSwapApplicationStorage(AUTOMATION_STORAGE_KEY, expectedValue, newValue);
+	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+		return this.storageService.compareAndSwapApplicationStorage(key, expectedValue, newValue);
 	}
 }

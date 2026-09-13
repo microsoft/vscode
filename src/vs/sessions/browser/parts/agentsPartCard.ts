@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
-import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
+import { agentsCardBorder, agentsPanelBackground, agentsPanelForeground } from '../../common/theme.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 
 /**
@@ -41,7 +41,7 @@ export function getAgentsPartCardContentSize(width: number, height: number, edit
 /** Publishes the themed card colors that `media/workbench.css` draws the card from. */
 export function applyAgentsPartCardStyles(container: HTMLElement, theme: IColorTheme): void {
 	container.style.setProperty('--part-background', theme.getColor(agentsPanelBackground)?.toString() ?? '');
-	container.style.setProperty('--part-border-color', theme.getColor(agentsPanelBorder)?.toString() ?? 'transparent');
+	container.style.setProperty('--part-border-color', theme.getColor(agentsCardBorder)?.toString() ?? 'transparent');
 	container.style.setProperty('--part-foreground', theme.getColor(agentsPanelForeground)?.toString() ?? '');
 	container.style.backgroundColor = theme.getColor(agentsPanelBackground)?.toString() ?? '';
 }
