@@ -33,7 +33,15 @@ import { IExtensionManagementService } from '../../platform/extensionManagement/
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { promiseWithResolvers } from '../../base/common/async.js';
+import { isCanonicalPortString } from '../../base/common/ports.js';
 import { shouldUseEnvironmentVariableCollection } from '../../platform/terminal/common/terminalEnvironment.js';
+
+export function getFreePortRequestPort(args: unknown): string {
+	if (!Array.isArray(args) || args.length !== 1 || !isCanonicalPortString(args[0])) {
+		throw new Error('Invalid port');
+	}
+	return args[0];
+}
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -161,7 +169,9 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case RemoteTerminalChannelRequest.RefreshProperty: return this._ptyHostService.refreshProperty.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.RequestDetachInstance: return this._ptyHostService.requestDetachInstance(args[0], args[1]);
 			case RemoteTerminalChannelRequest.AcceptDetachedInstance: return this._ptyHostService.acceptDetachInstanceReply(args[0], args[1]);
-			case RemoteTerminalChannelRequest.FreePortKillProcess: return this._ptyHostService.freePortKillProcess.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.FreePortKillProcess: {
+				return this._ptyHostService.freePortKillProcess(getFreePortRequestPort(args));
+			}
 			case RemoteTerminalChannelRequest.AcceptDetachInstanceReply: return this._ptyHostService.acceptDetachInstanceReply.apply(this._ptyHostService, args);
 		}
 
