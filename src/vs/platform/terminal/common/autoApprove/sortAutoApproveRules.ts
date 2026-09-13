@@ -10,6 +10,7 @@ export const sortAutoApproveRules: Readonly<Record<string, boolean>> = {
 	// - `-o`: Writes output to a file.
 	// - `-S`: Can request enough memory to cause denial of service.
 	'/^sort\\b.*\\s(?:-[^-\\s]*[oS]|--output(?:=|\\s))/': false,
+	'/^sort\\b.*\\s(?:[\'"]|\\\\)+[^\\s]*[oS]/': false,
 
 	// GNU sort accepts unique long-option abbreviations. `--co` is the shortest unique
 	// abbreviation for `--compress-program`; deny it and every longer spelling. Ignore

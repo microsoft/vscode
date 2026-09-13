@@ -119,6 +119,9 @@ suite('CommandLineAutoApprover', () => {
 				'sort -ooutput.txt input.txt',
 				'sort -ro output.txt input.txt',
 				'sort --output=output.txt input.txt',
+				'sort "-o" output.txt input.txt',
+				'sort "--output=output.txt" input.txt',
+				'sort \\-\\o output.txt input.txt',
 				'sort -S 1G input.txt',
 				'sort --compress-program=/bin/sh input.txt',
 				'sort --compress-program /bin/sh input.txt',
@@ -147,7 +150,10 @@ suite('CommandLineAutoApprover', () => {
 				'sort -ooutput.txt input.txt',
 				'sort -ro output.txt input.txt',
 				'sort --output=output.txt input.txt',
-			].map(isAutoApproved)), [true, false, false, false, false]);
+				'sort "-o" output.txt input.txt',
+				'sort "--output=output.txt" input.txt',
+				'sort \\-\\o output.txt input.txt',
+			].map(isAutoApproved)), [true, false, false, false, false, false, false, false]);
 		});
 	});
 
