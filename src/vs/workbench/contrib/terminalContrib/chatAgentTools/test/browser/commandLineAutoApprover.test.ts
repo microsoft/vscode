@@ -116,6 +116,9 @@ suite('CommandLineAutoApprover', () => {
 		test('denies blocked options', async () => {
 			const commands = [
 				'sort -o output.txt input.txt',
+				'sort -ooutput.txt input.txt',
+				'sort -ro output.txt input.txt',
+				'sort --output=output.txt input.txt',
 				'sort -S 1G input.txt',
 				'sort --compress-program=/bin/sh input.txt',
 				'sort --compress-program /bin/sh input.txt',
@@ -138,7 +141,13 @@ suite('CommandLineAutoApprover', () => {
 				...(terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean>),
 				sort: true,
 			});
-			deepStrictEqual(await Promise.all(['sort input.txt', 'sort -o output.txt input.txt'].map(isAutoApproved)), [true, false]);
+			deepStrictEqual(await Promise.all([
+				'sort input.txt',
+				'sort -o output.txt input.txt',
+				'sort -ooutput.txt input.txt',
+				'sort -ro output.txt input.txt',
+				'sort --output=output.txt input.txt',
+			].map(isAutoApproved)), [true, false, false, false, false]);
 		});
 	});
 
