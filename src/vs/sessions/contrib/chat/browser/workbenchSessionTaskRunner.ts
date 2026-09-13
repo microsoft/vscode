@@ -86,7 +86,7 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 			};
 			const cancellationListener = options.token.onCancellationRequested(cancel);
 
-			const runPromise = this._taskService.run(resolved, undefined, TaskRunSource.User);
+			const runPromise = this._taskService.run(resolved, undefined, TaskRunSource.System);
 			runPromise.then(
 				() => launchListener.dispose(),
 				error => {
