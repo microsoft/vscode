@@ -108,7 +108,8 @@ function maskPwshFlagEquals(commandLine: string): string {
 	return commandLine.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `);
 }
 
-function getPwshGenericTokenRedirect(token: string): string | undefined {
+function getPwshGenericTokenRedirects(token: string): string[] {
+	const redirectStarts: number[] = [];
 	let inSingleQuote = false;
 	let inDoubleQuote = false;
 	for (let i = 0; i < token.length; i++) {
@@ -130,10 +131,12 @@ function getPwshGenericTokenRedirect(token: string): string | undefined {
 			continue;
 		}
 		if (char === '>' && !inSingleQuote && !inDoubleQuote) {
-			return token.slice(i);
+			if (token[i - 1] !== '>') {
+				redirectStarts.push(i);
+			}
 		}
 	}
-	return undefined;
+	return redirectStarts.map((start, index) => token.slice(start, redirectStarts[index + 1]));
 }
 
 /**
@@ -419,17 +422,19 @@ export class CommandAutoApprover extends Disposable {
 				let unanalyzableType: string | undefined;
 				for (const capture of captures) {
 					const text = masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex);
-					const genericTokenRedirect = capture.name === 'generic_token' ? getPwshGenericTokenRedirect(text) : undefined;
+					const genericTokenRedirects = capture.name === 'generic_token' ? getPwshGenericTokenRedirects(text) : [];
 					if (capture.name === 'command') {
 						subCommands.push(text);
 					} else if (capture.name === 'unanalyzable' && (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command')) {
 						unanalyzableType ??= capture.node.type;
-					} else if (capture.name === 'file_redirect' || capture.name === 'redirection' || genericTokenRedirect !== undefined) {
+					} else if (capture.name === 'file_redirect' || capture.name === 'redirection' || genericTokenRedirects.length > 0) {
 						// Writes to known-safe sinks (e.g. `> /dev/null`, `2>$null`)
 						// and file-descriptor duplications (e.g. `2>&1`) are allowed.
-						const cls = classifyFileRedirect(genericTokenRedirect ?? text, isPowerShell);
-						if (cls.kind === 'unsafeWrite') {
-							unsafeWriteDests.push(cls.dest);
+						for (const redirect of genericTokenRedirects.length > 0 ? genericTokenRedirects : [text]) {
+							const cls = classifyFileRedirect(redirect, isPowerShell);
+							if (cls.kind === 'unsafeWrite') {
+								unsafeWriteDests.push(cls.dest);
+							}
 						}
 					} else if (capture.name === 'heredoc_redirect' || capture.name === 'herestring_redirect') {
 						// Heredoc/herestring feed data into stdin; they do not write
