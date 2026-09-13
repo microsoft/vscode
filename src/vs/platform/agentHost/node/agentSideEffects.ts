@@ -596,6 +596,13 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
+		if (signal.kind === 'file_edits_applied') {
+			const chat = signal.chat.toString();
+			const session = isAhpChatChannel(chat) ? parseRequiredSessionUriFromChatUri(chat) : chat;
+			this._changesets.onToolCallEditsApplied(session, signal.turnId, this._turnTracker.getClientTelemetryContext(chat, signal.turnId));
+			return;
+		}
+
 		if (signal.kind === 'steering_consumed') {
 			this._stateManager.dispatchServerAction(signal.chat.toString(), {
 				type: ActionType.ChatPendingMessageRemoved,
