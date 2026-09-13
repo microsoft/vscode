@@ -19,6 +19,7 @@ import { isString } from '../../../../../../../base/common/types.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { parseCommand } from '../terminalCommandParser.js';
+import { isZsh } from '../../runInTerminalHelpers.js';
 
 const nullDevice = Symbol('null device');
 
@@ -39,7 +40,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		if (this._hasUnquotedZshNumericRange(options.commandLine, options.shell)) {
+		if (this._hasUnquotedZshNumericRange(options.commandLine, options.shell, options.os)) {
 			this._log('File writes blocked because the command contains an unquoted zsh numeric range');
 			return { isAutoApproveAllowed: false };
 		}
@@ -64,8 +65,8 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return this._getResult(options, fileWrites, hasSequentialCommands, hasUnquotedPathExpansion, hasUnanalyzablePath);
 	}
 
-	private _hasUnquotedZshNumericRange(commandLine: string, shell: string): boolean {
-		if (!/(^|[/\\])zsh(?:\s|$)/i.test(shell)) {
+	private _hasUnquotedZshNumericRange(commandLine: string, shell: string, os: OperatingSystem): boolean {
+		if (!isZsh(shell, os)) {
 			return false;
 		}
 		let inSingleQuote = false;
