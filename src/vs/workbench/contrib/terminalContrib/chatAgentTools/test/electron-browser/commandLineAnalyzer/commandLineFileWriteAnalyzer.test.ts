@@ -112,7 +112,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 	(isWindows ? suite.skip : suite)('bash', () => {
 		const cwd = URI.file('/workspace/project');
 
-		async function t(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0, workspaceFolders: URI[] = [cwd], shell: string = 'bash') {
+		async function t(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0, workspaceFolders: URI[] = [cwd], shell: string = 'bash', os: OperatingSystem = OperatingSystem.Linux) {
 			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, blockDetectedFileWrites);
 
 			// Setup workspace folders
@@ -123,7 +123,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				commandLine,
 				cwd,
 				shell,
-				os: OperatingSystem.Linux,
+				os,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionResource: undefined,
@@ -388,6 +388,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				}
 				await t(`X=$'foo\\'' sed --follow-symlinks -i 's/x/y/' <5-5>`, 'outsideWorkspace', false, 0, [cwd], '/bin/zsh');
 				await t(`echo $'<5-5>'`, 'outsideWorkspace', true, 0, [cwd], '/bin/zsh');
+				await t(`sed --follow-symlinks -i 's/x/y/' <5-5>`, 'outsideWorkspace', false, 0, [cwd], 'C:\\tools\\zsh.exe', OperatingSystem.Windows);
 			});
 			test('sed expanded backup path is blocked before normalization', () =>
 				t('sed --in-place=$HOME/../outside/* \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
