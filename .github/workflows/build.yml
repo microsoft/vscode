@@ -1,0 +1,84 @@
+name: Build Kente Workbench
+
+# Native build matrix — each OS builds on itself.
+# Cross-compiling Electron native modules (node-gyp) is unreliable,
+# so we never build the Windows package from a Linux/macOS runner or vice versa.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+            gulp_task: vscode-darwin-arm64-min
+          - os: macos-latest
+            platform: darwin
+            arch: x64
+            gulp_task: vscode-darwin-x64-min
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            gulp_task: vscode-win32-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Node version from .nvmrc
+        id: nvmrc
+        shell: bash
+        run: echo "version=$(cat .nvmrc)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.nvmrc.outputs.version }}
+          cache: npm
+
+      # Windows needs these to compile native modules (node-gyp)
+      - name: Install Windows build tools
+        if: matrix.platform == 'win32'
+        run: npm install --global windows-build-tools
+        continue-on-error: true # skip if already present on the runner image
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Build platform package
+        run: npm run gulp ${{ matrix.gulp_task }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kente-workbench-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ../VSCode-darwin-*/**
+            ../VSCode-win32-*/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Fast local-iteration check — runs on every push, doesn't produce a package.
+  # Mirrors what you'd run by hand on gaf-dev-svr3.
+  lint-and-compile-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run compile
+      - run: npm run eslint

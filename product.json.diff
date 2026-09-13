@@ -1,0 +1,54 @@
+--- product.json (Microsoft original — reference)
++++ product.json (Kente Workbench)
+
+@@ Identity — must change, referenced throughout the UI and OS integration @@
+- "nameShort": "Code - OSS",
+- "nameLong": "Code - OSS",
+- "applicationName": "code-oss",
+- "dataFolderName": ".vscode-oss",
++ "nameShort": "Kente Workbench",
++ "nameLong": "Kente Workbench",
++ "applicationName": "kente-workbench",
++ "dataFolderName": ".kente-workbench",
+
+@@ Platform-specific identifiers — required, OS-level registration @@
+- "win32MutexName": "vscodeoss",
+- "win32DirName": "Microsoft Code OSS",
+- "win32NameVersion": "Microsoft Code OSS",
+- "win32AppUserModelId": "Microsoft.CodeOSS",
+- "win32ShellNameShort": "C&ode OSS",
+- "darwinBundleIdentifier": "com.visualstudio.code.oss",
++ "win32MutexName": "kenteworkbench",
++ "win32DirName": "Kente Workbench",
++ "win32NameVersion": "Kente Workbench",
++ "win32AppUserModelId": "KenteWorkbench.KenteWorkbench",
++ "win32ShellNameShort": "&Kente Workbench",
++ "darwinBundleIdentifier": "dev.kenteworkbench.desktop",
+
+@@ Extension marketplace — Microsoft's gallery terms don't permit third-party @@
+@@ forks to use it; point at Open VSX or your own gallery instead @@
+- "extensionsGallery": {
+-   "serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+-   "itemUrl": "https://marketplace.visualstudio.com/items"
+- },
++ "extensionsGallery": {
++   "serviceUrl": "https://open-vsx.org/vscode/gallery",
++   "itemUrl": "https://open-vsx.org/vscode/item"
++ },
+
+@@ Telemetry / crash reporting endpoints — remove entirely for v1 @@
+@@ (re-add your own endpoint later once you have a collector, behind @@
+@@ an explicit opt-in — do not silently point these at Microsoft's) @@
+- "aiConfig": { "asimovKey": "..." },
+- "crashReporter": { "companyName": "Microsoft", "productName": "Code OSS", "submitURL": "..." },
+- "enableTelemetry": true,
++ // aiConfig, crashReporter: removed
++ "enableTelemetry": false,
+
+@@ Auto-update — point at your own internal artifact host once it exists @@
+@@ (the ../VSCode-*/ build output from build.yml), leave unset until then @@
+- "updateUrl": "https://update.code.visualstudio.com",
++ // "updateUrl": "https://updates.<your-internal-host>/kente-workbench",
+
+@@ Icons — replace files under resources/{darwin,win32,linux}/ to match @@
+@@ (product.json just references filenames, no key changes needed there) @@

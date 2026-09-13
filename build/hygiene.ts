@@ -92,8 +92,13 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
+		// Kente Workbench: as a third-party fork we must ship our own gallery
+		// (Open VSX), so extensionsGallery is expected to be present. What must
+		// never come back is Microsoft's marketplace, whose terms do not permit
+		// use by forks.
+		const gallery = JSON.stringify(product.extensionsGallery ?? '');
+		if (gallery.includes('marketplace.visualstudio.com')) {
+			console.error(`product.json: 'extensionsGallery' must not point at Microsoft's marketplace`);
 			errorCount++;
 		}
 
