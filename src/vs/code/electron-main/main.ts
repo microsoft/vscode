@@ -9,7 +9,7 @@ import { app, dialog } from 'electron';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
-import { Promises, retry } from '../../base/common/async.js';
+import { Promises, retry, timeout } from '../../base/common/async.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { ExpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from '../../base/common/extpath.js';
@@ -110,6 +110,37 @@ class CodeMain {
 
 		try {
 
+			// Claim ownership of the instance and of the session data directory
+			// before any storage inside the user data directory is opened:
+			// sharing session data between multiple running browser processes
+			// is not supported and corrupts Chromium state storage (observed
+			// as webview service worker registrations failing with an
+			// InvalidStateError)
+			const mainProcessNodeIpcServer = await instantiationService.invokeFunction(async accessor => {
+				const logService = accessor.get(ILogService);
+				const lifecycleMainService = accessor.get(ILifecycleMainService);
+
+				// Ensure the user data directory exists because IPC handles
+				// may be created inside of it (e.g. unix domain sockets)
+				if (!isWindows) {
+					await promises.mkdir(environmentMainService.userDataPath, { recursive: true }).catch(() => { /* ignored, handled by initServices */ });
+				}
+
+				// Create the main IPC server by trying to be the server
+				// If this throws an error it means we are not the first
+				// instance of VS Code running and so we would quit.
+				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
+
+				// Acquire the version independent lock on the session data:
+				// this guarantees that only one VS Code process, of any
+				// version, is using the user data directory at the same time
+				// (which can happen across updates because the handle used
+				// by `claimInstance` above is version scoped)
+				await this.claimSessionData(logService, environmentMainService, lifecycleMainService, productService);
+
+				return mainProcessNodeIpcServer;
+			});
+
 			// Init services
 			try {
 				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService, productService);
@@ -127,11 +158,6 @@ class CodeMain {
 				const lifecycleMainService = accessor.get(ILifecycleMainService);
 				const fileService = accessor.get(IFileService);
 				const loggerService = accessor.get(ILoggerService);
-
-				// Create the main IPC server by trying to be the server
-				// If this throws an error it means we are not the first
-				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
 				// Write a lockfile to indicate an instance is running
 				// (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
@@ -477,6 +503,140 @@ class CodeMain {
 		process.env['VSCODE_PID'] = String(process.pid);
 
 		return mainProcessNodeIpcServer;
+	}
+
+	private async claimSessionData(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, productService: IProductService): Promise<void> {
+		const handle = environmentMainService.sessionDataLockHandle;
+		const pollIntervalMs = 1000;   // interval to check if the lock was released
+		const dialogDelayMs = 10000;   // time to wait before showing a dialog
+		const dialogRepeatMs = 60000;  // interval to re-show the dialog while waiting
+
+		const start = Date.now();
+		let lastDialogShownAt = 0;
+		let waitingLogged = false;
+
+		while (true) {
+
+			// Try to become the owner of the session data lock. If this
+			// succeeds, no other VS Code process (of any version) is using
+			// the session data directory of our user data directory.
+			try {
+				const lockServer = await nodeIPCServe(handle);
+
+				if (waitingLogged) {
+					logService.info(`Acquired session data lock after waiting ${Date.now() - start}ms (${handle})`);
+				} else {
+					logService.trace(`Acquired session data lock (${handle})`);
+				}
+
+				// Hold the lock for the lifetime of the process and release
+				// it on shutdown: named pipes on Windows are cleaned up by
+				// the OS automatically, socket files on macOS and Linux are
+				// removed explicitly (stale files are also handled below)
+				// Keep the lock until process exit, after Chromium has finished using session data.
+				process.once('exit', () => lockServer.dispose());
+
+				return;
+			} catch (error) {
+				if (error.code !== 'EADDRINUSE') {
+					this.handleStartupDataDirError(environmentMainService, productService, error);
+
+					throw error;
+				}
+			}
+
+			// The lock is already taken: check whether the process owning
+			// it is still alive by connecting to the handle
+			try {
+				const client = await nodeIPCConnect(handle, 'session-data-lock');
+				client.dispose();
+			} catch (error) {
+
+				// Windows surfaces EPERM when connecting to a handle that is
+				// owned by an elevated process: waiting cannot help in this
+				// case, so surface the error to the user
+				if (error.code === 'EPERM' || error.code === 'EACCES') {
+					this.showStartupWarningDialog(
+						localize('sessionDataLockElevated', "Another instance of {0} is running as administrator.", productService.nameShort),
+						localize('sessionDataLockElevatedDetail', "Please close the other instance of {0} and try again.", productService.nameShort),
+						productService
+					);
+
+					throw error;
+				}
+
+				// The lock can be released in between the failed serve attempt
+				// and the connect probe above (on macOS and Linux the socket
+				// file is removed, on Windows the named pipe disappears):
+				// retry acquiring the lock in that case
+				if (error.code === 'ENOENT') {
+					continue;
+				}
+
+				// On macOS and Linux the socket file can be left behind when
+				// a process dies: since we cannot connect to it, remove it
+				// and try to become the lock owner again
+				if (!isWindows && error.code === 'ECONNREFUSED') {
+					try {
+						unlinkSync(handle);
+					} catch (unlinkError) {
+
+						// The socket file can also be removed by another
+						// process in the meantime: nothing to clean up
+						if (unlinkError.code !== 'ENOENT') {
+							logService.warn(`Error removing stale session data lock: ${unlinkError.toString()}`);
+						}
+					}
+
+					continue;
+				}
+
+				throw error;
+			}
+
+			// The lock owner is alive and may even be a different version of
+			// VS Code (for example right after an update): we cannot hand
+			// off to it like `claimInstance` does and we must not use the
+			// session data directory at the same time, so we wait for the
+			// other process to release the lock
+			if (!waitingLogged) {
+				waitingLogged = true;
+				logService.warn(`Session data directory is locked by another running process, waiting for it to be released (${handle})`);
+			}
+
+			if (Date.now() - start >= dialogDelayMs && Date.now() - lastDialogShownAt >= dialogRepeatMs) {
+				lastDialogShownAt = Date.now();
+
+				const keepWaiting = await this.showSessionDataLockDialog(environmentMainService, productService);
+				if (!keepWaiting) {
+					throw new ExpectedError('Terminating...');
+				}
+			}
+
+			await timeout(pollIntervalMs);
+		}
+	}
+
+	private async showSessionDataLockDialog(environmentMainService: IEnvironmentMainService, productService: IProductService): Promise<boolean /* keepWaiting */> {
+
+		// Make sure the app is ready because dialogs can only be shown after
+		await app.whenReady();
+
+		const massaged = massageMessageBoxOptions({
+			type: 'warning',
+			buttons: [
+				localize({ key: 'sessionDataLockKeepWaiting', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting"),
+				localize({ key: 'sessionDataLockExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
+			],
+			message: localize('sessionDataLocked', "Another instance of {0} is using the session data directory", productService.nameShort),
+			detail: localize('sessionDataLockedDetail', "{0} cannot start while another program is using:\n\n{1}\n\nThis can happen when another version of {0} is still running, for example right after an update. Close the other instance to continue.\n\nSharing the session data directory between multiple running programs is not supported and can result in data loss.", productService.nameShort, environmentMainService.userDataPath),
+			defaultId: 0,
+			cancelId: 0
+		}, productService);
+
+		const { response } = await dialog.showMessageBox(massaged.options);
+
+		return massaged.buttonIndeces[response] === 0; // keep waiting
 	}
 
 	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, productService: IProductService, error: NodeJS.ErrnoException): void {

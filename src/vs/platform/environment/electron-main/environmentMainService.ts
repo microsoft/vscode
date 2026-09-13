@@ -29,6 +29,7 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	// --- IPC
 	readonly mainIPCHandle: string;
 	readonly mainLockfile: string;
+	readonly sessionDataLockHandle: string;
 
 	// --- config
 	readonly disableUpdates: boolean;
@@ -53,6 +54,14 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get mainLockfile(): string { return join(this.userDataPath, 'code.lock'); }
+
+	// Unlike `mainIPCHandle` this handle is intentionally not scoped to the
+	// current version: it guards the user data directory (and thus the
+	// session data stored inside of it) from being used by multiple VS Code
+	// processes at the same time, which is possible when different versions
+	// run side by side, for example right after an update.
+	@memoize
+	get sessionDataLockHandle(): string { return createStaticIPCHandle(this.userDataPath, 'lock'); }
 
 	@memoize
 	get disableUpdates(): boolean { return !!this.args['disable-updates']; }

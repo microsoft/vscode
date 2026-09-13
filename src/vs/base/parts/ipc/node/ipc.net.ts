@@ -770,13 +770,24 @@ export function createRandomIPCHandle(): string {
 	return join(basePath, `vscode-ipc-${suffix}.sock`);
 }
 
-export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
+/**
+ * Creates a static IPC handle (a named pipe on Windows, a socket file on
+ * macOS and Linux) that is deterministically derived from the given
+ * directory path.
+ *
+ * When a version is given, it becomes part of the handle name, resulting
+ * in different handles per version (e.g. for the main process IPC server).
+ * When omitted, the handle is identical for all versions, which is useful
+ * for resources that are shared between versions and must only be owned
+ * by one process at a time, such as the session data directory.
+ */
+export function createStaticIPCHandle(directoryPath: string, type: string, version = ''): string {
 	const scope = createHash('sha256').update(directoryPath).digest('hex');
 	const scopeForSocket = scope.substr(0, 8);
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${scopeForSocket}-${version}-${type}-sock`;
+		return `\\\\.\\pipe\\${scopeForSocket}${version ? `-${version}` : ''}-${type}-sock`;
 	}
 
 	// Mac & Unix: Use socket file
@@ -786,12 +797,13 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 
 	const versionForSocket = version.substr(0, 4);
 	const typeForSocket = type.substr(0, 6);
+	const versionAndTypeForSocket = versionForSocket ? `${versionForSocket}-${typeForSocket}` : typeForSocket;
 
 	let result: string;
 	if (process.platform !== 'darwin' && XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `vscode-${scopeForSocket}-${versionForSocket}-${typeForSocket}.sock`);
+		result = join(XDG_RUNTIME_DIR, `vscode-${scopeForSocket}-${versionAndTypeForSocket}.sock`);
 	} else {
-		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
+		result = join(directoryPath, `${versionAndTypeForSocket}.sock`);
 	}
 
 	// Validate length. Unlike `createRandomIPCHandle`, the path here must be derived
