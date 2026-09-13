@@ -28,4 +28,11 @@ export interface ICommandFileWriteParser {
 	 * @returns Array of file paths that would be modified.
 	 */
 	extractFileWrites(commandText: string): string[];
+
+	extractFileWriteDetails?(commandText: string): readonly ICommandFileWrite[];
+}
+
+export interface ICommandFileWrite {
+	readonly path: string;
+	readonly hasUnquotedPathExpansion: boolean;
 }

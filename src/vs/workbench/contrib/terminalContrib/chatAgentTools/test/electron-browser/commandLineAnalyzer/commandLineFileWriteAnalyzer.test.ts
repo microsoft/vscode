@@ -372,6 +372,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				fileService.realpathResults.set(URI.file('/workspace/project/safe-\\*').toString(), URI.file('/outside/file.txt'));
 				await t('sed --follow-symlinks -i \'s/x/y/\' \'safe-\\*\'', 'outsideWorkspace', false, 1);
 			});
+			test('sed quoted wildcard filename is treated as literal - allow', () =>
+				t('sed -i \'s/x/y/\' \'safe-*\'', 'outsideWorkspace', true, 1));
 			test('sed concatenated quoted filename canonicalizes the runtime path', async () => {
 				fileService.realpathResults.set(URI.file('/workspace/project/safe-link').toString(), URI.file('/outside/file.txt'));
 				await t('sed --follow-symlinks -i \'s/x/y/\' safe-"link"', 'outsideWorkspace', false, 1);

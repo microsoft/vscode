@@ -14,6 +14,11 @@
  * - `sed --in-place=.bak 's/foo/bar/' file.txt` (GNU long form with backup)
  * - `sed -I 's/foo/bar/' file.txt` (BSD case-insensitive variant)
  */
+export interface ISedFileWrite {
+	readonly path: string;
+	readonly hasUnquotedPathExpansion: boolean;
+}
+
 export class SedFileWriteParser {
 	readonly commandName = 'sed';
 
@@ -27,19 +32,26 @@ export class SedFileWriteParser {
 	}
 
 	extractFileWrites(commandText: string): string[] {
+		return this.extractFileWriteDetails(commandText).map(write => write.path);
+	}
+
+	extractFileWriteDetails(commandText: string): ISedFileWrite[] {
 		const rawTokens = this._tokenizeCommand(commandText);
 		const tokens = rawTokens.map(token => this._decodeLiteralToken(token) ?? token);
 		const files = this._extractFileTargets(tokens, rawTokens);
 		const backupSuffix = this._extractBackupSuffix(tokens, rawTokens);
 		if (this._hasDynamicOption(rawTokens)) {
-			return [...files, '$SED_IN_PLACE_OPTION'];
+			return [...files, { path: '$SED_IN_PLACE_OPTION', hasUnquotedPathExpansion: true }];
 		}
 		if (!backupSuffix) {
 			return files;
 		}
 		return [
 			...files,
-			...files.map(file => backupSuffix.includes('*') ? backupSuffix.replaceAll('*', file) : `${file}${backupSuffix}`),
+			...files.map(file => ({
+				path: backupSuffix.includes('*') ? backupSuffix.replaceAll('*', file.path) : `${file.path}${backupSuffix}`,
+				hasUnquotedPathExpansion: false,
+			})),
 		];
 	}
 
@@ -207,6 +219,30 @@ export class SedFileWriteParser {
 		return false;
 	}
 
+	private _hasUnquotedPathExpansion(value: string): boolean {
+		let inSingleQuote = false;
+		let inDoubleQuote = false;
+		for (let i = 0; i < value.length; i++) {
+			const char = value[i];
+			if (char === '\\' && !inSingleQuote) {
+				i++;
+				continue;
+			}
+			if (char === '\'' && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+				continue;
+			}
+			if (char === '"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+				continue;
+			}
+			if (!inSingleQuote && !inDoubleQuote && (char === '*' || char === '?' || char === '[')) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Tokenizes a command into individual arguments, handling quotes and escapes.
 	 */
@@ -266,12 +302,12 @@ export class SedFileWriteParser {
 	 * Extracts file targets from tokenized sed command arguments.
 	 * Files are generally the last non-option, non-script arguments.
 	 */
-	private _extractFileTargets(tokens: string[], rawTokens: string[]): string[] {
+	private _extractFileTargets(tokens: string[], rawTokens: string[]): ISedFileWrite[] {
 		if (tokens.length === 0 || tokens[0] !== 'sed') {
 			return [];
 		}
 
-		const files: string[] = [];
+		const files: ISedFileWrite[] = [];
 		let i = 1; // Skip 'sed'
 		let foundScript = false;
 		let optionsEnded = false;
@@ -382,7 +418,10 @@ export class SedFileWriteParser {
 			if ((file.startsWith('\'') && file.endsWith('\'')) || (file.startsWith('"') && file.endsWith('"'))) {
 				file = file.slice(1, -1);
 			}
-			files.push(file);
+			files.push({
+				path: file,
+				hasUnquotedPathExpansion: this._hasUnquotedPathExpansion(rawTokens[i]),
+			});
 			i++;
 		}
 

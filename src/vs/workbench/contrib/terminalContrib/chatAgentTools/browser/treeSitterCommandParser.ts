@@ -13,7 +13,7 @@ import { ITreeSitterLibraryService } from '../../../../../editor/common/services
 import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { shouldRequireConfirmationForAutoApproveParse } from '../../../../../platform/terminal/common/autoApprove/autoApproveParseSafety.js';
 import { SedFileWriteParser } from '../../../../../platform/terminal/common/autoApprove/sedFileWriteParser.js';
-import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
+import { ICommandFileWrite, ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -168,6 +168,10 @@ export class TreeSitterCommandParser extends Disposable {
 	 * Returns an array of file paths that would be modified.
 	 */
 	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		return (await this.getCommandFileWriteDetails(languageId, commandLine)).map(write => write.path);
+	}
+
+	async getCommandFileWriteDetails(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<ICommandFileWrite[]> {
 		// Currently only bash-like shells are supported for command-specific parsing
 		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
 			return [];
@@ -177,12 +181,12 @@ export class TreeSitterCommandParser extends Disposable {
 		const query = '(command) @command';
 		const captures = await this._queryTree(languageId, commandLine, query);
 
-		const result: string[] = [];
+		const result: ICommandFileWrite[] = [];
 		for (const capture of captures) {
 			const commandText = capture.node.text;
 			for (const parser of this._commandFileWriteParsers) {
 				if (parser.canHandle(commandText)) {
-					result.push(...parser.extractFileWrites(commandText));
+					result.push(...(parser.extractFileWriteDetails?.(commandText) ?? parser.extractFileWrites(commandText).map(path => ({ path, hasUnquotedPathExpansion: true }))));
 				}
 			}
 		}

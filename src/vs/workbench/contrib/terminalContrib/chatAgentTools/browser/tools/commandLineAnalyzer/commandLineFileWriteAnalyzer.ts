@@ -23,7 +23,7 @@ import { parseCommand } from '../terminalCommandParser.js';
 const nullDevice = Symbol('null device');
 
 type FileWrite = URI | string | typeof nullDevice;
-type RawFileWrite = { readonly value: string; readonly source: 'redirect' | 'command' } | typeof nullDevice;
+type RawFileWrite = { readonly value: string; readonly source: 'redirect' | 'command'; readonly hasUnquotedPathExpansion?: boolean } | typeof nullDevice;
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
@@ -68,8 +68,8 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			.map(rawFileWrite => this._mapRawFileWrite(options, rawFileWrite, 'redirect'));
 
 		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
-		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
-			.map(rawFileWrite => this._mapRawFileWrite(options, rawFileWrite, 'command'));
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWriteDetails(options.treeSitterLanguage, options.commandLine))
+			.map(write => this._mapRawFileWrite(options, write.path, 'command', write.hasUnquotedPathExpansion));
 
 		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
 		const bashPaths = options.treeSitterLanguage === TreeSitterCommandParserLanguage.Bash
@@ -79,7 +79,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					? this._parseBashLiteralPath(fileWrite.value)
 					: {
 						value: fileWrite.value,
-						hasUnquotedPathExpansion: /[*?\[]/.test(fileWrite.value),
+						hasUnquotedPathExpansion: fileWrite.hasUnquotedPathExpansion ?? true,
 						hasHistoryExpansion: this._parseBashLiteralPath(fileWrite.value)?.hasHistoryExpansion ?? true,
 					})
 			: [];
@@ -87,7 +87,6 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		let hasUnanalyzablePath =
 			bashPaths.some(path => path === undefined) ||
 			bashPaths.some(path => path?.hasHistoryExpansion) ||
-			commandFileWrites.some(fileWrite => fileWrite !== nullDevice && /['"\\]/.test(fileWrite.value)) ||
 			this._isCmdShell(options);
 
 		if (allCapturedFileWrites.length) {
@@ -250,15 +249,15 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return result;
 	}
 
-	private _mapRawFileWrite(options: ICommandLineAnalyzerOptions, rawFileWrite: string, source: 'redirect' | 'command'): RawFileWrite {
+	private _mapRawFileWrite(options: ICommandLineAnalyzerOptions, rawFileWrite: string, source: 'redirect' | 'command', hasUnquotedPathExpansion?: boolean): RawFileWrite {
 		if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.PowerShell) {
 			return rawFileWrite === '$null'
 				? nullDevice
-				: { value: rawFileWrite, source };
+				: { value: rawFileWrite, source, hasUnquotedPathExpansion };
 		}
 		return rawFileWrite === '/dev/null'
 			? nullDevice
-			: { value: rawFileWrite, source };
+			: { value: rawFileWrite, source, hasUnquotedPathExpansion };
 	}
 
 	private async _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[], hasSequentialCommands: boolean, hasUnquotedPathExpansion: boolean, hasUnanalyzablePath: boolean): Promise<ICommandLineAnalyzerResult> {
