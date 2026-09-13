@@ -29,6 +29,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 	private readonly _statusBarItem: vscode.StatusBarItem;
 	private readonly _disposables: vscode.Disposable[] = [];
 	private _watchers: fs.FSWatcher[] = [];
+	private _watcherDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 	private _terminal: vscode.Terminal | undefined;
 	private _stateContentsFile: string | undefined;
 	private _root: string | undefined;
@@ -39,9 +40,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		const disposables: vscode.Disposable[] = [];
 		super(() => {
 			disposables.forEach(d => d.dispose());
-			for (const w of this._watchers) {
-				w.close();
-			}
+			this._clearWatchers();
 		});
 		this._disposables = disposables;
 
@@ -88,16 +87,26 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 	}
 
 	private _runNpmInstall(): void {
-		if (this._terminal) {
-			this._terminal.dispose();
-		}
-		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+		const workspaceRoot = this._getWorkspaceRoot();
 		if (!workspaceRoot) {
 			void vscode.window.showErrorMessage('npm install requires an open workspace folder');
 			return;
 		}
+
+		const installScript = path.join(workspaceRoot, 'build', 'npm', 'fast-install.ts');
+		if (!fs.existsSync(installScript)) {
+			void vscode.window.showErrorMessage('Could not find build/npm/fast-install.ts in the selected workspace folder.');
+			this._output.warn('Skipping npm install: missing script', installScript);
+			return;
+		}
+
+		if (this._terminal) {
+			this._terminal.dispose();
+		}
+
+		const escapedNodePath = process.execPath.replace(/"/g, '\\"');
 		this._terminal = vscode.window.createTerminal({ name: 'npm install', cwd: workspaceRoot });
-		this._terminal.sendText('node build/npm/fast-install.ts --force');
+		this._terminal.sendText(`"${escapedNodePath}" build/npm/fast-install.ts --force`);
 		this._terminal.show();
 
 		this._statusBarItem.text = '$(loading~spin) npm i';
@@ -107,18 +116,28 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 	}
 
 	private _queryState(): InstallState | undefined {
-		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		const workspaceRoot = this._getWorkspaceRoot();
 		if (!workspaceRoot) {
 			return undefined;
 		}
+
+		const script = path.join(workspaceRoot, 'build', 'npm', 'installStateHash.ts');
+		if (!fs.existsSync(script)) {
+			this._output.trace('Skipping npm state check: installStateHash.ts not found at', script);
+			return undefined;
+		}
+
 		try {
-			const script = path.join(workspaceRoot, 'build', 'npm', 'installStateHash.ts');
 			const output = cp.execFileSync(process.execPath, [script, '--ignore-node-version'], {
 				cwd: workspaceRoot,
 				timeout: 10_000,
 				encoding: 'utf8',
 			});
-			const parsed = JSON.parse(output.trim());
+			const parsed: unknown = JSON.parse(output.trim());
+			if (!this._isInstallState(parsed)) {
+				this._output.error('installStateHash.ts returned an unexpected payload shape');
+				return undefined;
+			}
 			this._output.trace('raw output:', output.trim());
 			return parsed;
 		} catch (e) {
@@ -132,6 +151,9 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		this._output.trace('state:', JSON.stringify(state, null, 2));
 		if (!state) {
 			this._output.trace('no state, hiding');
+			this._stateContentsFile = undefined;
+			this._root = undefined;
+			this._clearWatchers();
 			this._statusBarItem.hide();
 			return;
 		}
@@ -188,7 +210,8 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		try {
 			const contents: Record<string, string> = JSON.parse(fs.readFileSync(this._stateContentsFile, 'utf8'));
 			return contents[file] ?? '';
-		} catch {
+		} catch (e) {
+			this._output.debug('Failed reading saved npm install state content:', e);
 			return '';
 		}
 	}
@@ -197,14 +220,22 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		if (!this._root) {
 			return '';
 		}
+
+		const normalizedFilePath = path.resolve(this._root, file);
+		if (!this._isInsideRoot(this._root, normalizedFilePath)) {
+			this._output.warn('Rejected dependency diff request outside workspace root:', file);
+			return '';
+		}
+
 		try {
 			const script = path.join(this._root, 'build', 'npm', 'installStateHash.ts');
-			return cp.execFileSync(process.execPath, [script, '--normalize-file', path.join(this._root, file)], {
+			return cp.execFileSync(process.execPath, [script, '--normalize-file', normalizedFilePath], {
 				cwd: this._root,
 				timeout: 10_000,
 				encoding: 'utf8',
 			});
-		} catch {
+		} catch (e) {
+			this._output.debug('Failed reading current npm install state content:', e);
 			return '';
 		}
 	}
@@ -227,26 +258,93 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 	}
 
 	private _setupWatcher(state: InstallState): void {
-		for (const w of this._watchers) {
-			w.close();
-		}
-		this._watchers = [];
+		this._clearWatchers();
 
-		let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 		const scheduleCheck = () => {
-			if (debounceTimer) {
-				clearTimeout(debounceTimer);
+			if (this._watcherDebounceTimer) {
+				clearTimeout(this._watcherDebounceTimer);
 			}
-			debounceTimer = setTimeout(() => this._check(), 500);
+			this._watcherDebounceTimer = setTimeout(() => this._check(), 500);
 		};
 
 		for (const file of state.files) {
 			try {
 				const watcher = fs.watch(file, scheduleCheck);
+				watcher.on('error', e => this._output.trace('Watcher failed for file:', file, e));
 				this._watchers.push(watcher);
-			} catch {
-				// file may not exist yet
+			} catch (e) {
+				this._output.trace('Skipping watcher for file:', file, e);
 			}
 		}
+	}
+
+	private _clearWatchers(): void {
+		for (const watcher of this._watchers) {
+			watcher.close();
+		}
+		this._watchers = [];
+		if (this._watcherDebounceTimer) {
+			clearTimeout(this._watcherDebounceTimer);
+			this._watcherDebounceTimer = undefined;
+		}
+	}
+
+	private _isInstallState(value: unknown): value is InstallState {
+		if (!value || typeof value !== 'object') {
+			return false;
+		}
+		const candidate = value as {
+			root?: unknown;
+			stateContentsFile?: unknown;
+			current?: unknown;
+			saved?: unknown;
+			files?: unknown;
+		};
+		return (
+			typeof candidate.root === 'string' &&
+			typeof candidate.stateContentsFile === 'string' &&
+			this._isPostinstallState(candidate.current) &&
+			(candidate.saved === undefined || this._isPostinstallState(candidate.saved)) &&
+			Array.isArray(candidate.files) &&
+			candidate.files.every(file => typeof file === 'string')
+		);
+	}
+
+	private _isPostinstallState(value: unknown): value is PostinstallState {
+		if (!value || typeof value !== 'object') {
+			return false;
+		}
+		const candidate = value as { nodeVersion?: unknown; fileHashes?: unknown };
+		return typeof candidate.nodeVersion === 'string' && this._isFileHashes(candidate.fileHashes);
+	}
+
+	private _isFileHashes(value: unknown): value is FileHashes {
+		if (!value || typeof value !== 'object' || Array.isArray(value)) {
+			return false;
+		}
+		const hashes = value as Record<string, unknown>;
+		return Object.values(hashes).every(hash => typeof hash === 'string');
+	}
+
+	private _isInsideRoot(root: string, candidatePath: string): boolean {
+		const relativePath = path.relative(root, candidatePath);
+		return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+	}
+
+	private _getWorkspaceRoot(): string | undefined {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			return undefined;
+		}
+
+		for (const folder of workspaceFolders) {
+			const workspaceRoot = folder.uri.fsPath;
+			const stateScriptPath = path.join(workspaceRoot, 'build', 'npm', 'installStateHash.ts');
+			if (fs.existsSync(stateScriptPath)) {
+				return workspaceRoot;
+			}
+		}
+
+		return workspaceFolders[0].uri.fsPath;
 	}
 }
