@@ -74,6 +74,16 @@ suite('SedFileWriteParser', () => {
 		});
 	});
 
+	test('extracts quoted BSD backup suffix and file target', () => {
+		assert.deepStrictEqual({
+			singleQuoted: parser.extractFileWrites('sed -i \'.bak\' "s/foo/bar/" file.txt'),
+			doubleQuoted: parser.extractFileWrites('sed -i ".bak" "s/foo/bar/" file.txt'),
+		}, {
+			singleQuoted: ['file.txt', 'file.txt.bak'],
+			doubleQuoted: ['file.txt', 'file.txt.bak'],
+		});
+	});
+
 	test('extracts file targets when an option is expanded at runtime', () => {
 		assert.deepStrictEqual({
 			substitution: parser.extractFileWrites('sed "$(echo -i)" "s/foo/bar/" /outside/file.txt'),

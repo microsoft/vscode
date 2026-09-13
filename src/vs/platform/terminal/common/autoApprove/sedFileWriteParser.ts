@@ -29,8 +29,8 @@ export class SedFileWriteParser {
 	extractFileWrites(commandText: string): string[] {
 		const rawTokens = this._tokenizeCommand(commandText);
 		const tokens = rawTokens.map(token => this._decodeLiteralToken(token) ?? token);
-		const files = this._extractFileTargets(tokens);
-		const backupSuffix = this._extractBackupSuffix(tokens);
+		const files = this._extractFileTargets(tokens, rawTokens);
+		const backupSuffix = this._extractBackupSuffix(tokens, rawTokens);
 		if (this._hasDynamicOption(rawTokens)) {
 			return [...files, '$SED_IN_PLACE_OPTION'];
 		}
@@ -43,7 +43,7 @@ export class SedFileWriteParser {
 		];
 	}
 
-	private _extractBackupSuffix(tokens: string[]): string | undefined {
+	private _extractBackupSuffix(tokens: string[], rawTokens: string[]): string | undefined {
 		let backupSuffix: string | undefined;
 		for (let i = 1; i < tokens.length; i++) {
 			const token = tokens[i];
@@ -72,14 +72,14 @@ export class SedFileWriteParser {
 				continue;
 			}
 			const next = tokens[i + 1];
+			const rawNext = rawTokens[i + 1];
 			if (next === '' || next === '\'\'' || next === '""') {
 				backupSuffix = '';
 				continue;
 			}
-			if (next && ((next.startsWith('\'') && next.endsWith('\'')) || (next.startsWith('"') && next.endsWith('"')))) {
-				const unquoted = this._stripSurroundingQuotes(next);
-				if (unquoted.startsWith('.') && unquoted.length <= 10 && !unquoted.includes('/')) {
-					backupSuffix = unquoted;
+			if (next && rawNext && ((rawNext.startsWith('\'') && rawNext.endsWith('\'')) || (rawNext.startsWith('"') && rawNext.endsWith('"')))) {
+				if (next.startsWith('.') && next.length <= 10 && !next.includes('/')) {
+					backupSuffix = next;
 					continue;
 				}
 			}
@@ -266,7 +266,7 @@ export class SedFileWriteParser {
 	 * Extracts file targets from tokenized sed command arguments.
 	 * Files are generally the last non-option, non-script arguments.
 	 */
-	private _extractFileTargets(tokens: string[]): string[] {
+	private _extractFileTargets(tokens: string[], rawTokens: string[]): string[] {
 		if (tokens.length === 0 || tokens[0] !== 'sed') {
 			return [];
 		}
@@ -326,6 +326,7 @@ export class SedFileWriteParser {
 				// Check if -i or -I is the last flag and next token could be backup suffix
 				if ((flags.endsWith('i') || flags.endsWith('I')) && i + 1 < tokens.length) {
 					const nextToken = tokens[i + 1];
+					const rawNextToken = rawTokens[i + 1];
 					// macOS/BSD style: -i '' or -i "" (empty string backup suffix)
 					// Only treat it as a backup suffix if it's empty or looks like a backup
 					// extension (starts with '.' and is short). Don't match sed scripts like 's/foo/bar/'.
@@ -334,8 +335,8 @@ export class SedFileWriteParser {
 						continue;
 					}
 					// Check for quoted backup suffixes like '.bak' or ".backup"
-					if ((nextToken.startsWith('\'') && nextToken.endsWith('\'')) || (nextToken.startsWith('"') && nextToken.endsWith('"'))) {
-						const unquoted = nextToken.slice(1, -1);
+					if (rawNextToken && ((rawNextToken.startsWith('\'') && rawNextToken.endsWith('\'')) || (rawNextToken.startsWith('"') && rawNextToken.endsWith('"')))) {
+						const unquoted = nextToken;
 						// Backup suffixes typically start with '.' and are short extensions
 						if (unquoted.startsWith('.') && unquoted.length <= 10 && !unquoted.includes('/')) {
 							i += 2;
