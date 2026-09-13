@@ -3,6 +3,12 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+# Bail out when /bin/bash is really BusyBox ash or another non-bash shell.
+# Keep this guard shell-agnostic: no [[ ]], no builtin, no arrays.
+if [ -z "${BASH_VERSION:-}" ]; then
+	return
+fi
+
 # Prevent the script recursing when setting up
 if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
