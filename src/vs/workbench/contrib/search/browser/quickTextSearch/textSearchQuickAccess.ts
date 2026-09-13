@@ -305,7 +305,6 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					start: preview.before.length,
 					end: preview.before.length + preview.inside.length
 				}];
-				// file contents must render literally, not as theme icons
 				const escaped = escapeIconsWithHighlights(previewText, match);
 				picks.push({
 					label: escaped.text,

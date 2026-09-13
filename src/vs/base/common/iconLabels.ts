@@ -17,14 +17,8 @@ export function escapeIcons(text: string): string {
 }
 
 /**
- * Escapes all icon syntax (`$(iconId)`) in arbitrary text (e.g. file contents) so that
- * it renders literally in a label with icon support, and adjusts the given highlights
- * to the escaped text.
- *
- * Unlike {@link escapeIcons}, icons that are already preceded by a backslash are escaped
- * as well, so that the backslash itself is preserved. Icons that are split by a highlight
- * boundary are left untouched: highlighted labels render each segment separately, so such
- * icons are never rendered as icons and escaping them would show a stray backslash.
+ * Escapes icon syntax in arbitrary text and adjusts the highlights accordingly. Icons split
+ * by a highlight boundary are left as is, since highlighted labels never render them as icons.
  */
 export function escapeIconsWithHighlights(text: string, highlights: readonly IMatch[]): { text: string; highlights: IMatch[] } {
 	if (text.indexOf(iconStartMarker) === -1) {
@@ -35,7 +29,7 @@ export function escapeIconsWithHighlights(text: string, highlights: readonly IMa
 	for (const match of text.matchAll(iconsRegex)) {
 		const start = match.index;
 		const end = start + match[0].length;
-		const isSplit = highlights.some(h => (h.start > start && h.start < end) || (h.end > start && h.end < end));
+		const isSplit = highlights.some(h => h.start !== h.end && ((h.start > start && h.start < end) || (h.end > start && h.end < end)));
 		if (!isSplit) {
 			insertions.push(start);
 		}

@@ -122,6 +122,9 @@ suite('Icon Labels', () => {
 		// icon split by highlight is left untouched
 		assert.deepStrictEqual(escapeIconsWithHighlights('$(copy) foobar', [{ start: 2, end: 6 }]), { text: '$(copy) foobar', highlights: [{ start: 2, end: 6 }] });
 
+		// empty highlight inside icon does not split it
+		assert.deepStrictEqual(escapeIconsWithHighlights('$(copy) foobar', [{ start: 3, end: 3 }]), { text: '\\$(copy) foobar', highlights: [{ start: 4, end: 4 }] });
+
 		// already escaped icon keeps its backslash
 		assert.deepStrictEqual(escapeIconsWithHighlights('\\$(copy) foo', [{ start: 9, end: 12 }]), { text: '\\\\$(copy) foo', highlights: [{ start: 10, end: 13 }] });
 
