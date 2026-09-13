@@ -918,6 +918,26 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
+	test('existing terminal with unknown CWD does not fall back to the session workspace', async () => {
+		const sessionResource = LocalChatSessionUri.forSession('existing-terminal-unknown-cwd');
+		const model = createChatModelWithRequest(sessionResource);
+		Object.defineProperty(model, 'workingDirectory', { value: URI.file('/workspace') });
+		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+			instance: { ...createdTerminalInstance, getCwdResource: async () => undefined },
+			shellIntegrationQuality: ShellIntegrationQuality.Rich,
+			isBackground: false,
+		});
+
+		const prepared = await runInTerminalTool.prepareToolInvocation({
+			parameters: { command: 'echo hello > out.txt', mode: 'sync', timeout: 30000 } as IRunInTerminalInputParams,
+			chatSessionResource: sessionResource,
+		} as IToolInvocationPreparationContext, CancellationToken.None);
+
+		ok(prepared);
+		assertConfirmationRequired(prepared);
+		strictEqual((prepared.toolSpecificData as IChatTerminalToolInvocationData).cwd, undefined);
+	});
+
 	suite('automatic sandbox retry', () => {
 		const baseRetryOptions = {
 			allowUnsandboxedCommands: true,
