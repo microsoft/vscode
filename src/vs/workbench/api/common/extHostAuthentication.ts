@@ -465,7 +465,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	private readonly _onDidChangeClientId = new Emitter<void>();
 	readonly onDidChangeClientId = this._onDidChangeClientId.event;
 
-	private readonly _tokenStore: TokenStore;
+	protected readonly _tokenStore: TokenStore;
 
 	protected readonly _createFlows: Array<{
 		label: string;
