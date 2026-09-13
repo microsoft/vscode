@@ -84,6 +84,21 @@ suite('SedFileWriteParser', () => {
 		});
 	});
 
+	test('preserves runtime expansion metadata for file and backup targets', () => {
+		assert.deepStrictEqual({
+			quotedWildcard: parser.extractFileWriteDetails('sed -i "s/foo/bar/" \'safe-*\''),
+			expandedFile: parser.extractFileWriteDetails('sed -i "s/foo/bar/" ~/../outside/file.txt'),
+			expandedBackup: parser.extractFileWriteDetails('sed --in-place=$HOME/../outside/* "s/foo/bar/" file.txt'),
+		}, {
+			quotedWildcard: [{ path: 'safe-*', hasUnquotedPathExpansion: false }],
+			expandedFile: [{ path: '~/../outside/file.txt', hasUnquotedPathExpansion: true }],
+			expandedBackup: [
+				{ path: 'file.txt', hasUnquotedPathExpansion: false },
+				{ path: '$HOME/../outside/file.txt', hasUnquotedPathExpansion: true },
+			],
+		});
+	});
+
 	test('extracts file targets when an option is expanded at runtime', () => {
 		assert.deepStrictEqual({
 			substitution: parser.extractFileWrites('sed "$(echo -i)" "s/foo/bar/" /outside/file.txt'),
