@@ -543,6 +543,19 @@ interface IResolvedExecutionOptions {
 
 type AutomaticSandboxRetryKind = 'unsandboxed' | 'allowNetwork';
 
+export function createAutomaticSandboxRetryRiskAssessment(retryParameters: IRunInTerminalInputParams, command: string | undefined): { toolId: string; parameters: IRunInTerminalInputParams } | undefined {
+	if (command === undefined) {
+		return undefined;
+	}
+	return {
+		toolId: TerminalToolId.RunInTerminal,
+		parameters: {
+			...retryParameters,
+			command,
+		},
+	};
+}
+
 interface IAutomaticSandboxRetryPredicateOptions {
 	readonly retryAllowed: boolean;
 	readonly retryAlreadyRequested: boolean;
@@ -1719,13 +1732,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requestAllowNetwork,
 			requestAllowNetworkReason: requestAllowNetwork ? rewrittenRetryReason : undefined,
 		};
-		const retryRiskAssessment = {
-			toolId: TerminalToolId.RunInTerminal,
-			parameters: {
-				...retryParameters,
-				command: retryRewriteResult.rewrittenCommand,
-			},
-		};
+		const retryRiskAssessment = createAutomaticSandboxRetryRiskAssessment(retryParameters, options.toolSpecificData.commandLine.forRiskAssessment);
 		const retryConfirmationCommand = options.toolSpecificData.presentationOverrides?.commandLine ?? options.command;
 		const shouldRetry = await this._confirmAutomaticSandboxRetry(options.retryKind, options.invocation.context?.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, retryRiskAssessment, options.token);
 		if (!shouldRetry) {
