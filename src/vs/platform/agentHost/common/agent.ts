@@ -854,13 +854,14 @@ export interface IAgentModelInfo {
  * Most signals carry a protocol {@link SessionAction} directly via the
  * `kind: 'action'` shape, eliminating a parallel event ontology. A small
  * number of cases that have no clean protocol action (permission
- * auto-approval, subagent session creation, steering acknowledgment, and
- * host-owned model-call telemetry) remain as discriminated non-action signals.
+ * auto-approval, subagent session creation, steering acknowledgment,
+ * host-owned model-call telemetry, and edit invalidation) remain as discriminated non-action signals.
  */
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentModelCallFinishedSignal
+	| IAgentFileEditsAppliedSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
@@ -917,6 +918,14 @@ export interface IAgentModelCallFinishedSignal {
 	readonly editClassifierVersion: number;
 	/** If set, route the model call to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
+}
+
+/** Invalidates changesets for applied file edits without updating a tool response. */
+export interface IAgentFileEditsAppliedSignal {
+	readonly kind: 'file_edits_applied';
+	/** Owning chat and original persistence turn, independent of child-turn routing. */
+	readonly chat: URI;
+	readonly turnId: string;
 }
 
 /**

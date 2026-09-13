@@ -2305,6 +2305,47 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			assert.deepStrictEqual(stateManager.getSessionSummary(sessionStr)?.changes, { additions: 1, deletions: 0, files: 1 });
 		});
 
+		test('late applied edits refresh observed non-git Session Changes without ending the parent turn', async () => {
+			await runWithFakedTimers({ maxTaskCount: 1_000 }, async () => {
+				const db = new TestSessionDatabase();
+				const { svc, stateManager } = build({
+					workingDirectories: ['file:///wd'], isolation: 'folder', git: createNoopGitService(),
+					checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [sessionChangeset],
+				});
+				const chat = buildDefaultChatUri(sessionStr);
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted, turnId: 'parent-turn', startedAt: new Date(0).toISOString(),
+					message: { text: 'Edit a file', origin: { kind: MessageKind.User } },
+				});
+				try {
+					svc.refreshSessionChangeset(sessionStr);
+					await waitForChangesetReady(stateManager, sessionChangeset);
+					const beforeFiles = stateManager.getChangesetState(sessionChangeset)?.files.length;
+					db.addEdit({
+						turnId: 'parent-turn', toolCallId: 'child-edit', filePath: '/wd/late.txt', kind: FileEditKind.Create,
+						addedLines: 1, removedLines: 0, beforeContent: encodeString(''), afterContent: encodeString('written'),
+					});
+					svc.onToolCallEditsApplied(sessionStr, 'parent-turn');
+					await timeout(6_000);
+					await waitForChangesetReady(stateManager, sessionChangeset);
+
+					assert.deepStrictEqual({
+						beforeFiles,
+						files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
+						changes: stateManager.getSessionSummary(sessionStr)?.changes,
+						activeTurn: stateManager.getSessionState(chat)?.activeTurn?.id,
+					}, {
+						beforeFiles: 0,
+						files: [URI.file('/wd/late.txt').toString()],
+						changes: { additions: 1, deletions: 0, files: 1 },
+						activeTurn: 'parent-turn',
+					});
+				} finally {
+					svc.dispose();
+				}
+			});
+		});
+
 		for (const isolation of ['folder', 'worktree', undefined] as const) {
 			for (const primaryAvailable of [true, false]) {
 				test(`multi-root ${isolation ?? 'unresolved'} summary matches its selected changeset (primary branch available: ${primaryAvailable})`, async () => {

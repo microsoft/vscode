@@ -170,7 +170,8 @@ interface ICopilotSubagentExecution {
 	generation: number;
 	hasExecutionBoundary: boolean;
 	readonly identities: Map<string, number>;
-	readonly renderedMessageIds: Set<string>;
+	readonly renderedMessages: Map<string, string>;
+	lastMessageId?: string;
 	lastMarkdownPart?: { readonly id: string; readonly messageId?: string; content: string };
 	finalMessageReceived?: boolean;
 }
@@ -1525,7 +1526,7 @@ export class CopilotAgentSession extends Disposable {
 	private _getOrCreateSubagentExecution(agentId: string) {
 		let execution = this._subagentExecutionsByAgentId.get(agentId);
 		if (!execution) {
-			execution = { generation: 0, hasExecutionBoundary: false, identities: new Map(), renderedMessageIds: new Set() };
+			execution = { generation: 0, hasExecutionBoundary: false, identities: new Map(), renderedMessages: new Map() };
 			this._subagentExecutionsByAgentId.set(agentId, execution);
 		}
 		return execution;
@@ -1618,12 +1619,52 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	private _materializeSubagentTaskResponse(agentId: string, parentToolCallId: string, content: string): void {
+	private _emitSubagentMarkdownDelta(execution: ICopilotSubagentExecution, parentToolCallId: string, messageId: string, content: string): void {
+		if (!content) {
+			return;
+		}
+		const cumulativeContent = (execution.renderedMessages.get(messageId) ?? '') + content;
+		execution.renderedMessages.set(messageId, cumulativeContent);
+		execution.lastMessageId = messageId;
+		execution.finalMessageReceived = false;
+		const turnId = this._rootTurnIdBySubagentToolCallId.get(parentToolCallId) ?? '';
+		const lastPart = execution.lastMarkdownPart;
+		if (lastPart?.messageId === messageId) {
+			lastPart.content = cumulativeContent;
+			this._emitAction({
+				type: ActionType.ChatDelta,
+				turnId,
+				partId: lastPart.id,
+				content,
+			}, parentToolCallId);
+		} else {
+			const partId = generateUuid();
+			execution.lastMarkdownPart = { id: partId, messageId, content: cumulativeContent };
+			this._emitAction({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: partId, content },
+			}, parentToolCallId);
+		}
+	}
+
+	private _materializeSubagentTaskResponse(agentId: string, parentToolCallId: string, content: string, messageId?: string): void {
+		if (!content) {
+			return;
+		}
 		const execution = this._subagentExecutionsByAgentId.get(agentId);
+		const renderedMessageId = messageId ?? execution?.lastMessageId;
+		if (renderedMessageId && execution?.renderedMessages.get(renderedMessageId) === content) {
+			return;
+		}
+		if (execution && renderedMessageId) {
+			execution.renderedMessages.set(renderedMessageId, content);
+			execution.lastMessageId = renderedMessageId;
+		}
 		const lastPart = execution?.lastMarkdownPart;
 		// Child routing remaps this id; never borrow a replacement root turn.
 		const turnId = this._rootTurnIdBySubagentToolCallId.get(parentToolCallId) ?? '';
-		if (lastPart && content.startsWith(lastPart.content)) {
+		if (lastPart && (!messageId || lastPart.messageId === messageId) && content.startsWith(lastPart.content)) {
 			const delta = content.slice(lastPart.content.length);
 			if (delta) {
 				lastPart.content = content;
@@ -1634,10 +1675,10 @@ export class CopilotAgentSession extends Disposable {
 					content: delta,
 				}, parentToolCallId);
 			}
-		} else if (content) {
+		} else {
 			const partId = generateUuid();
 			if (execution) {
-				execution.lastMarkdownPart = { id: partId, content };
+				execution.lastMarkdownPart = { id: partId, messageId: renderedMessageId, content };
 			}
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
@@ -1672,7 +1713,8 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		if (execution) {
-			execution.renderedMessageIds.clear();
+			execution.renderedMessages.clear();
+			execution.lastMessageId = undefined;
 			execution.lastMarkdownPart = undefined;
 			execution.finalMessageReceived = false;
 		}
@@ -5177,21 +5219,12 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message_delta')) {
 				return;
 			}
-			if (e.agentId && e.data.deltaContent && this._currentTurn.value) {
-				const execution = this._subagentExecutionsByAgentId.get(e.agentId);
-				execution?.renderedMessageIds.add(e.data.messageId);
-			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			this._emitMarkdownDelta(e.data.deltaContent, parentToolCallId);
-			const partId = parentToolCallId ? this._currentTurn.value?.markdownPartIds.get(parentToolCallId) : undefined;
 			const execution = e.agentId ? this._subagentExecutionsByAgentId.get(e.agentId) : undefined;
-			if (execution && partId) {
-				const previous = execution.lastMarkdownPart;
-				execution.lastMarkdownPart = {
-					id: partId,
-					messageId: e.data.messageId,
-					content: (previous?.id === partId && previous.messageId === e.data.messageId ? previous.content : '') + e.data.deltaContent,
-				};
+			if (execution && parentToolCallId) {
+				this._emitSubagentMarkdownDelta(execution, parentToolCallId, e.data.messageId, e.data.deltaContent);
+			} else {
+				this._emitMarkdownDelta(e.data.deltaContent, parentToolCallId);
 			}
 		}));
 
@@ -5263,24 +5296,23 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const markdownScope = parentToolCallId ?? '';
 			const execution = e.agentId ? this._subagentExecutionsByAgentId.get(e.agentId) : undefined;
-			if (execution && e.data.content && isCompleteModelCall && !e.data.toolRequests?.length) {
-				execution.finalMessageReceived = true;
-			}
-			const hasMarkdown = execution ? execution.renderedMessageIds.has(e.data.messageId) : this._currentTurn.value?.markdownPartIds.has(markdownScope);
-			if (e.data.content && !hasMarkdown) {
+			const generation = execution?.generation;
+			if (execution && e.agentId && parentToolCallId) {
+				this._materializeSubagentTaskResponse(e.agentId, parentToolCallId, e.data.content, e.data.messageId);
+				if (this._store.isDisposed || execution.generation !== generation || !this._activeSubagentAgentIds.has(e.agentId)) {
+					return;
+				}
+				if (e.data.content && execution.lastMessageId === e.data.messageId && isCompleteModelCall && !e.data.toolRequests?.length) {
+					execution.finalMessageReceived = true;
+				}
+			} else if (e.data.content && !this._currentTurn.value?.markdownPartIds.has(markdownScope)) {
 				const partId = generateUuid();
 				this._currentTurn.value?.markdownPartIds.set(markdownScope, partId);
-				execution?.renderedMessageIds.add(e.data.messageId);
-				if (execution) {
-					execution.lastMarkdownPart = { id: partId, messageId: e.data.messageId, content: e.data.content };
-				}
 				this._emitAction({
 					type: ActionType.ChatResponsePart,
 					turnId: this._turnId,
 					part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
 				}, parentToolCallId);
-			} else if (e.agentId && parentToolCallId && execution?.lastMarkdownPart?.messageId === e.data.messageId) {
-				this._materializeSubagentTaskResponse(e.agentId, parentToolCallId, e.data.content);
 			}
 			if (e.data.toolRequests?.length) {
 				// Wait for the full message boundary; clearing on an earlier tool delta would duplicate assembled markdown.
@@ -5672,6 +5704,9 @@ export class CopilotAgentSession extends Disposable {
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
 			const complete = () => {
 				if (this._shouldDropSubagentEvent(e, 'tool.execution_complete')) {
+					if (content.some(part => part.type === ToolResultContentType.FileEdit)) {
+						this._onDidSessionProgress.fire({ kind: 'file_edits_applied', chat: this._chatChannelUri, turnId });
+					}
 					if (retireNonPtyShellTracking) {
 						this._nonPtyShellTerminals.retire(e.data.toolCallId);
 					}
@@ -5851,10 +5886,14 @@ export class CopilotAgentSession extends Disposable {
 				}
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 				this._activeSubagentAgentIds.add(e.agentId);
+				const execution = this._getOrCreateSubagentExecution(e.agentId);
 				if (parentToolCallId !== undefined) {
-					this._subagentExecutionsByAgentId.delete(e.agentId);
+					execution.generation++;
+					execution.hasExecutionBoundary = false;
+					execution.renderedMessages.clear();
+					execution.lastMessageId = undefined;
+					this._beginToolCallRound(e.data.toolCallId, e.agentId);
 				}
-				this._getOrCreateSubagentExecution(e.agentId);
 			}
 			if (this._currentTurn.value) {
 				this._rootTurnIdBySubagentToolCallId.set(e.data.toolCallId, this._currentTurn.value.id);

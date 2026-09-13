@@ -37,6 +37,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
@@ -65,6 +66,8 @@ import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHos
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
+import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
+import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -927,6 +930,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	};
 
 	const services = new ServiceCollection();
+	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+	services.set(IEditArcReporterService, new NullEditArcReporterService());
+	services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 	services.set(ILogService, options?.logService ?? new NullLogService());
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
@@ -8965,7 +8971,7 @@ Use the attached image as context.
 		});
 
 		suite('asynchronous edit completion', () => {
-			async function startEdits(count = 1) {
+			async function startEdits(count = 1, agentId?: string) {
 				const sessionDatabase = new TestSessionDatabase();
 				const writes = Array.from({ length: count }, () => ({
 					started: new DeferredPromise<void>(),
@@ -8981,6 +8987,12 @@ Use the attached image as context.
 				const result = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime });
 				result.session.resetTurnState('turn-edit');
 				result.mockSession.fire('user.message', { content: 'Edit the files' });
+				if (agentId) {
+					result.mockSession.fire('subagent.started', {
+						toolCallId: 'editing-child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Edits files',
+					}, { agentId });
+					result.mockSession.fire('user.message', { content: 'Edit the files' }, { agentId, id: 'child-user' });
+				}
 				for (let index = 0; index < count; index++) {
 					const toolCallId = String(index);
 					const hook = {
@@ -8999,12 +9011,41 @@ Use the attached image as context.
 						toolCallId,
 						toolName: hook.toolName,
 						arguments: hook.toolArgs,
-					});
-					result.mockSession.fire('tool.execution_complete', { toolCallId, success: true });
+					}, { agentId });
+					result.mockSession.fire('tool.execution_complete', { toolCallId, success: true }, { agentId });
 					await writes[index].started.p;
 				}
 				return { ...result, sessionDatabase, writes };
 			}
+
+			test('late accepted child edits invalidate changesets without updating a resumed child tool', async () => {
+				const { session, mockSession, signals, sessionDatabase, writes } = await startEdits(1, 'editing-child');
+				mockSession.backgroundTasks = [{
+					type: 'agent', id: 'editing-child', toolCallId: 'editing-child-task', description: 'Edits files',
+					status: 'idle', agentType: 'helper', prompt: 'Edit the files', startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+				mockSession.fire('user.message', { content: 'Follow-up' }, { agentId: 'editing-child', id: 'child-followup' });
+				await writes[0].release.complete();
+				await session['_currentTurn'].value!.drainToolCompletions();
+
+				assert.deepStrictEqual({
+					refreshes: signals.filter(signal => signal.kind === 'file_edits_applied')
+						.map(signal => ({ chat: signal.chat.toString(), turnId: signal.turnId })),
+					toolCompletions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turnId: edit.turnId, toolCallId: edit.toolCallId })),
+					activeChild: session['_activeSubagentAgentIds'].has('editing-child'),
+					activeRoot: session.currentTurnId,
+				}, {
+					refreshes: [{ chat: session.chatChannelUri.toString(), turnId: 'turn-edit' }],
+					toolCompletions: [],
+					persisted: [{ turnId: 'turn-edit', toolCallId: '0' }],
+					activeChild: true,
+					activeRoot: 'turn-edit',
+				});
+			});
 
 			test('idle drains every pending edit before completing the original turn', async () => {
 				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
@@ -10275,6 +10316,112 @@ Use the attached image as context.
 				});
 			});
 
+			test('retains old event identities when an agent id receives a new task mapping', async () => {
+				const { session, mockSession, signals } = await createTrackedChild();
+				mockSession.fire('assistant.message', {
+					messageId: 'old-message', apiCallId: 'old-call', content: 'OLD_CHILD',
+				}, child);
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'old-tool', toolName: 'view', arguments: { path: 'test.txt' },
+				}, child);
+				mockSession.fire('subagent.started', { ...started, toolCallId: 'child-task-new' }, child);
+				mockSession.fire('user.message', { content: 'New request' }, { ...child, id: 'new-child-user' });
+				const beforeLateEvents = signals.length;
+				mockSession.fire('assistant.message_delta', { messageId: 'old-message', deltaContent: 'STALE' }, child);
+				mockSession.fire('assistant.message', {
+					messageId: 'old-message', apiCallId: 'old-call', content: 'STALE',
+				}, child);
+				mockSession.fire('assistant.usage', { apiCallId: 'old-call', model: 'gpt-5.5', inputTokens: 99 }, child);
+				mockSession.fire('assistant.tool_call_delta', { toolCallId: 'old-tool', inputDelta: '{}' }, child);
+				mockSession.fire('tool.execution_complete', { toolCallId: 'old-tool', success: true }, child);
+				const lateChildActions = signals.slice(beforeLateEvents).filter(signal => signal.kind === 'action' && signal.parentToolCallId === 'child-task-new');
+				mockSession.fire('assistant.message', { messageId: 'new-message', content: 'NEW_CHILD' }, child);
+				const execution = session['_subagentExecutionsByAgentId'].get(child.agentId)!;
+
+				assert.deepStrictEqual({
+					generation: execution.generation,
+					oldMessageGeneration: execution.identities.get('messageId:old-message'),
+					newMessageGeneration: execution.identities.get('messageId:new-message'),
+					lateChildActions,
+					responses: responses(signals),
+				}, {
+					generation: 1,
+					oldMessageGeneration: 0,
+					newMessageGeneration: 1,
+					lateChildActions: [],
+					responses: [
+						{ toolCallId: task.toolCallId, turnId: 'root-original', content: 'OLD_CHILD' },
+						{ toolCallId: 'child-task-new', turnId: 'root-original', content: 'NEW_CHILD' },
+					],
+				});
+			});
+
+			for (const replaceRoot of [false, true]) {
+				for (const finalPath of ['message', 'task'] as const) {
+					test(`keeps child message rendering across root completion (replaceRoot=${replaceRoot}, finalPath=${finalPath})`, async () => {
+						const { session, mockSession, signals } = await createTrackedChild();
+						const childText = () => signals.flatMap(signal => {
+							if (signal.kind !== 'action' || signal.parentToolCallId !== task.toolCallId) {
+								return [];
+							}
+							if (signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown) {
+								return [signal.action.part.content];
+							}
+							return signal.action.type === ActionType.ChatDelta ? [signal.action.content] : [];
+						}).join('');
+						mockSession.fire('assistant.message_delta', { messageId: 'message', deltaContent: 'CHILD_' }, child);
+						mockSession.fire('session.idle', {});
+						if (replaceRoot) {
+							session.resetTurnState('root-replacement');
+						}
+						mockSession.fire('assistant.message_delta', { messageId: 'message', deltaContent: 'DONE' }, child);
+						const beforeFinal = childText();
+						if (finalPath === 'message') {
+							mockSession.fire('assistant.message', { messageId: 'message', content: 'CHILD_DONE' }, child);
+						}
+						mockSession.backgroundTasks = [task];
+						mockSession.fire('session.background_tasks_changed', {});
+						await timeout(0);
+
+						assert.deepStrictEqual({
+							beforeFinal,
+							afterFinal: childText(),
+							completions: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+							activeRoot: session.currentTurnId,
+						}, {
+							beforeFinal: 'CHILD_DONE',
+							afterFinal: 'CHILD_DONE',
+							completions: [task.toolCallId],
+							activeRoot: replaceRoot ? 'root-replacement' : undefined,
+						});
+					});
+				}
+			}
+
+			for (const toolRound of [false, true]) {
+				test(`an earlier full message cannot suppress the current child response fallback (toolRound=${toolRound})`, async () => {
+					const { mockSession, signals } = await createTrackedChild();
+					mockSession.fire('assistant.message', { messageId: 'earlier', content: 'EARLIER' }, child);
+					if (toolRound) {
+						mockSession.fire('tool.execution_start', {
+							toolCallId: 'tool', toolName: 'view', arguments: { path: 'test.txt' },
+						}, child);
+						mockSession.fire('tool.execution_complete', { toolCallId: 'tool', success: true }, child);
+					}
+					mockSession.fire('assistant.message_delta', { messageId: 'current', deltaContent: 'CHILD_' }, child);
+					mockSession.fire('assistant.message', { messageId: 'earlier', content: 'EARLIER' }, child);
+					mockSession.backgroundTasks = [task];
+					mockSession.fire('session.background_tasks_changed', {});
+					await timeout(0);
+
+					assert.strictEqual(getActions(signals).flatMap(action =>
+						action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+							? [action.part.content]
+							: action.type === ActionType.ChatDelta ? [action.content] : []
+					).join(''), 'EARLIERCHILD_DONE');
+				});
+			}
+
 			for (const replaceRoot of [false, true]) {
 				test(`preserves originating root correlation across an awaited task status (replaceRoot=${replaceRoot})`, async () => {
 					const { session, mockSession, signals } = await createTrackedChild();
@@ -10444,6 +10591,7 @@ Use the attached image as context.
 			{ prefix: 'CHILD_', parentCompletes: false, completedTask: false, toolRound: true, messageFirst: false },
 			{ prefix: '', parentCompletes: false, completedTask: false, toolRound: false, messageFirst: true },
 			{ prefix: 'CHILD_', parentCompletes: false, completedTask: false, toolRound: false, messageFirst: true },
+			{ prefix: 'CHILD_', parentCompletes: false, completedTask: false, toolRound: true, messageFirst: true },
 		]) {
 			test(`preserves authoritative final child text (prefix=${prefix.length}, parentComplete=${parentCompletes}, completedTask=${completedTask}, toolRound=${toolRound}, messageFirst=${messageFirst})`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -10775,7 +10923,7 @@ Use the attached image as context.
 			mockSession.fire('session.background_tasks_changed', {});
 			await timeout(0);
 			const identities = [...session['_subagentExecutionsByAgentId'].get('child')!.identities.keys()].sort();
-			const renderedMessages = session['_subagentExecutionsByAgentId'].get('child')!.renderedMessageIds.size;
+			const renderedMessages = session['_subagentExecutionsByAgentId'].get('child')!.renderedMessages.size;
 			const retainedText = session['_subagentExecutionsByAgentId'].get('child')?.lastMarkdownPart;
 			session.dispose();
 
