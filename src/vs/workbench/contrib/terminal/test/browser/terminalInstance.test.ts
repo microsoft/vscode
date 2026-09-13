@@ -372,6 +372,17 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(sentText, [['\'file\'', false], ['& \'file\'', true]]);
 		});
 
+		test('external file drop contains a rejected sendPath promise', async () => {
+			const instance = await createTerminalInstance();
+			let didSendText = false;
+			instance.preparePathForShell = async () => { throw new Error('unsafe path'); };
+			instance.sendText = async () => { didSendText = true; };
+
+			await instance.sendPath('/test/file', false);
+
+			strictEqual(didSendText, false);
+		});
+
 		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {
 			const instance = await createTerminalInstance();
 			const xterm = await instance.xtermReadyPromise;
