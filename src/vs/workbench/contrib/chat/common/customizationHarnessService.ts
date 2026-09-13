@@ -22,6 +22,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
 import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 
 
@@ -133,6 +134,12 @@ export interface IHarnessDescriptor {
 	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
+	/**
+	 * Local MCP collection identifiers that do not apply to this harness.
+	 * Host-published MCP servers remain visible even when their local counterpart
+	 * belongs to a hidden collection.
+	 */
+	readonly hiddenMcpServerCollectionIds?: readonly string[];
 }
 
 /**
@@ -255,6 +262,8 @@ export interface ICustomizationSourceFolder {
 	readonly label: string;
 	/** Customization source for this folder (typically 'local' or 'user' for writable creation locations). */
 	readonly source: AICustomizationSource;
+	/** Opaque provider-defined identity shared by folders that belong to the same destination. */
+	readonly destinationGroupId?: string;
 }
 
 /**
@@ -635,6 +644,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const commands = await this.getSlashCommands(sessionResource, token);
 		const command = commands.find(cmd => cmd.name === name);
 		if (command) {
+			if (isAgentBuiltinCustomizationUri(command.uri)) {
+				return command;
+			}
 			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
 			return {
 				...command,

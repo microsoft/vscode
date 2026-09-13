@@ -27,7 +27,7 @@ class SessionsOpenerParticipant implements ISessionOpenerParticipant {
 			return false;
 		}
 
-		await sessionsService.openSession(resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus });
+		await sessionsService.openSession(resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus, source: 'link' });
 		return true;
 	}
 }

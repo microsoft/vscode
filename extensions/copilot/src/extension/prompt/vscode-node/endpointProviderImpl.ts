@@ -169,6 +169,10 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	 * falling back to the parent model.
 	 */
 	private async _resolveFamily(family: string): Promise<IChatEndpoint> {
+		if (family === 'copilot-dictation-cleanup-nano') {
+			const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily('gpt-5.4-nano');
+			return this.getOrCreateChatEndpointInstance(modelMetadata);
+		}
 		if (family === 'copilot-dictation-cleanup-luna') {
 			const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily('gpt-5.6-luna');
 			return this.getOrCreateChatEndpointInstance(modelMetadata);

@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Then reply with exactly "renamed".'
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Then reply with exactly "renamed".'
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
             origin:
               kind: user
       - channel: ${session_0}

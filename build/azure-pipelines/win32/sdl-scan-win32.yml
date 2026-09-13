@@ -48,6 +48,10 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - template: ../common/foundry-local.yml@self
+    parameters:
+      phase: prepare
+
   - pwsh: |
       $includes = @'
         {
@@ -92,6 +96,10 @@ steps:
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
 
+  - template: ../common/foundry-local.yml@self
+    parameters:
+      phase: install
+
   - script: node build/azure-pipelines/distro/mixin-npm.ts
     displayName: Mixin distro node modules
 
@@ -101,6 +109,9 @@ steps:
       VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - template: ../common/install-builtin-extensions.yml@self
+
+  - script: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
 
   - template: ../common/mixin-vscode-capi.yml@self
 

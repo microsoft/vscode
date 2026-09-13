@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitleControl.css';
-import { addDisposableListener, EventType, h } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, DisposableResizeObserver, EventType, getWindow, h } from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -49,11 +49,25 @@ export class ChatViewTitleControl extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.render(this.container);
+		// Avoid forcing layout; ResizeObserver reports the final size before paint and triggers relayout.
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatViewTitleControl.height', entries => {
+			const entry = entries.find(entry => entry.target === this.titleContainer);
+			if (!entry) {
+				return;
+			}
+			const height = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
+			if (height !== this.lastKnownHeight) {
+				this.lastKnownHeight = height;
+				this._onDidChangeHeight.fire();
+			}
+		}, getWindow(this.titleContainer!), { resizeObserverCtor }));
+		this._register(resizeObserver.observe(this.titleContainer!, { box: 'border-box' }));
 
 		this.registerActions();
 	}
@@ -165,13 +179,6 @@ export class ChatViewTitleControl extends Disposable {
 
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
 		this.titleLabel.value?.updateTitle(title);
-
-		const currentHeight = this.getHeight();
-		if (currentHeight !== this.lastKnownHeight) {
-			this.lastKnownHeight = currentHeight;
-
-			this._onDidChangeHeight.fire();
-		}
 	}
 
 	private shouldRender(): boolean {
@@ -179,11 +186,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	getHeight(): number {
-		if (!this.titleContainer || this.titleContainer.style.display === 'none') {
-			return 0;
-		}
-
-		return this.titleContainer.offsetHeight;
+		return this.lastKnownHeight;
 	}
 }
 

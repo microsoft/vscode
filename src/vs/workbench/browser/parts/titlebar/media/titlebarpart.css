@@ -435,11 +435,16 @@
 	padding-right: 4px;
 	flex-grow: 0;
 	flex-shrink: 0;
+	color: var(--vscode-titleBar-activeForeground);
 	text-align: center;
 	position: relative;
 	z-index: 2500;
 	-webkit-app-region: no-drag;
 	height: 100%;
+}
+
+.monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-right > .action-toolbar-container {
+	color: var(--vscode-titleBar-inactiveForeground);
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {

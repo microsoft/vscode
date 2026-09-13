@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { IAnchor } from '../../../../../../../base/browser/ui/contextview/contextview.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -14,40 +12,10 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { IModelConfigurationAccess } from './modelPickerActionItem.js';
-
-type ChatThinkingEffortChangeClassification = {
-	owner: 'lramos15';
-	comment: 'Reporting when a model configuration value (e.g. thinking effort, or the Auto routing tier) is changed';
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the configuration was changed for' };
-	property: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The first-party configuration property that was changed (reasoningEffort, or tier for the Auto model); "unknown" for third-party providers, which choose their own keys' };
-	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous value of the configuration property' };
-	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new value of the configuration property' };
-};
-
-type ChatThinkingEffortChangeEvent = {
-	model: string | TelemetryTrustedValue<string>;
-	property: string;
-	fromValue: string;
-	toValue: string;
-};
-
-type ChatContextSizeChangeClassification = {
-	owner: 'lramos15';
-	comment: 'Reporting when the context window size is changed';
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the context size was changed for' };
-	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous context size value' };
-	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new context size value' };
-};
-
-type ChatContextSizeChangeEvent = {
-	model: string | TelemetryTrustedValue<string>;
-	fromValue: string;
-	toValue: string;
-};
+import { getModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { logModelConfigurationChange } from './modelPickerTelemetry.js';
 
 export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
@@ -56,16 +24,9 @@ export interface IModelPickerConfigurationHost {
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
-	readonly onDidChangeVisibility?: (visible: boolean) => void | Promise<void>;
-	readonly getActionWidgetContainer?: () => HTMLElement | undefined;
-	readonly getActionWidgetAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
-	readonly getAnchorPosition?: () => AnchorPosition | undefined;
 }
 
 export class ModelPickerConfiguration {
-
-	private _showRequestId = 0;
-	private _activeButton: HTMLElement | undefined;
 
 	constructor(
 		private readonly _host: IModelPickerConfigurationHost,
@@ -75,8 +36,8 @@ export class ModelPickerConfiguration {
 
 	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean): void {
 		const model = this._host.getSelectedModel();
-		const effortConfig = this._getConfigProperty('navigation');
-		const tokensConfig = this._getConfigProperty('tokens');
+		const effortConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_EFFORT);
+		const tokensConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_CONTEXT);
 		if (compact || !model || noModelsAvailable || (!effortConfig && !tokensConfig)) {
 			button.style.display = 'none';
 			return;
@@ -91,7 +52,7 @@ export class ModelPickerConfiguration {
 				: String(effortConfig.value);
 			labelParts.push(effortLabel);
 			// The group is generic, so producers name it: Copilot's Auto model uses it
-			// for "Tier" while regular models use it for thinking effort.
+			// for "Optimize for" while regular models use it for thinking effort.
 			ariaParts.push(effortConfig.schema.title
 				? localize('chat.modelPicker.navigationAriaLabel', "{0}: {1}", effortConfig.schema.title, effortLabel)
 				: localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
@@ -123,11 +84,6 @@ export class ModelPickerConfiguration {
 		if (this._host.isDisabled() || !button || !this._host.getSelectedModel()) {
 			return;
 		}
-		if (button.getAttribute('aria-expanded') === 'true') {
-			this._showRequestId++;
-			this._actionWidgetService.hide(true);
-			return;
-		}
 
 		const items = this._buildItems();
 		if (!items.length) {
@@ -135,7 +91,6 @@ export class ModelPickerConfiguration {
 		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
-		const showRequestId = ++this._showRequestId;
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
 				this._actionWidgetService.focusItemById(action.id);
@@ -143,15 +98,7 @@ export class ModelPickerConfiguration {
 				this._actionWidgetService.updateItems(this._buildItems(), action.id);
 			},
 			onHide: () => {
-				this._showRequestId++;
-				if (this._activeButton === button) {
-					this._activeButton = undefined;
-				}
 				button.setAttribute('aria-expanded', 'false');
-				const visibilityChange = this._host.onDidChangeVisibility?.(false);
-				if (visibilityChange) {
-					void visibilityChange.catch(() => { });
-				}
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -159,92 +106,39 @@ export class ModelPickerConfiguration {
 		};
 
 		button.setAttribute('aria-expanded', 'true');
-		this._activeButton = button;
 		const showCacheBreakHint = this._host.shouldShowCacheBreakHint();
-		const showActionWidget = () => {
-			if (showRequestId !== this._showRequestId || button.getAttribute('aria-expanded') !== 'true') {
-				return;
-			}
-			this._actionWidgetService.show(
-				'ChatModelConfigPicker',
-				false,
-				items,
-				delegate,
-				this._host.getActionWidgetAnchor?.(button) ?? button,
-				this._host.getActionWidgetContainer?.(),
-				[],
-				{
-					isChecked: element => element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined,
-					getRole: element => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
-					getWidgetRole: () => 'menu' as const,
-				},
-				withChatInputPickerMotion({
-					headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
-					headerIcon: showCacheBreakHint ? Codicon.info : undefined,
-					headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,
-					headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
-					reserveSubmenuSpace: false,
-					anchorPosition: this._host.getAnchorPosition?.(),
-				}),
-			);
+		this._actionWidgetService.show(
+			'ChatModelConfigPicker',
+			false,
+			items,
+			delegate,
+			button,
+			undefined,
+			[],
+			{
+				isChecked: element => element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined,
+				getRole: element => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
+				getWidgetRole: () => 'menu' as const,
+			},
+			withChatInputPickerMotion({
+				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
+				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+				headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,
+				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
+				reserveSubmenuSpace: false,
+			}),
+		);
 
-			if (focusGroup) {
-				const groupItem = items.find(item => item.kind === ActionListItemKind.Action && item.item?.id?.startsWith(`${focusGroup}.`));
-				if (groupItem?.kind === ActionListItemKind.Action && groupItem.item) {
-					this._actionWidgetService.focusItemById(groupItem.item.id);
-				}
+		if (focusGroup) {
+			const groupItem = items.find(item => item.kind === ActionListItemKind.Action && item.item?.id?.startsWith(`${focusGroup}.`));
+			if (groupItem?.kind === ActionListItemKind.Action && groupItem.item) {
+				this._actionWidgetService.focusItemById(groupItem.item.id);
 			}
-		};
-		const visibilityChange = this._host.onDidChangeVisibility?.(true);
-		if (visibilityChange) {
-			void visibilityChange.then(showActionWidget, () => {
-				if (showRequestId !== this._showRequestId) {
-					return;
-				}
-				this._showRequestId++;
-				if (this._activeButton === button) {
-					this._activeButton = undefined;
-				}
-				button.setAttribute('aria-expanded', 'false');
-				const hideVisibilityChange = this._host.onDidChangeVisibility?.(false);
-				if (hideVisibilityChange) {
-					void hideVisibilityChange.catch(() => { });
-				}
-				if (dom.isHTMLElement(previouslyFocusedElement)) {
-					previouslyFocusedElement.focus();
-				}
-			});
-		} else {
-			showActionWidget();
-		}
-	}
-
-	dispose(): void {
-		this._showRequestId++;
-		if (this._activeButton) {
-			this._activeButton = undefined;
-			this._actionWidgetService.hide(true);
 		}
 	}
 
 	private _getConfigProperty(group: string) {
-		const model = this._host.getSelectedModel();
-		if (!model) {
-			return undefined;
-		}
-		const schema = model.metadata.configurationSchema;
-		if (!schema?.properties) {
-			return undefined;
-		}
-		const configurationAccess = this._host.getConfigurationAccess();
-		const currentConfig = configurationAccess.getModelConfiguration(model.identifier) ?? {};
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (propSchema.group !== group || !propSchema.enum?.length) {
-				continue;
-			}
-			return { key, value: currentConfig[key] ?? propSchema.default, schema: propSchema };
-		}
-		return undefined;
+		return getModelConfigProperty(this._host.getSelectedModel(), this._host.getConfigurationAccess(), group);
 	}
 
 	private _buildItems(): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -261,7 +155,6 @@ export class ModelPickerConfiguration {
 			group: string,
 			fallbackHeaderLabel: string,
 			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
-			logChange: (value: unknown, previousValue: string, key: string) => void,
 		): void => {
 			const config = this._getConfigProperty(group);
 			if (!config) {
@@ -289,7 +182,7 @@ export class ModelPickerConfiguration {
 						tooltip: enumDescription ?? '',
 						label: displayLabel,
 						run: () => {
-							logChange(value, previousValue, config.key);
+							logModelConfigurationChange(this._telemetryService, model, group, config.key, previousValue, value);
 							return configurationAccess.setModelConfiguration(modelIdentifier, { [config.key]: value });
 						}
 					},
@@ -306,27 +199,14 @@ export class ModelPickerConfiguration {
 		};
 
 		appendConfigSection(
-			'navigation',
+			MODEL_CONFIG_GROUP_EFFORT,
 			localize('chat.effort.header', "Thinking Effort"),
 			(value, enumLabel) => enumLabel ?? String(value),
-			(value, previousValue, key) => this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
-				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-				// Third-party providers choose their own property keys, so only
-				// first-party ones are reported as a controlled vocabulary.
-				property: model.metadata.vendor === 'copilot' ? key : 'unknown',
-				fromValue: previousValue,
-				toValue: String(value),
-			}),
 		);
 		appendConfigSection(
-			'tokens',
+			MODEL_CONFIG_GROUP_CONTEXT,
 			localize('chat.tokens.header', "Context Size"),
 			(value, enumLabel) => enumLabel ?? formatTokenCount(Number(value)),
-			(value, previousValue) => this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
-				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-				fromValue: previousValue,
-				toValue: String(value),
-			}),
 		);
 
 		return items;

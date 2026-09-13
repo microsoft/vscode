@@ -15,6 +15,7 @@ export interface IAgentHostProviderTestConfig {
 	readonly provider: string;
 	readonly scheme: string;
 	readonly githubToken: string;
+	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 }
 
 export async function createProviderSession(
@@ -35,7 +36,7 @@ export async function createProviderSession(
 		channel: sessionUri,
 		provider: config.provider,
 		workingDirectories: [workingDirectory.toString()],
-		config: { isolation: 'folder' },
+		config: { isolation: 'folder', ...config.sessionConfig },
 	}, 30_000);
 	trackingList.push(sessionUri);
 
@@ -54,7 +55,7 @@ export function dispatchTurn(client: TestProtocolClient, session: string, turnId
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
@@ -67,7 +68,7 @@ export function dispatchTurnWithAttachments(client: TestProtocolClient, session:
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User }, attachments: [...attachments] },
 		},
 	});

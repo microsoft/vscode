@@ -217,7 +217,7 @@ const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 // regardless of their length. These are known to frequently exceed the per-property limit, so
 // always producing the `<key>Chunk` family gives the backend a single, uniform place to read the
 // value from instead of having to branch on whether the value happened to be chunked.
-const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
+const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON', 'prompt']);
 
 // Overrides for the base name of the compressed chunk family. By default the chunk family is named
 // `<key>Chunk`, but some backend mappings expect a different casing. For `messagesJson` the backend

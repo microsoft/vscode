@@ -5,6 +5,7 @@
 
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from '../../browser/sessionsPolicyBlocked.js';
@@ -18,6 +19,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
+				override readonly nameShort = 'Code - OSS';
 				override readonly quality = 'insider';
 				override readonly urlProtocol = 'vscode-insiders';
 			}());
@@ -49,6 +51,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		render: (ctx) => createOverlay(ctx, {
 			reason: SessionsBlockedReason.AccountPolicyGate,
+		}),
+	}),
+	ManagedSettingsUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => createOverlay(ctx, {
+			reason: SessionsBlockedReason.ManagedSettingsRefresh,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				lastAttemptAt: Date.now(),
+			},
 		}),
 	}),
 });

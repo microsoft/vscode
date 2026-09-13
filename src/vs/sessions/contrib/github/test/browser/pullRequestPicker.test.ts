@@ -13,7 +13,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
@@ -86,6 +86,22 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
+	test('only makes same-repository pull requests without existing sessions available', () => {
+		const existingPullRequests = { numbers: new Set([1]), headRefs: new Set(['feature-2']) };
+
+		assert.deepStrictEqual([
+			pullRequest(1),
+			pullRequest(2),
+			pullRequest(3, { isCrossRepository: true }),
+			pullRequest(4),
+		].map(item => isPullRequestAvailable(item, existingPullRequests)), [
+			false,
+			false,
+			false,
+			true,
+		]);
+	});
+
 	test('merges viewer-group results into the loaded catalog without dropping either set', () => {
 		const merged = mergePullRequestSummaries([
 			pullRequest(1),
@@ -120,6 +136,7 @@ suite('Create Session from Pull Request', () => {
 				owner: 'microsoft',
 				repo: 'vscode',
 				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+				associatedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
 				pullRequestBranchName: 'feature',
 			},
 		);
@@ -149,6 +166,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: attachment.fullName,
 			icon: attachment.icon?.id,
 			uri: attachment.uri.toString(),
+			readyMessage: attachment.readyMessage,
 			value: JSON.parse(attachment.value ?? ''),
 		}, {
 			kind: 'transcriptContext',
@@ -156,6 +174,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: '#42 Improve sessions',
 			icon: 'git-pull-request',
 			uri: 'https://github.com/owner/repo/pull/42',
+			readyMessage: 'Session ready. Pull request #42 is checked out and attached.',
 			value: {
 				usageInstructions: 'Use this snapshot as the primary source for questions about the pull request. Do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from this snapshot.',
 				owner: 'owner',
@@ -259,27 +278,31 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
-	test('resolves non-cloud repositories from session metadata or Git remotes', async () => {
+	test('resolves non-cloud repositories from session metadata', async () => {
 		const cloudRoot = URI.parse('github-remote-file://github/alexr00/playground/copilot%252Finspect-pull-request-748');
 		const localRoot = URI.file('/repos/alexr00/playground');
 		const remoteRoot = URI.parse('vscode-remote://ssh-remote+host/repos/alexr00/playground');
 		const cloudSession = sessionWithRepository(cloudRoot, 'alexr00', 'playground');
 		const localSession = sessionWithRepository(localRoot, 'alexr00', 'playground', false);
+		const localSessionWithMetadata = sessionWithRepository(localRoot, 'alexr00', 'playground');
+		const otherCloudSession = sessionWithRepository(cloudRoot, 'microsoft', 'vscode');
 		const remoteSession = sessionWithRepository(remoteRoot, 'alexr00', 'playground');
 
 		assert.deepStrictEqual({
-			cloud: await resolvePullRequestSessionRepository([cloudSession], async () => undefined),
-			local: await resolvePullRequestSessionRepository([localSession], async () => ({ owner: 'alexr00', repo: 'playground' })),
-			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession], async () => undefined),
-			remote: await resolvePullRequestSessionRepository([remoteSession], async () => undefined),
+			cloud: await resolvePullRequestSessionRepository([cloudSession]),
+			local: await resolvePullRequestSessionRepository([localSession]),
+			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession]),
+			mixedRepositories: await resolvePullRequestSessionRepository([otherCloudSession, localSessionWithMetadata]),
+			remote: await resolvePullRequestSessionRepository([remoteSession]),
 		}, {
 			cloud: undefined,
-			local: {
+			local: undefined,
+			mixed: {
 				folderUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',
 			},
-			mixed: {
+			mixedRepositories: {
 				folderUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',
@@ -291,25 +314,6 @@ suite('Create Session from Pull Request', () => {
 			},
 		});
 	});
-
-	test('parses GitHub repository identity from origin before other remotes', () => {
-		assert.deepStrictEqual({
-			https: getGitHubRepositoryFromRemotes([
-				{ name: 'upstream', fetchUrl: 'git@github.com:microsoft/vscode.git' },
-				{ name: 'origin', fetchUrl: 'https://github.com/alexr00/vscode.git' },
-			]),
-			ssh: getGitHubRepositoryFromRemotes([
-				{ name: 'origin', fetchUrl: 'ssh://git@github.com/alexr00/playground' },
-			]),
-			nonGitHub: getGitHubRepositoryFromRemotes([
-				{ name: 'origin', fetchUrl: 'https://example.com/alexr00/playground.git' },
-			]),
-		}, {
-			https: { owner: 'alexr00', repo: 'vscode' },
-			ssh: { owner: 'alexr00', repo: 'playground' },
-			nonGitHub: undefined,
-		});
-	});
 });
 
 function pullRequest(number: number, overrides: Partial<IGitHubPullRequestSummary> = {}): IGitHubPullRequestSummary {
@@ -318,6 +322,7 @@ function pullRequest(number: number, overrides: Partial<IGitHubPullRequestSummar
 		title: `Pull request ${number}`,
 		author: { login: 'author', avatarUrl: '' },
 		headRef: `feature-${number}`,
+		isCrossRepository: false,
 		isDraft: false,
 		updatedAt: new Date().toISOString(),
 		additions: 1,
