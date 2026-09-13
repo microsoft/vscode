@@ -202,6 +202,8 @@ class MockCopilotSession {
 	readonly backgroundTaskListResults: BackgroundTasks[] = [];
 	readonly backgroundTaskListGates: Promise<void>[] = [];
 	backgroundTaskListCalls = 0;
+	backgroundTaskListActiveCalls = 0;
+	backgroundTaskListMaxActiveCalls = 0;
 	backgroundTaskRefreshCalls = 0;
 	backgroundTaskListError: Error | undefined;
 
@@ -433,14 +435,20 @@ class MockCopilotSession {
 		tasks: {
 			list: async () => {
 				this.backgroundTaskListCalls++;
-				if (this.backgroundTaskListError) {
-					const error = this.backgroundTaskListError;
-					this.backgroundTaskListError = undefined;
-					throw error;
+				this.backgroundTaskListActiveCalls++;
+				this.backgroundTaskListMaxActiveCalls = Math.max(this.backgroundTaskListMaxActiveCalls, this.backgroundTaskListActiveCalls);
+				try {
+					if (this.backgroundTaskListError) {
+						const error = this.backgroundTaskListError;
+						this.backgroundTaskListError = undefined;
+						throw error;
+					}
+					const tasks = (this.backgroundTaskListResults.shift() ?? this.backgroundTasks).map(task => ({ ...task }));
+					await this.backgroundTaskListGates.shift();
+					return { tasks };
+				} finally {
+					this.backgroundTaskListActiveCalls--;
 				}
-				const tasks = (this.backgroundTaskListResults.shift() ?? this.backgroundTasks).map(task => ({ ...task }));
-				await this.backgroundTaskListGates.shift();
-				return { tasks };
 			},
 			refresh: async () => {
 				this.backgroundTaskRefreshCalls++;
@@ -831,6 +839,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
 	onTurnEnded?: () => void;
+	onProgress?: (signal: AgentSignal) => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
@@ -860,6 +869,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	disposables.add(progressEmitter.event(signal => {
 		signals.push(signal);
+		options?.onProgress?.(signal);
 		for (let i = waiters.length - 1; i >= 0; i--) {
 			if (waiters[i].predicate(signal)) {
 				const { deferred } = waiters[i];
@@ -10387,6 +10397,378 @@ Use the attached image as context.
 				resumed: ['tc-subagent'],
 			});
 		});
+
+		for (const [name, queuedStatusChange, trailingStatusChange] of [
+			['without another notification', false, false],
+			['after duplicate notifications', true, false],
+			['with another status change during the trailing read', true, true],
+		] as const) {
+			test(`refreshes subagent task status invalidated by resume ${name}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-parent');
+				mockSession.fire('subagent.started', {
+					toolCallId: 'tc-subagent',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: 'agent-1' });
+				mockSession.fire('user.message', { content: 'First turn' }, { agentId: 'agent-1', id: 'initial-child-user' });
+				const task = {
+					type: 'agent',
+					id: 'agent-1',
+					toolCallId: 'tc-subagent',
+					description: 'Explore tests',
+					status: 'idle',
+					agentType: 'explore',
+					prompt: 'First turn',
+					startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+				mockSession.backgroundTasks = [task];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				const staleRead = new DeferredPromise<void>();
+				const currentRead = new DeferredPromise<void>();
+				mockSession.backgroundTaskListGates.push(staleRead.p, currentRead.p);
+				mockSession.fire('session.background_tasks_changed', {});
+				const currentTask = {
+					...task,
+					prompt: 'Second turn',
+					activeStartedAt: new Date(2).toISOString(),
+					idleSince: new Date(3).toISOString(),
+				};
+				mockSession.backgroundTasks = [trailingStatusChange ? { ...currentTask, status: 'running', idleSince: undefined } : currentTask];
+				if (queuedStatusChange) {
+					for (let i = 0; i < 3; i++) {
+						mockSession.fire('session.background_tasks_changed', {});
+					}
+				}
+				mockSession.fire('user.message', { content: 'Second turn' }, { agentId: 'agent-1', id: 'followup-child-user' });
+				const duringStaleRead = mockSession.backgroundTaskListCalls;
+				staleRead.complete();
+				await timeout(0);
+				const duringCurrentRead = {
+					listCalls: mockSession.backgroundTaskListCalls,
+					completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				};
+				if (trailingStatusChange) {
+					mockSession.backgroundTasks = [currentTask];
+					for (let i = 0; i < 3; i++) {
+						mockSession.fire('session.background_tasks_changed', {});
+					}
+				}
+				currentRead.complete();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					duringStaleRead,
+					duringCurrentRead,
+					listCalls: mockSession.backgroundTaskListCalls,
+					maxActiveCalls: mockSession.backgroundTaskListMaxActiveCalls,
+					completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+					resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+				}, {
+					duringStaleRead: 2,
+					duringCurrentRead: { listCalls: 3, completed: ['tc-subagent'] },
+					listCalls: trailingStatusChange ? 4 : 3,
+					maxActiveCalls: 1,
+					completed: ['tc-subagent', 'tc-subagent'],
+					resumed: ['tc-subagent'],
+				});
+			});
+		}
+
+		test('refreshes subagent task status when applying a completion resumes another child', async () => {
+			let resumeSecondChild: (() => void) | undefined;
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				onProgress: signal => {
+					if (signal.kind === 'subagent_completed' && signal.toolCallId === 'tc-subagent-1') {
+						resumeSecondChild?.();
+					}
+				},
+			});
+			session.resetTurnState('turn-parent');
+			const tasks = ['1', '2'].map(id => ({
+				type: 'agent',
+				id: `agent-${id}`,
+				toolCallId: `tc-subagent-${id}`,
+				description: 'Explore tests',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'First turn',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>));
+			for (const task of tasks) {
+				mockSession.fire('subagent.started', {
+					toolCallId: task.toolCallId,
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: task.id });
+				mockSession.fire('user.message', { content: 'First turn' }, { agentId: task.id, id: `initial-user-${task.id}` });
+			}
+			mockSession.backgroundTasks = tasks;
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			mockSession.fire('user.message', { content: 'Second turn' }, { agentId: 'agent-1', id: 'followup-user-1' });
+			resumeSecondChild = () => {
+				resumeSecondChild = undefined;
+				mockSession.fire('user.message', { content: 'Second turn' }, { agentId: 'agent-2', id: 'followup-user-2' });
+				mockSession.backgroundTasks = tasks.map(task => ({
+					...task,
+					prompt: 'Second turn',
+					activeStartedAt: new Date(2).toISOString(),
+					idleSince: new Date(3).toISOString(),
+				}));
+			};
+			const currentRead = new DeferredPromise<void>();
+			mockSession.backgroundTaskListGates.push(Promise.resolve(), currentRead.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const beforeCurrentRead = signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId);
+			currentRead.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				beforeCurrentRead,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+				listCalls: mockSession.backgroundTaskListCalls,
+				maxActiveCalls: mockSession.backgroundTaskListMaxActiveCalls,
+			}, {
+				beforeCurrentRead: ['tc-subagent-1', 'tc-subagent-2', 'tc-subagent-1'],
+				completed: ['tc-subagent-1', 'tc-subagent-2', 'tc-subagent-1', 'tc-subagent-2'],
+				resumed: ['tc-subagent-1', 'tc-subagent-2'],
+				listCalls: 3,
+				maxActiveCalls: 1,
+			});
+		});
+
+		for (const end of ['dispose', 'abort'] as const) {
+			test(`stops pending subagent task status reconciliation on ${end}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-parent');
+				mockSession.fire('subagent.started', {
+					toolCallId: 'tc-subagent',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: 'agent-1' });
+				mockSession.backgroundTasks = [{
+					type: 'agent',
+					id: 'agent-1',
+					toolCallId: 'tc-subagent',
+					description: 'Explore tests',
+					status: 'idle',
+					agentType: 'explore',
+					prompt: 'First turn',
+					startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				}];
+				const staleRead = new DeferredPromise<void>();
+				mockSession.backgroundTaskListGates.push(staleRead.p);
+				mockSession.fire('session.background_tasks_changed', {});
+				mockSession.fire('session.background_tasks_changed', {});
+				await session[end]();
+				staleRead.complete();
+				await timeout(0);
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					listCalls: mockSession.backgroundTaskListCalls,
+					completed: signals.filter(signal => signal.kind === 'subagent_completed'),
+				}, {
+					listCalls: 1,
+					completed: [],
+				});
+			});
+		}
+
+		test('abort clears only its owned subagent bookkeeping before the SDK settles', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			for (const suffix of ['background', 'aborted']) {
+				session.resetTurnState(`turn-${suffix}`);
+				mockSession.fire('assistant.turn_start', { turnId: `sdk-${suffix}` });
+				mockSession.fire('subagent.started', {
+					toolCallId: `tc-${suffix}`,
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: `agent-${suffix}` });
+				mockSession.fire('assistant.usage', {
+					model: 'gpt-5.5',
+					inputTokens: 5,
+				}, { agentId: `agent-${suffix}`, id: `usage-${suffix}` });
+				if (suffix === 'background') {
+					mockSession.fire('session.idle', { aborted: false });
+				}
+			}
+
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+			const abort = session.abort();
+			const abortedChild = session.getTurnTokenUsage('child-aborted', 'tc-aborted');
+			const backgroundChild = session.getTurnTokenUsage('child-background', 'tc-background');
+			abortGate.complete();
+			await abort;
+			mockSession.fire('session.idle', { aborted: true });
+			session.resetTurnState('turn-next');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-next' });
+			mockSession.fire('assistant.usage', {
+				model: 'gpt-5.5',
+				inputTokens: 7,
+			}, { agentId: 'agent-background', id: 'usage-background-next' });
+			const continuedBackground = session.getTurnTokenUsage('continued-background', 'tc-background');
+
+			assert.deepStrictEqual({
+				abortedChild,
+				backgroundInputTokens: backgroundChild?.summaries.map(row => row.knownInputTokens),
+				continuedBackgroundInputTokens: continuedBackground?.summaries.map(row => row.knownInputTokens),
+				childLifecycle: signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed'),
+			}, {
+				abortedChild: undefined,
+				backgroundInputTokens: [5],
+				continuedBackgroundInputTokens: [12],
+				childLifecycle: [],
+			});
+		});
+
+		for (const replyTiming of ['before reuse', 'after reuse'] as const) {
+			test(`resets aborted subagent usage when its pending status reply arrives ${replyTiming}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-parent');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
+				mockSession.fire('subagent.started', {
+					toolCallId: 'tc-subagent',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: 'agent-1' });
+				mockSession.fire('user.message', { content: 'First turn' }, { agentId: 'agent-1', id: 'initial-child-user' });
+				mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.usage', {
+					model: 'gpt-5.5',
+					inputTokens: 5,
+					outputTokens: 7,
+					copilotUsage: { totalNanoAiu: 200_000_000 },
+				}, { agentId: 'agent-1', id: 'old-child-usage' });
+
+				const task = {
+					type: 'agent',
+					id: 'agent-1',
+					toolCallId: 'tc-subagent',
+					description: 'Explore tests',
+					status: 'idle',
+					agentType: 'explore',
+					prompt: 'First turn',
+					startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+				mockSession.backgroundTasks = [task];
+				const staleRead = new DeferredPromise<void>();
+				mockSession.backgroundTaskListGates.push(staleRead.p);
+				mockSession.fire('session.background_tasks_changed', {});
+				mockSession.fire('session.background_tasks_changed', {});
+				await session.abort();
+				mockSession.fire('session.idle', { aborted: true });
+				if (replyTiming === 'before reuse') {
+					staleRead.complete();
+					await timeout(0);
+				}
+
+				session.resetTurnState('turn-next-parent');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-next-parent' });
+				mockSession.fire('user.message', {
+					content: 'Second turn',
+					source: 'agent-parent',
+				}, { agentId: 'agent-1', id: 'followup-child-user' });
+				mockSession.fire('assistant.usage', {
+					model: 'claude-opus-4.8',
+					inputTokens: 10,
+					cacheReadTokens: 3,
+					outputTokens: 20,
+					copilotUsage: { totalNanoAiu: 500_000_000 },
+				}, { id: 'new-parent-usage' });
+				mockSession.fire('assistant.usage', {
+					model: 'gpt-5.5',
+					inputTokens: 6,
+					cacheReadTokens: 2,
+					outputTokens: 8,
+					copilotUsage: { totalNanoAiu: 300_000_000 },
+				}, { agentId: 'agent-1', id: 'new-child-usage' });
+
+				mockSession.backgroundTasks = [{
+					...task,
+					status: 'running',
+					prompt: 'Second turn',
+					activeStartedAt: new Date(2).toISOString(),
+					idleSince: undefined,
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				if (replyTiming === 'after reuse') {
+					staleRead.complete();
+				}
+				await timeout(0);
+
+				const usageFor = (parentToolCallId: string | undefined) => {
+					const signal = signals.findLast(signal =>
+						signal.kind === 'action'
+						&& signal.action.type === ActionType.ChatUsage
+						&& signal.action.turnId === 'turn-next-parent'
+						&& signal.parentToolCallId === parentToolCallId);
+					assert.ok(signal?.kind === 'action' && signal.action.type === ActionType.ChatUsage);
+					const meta = readUsageInfoMeta(signal.action.usage);
+					return {
+						totalNanoAiu: meta.copilotUsage?.totalNanoAiu,
+						directNanoAiu: meta.directCopilotUsage?.totalNanoAiu,
+						turnTokenTotals: meta.turnTokenTotals,
+						directTurnTokenTotals: meta.directTurnTokenTotals,
+						autoModeResolved: meta.autoModeResolved,
+					};
+				};
+				const completedBeforeCurrentIdle = signals.filter(signal => signal.kind === 'subagent_completed');
+				const parentUsage = usageFor(undefined);
+				const childUsage = usageFor('tc-subagent');
+				mockSession.backgroundTasks = [{ ...task, prompt: 'Second turn', idleSince: new Date(3).toISOString() }];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					parentUsage,
+					childUsage,
+					completedBeforeCurrentIdle,
+					completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+					resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+					listCalls: mockSession.backgroundTaskListCalls,
+				}, {
+					parentUsage: {
+						totalNanoAiu: 800_000_000,
+						directNanoAiu: 500_000_000,
+						turnTokenTotals: [
+							{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 3, outputTokens: 20 },
+							{ model: 'gpt-5.5', inputTokens: 6, cachedTokens: 2, outputTokens: 8 },
+						],
+						directTurnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 3, outputTokens: 20 }],
+						autoModeResolved: undefined,
+					},
+					childUsage: {
+						totalNanoAiu: 300_000_000,
+						directNanoAiu: 300_000_000,
+						turnTokenTotals: undefined,
+						directTurnTokenTotals: [{ model: 'gpt-5.5', inputTokens: 6, cachedTokens: 2, outputTokens: 8 }],
+						autoModeResolved: undefined,
+					},
+					completedBeforeCurrentIdle: [],
+					completed: ['tc-subagent'],
+					resumed: ['tc-subagent'],
+					listCalls: 3,
+				});
+			});
+		}
 
 		test('history replay seeds turn id from the SDK envelope id, matching `turns.event_id`', async () => {
 			// Regression test: fork / truncate look up the SDK boundary
