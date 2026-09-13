@@ -69,6 +69,25 @@ Do not introduce `!important` in new or modified CSS. When a declaration loses t
 
 The narrow exception is shared focus/active-outline suppression, where `outline: 0 !important` is intentionally used to override native or global focus indicators and prevent flashing outlines during pointer activation. Keep this exception scoped to focus-indicator behavior; feature styling must still resolve cascade conflicts through selector specificity.
 
+### Composition Ownership
+
+**Candidate guidance:** start with **one relationship, one owner** as a composition heuristic, then validate the boundary against the control's actual structure and variants. Keep treating this as a review hypothesis rather than settled doctrine while the shared-control pilot is under evaluation:
+
+1. Put the relationship in the lowest component contract that understands all participating elements.
+2. Treat ownership as responsibility for the relationship, not the DOM node that receives the CSS property.
+3. Keep primitive content neutral about unknown neighbors unless its API explicitly defines a complete composition.
+4. As a default, a rendered icon owns semantic size, fitting, and optical correction; a control owns relationships among its internal parts; and a parent owns relationships between controls. Let the actual composition override this default when another layer has the necessary context.
+
+Choose the CSS mechanism from the relationship:
+
+- Use `gap` when one container lays out a repeatable sequence and conditional children should not require selector changes.
+- Use padding for the inset between a control boundary and its contents.
+- Use a pair-specific margin when only one neighboring pair has a relationship and moving it to the parent would obscure that exception.
+- A control-owned selector may apply margin or padding to a child; that remains control-owned when the declaration is part of the control's composition contract.
+- Do not let multiple layers contribute additive spacing to the same relationship. A child margin or pseudo-element padding is not a defect by itself; repeated consumer resets, negative offsets, or an additional parent gap are signals to trace the effective spacing and reconsider its owner.
+
+For multi-part controls, keep fixed icon/action areas from shrinking and let the text area own truncation with `min-width: 0` plus the complete ellipsis pattern. Optical transforms belong inside the icon area and must not move the label or change the control footprint.
+
 ## 5. SplitView Layout
 
 **File**: `src/vs/base/browser/ui/splitview/splitview.ts`
@@ -255,9 +274,7 @@ VS Code ships a design-system **size** ramp, registered in `src/vs/platform/them
 
 ### Spacing — `padding`, `margin`, `gap`
 
-Scale (px): `0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-spacing-sizeNone`, `--vscode-spacing-size20` … `--vscode-spacing-size400` (token number = px × 10, so `size200` = 20px).
-
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale**. What breaks rhythm is an **off-scale** value (3, 5, 7, 14, 26px…). Snap off-scale values to the nearest scale value, **ties round up** (`5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`). Each length of a shorthand is checked independently (`0 5px → 0 6px`). Leave `auto`, `%`, `em`/`rem`, `var()`/`calc()` untouched.
+Read the current spacing IDs and values from `baseSizes.ts`. Select an intentional registered step rather than an arbitrary value. Use `npm run stylelint -- <path>` for nearest-step guidance outside the validator's default `src/vs/sessions` scope. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
 
 ### Corner radius — `border-radius`
 
