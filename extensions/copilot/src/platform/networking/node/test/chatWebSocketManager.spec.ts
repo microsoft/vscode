@@ -42,6 +42,10 @@ class FakeWebSocket extends EventTarget {
 	simulateMessage(data: string): void {
 		this.dispatchEvent(Object.assign(new Event('message'), { data }));
 	}
+
+	simulateError(message = ''): void {
+		this.dispatchEvent(Object.assign(new Event('error'), { message }));
+	}
 }
 
 function createFakeCAPIClientService(ws: FakeWebSocket): ICAPIClientService {
@@ -255,6 +259,25 @@ describe('ChatWebSocketManager', () => {
 
 			await expect(handle.done).rejects.toThrow('Too many requests');
 			await donePromise;
+		});
+
+		it('rejects when an error event is not followed by close', async () => {
+			const connection = await getConnection();
+			const cts = disposables.add(new CancellationTokenSource());
+			const handle = connection.sendRequest(
+				{ model: 'test-model', messages: [], stream: true },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', model: 'test-model', countTokens: () => Promise.resolve(0), tokenCountMax: 4096, modelMaxPromptTokens: 128000 },
+				cts.token,
+			);
+			handle.firstEvent.catch(() => { });
+			handle.done.catch(() => { });
+
+			ws.simulateError();
+
+			await expect(handle.firstEvent).rejects.toThrow('WebSocket error');
+			await expect(handle.done).rejects.toThrow('WebSocket error');
+			expect(connection.isOpen).toBe(false);
+			expect(ws.readyState).toBe(ws.CLOSED);
 		});
 
 		it('rejects when connection closes before any event', async () => {
