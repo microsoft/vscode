@@ -135,7 +135,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 				if (success) {
 					terminatedTasks.push({ label: task._label });
 				}
-				return { success, task };
+				return success ? { success, task } : { success: true, task: undefined };
 			}
 		});
 

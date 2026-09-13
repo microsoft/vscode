@@ -76,7 +76,7 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 			}
 			terminatingTaskIds.add(task._id);
 			this._taskService.terminate(task).then(result => {
-				if (result.success) {
+				if (result.success && result.task) {
 					terminatedTaskIds.add(task._id);
 				}
 			}).finally(() => {
