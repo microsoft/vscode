@@ -532,7 +532,7 @@
         {
           "command": "markdown.reopenAsPreview",
           "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview && !isSessionsWindow",
-          "group": "navigation@2"
+          "group": "navigation@1.5"
         },
         {
           "command": "markdown.showSource",
@@ -542,7 +542,7 @@
         {
           "command": "markdown.reopenAsSource",
           "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff && !isSessionsWindow",
-          "group": "navigation@2"
+          "group": "navigation@1.5"
         },
         {
           "command": "markdown.preview.refresh",
