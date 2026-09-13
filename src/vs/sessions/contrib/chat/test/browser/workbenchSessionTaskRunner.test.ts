@@ -72,6 +72,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 	let runner: WorkbenchSessionTaskRunner;
 	let ranTasks: { label: string }[];
 	let terminatedTasks: { label: string }[];
+	let terminationAttempts: { label: string }[];
 	let tasksByLabel: Map<string, Task>;
 	let taskLookups: (string | IWorkspaceFolder)[];
 	let taskRunSources: TaskRunSource[];
@@ -88,6 +89,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 	setup(() => {
 		ranTasks = [];
 		terminatedTasks = [];
+		terminationAttempts = [];
 		tasksByLabel = new Map();
 		taskLookups = [];
 		taskRunSources = [];
@@ -128,6 +130,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 				return Promise.resolve(undefined);
 			}
 			override async terminate(task: Task) {
+				terminationAttempts.push({ label: task._label });
 				if (activeTasks.delete(task._label)) {
 					terminatedTasks.push({ label: task._label });
 				}
@@ -246,6 +249,19 @@ suite('WorkbenchSessionTaskRunner', () => {
 
 		assert.deepStrictEqual(terminatedTasks, [{ label: 'build' }]);
 		handle?.dispose();
+		cancellation.dispose();
+	});
+
+	test('cancellation and handle disposal terminate each task at most once', async () => {
+		registerMockTask('build', worktreeUri);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const cancellation = new CancellationTokenSource();
+
+		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		cancellation.cancel();
+		handle?.dispose();
+
+		assert.deepStrictEqual(terminationAttempts, [{ label: 'build' }]);
 		cancellation.dispose();
 	});
 
