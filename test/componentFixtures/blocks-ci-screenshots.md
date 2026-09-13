@@ -352,22 +352,22 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/21881ffa51a4e8b25c2213de9264579b61b1ace56bab8dccfbe22c6826b32c9f)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAutoModel/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/bdcdb933fb2ecb569a4608156bcb030411d3599c36faab6f9ac6ae1865a73bab)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e73a189001d6697070012cd9aa0e2d3f3b8cbebe351796e48e09fbfd630fadda)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAutoModel/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/a18059740311926cd18d6a19dfbea87edd4c3bbc082e28c988c2493ca6557714)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1d41badb67fe4fa61d5a2cdbd00a2d873f81b5fc88db3e50fc2e3aa7f2db287b)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/921331f62f86ceb74eb99fed82a387599544848d905baf999d2f14b2492bf488)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c8691d60adad873c8689818444c04e394b41fc527df18f3ecbc59ea20fe2ccd8)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/bf0919c2615a13a619f44f455cdf76d4c1adeeb621324f79fb97a37a63b8d297)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7cd99eb15896de68a02710695fa5cc208d9634ab89fc13195d1b91420f0e88a1)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionCompactAutoModel/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/5ea903a7d7305da21222f196dafec116acfac4299f3c95c2b0667e1b5660b778)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8b6db92f08b844aee82800d7bf4bd749a9162eea5dc7d534b49928a3432ab268)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionCompactAutoModel/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/a7c390efcf01c763f5cc93d6b5a4cc1a1c9468d28e8cd88653ba315ebb4e273d)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d5f52eb297cc8c0ad3f7d29eee48fb8eb7843826a909a7e7de0099bb305d3154)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/68829b012b4598ae02f24619b999e6b260d696106576885556c27318d3ffa89b)
