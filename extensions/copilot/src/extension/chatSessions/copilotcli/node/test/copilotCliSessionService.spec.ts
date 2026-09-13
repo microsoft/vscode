@@ -13,6 +13,7 @@ import { CancellationToken } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { InMemoryConfigurationService } from '../../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
 import { FileType } from '../../../../../platform/filesystem/common/fileTypes';
@@ -724,6 +725,55 @@ describe('CopilotCLISessionService', () => {
 				targetedAgentHostItem: undefined,
 				readDirectoryCallCount: 1,
 				statCallCount: 0,
+			});
+		});
+
+		it('lists all legacy sessions when migration is enabled (extension owns them until opened)', async () => {
+			await (configurationService as InMemoryConfigurationService).setNonExtensionConfig('chat.agentSessions.migrateLegacyCopilotCli', true);
+			const migrateService = disposables.add(createSessionService());
+			const migrateManager = await migrateService.getSessionManager() as unknown as MockCliSdkSessionManager;
+
+			for (const id of ['legacy-active', 'legacy-archived']) {
+				const sdkSession = new MockCliSdkSession(id, new Date(0));
+				sdkSession.clientName = 'vscode';
+				sdkSession.summary = id;
+				migrateManager.sessions.set(id, sdkSession);
+			}
+			await metadataStore.setSessionArchived('legacy-archived', true);
+
+			const result = await migrateService.getAllSessions(CancellationToken.None);
+
+			// The agent host no longer surfaces un-adopted legacy rows, so this list keeps
+			// every legacy session (archived or not) until it is opened and thereby adopted.
+			expect(result.map(item => item.id).sort()).toEqual(['legacy-active', 'legacy-archived']);
+		});
+
+		it('does not list sessions created outside VS Code, even once loaded into memory', async () => {
+			const external = new MockCliSdkSession('external-cli', new Date(0));
+			external.summary = 'external-cli';
+			manager.sessions.set(external.sessionId, external);
+			metadataStore.setSessionOriginForTest(external.sessionId, 'other');
+
+			const local = new MockCliSdkSession('vscode-created', new Date(0));
+			local.summary = 'vscode-created';
+			manager.sessions.set(local.sessionId, local);
+
+			const listedBeforeLoad = await service.getAllSessions(CancellationToken.None);
+
+			// Loading an external session into `_sessionWrappers` must not make it listable.
+			const loaded = await service.getSession({ sessionId: external.sessionId, ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+			disposables.add(loaded!);
+
+			expect({
+				listedBeforeLoad: listedBeforeLoad.map(item => item.id),
+				listedAfterLoad: (await service.getAllSessions(CancellationToken.None)).map(item => item.id),
+				externalItem: await service.getSessionItem(external.sessionId, CancellationToken.None),
+				localItem: (await service.getSessionItem(local.sessionId, CancellationToken.None))?.id,
+			}).toEqual({
+				listedBeforeLoad: ['vscode-created'],
+				listedAfterLoad: ['vscode-created'],
+				externalItem: undefined,
+				localItem: 'vscode-created',
 			});
 		});
 

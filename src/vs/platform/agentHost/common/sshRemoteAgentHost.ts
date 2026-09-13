@@ -170,7 +170,7 @@ export interface ISSHRemoteAgentHostService {
 	 * 2. Downloads and installs the VS Code CLI if needed
 	 * 3. Starts `code agent-host`
 	 * 4. Creates a WebSocket relay over the SSH channel
-	 * 5. Registers the connection with {@link IRemoteAgentHostService}
+	 * 5. Waits for {@link IRemoteAgentHostService} to complete the protocol handshake
 	 *
 	 * Resolves with the connection handle once the agent host is reachable.
 	 */
@@ -178,8 +178,8 @@ export interface ISSHRemoteAgentHostService {
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
-	 * Tears down the SSH tunnel, stops the remote agent host, and
-	 * removes the entry from {@link IRemoteAgentHostService}.
+	 * Tears down the SSH tunnel, stops the remote agent host, and removes its
+	 * persisted SSH entry.
 	 */
 	disconnect(host: string): Promise<void>;
 
@@ -205,7 +205,7 @@ export interface ISSHRemoteAgentHostService {
 
 	/**
 	 * Re-establish an SSH tunnel on startup for a previously connected host.
-	 * Returns the new local forwarded address and registers it.
+	 * Resolves once the service-owned protocol connection is ready.
 	 *
 	 * @param userInitiated See {@link ISSHAgentHostConfig.userInitiated}.
 	 * Defaults to `true` (picker-eligible) when omitted; background/auto

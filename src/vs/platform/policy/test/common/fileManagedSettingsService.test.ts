@@ -181,18 +181,7 @@ suite('FileManagedSettingsService', () => {
 		})));
 
 		const service = disposables.add(new FileManagedSettingsService(managedSettingsFile, fileService, logService));
-
-		// Wait for the async refresh to complete
-		await new Promise<void>(resolve => {
-			if (Object.keys(service.managedSettings).length > 0) {
-				resolve();
-			} else {
-				const listener = disposables.add(service.onDidChangeManagedSettings(() => {
-					listener.dispose();
-					resolve();
-				}));
-			}
-		});
+		await service.initialize();
 
 		assert.deepStrictEqual(service.managedSettings, {
 			'permissions.disableBypassPermissionsMode': 'disable',
@@ -362,7 +351,7 @@ suite('FileManagedSettingsChannelClient', () => {
 		channel.fire({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 		channel.resolveInitialRawSnapshot({ permissions: { deny: ['Shell(echo *)'] } });
 		channel.resolveInitialSnapshot({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
-		await Promise.all([channel.initialRawSnapshot, channel.initialSnapshot]);
+		await client.initialize();
 
 		assert.deepStrictEqual({ raw: client.rawManagedSettings, normalized: client.managedSettings }, {
 			raw: { permissions: { allow: ['Shell(echo *)'] } },

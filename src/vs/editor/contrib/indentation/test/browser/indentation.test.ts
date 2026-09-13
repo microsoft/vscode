@@ -1111,6 +1111,30 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test('issue #225916: surrounding with brackets works after arrow function', () => {
+
+		// https://github.com/microsoft/vscode/issues/225916
+
+		const bracketPairs = [['{', '}'], ['[', ']'], ['(', ')']];
+
+		for (const [open, close] of bracketPairs) {
+			const model = createTextModel([
+				'const fn = () =>',
+				'    doSomething()',
+			].join('\n'), languageId, {});
+			disposables.add(model);
+
+			withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+				editor.setSelection(new Selection(2, 5, 2, 18));
+				viewModel.type(open, 'keyboard');
+				assert.strictEqual(model.getValue(), [
+					'const fn = () =>',
+					`    ${open}doSomething()${close}`,
+				].join('\n'), `failed to surround selection with ${open}${close}`);
+			});
+		}
+	});
+
 	// Failing tests...
 
 	test.skip('issue #43244: indent after equal sign is detected', () => {

@@ -2099,6 +2099,7 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 				new SpyingTelemetryService(),
 				'req-1',
 				'gh-req-1',
+				'svc-req-1',
 				'',
 				undefined,
 			);

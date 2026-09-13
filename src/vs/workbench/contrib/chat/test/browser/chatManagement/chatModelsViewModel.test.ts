@@ -464,6 +464,40 @@ suite('ChatModelsViewModel', () => {
 		});
 	});
 
+	test('the default provider Auto model is never listed, so a group toggle cannot hide it', async () => {
+		// A non-default provider's Auto does get a row and stays hideable.
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'copilot', displayName: 'GitHub Copilot', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'copilotcli', displayName: 'Copilot CLI', managementCommand: undefined, when: undefined, configuration: undefined });
+		const metadata = {
+			extension: new ExtensionIdentifier('github.copilot'),
+			name: 'Auto',
+			family: 'auto',
+			version: '1.0',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		};
+		service.addModel('copilot', 'copilot/auto', { ...metadata, id: 'auto', vendor: 'copilot' });
+		service.addModel('copilot', 'copilot/gpt-5', { ...metadata, id: 'gpt-5', name: 'GPT-5', family: 'gpt-5', vendor: 'copilot' });
+		service.addModel('copilotcli', 'copilotcli/auto', { ...metadata, id: 'auto', vendor: 'copilotcli' });
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const copilotGroup = model.filter('').find(entry => isLanguageModelProviderEntry(entry) && entry.vendorEntry.vendor.vendor === 'copilot');
+		assert.ok(copilotGroup && isLanguageModelProviderEntry(copilotGroup));
+
+		model.toggleGroupHidden(copilotGroup);
+
+		assert.deepStrictEqual({
+			renderedModelIds: model.filter('').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
+			setModelsHiddenCalls: service.setModelsHiddenCalls,
+		}, {
+			renderedModelIds: ['copilot/gpt-5', 'copilotcli/auto'],
+			setModelsHiddenCalls: [{ modelIdentifiers: ['copilot/gpt-5'], hidden: true }],
+		});
+	});
+
 	test('should filter by provider name (vendor ID and display name)', () => {
 		const resultsByCopilotId = viewModel.filter('@provider:copilot');
 		assert.strictEqual(resultsByCopilotId.length, 3);

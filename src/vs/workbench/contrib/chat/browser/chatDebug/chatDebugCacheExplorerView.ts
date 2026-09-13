@@ -1873,11 +1873,11 @@ function currentDeltaComponent(side: ISideData): IComponentDrift {
 /** Codicon name for a break-cause category (rail chips, health card). */
 function categoryIcon(category: CacheBreakCategory): string {
 	switch (category) {
-		case CacheBreakCategory.Healthy: return 'check';
+		case CacheBreakCategory.Healthy: return 'check-compact';
 		case CacheBreakCategory.Expiration: return 'clock';
 		case CacheBreakCategory.Model: return 'hubot';
 		case CacheBreakCategory.Tools: return 'tools';
-		case CacheBreakCategory.System: return 'gear';
+		case CacheBreakCategory.System: return 'gear-compact';
 		case CacheBreakCategory.Options: return 'symbol-parameter';
 		case CacheBreakCategory.History: return 'history';
 		case CacheBreakCategory.Unknown: return 'question';

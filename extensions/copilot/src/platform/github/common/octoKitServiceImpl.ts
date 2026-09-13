@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestSearchItem } from './githubAPI';
-import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, IOctoKitService, IOctoKitUser, PermissiveAuthRequiredError, PullRequestFile, RepositoryComparison } from './githubService';
+import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, GitHubIssueSearchItem, IOctoKitService, IOctoKitUser, PermissiveAuthRequiredError, PullRequestFile, RepositoryComparison } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
 	declare readonly _serviceBrand: undefined;
@@ -266,6 +266,15 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		return this.getUserRepositoriesWithToken(authToken, query);
 	}
 
+	async searchIssuesAndPullRequests(query: string, authOptions: AuthOptions): Promise<GitHubIssueSearchItem[]> {
+		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
+		if (!authToken) {
+			this._logService.trace('No authentication token available for searchIssuesAndPullRequests');
+			throw new PermissiveAuthRequiredError();
+		}
+		return this.searchIssuesAndPullRequestsWithToken(query, authToken);
+	}
+
 	async getRecentlyCommittedRepositories(authOptions: AuthOptions): Promise<{ owner: string; name: string }[]> {
 		// Use 'permissive' auth to ensure we have access to private repository events
 		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
@@ -404,4 +413,3 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 }
-

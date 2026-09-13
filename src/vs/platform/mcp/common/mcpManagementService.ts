@@ -24,6 +24,7 @@ import { IUserDataProfilesService } from '../../userDataProfile/common/userDataP
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult } from './mcpManagement.js';
 import { IMcpSandboxConfiguration, IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
+import { getWorkspaceRootMcpConfigurationError, McpResourceFormat } from './mcpWorkspaceConfiguration.js';
 
 export interface ILocalMcpServerInfo {
 	name: string;
@@ -186,8 +187,8 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 			case RegistryType.DOCKER: return 'docker';
 			case RegistryType.PYTHON: return 'uvx';
 			case RegistryType.NUGET: return 'dnx';
+			default: throw new Error(`Unsupported MCP server package registry type: ${packageType}`);
 		}
-		return packageType;
 	}
 
 	protected getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
@@ -328,6 +329,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	constructor(
 		protected readonly mcpResource: URI,
 		protected readonly target: McpResourceTarget,
+		protected readonly format: McpResourceFormat,
 		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
 		@IFileService protected readonly fileService: IFileService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
@@ -370,7 +372,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		this.logService.trace('AbstractMcpResourceManagementService#populateLocalServers', this.mcpResource.toString());
 		const local = new Map<string, ILocalMcpServer>();
 		try {
-			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target, this.format);
 			if (scannedMcpServers.servers) {
 				await Promise.allSettled(Object.entries(scannedMcpServers.servers).map(async ([name, scannedServer]) => {
 					const server = await this.scanLocalServer(name, scannedServer, scannedMcpServers.sandbox);
@@ -471,11 +473,17 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 
 	async install(server: IInstallableMcpServer, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
+		if (this.format === McpResourceFormat.WorkspaceRoot) {
+			const error = getWorkspaceRootMcpConfigurationError(server);
+			if (error) {
+				throw new Error(error);
+			}
+		}
 		this.ensureServerAllowed(server);
 
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 		try {
-			await this.mcpResourceScannerService.addMcpServers([server], this.mcpResource, this.target);
+			await this.mcpResourceScannerService.addMcpServers([server], this.mcpResource, this.target, this.format);
 			await this.updateLocal();
 			const local = this.local.get(server.name);
 			if (!local) {
@@ -493,11 +501,11 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		this._onUninstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 
 		try {
-			const currentServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			const currentServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target, this.format);
 			if (!currentServers.servers) {
 				return;
 			}
-			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target);
+			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target, this.format);
 			if (server.location) {
 				await this.fileService.del(URI.revive(server.location), { recursive: true });
 			}
@@ -526,12 +534,19 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
+		super(mcpResource, ConfigurationTarget.USER, McpResourceFormat.Vscode, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
 	}
 
 	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
+	}
+
+	override async uninstall(server: ILocalMcpServer, options?: Omit<UninstallOptions, 'mcpResource'>): Promise<void> {
+		if (server.location && !this.uriIdentityService.extUri.isEqual(URI.revive(server.location), this.getLocation(server.name, server.version))) {
+			throw new Error(`Invalid MCP server location for ${server.name}`);
+		}
+		await super.uninstall(server, options);
 	}
 
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
@@ -608,8 +623,16 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	protected getLocation(name: string, version?: string): URI {
-		name = name.replace('/', '.');
-		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
+		const folderName = version ? `${name.replace('/', '.')}-${version}` : name.replace('/', '.');
+		const location = this.uriIdentityService.extUri.joinPath(this.mcpLocation, folderName);
+		if (
+			this.uriIdentityService.extUri.basename(location) !== folderName
+			|| this.uriIdentityService.extUri.isEqual(location, this.mcpLocation)
+			|| !this.uriIdentityService.extUri.isEqualOrParent(location, this.mcpLocation)
+		) {
+			throw new Error(`Invalid MCP server location for ${name}`);
+		}
+		return location;
 	}
 
 	protected override installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {

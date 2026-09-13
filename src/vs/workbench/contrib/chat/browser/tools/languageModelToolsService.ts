@@ -1085,7 +1085,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		if (prepared?.confirmationMessages?.title) {
-			if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.confirmationMessages.allowAutoConfirm !== false) {
+			if (this._isAutoApprovePolicyRestricted()) {
+				prepared.confirmationMessages.allowAutoConfirm = false;
+			} else if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.confirmationMessages.allowAutoConfirm !== false) {
 				prepared.confirmationMessages.allowAutoConfirm = isEligibleForAutoApproval;
 			}
 

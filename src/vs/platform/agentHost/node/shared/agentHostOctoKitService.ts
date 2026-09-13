@@ -6,6 +6,7 @@
 import { LRUCache } from '../../../../base/common/map.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { getSessionPullRequestUrlKey } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 
 export type FetchFunction = typeof globalThis.fetch;
@@ -22,6 +23,7 @@ export interface CreatedPullRequest {
 	readonly number: number;
 	readonly nodeId?: string;
 	readonly createdAt?: number;
+	readonly state?: 'open' | 'closed';
 }
 
 /**
@@ -29,6 +31,18 @@ export interface CreatedPullRequest {
  * Mirrors the GitHub GraphQL `PullRequestMergeMethod` enum.
  */
 export type AutoMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
+
+export interface GitHubRepositoryMergeCapabilities {
+	readonly autoMergeAllowed: boolean;
+	readonly mergeMethods: readonly AutoMergeMethod[];
+}
+
+interface GitHubRepositoryMergeResponse {
+	readonly allow_auto_merge?: unknown;
+	readonly allow_merge_commit?: unknown;
+	readonly allow_squash_merge?: unknown;
+	readonly allow_rebase_merge?: unknown;
+}
 
 interface GitHubPullRequestResponseItem {
 	readonly number?: unknown;
@@ -44,6 +58,7 @@ function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): 
 	const number = item?.number;
 	const node_id = item?.node_id;
 	const created_at = item?.created_at;
+	const state = item?.state;
 	const createdAt = typeof created_at === 'string' ? Date.parse(created_at) : undefined;
 	return typeof html_url === 'string' && typeof number === 'number'
 		? {
@@ -51,8 +66,23 @@ function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): 
 			url: html_url,
 			nodeId: typeof node_id === 'string' ? node_id : undefined,
 			...(createdAt !== undefined && Number.isFinite(createdAt) ? { createdAt } : {}),
+			...(state === 'open' || state === 'closed' ? { state } : {}),
 		}
 		: undefined;
+}
+
+function selectAllowedPullRequest(items: readonly GitHubPullRequestResponseItem[], allowedPullRequestUrls: readonly string[]): GitHubPullRequestResponseItem | undefined {
+	const itemsByUrl = new Map<string, GitHubPullRequestResponseItem>();
+	for (const item of items) {
+		if (typeof item.html_url === 'string') {
+			itemsByUrl.set(getSessionPullRequestUrlKey(item.html_url), item);
+		}
+	}
+
+	const allowed = allowedPullRequestUrls
+		.map(url => itemsByUrl.get(getSessionPullRequestUrlKey(url)))
+		.filter(item => item !== undefined);
+	return allowed.find(item => item.state === 'open') ?? allowed[0];
 }
 
 interface GitHubIssueOrPullRequestResponseItem {
@@ -108,8 +138,12 @@ export interface IAgentHostOctoKitService {
 		signal: AbortSignal,
 	): Promise<CreatedPullRequest>;
 
-	/** Finds the most recently updated pull request for `headOwner:branch`, if any. */
-	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner?: string): Promise<CreatedPullRequest | undefined>;
+	/**
+	 * Finds a pull request for `headOwner:branch`, if any. When
+	 * `allowedPullRequestUrls` is supplied, only those pull requests qualify;
+	 * open candidates win, followed by the order of the supplied URLs.
+	 */
+	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner?: string, allowedPullRequestUrls?: readonly string[]): Promise<CreatedPullRequest | undefined>;
 
 	/**
 	 * Finds the pull request whose head commit is exactly `sha`, if any.
@@ -119,10 +153,13 @@ export interface IAgentHostOctoKitService {
 	 * resolves branches checked out from a pull request head under a different
 	 * name or pushed with an explicit refspec.
 	 */
-	findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined>;
+	findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal, allowedPullRequestUrls?: readonly string[]): Promise<CreatedPullRequest | undefined>;
 
 	/** Fetches the title and body of an issue or pull request. */
 	getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest>;
+
+	/** Fetches the repository's auto-merge and merge-method settings. */
+	getRepositoryMergeCapabilities(owner: string, repo: string, token: string, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities>;
 
 	/**
 	 * Enables auto-merge on a pull request so GitHub merges it automatically
@@ -217,13 +254,20 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		return { url: html_url, number, nodeId: typeof node_id === 'string' ? node_id : undefined };
 	}
 
-	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner = owner): Promise<CreatedPullRequest | undefined> {
-		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${headOwner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner = owner, allowedPullRequestUrls?: readonly string[]): Promise<CreatedPullRequest | undefined> {
+		if (allowedPullRequestUrls?.length === 0) {
+			return undefined;
+		}
+		const perPage = allowedPullRequestUrls ? 100 : 1;
+		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${headOwner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=${perPage}`;
 		const items = await this._searchPullRequests(routeSlug, token, signal);
-		return toCreatedPullRequest(items[0]);
+		return toCreatedPullRequest(allowedPullRequestUrls ? selectAllowedPullRequest(items, allowedPullRequestUrls) : items[0]);
 	}
 
-	async findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
+	async findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal, allowedPullRequestUrls?: readonly string[]): Promise<CreatedPullRequest | undefined> {
+		if (allowedPullRequestUrls?.length === 0) {
+			return undefined;
+		}
 		const routeSlug = `repos/${owner}/${repo}/commits/${encodeURIComponent(sha)}/pulls?per_page=${MAX_COMMIT_PULL_REQUESTS}`;
 		const items = await this._searchPullRequests(routeSlug, token, signal);
 
@@ -241,6 +285,9 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		// pull request whose head is exactly this commit describes the branch
 		// that is checked out.
 		const atHead = items.filter(item => item?.head?.sha === sha);
+		if (allowedPullRequestUrls) {
+			return toCreatedPullRequest(selectAllowedPullRequest(atHead, allowedPullRequestUrls));
+		}
 		const open = atHead.filter(item => item.state === 'open');
 		const candidates = open.length > 0 ? open : atHead;
 
@@ -288,6 +335,26 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void> {
 		await this._makeGraphQLRequest(ENABLE_AUTO_MERGE_MUTATION, { pullRequestId, mergeMethod }, token, signal);
+	}
+
+	async getRepositoryMergeCapabilities(owner: string, repo: string, token: string, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities> {
+		const response = await this._makeGHAPIRequest<GitHubRepositoryMergeResponse>(`repos/${owner}/${repo}`, 'GET', token, signal);
+		const data = response.data;
+		if (typeof data?.allow_auto_merge !== 'boolean' || typeof data.allow_merge_commit !== 'boolean'
+			|| typeof data.allow_squash_merge !== 'boolean' || typeof data.allow_rebase_merge !== 'boolean') {
+			throw new Error(`Failed to fetch repository merge capabilities for ${owner}/${repo}`);
+		}
+		const mergeMethods: AutoMergeMethod[] = [];
+		if (data.allow_merge_commit) {
+			mergeMethods.push('MERGE');
+		}
+		if (data.allow_squash_merge) {
+			mergeMethods.push('SQUASH');
+		}
+		if (data.allow_rebase_merge) {
+			mergeMethods.push('REBASE');
+		}
+		return { autoMergeAllowed: data.allow_auto_merge, mergeMethods };
 	}
 
 	private async _makeGHAPIRequest<T>(

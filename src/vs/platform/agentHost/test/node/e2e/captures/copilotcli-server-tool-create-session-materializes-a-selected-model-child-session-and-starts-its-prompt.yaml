@@ -19,16 +19,18 @@ exchanges:
         - role: assistant
           content: PARENT_READY
         - role: user
-          content: Call create_session exactly once with workspace "${workdir}", prompt "Reply exactly CHILD_READY.", and model "claude-opus-4.6", then reply exactly "created".
+          content: Call create_session exactly once with relationship "independent", workspace "${workdir}", prompt "Reply exactly CHILD_READY.", title "Created Child", and model "claude-sonnet-5", then reply exactly "created".
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: create_session
           input:
+            relationship: independent
             workspace: ${workdir}
             prompt: Reply exactly CHILD_READY.
-            model: claude-opus-4.6
+            title: Created Child
+            model: claude-sonnet-5
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -39,25 +41,27 @@ exchanges:
         - role: assistant
           content: PARENT_READY
         - role: user
-          content: Call create_session exactly once with workspace "${workdir}", prompt "Reply exactly CHILD_READY.", and model "claude-opus-4.6", then reply exactly "created".
+          content: Call create_session exactly once with relationship "independent", workspace "${workdir}", prompt "Reply exactly CHILD_READY.", title "Created Child", and model "claude-sonnet-5", then reply exactly "created".
         - role: assistant
           content:
             - type: tool_use
               name: create_session
               input:
+                relationship: independent
                 workspace: ${workdir}
                 prompt: Reply exactly CHILD_READY.
-                model: claude-opus-4.6
+                title: Created Child
+                model: claude-sonnet-5
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: Session created (agent-host-session://copilotcli/${uuid_0}). Reply with one short sentence confirming the session was created; do not print the URL or mention a button.
+              content: New session created (agent-host-session://copilotcli/${uuid_0}). Reply with one short sentence confirming the new session was created; do not print the URL or mention a button.
     response:
       content: created
       stopReason: end_turn
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
