@@ -453,11 +453,24 @@ suite('TerminalSandboxEngine', () => {
 			const configPath = await engine.getSandboxConfigPath();
 			ok(configPath, 'Config path should be defined');
 			const config = JSON.parse(createdFiles.get(configPath)!);
-			ok(config.filesystem.allowRead.includes('/home/user/.gem/ruby'), 'Ruby gem path should remain readable through the symlink');
+			ok(!config.filesystem.allowRead.includes('/home/user/.gem/ruby'), 'Ruby gem symlink should be excluded when its target broadens access');
 			ok(config.filesystem.allowRead.includes('/home/user/.gem/specs'), 'Ruby gem specs path should remain readable');
 			ok(config.filesystem.allowRead.includes('/opt/ruby-gem-specs'), 'Dedicated external gem directory should remain readable');
 			ok(!config.filesystem.allowRead.includes(broadTarget), `Broad Ruby gem target should be excluded: ${broadTarget}`);
 		}
+
+		fileService.setRealpath('/home/user', '/mnt/users/user');
+		fileService.setRealpath('/home/user/.gem', '/mnt/users/user/.gem');
+		fileService.setRealpath('/home/user/.gem/ruby', '/mnt/users/user/.gem');
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		await engine.wrapCommand('ruby --version', false, undefined, undefined, [{ keyword: 'ruby', args: ['--version'] }]);
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+		ok(!config.filesystem.allowRead.includes('/home/user/.gem/ruby'), 'Ruby gem symlink to the canonical gem root should be excluded');
+		ok(!config.filesystem.allowRead.includes('/mnt/users/user/.gem'), 'Canonical gem root should not be readable');
 	});
 
 	test('keeps filesystem paths without symlinks when writing the config', async () => {

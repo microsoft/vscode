@@ -967,19 +967,29 @@ export class TerminalSandboxEngine extends Disposable {
 			if (this._os !== OperatingSystem.Linux || (path !== '~/.gem/ruby' && path !== '~/.gem/specs')) {
 				return result;
 			}
-			const lexicalPath = this._expandHomePath(path);
-			return result.filter(resolvedPath => resolvedPath === lexicalPath || this._isSafeRubyGemSymlinkTarget(resolvedPath));
+			if (result.length === 1) {
+				return result;
+			}
+			return await this._isSafeRubyGemSymlinkTarget(result[1]) ? result : [];
 		}));
 		return this._deduplicateFileSystemPaths(resolvedPaths.flat());
 	}
 
-	private _isSafeRubyGemSymlinkTarget(target: string): boolean {
+	private async _isSafeRubyGemSymlinkTarget(target: string): Promise<boolean> {
 		const userHome = this._userHome ? this._getUriPath(this._userHome) : undefined;
 		if (!userHome) {
 			return false;
 		}
-		const protectedPaths = [userHome, posix.join(userHome, '.gem')];
-		return !protectedPaths.some(protectedPath => {
+		const gemRoot = posix.join(userHome, '.gem');
+		const protectedPaths = new Set([userHome, gemRoot]);
+		for (const resolvedPath of await this._resolveFileSystemPath(userHome)) {
+			protectedPaths.add(resolvedPath);
+			protectedPaths.add(posix.join(resolvedPath, '.gem'));
+		}
+		for (const resolvedPath of await this._resolveFileSystemPath(gemRoot)) {
+			protectedPaths.add(resolvedPath);
+		}
+		return ![...protectedPaths].some(protectedPath => {
 			const relativePath = posix.relative(target, protectedPath);
 			return relativePath === '' || (!relativePath.startsWith('..') && !posix.isAbsolute(relativePath));
 		});
