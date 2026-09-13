@@ -193,7 +193,16 @@ suite('CommandAutoApprover', () => {
 				'tree -io output.txt .',
 				'tree -R -L 2 .',
 			];
-			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command)), commands.map(() => 'denied'));
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command)), [
+				'noMatch',
+				'noMatch',
+				'noMatch',
+				'denied',
+				'denied',
+				'noMatch',
+			]);
+			assert.strictEqual(approver.shouldAutoApprove('tree .', { autoApproveRules: { '/^tree\\b/': true } }), 'approved');
+			assert.strictEqual(approver.shouldAutoApprove('tree -io output.txt .', { autoApproveRules: { '/^tree\\b/': true, '/^tree\\b.*\\s-[^-\\s]*o/': false } }), 'denied');
 		});
 
 		test('handles sed with blocked args', () => {

@@ -169,6 +169,14 @@ suite('CommandLineAutoApprover', () => {
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});
+
+		test('preserves an explicit user allow while blocking output files', async () => {
+			setAutoApproveWithCommandLine({
+				...(terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean>),
+				'/^tree\\b/': true,
+			});
+			deepStrictEqual(await Promise.all(['tree .', 'tree -o output.txt .', 'tree -io output.txt .'].map(isAutoApproved)), [true, false, false]);
+		});
 	});
 
 	suite('default sed rules', () => {
