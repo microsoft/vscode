@@ -172,7 +172,9 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	}
 
 	private _requiresWorkspaceTaskApproval({ task, target }: ISessionTaskWithTarget): boolean {
-		return target === 'workspace' || task.dependsOn !== undefined;
+		return target === 'workspace' ||
+			typeof task.dependsOn === 'string' && task.dependsOn.length > 0 ||
+			Array.isArray(task.dependsOn) && task.dependsOn.length > 0;
 	}
 
 	private _canDispatchTasks(session: ISession): boolean {

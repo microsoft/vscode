@@ -83,7 +83,7 @@ function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreat
 	return { session, loading, status, workspace, isArchived };
 }
 
-function entry(label: string, runOn?: 'worktreeCreated' | 'folderOpen' | 'default', target: TaskStorageTarget = 'workspace', dependsOn?: string): ISessionTaskWithTarget {
+function entry(label: string, runOn?: 'worktreeCreated' | 'folderOpen' | 'default', target: TaskStorageTarget = 'workspace', dependsOn?: string | readonly string[]): ISessionTaskWithTarget {
 	const task: ITaskEntry = {
 		label,
 		type: 'shell',
@@ -272,6 +272,19 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 
 		assert.deepStrictEqual(tasks.ranTasks, []);
 		assert.strictEqual(dialogService.confirmations.length, 1);
+	});
+
+	test('does not require confirmation for a user task with empty dependsOn', async () => {
+		createDispatcher();
+		const { session, workspace } = makeSession({ id: 'a', hasWorktree: false });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated', 'user', [])]);
+
+		mgmt.sessionStartedEmitter.fire(session);
+		workspace.set(makeWorkspace(true), undefined);
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+		assert.deepStrictEqual(dialogService.confirmations, []);
 	});
 
 	test('prompts once for multiple workspace tasks', async () => {
