@@ -5,40 +5,35 @@
 
 /**
  * Builds one per-target tarball of the Foundry Local native runtime (the
- * prebuilt N-API addon + the Foundry Local Core / onnxruntime / onnxruntime-genai
- * shared libraries). Callable as both a Node library (`buildOne(...)`) and a thin
+ * Foundry Local / onnxruntime / onnxruntime-genai shared libraries). Callable
+ * as both a Node library (`buildOne(...)`) and a thin
  * CLI (bottom of this file).
  *
  * The library form is what `produce.ts` calls during the per-platform
  * "Dictation runtime: build + upload" pipeline step; the CLI form is for local
  * one-off builds and requires `VSS_NUGET_ACCESSTOKEN` for the VS Code NuGet feed.
  *
- * The addon is copied from the pinned `foundry-local-sdk` package's `prebuilds/`
- * (which ships every target), and the core libraries are fetched from NuGet for
- * the requested target's RID via `fetchCoreLibraries` (NOT the SDK's host-locked
- * installer), so ANY build host can produce ANY target's tarball. This is what
- * lets VS Code's ARM64 desktop builds — which run on x64 pools — publish their
- * `linux-arm64`/`win32-arm64` runtimes.
+ * The Foundry Local library is copied from the pinned `foundry-local-sdk`
+ * package's `prebuilds/` (which ships every target), and the ONNX libraries are
+ * fetched from NuGet for the requested target's RID via
+ * `fetchDependencyLibraries`, so ANY build host can produce ANY target's tarball.
  *
  * The produced tarball's internal layout mirrors the runtime cache layout so the
  * runtime extraction is a plain untar:
  *
- *   prebuilds/<target>/foundry_local_napi.node
- *   foundry-local-core/<target>/<core libraries>
+ *   prebuilds/<target>/<shared libraries>
  */
 
-import { createRequire } from 'module';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
-import { getRuntimeVersion, parseFlags, SDK_PACKAGE_NAME, sha256OfFile, SUPPORTED_TARGETS } from './common.ts';
-import { fetchCoreLibraries, getStandardArtifacts, type IFoundryDependencyVersions, requiredCoreLibraryNames } from './nuget.ts';
+import { getRuntimeVersion, parseFlags, resolveSdkPackageRoot, SDK_PACKAGE_NAME, sha256OfFile, SUPPORTED_TARGETS } from './common.ts';
+import { fetchDependencyLibraries, getStandardArtifacts, type IFoundryDependencyVersions, normalizeOrtLibraryName, requiredDependencyLibraryNames } from './nuget.ts';
 
 const SCRIPT = 'package.ts';
 
-/** Resolve `foundry-local-sdk` subpaths from the repo-root `node_modules`. */
-const sdkRequire = createRequire(import.meta.url);
+const SDK_ROOT = resolveSdkPackageRoot();
 
 export interface IBuildResult {
 	readonly tgzPath: string;
@@ -53,10 +48,9 @@ export interface IBuildArgs {
 }
 
 /**
- * Build one runtime tarball for `args.target`. Copies the prebuilt addon from
- * the installed SDK, fetches the matching core libraries via the SDK's NuGet
- * installer, and tars both into a single gzipped tarball. Returns the produced
- * `.tgz` path and its sha256.
+ * Build one runtime tarball for `args.target`. Copies the SDK's prebuilt native
+ * files, fetches the matching ONNX libraries from NuGet, and tars them into a
+ * single gzipped tarball. Returns the produced `.tgz` path and its sha256.
  */
 export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 	if (!SUPPORTED_TARGETS.has(args.target)) {
@@ -68,8 +62,8 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 	try {
 		console.log(`[${SCRIPT}] Building ${SDK_PACKAGE_NAME}@${version} native runtime for ${args.target} in ${stagingDir}`);
 
-		await stageAddon(stagingDir, args.target);
-		await stageCoreLibraries(stagingDir, args.target);
+		await stageSdkSharedLibraries(stagingDir, args.target);
+		await stageDependencyLibraries(stagingDir, args.target);
 
 		fs.mkdirSync(args.outDir, { recursive: true });
 		const tgzPath = path.join(args.outDir, `${args.target}.tgz`);
@@ -86,39 +80,59 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 }
 
 /**
- * Copy the prebuilt N-API addon for `target` out of the installed
- * `foundry-local-sdk` package (`prebuilds/<target>/foundry_local_napi.node`)
- * into the staging tree.
+ * Copy the Foundry Local shared library shipped in the SDK's prebuild directory
+ * for `target`. The Node-API addons are bundled with the product.
  */
-async function stageAddon(stagingDir: string, target: string): Promise<void> {
-	const sdkRoot = path.dirname(sdkRequire.resolve(`${SDK_PACKAGE_NAME}/package.json`));
-	const addonSrc = path.join(sdkRoot, 'prebuilds', target, 'foundry_local_napi.node');
-	if (!fs.existsSync(addonSrc)) {
-		throw new Error(`[${SCRIPT}] Prebuilt addon not found for ${target} at ${addonSrc}. Is ${SDK_PACKAGE_NAME} installed?`);
+async function stageSdkSharedLibraries(stagingDir: string, target: string): Promise<void> {
+	const sourceDir = path.join(SDK_ROOT, 'prebuilds', target);
+	if (!fs.existsSync(sourceDir)) {
+		throw new Error(`[${SCRIPT}] Prebuild directory not found for ${target} at ${sourceDir}. Is ${SDK_PACKAGE_NAME} installed?`);
 	}
-	const addonDest = path.join(stagingDir, 'prebuilds', target, 'foundry_local_napi.node');
-	fs.mkdirSync(path.dirname(addonDest), { recursive: true });
-	fs.copyFileSync(addonSrc, addonDest);
+	const targetDir = path.join(stagingDir, 'prebuilds', target);
+	fs.mkdirSync(targetDir, { recursive: true });
+	for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+		if (entry.isFile() && isSharedLibrary(entry.name)) {
+			fs.copyFileSync(path.join(sourceDir, entry.name), path.join(targetDir, entry.name));
+		}
+	}
+	for (const name of requiredSdkSharedLibraryNames(target)) {
+		if (!fs.existsSync(path.join(targetDir, name))) {
+			throw new Error(`[${SCRIPT}] SDK shared library '${name}' not found for ${target} in ${sourceDir}.`);
+		}
+	}
 }
 
 /**
- * Fetch the Foundry Local core libraries for `target` into the staging tree from
- * NuGet, for that target's explicit RID (see `fetchCoreLibraries`). Replicates
- * the standard variant's artifact selection, including the linux-x64 GPU ONNX
- * Runtime package. Host-independent — `target` need not match the build host.
+ * Fetch the ONNX libraries for `target` into the same flat prebuild directory,
+ * using that target's explicit RID. Host-independent — `target` need not match
+ * the build host.
  */
-async function stageCoreLibraries(stagingDir: string, target: string): Promise<void> {
-	const dependencies = sdkRequire(`${SDK_PACKAGE_NAME}/deps_versions.json`) as IFoundryDependencyVersions;
-	const artifacts = getStandardArtifacts(target, dependencies);
+async function stageDependencyLibraries(stagingDir: string, target: string): Promise<void> {
+	const dependencies = JSON.parse(fs.readFileSync(path.join(SDK_ROOT, 'deps_versions.json'), 'utf8')) as IFoundryDependencyVersions;
+	const artifacts = getStandardArtifacts(dependencies);
 
-	const coreDir = path.join(stagingDir, 'foundry-local-core', target);
-	await fetchCoreLibraries(target, artifacts, coreDir);
+	const targetDir = path.join(stagingDir, 'prebuilds', target);
+	await fetchDependencyLibraries(target, artifacts, targetDir, { skipIfPresent: true });
+	normalizeOrtLibraryName(targetDir, target, dependencies.onnxruntime.version);
 
-	for (const name of requiredCoreLibraryNames(target)) {
-		if (!fs.existsSync(path.join(coreDir, name))) {
-			throw new Error(`[${SCRIPT}] Core library '${name}' missing after install for ${target} — refusing to build an incomplete tarball.`);
+	for (const name of requiredDependencyLibraryNames(target, dependencies)) {
+		if (!fs.existsSync(path.join(targetDir, name))) {
+			throw new Error(`[${SCRIPT}] Dependency library '${name}' missing after install for ${target} — refusing to build an incomplete tarball.`);
 		}
 	}
+}
+
+function requiredSdkSharedLibraryNames(target: string): readonly string[] {
+	const foundryLocalLibrary = target.startsWith('win32-')
+		? 'foundry_local.dll'
+		: target.startsWith('darwin-')
+			? 'libfoundry_local.dylib'
+			: 'libfoundry_local.so';
+	return [foundryLocalLibrary];
+}
+
+function isSharedLibrary(name: string): boolean {
+	return name.endsWith('.dll') || name.includes('.dylib') || name.includes('.so');
 }
 
 /**
@@ -135,7 +149,7 @@ async function buildTarball(stagingDir: string, outTgz: string): Promise<void> {
 			portable: true,
 			mtime: new Date(0),
 		},
-		['prebuilds', 'foundry-local-core'],
+		['prebuilds'],
 	);
 }
 

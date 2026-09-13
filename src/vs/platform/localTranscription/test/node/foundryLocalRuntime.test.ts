@@ -18,9 +18,10 @@ import {
 	foundryLocalPlatformKey,
 	isFoundryLocalRuntimeSupported,
 	isRuntimeProvisioned,
+	publishRuntime,
 	promoteDir,
 	provisionRuntime,
-	requiredCoreLibraryNames,
+	requiredRuntimeFileNames,
 	resolveProxyUrl,
 } from '../../node/foundryLocalRuntime.js';
 
@@ -39,12 +40,10 @@ flakySuite('FoundryLocalRuntime', () => {
 	teardown(() => Promises.rm(testDir));
 
 	function writePayload(overrideDir: string, key: string): void {
-		fs.mkdirSync(join(overrideDir, 'prebuilds', key), { recursive: true });
-		fs.writeFileSync(join(overrideDir, 'prebuilds', key, 'foundry_local_napi.node'), 'addon');
-		const coreDir = join(overrideDir, 'foundry-local-core', key);
-		fs.mkdirSync(coreDir, { recursive: true });
-		for (const name of requiredCoreLibraryNames()) {
-			fs.writeFileSync(join(coreDir, name), 'lib');
+		const targetDir = join(overrideDir, 'prebuilds', key);
+		fs.mkdirSync(targetDir, { recursive: true });
+		for (const name of requiredRuntimeFileNames(key)) {
+			fs.writeFileSync(join(targetDir, name), 'native');
 		}
 	}
 
@@ -73,11 +72,23 @@ flakySuite('FoundryLocalRuntime', () => {
 		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
 	});
 
-	test('isRuntimeProvisioned: false when one core library is missing (partial cache)', () => {
+	test('isRuntimeProvisioned: false when one shared library is missing (partial cache)', () => {
 		writePayload(testDir, platformKey);
 		writeMarker(testDir, platformKey);
-		fs.rmSync(join(testDir, 'foundry-local-core', platformKey, requiredCoreLibraryNames()[0]));
+		fs.rmSync(join(testDir, 'prebuilds', platformKey, 'libonnxruntime-genai.so'));
 		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
+	});
+
+	test('requiredRuntimeFileNames: includes only shared libraries', () => {
+		assert.deepStrictEqual({
+			linux: requiredRuntimeFileNames('linux-x64'),
+			darwin: requiredRuntimeFileNames('darwin-arm64'),
+			win32: requiredRuntimeFileNames('win32-x64'),
+		}, {
+			linux: ['libfoundry_local.so', 'libonnxruntime.so.1', 'libonnxruntime-genai.so'],
+			darwin: ['libfoundry_local.dylib', 'libonnxruntime.1.dylib', 'libonnxruntime-genai.dylib'],
+			win32: ['foundry_local.dll', 'onnxruntime.dll', 'onnxruntime-genai.dll'],
+		});
 	});
 
 	test('isRuntimeProvisioned: a different arch marker does not satisfy this arch', () => {
@@ -115,6 +126,28 @@ flakySuite('FoundryLocalRuntime', () => {
 		assert.strictEqual(fs.readFileSync(join(to, 'file'), 'utf8'), 'winner');
 	});
 
+	test('publishRuntime: keeps a complete runtime published by another process', async () => {
+		const targetDir = join(testDir, 'prebuilds', platformKey);
+		writePayload(testDir, platformKey);
+		fs.writeFileSync(join(targetDir, 'winner'), 'winner');
+
+		const stagingTarget = join(testDir, 'staging', 'prebuilds', platformKey);
+		fs.mkdirSync(stagingTarget, { recursive: true });
+		for (const name of requiredRuntimeFileNames(platformKey)) {
+			fs.writeFileSync(join(stagingTarget, name), 'loser');
+		}
+
+		await publishRuntime(stagingTarget, testDir, platformKey, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			winner: fs.readFileSync(join(targetDir, 'winner'), 'utf8'),
+			stagingStillExists: fs.existsSync(stagingTarget),
+		}, {
+			winner: 'winner',
+			stagingStillExists: true,
+		});
+	});
+
 	test('resolveProxyUrl: honors scheme-specific vars, ALL_PROXY fallback, and NO_PROXY', () => {
 		const actual = {
 			none: resolveProxyUrl('https://api.nuget.org/', {}),
@@ -149,21 +182,20 @@ flakySuite('FoundryLocalRuntime', () => {
 
 	/**
 	 * Build a runtime tarball fixture (`<target>.tgz`) whose internal layout
-	 * matches what `provisionRuntime` extracts and verifies. Set `omitCoreLib`
-	 * to leave one required core library out (an incomplete/corrupt payload).
+	 * matches what `provisionRuntime` extracts and verifies. Set
+	 * `omitRuntimeFile` to leave one required file out.
 	 */
-	async function makeTarball(key: string, opts?: { omitCoreLib?: boolean }): Promise<string> {
+	async function makeTarball(key: string, opts?: { omitRuntimeFile?: string }): Promise<string> {
 		const src = join(testDir, `src-${key}`);
-		fs.mkdirSync(join(src, 'prebuilds', key), { recursive: true });
-		fs.writeFileSync(join(src, 'prebuilds', key, 'foundry_local_napi.node'), 'addon');
-		const coreDir = join(src, 'foundry-local-core', key);
-		fs.mkdirSync(coreDir, { recursive: true });
-		const libs = requiredCoreLibraryNames();
-		for (const name of opts?.omitCoreLib ? libs.slice(1) : libs) {
-			fs.writeFileSync(join(coreDir, name), 'lib');
+		const targetDir = join(src, 'prebuilds', key);
+		fs.mkdirSync(targetDir, { recursive: true });
+		for (const name of requiredRuntimeFileNames(key)) {
+			if (name !== opts?.omitRuntimeFile) {
+				fs.writeFileSync(join(targetDir, name), 'native');
+			}
 		}
 		const tgz = join(testDir, `${key}.tgz`);
-		await tar.c({ file: tgz, cwd: src, gzip: true }, ['prebuilds', 'foundry-local-core']);
+		await tar.c({ file: tgz, cwd: src, gzip: true }, ['prebuilds']);
 		return tgz;
 	}
 
@@ -205,9 +237,8 @@ flakySuite('FoundryLocalRuntime', () => {
 			// {target} was substituted with the platform key in the request URL.
 			assert.deepStrictEqual(server.requested, [`${platformKey}.tgz`]);
 			// Payload extracted into the cache layout + completion marker written.
-			assert.strictEqual(fs.existsSync(join(overrideDir, 'prebuilds', platformKey, 'foundry_local_napi.node')), true);
-			for (const name of requiredCoreLibraryNames()) {
-				assert.strictEqual(fs.existsSync(join(overrideDir, 'foundry-local-core', platformKey, name)), true);
+			for (const name of requiredRuntimeFileNames(platformKey)) {
+				assert.strictEqual(fs.existsSync(join(overrideDir, 'prebuilds', platformKey, name)), true);
 			}
 			assert.strictEqual(isRuntimeProvisioned(overrideDir, platformKey), true);
 		} finally {
@@ -229,8 +260,8 @@ flakySuite('FoundryLocalRuntime', () => {
 		}
 	});
 
-	test('provisionRuntime: rejects an incomplete payload (missing core library) and writes no marker', async () => {
-		const tgz = await makeTarball(platformKey, { omitCoreLib: true });
+	test('provisionRuntime: rejects an incomplete payload and writes no marker', async () => {
+		const tgz = await makeTarball(platformKey, { omitRuntimeFile: 'libfoundry_local.so' });
 		const server = await startServer({ [`${platformKey}.tgz`]: tgz });
 		try {
 			const overrideDir = join(testDir, '1.2.3');
