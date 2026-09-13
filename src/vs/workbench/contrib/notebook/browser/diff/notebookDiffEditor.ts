@@ -527,6 +527,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private _detachModel() {
+		this._layoutCancellationTokenSource?.dispose();
+		this._layoutCancellationTokenSource = undefined;
 		this._localStore.clear();
 		this._originalWebview?.dispose();
 		this._originalWebview?.element.remove();
@@ -535,8 +537,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._modifiedWebview?.element.remove();
 		this._modifiedWebview = null;
 
-		this.notebookDiffViewModel?.dispose();
 		this.notebookDiffViewModel = undefined;
+		this._eventDispatcher = undefined;
 
 		this._modifiedResourceDisposableStore.clear();
 		this._list.clear();
@@ -544,7 +546,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 	private _attachModel(model: INotebookDiffEditorModel) {
 		this._model = model;
-		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		this._eventDispatcher = this._localStore.add(new NotebookDiffEditorEventDispatcher());
 		const updateInsets = () => {
 			DOM.scheduleAtNextAnimationFrame(this.window, () => {
 				if (this._isDisposed) {
@@ -584,7 +586,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			updateInsets();
 		}));
 
-		const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.diffEditorCalcuator, this.fontInfo, undefined));
+		const vm = this.notebookDiffViewModel = this._localStore.add(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.diffEditorCalcuator, this.fontInfo, undefined));
 		this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
 			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
 			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
@@ -920,11 +922,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		super.clearInput();
 
-		this._modifiedResourceDisposableStore.clear();
-		this._list?.splice(0, this._list?.length || 0);
+		this._detachModel();
 		this._model = null;
-		this.notebookDiffViewModel?.dispose();
-		this.notebookDiffViewModel = undefined;
 	}
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {
