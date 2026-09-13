@@ -10,6 +10,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# @vscode/ripgrep's postinstall fetches a prebuilt binary from the GitHub API.
+# Unauthenticated, that request is rate-limited and returns 403 on shared
+# runners, which fails npm ci before it ever reaches compile. The downloader
+# honours GITHUB_TOKEN, so give it one.
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
   build:
     strategy:
@@ -44,11 +51,20 @@ jobs:
           node-version: ${{ steps.nvmrc.outputs.version }}
           cache: npm
 
-      # Windows needs these to compile native modules (node-gyp)
-      - name: Install Windows build tools
+      # build/npm/preinstall.ts probes %ProgramFiles% for a Visual Studio
+      # install and aborts if it finds none. Rather than depend on that probe
+      # matching the runner image's layout, locate the install with vswhere
+      # and hand preinstall the explicit path it documents.
+      - name: Locate Visual Studio
         if: matrix.platform == 'win32'
-        run: npm install --global windows-build-tools
-        continue-on-error: true # skip if already present on the runner image
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe not found at $vswhere" }
+          $vs = & $vswhere -latest -products * -property installationPath
+          if (-not $vs) { throw "vswhere found no Visual Studio installation" }
+          Write-Host "Using Visual Studio at $vs"
+          "vs2022_install=$vs" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install dependencies
         run: npm ci
@@ -79,6 +95,20 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # Native modules built from source on Linux need these headers.
+      # Without libkrb5-dev, `kerberos` fails with:
+      #   fatal error: gssapi/gssapi.h: No such file or directory
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libkrb5-dev \
+            libx11-dev \
+            libxkbfile-dev \
+            libsecret-1-dev \
+            pkg-config
+
       - run: npm ci
       - run: npm run compile
       - run: npm run eslint
