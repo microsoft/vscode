@@ -1,272 +1,199 @@
 ---
 name: otel
-description: OpenTelemetry instrumentation for the Copilot Chat extension — covers the four agent execution paths, the IOTelService abstraction, span/metric/event conventions, and the relationship between code and the user/developer monitoring docs. Use when adding/changing OTel spans, metrics, or events; instrumenting a new agent surface; touching the Copilot CLI bridge or Claude span emission; or updating `extensions/copilot/docs/monitoring/agent_monitoring*.md`.
+description: OpenTelemetry guidance for VS Code agent experiences. Use when changing Agent Host telemetry, local Copilot Chat telemetry, provider-native spans or metrics, OTel settings and managed policy, trace persistence/export, or monitoring documentation.
 ---
 
-# OpenTelemetry Instrumentation Skill
+# OpenTelemetry in VS Code
 
-When adding, changing, or reviewing OTel telemetry in the Copilot Chat extension, **always read the two source-of-truth docs first** and **always keep them in sync with the code you change**.
+Start by identifying the execution surface. VS Code has separate OTel pipelines with different owners and configuration:
 
-## 1. Authoritative Documents
-
-The `extensions/copilot/docs/monitoring/` directory contains the two specs that define the OTel contract for the extension. Treat them like the layout / layer specs in `vs/sessions`.
-
-| Document | Path | Audience | Covers |
+| Surface | Process and producer | Configuration | Authoritative VS Code document |
 |---|---|---|---|
-| User-facing | `extensions/copilot/docs/monitoring/agent_monitoring.md` | Extension users | Quick start, settings, env vars, exported spans/metrics/events, backend setup guides |
-| Architecture | `extensions/copilot/docs/monitoring/agent_monitoring_arch.md` | Developers | Multi-agent strategies, span hierarchies, file structure, instrumentation points, `IOTelService`, configuration channels |
-| Visual flow | `extensions/copilot/docs/monitoring/otel-data-flow.html` | Developers | Renders the bridge data flow for the in-process Copilot CLI agent |
+| Agent Host sessions (Copilot, Claude, Codex) | Provider-native telemetry routed by the Agent Host utility process | `chat.agentHost.otel.*` | [`src/vs/platform/agentHost/OTEL.md`](../../../src/vs/platform/agentHost/OTEL.md) |
+| Local Copilot Chat | Copilot Chat extension host and `IOTelService` | `github.copilot.chat.otel.*` | [`extensions/copilot/docs/monitoring/agent_monitoring.md`](../../../extensions/copilot/docs/monitoring/agent_monitoring.md) |
 
-If the implementation changes, **you must update the relevant doc in the same PR**. The arch doc is the most likely to drift; treat divergence as a bug.
+Do not combine these pipelines or assume that a setting for one configures another.
 
-## 2. Architecture at a Glance
+## Current architecture
 
-The extension has four agent execution paths, each with a different OTel strategy:
+Agent Host is the current execution architecture for Copilot, Claude, and Codex agent sessions. It owns routing, optional trace interception and SQLite persistence, resource normalization, and cross-provider trace context. Each provider owns its native instrumentation.
 
-| Agent | Process Model | Strategy | Debug Panel Source |
-|---|---|---|---|
-| **Foreground** (`toolCallingLoop`) | Extension host | Direct `IOTelService` spans | Extension spans |
-| **Copilot CLI in-process** | Extension host (same process) | **Bridge SpanProcessor** — SDK creates spans natively; bridge forwards to debug panel | SDK native spans via bridge |
-| **Copilot CLI terminal** | Separate terminal process | Forward OTel env vars | N/A (separate process) |
-| **Claude Code** | Child process (Node fork) | **Synthesized from SDK messages** — extension intercepts the Claude SDK message stream in `claudeMessageDispatch.ts` and emits GenAI spans; LLM calls are proxied through `claudeLanguageModelServer.ts` (which calls `chatMLFetcher`, producing standard `chat` spans). | Extension spans |
+The extension-host Copilot CLI source remains as a fallback when Agent Host is unavailable and to support legacy-session migration. It is normally hidden when Agent Host is available and is not the current Agent Host architecture. Do not use it as a model for new work.
 
-> **Why asymmetric?** The CLI SDK runs in-process with full trace hierarchy (subagents, permissions, hooks). A bridge captures this directly. Claude runs as a separate process — internal spans are inaccessible, so the extension synthesizes spans by translating SDK messages and proxying the model API.
+Local Copilot Chat remains a separate user-visible extension-host surface. Its foreground chat, LLM, tool, hook, metric, and event instrumentation continues to use `IOTelService` under `extensions/copilot/src/platform/otel/`.
 
-## 3. Where Things Live (canonical map)
+## Runtime version discipline
 
-```
-extensions/copilot/src/platform/otel/
+Copilot's native OTel signal contract lives in `github/copilot-agent-runtime`, not in VS Code's TypeScript attribute constants. Before auditing or changing the integration:
+
+1. Read the versions of `@github/copilot-sdk` and `@github/copilot` from the root `package-lock.json`.
+2. Resolve the matching immutable runtime tag and commit.
+3. Read the runtime monitoring reference and implementation at that revision.
+4. Use runtime `main` only after confirming that the relevant files are unchanged from the bundled revision.
+
+The runtime's `docs/developer-docs/monitor.md` is exhaustive for native Copilot spans, attributes, span events, metrics, protocols, environment variables, content capture, TLS, and managed settings. Read it at the revision corresponding to the bundled package and link to that immutable revision in investigation or review evidence rather than copying its signal tables into VS Code documentation.
+
+## Ownership map
+
+### Agent Host integration
+
+```text
+src/vs/platform/agentHost/
+├── OTEL.md
 ├── common/
-│   ├── otelService.ts          # IOTelService interface + ISpanHandle + injectCompletedSpan
-│   ├── otelConfig.ts           # Config resolution (env → settings → defaults), enabledVia, dbSpanExporter
-│   ├── noopOtelService.ts      # Zero-cost no-op (used by chatLib / tests)
-│   ├── inMemoryOTelService.ts  # ← actually under node/, see below
-│   ├── agentOTelEnv.ts         # deriveCopilotCliOTelEnv / deriveClaudeOTelEnv
-│   ├── genAiAttributes.ts      # ⚠ Single source of truth for attribute keys & enums
-│   ├── genAiEvents.ts          # Event emitter helpers (emit*Event)
-│   ├── genAiMetrics.ts         # GenAiMetrics class
-│   ├── messageFormatters.ts    # truncateForOTel, normalizeProviderMessages, toSystemInstructions, …
-│   ├── workspaceOTelMetadata.ts
-│   ├── sessionUtils.ts
-│   └── index.ts                # ⚠ Public barrel — re-export new helpers/constants here
+│   ├── agentService.ts                         # setting IDs, env names, settings → env translation
+│   └── otel/agentHostOTelService.ts            # service contract and synthetic span names
+├── electron-main/electronAgentHostStarter.ts   # Electron spawn-time env binding
+├── node/
+│   ├── nodeAgentHostStarter.ts                  # server spawn-time env binding
+│   ├── otel/agentHostOTelService.ts             # pass-through and DB-mode routing
+│   ├── copilot/                                 # Copilot SDK configuration and trace context
+│   ├── claude/                                  # Claude launch environment
+│   └── codex/                                   # Codex launch overrides
+└── test/node/otel/                              # pipeline integration tests
+```
+
+Shared transport and persistence live under:
+
+```text
+src/vs/platform/otel/
+├── common/                                      # normalized span data and shared attributes
 └── node/
-    ├── otelServiceImpl.ts      # NodeOTelService + DiagnosticSpanExporter + FilteredSpanExporter + EXPORTABLE_OPERATION_NAMES
-    ├── inMemoryOTelService.ts  # InMemoryOTelService (used when OTel is disabled — feeds debug panel only)
-    ├── fileExporters.ts        # File-based span/log/metric exporters
-    └── sqlite/                 # OTelSqliteStore + SqliteSpanExporter (dbSpanExporter pipeline)
+    ├── otlp/                                    # receiver, decoder, outbound forwarders
+    └── sqlite/                                  # persistent span store
+```
+
+Agent Host supports two routing modes:
+
+- **Pass-through:** provider SDKs export directly to the configured destination.
+- **DB mode:** provider traces use a private OTLP/HTTP JSON loopback, are decoded into SQLite, and may be forwarded to a compatible external destination. Provider logs and metrics bypass the trace loopback.
+
+Read `src/vs/platform/agentHost/OTEL.md` before changing either mode.
+
+### Local Copilot Chat
+
+```text
+extensions/copilot/src/platform/otel/
+├── common/                                      # IOTelService, config, attributes, events, metrics
+└── node/                                        # SDK implementation and exporters
 
 extensions/copilot/src/extension/
-├── chatSessions/
-│   ├── copilotcli/node/
-│   │   ├── copilotCliBridgeSpanProcessor.ts  # Bridge: SDK spans → IOTelService (+ hook span enrichment)
-│   │   ├── copilotcliSession.ts              # Root invoke_agent copilotcli span + traceparent + hook stash
-│   │   └── copilotcliSessionService.ts       # Bridge installation + env var setup
-│   └── claude/
-│       ├── common/claudeMessageDispatch.ts   # execute_tool / execute_hook spans + subagent context wiring
-│       └── node/
-│           ├── claudeOTelTracker.ts          # invoke_agent claude span + per-session token/cost rollup
-│           └── claudeLanguageModelServer.ts  # Local HTTP proxy → chatMLFetcher (chat spans)
-├── chat/vscode-node/
-│   └── chatHookService.ts                    # execute_hook spans for foreground agent hooks
-├── intents/node/toolCallingLoop.ts           # invoke_agent spans for foreground agent
-├── tools/vscode-node/toolsService.ts         # execute_tool spans for foreground tools
-├── prompt/node/chatMLFetcher.ts              # chat spans for all LLM calls
-├── byok/vscode-node/                         # BYOK provider chat spans (anthropicProvider, geminiNativeProvider, …)
-└── trajectory/vscode-node/
-    ├── otelChatDebugLogProvider.ts           # Debug panel data provider
-    ├── otelSpanToChatDebugEvent.ts           # Span → ChatDebugEvent conversion
-    └── otlpFormatConversion.ts               # OTLP ↔ in-memory span format
+├── prompt/node/chatMLFetcher.ts                 # chat spans
+├── intents/node/toolCallingLoop.ts              # invoke_agent spans
+├── tools/vscode-node/toolsService.ts            # execute_tool spans
+├── chat/vscode-node/chatHookService.ts           # execute_hook spans
+├── byok/vscode-node/                            # BYOK chat spans
+└── trajectory/vscode-node/                      # Agent Debug Log conversion
 ```
 
-## 3a. Attribute namespaces & dual-emit policy
+For extension-emitted attributes, use constants from `extensions/copilot/src/platform/otel/common/genAiAttributes.ts`. Those constants are not authoritative for provider-native Agent Host telemetry.
 
-Three namespaces coexist on extension-emitted spans:
+## Configuration checklist
 
-| Namespace | Purpose | Status |
-|---|---|---|
-| `gen_ai.*` | OTel GenAI Semantic Conventions. Use whenever a standard key exists. | Canonical |
-| `github.copilot.*` | Copilot-specific vendor namespace. | **Preferred — new attributes go here.** |
-| `copilot_chat.*` | Original VS Code-only namespace. Several keys remain for backwards compatibility. | **Legacy — keep emitting; do not add new keys here.** |
+When changing Agent Host configuration:
 
-### Dual-emit rules
+1. Update the setting registration in `common/agentHostStarter.config.contribution.ts`.
+2. Update setting IDs, environment names, and `buildAgentHostOTelEnv()` in `common/agentService.ts`.
+3. Update `readAgentHostOTelEnv()` or provider launch translation as applicable.
+4. Preserve precedence deliberately: enterprise managed policy, inherited environment, and local settings are separate channels.
+5. Update `src/vs/platform/agentHost/OTEL.md`.
+6. Add focused translation and integration tests.
+7. Invoke the `policy-and-managed-settings` skill for any enterprise control.
 
-- When adding a new attribute that belongs to Copilot's vendor namespace, emit it under `github.copilot.*` only — do **not** introduce a `copilot_chat.*` twin.
-- When **renaming** an existing `copilot_chat.*` attribute to its `github.copilot.*` equivalent (e.g., `copilot_chat.repo.*` → `github.copilot.git.*`, `gen_ai.usage.reasoning_tokens` → `gen_ai.usage.reasoning.output_tokens`), **dual-emit both keys indefinitely**. Downstream readers (Agent Debug Log, Chronicle, SQLite span store, OTLP collectors) may depend on the legacy key.
-- Mark the legacy row in [agent_monitoring.md](../../../extensions/copilot/docs/monitoring/agent_monitoring.md) with **Legacy** in the "Requirement" column and a pointer to the preferred key. No sunset date — legacy keys live on indefinitely.
-- Hash sensitive identifiers (e.g., MCP server names) with `hashTelemetryValue` from [`util/node/crypto.ts`](../../../extensions/copilot/src/util/node/crypto.ts). Emit hashes unconditionally; raw values only when `captureContent` is enabled.
+When changing local Copilot Chat configuration:
 
-## 4. Service Layer & Selection
+1. Update `extensions/copilot/package.json`.
+2. Update `resolveOTelConfig()` in `extensions/copilot/src/platform/otel/common/otelConfig.ts`.
+3. Update `agent_monitoring.md`.
+4. Add focused configuration tests.
 
-`IOTelService` ([otelService.ts](../../../extensions/copilot/src/platform/otel/common/otelService.ts)) is the only abstraction consumers should depend on — never import the OTel SDK directly outside `node/otelServiceImpl.ts`. Three implementations:
+Never add a new VS Code setting merely to mirror a new runtime-owned managed setting. Follow the runtime-managed-settings ownership rules.
 
-| Class | When Used |
-|---|---|
-| `NoopOTelService` | `chatLib` and tests where no telemetry pipeline is needed — zero cost |
-| `NodeOTelService` | OTel enabled — full SDK, OTLP/file/console export, optional SQLite span exporter |
-| `InMemoryOTelService` | Registered when OTel is **disabled** — no SDK is loaded, but spans/metrics/logs are still captured in-memory so the Agent Debug Log panel keeps working |
+## Signal and routing checklist
 
-Selection happens in [`src/extension/extension/vscode-node/services.ts`](../../../extensions/copilot/src/extension/extension/vscode-node/services.ts): exactly one of `NodeOTelService` or `InMemoryOTelService` is bound to `IOTelService` per extension host based on `resolveOTelConfig().enabled`.
+For Agent Host provider-native signals:
 
-## 5. Span / Metric / Event Conventions
+1. Make the signal change in the provider/runtime repository that owns it.
+2. Update that provider's authoritative signal reference.
+3. Update VS Code only when routing, normalization, persistence, parent context, or host-produced metadata changes.
+4. Confirm pass-through and DB mode behavior separately.
+5. Confirm whether the signal is a trace, metric, or log. Only traces enter the Agent Host loopback and SQLite store.
+6. Test the exact bundled provider version.
 
-Follow the [OTel GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/). **Always use the constants from [`genAiAttributes.ts`](../../../extensions/copilot/src/platform/otel/common/genAiAttributes.ts) — never raw string literals.**
+For host-produced spans:
 
-| Operation | Span Name | Kind | Constant |
-|---|---|---|---|
-| Agent orchestration | `invoke_agent {agent_name}` | `INTERNAL` | `GenAiOperationName.INVOKE_AGENT` |
-| LLM API call | `chat {model}` | `CLIENT` | `GenAiOperationName.CHAT` |
-| Tool execution | `execute_tool {tool_name}` | `INTERNAL` | `GenAiOperationName.EXECUTE_TOOL` |
-| Hook execution | `execute_hook {hook_type}` | `INTERNAL` | `GenAiOperationName.EXECUTE_HOOK` |
+- Keep names and attributes in `common/otel/agentHostOTelService.ts` or shared platform constants.
+- Preserve `service.namespace=vscode.agent-host` while retaining distinct provider service names.
+- Treat titles, prompts, responses, tool arguments, file paths, commands, and raw server names as sensitive content.
+- Gate sensitive content on the effective content-capture policy and apply explicit bounds where required.
+- Propagate W3C `traceparent` and `tracestate` through the provider's supported boundary.
 
-Attribute namespaces:
+For local Copilot Chat signals:
 
-| Namespace | Constant module | Examples |
-|---|---|---|
-| `gen_ai.*` | `GenAiAttr` | `gen_ai.operation.name`, `gen_ai.usage.input_tokens` |
-| `copilot_chat.*` | `CopilotChatAttr` | `copilot_chat.session_id`, `copilot_chat.chat_session_id`, `copilot_chat.hook_*` |
-| `github.copilot.*` | `CopilotCliSdkAttr` | SDK-emitted hook attributes (read-only — bridge & debug panel) |
-| `claude_code.*` | (raw) | Claude subprocess SDK attributes — only ever observed in OTLP, not produced by the extension |
+- Depend on `IOTelService`, not directly on an OTel SDK from consumers.
+- Use standard `gen_ai.*` keys when they exist.
+- Put new Copilot-specific attributes under `github.copilot.*`; do not add new `copilot_chat.*` keys.
+- Preserve documented legacy keys when existing consumers require dual emission.
+- Decide explicitly whether a new operation is exportable.
+- Keep Agent Debug Log-only records out of user OTLP and SQLite export.
+- Pass free-form content through `truncateForOTel` with the configured maximum.
 
-### Standard span pattern
+## Provider boundaries
 
-```ts
-return this._otelService.startActiveSpan(
-    `execute_tool ${name}`,
-    {
-        kind: SpanKind.INTERNAL,
-        attributes: {
-            [GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
-            [GenAiAttr.TOOL_NAME]: name,
-            // …
-        },
-    },
-    async (span) => {
-        try {
-            const result = await this._actualWork();
-            span.setStatus(SpanStatusCode.OK);
-            return result;
-        } catch (err) {
-            span.setStatus(SpanStatusCode.ERROR, err instanceof Error ? err.message : String(err));
-            span.setAttribute(StdAttr.ERROR_TYPE, err instanceof Error ? err.constructor.name : 'Error');
-            throw err;
-        }
-    },
-);
-```
+Do not claim one protocol matrix for every Agent Host provider:
 
-### Cross-boundary trace propagation
+- Copilot runtime owns its native OTLP/HTTP JSON/protobuf behavior and does not support OTLP/gRPC.
+- Claude receives OTel configuration through its launch environment.
+- Codex receives launch-time `otel.*` overrides.
+- Agent Host's DB loopback is always OTLP/HTTP JSON.
+- External protobuf and gRPC traces cannot be transcoded by Agent Host and therefore remain local in DB mode.
 
-```ts
-// Parent: store context keyed by something the child knows
-const ctx = this._otelService.getActiveTraceContext();
-if (ctx) { this._otelService.storeTraceContext(`subagent:invocation:${id}`, ctx); }
+Check the provider launch code and bundled provider version before documenting support.
 
-// Child: retrieve and use as parent
-const parentCtx = this._otelService.getStoredTraceContext(`subagent:invocation:${id}`);
-return this._otelService.startActiveSpan('invoke_agent child', { parentTraceContext: parentCtx, … }, fn);
-```
+## Documentation rules
 
-### Content capture
+- Keep current Agent Host architecture and data flow in `src/vs/platform/agentHost/OTEL.md`.
+- Keep local extension-host usage in `extensions/copilot/docs/monitoring/agent_monitoring.md`.
+- Keep exhaustive native Copilot signals in the runtime repository.
+- Keep this skill procedural. Do not duplicate complete settings, environment-variable, attribute, event, or metric tables here.
+- Use immutable commit permalinks when citing cross-repository evidence in issues and pull requests. Avoid version-specific links in evergreen guidance unless the update process owns keeping them current.
+- If executable source and documentation disagree, verify with tests and call out the discrepancy rather than silently selecting one.
 
-The extension uses two conventions side-by-side; pick the right one for the attribute you're adding.
+## Validation
 
-1. **Always emit (truncated)** — used for inputs/outputs that the Agent Debug Log panel needs to be useful even when OTel export is off (e.g. `gen_ai.tool.call.arguments` in [`toolsService.ts`](../../../extensions/copilot/src/extension/tools/vscode-node/toolsService.ts), and `copilot_chat.hook_input` / `hook_output` in [`chatHookService.ts`](../../../extensions/copilot/src/extension/chat/vscode-node/chatHookService.ts)). The attribute is captured unconditionally but always passed through `truncateForOTel`. Use this for moderate-sized, generally-non-secret arguments / results.
-2. **Gate on `config.captureContent`** — used for full prompt / response / system-instruction bodies (e.g. `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.system_instructions`, `gen_ai.tool.definitions` in [`chatMLFetcher.ts`](../../../extensions/copilot/src/extension/prompt/node/chatMLFetcher.ts) and the BYOK providers). These are larger and more likely to contain user secrets.
+Choose the smallest checks that cover the change.
 
-```ts
-// Pattern 1 — always emit, always truncate
-span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(args)));
-
-// Pattern 2 — gated on captureContent
-if (this._otelService.config.captureContent) {
-    span.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(messages)));
-}
-```
-
-### Debug panel vs OTLP isolation
-
-Spans whose `gen_ai.operation.name` is **not** in `EXPORTABLE_OPERATION_NAMES` (defined in [`otelServiceImpl.ts`](../../../extensions/copilot/src/platform/otel/node/otelServiceImpl.ts)) are visible to the debug panel via `onDidCompleteSpan` but excluded from OTLP and SQLite exporters by `DiagnosticSpanExporter` and `FilteredSpanExporter`. Currently exportable: `chat`, `invoke_agent`, `execute_tool`, `embeddings`, `execute_hook`. **If you add a new operation name that should reach the user's collector, update `EXPORTABLE_OPERATION_NAMES` and document it in `agent_monitoring.md`.**
-
-## 6. Configuration Surface (must stay in sync)
-
-When you add or change a setting/env var/command, update **all three** of:
-
-1. The setting/command registration in [`extensions/copilot/package.json`](../../../extensions/copilot/package.json) (search for `github.copilot.chat.otel`).
-2. `resolveOTelConfig` in [`otelConfig.ts`](../../../extensions/copilot/src/platform/otel/common/otelConfig.ts) — if the setting affects runtime config — and the `enabledVia` channel if it can implicitly enable OTel.
-3. `agent_monitoring.md` ("VS Code Settings", "Environment Variables", "Activation", "Commands" tables) **and** `agent_monitoring_arch.md` ("Activation Channels", "Agent-Specific Env Var Translation" tables).
-
-For sub-process env vars, also update:
-
-- `deriveCopilotCliOTelEnv` / `deriveClaudeOTelEnv` in [`agentOTelEnv.ts`](../../../extensions/copilot/src/platform/otel/common/agentOTelEnv.ts).
-- The corresponding tests in `src/platform/otel/common/test/agentOTelEnv.spec.ts`.
-
-## 7. Procedure Checklists
-
-### When adding a new span / attribute
-
-1. Add the attribute key as a constant to `genAiAttributes.ts` (under `GenAiAttr`, `CopilotChatAttr`, or a new domain group). Never inline a raw `'copilot_chat.foo'` literal.
-2. Add it to the public barrel in [`index.ts`](../../../extensions/copilot/src/platform/otel/common/index.ts) if it lives in a new group.
-3. Use `IOTelService.startActiveSpan` (preferred) or `startSpan` — never `BasicTracerProvider` / `getTracer` directly.
-4. Pass the value through `truncateForOTel` (mandatory for any free-form content attribute — prevents OTLP batch failures). Decide whether the attribute should be **always-emitted** (debug-panel-essential, e.g. tool args, hook input/output) or **gated on `config.captureContent`** (large prompt/response bodies, system instructions); follow the existing convention for similar data.
-5. If the new operation should reach OTLP, add its op-name to `EXPORTABLE_OPERATION_NAMES` in `otelServiceImpl.ts`.
-6. Document the new attribute in `agent_monitoring.md` (under the relevant span table) **and** add a test in `src/platform/otel/common/test/`.
-
-### When adding a new metric / event
-
-1. Add the helper to `genAiMetrics.ts` or `genAiEvents.ts` (mirror existing static / functional patterns).
-2. Re-export it from `index.ts`.
-3. Add the metric/event row to `agent_monitoring.md` ("Metrics" / "Events" sections) with all attributes documented.
-4. Add a unit test in `src/platform/otel/common/test/genAiMetrics.spec.ts` or `genAiEvents.spec.ts` (assert the exact name + attribute keys).
-
-### When instrumenting a new agent surface
-
-1. Pick a strategy: direct spans (foreground-style), bridge processor (CLI-style), or message-stream synthesis (Claude-style).
-2. Add the new emit site to the **Instrumentation Points** table in `agent_monitoring_arch.md` and the **Span Hierarchies** diagrams.
-3. If you forward OTel env vars to a child process, do it via a new `derive*OTelEnv` helper in `agentOTelEnv.ts` and add a row to the **Agent-Specific Env Var Translation** table.
-4. Wire trace propagation explicitly with `storeTraceContext` / `parentTraceContext` for any subagent or async boundary; do not rely on global active context across processes.
-
-### When changing the Copilot CLI bridge
-
-The bridge (`copilotCliBridgeSpanProcessor.ts`) reaches into `_delegate._activeSpanProcessor._spanProcessors` — internal OTel SDK v2 state. This is documented as a known risk. If you touch it:
-
-- Keep the runtime guard that degrades gracefully if the internal shape changes.
-- Update the **⚠ SDK Internal Access Warning** block in `agent_monitoring_arch.md` if the access pattern changes.
-- Add a unit test in `copilotCliBridgeSpanProcessor.spec.ts`.
-
-## 8. Validation
-
-Before sending a PR that touches OTel code:
+Agent Host examples:
 
 ```bash
-# From extensions/copilot/
-npx tsc --noEmit --project tsconfig.json
-
-# OTel + Bridge unit tests
-npm test -- --grep "OTel\|Bridge"
+./scripts/test.sh --grep "AgentHostOTel\|agent host.*OTel"
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/otel/agentHostOTelService.integrationTest.ts
 ```
 
-Manual sanity checks:
+Local Copilot Chat examples, from `extensions/copilot/`:
 
-- The Aspire Dashboard quick-start in `agent_monitoring.md` still works end-to-end (one agent message → `invoke_agent` + `chat` + `execute_tool` spans visible at <http://localhost:18888>).
-- The Agent Debug Log panel in VS Code still shows the full span tree for foreground, Copilot CLI, and Claude sessions.
+```bash
+npx tsc --noEmit --project tsconfig.json
+npm test -- --grep "OTel"
+```
 
-## 9. Known Risks & Limitations
+For documentation-only changes, verify:
 
-These are documented in `agent_monitoring_arch.md` — preserve them:
+- every relative link resolves;
+- setting and command IDs exist in source;
+- environment-variable names match translation and parsing code;
+- provider/runtime claims match the bundled versions;
+- Mermaid diagrams render;
+- no current document directs contributors to deprecated extension-host CLI architecture.
 
-- SDK `_spanProcessors` internal access (graceful runtime guard).
-- Two TracerProviders in the same process when CLI SDK is active.
-- `process.env` mutation for the CLI SDK (only OTel-specific vars, set before `LocalSessionManager` ctor).
-- Single `captureContent` flag for the CLI SDK applies to both debug panel and OTLP — document any user-visible change clearly.
-- Claude SDK has no file exporter, and the CLI runtime only supports `otlp-http`.
+## Anti-patterns
 
-## 10. Anti-Patterns to Reject
-
-- ❌ Importing `@opentelemetry/api` (or any `@opentelemetry/*` package) from anywhere other than `node/otelServiceImpl.ts`, `fileExporters.ts`, or the CLI bridge processor type imports.
-- ❌ Hard-coded attribute keys: `'copilot_chat.hook_type'` instead of `CopilotChatAttr.HOOK_TYPE`.
-- ❌ Hard-coded provider strings: `'github'` / `'anthropic'` / `'gemini'` instead of `GenAiProviderName.*`.
-- ❌ Magic `SpanStatusCode` numbers (`code: 1`, `code: 2`) — use the enum.
-- ❌ Emitting any free-form content attribute without passing it through `truncateForOTel` — OTLP batches will silently drop or fail.
-- ❌ Logging full prompt / response / system-instruction bodies without `config.captureContent` gating (these are pattern 2 above).
-- ❌ Adding a span operation name without deciding whether it's exportable (`EXPORTABLE_OPERATION_NAMES`).
-- ❌ Updating instrumentation without updating `agent_monitoring.md` / `agent_monitoring_arch.md` in the same change.
+- Treating deprecated extension-host Copilot CLI code as the current architecture.
+- Copying the runtime's exhaustive signal catalog into VS Code docs.
+- Assuming runtime `main` matches the package bundled by VS Code.
+- Describing Agent Host and local Copilot Chat settings as interchangeable.
+- Sending metrics or logs through the trace-only Agent Host loopback.
+- Claiming all providers support the same OTLP protocols.
+- Emitting sensitive content without the effective capture-content gate.
+- Using raw attribute strings where the owning component provides constants.
+- Adding debug-only spans under an exportable operation without an explicit non-export contract.

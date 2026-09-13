@@ -173,10 +173,13 @@ export class RemoteContentExclusion implements IDisposable {
 		));
 	}
 
-	public async isIgnored(file: URI, token: CancellationToken = CancellationToken.None): Promise<boolean> {
-		const memoised = this.memoisedVerdict(file);
-		if (memoised !== undefined) {
-			return memoised;
+	public async isIgnored(file: URI, token: CancellationToken = CancellationToken.None, contents?: string): Promise<boolean> {
+		const hasProvidedContents = contents !== undefined;
+		if (!hasProvidedContents) {
+			const memoised = this.memoisedVerdict(file);
+			if (memoised !== undefined) {
+				return memoised;
+			}
 		}
 
 		// Try to find the repository from the cache first to avoid expensive git extension calls
@@ -217,8 +220,7 @@ export class RemoteContentExclusion implements IDisposable {
 				return true;
 			}
 		}
-		let fileContents: string = '';
-		let fileContentHash: string = '';
+		let fileContents = contents?.slice(0, 1024);
 		// Unscoped organization rules are keyed under the non-git pseudo repo and apply to any file.
 		// Their globs already reach every file, so content rules must be evaluated against them too.
 		const regexRuleSources = repoMetadata.fetchUrls.includes(NON_GIT_FILE_KEY)
@@ -232,31 +234,34 @@ export class RemoteContentExclusion implements IDisposable {
 			const { ifAnyMatch, ifNoneMatch } = this._contentExclusionCache.get(fetchUrl) ?? { ifAnyMatch: [], ifNoneMatch: [] };
 			// We only want to read the file if we absolutely must as it can be expensive
 			if (ifAnyMatch.length > 0 || ifNoneMatch.length > 0) {
-				if (!fileContents) {
+				if (fileContents === undefined) {
 					try {
 						// Read the file contents and hash it so we can cache the result - Only reads up to 1KB of the file, as reading too much can be expensive and regex exclusions are normally header based
 						// Note: This feature is internal only so we can adapt the implementation as needed without breaking clients.
 						const fileContentOrBuffer = await this._fileReadLimiter.queue(() => readFileFromTextBufferOrFS(this._fileSystemService, this._workspaceService, file, 1024));
 						fileContents = typeof fileContentOrBuffer === 'string' ? fileContentOrBuffer : new TextDecoder().decode(fileContentOrBuffer);
-						fileContentHash = await createSha256Hash(fileContents);
-						regexCacheKey = `${regexScope}\n${fileContentHash}`;
-						// Cache hit for these file contents, no need to run the regex patterns
-						const cachedRegexVerdict = this._ignoreRegexResultCache.get(regexCacheKey);
-						if (cachedRegexVerdict && cachedRegexVerdict.generation === generation) {
-							return cachedRegexVerdict.verdict;
-						}
 					} catch {
 						// We failed to read the file, so it should just be ignored as we have no idea what the contents are or if it exists
 						return true;
 					}
 				}
+				if (!regexCacheKey) {
+					const fileContentHash = await createSha256Hash(fileContents);
+					regexCacheKey = `${regexScope}\n${fileContentHash}`;
+					// Cache hit for these file contents, no need to run the regex patterns
+					const cachedRegexVerdict = this._ignoreRegexResultCache.get(regexCacheKey);
+					if (cachedRegexVerdict && cachedRegexVerdict.generation === generation) {
+						return cachedRegexVerdict.verdict;
+					}
+				}
 			}
-			if (ifAnyMatch.length > 0 && fileContents && ifAnyMatch.some(pattern => pattern.test(fileContents))) {
+			const contentsToCheck = fileContents;
+			if (ifAnyMatch.length > 0 && contentsToCheck !== undefined && ifAnyMatch.some(pattern => pattern.test(contentsToCheck))) {
 				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ifAnyMatch`);
 				this._ignoreRegexResultCache.set(regexCacheKey, { verdict: true, generation });
 				return true;
 			}
-			if (ifNoneMatch.length > 0 && fileContents && !ifNoneMatch.some(pattern => pattern.test(fileContents))) {
+			if (ifNoneMatch.length > 0 && contentsToCheck !== undefined && !ifNoneMatch.some(pattern => pattern.test(contentsToCheck))) {
 				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ifNoneMatch`);
 				this._ignoreRegexResultCache.set(regexCacheKey, { verdict: true, generation });
 				return true;
@@ -265,7 +270,7 @@ export class RemoteContentExclusion implements IDisposable {
 
 		// Memoise a negative verdict only once the rules have loaded and the repository is settled.
 		// Doing it earlier would keep the file allowed long after its real rules become known.
-		if (rulesLoaded && repoSettled) {
+		if (rulesLoaded && repoSettled && !hasProvidedContents) {
 			this._ignoreGlobResultCache.set(file, { verdict: false, generation });
 			// Only meaningful when regex rules forced us to read (and hash) the file.
 			if (regexCacheKey) {

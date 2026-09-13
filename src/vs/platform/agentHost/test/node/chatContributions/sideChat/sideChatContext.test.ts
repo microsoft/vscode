@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { resolveLastNonLocalTurnId } from '../../../../common/agentHostConversationContext.js';
 import { MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../../common/state/sessionState.js';
 import { buildBoundedSideChatSourceContext, injectSideChatContext, resolveSideChatBoundary, sliceSideChatTurns } from '../../../../node/chatContributions/sideChat/sideChatContext.js';
 
@@ -72,7 +73,7 @@ suite('sideChatContext', () => {
 		}), 'User request:\ncurrent question');
 	});
 
-	test('captures completed context before an active turn', () => {
+	test('omits completed context carried by an active-turn fork', () => {
 		assert.strictEqual(buildBoundedSideChatSourceContext([{
 			...sourceTurn,
 			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'source-md', content: 'source answer' }],
@@ -82,7 +83,33 @@ suite('sideChatContext', () => {
 			responseParts: [],
 			startedAt: new Date().toISOString(),
 			usage: undefined,
-		}), 'User request:\nsource question\n\nAgent response:\nsource answer\n\n---\n\nUser request:\nfollow-up question');
+		}, sourceTurn.id), 'User request:\nfollow-up question');
+	});
+
+	test('includes completed turns after an active-turn fork anchor', () => {
+		const localTurn: Turn = {
+			...sourceTurn,
+			id: 'local-turn',
+			message: { ...sourceTurn.message, text: '!command' },
+		};
+
+		assert.strictEqual(buildBoundedSideChatSourceContext([sourceTurn, localTurn], 'active', {
+			id: 'active',
+			message: { text: 'follow-up question', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			startedAt: new Date().toISOString(),
+			usage: undefined,
+		}, sourceTurn.id), 'User request:\n!command\n\n---\n\nUser request:\nfollow-up question');
+	});
+
+	test('resolves the final non-local turn', () => {
+		const turns: Turn[] = [
+			sourceTurn,
+			{ ...sourceTurn, id: 'second-turn' },
+			{ ...sourceTurn, id: 'local-turn' },
+		];
+
+		assert.strictEqual(resolveLastNonLocalTurnId(turns, turnId => turnId === 'local-turn'), 'second-turn');
 	});
 
 	test('injects active source context and partial responses exactly once', () => {

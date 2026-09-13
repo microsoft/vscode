@@ -107,6 +107,7 @@ suite('ChatTurnPills', () => {
 			label: 'plan.md',
 			resource: URI.file('/repo/plan.md'),
 			ariaLabel: 'Open plan.md',
+			ariaDescription: 'file:///repo/plan.md',
 			tooltip: 'file:///repo/plan.md',
 			open: () => { },
 		};
@@ -115,15 +116,25 @@ suite('ChatTurnPills', () => {
 			disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions)),
 		];
 
-		const ariaLabels = items.map(item => {
+		const accessibility = items.map(item => {
 			const container = document.createElement('div');
 			mainWindow.document.body.appendChild(container);
 			disposables.add(toDisposable(() => container.remove()));
 			item.render(container);
-			return container.querySelector('.monaco-button')?.getAttribute('aria-label');
+			const button = container.querySelector('.monaco-button');
+			return {
+				label: button?.getAttribute('aria-label'),
+				description: button?.getAttribute('aria-description'),
+			};
 		});
 
-		assert.deepStrictEqual(ariaLabels, ['Open plan.md', 'Open plan.md']);
+		assert.deepStrictEqual(accessibility, [{
+			label: 'Open plan.md',
+			description: 'file:///repo/plan.md',
+		}, {
+			label: 'Open plan.md',
+			description: 'file:///repo/plan.md',
+		}]);
 	});
 
 	test('focusing a pill restores its tab stop, so the row stays reachable by Tab', () => {
@@ -214,6 +225,7 @@ suite('ChatTurnPills', () => {
 			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
 				shownItems = items.map(item => ({ kind: item.kind, label: item.label, ariaDescription: item.ariaDescription, hover: typeof item.hover?.content === 'string' ? item.hover.content : undefined }));
 			}
+			override hide(): void { }
 		});
 		const opened: string[] = [];
 		const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
@@ -253,6 +265,36 @@ suite('ChatTurnPills', () => {
 				{ kind: ActionListItemKind.Header, label: 'Files', ariaDescription: undefined, hover: undefined },
 				{ kind: ActionListItemKind.Action, label: 'plan.md', ariaDescription: undefined, hover: undefined },
 			],
+		});
+	});
+
+	test('summarizes a lone artifact, keeping only a file artifact inline', () => {
+		const renderArtifact = (section: IChatPillSection) => {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
+				stats: constObservable(EMPTY_DIFF_STATS),
+				artifacts: constObservable<readonly IChatPillSection[]>([section]),
+				changesEnabled: constObservable(false),
+				artifactsEnabled: constObservable(true),
+				openChanges() { },
+			}));
+			mainWindow.document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			const button = widget.element.querySelector<HTMLElement>('.chat-pill-button');
+			return {
+				rendering: button?.classList.contains('chat-resource-pill-button') ? 'resource' : 'dropdown',
+				label: button?.querySelector<HTMLElement>('.chat-pill-label')?.textContent,
+				ariaLabel: button?.getAttribute('aria-label'),
+			};
+		};
+
+		assert.deepStrictEqual({
+			pullRequest: renderArtifact({ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, ariaLabel: 'Open #12', open: () => { } }] }),
+			file: renderArtifact({ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), ariaLabel: 'Open plan.md', open: () => { } }] }),
+		}, {
+			pullRequest: { rendering: 'dropdown', label: '1 Artifact', ariaLabel: 'Show 1 artifact' },
+			file: { rendering: 'resource', label: undefined, ariaLabel: 'Open plan.md' },
 		});
 	});
 

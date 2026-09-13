@@ -15,8 +15,18 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 
+/** Machine-readable reasons a transport cannot be reconnected. */
+export const enum AgentHostTransportFailureReason {
+	Unknown = 'unknown',
+	HostNotRunning = 'hostNotRunning',
+}
+
 /** Signals that reconnecting the transport cannot recover the connection. */
-export class NonReconnectableTransportError extends Error { }
+export class NonReconnectableTransportError extends Error {
+	constructor(message: string, readonly reason: AgentHostTransportFailureReason = AgentHostTransportFailureReason.Unknown) {
+		super(message);
+	}
+}
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle

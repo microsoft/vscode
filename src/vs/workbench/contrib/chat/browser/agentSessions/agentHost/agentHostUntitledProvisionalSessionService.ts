@@ -58,6 +58,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -104,6 +105,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * already disposed/rebound away.
 	 */
 	get(sessionResource: URI): URI | undefined;
+
+	/** Working directories used to create the current provisional generation. */
+	getProvisionalWorkingDirectories(sessionResource: URI): readonly URI[] | undefined;
 
 	/**
 	 * Initial config the editor window applies to every new Agent Host session.
@@ -184,8 +188,8 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	getResolvedConfig(sessionResource: URI): ResolveSessionConfigResult | undefined;
 
 	/**
-	 * Re-resolve config for an already-created chat session and cache the
-	 * schema/values overlay returned by the provider.
+	 * Re-resolve config on an already-created session's owning host and cache
+	 * its schema/values overlay until the connection or session identity changes.
 	 */
 	refreshResolvedConfig(
 		sessionResource: URI,
@@ -206,21 +210,19 @@ type ProvisionalOperationResult = URI | void;
 class ActiveClientBinding extends Disposable {
 	constructor(
 		readonly roots: readonly URI[],
-		readonly scope: IAgentCustomizationScope | undefined,
+		readonly scope: IAgentCustomizationScope,
 		clientId: string,
 		publish: () => void,
 	) {
 		super();
-		if (scope) {
-			this._register(scope);
-			this._register(autorun(reader => {
-				if (!scope.isResolved.read(reader)) {
-					return;
-				}
-				scope.activeClient(clientId).read(reader);
-				publish();
-			}));
-		}
+		this._register(scope);
+		this._register(autorun(reader => {
+			if (!scope.isResolved.read(reader)) {
+				return;
+			}
+			scope.activeClient(clientId).read(reader);
+			publish();
+		}));
 	}
 }
 
@@ -267,6 +269,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
+	private readonly _resolvedConfigConnections = new ResourceMap<IAgentHostSessionResolution>();
+	private _resolvedConfigRequestSequence = 0;
 	private readonly _sessionCreationMetadata = new ResourceMap<Record<string, unknown>>();
 	private readonly _pendingBackendDisposals = new ResourceSet();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
@@ -280,6 +284,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -305,10 +310,29 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				this._resolvedConfigs.delete(sessionResource);
 				this._resolvedConfigRequestSeq.delete(sessionResource);
+				this._resolvedConfigConnections.delete(sessionResource);
 				this._sessionCreationMetadata.delete(sessionResource);
 				// Drop any tombstone for the abandoned untitled URI so the
 				// set doesn't grow unbounded across the workbench lifetime.
 				this._rebound.delete(sessionResource);
+			}
+		}));
+
+		this._register(this._agentHostConnectionsService.onDidChangeSessionResolution(() => {
+			for (const [sessionResource, resolution] of this._resolvedConfigConnections) {
+				if (this._isCurrentConfigConnection(sessionResource, resolution)) {
+					continue;
+				}
+				this._resolvedConfigConnections.delete(sessionResource);
+				this._resolvedConfigRequestSeq.delete(sessionResource);
+				const entry = this._entries.get(sessionResource);
+				const hadConfig = this._resolvedConfigs.delete(sessionResource) || entry?.resolvedConfig !== undefined;
+				if (entry) {
+					entry.resolvedConfig = undefined;
+				}
+				if (hadConfig) {
+					this._onDidChange.fire(sessionResource);
+				}
 			}
 		}));
 
@@ -373,6 +397,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return undefined;
 		}
 		return this._generationMatchingDesiredState(entry)?.backendSession;
+	}
+
+	getProvisionalWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
+		const entry = this._entries.get(sessionResource);
+		if (!entry || entry.disposed) {
+			return undefined;
+		}
+		return this._generationMatchingDesiredState(entry)?.workingDirectories;
 	}
 
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
@@ -546,13 +578,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return;
 		}
 		const scope = entry.activeClientBinding.value?.scope;
-		if (!scope?.isResolved.get()) {
+		if (!scope || !scope.isResolved.get()) {
 			return;
 		}
 		const activeClient = scope.activeClient(this._agentHostService.clientId).get();
-		if (!activeClient) {
-			return;
-		}
 		this._agentHostService.dispatch(entry.generation.backendSession.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,
@@ -921,6 +950,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._pendingBackendDisposals.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
+		this._resolvedConfigConnections.clear();
 		this._sessionCreationMetadata.clear();
 		this._rebound.clear();
 		super.dispose();
@@ -939,21 +969,31 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return this._entries.get(sessionResource)?.resolvedConfig ?? this._resolvedConfigs.get(sessionResource);
 	}
 
+	private _isCurrentConfigConnection(sessionResource: URI, resolution: IAgentHostSessionResolution): boolean {
+		const current = this._agentHostConnectionsService.resolveSessionResource(sessionResource);
+		return current !== undefined && current.connection === resolution.connection && isEqual(current.backendSession, resolution.backendSession);
+	}
+
 	async refreshResolvedConfig(
 		sessionResource: URI,
 		provider: string,
 		workingDirectory: URI | undefined,
 		config: Record<string, unknown> | undefined,
 	): Promise<void> {
-		const seq = (this._resolvedConfigRequestSeq.get(sessionResource) ?? 0) + 1;
+		const seq = ++this._resolvedConfigRequestSequence;
 		this._resolvedConfigRequestSeq.set(sessionResource, seq);
 		try {
-			const resolved = await this._agentHostService.resolveSessionConfig({
+			const resolution = this._agentHostConnectionsService.resolveSessionResource(sessionResource);
+			if (!resolution) {
+				throw new Error('No connected agent host is available for session configuration');
+			}
+			this._resolvedConfigConnections.set(sessionResource, resolution);
+			const resolved = await resolution.connection.resolveSessionConfig({
 				provider,
 				workingDirectory,
 				config,
 			});
-			if (this._resolvedConfigRequestSeq.get(sessionResource) !== seq) {
+			if (this._resolvedConfigRequestSeq.get(sessionResource) !== seq || !this._isCurrentConfigConnection(sessionResource, resolution)) {
 				return;
 			}
 			const entry = this._entries.get(sessionResource);

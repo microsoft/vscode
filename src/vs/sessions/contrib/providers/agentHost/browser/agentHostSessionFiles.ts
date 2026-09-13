@@ -7,6 +7,7 @@ import { constObservable, derived, derivedOpts, IObservable } from '../../../../
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
+import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { FileEdit } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import {
 	buildDefaultChatUri,
@@ -256,7 +257,7 @@ function getWorkspaceAndWorktreeRoots(workspace: ISessionWorkspace | undefined):
  *   injectable so tests can observe how often each turn is (re)parsed.
  */
 export function createIncrementalChatFileEditsParser(
-	mapDiffUri?: (uri: URI) => URI,
+	mapDiffUri?: AgentHostUriMapper,
 	parseTurn: ParseTurnFileEdits = responseParts => parseResponseParts(responseParts, mapDiffUri),
 ): (chatState: IFileEditChatState) => readonly IParsedFileEdit[] {
 	let completedLastTurn: { readonly id: string; readonly edits: readonly IParsedFileEdit[] } | undefined;
@@ -280,7 +281,7 @@ export function createIncrementalChatFileEditsParser(
 }
 
 /** Parses the file edits contained in a turn's response parts (stateless). */
-export function parseResponseParts(responseParts: Turn['responseParts'], mapDiffUri?: (uri: URI) => URI): IParsedFileEdit[] {
+export function parseResponseParts(responseParts: Turn['responseParts'], mapDiffUri?: AgentHostUriMapper): IParsedFileEdit[] {
 	const out: IParsedFileEdit[] = [];
 	for (const part of responseParts) {
 		if (part.kind !== ResponsePartKind.ToolCall) {
@@ -320,17 +321,19 @@ function getToolCallFileEdits(toolCall: ToolCallState): FileEdit[] {
 	return edits;
 }
 
-function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: (uri: URI) => URI): IParsedFileEdit | undefined {
+function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: AgentHostUriMapper): IParsedFileEdit | undefined {
 	const normalized = normalizeFileEdit(fileEdit);
 	if (!normalized) {
 		return undefined;
 	}
 	const map = (uri: URI | undefined): URI | undefined => uri ? (mapDiffUri ? mapDiffUri(uri) : uri) : undefined;
+	const mapContent = (uri: URI | undefined): URI | undefined =>
+		uri ? (mapDiffUri ? mapDiffUri(uri, { contentRef: true }) : uri) : undefined;
 	return {
 		kind: normalized.kind,
 		afterUri: map(normalized.afterUri),
 		beforeUri: map(normalized.beforeUri),
-		beforeContentUri: map(normalized.beforeContentUri),
+		beforeContentUri: mapContent(normalized.beforeContentUri),
 		insertions: fileEdit.diff?.added ?? 0,
 		deletions: fileEdit.diff?.removed ?? 0,
 	};

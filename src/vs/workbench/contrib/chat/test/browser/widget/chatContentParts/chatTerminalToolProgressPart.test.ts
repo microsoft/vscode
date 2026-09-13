@@ -16,10 +16,16 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../../base/common/async.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { TerminalCapabilityStore } from '../../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../../platform/theme/test/common/testThemeService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IChatOutputRendererService } from '../../../../browser/chatOutputItemRenderer.js';
@@ -27,8 +33,10 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { ChatTerminalThinkingCollapsibleWrapper, ChatTerminalToolOutputSection, ChatTerminalToolProgressPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IChatTerminalToolInvocationData, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalInstance, ITerminalService, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
@@ -41,7 +49,6 @@ function listenerCount<T>(emitter: Emitter<T>): number {
 
 class TestTerminalChatService extends mock<ITerminalChatService>() {
 	override readonly onDidRegisterTerminalInstanceWithToolSession = Event.None;
-	override readonly onDidRegisterOutputSource = Event.None;
 	override readonly onDidContinueInBackground: Event<string>;
 
 	private readonly progressParts = new Set<IChatTerminalToolProgressPart>();
@@ -299,6 +306,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				false,
 				true,
 				undefined,
+				true,
 			));
 			mainWindow.document.body.appendChild(part.domNode);
 			store.add(toDisposable(() => part.domNode.remove()));
@@ -327,6 +335,66 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				containsTerminal: true,
 				hasShowLink: false,
 			});
+		});
+
+		test('logs telemetry when the user toggles the header', () => {
+			const context: IChatContentPartRenderContext = {
+				element: Object.assign(Object.create(null) as IChatResponseViewModel, {
+					id: 'response',
+					sessionResource: URI.parse('chat-session://test/session'),
+				}),
+				elementIndex: 0,
+				container: mainWindow.document.createElement('div'),
+				content: [],
+				contentIndex: 0,
+				inlineTextModels: Object.create(InlineTextModelCollection.prototype) as InlineTextModelCollection,
+				editorPool: Object.create(EditorPool.prototype) as EditorPool,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+				diffEditorPool: Object.create(DiffEditorPool.prototype) as DiffEditorPool,
+				currentWidth: observableValue('testWidth', 500),
+				onDidChangeVisibility: Event.None,
+			};
+			const telemetryService = new class extends NullTelemetryServiceShape {
+				readonly events: { readonly name: string; readonly data: unknown }[] = [];
+				override publicLog2(eventName?: string, data?: unknown): void {
+					if (eventName) {
+						this.events.push({ name: eventName, data });
+					}
+				}
+			}();
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(ITelemetryService, telemetryService);
+			const thinkingStyle = instantiationService.get(IConfigurationService).getValue<string>(ChatConfiguration.ThinkingStyle) ?? 'unknown';
+			const part = store.add(instantiationService.createInstance(
+				ChatTerminalThinkingCollapsibleWrapper,
+				'echo test',
+				undefined,
+				false,
+				mainWindow.document.createElement('div'),
+				context,
+				false,
+				false,
+				false,
+				false,
+				undefined,
+				true,
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			store.add(toDisposable(() => part.domNode.remove()));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			part.expand();
+			button.click();
+			button.click();
+
+			assert.deepStrictEqual(telemetryService.events, [
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: true, thinkingStyle, inThinking: true } },
+				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: true, inThinking: true, thinkingStyle } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: false, thinkingStyle, inThinking: true } },
+				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: false, inThinking: true, thinkingStyle } },
+			]);
 		});
 	});
 
@@ -542,9 +610,12 @@ suite('ChatTerminalToolOutputSection layout', () => {
 	let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
 	let mirrorFont: ITerminalFont;
 	let container: HTMLElement;
+	let themeService: TestThemeService;
 
 	setup(async () => {
 		instantiationService = workbenchInstantiationService(undefined, store);
+		themeService = new TestThemeService();
+		instantiationService.stub(IThemeService, themeService);
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		fakes = [];
 		// Mirror metrics deliberately differ from the config estimate below so the tests can
@@ -597,6 +668,43 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		const padding = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
 		return `${rows * rowHeight + padding}px`;
 	}
+
+	test('uses theme variables without per-section theme listeners', () => {
+		container.style.setProperty('--vscode-panel-background', '#010203');
+		container.style.setProperty('--vscode-editor-background', '#040506');
+		const listenerCountBefore = listenerCount(themeService._onThemeChange);
+		const panelSection = createSection(undefined);
+		const inChatEditor = ChatContextKeys.inChatEditor.bindTo(instantiationService.get(IContextKeyService));
+		inChatEditor.set(true);
+		const editorSection = createSection(undefined);
+		for (let index = 2; index < 50; index++) {
+			createSection(undefined);
+		}
+		inChatEditor.reset();
+		const initialResolvedBackgrounds = [
+			mainWindow.getComputedStyle(panelSection.domNode).backgroundColor,
+			mainWindow.getComputedStyle(editorSection.domNode).backgroundColor,
+		];
+		container.style.setProperty('--vscode-panel-background', '#070809');
+		container.style.setProperty('--vscode-editor-background', '#0a0b0c');
+
+		assert.deepStrictEqual({
+			listenerCounts: [listenerCountBefore, listenerCount(themeService._onThemeChange)],
+			panelBackground: panelSection.domNode.style.backgroundColor,
+			editorBackground: editorSection.domNode.style.backgroundColor,
+			initialResolvedBackgrounds,
+			updatedResolvedBackgrounds: [
+				mainWindow.getComputedStyle(panelSection.domNode).backgroundColor,
+				mainWindow.getComputedStyle(editorSection.domNode).backgroundColor,
+			],
+		}, {
+			listenerCounts: [0, 0],
+			panelBackground: 'var(--vscode-panel-background)',
+			editorBackground: 'var(--vscode-editor-background)',
+			initialResolvedBackgrounds: ['rgb(1, 2, 3)', 'rgb(4, 5, 6)'],
+			updatedResolvedBackgrounds: ['rgb(7, 8, 9)', 'rgb(10, 11, 12)'],
+		});
+	});
 
 	test('box height uses the mirror row height, not the config estimate', async () => {
 		const section = createSection({ text: 'l1\r\nl2\r\nl3' });

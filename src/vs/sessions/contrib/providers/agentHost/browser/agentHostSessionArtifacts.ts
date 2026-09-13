@@ -7,6 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { linkKey } from '../../../../common/sessionLinks.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../../services/sessions/common/session.js';
 import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 
@@ -47,6 +48,7 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 		id: artifact.id,
 		kind,
 		label: artifact.label,
+		isArtifact: artifact.isArtifact,
 		...(link ? { link } : {}),
 		...(uri ? { uri } : {}),
 		...(artifact.commitHash ? { commitHash: artifact.commitHash } : {}),
@@ -54,55 +56,33 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 	};
 }
 
-/**
- * GitHub pull request and issue artifacts are promoted into the session's
- * GitHub links (polled and shown in their own pills) instead of the artifacts
- * pill, so the two never show the same reference twice.
- */
+/** All recorded entries, alongside the GitHub artifacts eligible for promotion into dedicated pills. */
 export interface ISessionArtifactPartition {
-	/** Every artifact in stream order, paired with the link it may be promoted by. */
+	/** Every mapped artifact and reference, most recent first. */
 	readonly entries: readonly ISessionArtifactEntry[];
-	/** Pull requests this session created; eligible to become the main pull request. */
-	readonly createdPullRequestUrls: readonly string[];
-	/** Pull requests the session only referenced; listed and polled, never main. */
-	readonly referencedPullRequestUrls: readonly string[];
+	/** Pull requests this session produced, most recent first; polled and shown in the pull request pill. */
+	readonly pullRequestUrls: readonly string[];
 	/**
 	 * Titles the agent recorded for its pull request artifacts, keyed by
 	 * {@link linkKey}. Pull requests discovered from git state have no entry.
 	 */
 	readonly pullRequestTitles: ReadonlyMap<string, string>;
+	/** Issues this session produced, most recent first. */
 	readonly issueUrls: readonly string[];
+	/** Titles the agent recorded for its issue artifacts, keyed by {@link linkKey}. */
+	readonly issueTitles: ReadonlyMap<string, string>;
 }
 
-/** An artifact, and the GitHub link it is promoted by when it has one. */
-export interface ISessionArtifactEntry {
+interface ISessionArtifactEntry {
 	readonly artifact: ISessionArtifact;
-	readonly promotedLink?: string;
-}
-
-/** Normalized key for comparing links irrespective of case and trailing slash. */
-export function linkKey(link: string): string {
-	return link.replace(/\/+$/, '').toLowerCase();
 }
 
 /**
- * The artifacts the pill shows: everything except the promoted references that
- * the GitHub pills actually surfaced. A promotion the session cannot surface —
- * no repository, or a reference belonging to another repository — stays an
- * artifact rather than disappearing from both places.
+ * The GitHub link an entry stands for, when the pull request and issue pills
+ * could actually render it. Anything else (an enterprise host, a malformed
+ * link) has no link identity and simply stays in its pill.
  */
-export function getPresentedArtifacts(partition: ISessionArtifactPartition, surfacedLinks: ReadonlySet<string>): readonly ISessionArtifact[] {
-	return partition.entries
-		.filter(entry => !entry.promotedLink || !surfacedLinks.has(linkKey(entry.promotedLink)))
-		.map(entry => entry.artifact);
-}
-
-/**
- * Only links the pull request and issue pills can actually render are promoted;
- * anything else (an enterprise host, a malformed link) stays an artifact so it
- * never disappears from both places.
- */
-function promotedLink(artifact: IProtocolSessionArtifact): string | undefined {
+function gitHubLink(artifact: IProtocolSessionArtifact): string | undefined {
 	if (artifact.isGitHub !== true || !artifact.link) {
 		return undefined;
 	}
@@ -117,20 +97,26 @@ function promotedLink(artifact: IProtocolSessionArtifact): string | undefined {
 
 export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
-	const createdPullRequestUrls: string[] = [];
-	const referencedPullRequestUrls: string[] = [];
+	const pullRequestUrls: string[] = [];
 	const pullRequestTitles = new Map<string, string>();
 	const issueUrls: string[] = [];
+	const issueTitles = new Map<string, string>();
 
 	for (const artifact of readSessionArtifacts(meta)) {
 		const mapped = toSessionArtifact(artifact);
 		if (!mapped) {
 			continue;
 		}
-		const link = promotedLink(artifact);
-		entries.push(link ? { artifact: mapped, promotedLink: link } : { artifact: mapped });
-		if (!link) {
+		entries.push({ artifact: mapped });
+		const link = gitHubLink(artifact);
+		if (!link || !artifact.isArtifact) {
 			continue;
+		}
+
+		const titles = artifact.type === SessionArtifactType.Issue ? issueTitles : pullRequestTitles;
+		const key = linkKey(link);
+		if (mapped.label && !titles.has(key)) {
+			titles.set(key, mapped.label);
 		}
 
 		if (artifact.type === SessionArtifactType.Issue) {
@@ -138,20 +124,15 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 			continue;
 		}
 
-		// The label an agent records for a pull request is its title; keep the
-		// first one so a later duplicate cannot rewrite it.
-		const key = linkKey(link);
-		if (mapped.label && !pullRequestTitles.has(key)) {
-			pullRequestTitles.set(key, mapped.label);
-		}
-		if (artifact.createdByThisSession) {
-			createdPullRequestUrls.push(link);
-		} else {
-			referencedPullRequestUrls.push(link);
-		}
+		pullRequestUrls.push(link);
 	}
 
-	return { entries, createdPullRequestUrls, referencedPullRequestUrls, pullRequestTitles, issueUrls };
+	// Reversed here, after the walk let the first title recorded for a link win.
+	entries.reverse();
+	pullRequestUrls.reverse();
+	issueUrls.reverse();
+
+	return { entries, pullRequestUrls, pullRequestTitles, issueUrls, issueTitles };
 }
 
 /** Case-insensitive de-duplication that keeps the first occurrence's casing. */
@@ -160,7 +141,7 @@ export function dedupeLinks(...groups: readonly (readonly string[] | undefined)[
 	const result: string[] = [];
 	for (const group of groups) {
 		for (const link of group ?? []) {
-			const key = link.replace(/\/+$/, '').toLowerCase();
+			const key = linkKey(link);
 			if (!seen.has(key)) {
 				seen.add(key);
 				result.push(link);

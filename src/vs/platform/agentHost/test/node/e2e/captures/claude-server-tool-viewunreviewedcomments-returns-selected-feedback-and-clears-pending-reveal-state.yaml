@@ -47,6 +47,7 @@ exchanges:
                       },
                       "text": "revealed",
                       "kind": "prReview",
+                      "author": "prReviewer",
                       "resolved": false
                     }
                   ]

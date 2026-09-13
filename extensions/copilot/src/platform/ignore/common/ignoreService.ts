@@ -33,7 +33,7 @@ export interface IIgnoreService {
 
 	init(): Promise<void>;
 
-	isCopilotIgnored(file: URI, token?: CancellationToken): Promise<boolean>;
+	isCopilotIgnored(file: URI, token?: CancellationToken, contents?: string): Promise<boolean>;
 
 	asMinimatchPattern(): Promise<string | undefined>;
 }

@@ -63,6 +63,8 @@ const args = minimist(process.argv.slice(2), {
 	}
 });
 
+const isCI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
+
 if (args.help) {
 	console.log(`Usage: node ${process.argv[1]} [options] [file...]
 
@@ -122,7 +124,7 @@ if (crashReporterDirectory) {
 
 	crashReporter.start({
 		companyName: 'Microsoft',
-		productName: process.env['VSCODE_DEV'] ? `${product.nameShort} Dev` : product.nameShort,
+		productName: process.env.VSCODE_DEV ? `${product.nameShort} Dev` : product.nameShort,
 		uploadToServer: false,
 		compress: true
 	});
@@ -331,10 +333,16 @@ app.on('ready', () => {
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			contextIsolation: false,
+			backgroundThrottling: false,
 			enableWebSQL: false,
 			spellcheck: false
 		}
 	});
+
+	if (isCI) {
+		// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
+		win.showInactive();
+	}
 
 	win.webContents.on('did-finish-load', () => {
 		if (args.dev) {

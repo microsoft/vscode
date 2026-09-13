@@ -34,14 +34,15 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
 			return false;
 		}
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		const existing = this.sessions.get(session);
-		const inserted = { session, provider, startTime, external: source === 'discovery', source };
-		this.sessions.set(session, source === 'explicit'
+		const inserted = { session, provider, startTime, modifiedTime, external: source === 'discovery', source };
+		const next: IAgentHostDatabaseSession = source === 'explicit'
 			? { ...inserted, startTime: existing?.startTime ?? startTime }
 			: existing && source === 'discovery'
 				? { ...existing, external: true, source: 'discovery' }
-				: existing ?? inserted);
+				: existing ?? inserted;
+		this.sessions.set(session, { ...next, modifiedTime: Math.max(existing?.modifiedTime ?? modifiedTime, modifiedTime) });
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
 		}
@@ -69,6 +70,26 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 					external: update.external,
 					source: update.external ? 'discovery' : session.source,
 				});
+			}
+		}
+	}
+
+	async updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean> {
+		this._throwWriteFailure();
+		const existing = this.sessions.get(session);
+		if (!existing || existing.modifiedTime >= modifiedTime) {
+			return false;
+		}
+		this.sessions.set(session, { ...existing, modifiedTime });
+		return true;
+	}
+
+	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		this._throwWriteFailure();
+		for (const { session, modifiedTime } of updates) {
+			const existing = this.sessions.get(session);
+			if (existing && Number.isFinite(modifiedTime) && existing.modifiedTime < modifiedTime) {
+				this.sessions.set(session, { ...existing, modifiedTime });
 			}
 		}
 	}
@@ -186,7 +207,7 @@ suite('AgentSessionRegistry', () => {
 	test('listSessionKeys does not migrate legacy entries', async () => {
 		const testDatabase = new TestAgentHostDatabase();
 		database = testDatabase;
-		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, external: undefined, source: 'explicit' });
+		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, modifiedTime: 1, external: undefined, source: 'explicit' });
 		const registry = createRegistry();
 
 		assert.deepStrictEqual({
@@ -203,8 +224,8 @@ suite('AgentSessionRegistry', () => {
 	test('list migrates entries and returns the computed list without rereading', async () => {
 		const testDatabase = new TestAgentHostDatabase();
 		database = testDatabase;
-		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, external: false, source: 'explicit' });
-		testDatabase.sessions.set(b.toString(), { session: b.toString(), provider: 'claude', startTime: 2, external: undefined, source: 'explicit' });
+		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' });
+		testDatabase.sessions.set(b.toString(), { session: b.toString(), provider: 'claude', startTime: 2, modifiedTime: 2, external: undefined, source: 'explicit' });
 		const registry = createRegistry();
 		const migratedEntries: string[] = [];
 
@@ -236,8 +257,8 @@ suite('AgentSessionRegistry', () => {
 	test('get reads only the requested session', async () => {
 		const testDatabase = new TestAgentHostDatabase();
 		database = testDatabase;
-		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, external: false, source: 'explicit' });
-		testDatabase.sessions.set(b.toString(), { session: b.toString(), provider: 'claude', startTime: 2, external: false, source: 'explicit' });
+		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' });
+		testDatabase.sessions.set(b.toString(), { session: b.toString(), provider: 'claude', startTime: 2, modifiedTime: 2, external: false, source: 'explicit' });
 		const registry = createRegistry();
 
 		const [entry, missing] = await Promise.all([
@@ -270,10 +291,10 @@ suite('AgentSessionRegistry', () => {
 
 		assert.strictEqual(await registry.isEmpty(), false);
 		assert.deepStrictEqual(
-			(await list(registry)).map(s => ({ session: s.session.toString(), provider: s.provider, startTime: s.startTime, external: s.external })).sort((x, y) => x.session.localeCompare(y.session)),
+			(await list(registry)).map(s => ({ session: s.session.toString(), provider: s.provider, startTime: s.startTime, modifiedTime: s.modifiedTime, external: s.external })).sort((x, y) => x.session.localeCompare(y.session)),
 			[
-				{ session: b.toString(), provider: 'claude', startTime: 200, external: false },
-				{ session: a.toString(), provider: 'copilot', startTime: 100, external: false },
+				{ session: b.toString(), provider: 'claude', startTime: 200, modifiedTime: 200, external: false },
+				{ session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 100, external: false },
 			].sort((x, y) => x.session.localeCompare(y.session)),
 		);
 
@@ -281,13 +302,15 @@ suite('AgentSessionRegistry', () => {
 		assert.deepStrictEqual((await list(registry)).map(s => s.session.toString()), [b.toString()]);
 	});
 
-	test('register preserves the first-observed startTime', async () => {
+	test('register preserves startTime and advances modifiedTime monotonically', async () => {
 		const registry = createRegistry();
-		await registerExplicit(registry, a, 'copilot', 100);
-		await registerExplicit(registry, a, 'copilot', 999);
+		await registry.register(a, { provider: 'copilot', startTime: 100, modifiedTime: 150, source: 'explicit' }, { checkTombstone: false });
+		await registry.register(a, { provider: 'copilot', startTime: 999, modifiedTime: 120, source: 'explicit' }, { checkTombstone: false });
+		await registry.updateModifiedTime(a, 175);
+		await registry.updateModifiedTime(a, 160);
 
 		const [entry] = await list(registry);
-		assert.strictEqual(entry.startTime, 100);
+		assert.deepStrictEqual({ startTime: entry.startTime, modifiedTime: entry.modifiedTime }, { startTime: 100, modifiedTime: 175 });
 	});
 
 	test('register and tombstone preserve submission order', async () => {

@@ -5,6 +5,10 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { promisify } from 'util';
+import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { LocalGitService } from '../../node/localGitService.js';
@@ -46,7 +50,13 @@ function createPullError(message: string, stderr: string, code = 128): cp.ExecFi
 
 suite('LocalGitService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const temporaryDirectories: string[] = [];
+	const execFile = promisify(cp.execFile);
 	void store;
+
+	teardown(async () => {
+		await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
+	});
 
 	test('pull runs ff-only for normal updates', async () => {
 		const expectations: IExecFileExpectation[] = [
@@ -181,4 +191,55 @@ suite('LocalGitService', () => {
 		);
 		assert.strictEqual(expectations.length, 0);
 	});
+
+	test('checkoutCommit accepts uppercase SHA and verifies HEAD', async () => {
+		const expectedCommit = 'AABBCCDDEEFF00112233445566778899AABBCCDD';
+		const normalizedCommit = expectedCommit.toLowerCase();
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', `${normalizedCommit}^{commit}`], stdout: `${normalizedCommit}\n` },
+			{ args: ['checkout', '--detach', normalizedCommit] },
+			{ args: ['rev-parse', 'HEAD'], stdout: `${normalizedCommit}\n` },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await service.checkoutCommit('test-op', 'C:\\repo', expectedCommit);
+
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('checkoutCommit rejects when HEAD differs after checkout', async () => {
+		const expectedCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+		const checkedOutCommit = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', `${expectedCommit}^{commit}`], stdout: `${expectedCommit}\n` },
+			{ args: ['checkout', '--detach', expectedCommit] },
+			{ args: ['rev-parse', 'HEAD'], stdout: `${checkedOutCommit}\n` },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await assert.rejects(() => service.checkoutCommit('test-op', 'C:\\repo', expectedCommit), /was not checked out/);
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('checkoutCommit rejects a real SHA-shaped branch that points to another commit', async () => {
+		const repoPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-'));
+		temporaryDirectories.push(repoPath);
+		const runGit = async (...args: string[]): Promise<string> => {
+			const { stdout } = await execFile('git', ['-C', repoPath, ...args], { encoding: 'utf8' });
+			return stdout.trim();
+		};
+
+		await runGit('init');
+		await fs.writeFile(join(repoPath, 'payload.txt'), 'branch content');
+		await runGit('add', 'payload.txt');
+		await runGit('-c', 'user.name=VS Code Test', '-c', 'user.email=vscode-test@example.com', 'commit', '-m', 'branch commit');
+		const initialCommit = await runGit('rev-parse', 'HEAD');
+		const pinnedCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+		await runGit('branch', pinnedCommit);
+
+		const service = new LocalGitService(new NullLogService());
+		await assert.rejects(() => service.checkoutCommit('test-op', repoPath, pinnedCommit));
+
+		assert.strictEqual(await runGit('rev-parse', 'HEAD'), initialCommit);
+	}).timeout(20_000);
 });

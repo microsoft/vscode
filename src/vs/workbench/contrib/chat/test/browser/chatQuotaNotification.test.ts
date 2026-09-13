@@ -7,16 +7,13 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationCommandAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationService, resolveChatInputNotificationBody } from '../../browser/widget/input/chatInputNotificationService.js';
 
 const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
 
@@ -125,6 +122,7 @@ function createMockNotificationService() {
 			}
 			return !filter || filter(lastNotification) ? lastNotification : undefined;
 		},
+		refresh() { },
 		handleMessageSent() { },
 		announceRendered() { },
 	};
@@ -144,12 +142,39 @@ function createMockNotificationService() {
 	};
 }
 
-function getCommandAction(notification: IChatInputNotification): IChatInputNotificationCommandAction {
-	const action = notification.actions[0];
+function getCommandAction(body: Pick<IChatInputNotificationBody, 'actions'>): IChatInputNotificationCommandAction {
+	const action = body.actions[0];
 	if (action.kind !== ChatInputNotificationActionKind.Command) {
 		assert.fail(`Expected command action, got ${action.kind}`);
 	}
 	return action;
+}
+
+function makeModel(identifier: string, id: string): ILanguageModelChatMetadataAndIdentifier {
+	const vendor = identifier.split('/')[0];
+	return { identifier, metadata: { id, vendor, family: id } as ILanguageModelChatMetadata };
+}
+
+const autoModel = makeModel('copilot/auto', 'auto');
+const manualModel = makeModel('copilot/test-model', 'test-model');
+const byokModel = {
+	...makeModel('agent-host-copilotcli:byok', 'byok'),
+	metadata: { id: 'byok', vendor: 'agent-host-copilotcli', family: 'byok', byokModelIdentifier: 'openrouter/test' } as ILanguageModelChatMetadata,
+};
+
+function inputContext(selectedLanguageModel = manualModel, availableLanguageModels: readonly ILanguageModelChatMetadataAndIdentifier[] = [autoModel, manualModel]): IChatInputNotificationContext {
+	return {
+		sessionType: undefined,
+		sessionResource: undefined,
+		deferredNotificationsEnabled: true,
+		isTransientChat: false,
+		sessionStarted: false,
+		modelState: { currentModel: selectedLanguageModel, models: availableLanguageModels },
+	};
+}
+
+function resolveBody(notification: IChatInputNotification, context: IChatInputNotificationContext): IChatInputNotificationBody | undefined {
+	return resolveChatInputNotificationBody(notification, context, error => { throw error; });
 }
 
 function createMockAssignmentService(
@@ -204,43 +229,13 @@ suite('ChatQuotaNotificationContribution', () => {
 
 	function createContribution(
 		entitlementOpts?: Parameters<typeof createMockEntitlementService>[0],
-		modelOpts?: { contextModelId?: string; vendor?: string; selectedModelId?: string; switchToAutoTreatment?: boolean | Promise<boolean | undefined> },
+		modelOpts?: { switchToAutoTreatment?: boolean | Promise<boolean | undefined> },
 		sharedStorageService?: InMemoryStorageService,
 	) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
 		const assignmentMock = createMockAssignmentService(modelOpts?.switchToAutoTreatment);
-		const contextKeyService = store.add(new MockContextKeyService());
-		if (modelOpts?.contextModelId) {
-			contextKeyService.createKey<string | undefined>(ChatContextKeys.chatModelId.key, undefined).set(modelOpts.contextModelId);
-		}
 		const storageService = sharedStorageService ?? store.add(new InMemoryStorageService());
-		const vendor = modelOpts?.vendor ?? 'copilot';
-		const selectedModelId = modelOpts?.selectedModelId ?? `${vendor}/test-model`;
-		// Persist model selection in storage (used by getSelectedModelVendor)
-		storageService.store('chat.currentLanguageModel.panel', selectedModelId, StorageScope.PROFILE, StorageTarget.USER);
-		const modelIds = ['copilot/auto', selectedModelId];
-		const languageModelsService = {
-			_serviceBrand: undefined,
-			onDidChangeLanguageModelVendors: Event.None,
-			onDidChangeLanguageModels: Event.None,
-			getLanguageModelIds: () => modelIds,
-			getVendors: () => [],
-			lookupLanguageModel: (id: string): ILanguageModelChatMetadata | undefined => {
-				if (id === 'copilot/auto') {
-					return { id: 'auto', vendor: 'copilot', family: 'auto', isBYOK: false } as ILanguageModelChatMetadata;
-				}
-				// Agent-host models (e.g. the Copilot CLI harness) are registered
-				// under a `${vendor}:${id}` identifier and are CAPI-backed (not BYOK).
-				if (id.includes(':')) {
-					const [modelVendor, modelId] = id.split(':');
-					return { id: modelId, vendor: modelVendor, family: modelId, isBYOK: false } as ILanguageModelChatMetadata;
-				}
-				const [modelVendor, modelId] = id.includes('/') ? id.split('/') : [vendor, id];
-				return { id: modelId, vendor: modelVendor, family: modelId, isBYOK: modelVendor !== 'copilot' } as ILanguageModelChatMetadata;
-			},
-			lookupLanguageModelByQualifiedName: () => undefined,
-		} as unknown as ILanguageModelsService;
 
 		// Track disposables for emitters
 		store.add(entitlementMock.onDidChangeQuotaRemaining);
@@ -250,8 +245,6 @@ suite('ChatQuotaNotificationContribution', () => {
 		const contribution = store.add(new ChatQuotaNotificationContribution(
 			entitlementMock.service,
 			notificationMock.service,
-			contextKeyService as IContextKeyService,
-			languageModelsService,
 			storageService,
 			assignmentMock.service,
 			new NullLogService(),
@@ -304,6 +297,16 @@ suite('ChatQuotaNotificationContribution', () => {
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
 
 			assert.ok(notificationMock.wasDeleted);
+		});
+
+		test('hides exhausted notification when quota becomes ineligible', () => {
+			const { entitlementMock, notificationMock } = createContribution({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
+			});
+
+			updateQuotas(entitlementMock, { usageBasedBilling: false, premiumChat: makeQuotaSnapshot(0) });
+
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('does not show spurious threshold notification after exhaustion recovery', () => {
@@ -540,49 +543,64 @@ suite('ChatQuotaNotificationContribution', () => {
 			);
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			resolveBody(notificationMock.getNotification()!, inputContext());
 			await flushPromises();
+			const notification = notificationMock.getNotification()!;
+			const body = resolveBody(notification, inputContext())!;
+			const action = body.actions[0];
 
 			assert.deepStrictEqual({
 				treatments: assignmentMock.getTreatmentCalls,
-				description: notificationMock.getNotification()?.description,
-				actions: notificationMock.getNotification()?.actions,
+				setCount: notificationMock.setCount,
+				description: body.description,
+				actionKind: action.kind,
+				matchesAuto: action.kind === ChatInputNotificationActionKind.SwitchToModel && action.matchesModel(autoModel),
 			}, {
 				treatments: [SWITCH_TO_AUTO_TREATMENT_NAME],
+				setCount: 2,
 				description: 'Switch to Auto to reduce credit usage.',
-				actions: [{
-					kind: ChatInputNotificationActionKind.SwitchToModel,
-					label: 'Switch to Auto',
-					modelIdentifier: 'copilot/auto',
-				}],
+				actionKind: ChatInputNotificationActionKind.SwitchToModel,
+				matchesAuto: true,
 			});
 		});
 
-		test('does not enroll and suggests managing budget when Auto is already selected', async () => {
+		test('does not enroll when Auto is already selected', () => {
 			const { assignmentMock, entitlementMock, notificationMock } = createContribution(
 				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) } },
-				{ selectedModelId: 'copilot/auto', switchToAutoTreatment: true },
+				{ switchToAutoTreatment: true },
 			);
-
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
-			await flushPromises();
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			const body = resolveBody(notificationMock.getNotification()!, inputContext(autoModel))!;
 
-			assert.strictEqual(notificationMock.getNotification()?.description, 'Set additional budget to cover extra usage.');
-			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
-			assert.deepStrictEqual(assignmentMock.getTreatmentCalls, []);
+			assert.deepStrictEqual({
+				description: body.description,
+				commandId: getCommandAction(body).commandId,
+				treatments: assignmentMock.getTreatmentCalls,
+			}, {
+				description: 'Set additional budget to cover extra usage.',
+				commandId: 'workbench.action.chat.manageAdditionalSpend',
+				treatments: [],
+			});
 		});
 
-		test('recognizes the live short Auto model id before persisted selection updates', async () => {
-			const { assignmentMock, entitlementMock, notificationMock } = createContribution(
+		test('uses model metadata to recognize Auto in each input', () => {
+			const { entitlementMock, notificationMock } = createContribution(
 				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) } },
-				{ contextModelId: 'auto', selectedModelId: 'copilot/test-model', switchToAutoTreatment: true },
+				{ switchToAutoTreatment: true },
 			);
-
+			const alternateAuto = makeModel('agent-host-copilotcli:auto', 'auto');
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
-			await flushPromises();
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			const body = resolveBody(notificationMock.getNotification()!, inputContext(alternateAuto, [alternateAuto, manualModel]))!;
 
-			assert.strictEqual(notificationMock.getNotification()?.description, 'Set additional budget to cover extra usage.');
-			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
-			assert.deepStrictEqual(assignmentMock.getTreatmentCalls, []);
+			assert.deepStrictEqual({
+				description: body.description,
+				commandId: getCommandAction(body).commandId,
+			}, {
+				description: 'Set additional budget to cover extra usage.',
+				commandId: 'workbench.action.chat.manageAdditionalSpend',
+			});
 		});
 
 		test('control suggests managing budget when another model is selected', async () => {
@@ -592,10 +610,16 @@ suite('ChatQuotaNotificationContribution', () => {
 			);
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			const body = resolveBody(notificationMock.getNotification()!, inputContext())!;
 			await flushPromises();
 
-			assert.strictEqual(notificationMock.getNotification()?.description, 'Set additional budget to cover extra usage.');
-			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.deepStrictEqual({
+				description: body.description,
+				commandId: getCommandAction(body).commandId,
+			}, {
+				description: 'Set additional budget to cover extra usage.',
+				commandId: 'workbench.action.chat.manageAdditionalSpend',
+			});
 		});
 
 		test('does not re-show the same threshold', async () => {
@@ -625,6 +649,75 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(10) }); // 90%
 			assert.strictEqual(notificationMock.getNotification()!.message, 'Credits at 90%');
+		});
+
+		test('clears a warning below its threshold and shows it after another crossing', async () => {
+			const { entitlementMock, notificationMock } = createContribution({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) },
+			});
+
+			await flushPromises();
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(60) });
+			const afterRecovery = notificationMock.getNotification();
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+
+			assert.deepStrictEqual({
+				afterRecovery,
+				afterRecrossing: notificationMock.getNotification()?.message,
+			}, {
+				afterRecovery: undefined,
+				afterRecrossing: 'Credits at 50%',
+			});
+		});
+
+		test('clears a warning when quota becomes unlimited or ineligible', async () => {
+			const unlimited = createContribution({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) },
+			});
+			const ineligible = createContribution({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) },
+			});
+
+			await flushPromises();
+			updateQuotas(unlimited.entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			updateQuotas(ineligible.entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			updateQuotas(unlimited.entitlementMock, { premiumChat: makeQuotaSnapshot(50, { unlimited: true }) });
+			updateQuotas(ineligible.entitlementMock, { usageBasedBilling: false, premiumChat: makeQuotaSnapshot(50) });
+
+			assert.deepStrictEqual({
+				unlimited: unlimited.notificationMock.getNotification(),
+				ineligible: ineligible.notificationMock.getNotification(),
+			}, {
+				unlimited: undefined,
+				ineligible: undefined,
+			});
+		});
+
+		test('does not clear a rate limit warning that replaced a quota warning', async () => {
+			const { entitlementMock, notificationMock } = createContribution({
+				quotas: {
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(60),
+					sessionRateLimit: makeRateLimitSnapshot(60),
+				},
+			});
+
+			await flushPromises();
+			updateQuotas(entitlementMock, {
+				premiumChat: makeQuotaSnapshot(50),
+				sessionRateLimit: makeRateLimitSnapshot(60),
+			});
+			updateQuotas(entitlementMock, {
+				premiumChat: makeQuotaSnapshot(50),
+				sessionRateLimit: makeRateLimitSnapshot(50),
+			});
+			updateQuotas(entitlementMock, {
+				premiumChat: makeQuotaSnapshot(60),
+				sessionRateLimit: makeRateLimitSnapshot(50),
+			});
+
+			assert.strictEqual(notificationMock.getNotification()?.telemetryId, 'sessionRateLimitWarning');
 		});
 	});
 
@@ -827,70 +920,38 @@ suite('ChatQuotaNotificationContribution', () => {
 		});
 	});
 
-	// --- BYOK model suppression ---------------------------------------------
+	// --- BYOK model gating ---------------------------------------------------
 
-	suite('BYOK model suppression', () => {
-		test('defers notifications when BYOK model is selected', () => {
-			const { notificationMock } = createContribution(
-				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
-				{ vendor: 'customendpoint' },
-			);
-
-			assert.strictEqual(notificationMock.getNotification(), undefined);
-		});
-
-		test('shows notification when Copilot model is selected', () => {
-			const { notificationMock } = createContribution(
-				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
-				{ vendor: 'copilot' },
-			);
-
-			assert.ok(notificationMock.getNotification());
-			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
-		});
-
-		test('shows notification when switching from BYOK to Copilot model', () => {
-			const entitlementMock = createMockEntitlementService({
+	// Rendering is decided per chat input; see `chatInputNotificationWidget.test.ts`.
+	suite('BYOK model gating', () => {
+		test('quota visibility is decided from each input model', () => {
+			const { notificationMock } = createContribution({
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
-			const notificationMock = createMockNotificationService();
-			const assignmentMock = createMockAssignmentService();
-			const contextKeyService = store.add(new MockContextKeyService());
-			const storageService = store.add(new InMemoryStorageService());
-			// Start with BYOK model
-			storageService.store('chat.currentLanguageModel.panel', 'customendpoint/ANT/claude-sonnet-4-6', StorageScope.PROFILE, StorageTarget.USER);
-			// Registry returns undefined — vendor detection relies on prefix extraction
-			const languageModelsService = {
-				_serviceBrand: undefined,
-				onDidChangeLanguageModelVendors: Event.None,
-				onDidChangeLanguageModels: Event.None,
-				getLanguageModelIds: () => [],
-				getVendors: () => [],
-				lookupLanguageModel: (): ILanguageModelChatMetadata | undefined => undefined,
-				lookupLanguageModelByQualifiedName: () => undefined,
-			} as unknown as ILanguageModelsService;
+			const notification = notificationMock.getNotification()!;
 
-			store.add(entitlementMock.onDidChangeQuotaRemaining);
-			store.add(entitlementMock.onDidChangeQuotaExceeded);
-			store.add(entitlementMock.onDidChangeEntitlement);
+			assert.deepStrictEqual({
+				copilot: notification.when?.(inputContext(manualModel)),
+				byok: notification.when?.(inputContext(byokModel)),
+			}, {
+				copilot: true,
+				byok: false,
+			});
+		});
 
-			store.add(new ChatQuotaNotificationContribution(
-				entitlementMock.service,
-				notificationMock.service,
-				contextKeyService as IContextKeyService,
-				languageModelsService,
-				storageService,
-				assignmentMock.service,
-				new NullLogService(),
-			));
+		test('publishes quota notifications before an input model is known', () => {
+			const { notificationMock } = createContribution({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
+			});
+			const notification = notificationMock.getNotification()!;
 
-			// Initially deferred — BYOK model
-			assert.strictEqual(notificationMock.getNotification(), undefined);
-
-			// Switch to Copilot model via storage — triggers storage listener
-			storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1', StorageScope.PROFILE, StorageTarget.USER);
-
-			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
+			assert.deepStrictEqual({
+				message: notification.message,
+				visible: notification.when?.({ ...inputContext(), modelState: { currentModel: undefined, models: [] } }),
+			}, {
+				message: 'Credit Limit Reached',
+				visible: true,
+			});
 		});
 	});
 });

@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService, shouldIncludeRawPRReviewComments } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -21,11 +21,11 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -36,6 +36,31 @@ function r(startLine: number, endLine: number = startLine): Range {
 function feedbackSummary(items: readonly { resourceUri: URI; range: { startLineNumber: number } }[]): string[] {
 	return items.map(f => `${f.resourceUri.path}:${f.range.startLineNumber}`);
 }
+
+suite('AgentFeedbackService - PR review authority', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes raw PR comments until Agent Host feedback has loaded', () => {
+		let loaded = false;
+		const service = new class extends mock<IAgentFeedbackService>() {
+			override isAgentHostSession(): boolean { return true; }
+			override hasLoadedFeedback(): boolean { return loaded; }
+		}();
+		const session = URI.parse('vscode-agent-session://test/session');
+
+		const beforeLoad = shouldIncludeRawPRReviewComments(service, session);
+		loaded = true;
+
+		assert.deepStrictEqual({
+			beforeLoad,
+			afterLoad: shouldIncludeRawPRReviewComments(service, session),
+		}, {
+			beforeLoad: true,
+			afterLoad: false,
+		});
+	});
+});
 
 suite('AgentFeedbackService - Ordering', () => {
 
@@ -60,7 +85,11 @@ suite('AgentFeedbackService - Ordering', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = onDidDeleteSession.event;
+			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) { return undefined; }
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = Event.None;
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 
@@ -368,11 +397,15 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 	let visiblePanes: any[];
 	let activeSessionObs: ISettableObservable<IActiveSession | undefined>;
 	let sessions: Map<string, ISession>;
+	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
+	let providersChangedEmitter: Emitter<ISessionsProvidersChangeEvent>;
 
 	let sessionS1: URI;
 	let sessionS2: URI;
 	let fileA: URI;
 	let fileB: URI;
+	/** Number of `ISessionsManagementService.getSession` lookups performed so far. */
+	let managementLookups: number;
 
 	function pane(...resources: URI[]): any {
 		// Single resource: a plain editor input with `.resource`.
@@ -414,6 +447,9 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		visiblePanes = [];
 		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		sessions = new Map<string, ISession>();
+		sessionsChangedEmitter = store.add(new Emitter<ISessionsChangeEvent>());
+		providersChangedEmitter = store.add(new Emitter<ISessionsProvidersChangeEvent>());
+		managementLookups = 0;
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -425,7 +461,14 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
-			override getSession(resource: URI) { return sessions.get(resource.toString()); }
+			override onDidChangeSessions = sessionsChangedEmitter.event;
+			override getSession(resource: URI) {
+				managementLookups++;
+				return sessions.get(resource.toString());
+			}
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = providersChangedEmitter.event;
 		});
 		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);
 
@@ -608,6 +651,97 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		assert.strictEqual(service.getSessionForFile(fileB)?.resource.toString(), sessionS1.toString());
 	});
 
+	test('resolves files of the active session without a management-service lookup', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+
+		managementLookups = 0;
+		const trackedFile = service.getSessionForFile(fileA);
+		const untrackedFile = service.getSessionForFile(fileB);
+
+		assert.deepStrictEqual({
+			trackedFile: trackedFile?.resource.toString(),
+			untrackedFile: untrackedFile?.resource.toString(),
+			managementLookups,
+		}, {
+			trackedFile: sessionS1.toString(),
+			untrackedFile: sessionS1.toString(),
+			managementLookups: 0,
+		});
+	});
+
+	test('looks a non-active session up once until the sessions change', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+		setActiveSession(sessions.get(sessionS2.toString())!);
+
+		managementLookups = 0;
+		service.getSessionForFile(fileA);
+		service.getSessionForFile(fileA);
+		const lookupsBeforeChange = managementLookups;
+
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [] });
+		sessions.delete(sessionS1.toString());
+
+		assert.deepStrictEqual({
+			lookupsBeforeChange,
+			sessionAfterChange: service.getSessionForFile(fileA)?.resource.toString(),
+			lookupsAfterChange: managementLookups - lookupsBeforeChange,
+		}, {
+			lookupsBeforeChange: 1,
+			sessionAfterChange: undefined,
+			lookupsAfterChange: 1,
+		});
+	});
+
+	test('remembers that a session is unknown to the management service', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+		setActiveSession(sessions.get(sessionS2.toString())!);
+		sessions.delete(sessionS1.toString());
+
+		managementLookups = 0;
+		const first = service.getSessionForFile(fileA);
+		const second = service.getSessionForFile(fileA);
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			managementLookups,
+		}, {
+			first: undefined,
+			second: undefined,
+			managementLookups: 1,
+		});
+	});
+
+	test('looks a non-active session up again when providers are added or removed', () => {
+		const provider = {} as ISessionsProvider;
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+		setActiveSession(sessions.get(sessionS2.toString())!);
+
+		// A registered provider is what makes a session resolvable, so a hit must
+		// not outlive its removal...
+		service.getSessionForFile(fileA);
+		sessions.delete(sessionS1.toString());
+		providersChangedEmitter.fire({ added: [], removed: [provider] });
+		const afterProviderRemoved = service.getSessionForFile(fileA);
+
+		// ...and a miss must not outlive a provider that starts reporting it.
+		sessions.set(sessionS1.toString(), makeSession(sessionS1));
+		providersChangedEmitter.fire({ added: [provider], removed: [] });
+		const afterProviderAdded = service.getSessionForFile(fileA);
+
+		assert.deepStrictEqual({
+			afterProviderRemoved: afterProviderRemoved?.resource.toString(),
+			afterProviderAdded: afterProviderAdded?.resource.toString(),
+		}, {
+			afterProviderRemoved: undefined,
+			afterProviderAdded: sessionS1.toString(),
+		});
+	});
+
 	test('returns undefined when the active session has Untitled status', () => {
 		sessions.set(sessionS1.toString(), makeSession(sessionS1, SessionStatus.Untitled));
 		setActiveSession(sessions.get(sessionS1.toString())!);
@@ -666,10 +800,12 @@ suite('AgentFeedbackService - State', () => {
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
 				return sessionProviderId
 					? { providerId: sessionProviderId, sessionId: 'session-1' } as unknown as ISession
@@ -698,6 +834,16 @@ suite('AgentFeedbackService - State', () => {
 
 		service.acceptFeedback(session, created.id);
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('backfills a missing source pull request without replacing an existing one', () => {
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created);
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest);
+		service.updateFeedbackSourcePullRequest(session, created.id, { owner: 'owner', repo: 'repo', number: 43 });
+
+		assert.deepStrictEqual(service.getFeedback(session)[0].sourcePullRequest, sourcePullRequest);
 	});
 
 	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {
@@ -751,6 +897,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let acceptInputSent: DeferredPromise<void>;
 	/** Whether the widget hands the request over to the chat service. */
 	let acceptsRequest: boolean;
+	let providerId: string;
 	/** Whether the widget has the session's chat model loaded. */
 	let sessionLoaded: boolean;
 	/** Simulates the widget loading the session's chat model. */
@@ -761,6 +908,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		addedEntries = [];
 		acceptInputSent = new DeferredPromise<void>();
 		acceptsRequest = true;
+		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 		sessionLoaded = true;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
@@ -770,12 +918,14 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
-				return { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: 'session-1' } as unknown as ISession;
+				return { providerId, sessionId: 'session-1' } as unknown as ISession;
 			}
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
@@ -845,6 +995,52 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			texts: ['Please simplify'],
 			state: AgentFeedbackState.Submitted,
 		});
+	});
+
+	test('submits only selected feedback with a custom request', async () => {
+		const first = service.addFeedback(session, fileA, r(10), 'Fix the PR comment');
+		const second = service.addFeedback(session, fileA, r(20), 'Keep this for later');
+		let accepted = 0;
+
+		await service.submitFeedback(session, {
+			query: '/act-on-feedback for #42',
+			feedbackIds: [first.id],
+			onRequestAccepted: () => accepted++,
+		});
+
+		assert.deepStrictEqual({
+			accepted,
+			request: widgetOps.find(operation => operation.startsWith('accept:')),
+			attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			states: service.getFeedback(session).map(item => ({ id: item.id, state: item.state })),
+		}, {
+			accepted: 1,
+			request: 'accept:/act-on-feedback for #42',
+			attachedTexts: ['Fix the PR comment'],
+			states: [
+				{ id: first.id, state: AgentFeedbackState.Submitted },
+				{ id: second.id, state: AgentFeedbackState.Accepted },
+			],
+		});
+	});
+
+	test('non-agent-host submissions preserve the complete reactive feedback attachment', async () => {
+		providerId = 'test-provider';
+		const first = service.addFeedback(session, fileA, r(10), 'First');
+		const second = service.addFeedback(session, fileA, r(20), 'Second');
+
+		await service.submitFeedback(session, {
+			query: '/act-on-feedback',
+			feedbackIds: [first.id],
+		});
+
+		assert.deepStrictEqual(service.getFeedback(session).map(item => ({
+			id: item.id,
+			state: item.state,
+		})), [
+			{ id: first.id, state: AgentFeedbackState.Resolved },
+			{ id: second.id, state: AgentFeedbackState.Resolved },
+		]);
 	});
 
 	test('marks feedback as submitted once the request is queued behind an in-progress request', async () => {

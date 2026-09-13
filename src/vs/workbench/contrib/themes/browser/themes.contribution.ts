@@ -688,7 +688,7 @@ interface ThemeItem extends IQuickPickItem {
 
 function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-	return (<any>i)['type'] !== 'separator';
+	return (<any>i).type !== 'separator';
 }
 
 const defaultThemeDescriptions: Record<string, string> = {

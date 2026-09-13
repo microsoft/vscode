@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
-import type { IAgent } from '../common/agent.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
-import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import type { IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
 	private callbacks: IAgentServiceCallbacks | undefined;
 
-	readonly sessionServerToolAccessor: ISessionServerToolAccessor = {
+	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
 		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
+		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
+		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
@@ -71,7 +71,6 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 export interface IAgentServiceFoundation {
 	readonly callbackAdapter: AgentServiceCallbackAdapter;
-	readonly agents: ISettableObservable<readonly IAgent[]>;
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
 	readonly authenticationService: AgentHostAuthenticationService;
@@ -96,7 +95,6 @@ export interface ICreateAgentServiceFoundationOptions {
 
 export function createAgentServiceFoundation(options: ICreateAgentServiceFoundationOptions): IAgentServiceFoundation {
 	const callbackAdapter = new AgentServiceCallbackAdapter();
-	const agents = observableValue<readonly IAgent[]>(callbackAdapter, []);
 	const stateManager = options.owned.add(new AgentHostStateManager(options.logService, {
 		hostBuildInfo: hostBuildInfoFromProduct(options.productService),
 		changesetStateRetention: {
@@ -123,13 +121,13 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
+	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
 	options.services.set(IAgentHostProxyResolver, proxyResolver);
 	options.services.set(IRequestService, requestService);
 
 	return {
 		callbackAdapter,
-		agents,
 		stateManager,
 		configurationService,
 		authenticationService,
