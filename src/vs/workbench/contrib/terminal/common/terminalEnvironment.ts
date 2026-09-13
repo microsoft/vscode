@@ -12,7 +12,7 @@ import { URI, uriToFsPath } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, ShellIntegrationTimeoutOverride, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, PosixShellType, ShellIntegrationTimeoutOverride, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
 import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
 import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { isNumber, isString } from '../../../../base/common/types.js';
@@ -331,25 +331,19 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		}
 	}
 
-	if (!executable) {
-		return originalPath;
+	if (/[\x00-\x1F\x7F-\x9F]/.test(originalPath)) {
+		throw new Error('Path contains terminal control characters');
 	}
 
-	const hasSpace = originalPath.includes(' ');
-	const hasParens = originalPath.includes('(') || originalPath.includes(')');
-
-	const pathBasename = path.basename(executable, '.exe');
-	const isPowerShell = pathBasename === 'pwsh' ||
+	const pathBasename = executable ? path.basename(executable, '.exe') : '';
+	const isPowerShell = shellType === GeneralShellType.PowerShell ||
+		pathBasename === 'pwsh' ||
 		title === 'pwsh' ||
 		pathBasename === 'powershell' ||
 		title === 'powershell';
 
-	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
-		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
-	}
-
-	if (hasParens && isPowerShell) {
-		return `& '${originalPath}'`;
+	if (isPowerShell) {
+		return `& ${escapeNonWindowsPath(originalPath, GeneralShellType.PowerShell)}`;
 	}
 
 	if (os === OperatingSystem.Windows) {
@@ -360,23 +354,27 @@ export async function preparePathForShell(resource: string | URI, executable: st
 				return escapeNonWindowsPath(originalPath.replace(/\\/g, '/'), shellType);
 			}
 			else if (shellType === WindowsShellType.Wsl) {
-				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+				const wslPath = await backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+				return escapeNonWindowsPath(wslPath, PosixShellType.Bash);
 			}
-			else if (hasSpace) {
-				return `"${originalPath}"`;
-			}
-			return originalPath;
+			return _escapeCommandPromptPath(originalPath);
 		}
-		const lowerExecutable = executable.toLowerCase();
+		const lowerExecutable = executable?.toLowerCase() ?? '';
 		if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
-			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
-		} else if (hasSpace) {
-			return `"${originalPath}"`;
+			const wslPath = await backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+			return escapeNonWindowsPath(wslPath, PosixShellType.Bash);
 		}
-		return originalPath;
+		return _escapeCommandPromptPath(originalPath);
 	}
 
 	return escapeNonWindowsPath(originalPath, shellType);
+}
+
+function _escapeCommandPromptPath(path: string): string {
+	if (/[%!"]/.test(path)) {
+		throw new Error('Path contains characters that cannot be safely escaped for Command Prompt');
+	}
+	return `"${path}"`;
 }
 
 export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspaceContextService: IWorkspaceContextService, historyService: IHistoryService): IWorkspaceFolder | undefined {
