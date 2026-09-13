@@ -337,8 +337,10 @@ export class BrowserView extends Disposable {
 			}
 		};
 		let pendingNavigationUrl: string | undefined;
+		let pendingNavigationFavicon: { favicon: string | undefined } | undefined;
 		webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
 			if (isMainFrame && !isInPlace && !this._shouldRedirectPinnedNavigation(url)) {
+				pendingNavigationFavicon ??= { favicon: this._lastFavicon };
 				resetFaviconForNavigation(webContents.getURL(), url);
 				faviconLoader.invalidate();
 				pendingNavigationUrl = url;
@@ -396,7 +398,20 @@ export class BrowserView extends Disposable {
 				fireLoadingEvent(true);
 			}
 		});
-		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
+		webContents.on('did-stop-loading', () => {
+			// An uncommitted load leaves the previous document active, even after redirects or superseding loads.
+			if (pendingNavigationFavicon) {
+				faviconLoader.invalidate();
+				const { favicon } = pendingNavigationFavicon;
+				pendingNavigationFavicon = undefined;
+				pendingNavigationUrl = undefined;
+				if (this._lastFavicon !== favicon) {
+					this._lastFavicon = favicon;
+					fireFaviconEvent();
+				}
+			}
+			fireLoadingEvent(false);
+		});
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
 				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
@@ -405,6 +420,8 @@ export class BrowserView extends Disposable {
 					return;
 				}
 
+				pendingNavigationFavicon = undefined;
+				pendingNavigationUrl = undefined;
 				this._lastError = {
 					url: validatedURL,
 					errorCode,
@@ -451,7 +468,11 @@ export class BrowserView extends Disposable {
 		});
 
 		// Navigation events (when URL actually changes)
-		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url));
+		webContents.on('did-navigate', (_, url) => {
+			pendingNavigationFavicon = undefined;
+			pendingNavigationUrl = undefined;
+			fireNavigationEvent(url);
+		});
 		webContents.on('did-navigate-in-page', (_, url, isMainFrame) => {
 			// Ignore subframe (iframe) navigations: they must not rewrite the
 			// main frame's URL bar or its history entry.
@@ -1109,9 +1130,10 @@ export class BrowserView extends Disposable {
 		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
 		this._onDidClose.fire();
 
-		// Clean up the view and all its event listeners
-		if (!this._view.webContents.isDestroyed()) {
-			this._view.webContents.close({ waitForBeforeUnload: false });
+		// Electron clears the view's webContents before emitting destroyed.
+		const webContents = this._view.webContents;
+		if (webContents && !webContents.isDestroyed()) {
+			webContents.close({ waitForBeforeUnload: false });
 		}
 
 		super.dispose();

@@ -124,4 +124,118 @@ suite('BrowserView favicon navigation', () => {
 			});
 		});
 	}
+
+	for (const redirect of [false, true]) {
+		test(`restores the committed favicon after an aborted cross-host ${redirect ? 'redirect' : 'navigation'}`, async () => {
+			const testCase = createView();
+			await testCase.setIcon(oldIcon);
+			const favicons: (string | undefined)[] = [];
+			store.add(testCase.view.onDidChangeFavicon(event => favicons.push(event.favicon)));
+			const target = 'https://second.example/destination';
+			testCase.navigate(redirect ? 'https://first.example/redirect' : target);
+			if (redirect) {
+				testCase.redirect(target);
+			}
+			const pending = testCase.view.getNavigationState();
+			testCase.events.emit('did-fail-provisional-load', {}, -3, 'ERR_ABORTED', target, true);
+			testCase.events.emit('did-stop-loading');
+			const stopped = testCase.view.getNavigationState();
+			testCase.events.emit('did-navigate-in-page', {}, 'https://first.example/page#after-cancel', true);
+
+			assert.deepStrictEqual({
+				pendingIcon: pending.lastFavicon, stoppedIcon: stopped.lastFavicon,
+				newerVersion: stopped.navigationStateVersion > pending.navigationStateVersion,
+				afterSameDocumentNavigation: testCase.view.getNavigationState().lastFavicon,
+				originalHistoryIcon: testCase.history[0].favicon, favicons,
+			}, {
+				pendingIcon: undefined, stoppedIcon: oldIcon, newerVersion: true,
+				afterSameDocumentNavigation: oldIcon, originalHistoryIcon: oldIcon, favicons: [oldIcon],
+			});
+		});
+	}
+
+	test('preserves the original favicon across multiple uncommitted navigations and an abort', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		testCase.navigate('https://second.example/first');
+		testCase.navigate('https://third.example/second');
+		testCase.events.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://second.example/first', true);
+		const whileLoading = testCase.view.getNavigationState().lastFavicon;
+		testCase.events.emit('did-navigate-in-page', {}, 'https://first.example/page#pending', true);
+		testCase.events.emit('did-stop-loading');
+
+		assert.deepStrictEqual({ whileLoading, stopped: testCase.view.getNavigationState().lastFavicon }, {
+			whileLoading: undefined, stopped: oldIcon,
+		});
+	});
+
+	test('discards pending provisional favicon work after restoring the committed icon', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		testCase.navigate('https://second.example/destination');
+		const iconUrl = 'https://second.example/pending.png';
+		testCase.events.emit('page-favicon-updated', {}, [iconUrl]);
+		testCase.events.emit('did-stop-loading');
+		await testCase.completeFavicon(iconUrl, 'stale');
+
+		assert.deepStrictEqual({ icon: testCase.view.getNavigationState().lastFavicon, historyIcon: testCase.history[0].favicon }, {
+			icon: oldIcon, historyIcon: oldIcon,
+		});
+	});
+
+	test('does not restore the previous favicon after a successful commit', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		testCase.navigate('https://second.example/destination');
+		testCase.commit('https://second.example/destination');
+		testCase.events.emit('did-stop-loading');
+		const iconless = testCase.view.getNavigationState().lastFavicon;
+		const newIcon = 'data:image/png;base64,bmV3';
+		await testCase.setIcon(newIcon);
+		testCase.events.emit('did-stop-loading');
+		testCase.navigate('https://third.example/destination');
+		testCase.events.emit('did-stop-loading');
+
+		assert.deepStrictEqual({ iconless, afterLaterAbort: testCase.view.getNavigationState().lastFavicon }, {
+			iconless: undefined, afterLaterAbort: newIcon,
+		});
+	});
+
+	test('does not restore the previous favicon after a non-aborted main-frame failure', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		const target = 'https://second.example/destination';
+		testCase.navigate(target);
+		testCase.events.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', target, true);
+		testCase.events.emit('did-stop-loading');
+		const state = testCase.view.getNavigationState();
+
+		assert.deepStrictEqual({ favicon: state.lastFavicon, error: state.lastError?.errorCode, historyIcon: testCase.history[0].favicon }, {
+			favicon: undefined, error: -105, historyIcon: oldIcon,
+		});
+	});
+
+	test('subframe failures do not discard the main-frame favicon needed on abort', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		testCase.navigate('https://second.example/destination');
+		testCase.events.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://frame.example/', false);
+		testCase.events.emit('did-stop-loading');
+
+		assert.strictEqual(testCase.view.getNavigationState().lastFavicon, oldIcon);
+	});
+
+	test('an unchanged favicon does not produce another notification after a same-host abort', async () => {
+		const testCase = createView();
+		await testCase.setIcon(oldIcon);
+		const favicons: (string | undefined)[] = [];
+		store.add(testCase.view.onDidChangeFavicon(event => favicons.push(event.favicon)));
+		testCase.navigate('https://first.example/next');
+		testCase.events.emit('did-stop-loading');
+		testCase.events.emit('did-stop-loading');
+
+		assert.deepStrictEqual({ favicon: testCase.view.getNavigationState().lastFavicon, favicons }, {
+			favicon: oldIcon, favicons: [],
+		});
+	});
 });

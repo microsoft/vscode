@@ -21,11 +21,7 @@ import { IBrowserZoomService } from '../../common/browserZoomService.js';
 suite('BrowserView native favicon synchronization', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('clears the synchronized favicon when a redirect chain returns to the original host', async () => {
-		const models = store.add(new DisposableStore());
-		const native = createTestBrowserView(store);
-		const oldIcon = 'data:image/png;base64,b2xk';
-		await native.setIcon(oldIcon);
+	function createModel(native: ReturnType<typeof createTestBrowserView>, models: DisposableStore): BrowserViewModel {
 		const service = upcastPartial<IBrowserViewService>({
 			getNavigationState: async () => native.view.getNavigationState(),
 			destroyBrowserView: async () => native.view.dispose(),
@@ -45,13 +41,21 @@ suite('BrowserView native favicon synchronization', () => {
 			onDynamicDidChangeAudiences: () => native.view.onDidChangeAudiences,
 			onDynamicDidChangeRemoteStatus: () => native.view.onDidChangeRemoteStatus,
 		});
-		const model = models.add(new BrowserViewModel(
+		return models.add(new BrowserViewModel(
 			native.view.id, native.view.host, native.view.owner, undefined, native.view.getState(), service,
 			upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: false, onDidChangeSharingAvailable: Event.None }),
 			NullTelemetryService, upcastPartial<IDialogService>({}), upcastPartial<IStorageService>({}),
 			upcastPartial<IBrowserZoomService>({ getEffectiveZoomIndex: () => browserZoomDefaultIndex, onDidChangeZoom: Event.None }),
 			upcastPartial<IAgentNetworkFilterService>({ onDidChange: Event.None }), new NullLogService(),
 		));
+	}
+
+	test('clears the synchronized favicon when a redirect chain returns to the original host', async () => {
+		const models = store.add(new DisposableStore());
+		const native = createTestBrowserView(store);
+		const oldIcon = 'data:image/png;base64,b2xk';
+		await native.setIcon(oldIcon);
+		const model = createModel(native, models);
 		await native.settle();
 		const before = model.favicon;
 
@@ -73,4 +77,33 @@ suite('BrowserView native favicon synchronization', () => {
 			oldHistoryIcon: oldIcon, newHistoryIcon: undefined,
 		});
 	});
+
+	for (const attachDuringNavigation of [false, true]) {
+		test(`restores the favicon after aborting navigation with a model attached ${attachDuringNavigation ? 'during' : 'before'} the load`, async () => {
+			const models = store.add(new DisposableStore());
+			const native = createTestBrowserView(store);
+			const oldIcon = 'data:image/png;base64,b2xk';
+			await native.setIcon(oldIcon);
+			if (attachDuringNavigation) {
+				native.navigate('https://second.example/destination');
+			}
+			const model = createModel(native, models);
+			await native.settle();
+			if (!attachDuringNavigation) {
+				native.navigate('https://second.example/destination');
+			}
+			const beforeAbort = model.favicon;
+			native.events.emit('did-stop-loading');
+			native.events.emit('did-navigate-in-page', {}, 'https://first.example/page#after-cancel', true);
+
+			assert.deepStrictEqual({
+				beforeAbort, favicon: model.favicon, nativeIcon: native.view.getNavigationState().lastFavicon,
+				url: model.url, oldHistoryIcon: native.history[0].favicon,
+			}, {
+				beforeAbort: attachDuringNavigation ? undefined : oldIcon,
+				favicon: oldIcon, nativeIcon: oldIcon,
+				url: 'https://first.example/page#after-cancel', oldHistoryIcon: oldIcon,
+			});
+		});
+	}
 });

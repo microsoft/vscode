@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { EventEmitter } from 'events';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { upcastDeepPartial, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -26,9 +26,12 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 	const requests = new Map<string, DeferredPromise<Response>>();
 	const history: { url: string; favicon: string | null | undefined }[] = [];
 	const programmaticCalls: string[] = [];
+	const windowClosed = store.add(new Emitter<void>());
+	const permissionsChanged = store.add(new Emitter<void>());
 	let url = associatedResource?.toString() ?? 'https://first.example/page';
 	let historyTarget = url;
 	let destroyed = false;
+	let closeCalls = 0;
 	let childCreates = 0;
 	const startNavigation = (target: string, isMainFrame = true, isSameDocument = false) => {
 		events.emit('did-start-navigation', { url: target, isMainFrame, isSameDocument }, target, isSameDocument, isMainFrame);
@@ -57,7 +60,7 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 		setZoomFactor: () => { },
 		setVisualZoomLevelLimits: async () => { },
 		loadURL: async target => { programmaticCalls.push('loadURL'); startNavigation(target); },
-		close: () => { destroyed = true; events.emit('destroyed'); },
+		close: () => { closeCalls++; destroyed = true; events.emit('destroyed'); },
 		navigationHistory: upcastPartial<Electron.NavigationHistory>({
 			canGoBack: () => true, canGoForward: () => true, getActiveIndex: () => history.length,
 			goBack: () => { programmaticCalls.push('back'); startNavigation(historyTarget); },
@@ -71,14 +74,15 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 		}),
 	});
 	const nativeView = upcastPartial<Electron.WebContentsView>({
-		webContents, setBounds: () => { }, setVisible: () => { }, getVisible: () => false, setBackgroundColor: () => { },
+		get webContents() { return destroyed ? undefined : webContents; },
+		setBounds: () => { }, setVisible: () => { }, getVisible: () => false, setBackgroundColor: () => { },
 	});
 	const session = upcastDeepPartial<BrowserSession>({
 		electronSession,
 		storageScope: BrowserViewStorageScope.Ephemeral,
 		remote: { onDidStart: Event.None, onDidStop: Event.None, isRemote: false, whenReady: Promise.resolve() },
 		permissions: {
-			onDidRequestPermission: Event.None, onDidRequestDevice: Event.None, onDidChange: Event.None,
+			onDidRequestPermission: Event.None, onDidRequestDevice: Event.None, onDidChange: permissionsChanged.event,
 			storageKeys: {}, serialize: () => ({ origins: {} }),
 		},
 		trust: { installCertErrorHandler: () => { }, getCertificateError: () => undefined },
@@ -92,7 +96,7 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 		},
 	});
 	const owner = upcastPartial<ICodeWindow>({
-		onDidClose: Event.None, onWillLoad: Event.None,
+		onDidClose: windowClosed.event, onWillLoad: Event.None,
 		win: upcastDeepPartial<Electron.BrowserWindow>({ contentView: { addChildView: () => { } } }),
 	});
 	const view: BrowserView = store.add(new BrowserView(
@@ -149,5 +153,6 @@ export function createTestBrowserView(store: Pick<DisposableStore, 'add'>, assoc
 	return {
 		view, history, events, navigate, startNavigation, navigateProgrammatically, programmaticCalls,
 		redirect, commit, setIcon, completeFavicon, settle, get childCreates() { return childCreates; },
+		webContents, windowClosed, permissionsChanged, get closeCalls() { return closeCalls; },
 	};
 }
