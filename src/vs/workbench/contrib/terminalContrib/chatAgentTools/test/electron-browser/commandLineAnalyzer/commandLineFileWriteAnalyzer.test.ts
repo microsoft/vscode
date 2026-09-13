@@ -376,6 +376,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				t('sed -i \'s/x/y/\' \'safe-*\'', 'outsideWorkspace', true, 1));
 			test('sed expanded file path is blocked before normalization', () =>
 				t('sed -i \'s/x/y/\' ~/../outside/file.txt', 'outsideWorkspace', false, 1));
+			test('sed extended glob path is blocked before normalization', () =>
+				t('sed -i \'s/x/y/\' ^foo/../package.json', 'outsideWorkspace', false, 1));
 			test('sed expanded backup path is blocked before normalization', () =>
 				t('sed --in-place=$HOME/../outside/* \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
 			test('sed concatenated quoted filename canonicalizes the runtime path', async () => {
