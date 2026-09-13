@@ -79,16 +79,6 @@ suite('Extension host debug visualization session items', () => {
 		assert.strictEqual(await service.$editVisualizerTreeItem(child.id, 'value'), undefined);
 	});
 
-	test('preserves items belonging to another active debug session', async () => {
-		registerTree();
-		await service.$acceptDebugSessionStarted(session('second'));
-		await service.$getVisualizerTreeItem(treeId, context('first'));
-		const root = await service.$getVisualizerTreeItem(treeId, context('second'));
-		assert.ok(root);
-		await service.$acceptDebugSessionTerminated(session('first'));
-		assert.ok(await service.$editVisualizerTreeItem(root.id, 'value'));
-	});
-
 	test('does not cache a root returned after its session ends', async () => {
 		const result = new DeferredPromise<vscode.DebugTreeItem>();
 		registerTree({ getTreeItem: () => result.p });
@@ -120,17 +110,22 @@ suite('Extension host debug visualization session items', () => {
 		assert.strictEqual(await request, undefined);
 	});
 
-	test('retains a shared item until all of its sessions end', async () => {
-		const item = { label: 'shared root' };
-		registerTree({ getTreeItem: () => item });
-		const first = await service.$getVisualizerTreeItem(treeId, context('first'));
-		await service.$acceptDebugSessionStarted(session('second'));
-		const second = await service.$getVisualizerTreeItem(treeId, context('second'));
-		assert.ok(first && second);
-		assert.strictEqual(first.id, second.id);
-		await service.$acceptDebugSessionTerminated(session('first'));
-		assert.ok(await service.$editVisualizerTreeItem(second.id, 'value'));
-		await service.$acceptDebugSessionTerminated(session('second'));
-		assert.strictEqual(await service.$editVisualizerTreeItem(second.id, 'value'), undefined);
-	});
+	for (const shared of [false, true]) {
+		test(`retains ${shared ? 'shared' : 'separate'} items while their sessions are active`, async () => {
+			const item = { label: 'root' };
+			registerTree({ getTreeItem: () => shared ? item : { ...item } });
+			const first = await service.$getVisualizerTreeItem(treeId, context('first'));
+			await service.$acceptDebugSessionStarted(session('second'));
+			const second = await service.$getVisualizerTreeItem(treeId, context('second'));
+			assert.ok(first && second);
+			assert.strictEqual(first.id === second.id, shared);
+			await service.$acceptDebugSessionTerminated(session('first'));
+			assert.ok(await service.$editVisualizerTreeItem(second.id, 'value'));
+			await service.$acceptDebugSessionTerminated(session('second'));
+			assert.strictEqual(await service.$editVisualizerTreeItem(second.id, 'value'), undefined);
+			await service.$acceptDebugSessionStarted(session('third'));
+			const third = await service.$getVisualizerTreeItem(treeId, context('third'));
+			assert.ok(third && third.id !== second.id);
+		});
+	}
 });

@@ -8,7 +8,7 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { asPromise } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable as DisposableCls, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable as DisposableCls, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -109,7 +109,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 	private readonly _debugVisualizationProviders = new Map<string, vscode.DebugVisualizationProvider>();
 	private readonly _debugVisualizationTrees = new Map<string, vscode.DebugVisualizationTree>();
 	private readonly _debugVisualizationTreeItemIds = new WeakMap<vscode.DebugTreeItem, number>();
-	private readonly _debugVisualizationElements = new Map<number, { provider: string; item: vscode.DebugTreeItem; sessionIds: Set<string>; children?: number[] }>();
+	private readonly _debugVisualizationElements = this._register(new DisposableMap<number, IDisposable & { provider: string; item: vscode.DebugTreeItem; sessionIds: Set<string>; children?: number[] }>());
 
 	private _signService: ISignService | undefined;
 
@@ -227,7 +227,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			if (children) {
 				for (const child of children) {
 					queue.push(this._debugVisualizationElements.get(child)?.children);
-					this._debugVisualizationElements.delete(child);
+					this._debugVisualizationElements.deleteAndDispose(child);
 				}
 			}
 		}
@@ -238,12 +238,9 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		if (id === undefined) {
 			id = this._debugVisualizationTreeItemIdsCounter++;
 			this._debugVisualizationTreeItemIds.set(item, id);
+			this._debugVisualizationElements.set(id, { provider: treeId, item, sessionIds: new Set(), dispose: () => this._debugVisualizationTreeItemIds.delete(item) });
 		}
-		let entry = this._debugVisualizationElements.get(id);
-		if (!entry) {
-			entry = { provider: treeId, item, sessionIds: new Set() };
-			this._debugVisualizationElements.set(id, entry);
-		}
+		const entry = this._debugVisualizationElements.get(id)!;
 		for (const sessionId of sessionIds) {
 			entry.sessionIds.add(sessionId);
 		}
@@ -894,8 +891,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			for (const [id, entry] of this._debugVisualizationElements) {
 				entry.sessionIds.delete(session.id);
 				if (entry.sessionIds.size === 0) {
-					this._debugVisualizationElements.delete(id);
-					this._debugVisualizationTreeItemIds.delete(entry.item);
+					this._debugVisualizationElements.deleteAndDispose(id);
 				}
 			}
 		}
