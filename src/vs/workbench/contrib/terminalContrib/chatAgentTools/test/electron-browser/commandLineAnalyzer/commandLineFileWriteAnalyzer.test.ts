@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ITreeSitterLibraryService } from '../../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { FileOperationError, FileOperationResult, IFileStatWithPartialMetadata } from '../../../../../../../platform/files/common/files.js';
 import type { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -24,6 +25,50 @@ import { CommandLineFileWriteAnalyzer } from '../../../browser/tools/commandLine
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../../browser/treeSitterCommandParser.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 
+type RealpathResult = URI | 'missing' | Error;
+
+class TestFileService extends FileService {
+	readonly realpathResults = new Map<string, RealpathResult>();
+	readonly symbolicLinks = new Set<string>();
+
+	override async realpath(resource: URI): Promise<URI | undefined> {
+		const result = this.realpathResults.get(resource.toString());
+		if (!result) {
+			return resource;
+		}
+		if (result === 'missing') {
+			throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+		}
+		if (result instanceof Error) {
+			throw result;
+		}
+		return result;
+	}
+
+	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+		if (this.symbolicLinks.has(resource.toString())) {
+			return {
+				resource,
+				name: resource.path.split('/').at(-1) ?? '',
+				size: 0,
+				mtime: 0,
+				ctime: 0,
+				etag: '',
+				readonly: false,
+				locked: false,
+				executable: false,
+				isFile: false,
+				isDirectory: false,
+				isSymbolicLink: true,
+			};
+		}
+		if (this.realpathResults.get(resource.toString()) === 'missing') {
+			throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+		}
+		return super.stat(resource);
+	}
+}
+
 suite('CommandLineFileWriteAnalyzer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -31,12 +76,13 @@ suite('CommandLineFileWriteAnalyzer', () => {
 	let parser: TreeSitterCommandParser;
 	let analyzer: CommandLineFileWriteAnalyzer;
 	let configurationService: TestConfigurationService;
+	let fileService: TestFileService;
 	let workspaceContextService: TestContextService;
 
 	const mockLog = (..._args: unknown[]) => { };
 
 	setup(() => {
-		const fileService = store.add(new FileService(new NullLogService()));
+		fileService = store.add(new TestFileService(new NullLogService()));
 		const fileSystemProvider = new TestIPCFileSystemProvider();
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
@@ -127,7 +173,101 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('tilde expansion - block', () => t('echo hello > ~/file.txt', 'outsideWorkspace', false, 1));
 			test('percent-style variable - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
 			test('cmd delayed-expansion variable - block', () => t('echo hello > !APPDATA!\\file.txt', 'outsideWorkspace', false, 1));
-			test('literal unmatched exclamation mark - allow', () => t('echo hello > important!.txt', 'outsideWorkspace', true, 1));
+			test('unescaped exclamation mark - block', () => t('echo hello > important!.txt', 'outsideWorkspace', false, 1));
+			test('escaped literal exclamation mark - allow', () => t('echo hello > important\\!.txt', 'outsideWorkspace', true, 1));
+			test('double-quoted Bash history designator - block', () =>
+				t('echo \'malicious-command;#\' /outside/file.txt > "!#:2"', 'outsideWorkspace', false, 1));
+			test('single-quoted Bash history text remains literal - allow', () =>
+				t('echo hello > \'!#:2\'', 'outsideWorkspace', true, 1));
+			test('unquoted pathname expansion that can match an outside symlink - block', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/safe-link').toString(), URI.file('/outside/file.txt'));
+				await t('echo hello > safe-lin?', 'outsideWorkspace', false, 1);
+			});
+			test('double-quoted literal wildcard filename - allow', () => t('echo hello > "safe-lin?"', 'outsideWorkspace', true, 1));
+			test('single-quoted literal wildcard filename - allow', () => t('echo hello > \'safe-*\'', 'outsideWorkspace', true, 1));
+			test('escaped literal wildcard resolves before canonicalization - block outside symlink', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/safe-*').toString(), URI.file('/outside/file.txt'));
+				await t('echo hello > safe-\\*', 'outsideWorkspace', false, 1);
+			});
+			test('concatenated quoted wildcard resolves before canonicalization - block outside symlink', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/safe-*').toString(), URI.file('/outside/file.txt'));
+				await t('echo hello > safe-"*"', 'outsideWorkspace', false, 1);
+			});
+
+			test('symlink resolving outside workspace - block', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/link/file.txt').toString(), URI.file('/outside/file.txt'));
+				await t('echo hello > link/file.txt', 'outsideWorkspace', false, 1);
+			});
+
+			test('symlink followed by parent traversal resolving outside workspace - block', async () => {
+				const rawTarget = URI.from({ scheme: Schemas.file, path: '/workspace/project/link/../file.txt' });
+				fileService.realpathResults.set(rawTarget.toString(), URI.file('/outside/file.txt'));
+				await t('echo hello > link/../file.txt', 'outsideWorkspace', false, 1);
+			});
+
+			test('nonexistent file below symlink resolving outside workspace - block', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/link/file.txt').toString(), 'missing');
+				fileService.realpathResults.set(URI.file('/workspace/project/link').toString(), URI.file('/outside'));
+				await t('echo hello > link/file.txt', 'outsideWorkspace', false, 1);
+			});
+
+			test('multiple nonexistent segments below symlink resolving outside workspace - block', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/link/new/file.txt').toString(), 'missing');
+				fileService.realpathResults.set(URI.file('/workspace/project/link/new').toString(), 'missing');
+				fileService.realpathResults.set(URI.file('/workspace/project/link').toString(), URI.file('/outside'));
+				await t('echo hello > link/new/file.txt', 'outsideWorkspace', false, 1);
+			});
+
+			test('nonexistent segments below an inside workspace ancestor - allow', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/new/file.txt').toString(), 'missing');
+				await t('echo hello > new/file.txt', 'outsideWorkspace', true, 1);
+			});
+
+			test('multiple nonexistent segments below an inside workspace ancestor - block', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/new/sub/file.txt').toString(), 'missing');
+				fileService.realpathResults.set(URI.file('/workspace/project/new/sub').toString(), 'missing');
+				await t('echo hello > new/sub/file.txt', 'outsideWorkspace', false, 1);
+			});
+
+			test('symlink resolving elsewhere in the same workspace - allow', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/link/file.txt').toString(), URI.file('/workspace/project/target/file.txt'));
+				await t('echo hello > link/file.txt', 'outsideWorkspace', true, 1);
+			});
+
+			test('literal path in one workspace resolving into another workspace - block', async () => {
+				const workspaceA = URI.file('/workspace/a');
+				const workspaceB = URI.file('/workspace/b');
+				fileService.realpathResults.set(URI.file('/workspace/a/link/file.txt').toString(), URI.file('/workspace/b/file.txt'));
+				await t('echo hello > /workspace/a/link/file.txt', 'outsideWorkspace', false, 1, [workspaceA, workspaceB]);
+			});
+
+			test('workspace root opened through a symlink - allow', async () => {
+				const workspaceRoot = URI.file('/workspace/link');
+				fileService.realpathResults.set(workspaceRoot.toString(), URI.file('/real/project'));
+				fileService.realpathResults.set(URI.file('/workspace/link/file.txt').toString(), URI.file('/real/project/file.txt'));
+				await t('echo hello > /workspace/link/file.txt', 'outsideWorkspace', true, 1, [workspaceRoot]);
+			});
+
+			test('dangling symlink - block', async () => {
+				const target = URI.file('/workspace/project/link');
+				fileService.realpathResults.set(target.toString(), 'missing');
+				fileService.symbolicLinks.add(target.toString());
+				await t('echo hello > link', 'outsideWorkspace', false, 1);
+			});
+
+			test('unexpected realpath failure - block', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/file.txt').toString(), new Error('realpath failed'));
+				await t('echo hello > file.txt', 'outsideWorkspace', false, 1);
+			});
+
+			test('sequential commands writing inside workspace - block', () => t('echo hello > file1.txt && echo world > file2.txt', 'outsideWorkspace', false, 1));
+			test('sequential command creating the destination symlink - block', () => t('ln -s /outside/file.txt link && echo hello > link', 'outsideWorkspace', false, 1));
+			test('command substitution replacing the destination symlink - block', () =>
+				t('echo "$(ln -sfn /outside link)" > link/file.txt', 'outsideWorkspace', false, 1));
+			test('newline command replacing the destination symlink before a bare redirection - block', () =>
+				t('ln -sfn /outside link\n> link/file.txt', 'outsideWorkspace', false, 1));
+			test('newline command creating the destination symlink before a redirection-only pipeline stage - block', () =>
+				t('ln -s /outside/target link\nprintf payload | cat > link | > /dev/null', 'outsideWorkspace', false, 1));
 		});
 
 		suite('tilde and environment-variable expansion', () => {
@@ -180,7 +320,16 @@ suite('CommandLineFileWriteAnalyzer', () => {
 
 				// Mixed writes: /tmp allowed, but other outside paths still block
 				test('mixed /tmp and /etc - block even when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/a.txt && echo world > /etc/b.txt', 'outsideWorkspace', true, false));
-				test('mixed inside-workspace and /tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > file.txt && echo world > /tmp/b.txt', 'outsideWorkspace', true, true));
+				test('mixed inside-workspace and /tmp - block when auto-approval enabled', () => tWithAutoApproval('echo hello > file.txt && echo world > /tmp/b.txt', 'outsideWorkspace', true, false));
+				test('/tmp symlink resolving outside temp - block when auto-approval enabled', async () => {
+					fileService.realpathResults.set(URI.file('/tmp/link/file.txt').toString(), URI.file('/outside/file.txt'));
+					await tWithAutoApproval('echo hello > /tmp/link/file.txt', 'outsideWorkspace', true, false);
+				});
+				test('/tmp symlink followed by parent traversal resolving outside temp - block when auto-approval enabled', async () => {
+					const rawTarget = URI.from({ scheme: Schemas.file, path: '/tmp/link/../file.txt' });
+					fileService.realpathResults.set(rawTarget.toString(), URI.file('/outside/file.txt'));
+					await tWithAutoApproval('echo hello > /tmp/link/../file.txt', 'outsideWorkspace', true, false);
+				});
 			});
 
 			suite('blockDetectedFileWrites: all', () => {
@@ -190,7 +339,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		});
 
 		suite('complex scenarios', () => {
-			test('pipeline with redirection inside workspace', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', true, 1));
+			test('pipeline with redirection inside workspace - block', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', false, 1));
+			test('pipeline with in-place file write inside workspace - block', () => t('printf foo | sed -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', false, 1));
 			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', false, 1));
 			test('here-document', () => t('cat > file.txt << EOF\nhello\nEOF', 'outsideWorkspace', true, 1));
 			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
@@ -218,6 +368,36 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('sed -i outside workspace - block', () => t('sed -i \'s/foo/bar/\' /tmp/file.txt', 'outsideWorkspace', false, 1));
 			test('sed -i absolute path outside workspace - block', () => t('sed -i \'s/foo/bar/\' /etc/config', 'outsideWorkspace', false, 1));
 			test('sed -i mixed inside/outside - block', () => t('sed -i \'s/foo/bar/\' file.txt /tmp/other.txt', 'outsideWorkspace', false, 1));
+			test('sed escaped literal wildcard canonicalizes the literal filename', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/safe-\\*').toString(), URI.file('/outside/file.txt'));
+				await t('sed --follow-symlinks -i \'s/x/y/\' \'safe-\\*\'', 'outsideWorkspace', false, 1);
+			});
+			test('sed concatenated quoted filename canonicalizes the runtime path', async () => {
+				fileService.realpathResults.set(URI.file('/workspace/project/safe-link').toString(), URI.file('/outside/file.txt'));
+				await t('sed --follow-symlinks -i \'s/x/y/\' safe-"link"', 'outsideWorkspace', false, 1);
+			});
+			test('sed backup path outside workspace - block', () =>
+				t('sed --in-place=../outside/* \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
+			test('sed quoted in-place option with backup path outside workspace - block', () =>
+				t('sed \'--in-place=../outside/*\' \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
+			test('sed abbreviated in-place option with outside file - block', () =>
+				t('sed --in-plac \'s/x/y/\' /outside/file.txt', 'outsideWorkspace', false, 1));
+			test('sed final repeated in-place suffix outside workspace - block', () =>
+				t('sed --in-place=.bak --in-p=../outside/* \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
+			test('sed option-shaped file after terminator does not replace backup suffix - block', () =>
+				t('sed --in-place=../outside/* -e \'s/x/y/\' -- --in-place=.bak file.txt', 'outsideWorkspace', false, 1));
+			test('sed command-substituted in-place option with outside file - block', () =>
+				t('sed "$(echo -i)" \'s/x/y/\' /outside/file.txt', 'outsideWorkspace', false, 1));
+			test('sed history-expanded in-place option with outside file - block', () =>
+				t('sed !!:1 \'s/x/y/\' /outside/file.txt', 'outsideWorkspace', false, 1));
+			test('sed partially expanded short in-place option with outside file - block', () =>
+				t('sed -"$(echo i)" \'s/x/y/\' /outside/file.txt', 'outsideWorkspace', false, 1));
+			test('sed dynamic backup option - block', () =>
+				t('sed "${HOME:+--in-place=$HOME/*}" \'s/x/y/\' .bashrc', 'outsideWorkspace', false, 1));
+			test('sed brace-expanded in-place option with outside file - block', () =>
+				t('sed -{i,n} \'s/x/y/\' /outside/file.txt', 'outsideWorkspace', false, 1));
+			test('sed dynamic in-place option after line-length operand - block', () =>
+				t('sed -l 70 -{i,n} \'s/x/y/\' /outside/file.txt', 'outsideWorkspace', false, 1));
 
 			// With blockDetectedFileWrites: all
 			test('sed -i with all setting - block', () => t('sed -i \'s/foo/bar/\' file.txt', 'all', false, 1));
@@ -322,6 +502,23 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('subexpression - block', () => t('Write-Host "hello" > $(Get-Date).log', 'outsideWorkspace', false, 1));
 			test('percent-style variable - block', () => t('Write-Host "hello" > %APPDATA%\\file.txt', 'outsideWorkspace', false, 1));
 			test('tilde expansion - block', () => t('Write-Host "hello" > ~\\file.txt', 'outsideWorkspace', false, 1));
+			test('relative symlink traversal with a missing target - block', async () => {
+				const rawTarget = cwd.with({ path: `${cwd.path}/link/../new.txt` });
+				fileService.realpathResults.set(rawTarget.toString(), 'missing');
+				fileService.realpathResults.set(cwd.with({ path: `${cwd.path}/link/..` }).toString(), URI.file('C:/outside'));
+				await t('Write-Host "hello" > link\\..\\new.txt', 'outsideWorkspace', false, 1);
+			});
+			test('static method expression before a redirected command - block', () =>
+				t('[System.IO.File]::CreateSymbolicLink("link", "C:\\outside\\file.txt")\nWrite-Host payload > link', 'outsideWorkspace', false, 1));
+			test('quoted static method text remains literal - allow', () =>
+				t('Write-Host \'[System.IO.File]::CreateSymbolicLink("link", "C:\\outside\\file.txt")\' > file.txt', 'outsideWorkspace', true, 1));
+			test('single-quoted escaped quote canonicalizes the runtime filename', async () => {
+				fileService.realpathResults.set(URI.file('C:/workspace/project/safe\'link').toString(), URI.file('C:/outside/file.txt'));
+				await t('Write-Host payload > \'safe\'\'link\'', 'outsideWorkspace', false, 1);
+			});
+			test('double-quoted path with backtick escape - block', () =>
+				t('Write-Host payload > "safe`nlink"', 'outsideWorkspace', false, 1));
+			test('drive-relative destination - block', () => t('Write-Host payload > C:settings.json', 'outsideWorkspace', false, 1));
 		});
 
 		suite('tilde and environment-variable expansion', () => {
@@ -337,7 +534,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		});
 
 		suite('complex scenarios', () => {
-			test('pipeline with redirection inside workspace', () => t('Get-Process | Where-Object {$_.CPU -gt 100} > processes.txt', 'outsideWorkspace', true, 1));
+			test('pipeline with redirection inside workspace - block', () => t('Get-Process | Where-Object {$_.CPU -gt 100} > processes.txt', 'outsideWorkspace', false, 1));
 			test('multiple redirections mixed inside/outside', () => t('Write-Host "hello" > file.txt ; Write-Host "world" > C:\\temp\\file.txt', 'outsideWorkspace', false, 1));
 			test('all streams redirection', () => t('Get-Process *> all.log', 'outsideWorkspace', true, 1));
 			test('multiple stream redirections', () => t('Get-Content missing.txt > output.txt 2> error.txt 3> warning.txt', 'outsideWorkspace', true, 1));
@@ -412,13 +609,39 @@ suite('CommandLineFileWriteAnalyzer', () => {
 
 				// Mixed writes: TEMP allowed, but other outside paths still block
 				test('mixed TEMP and System32 - block even when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\a.txt ; Write-Host "world" > C:\\Windows\\System32\\b.txt', 'outsideWorkspace', true, false));
-				test('mixed inside-workspace and TEMP - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > file.txt ; Write-Host "world" > C:\\Users\\foo\\AppData\\Local\\Temp\\b.txt', 'outsideWorkspace', true, true));
+				test('mixed inside-workspace and TEMP - block when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > file.txt ; Write-Host "world" > C:\\Users\\foo\\AppData\\Local\\Temp\\b.txt', 'outsideWorkspace', true, false));
+				test('TEMP symlink traversal with a missing target - block when auto-approval enabled', async () => {
+					const rawTarget = cwd.with({ path: 'C:/Users/foo/AppData/Local/Temp/link/../file.txt' });
+					fileService.realpathResults.set(rawTarget.toString(), 'missing');
+					fileService.realpathResults.set(cwd.with({ path: 'C:/Users/foo/AppData/Local/Temp/link/..' }).toString(), URI.file('C:/outside'));
+					await tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\link\\..\\file.txt', 'outsideWorkspace', true, false);
+				});
 			});
 
 			suite('blockDetectedFileWrites: all', () => {
 				// `all` setting still blocks TEMP writes regardless of session auto-approval
 				test('user TEMP - block when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\file.txt', 'all', true, false));
 			});
+		});
+	});
+
+	suite('cmd paths', () => {
+		test('backslash-separated destination requires confirmation', async () => {
+			const cwd = URI.file('C:/workspace/project');
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+			workspaceContextService.setWorkspace(new Workspace('test', [toWorkspaceFolder(cwd)]));
+
+			const result = await analyzer.analyze({
+				commandLine: 'echo payload > link\\file.txt',
+				cwd,
+				shell: 'cmd.exe',
+				os: OperatingSystem.Windows,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
+			});
+
+			strictEqual(result.isAutoApproveAllowed, false);
 		});
 	});
 
