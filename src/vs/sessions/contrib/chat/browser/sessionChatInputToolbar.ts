@@ -43,7 +43,7 @@ import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../ser
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
-import { createIssueHover } from '../../github/browser/issueHover.js';
+import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
 import { linkKey } from '../../../common/sessionLinks.js';
 
@@ -205,6 +205,9 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
 			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			ariaDescription: issue
+				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, ref.uri.toString(true))
+				: ref.uri.toString(true),
 			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },

@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import './actionWidget.css';
 import { localize, localize2 } from '../../../nls.js';
-import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, previewSelectedActionCommand } from './actionList.js';
+import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions, previewSelectedActionCommand } from './actionList.js';
 import { Action2, registerAction2 } from '../../actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
@@ -48,7 +48,12 @@ export interface IActionWidgetService {
 	 * or repositioning it. Preserves the current filter. When `focusItemId` is
 	 * provided, focuses that item; otherwise preserves the focused item.
 	 */
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void;
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void;
+
+	/**
+	 * The item currently focused in the shown widget, if any.
+	 */
+	getFocusedElement<T>(): IActionListItem<T> | undefined;
 
 	/**
 	 * Focuses the item with the given id in the currently shown widget, without
@@ -103,8 +108,12 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this._list.value?.acceptSelected(preview);
 	}
 
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void {
-		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId);
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId, options);
+	}
+
+	getFocusedElement<T>(): IActionListItem<T> | undefined {
+		return (this._list.value as ActionList<T> | undefined)?.getFocusedElement();
 	}
 
 	focusItemById(itemId: string): void {

@@ -126,6 +126,20 @@ function withWindowInnerHeight<T>(height: number, callback: () => T): T {
 	}
 }
 
+function withWindowInnerWidth<T>(width: number, callback: () => T): T {
+	const originalDescriptor = Object.getOwnPropertyDescriptor(mainWindow, 'innerWidth');
+	Object.defineProperty(mainWindow, 'innerWidth', { configurable: true, value: width });
+	try {
+		return callback();
+	} finally {
+		if (originalDescriptor) {
+			Object.defineProperty(mainWindow, 'innerWidth', originalDescriptor);
+		} else {
+			Reflect.deleteProperty(mainWindow, 'innerWidth');
+		}
+	}
+}
+
 function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, items: readonly IActionListItem<ITestActionItem>[], options?: {
 	readonly listOptions?: Partial<IActionListOptions>;
 	readonly anchor?: { x: number; y: number; width: number; height: number };
@@ -1557,6 +1571,52 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('Ctrl/Meta/Alt+Tab bubble to the keybinding service instead of driving panel traversal', () => {
+		const createPanel = () => {
+			const panel = document.createElement('div');
+			const control = document.createElement('a');
+			control.href = 'https://example.com';
+			control.textContent = 'link';
+			panel.append(control);
+			return { panel, controls: [control] };
+		};
+		let panelControls: readonly HTMLElement[] = [];
+		const item: IActionListItem<ITestActionItem> = {
+			...action('one'),
+			toolbarActions: [toAction({ id: 'copy', label: 'Copy', run: () => { } })],
+			hover: {
+				content: () => {
+					const result = createPanel();
+					panelControls = result.controls;
+					return result.panel;
+				},
+				expandable: true,
+				showIndicator: false,
+				tabThroughPanel: true,
+				getTabbableElements: () => panelControls,
+				contentOwnsPadding: true,
+			},
+		};
+		const widget = createActionListWidget(disposables, {
+			items: [item],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		widget.focus();
+
+		const modifiedTabResults = (['ctrlKey', 'metaKey', 'altKey'] as const).map(modifier => {
+			const before = document.activeElement;
+			const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, [modifier]: true });
+			const propagated = widget.domNode.dispatchEvent(event);
+			return { modifier, focusUnchanged: document.activeElement === before, propagated };
+		});
+
+		assert.deepStrictEqual(modifiedTabResults, [
+			{ modifier: 'ctrlKey', focusUnchanged: true, propagated: true },
+			{ modifier: 'metaKey', focusUnchanged: true, propagated: true },
+			{ modifier: 'altKey', focusUnchanged: true, propagated: true },
+		]);
+	});
+
 	test('rebuilding the items in place re-measures only when the row count changed', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
 		const layouts: string[] = [];
@@ -2162,6 +2222,91 @@ suite('ActionListWidget', () => {
 				});
 			}
 		}
+	}
+
+	for (const nearBottom of [false, true]) {
+		test(`tabThroughPanel hover repositions when focus grows its content${nearBottom ? ' near the viewport bottom' : ''}`, async () => {
+			const content = document.createElement('div');
+			content.style.cssText = 'width: 120px; height: 40px;';
+			const reference = document.createElement('a');
+			reference.href = 'https://example.com';
+			reference.textContent = 'reference';
+			content.appendChild(reference);
+			const widget = createActionListWidget(disposables, {
+				items: [{
+					...action('active'),
+					hover: { content, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => [reference], contentOwnsPadding: true },
+				}],
+				listOptions: { showFilter: false, reserveSubmenuSpace: false },
+			});
+			const popup = document.createElement('div');
+			popup.style.cssText = `position: fixed; top: ${nearBottom ? mainWindow.innerHeight - 120 : 100}px; left: 40px; width: 260px;`;
+			document.body.appendChild(popup);
+			disposables.add({ dispose: () => popup.remove() });
+			popup.appendChild(widget.domNode);
+			widget.layout(24, 240);
+			widget.focus();
+			widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			await settleLayout();
+
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const before = panel.getBoundingClientRect();
+			// Simulates the reference title switching from its bounded to its full length on focus.
+			content.style.height = '160px';
+			await settleLayout();
+			const after = panel.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				grew: after.height > before.height,
+				repositioned: after.top !== before.top,
+				withinViewport: after.bottom <= mainWindow.innerHeight,
+			}, {
+				grew: true,
+				repositioned: true,
+				withinViewport: true,
+			});
+		});
+	}
+
+	for (const width of [320, 375]) {
+		test(`tabThroughPanel hover panel stays within a ${width}px mobile viewport`, () => {
+			withWindowInnerWidth(width, () => {
+				const content = document.createElement('div');
+				content.style.cssText = 'width: 240px; height: 80px;';
+				const widget = createActionListWidget(disposables, {
+					items: [{
+						...action('active'),
+						hover: { content, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => [], contentOwnsPadding: true },
+					}],
+					listOptions: { showFilter: false, reserveSubmenuSpace: false },
+				});
+				const popup = document.createElement('div');
+				// Simulates the outer dropdown (`.action-widget`, capped at 80vw)
+				// occupying most of a narrow phone viewport, leaving little to no
+				// room on either side for the hover panel to open beside it.
+				const popupWidth = Math.round(width * 0.8);
+				popup.style.cssText = `position: fixed; top: 40px; left: 8px; width: ${popupWidth}px;`;
+				document.body.appendChild(popup);
+				disposables.add({ dispose: () => popup.remove() });
+				popup.appendChild(widget.domNode);
+				widget.layout(24, popupWidth - 16);
+				widget.focus();
+				widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+				const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+				const panelRect = panel.getBoundingClientRect();
+
+				assert.deepStrictEqual({
+					shown: panel.style.display !== 'none',
+					withinLeftEdge: panelRect.left >= 0,
+					withinRightEdge: panelRect.right <= width,
+				}, {
+					shown: true,
+					withinLeftEdge: true,
+					withinRightEdge: true,
+				});
+			});
+		});
 	}
 
 	for (const zoom of [1, 1.25]) {

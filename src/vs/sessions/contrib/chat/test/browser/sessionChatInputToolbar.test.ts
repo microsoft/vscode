@@ -376,15 +376,19 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
 				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
 				unresolvedHover: unresolvedIssueEntry?.pillHover,
+				unresolvedAriaDescription: unresolvedIssueEntry?.ariaDescription,
+				ariaDescription: issueEntry?.ariaDescription,
 				openCommands: commands,
 			},
 			activeIssue: {
 				status: activeIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
 				date: activeIssueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
+				ariaDescription: activeIssueEntry?.ariaDescription,
 			},
 			duplicateIssue: {
 				status: duplicateIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
 				statusKind: duplicateIssueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
+				ariaDescription: duplicateIssueEntry?.ariaDescription,
 			},
 		}, {
 			pullRequest: {
@@ -476,6 +480,8 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
 				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
+				unresolvedAriaDescription: 'https://github.com/microsoft/vscode/issues/42',
+				ariaDescription: 'Closed. https://github.com/microsoft/vscode/issues/42',
 				openCommands: [
 					{
 						id: 'workbench.agentSessions.action.openPullRequest',
@@ -490,10 +496,12 @@ suite('SessionChatInputToolbar', () => {
 			activeIssue: {
 				status: 'Open',
 				date: 'on Sep 3',
+				ariaDescription: 'Open. https://github.com/microsoft/vscode/issues/42',
 			},
 			duplicateIssue: {
 				status: 'Duplicate',
 				statusKind: 'duplicate',
+				ariaDescription: 'Duplicate. https://github.com/microsoft/vscode/issues/42',
 			},
 		});
 	});
