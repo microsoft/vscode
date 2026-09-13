@@ -16,6 +16,46 @@ export function escapeIcons(text: string): string {
 	return text.replace(escapeIconsRegex, (match, escaped) => escaped ? match : `\\${match}`);
 }
 
+/**
+ * Escapes all icon syntax (`$(iconId)`) in arbitrary text (e.g. file contents) so that
+ * it renders literally in a label with icon support, and adjusts the given highlights
+ * to the escaped text.
+ *
+ * Unlike {@link escapeIcons}, icons that are already preceded by a backslash are escaped
+ * as well, so that the backslash itself is preserved. Icons that are split by a highlight
+ * boundary are left untouched: highlighted labels render each segment separately, so such
+ * icons are never rendered as icons and escaping them would show a stray backslash.
+ */
+export function escapeIconsWithHighlights(text: string, highlights: readonly IMatch[]): { text: string; highlights: IMatch[] } {
+	if (text.indexOf(iconStartMarker) === -1) {
+		return { text, highlights: [...highlights] };
+	}
+
+	const insertions: number[] = [];
+	for (const match of text.matchAll(iconsRegex)) {
+		const start = match.index;
+		const end = start + match[0].length;
+		const isSplit = highlights.some(h => (h.start > start && h.start < end) || (h.end > start && h.end < end));
+		if (!isSplit) {
+			insertions.push(start);
+		}
+	}
+
+	let escaped = '';
+	let last = 0;
+	for (const offset of insertions) {
+		escaped += text.substring(last, offset) + '\\';
+		last = offset;
+	}
+	escaped += text.substring(last);
+
+	const adjust = (offset: number) => offset + insertions.filter(insertion => insertion < offset).length;
+	return {
+		text: escaped,
+		highlights: highlights.map(h => ({ start: adjust(h.start), end: adjust(h.end) }))
+	};
+}
+
 const markdownEscapedIconsRegex = new RegExp(`\\\\${iconsRegex.source}`, 'g');
 export function markdownEscapeEscapedIcons(text: string): string {
 	// Need to add an extra \ for escaping in markdown
