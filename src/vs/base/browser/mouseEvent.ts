@@ -119,6 +119,121 @@ interface IGeckoMouseWheelEvent {
 	detail: number;
 }
 
+const MOUSE_WHEEL_FOCUS_GRACE_TIME = 50;
+
+interface IWindowMouseWheelEventFilterState {
+	readonly targetWindow: Window;
+	readonly onFocus: (event: Event) => void;
+	references: number;
+	lastFocusTime: number;
+}
+
+interface IWindowMouseWheelEventFilterStateReference {
+	readonly state: IWindowMouseWheelEventFilterState;
+	dispose(): void;
+}
+
+const windowMouseWheelEventFilterStates = new WeakMap<Window, IWindowMouseWheelEventFilterState>();
+
+export class WindowMouseWheelEventFilter {
+
+	private readonly _state: IWindowMouseWheelEventFilterState;
+	private readonly _stateReference: IWindowMouseWheelEventFilterStateReference;
+
+	public static trackWindowFocus(targetWindow: Window): { dispose(): void } {
+		return acquireWindowMouseWheelEventFilterState(targetWindow);
+	}
+
+	constructor(private readonly _targetWindow: Window) {
+		this._stateReference = acquireWindowMouseWheelEventFilterState(this._targetWindow);
+		this._state = this._stateReference.state;
+	}
+
+	public shouldIgnore(e: IMouseWheelEvent): boolean {
+		if (!this._state.lastFocusTime) {
+			return false;
+		}
+
+		const eventTime = getEventTime(e, e.view ?? this._targetWindow);
+		return eventTime > 0 && eventTime < this._state.lastFocusTime - MOUSE_WHEEL_FOCUS_GRACE_TIME;
+	}
+
+	public dispose(): void {
+		this._stateReference.dispose();
+	}
+}
+
+function acquireWindowMouseWheelEventFilterState(targetWindow: Window): IWindowMouseWheelEventFilterStateReference {
+	const state = getWindowMouseWheelEventFilterState(targetWindow);
+	state.references++;
+
+	let isDisposed = false;
+	return {
+		state,
+		dispose: () => {
+			if (isDisposed) {
+				return;
+			}
+			isDisposed = true;
+
+			state.references--;
+			if (state.references === 0) {
+				state.targetWindow.removeEventListener('focus', state.onFocus);
+				windowMouseWheelEventFilterStates.delete(state.targetWindow);
+			}
+		}
+	};
+}
+
+function getWindowMouseWheelEventFilterState(targetWindow: Window): IWindowMouseWheelEventFilterState {
+	let state = windowMouseWheelEventFilterStates.get(targetWindow);
+	if (!state) {
+		state = {
+			targetWindow,
+			references: 0,
+			lastFocusTime: 0,
+			onFocus: (event: Event) => {
+				state!.lastFocusTime = getEventTime(event, targetWindow);
+			}
+		};
+		targetWindow.addEventListener('focus', state.onFocus);
+		windowMouseWheelEventFilterStates.set(targetWindow, state);
+	}
+	return state;
+}
+
+function getEventTime(e: Event, targetWindow: Window): number {
+	const timeStamp = e.timeStamp;
+	if (!Number.isFinite(timeStamp) || timeStamp <= 0) {
+		return 0;
+	}
+
+	if (timeStamp > 1_000_000_000_000) {
+		return timeStamp;
+	}
+
+	const timeOrigin = getWindowTimeOrigin(targetWindow);
+	return typeof timeOrigin === 'number' ? timeOrigin + timeStamp : 0;
+}
+
+function getWindowTimeOrigin(targetWindow: Window): number | undefined {
+	try {
+		const targetPerformance = targetWindow.performance;
+		if (typeof targetPerformance?.timeOrigin === 'number' && Number.isFinite(targetPerformance.timeOrigin)) {
+			return targetPerformance.timeOrigin;
+		}
+
+		if (typeof targetPerformance?.now === 'function') {
+			const now = targetPerformance.now();
+			return Number.isFinite(now) ? Date.now() - now : undefined;
+		}
+	} catch {
+		// Cross-origin and detached WindowProxy objects can reject performance access.
+	}
+
+	return undefined;
+}
+
 export class StandardWheelEvent {
 
 	public readonly browserEvent: IMouseWheelEvent | null;

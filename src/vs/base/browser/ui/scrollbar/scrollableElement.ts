@@ -6,7 +6,7 @@
 import { getZoomFactor, isChrome } from '../../browser.js';
 import * as dom from '../../dom.js';
 import { FastDomNode, createFastDomNode } from '../../fastDomNode.js';
-import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from '../../mouseEvent.js';
+import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent, WindowMouseWheelEventFilter } from '../../mouseEvent.js';
 import { ScrollbarHost } from './abstractScrollbar.js';
 import { HorizontalScrollbar } from './horizontalScrollbar.js';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from './scrollableElementOptions.js';
@@ -202,6 +202,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _topLeftShadowDomNode: FastDomNode<HTMLElement> | null;
 
 	private readonly _listenOnDomNode: HTMLElement;
+	private _mouseWheelEventFilter: WindowMouseWheelEventFilter | null = null;
 
 	private _mouseWheelToDispose: IDisposable[];
 
@@ -274,6 +275,8 @@ export abstract class AbstractScrollableElement extends Widget {
 		}
 
 		this._listenOnDomNode = this._options.listenOnDomNode || this._domNode;
+		// Track focus before the lazy filter sees its first native or delegated wheel event.
+		this._register(WindowMouseWheelEventFilter.trackWindowFocus(dom.getWindow(this._listenOnDomNode)));
 
 		this._mouseWheelToDispose = [];
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
@@ -400,7 +403,25 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		if (this._shouldIgnoreMouseWheelEvent(browserEvent)) {
+			return;
+		}
+
 		this._onMouseWheel(new StandardWheelEvent(browserEvent));
+	}
+
+	private _shouldIgnoreMouseWheelEvent(browserEvent: IMouseWheelEvent): boolean {
+		if (!this._mouseWheelEventFilter) {
+			this._mouseWheelEventFilter = this._register(new WindowMouseWheelEventFilter(dom.getWindow(this._listenOnDomNode)));
+		}
+
+		if (!this._mouseWheelEventFilter.shouldIgnore(browserEvent)) {
+			return false;
+		}
+
+		browserEvent.preventDefault();
+		browserEvent.stopPropagation();
+		return true;
 	}
 
 	private async _periodicSync(): Promise<void> {
@@ -450,7 +471,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		// Start listening (if necessary)
 		if (shouldListen) {
 			const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
-				this._onMouseWheel(new StandardWheelEvent(browserEvent));
+				this.delegateScrollFromMouseWheelEvent(browserEvent);
 			};
 
 			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { passive: false }));
