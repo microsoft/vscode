@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
+import { deepStrictEqual, rejects, strictEqual } from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -69,5 +69,42 @@ suite('PtyHostService', () => {
 			{ listeners: [...baseline.entries()].sort(), starts: 6 },
 			'restarts should notify the local channel without accumulating startup listeners'
 		);
+	});
+
+	test('freePortKillProcess validates before forwarding', async () => {
+		const calls: { command: string; args: unknown }[] = [];
+		const channel: IChannel = {
+			call<T>(command: string, args?: unknown): Promise<T> {
+				calls.push({ command, args });
+				if (command === 'getRegisteredLoggers') {
+					return Promise.resolve([] as T);
+				}
+				return Promise.resolve(
+					command === 'freePortKillProcess'
+						? { port: (args as string[])[0], processId: '123' } as T
+						: undefined as T
+				);
+			},
+			listen<T>(): Event<T> { return Event.None; }
+		};
+		const starter: IPtyHostStarter = {
+			start: () => ({
+				client: { getChannel: <T extends IChannel>() => channel as T },
+				store: new DisposableStore(),
+				onDidProcessExit: Event.None,
+			}),
+			dispose: () => { },
+		};
+		const service = store.add(new PtyHostService(
+			starter,
+			new TestConfigurationService(),
+			new NullLogService(),
+			store.add(new NullLoggerService())
+		));
+
+		await rejects(() => service.freePortKillProcess('3000;id'));
+		strictEqual(calls.length, 0);
+		deepStrictEqual(await service.freePortKillProcess('65535'), { port: '65535', processId: '123' });
+		deepStrictEqual(calls.filter(call => call.command === 'freePortKillProcess').map(call => call.args), [['65535']]);
 	});
 });
