@@ -243,9 +243,10 @@ suite('Workbench - TerminalEnvironment', () => {
 				await rejects(() => preparePathForShell('c:\\foo\\%PATH%', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true));
 			});
 			test('PowerShell', async () => {
-				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar'`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar''baz'`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar$(echo evil)baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true, false), `'c:\\foo\\bar'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true, true), `& 'c:\\foo\\bar'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true, true), `& 'c:\\foo\\bar''baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true, true), `& 'c:\\foo\\bar$(echo evil)baz'`);
 			});
 			test('Git Bash', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar'`);
@@ -280,9 +281,10 @@ suite('Workbench - TerminalEnvironment', () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `"c:\\foo\\bar$(echo evil)baz"`);
 			});
 			test('PowerShell', async () => {
-				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false), `& 'c:\\foo\\bar'`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false), `& 'c:\\foo\\bar''baz'`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false), `& 'c:\\foo\\bar$(echo evil)baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false, false), `'c:\\foo\\bar'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false, true), `& 'c:\\foo\\bar'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false, true), `& 'c:\\foo\\bar''baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false, true), `& 'c:\\foo\\bar$(echo evil)baz'`);
 			});
 			test('Git Bash', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, false), `'c:/foo/bar'`);

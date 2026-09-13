@@ -317,7 +317,7 @@ export async function createTerminalEnvironment(
  * tests.
  * @returns An escaped version of the path to be executed in the terminal.
  */
-export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
+export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows, shouldExecute: boolean = false): Promise<string> {
 	let originalPath: string;
 	if (isString(resource)) {
 		originalPath = resource;
@@ -343,7 +343,8 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		title === 'powershell';
 
 	if (isPowerShell) {
-		return `& ${escapeNonWindowsPath(originalPath, GeneralShellType.PowerShell)}`;
+		const escapedPath = escapeNonWindowsPath(originalPath, GeneralShellType.PowerShell);
+		return shouldExecute ? `& ${escapedPath}` : escapedPath;
 	}
 
 	if (os === OperatingSystem.Windows) {
