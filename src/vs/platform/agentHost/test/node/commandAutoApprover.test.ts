@@ -597,11 +597,17 @@ suite('CommandAutoApprover', () => {
 				},
 			};
 
-			assert.strictEqual(
-				approver.shouldAutoApprove('Write-Host hi>/workspace/inside>/outside', options),
-				'noMatch'
-			);
-			assert.deepStrictEqual(seen, ['/workspace/inside', '/outside']);
+			const commands = [
+				'Write-Host hi>/workspace/inside>/outside',
+				...['2', '3', '4', '5', '6', '*'].map(stream => `Write-Host hi>'../../outside.txt'${stream}>$null`),
+				'Write-Host hi>>\'../../outside.txt\'2>$null',
+			];
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, options)), commands.map(() => 'noMatch'));
+			assert.deepStrictEqual(seen, [
+				'/workspace/inside',
+				'/outside',
+				...commands.slice(1).map(() => '../../outside.txt'),
+			]);
 		});
 
 		// The grammar parses `--flag=value` as an assignment expression that
