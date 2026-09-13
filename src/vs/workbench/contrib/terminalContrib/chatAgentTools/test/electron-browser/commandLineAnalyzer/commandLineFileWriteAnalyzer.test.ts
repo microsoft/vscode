@@ -382,6 +382,11 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				t('sed \'--in-place=../outside/*\' \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
 			test('sed abbreviated in-place option with outside file - block', () =>
 				t('sed --in-plac \'s/x/y/\' /outside/file.txt', 'outsideWorkspace', false, 1));
+			test('sed shortest GNU in-place abbreviations with outside file - block', async () => {
+				for (const option of ['--i', '--in', '--in-']) {
+					await t(`sed ${option} 's/x/y/' /outside/file.txt`, 'outsideWorkspace', false, 1);
+				}
+			});
 			test('sed final repeated in-place suffix outside workspace - block', () =>
 				t('sed --in-place=.bak --in-p=../outside/* \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
 			test('sed option-shaped file after terminator does not replace backup suffix - block', () =>
