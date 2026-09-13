@@ -274,7 +274,9 @@ suite('AgentHostCanvasPackagesService', () => {
 		}, { revisions: 128, approved: true, firstAsset: '{"value":1}', document: '{"preserved":true}' });
 	});
 
-	test('production byte, file and depth overloads never publish a partial package', async () => {
+	test('production byte, file and depth overloads never publish a partial package', async function () {
+		// Creating and inspecting 2048 real files exercises the quota, not a filesystem latency budget.
+		this.timeout(15_000);
 		const { service } = create({ useDefaultLimits: true });
 		const oversized = URI.joinPath(source, 'oversized');
 		await writeFile(oversized.fsPath, new Uint8Array(16 * 1024 * 1024));

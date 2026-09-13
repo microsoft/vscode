@@ -168,6 +168,12 @@ class CanvasFixtureRuntime {
 		return readCanvasFixtureAudit(directory, kind);
 	}
 
+	async readProcessState(directory = this.extensionDirectory) {
+		const started = vArray(vObj({ pid: vNumber() })).validateOrThrow(await this.readAudit('started', directory));
+		assert.ok(started.every(({ pid }) => Number.isSafeInteger(pid) && pid > 0));
+		return { started, stopped: started.filter(({ pid }) => !processIsRunning(pid)) };
+	}
+
 	async waitForCanvas(session: CopilotSession, joins = 1): Promise<void> {
 		await waitFor(() => this.readAudit('joined'), value => value.length === joins);
 		await waitFor(() => session.rpc.canvas.list(), value => value.canvases.some(canvas => canvas.extensionId === extensionId));
@@ -181,12 +187,13 @@ class CanvasFixtureRuntime {
 		const discovered = (await client.rpc.extensions.discover()).extensions.find(extension => extension.id === extensionId);
 		const live = (await session.rpc.extensions.list()).extensions.find(extension => extension.id === extensionId);
 		assert.ok(discovered && live);
+		const processes = await this.readProcessState();
 		return {
 			phase,
 			enabled: discovered.enabled,
 			status: live.status,
-			started: (await this.readAudit('started')).length,
-			stopped: (await this.readAudit('stopped')).length,
+			started: processes.started.length,
+			stopped: processes.stopped.length,
 		};
 	}
 
@@ -207,11 +214,7 @@ class CanvasFixtureRuntime {
 			}
 		}
 		for (const directory of this.extensionDirectories) {
-			const started = vArray(vObj({ pid: vNumber() })).validateOrThrow(await this.readAudit('started', directory));
-			for (const { pid } of started) {
-				assert.ok(Number.isSafeInteger(pid) && pid > 0);
-				await waitFor(async () => processIsRunning(pid), running => !running);
-			}
+			await waitFor(() => this.readProcessState(directory), ({ started, stopped }) => stopped.length === started.length);
 		}
 		assert.deepStrictEqual(this.modelRequests.requests, []);
 		if (errors.length) {
@@ -610,7 +613,7 @@ suite('Agent Host Provider Integration - Copilot Local Custom Canvases', functio
 			await session.rpc.canvas.close({ instanceId: 'closed-before-resume' });
 			states.push(await fixture.readStartupState('explicit enable', client, session));
 			await session.rpc.extensions.disable({ id: extensionId });
-			await waitFor(() => fixture.readAudit('stopped'), value => value.length === 1);
+			await waitFor(() => fixture.readProcessState(), value => value.stopped.length === 1);
 			states.push(await fixture.readStartupState('explicit disable', client, session));
 			await session.rpc.extensions.reload();
 			states.push(await fixture.readStartupState('reload disabled after enable', client, session));
@@ -631,7 +634,7 @@ suite('Agent Host Provider Integration - Copilot Local Custom Canvases', functio
 			await fixture.waitForCanvas(enabled, 3);
 			states.push(await fixture.readStartupState('resume enabled without renderer', enabledClient, enabled));
 			await enabled.rpc.extensions.disable({ id: extensionId });
-			await waitFor(() => fixture.readAudit('stopped'), value => value.length === 3);
+			await waitFor(() => fixture.readProcessState(), value => value.stopped.length === 3);
 			states.push(await fixture.readStartupState('disable after enabled resume', enabledClient, enabled));
 			assert.deepStrictEqual({ states, permissionRequests: fixture.permissionRequests }, {
 				states: [
@@ -671,7 +674,7 @@ suite('Agent Host Provider Integration - Copilot Local Custom Canvases', functio
 			assert.deepStrictEqual({
 				enabled: (await secondClient.rpc.extensions.discover()).extensions[0]?.enabled,
 				started: await fixture.readAudit('started'),
-				stopped: await fixture.readAudit('stopped'),
+				stopped: (await fixture.readProcessState()).stopped,
 				extensions: await second.rpc.extensions.list(),
 				canvasCapability: second.capabilities.ui?.canvases,
 				tools: await toolNames(second),
@@ -807,7 +810,8 @@ suite('Agent Host Provider Integration - Copilot Local Custom Canvases', functio
 				closeCount: 1,
 			});
 			assert.deepStrictEqual(await client.stop(), []);
-			await assert.rejects(() => fetch(fixtureUrl(second, '/health'), { signal: AbortSignal.timeout(2000) }), /fetch failed|Failed to fetch/);
+			await waitFor(() => fixture.readProcessState(), ({ started, stopped }) => stopped.length === started.length);
+			await assert.rejects(() => fetch(fixtureUrl(second, '/health'), { signal: AbortSignal.timeout(2000) }));
 			const restoredClient = await fixture.start();
 			const restoreCursor = fixture.events.length;
 			const restored = await restoredClient.resumeSession(session.sessionId, fixture.config());
