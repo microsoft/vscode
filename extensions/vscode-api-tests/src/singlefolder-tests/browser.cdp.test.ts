@@ -210,13 +210,13 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 			assert.ok(address && typeof address !== 'string');
 			const firstUrl = `http://127.0.0.1:${address.port}/first`;
 			const secondUrl = `http://localhost:${address.port}/second`;
-			const tab = await window.openBrowserTab(firstUrl);
+			const tab = await window.openBrowserTab('');
 			const session = await tab.startCDPSession();
 			try {
 				const { cdpSend } = createHarness(session);
 				const browser: { sessionId: string } = await cdpSend('Target.attachToBrowserTarget');
 				const targets: { targetInfos: { targetId: string; type: string; url: string }[] } = await cdpSend('Target.getTargets', {}, browser.sessionId);
-				const target = targets.targetInfos.find(target => target.type === 'page' && target.url === firstUrl);
+				const target = targets.targetInfos.find(target => target.type === 'page');
 				assert.ok(target);
 				const page: { sessionId: string } = await cdpSend('Target.attachToTarget', { targetId: target.targetId, flatten: true }, browser.sessionId);
 				const waitForIcon = (url: string, icon: string) => poll(
@@ -224,6 +224,8 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 					state => state.url === url && state.icon === icon,
 					`Browser favicon for ${url} should be ${icon}`,
 				);
+				// Establish the model and its subscriptions before navigating the local fixture.
+				await cdpSend('Page.navigate', { url: firstUrl }, page.sessionId);
 				await waitForIcon(firstUrl, red);
 				await cdpSend('Page.navigate', { url: secondUrl }, page.sessionId);
 				await waitForIcon(secondUrl, blue);
