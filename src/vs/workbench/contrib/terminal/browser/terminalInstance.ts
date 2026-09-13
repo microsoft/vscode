@@ -2391,7 +2391,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (await this._processManager.getBackendOS() === OperatingSystem.Windows) {
 					return undefined;
 				}
-				const processCwd = await this._refreshProperty(ProcessPropertyType.Cwd);
+				const processCwd = await this._refreshProperty(ProcessPropertyType.CwdForAuthorization);
 				cwd = isString(processCwd) ? processCwd : undefined;
 			} catch {
 				return undefined;

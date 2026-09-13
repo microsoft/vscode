@@ -88,6 +88,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
+		cwdForAuthorization: undefined,
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
 		title: '',
@@ -513,6 +514,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				return newCwd as IProcessPropertyMap[T];
 			}
+			case ProcessPropertyType.CwdForAuthorization:
+				return await this.getCwd(false) as IProcessPropertyMap[T];
 			case ProcessPropertyType.InitialCwd: {
 				const initialCwd = await this.getInitialCwd();
 				if (initialCwd !== this._properties.initialCwd) {
@@ -604,14 +607,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return Promise.resolve(this._initialCwd);
 	}
 
-	async getCwd(): Promise<string> {
+	async getCwd(): Promise<string>;
+	async getCwd(useFallback: boolean): Promise<string | undefined>;
+	async getCwd(useFallback: boolean = true): Promise<string | undefined> {
 		if (isMacintosh) {
 			// From Big Sur (darwin v20) there is a spawn blocking thread issue on Electron,
 			// this is fixed in VS Code's internal Electron.
 			// https://github.com/Microsoft/vscode/issues/105446
-			return new Promise<string>(resolve => {
+			return new Promise<string | undefined>(resolve => {
 				if (!this._ptyProcess) {
-					resolve(this._initialCwd);
+					resolve(useFallback ? this._initialCwd : undefined);
 					return;
 				}
 				this._logService.trace('node-pty.IPty#pid');
@@ -620,7 +625,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					} else {
 						this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
-						resolve(this._initialCwd);
+						resolve(useFallback ? this._initialCwd : undefined);
 					}
 				});
 			});
@@ -628,17 +633,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		if (isLinux) {
 			if (!this._ptyProcess) {
-				return this._initialCwd;
+				return useFallback ? this._initialCwd : undefined;
 			}
 			this._logService.trace('node-pty.IPty#pid');
 			try {
 				return await fs.promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
 			} catch (error) {
-				return this._initialCwd;
+				return useFallback ? this._initialCwd : undefined;
 			}
 		}
 
-		return this._initialCwd;
+		return useFallback ? this._initialCwd : undefined;
 	}
 
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
