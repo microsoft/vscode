@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -89,6 +89,7 @@ suite('Agents Window workspace handoff', () => {
 		instantiationService.stub(ISessionsSetUpService, upcastPartial<ISessionsSetUpService>({ whenWelcomeDone: () => welcome }));
 		instantiationService.stub(INewSessionComposerService, composerService);
 		disposables.add(composerService.registerComposer({
+			hasInputObs: constObservable(false),
 			get canApplyWorkspaceDefault() { return defaultAllowed; },
 			animatePrompt: async () => false,
 			showPromptOptions: () => false,
@@ -323,6 +324,7 @@ suite('Agents Window workspace handoff', () => {
 	test('asks the target view rather than the most recently mounted composer whether a default is safe', async () => {
 		const harness = createHarness();
 		disposables.add(harness.composerService.registerComposer({
+			hasInputObs: constObservable(false),
 			canApplyWorkspaceDefault: false,
 			animatePrompt: async () => false,
 			showPromptOptions: () => false,

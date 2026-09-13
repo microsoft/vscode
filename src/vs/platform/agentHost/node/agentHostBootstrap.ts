@@ -10,7 +10,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { IFileService } from '../../files/common/files.js';
+import { IFileService, type IFileSystemProvider } from '../../files/common/files.js';
 import { FileService } from '../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -51,6 +51,8 @@ export interface ICreateAgentHostRuntimeOptions {
 	readonly transientProxyConfiguration: boolean;
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly providerConfigurations: readonly IAgentCustomizationSettingsRegistration[];
+	/** The native file-scheme provider. Disposal ownership transfers to the runtime. */
+	readonly fileSystemProvider?: IFileSystemProvider & IDisposable;
 	/**
 	 * The utility-process host has a renderer bridge; standalone hosts use the
 	 * unavailable variant but still register the same complete service graph.
@@ -106,7 +108,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 	let agentService: AgentService | undefined;
 	try {
 		const fileService = infrastructure.add(new FileService(logService));
-		infrastructure.add(fileService.registerProvider(Schemas.file, infrastructure.add(new DiskFileSystemProvider(logService))));
+		infrastructure.add(fileService.registerProvider(Schemas.file, infrastructure.add(options.fileSystemProvider ?? new DiskFileSystemProvider(logService))));
 		infrastructure.add(registerPendingEditContentProvider(fileService));
 		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 		const services = new StrictServiceCollection(

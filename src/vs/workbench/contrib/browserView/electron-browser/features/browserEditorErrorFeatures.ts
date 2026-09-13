@@ -85,6 +85,21 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 		this._urlRenderer.setCertificateError(undefined);
 	}
 
+	override onResolveError(error: Error | undefined): void {
+		this._clearContent();
+		this._element.style.display = error ? '' : 'none';
+		if (error) {
+			const content = $('.browser-error-content');
+			content.setAttribute('role', 'alert');
+			const title = $('.browser-error-title');
+			title.textContent = localize('browser.pageUnavailableLabel', "Page Unavailable");
+			const detail = $('.browser-error-detail');
+			detail.textContent = error.message;
+			content.append(title, detail);
+			this._element.appendChild(content);
+		}
+	}
+
 	private _updateError(): void {
 		const model = this.editor.model;
 		if (!model) {

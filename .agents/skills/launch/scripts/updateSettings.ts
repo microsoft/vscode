@@ -8,9 +8,10 @@ import * as fs from 'node:fs';
 const settingsFile = process.argv[2];
 const sessionTitle = process.argv[3]?.replace(/\s+/g, ' ').trim().replaceAll('$', '\uFF04');
 const sourceSettingsFile = process.argv[4];
+const overridesFile = process.argv[5];
 
 if (!settingsFile) {
-	throw new Error('Usage: updateSettings.ts <settings-file> [session-title] [source-settings-file]');
+	throw new Error('Usage: updateSettings.ts <settings-file> [session-title] [source-settings-file] [boolean-or-string-overrides-file]');
 }
 
 let settingsStat;
@@ -38,6 +39,18 @@ if (!text.trim()) {
 	text = '{}\n';
 }
 
+if (overridesFile) {
+	const overrides: Record<string, unknown> = JSON.parse(fs.readFileSync(overridesFile, 'utf8'));
+	if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+		throw new Error(`Settings overrides must be a JSON object: ${overridesFile}`);
+	}
+	for (const [key, value] of Object.entries(overrides)) {
+		if (typeof value !== 'string' && typeof value !== 'boolean') {
+			throw new Error(`Setting override '${key}' must be a boolean or a string.`);
+		}
+		text = setJsoncProperty(text, key, value);
+	}
+}
 text = setJsoncProperty(text, 'files.simpleDialog.enable', true);
 if (sessionTitle) {
 	text = setJsoncProperty(

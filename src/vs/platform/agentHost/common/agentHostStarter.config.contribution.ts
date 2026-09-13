@@ -35,12 +35,14 @@ import {
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
 	ArtifactToolsSettingId,
+	AgentHostLocalCanvasesSettingId,
 } from './agentService.js';
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostArtifactToolsConfigKey,
+	AgentHostLocalCanvasesConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
@@ -209,6 +211,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostAutoAttachPullRequestsConfigKey },
+		},
+		[AgentHostLocalCanvasesSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.localCanvases.enabled', "Enable the local canvas preview in the Agents Window (macOS arm64 source builds only). Packages run only after explicit approval with a compatible SDK/runtime. Other platforms are not yet qualified. Reload the window after enabling. Disabling stops new canvas operations."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			agentHost: { key: AgentHostLocalCanvasesConfigKey },
 		},
 		[AgentHostMarkdownPlanRichLinksEnabledSettingId]: {
 			type: 'boolean',

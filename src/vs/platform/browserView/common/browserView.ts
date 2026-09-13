@@ -5,12 +5,14 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 import type { IntegratedBrowserOpenSource } from './browserViewTelemetry.js';
+import { equalsBrowserViewAppPolicy, IBrowserViewAppPolicy } from './browserAppPolicy.js';
+import type { IBrowserViewSemanticTheme } from './browserViewSemanticTheme.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -145,6 +147,12 @@ export interface IBrowserViewTheme {
 	readonly toolbarHoverBackground?: string;
 	readonly font?: string;
 	readonly reducedMotion?: boolean;
+	/**
+	 * Fixed GH-compatible semantic color tokens for confined native
+	 * custom-app pages (see {@link IBrowserViewAppPolicy}). Unset for
+	 * generic browser pages, which never observe these custom properties.
+	 */
+	readonly semanticTokens?: IBrowserViewSemanticTheme;
 }
 
 /**
@@ -268,9 +276,13 @@ export interface IBrowserViewHost {
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
+	/** Stable identity of a resource-resolved page, independent of its current URL. */
+	readonly source?: UriComponents;
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource?: UriComponents;
+	/** Present when this view is confined to a local custom-app policy. See {@link IBrowserViewAppPolicy}. */
+	readonly appPolicy?: IBrowserViewAppPolicy;
 	readonly state: IBrowserViewState;
 }
 
@@ -303,9 +315,33 @@ export interface IBrowserViewCreationContext {
 
 /** Complete main-process creation contract for a browser view. */
 export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
+	/** Resource-resolved pages are destroyed on window reload and must be resolved again. */
+	readonly source?: UriComponents;
 	readonly associatedResource?: UriComponents;
 	readonly initialUrl?: string;
 	readonly openSource?: IntegratedBrowserOpenSource;
+	/** Present when this view must be confined to a local custom-app policy. See {@link IBrowserViewAppPolicy}. */
+	readonly appPolicy?: IBrowserViewAppPolicy;
+}
+
+/** Validates a restoration request and reports whether the existing native view can be reused. */
+export function canReuseBrowserView(existing: IBrowserViewInfo, options: IBrowserViewCreateOptions): boolean {
+	if (!existing.source && !options.source) {
+		return true;
+	}
+	if (existing.host.windowId !== options.host.windowId) {
+		throw new Error(localize('browser.pageSourceWindowMismatch', "This page belongs to a different workbench window."));
+	}
+	if (!isEqual(URI.revive(existing.source), URI.revive(options.source))) {
+		throw new Error(localize('browser.pageSourceMismatch', "The browser page source does not match this editor."));
+	}
+	// A source-backed page must never silently become a differently-policed (or
+	// unpoliced) app on reuse: fail clearly instead of reusing a view whose
+	// confinement no longer matches what the caller is asking for.
+	if (!equalsBrowserViewAppPolicy(existing.appPolicy, options.appPolicy)) {
+		throw new Error(localize('browser.appPolicyMismatch', "This page's app policy does not match this editor. Reload to apply the new policy."));
+	}
+	return false;
 }
 
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
@@ -365,6 +401,8 @@ export interface IBrowserViewLoadError {
 	errorCode: number;
 	errorDescription: string;
 	certificateError?: IBrowserViewCertificateError;
+	/** The native page was retired after a navigation that could not be cancelled. */
+	appPolicyViolation?: boolean;
 }
 
 export interface IBrowserViewCertificateError {
@@ -541,18 +579,15 @@ export interface IBrowserViewService {
 	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
 
 	/**
-	 * Get or create a browser view instance.
-	 *
-	 * @param id The browser view identifier
-	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
+	 * Get or create a browser view instance. Ordinary views reuse existing instances; source views
+	 * require a matching source and owning window and are recreated with the current options.
 	 */
 	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo>;
 
 	/**
-	 * Destroy a browser view instance
-	 * @param id The browser view identifier
+	 * Destroy a browser view instance, optionally only if it still belongs to the expected workbench window.
 	 */
-	destroyBrowserView(id: string): Promise<void>;
+	destroyBrowserView(id: string, expectedHostWindowId?: number): Promise<void>;
 
 	/**
 	 * Update the owner of an existing browser view.

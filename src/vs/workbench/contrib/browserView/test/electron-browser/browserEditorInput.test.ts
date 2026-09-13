@@ -16,23 +16,26 @@ import { BrowserViewUri } from '../../../../../platform/browserView/common/brows
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
-import { BrowserViewSharingState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewPageSourceResolver, IBrowserViewResolvedPageSource, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { formatBrowserEditorList, getBrowserPageResourceNavigationError } from '../../electron-browser/tools/browserToolHelpers.js';
+import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
+	readonly onDidUnregisterPageSourceResolver = Event.None;
 	readonly isSharingAvailable = false;
 	readonly known = new Map<string, BrowserEditorInput>();
 	input: BrowserEditorInput | undefined;
 	lastCreate: { id: string; url: string | undefined; associatedResource: string | undefined } | undefined;
+	lastData: IBrowserEditorInputData | undefined;
 
 	willUseRemoteProxy(): boolean {
 		return false;
@@ -65,6 +68,7 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	}
 
 	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput {
+		this.lastData = data;
 		this.lastCreate = {
 			id: data.id,
 			url: data.url,
@@ -74,6 +78,14 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 			throw new Error('No browser editor input configured for test.');
 		}
 		return this.input;
+	}
+
+	registerPageSourceResolver(_scheme: string, _resolver: IBrowserViewPageSourceResolver): IDisposable {
+		throw new Error('Unexpected page source registration in this test.');
+	}
+
+	async resolvePageSource(_source: URI, _token: CancellationToken): Promise<IBrowserViewResolvedPageSource> {
+		throw new Error('Unexpected page source resolution in this test.');
 	}
 
 	async clearGlobalStorage(): Promise<void> { }
@@ -106,6 +118,32 @@ suite('BrowserEditorInput', () => {
 		browserViewWorkbenchService.input = input;
 		return input;
 	}
+
+	test('a retired app page preserves its source editor for explicit retry', () => {
+		const source = URI.parse('test-canvas:/retained');
+		const input = createInput({ id: 'blocked-app', source });
+		const closed = disposables.add(new Emitter<void>());
+		let modelDisposals = 0;
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override readonly error = { url: 'about:blank', errorCode: -20, errorDescription: 'Blocked document', appPolicyViolation: true };
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = closed.event;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override dispose(): void { modelDisposals++; }
+		}();
+		closed.fire();
+		assert.deepStrictEqual({
+			disposed: input.isDisposed(), source: input.source?.toString(),
+			model: input.model, error: input.resolveError?.message,
+			explicitRetry: input.requiresExplicitSourceRetry, modelDisposals,
+		}, {
+			disposed: false, source: source.toString(), model: undefined,
+			error: 'Blocked document', explicitRetry: true, modelDisposals: 1,
+		});
+	});
 
 	test('uses the browser resource for regular inputs', () => {
 		const input = createInput({ id: 'regular-browser' });
@@ -181,6 +219,80 @@ suite('BrowserEditorInput', () => {
 				url: associatedResource.toString(),
 				associatedResource: associatedResource.toString()
 			}
+		});
+	});
+
+	test('preserves ordinary URL editor serialization', () => {
+		const input = createInput({
+			id: 'url-browser',
+			url: 'https://example.com/page?query=value#fragment',
+			title: 'Example',
+			favicon: 'https://example.com/favicon.ico'
+		});
+		const serializer = new BrowserEditorSerializer();
+
+		assert.strictEqual(serializer.serialize(input), JSON.stringify({
+			id: 'url-browser',
+			url: 'https://example.com/page?query=value#fragment',
+			title: 'Example',
+			favicon: 'https://example.com/favicon.ico'
+		}));
+	});
+
+	test('persists only source identity and supplied display title for resolved pages', async () => {
+		const source = URI.parse('test-page:/document/one');
+		const endpoint = 'http://localhost:41234/?token=secret';
+		const input = createInput({ id: 'source-browser', source, title: 'Document', url: endpoint, favicon: endpoint });
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override readonly url = endpoint;
+			override readonly title = endpoint;
+			override readonly favicon = endpoint;
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override dispose(): void { }
+		}();
+		const serializer = new BrowserEditorSerializer();
+		const serialized = serializer.serialize(input);
+		assert.ok(serialized);
+		serializer.deserialize(instantiationService, serialized);
+		const restored = browserViewWorkbenchService.lastData;
+		input.copy();
+		const copied = browserViewWorkbenchService.lastData;
+		const renamed = await input.rename(1, URI.file('/renamed.html'));
+		input.dispose();
+
+		assert.deepStrictEqual({
+			serializedKeys: Object.keys(JSON.parse(serialized)),
+			serializedIncludesEndpoint: serialized.includes(endpoint),
+			restoredSource: restored?.source?.toString(),
+			restoredUrl: restored?.url,
+			copyHasNewId: copied?.id !== input.id,
+			copiedSource: copied?.source?.toString(),
+			copiedUrl: copied?.url,
+			copiedTitle: copied?.title,
+			copiedFavicon: copied?.favicon,
+			reopenState: input.toUntyped().options?.viewState,
+			renamed,
+			matchesReopen: input.matches(input.toUntyped()),
+			matchesSourceAsFile: input.matches({ resource: source }),
+		}, {
+			serializedKeys: ['id', 'source', 'title'],
+			serializedIncludesEndpoint: false,
+			restoredSource: source.toString(),
+			restoredUrl: undefined,
+			copyHasNewId: true,
+			copiedSource: source.toString(),
+			copiedUrl: undefined,
+			copiedTitle: 'Document',
+			copiedFavicon: undefined,
+			reopenState: { source, title: 'Document' },
+			renamed: undefined,
+			matchesReopen: true,
+			matchesSourceAsFile: false,
 		});
 	});
 

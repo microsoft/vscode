@@ -1,0 +1,90 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+	color-scheme: light dark;
+}
+
+body {
+	margin: 0;
+	padding: var(--vscode-spacing-size240, 1.5rem);
+	font-family: -apple-system, "Segoe UI", sans-serif;
+	line-height: 1.5;
+	color: var(--fgColor-default, CanvasText);
+	background: var(--bgColor-default, Canvas);
+}
+
+main {
+	max-width: 32rem;
+	overflow-wrap: anywhere;
+}
+
+h1 {
+	font-size: var(--vscode-fontSize-heading1, 1.625rem);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+}
+
+.eyebrow {
+	font-size: var(--vscode-fontSize-label1, 0.75rem);
+	color: var(--fgColor-muted, GrayText);
+	margin: 0 0 0.25rem;
+}
+
+.description {
+	color: var(--fgColor-muted, GrayText);
+}
+
+.greetings output {
+	font-size: var(--vscode-fontSize-heading1, 1.625rem);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+}
+
+form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80, 0.5rem);
+	margin: 1rem 0;
+}
+
+label {
+	flex-basis: 100%;
+}
+
+input[type="text"] {
+	flex: 1 1 10rem;
+	min-width: 0;
+	padding: var(--vscode-spacing-size80, 0.5rem);
+	font: inherit;
+	color: var(--fgColor-default, CanvasText);
+	background: var(--bgColor-inset, Canvas);
+	border: var(--vscode-strokeThickness, 1px) solid var(--borderColor-default, var(--borderColor-muted, CanvasText));
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+}
+
+button {
+	background: var(--bgColor-accent-emphasis, Highlight);
+	color: var(--fgColor-onEmphasis, HighlightText);
+	border: var(--vscode-strokeThickness, 1px) solid var(--borderColor-default, var(--borderColor-accent-emphasis, Highlight));
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	padding: var(--vscode-spacing-size80, 0.5rem) var(--vscode-spacing-size120, 0.75rem);
+	font: inherit;
+	cursor: pointer;
+}
+
+input:focus-visible,
+button:focus-visible {
+	outline: 2px solid var(--focus-outline-color, Highlight);
+	outline-offset: 2px;
+}
+
+.hint {
+	color: var(--fgColor-muted, GrayText);
+	font-size: 0.875rem;
+}
+
+.error {
+	color: var(--fgColor-danger, CanvasText);
+	min-height: 1.2em;
+}

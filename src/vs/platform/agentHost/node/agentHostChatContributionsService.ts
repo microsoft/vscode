@@ -8,8 +8,8 @@ import { NKeyMap } from '../../../base/common/map.js';
 import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IAppliedClientAction, IDispatchedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IAppliedClientAction, IDispatchedAction, IMessageSubmission, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Message, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
 type MementoKeySegment = string | boolean | number;
 type MementoMap = NKeyMap<ISettableObservable<unknown>, [ProtocolURI, string, ...MementoKeySegment[]]>;
@@ -172,6 +172,16 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 				this._logContributionFailure(registration, err);
 			}
 		}
+	}
+
+	messageSubmitted(submission: IMessageSubmission): Message {
+		let message = submission.message;
+		for (const { contribution } of this._getOrderedContributions()) {
+			if (contribution.onMessageSubmitted) {
+				message = contribution.onMessageSubmitted({ ...submission, message });
+			}
+		}
+		return message;
 	}
 
 	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {

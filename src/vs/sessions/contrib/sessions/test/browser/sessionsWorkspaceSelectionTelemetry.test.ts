@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -42,6 +42,7 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 		const events: { name: string; data?: ITelemetryData }[] = [];
 		let selection: IWorkspaceSelectionSnapshot | undefined;
 		disposables.add(composerService.registerComposer({
+			hasInputObs: constObservable(false),
 			get workspaceSelection() { return selection; },
 			onDidChangeWorkspaceSelection: selectionChanged.event,
 			animatePrompt: async () => false,

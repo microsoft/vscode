@@ -319,8 +319,8 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 			// A new tab (no URL loaded) auto-opens the picker so the user can immediately type / browse suggestions.
 			// Otherwise we move focus into the browser editor so it doesn't stay on the tab control.
 			const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
-			if (!url && !this._hasInitiatedNavigation) {
-				this._navbar.openUrlPicker();
+			if (!url && !input?.source && !this._hasInitiatedNavigation) {
+				this.openUrlPicker();
 			} else {
 				this.editor.ensureBrowserFocus();
 			}
@@ -409,6 +409,14 @@ class GoForwardAction extends Action2 {
 	}
 }
 
+async function reloadBrowser(editor: BrowserEditor, ignoreCache?: boolean): Promise<void> {
+	if (editor.model) {
+		await editor.model.reload(ignoreCache);
+	} else if (editor.input?.source) {
+		await editor.input.resolve();
+	}
+}
+
 class ReloadAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.Reload;
 
@@ -442,7 +450,7 @@ class ReloadAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.model?.reload();
+			await reloadBrowser(browserEditor);
 		}
 	}
 }
@@ -470,7 +478,7 @@ class HardReloadAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.model?.reload(true);
+			await reloadBrowser(browserEditor, true);
 		}
 	}
 }
