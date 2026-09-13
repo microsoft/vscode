@@ -515,7 +515,7 @@ suite('SessionPermissionManager', () => {
 			nullSink: await permissions.getAutoApproval(powershellEvent('Write-Host hi >$null'), sessionUri),
 		}, {
 			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
-			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
+			literalWorkspaceDestination: undefined,
 			nullSink: ToolCallConfirmationReason.NotNeeded,
 		});
 	});
@@ -546,7 +546,7 @@ suite('SessionPermissionManager', () => {
 		}, {
 			delayedApproval: undefined,
 			delayedRuleResolvable: false,
-			literalApproval: ToolCallConfirmationReason.NotNeeded,
+			literalApproval: undefined,
 		});
 	});
 
@@ -754,20 +754,15 @@ suite('SessionPermissionManager', () => {
 			]);
 		});
 
-		test('a relative shell redirect resolves against the primary root (index 0)', async () => {
-			// `out.txt` resolves against the single process cwd = `workDir`, so it
-			// is contained by the primary root and auto-approves.
+		test('a relative shell redirect requires confirmation', async () => {
 			const result = await permissions.getAutoApproval(shellEvent('echo hi > out.txt', 'bash'), multiUri);
-			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+			assert.strictEqual(result, undefined);
 		});
 
-		(isWindows ? test.skip : test)('an absolute shell redirect auto-approves under a non-primary root but confirms outside', async () => {
-			// POSIX-only: embedding absolute paths in the command string avoids
-			// Windows backslash/drive-colon parsing pitfalls. The containment rule
-			// itself is platform-agnostic and covered by the read/write test above.
+		(isWindows ? test.skip : test)('absolute shell redirects require confirmation inside and outside roots', async () => {
 			const intoPeer = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(workDir2, 'out.txt')}`, 'bash'), multiUri);
 			const outside = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(outsideDir, 'out.txt')}`, 'bash'), multiUri);
-			assert.deepStrictEqual([intoPeer, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
+			assert.deepStrictEqual([intoPeer, outside], [undefined, undefined]);
 		});
 
 		test('requires confirmation for a symlink that crosses from one root into another (fail-closed)', async () => {

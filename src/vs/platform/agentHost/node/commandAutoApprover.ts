@@ -44,12 +44,13 @@ function isSafeRedirectDestination(dest: string, isPowerShell?: boolean): boolea
 	if (isPowerShell && cleaned.toLowerCase() === '$null') {
 		return true;
 	}
-	if ((cleaned.startsWith(`'`) && cleaned.endsWith(`'`)) ||
-		(cleaned.startsWith('"') && cleaned.endsWith('"'))) {
+	const isQuoted = (cleaned.startsWith(`'`) && cleaned.endsWith(`'`)) ||
+		(cleaned.startsWith('"') && cleaned.endsWith('"'));
+	if (isQuoted) {
 		cleaned = cleaned.slice(1, -1);
 	}
 	// File-descriptor duplication: `&N`, optionally followed by `-` to close.
-	if (/^&[0-9]+-?$/.test(cleaned)) {
+	if (!isQuoted && /^&[0-9]+-?$/.test(cleaned)) {
 		return true;
 	}
 	// PowerShell uses `$null` as its null sink. In particular, `/dev/null`

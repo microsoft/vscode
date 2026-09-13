@@ -407,6 +407,8 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('echo hello > /dev/stderr'), 'approved');
 			assert.strictEqual(approver.shouldAutoApprove('echo hello 2>&1'), 'approved');
 			assert.strictEqual(approver.shouldAutoApprove('ls 2>&1 > /dev/null'), 'approved');
+			assert.notStrictEqual(approver.shouldAutoApprove('echo hello > "&1"'), 'approved');
+			assert.notStrictEqual(approver.shouldAutoApprove('echo hello > \'&1\''), 'approved');
 		});
 
 		// Mixing a safe redirect with an unsafe one still requires
