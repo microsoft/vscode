@@ -579,10 +579,12 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Write-Host pre"literal>text"post>../../outside.txt', options),
 				approver.shouldAutoApprove('Write-Host pre"literal>text"post', options),
 				approver.shouldAutoApprove('Write-Host pre\'literal>text\'post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal\'\'>text\'post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal\'\'>text\'post>../../outside.txt', options),
 				approver.shouldAutoApprove('Write-Host escaped`>text', options),
 				approver.shouldAutoApprove('Write-Host payload>$null', options),
-			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'approved']);
-			assert.deepStrictEqual(seen, ['../../outside.txt', '../../outside.txt', '../../outside.txt']);
+			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'noMatch', 'approved', 'approved']);
+			assert.deepStrictEqual(seen, ['../../outside.txt', '../../outside.txt', '../../outside.txt', '../../outside.txt']);
 		});
 
 		test('detects every PowerShell redirect in a generic token', () => {
