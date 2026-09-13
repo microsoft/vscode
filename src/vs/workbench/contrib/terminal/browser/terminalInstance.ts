@@ -2384,7 +2384,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async getCwdResource(): Promise<URI | undefined> {
-		const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
+		const cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
+		let cwd = cwdDetection?.isTrusted ? cwdDetection.getCwd() : undefined;
+		if (!cwd && cwdDetection && !cwdDetection.isTrusted) {
+			try {
+				if (await this._processManager.getBackendOS() === OperatingSystem.Windows) {
+					return undefined;
+				}
+				const processCwd = await this._refreshProperty(ProcessPropertyType.CwdForAuthorization);
+				cwd = isString(processCwd) ? processCwd : undefined;
+			} catch {
+				return undefined;
+			}
+		}
 		if (!cwd) {
 			return undefined;
 		}

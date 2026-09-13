@@ -256,6 +256,7 @@ export enum TerminalIpcChannels {
 
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
+	CwdForAuthorization = 'cwdForAuthorization',
 	InitialCwd = 'initialCwd',
 	FixedDimensions = 'fixedDimensions',
 	Title = 'title',
@@ -275,6 +276,7 @@ export interface IProcessProperty<T extends ProcessPropertyType = ProcessPropert
 
 export interface IProcessPropertyMap {
 	[ProcessPropertyType.Cwd]: string;
+	[ProcessPropertyType.CwdForAuthorization]: string | undefined;
 	[ProcessPropertyType.InitialCwd]: string;
 	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions;
 	[ProcessPropertyType.Title]: string;

@@ -20,7 +20,7 @@ import { ResultKind } from '../../../../../platform/keybinding/common/keybinding
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, ProcessPropertyType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -799,6 +799,9 @@ suite('Workbench - TerminalInstance', () => {
 
 		function createMockTerminalInstance(options: {
 			cwd?: string;
+			isTrusted?: boolean;
+			processCwd?: string;
+			backendOS?: OperatingSystem;
 			remoteAuthority?: string;
 			fileExists?: boolean;
 			fileServiceCanHandle?: boolean;
@@ -807,7 +810,8 @@ suite('Workbench - TerminalInstance', () => {
 
 			if (options.cwd) {
 				const mockCwdDetection = {
-					getCwd: () => options.cwd
+					getCwd: () => options.cwd,
+					isTrusted: options.isTrusted !== false,
 				};
 				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as unknown as ICwdDetectionCapability);
 			}
@@ -832,7 +836,12 @@ suite('Workbench - TerminalInstance', () => {
 				capabilities,
 				remoteAuthority: options.remoteAuthority,
 				async getCwdResource(): Promise<URI | undefined> {
-					const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
+					const cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
+					const cwd = cwdDetection?.isTrusted
+						? cwdDetection.getCwd()
+						: options.backendOS === OperatingSystem.Windows
+							? undefined
+							: options.processCwd;
 					if (!cwd) {
 						return undefined;
 					}
@@ -853,6 +862,29 @@ suite('Workbench - TerminalInstance', () => {
 			};
 		}
 
+		async function createRealTerminalInstance(options: { processCwd?: string; backendOS?: OperatingSystem }): Promise<TerminalInstance> {
+			const capabilities = store.add(new TerminalCapabilityStore());
+			capabilities.add(TerminalCapability.CwdDetection, {
+				getCwd: () => '/spoofed',
+				isTrusted: false,
+			} as unknown as ICwdDetectionCapability);
+			const instance = Object.create(TerminalInstance.prototype) as TerminalInstance;
+			(instance as unknown as { capabilities: TerminalCapabilityStore }).capabilities = capabilities;
+			(instance as unknown as { _processManager: { remoteAuthority: string | undefined; getBackendOS: () => Promise<OperatingSystem> } })._processManager = {
+				remoteAuthority: undefined,
+				getBackendOS: async () => options.backendOS ?? OperatingSystem.Linux,
+			};
+			(instance as unknown as Record<string, (type: ProcessPropertyType) => Promise<string | undefined>>)['_refreshProperty'] = async type => type === ProcessPropertyType.CwdForAuthorization ? options.processCwd : undefined;
+			(instance as unknown as { _fileService: { canHandleResource: () => Promise<boolean>; exists: () => Promise<boolean> } })._fileService = {
+				canHandleResource: async () => true,
+				exists: async () => true,
+			};
+			(instance as unknown as { _pathService: { fileURI: (path: string) => Promise<URI> } })._pathService = {
+				fileURI: async path => URI.file(path),
+			};
+			return instance;
+		}
+
 		test('should return undefined when no CwdDetection capability', async () => {
 			const instance = createMockTerminalInstance({});
 
@@ -863,6 +895,24 @@ suite('Workbench - TerminalInstance', () => {
 		test('should return undefined when CwdDetection capability returns no cwd', async () => {
 			const instance = createMockTerminalInstance({ cwd: undefined });
 
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should use process cwd when detected cwd is untrusted', async () => {
+			const instance = await createRealTerminalInstance({ processCwd: '/process' });
+			const result = await instance.getCwdResource();
+			strictEqual(result?.path, '/process');
+		});
+
+		test('should return undefined when detected cwd is untrusted and process cwd is unavailable', async () => {
+			const instance = await createRealTerminalInstance({});
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should return undefined for untrusted cwd on Windows', async () => {
+			const instance = await createRealTerminalInstance({ processCwd: 'C:\\process', backendOS: OperatingSystem.Windows });
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);
 		});
