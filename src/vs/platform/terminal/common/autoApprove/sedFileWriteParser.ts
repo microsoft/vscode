@@ -180,7 +180,7 @@ export class SedFileWriteParser {
 	}
 
 	private _isLongInPlaceOption(token: string): boolean {
-		return /^--in-p(?:l(?:a(?:c(?:e)?)?)?)?(?:=.*)?$/.test(token);
+		return /^--i(?:n(?:-(?:p(?:l(?:a(?:c(?:e)?)?)?)?)?)?)?(?:=.*)?$/.test(token);
 	}
 
 	private _containsRuntimeExpansion(value: string): boolean {
