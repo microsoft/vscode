@@ -5,36 +5,44 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -43,6 +51,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -52,9 +61,15 @@ import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsN
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
-import { getSessionConversationActionId, getSessionConversationGroupId } from '../../../browser/sessionConversationGroups.js';
-import { SessionConversationsActionViewItem } from '../../../browser/parts/sessionConversationsActionViewItem.js';
+import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
+import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
+
+export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
+export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
+export type NewSessionButtonStyle = 'default' | 'lightweight' | 'lightweightWithKeybindingBackground';
 
 // -- Show Sessions Picker --
 
@@ -83,6 +98,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const contextKeyService = accessor.get(IContextKeyService);
+		const composerService = accessor.get(INewSessionComposerService);
 
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
@@ -98,7 +114,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const isRead = session.isRead.read(reader);
 			const isArchived = session.isArchived.read(reader);
 			const workspace = session.workspace.read(reader);
-			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
+			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			const pullRequestIcon = getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
 			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
@@ -180,6 +197,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		disposables.add(toDisposable(() => pickerVisibleContext.reset()));
 
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
+			composerService.notifyUserNavigation();
 			if (!selected.session) {
 				sessionsService.openNewSession();
 				sessionsPartService.focusSession(sessionsService.activeSession.get());
@@ -193,7 +211,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			if (toSide && activeSessionId !== undefined && selected.session.sessionId !== activeSessionId) {
 				sessionsService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
 			} else {
-				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground });
+				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground, source: 'sessionsList' });
 			}
 		};
 
@@ -329,7 +347,7 @@ registerAction2(class GoForwardAction extends Action2 {
 registerAction2(class FocusActiveSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.focusActiveSession',
+			id: FOCUS_ACTIVE_SESSION_COMMAND_ID,
 			title: localize2('focusActiveSession', "Focus Active Session"),
 			f1: true,
 			category: SessionsCategories.Sessions,
@@ -339,7 +357,15 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 				// focuses the active session. Using the normal open chat action will not work for new session views.
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI],
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI]
+				},
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI]
+				},
 			},
 		});
 	}
@@ -524,51 +550,218 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
-// -- Chat tab navigation, new chat, & close (within the active session's tab strip) --
+// -- Chat tab navigation, rename, new chat, & close (within the active session's tab strip) --
 
 // These chords sit just above the session-level navigation/close commands so
 // they win while a multi-chat session is focused, falling back to the
 // session-level commands when the tab strip is not shown.
 const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
 
-// "New Chat" starts a new chat. Hidden once the session has more than one open
-// chat, since the chat tab strip then offers New Chat at the end of the tabs.
+interface IChatRenameContext {
+	readonly session: ISession;
+	readonly chat: IChat;
+}
+
+function getSessionsList(accessor: ServicesAccessor): SessionsList | undefined {
+	return accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl;
+}
+
+function getChatRenameContext(accessor: ServicesAccessor, context?: IChatRenameContext): IChatRenameContext | undefined {
+	if (context) {
+		return context;
+	}
+
+	const sessionsList = getSessionsList(accessor);
+	const focusedChat = sessionsList?.getFocusedChatItem();
+	if (focusedChat) {
+		return focusedChat;
+	}
+	if (sessionsList?.getFocusedSessions() !== undefined) {
+		return undefined;
+	}
+
+	const sessionView = accessor.get(ISessionsPartService).getFocusedSessionView();
+	const session = sessionView?.getSession();
+	const chat = sessionView?.getFocusedChat();
+	return session && chat ? { session, chat } : undefined;
+}
+
+async function renameChatWithQuickInput(accessor: ServicesAccessor, context: IChatRenameContext): Promise<void> {
+	const extUri = accessor.get(IUriIdentityService).extUri;
+	const quickInputService = accessor.get(IQuickInputService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const { session, chat } = context;
+	const resource = chat.resource;
+	const initialChat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, resource));
+	if (!initialChat || extUri.isEqual(resource, session.mainChat.get().resource) || initialChat.status.get() === SessionStatus.Untitled || !getChatCapabilities(initialChat, session, undefined).canRename) {
+		return;
+	}
+
+	const initialTitle = initialChat.title.get().trim() || localize('untitledChat', "Untitled Chat");
+	const newTitle = await quickInputService.input({
+		value: initialTitle,
+		prompt: localize('renameChat.prompt', "New chat title"),
+		validateInput: async value => value.trim() ? undefined : localize('renameChat.empty', "Title cannot be empty"),
+	});
+	const trimmedTitle = newTitle?.trim();
+	if (!trimmedTitle || trimmedTitle === initialTitle) {
+		return;
+	}
+
+	const currentChat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, resource));
+	if (!currentChat || extUri.isEqual(resource, session.mainChat.get().resource) || currentChat.status.get() === SessionStatus.Untitled || !getChatCapabilities(currentChat, session, undefined).canRename) {
+		return;
+	}
+
+	await sessionsManagementService.renameChat(session, resource, trimmedTitle);
+}
+
+registerAction2(class RenameChatAction extends Action2 {
+	constructor() {
+		super({
+			id: RENAME_CHAT_COMMAND_ID,
+			title: localize2('renameActiveChat', "Rename..."),
+			f1: false,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				primary: KeyCode.F2,
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(ChatContextKeys.inChatSession, SessionFocusedChatIsRenameTargetContext),
+						ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext),
+					),
+				),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatRenameContext): Promise<void> {
+		const target = getChatRenameContext(accessor, context);
+		if (target) {
+			await renameChatWithQuickInput(accessor, target);
+		}
+	}
+});
+
+registerAction2(class RenameSessionListChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.renameChat',
+			title: localize2('renameChat', "Rename..."),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 1,
+				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context) {
+			return;
+		}
+		await renameChatWithQuickInput(accessor, context);
+	}
+});
+
+registerAction2(class OpenSessionListChatToSideAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.openChatToSide',
+			title: localize2('openChatToSide', "Open to the Side"),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 2,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessionsService = accessor.get(ISessionsService);
+		if (!await sessionsService.canOpenSession(context.session)) {
+			return;
+		}
+		await sessionsService.openChatToSide(context.session, context.chat.resource);
+	}
+});
+
+registerAction2(class DeleteSessionListChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.deleteChat',
+			title: localize2('deleteChat', "Delete..."),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '2_delete',
+				order: 1,
+				when: SessionChatItemCanDeleteContext,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canDelete) {
+			return;
+		}
+		await accessor.get(ISessionsManagementService).deleteChat(context.session, context.chat.resource);
+	}
+});
+
+// "New Chat in This Session" starts a new chat from the session header's overflow menu.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
 
 registerAction2(class AddChatToSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: ADD_CHAT_TO_SESSION_ACTION_ID,
-			title: localize2('chatCompositeBar.addChat', "New Chat"),
+			title: localize2('chatCompositeBar.addChat', "New Chat in This Session"),
 			icon: Codicon.add,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
 				// active session. Scoped so it does not steal the shortcut outside
 				// the agents window or when the session does not support multiple chats.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
+				// Keep New Chat visually separate from the Side Chats submenu.
+				group: 'secondary/3_newChat',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+			}, {
+				id: Menus.SessionItemContextMenu,
+				group: '1_newChat',
 				order: 0,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionShouldShowChatTabsContext.negate()),
-			},
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		// From the menu: session is forwarded as context. From the keybinding:
-		// fall back to the active session.
-		const target = session ?? sessionsService.activeSession.get();
+		const target = Array.isArray(context) ? context[0] : context ?? sessionsService.activeSession.get();
 		if (!target) {
 			return;
 		}
+		if (target.isQuickChat?.get()) {
+			return;
+		}
 		await sessionsService.openNewChatInSession(target);
-		sessionsPartService.focusSession(target);
+		const activeSession = sessionsService.activeSession.get();
+		sessionsPartService.focusSession(activeSession?.sessionId === target.sessionId ? activeSession : undefined);
 	}
 });
 
@@ -758,7 +951,7 @@ registerAction2(class DeleteChatAction extends Action2 {
 				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
 				// in the Explorer. Scoped so it never fires while typing in an input
 				// (chat composer, rename field, etc.) or on the session's main chat.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
 				primary: KeyCode.Delete,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
@@ -888,7 +1081,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
 	// searchable palette flow instead skips untitled drafts (no meaningful title,
-	// mirroring the Chats dropdown) and adds the closed chats below.
+	// mirroring the Side Chats dropdown) and adds the closed chats below.
 	const openItems = (mru
 		? session.visibleChatTabs.get()
 		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
@@ -1080,6 +1273,12 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 	/** Hook invoked right before the action runs (e.g. for telemetry). */
 	protected onRun(): void { }
 
+	protected runAction(_event: MouseEvent | undefined): void {
+		void this.actionRunner.run(this.action, this._context);
+	}
+
+	protected configureButton(_button: Button): void { }
+
 	override render(container: HTMLElement): void {
 		super.render(container);
 
@@ -1097,6 +1296,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 			supportIcons: true,
 		}));
 		button.element.classList.add('agent-sessions-compact-new-button');
+		this.configureButton(button);
 		const onboardingTargetId = this.onboardingTargetId;
 		if (onboardingTargetId) {
 			this._register(markOnboardingTarget(button.element, onboardingTargetId));
@@ -1108,7 +1308,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 				return;
 			}
 			this.onRun();
-			this.actionRunner.run(this.action, this._context);
+			this.runAction(isMouseEvent(e) ? e : undefined);
 		}));
 
 		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
@@ -1169,15 +1369,17 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
  * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar
  * header and the titlebar.
  */
-class NewSessionActionViewItem extends CompactButtonActionViewItem {
+export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
 	constructor(
 		action: IAction,
 		private readonly telemetrySource: SessionsInteractionSource,
+		private readonly newSessionButtonStyle: IObservable<NewSessionButtonStyle>,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(action, keybindingService, hoverService, contextKeyService);
 	}
@@ -1192,6 +1394,14 @@ class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
 	protected override get onboardingTargetId(): string {
 		return 'sessions.newSession.button';
+	}
+
+	protected override configureButton(button: Button): void {
+		this._register(autorun(reader => {
+			const style = this.newSessionButtonStyle.read(reader);
+			button.element.classList.toggle('lightweight', style === 'lightweight' || style === 'lightweightWithKeybindingBackground');
+			button.element.classList.toggle('lightweight-keybinding-background', style === 'lightweightWithKeybindingBackground');
+		}));
 	}
 
 	protected override getHoverContent(keybindingLabel: string | undefined): string {
@@ -1209,6 +1419,14 @@ class NewSessionActionViewItem extends CompactButtonActionViewItem {
 	protected override onRun(): void {
 		logSessionsInteraction(this.telemetryService, 'newSession', this.telemetrySource);
 	}
+
+	protected override runAction(event: MouseEvent | undefined): void {
+		if (event?.altKey) {
+			this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { toSide: true }).catch(onUnexpectedError);
+		} else {
+			super.runAction(event);
+		}
+	}
 }
 
 /**
@@ -1223,16 +1441,28 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 	private static readonly NEW_SESSION_TITLEBAR_TREATMENT = 'agentSessionsTitleBarNewSession';
 
 	private readonly titleBarEnabledContext: IContextKey<boolean>;
+	private readonly newSessionButtonStyle = observableValue<NewSessionButtonStyle>(this, 'default');
+	private newSessionButtonStyleRequest = 0;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
 		this.titleBarEnabledContext = SessionsTitleBarNewSessionEnabledContext.bindTo(contextKeyService);
+		const configuredStyle = observableConfigValue<NewSessionButtonStyle>(NEW_SESSION_BUTTON_STYLE_SETTING, 'default', this.configurationService);
+		const assignmentsChanged = observableSignalFromEvent(this, this.assignmentService.onDidRefetchAssignments);
+		this._register(autorun(reader => {
+			configuredStyle.read(reader);
+			assignmentsChanged.read(reader);
+			void this.updateNewSessionButtonStyle().catch(onUnexpectedError);
+		}));
 
 		const onDidRegister = this._register(new Emitter<void>());
 		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout];
@@ -1242,7 +1472,7 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
 				}
-				return instantiationService.createInstance(NewSessionActionViewItem, action, source);
+				return instantiationService.createInstance(NewSessionActionViewItem, action, source, this.newSessionButtonStyle);
 			}, onDidRegister.event));
 		}
 		onDidRegister.fire();
@@ -1252,6 +1482,33 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		this.updateTitleBarTreatment();
 	}
 
+	private async updateNewSessionButtonStyle(): Promise<void> {
+		const request = ++this.newSessionButtonStyleRequest;
+		const inspection = this.configurationService.inspect<NewSessionButtonStyle>(NEW_SESSION_BUTTON_STYLE_SETTING);
+		let value: string | undefined;
+		if (isConfigured(inspection)) {
+			value = inspection.value;
+		} else {
+			try {
+				value = await this.assignmentService.getTreatment<string>(NEW_SESSION_BUTTON_STYLE_TREATMENT);
+			} catch (error) {
+				this.logService.warn('[NewSessionActionViewItemContribution] Failed to resolve the New Session button style treatment; using default.', error);
+			}
+		}
+		if (request !== this.newSessionButtonStyleRequest) {
+			return;
+		}
+		this.newSessionButtonStyle.set(this.normalizeNewSessionButtonStyle(value), undefined);
+	}
+
+	private normalizeNewSessionButtonStyle(value: string | undefined): NewSessionButtonStyle {
+		if (value === undefined || value === 'default' || value === 'lightweight' || value === 'lightweightWithKeybindingBackground') {
+			return value ?? 'default';
+		}
+		this.logService.warn(`[NewSessionActionViewItemContribution] Unsupported New Session button style treatment '${value}'; using 'default'.`);
+		return 'default';
+	}
+
 	private async updateTitleBarTreatment(): Promise<void> {
 		// Always show in dev builds (running from sources) to ease development, regardless of the experiment.
 		if (!this.environmentService.isBuilt) {
@@ -1259,113 +1516,18 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 			return;
 		}
 		const enabled = await this.assignmentService.getTreatment<boolean>(NewSessionActionViewItemContribution.NEW_SESSION_TITLEBAR_TREATMENT);
-		this.titleBarEnabledContext.set(enabled === true);
+		this.titleBarEnabledContext.set(enabled ?? this.productService.quality === 'insider');
 	}
 }
 
 /**
- * Renders the "New Chat" action in the session header as the compact pill, matching the
- * "New" session pill in the sessions list header / titlebar.
+ * Populates the Side Chats submenu for each visible session. Actions are
+ * scoped per session via {@link SessionIdContext} and re-registered whenever
+ * visible sessions or their chats change.
  */
-class NewChatActionViewItem extends CompactButtonActionViewItem {
+export class SessionConversationActionsContribution extends Disposable implements IWorkbenchContribution {
 
-	protected override get commandId(): string {
-		return ADD_CHAT_TO_SESSION_ACTION_ID;
-	}
-
-	protected override get label(): string {
-		return localize('chatCompositeBar.addChat.compact', "New Chat");
-	}
-
-	protected override get showKeybindingHint(): boolean {
-		return false;
-	}
-
-	protected override getHoverContent(keybindingLabel: string | undefined): string {
-		return keybindingLabel
-			? localize('newChatButtonTitle', "New Chat ({0})", keybindingLabel)
-			: localize('newChatButtonTitleWithoutKeybinding', "New Chat");
-	}
-
-	protected override getAriaLabel(keybindingAriaLabel: string | undefined): string {
-		return keybindingAriaLabel
-			? localize('newChatButtonAriaLabel', "New Chat ({0})", keybindingAriaLabel)
-			: localize('newChatButtonAriaLabelWithoutKeybinding', "New Chat");
-	}
-}
-
-export class SessionNewChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.sessions.newChatActionViewItem';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-	) {
-		super();
-
-		// Fire once after registering so a header toolbar that was already built
-		// (e.g. for a session restored before this contribution runs) re-renders and
-		// picks up this factory; otherwise New Chat stays icon-only until its menu
-		// next changes.
-		const onDidRegister = this._register(new Emitter<void>());
-		this._register(actionViewItemService.register(Menus.SessionBarToolbar, ADD_CHAT_TO_SESSION_ACTION_ID, (action, _options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(NewChatActionViewItem, action);
-		}, onDidRegister.event));
-		onDidRegister.fire();
-	}
-}
-
-export class SessionConversationsActionViewItemContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.sessions.conversationsActionViewItem';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-	) {
-		super();
-		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, Menus.SessionConversations, (action, _options, instantiationService) => {
-			if (!(action instanceof SubmenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(SessionConversationsActionViewItem, action);
-		}));
-	}
-}
-
-// The "Chats" toolbar entry is backed by a submenu whose groups are rendered by
-// the Sessions workbench as an Action Widget dropdown. Selecting an entry opens
-// or focuses that chat.
-//
-// It is always rendered in the session header meta row, after the pills
-// (workspace folder / changes / pull request) as the meta toolbar's default
-// dropdown icon, independent of whether the chat tab strip is shown. It surfaces
-// once the session has more than one committed chat, or when the active chat has
-// subagents (a separate group at the bottom lists them) even if that is the only
-// committed chat.
-MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
-	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Chats"),
-	icon: Codicon.commentDiscussion,
-	group: 'navigation',
-	order: 100,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext)),
-});
-
-/**
- * Populates the {@link Menus.SessionConversations} menu for every visible
- * session. {@link Menus.SessionBarToolbar} is rendered once per session view
- * (header/floating toolbar) against that view's scoped context key service, so
- * the menu items are scoped per session via {@link SessionIdContext}: each
- * session's per-chat navigation actions only render in (and act on) their own
- * session's toolbar. The actions are (re)registered whenever the set of visible
- * sessions or their chat lists change.
- */
-export class SessionConversationsMenuContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.sessions.conversationsMenu';
+	static readonly ID = 'workbench.contrib.sessions.conversationActions';
 
 	constructor(
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -1375,13 +1537,13 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		this._register(autorun(reader => {
 			for (const session of this._sessionsService.visibleSessions.read(reader)) {
 				if (session) {
-					reader.store.add(this._registerSessionConversations(session, reader));
+					reader.store.add(this._registerSessionConversationActions(session, reader));
 				}
 			}
 		}));
 	}
 
-	private _registerSessionConversations(session: IActiveSession, reader: IReader): IDisposable {
+	private _registerSessionConversationActions(session: IActiveSession, reader: IReader): IDisposable {
 		const store = new DisposableStore();
 		const that = this;
 		const extUri = this._uriIdentityService.extUri;
@@ -1390,11 +1552,16 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		// per session view against its own scoped context key service, where
 		// `sessionId` resolves to that view's session.
 		const scopedToSession = ContextKeyExpr.equals(SessionIdContext.key, session.sessionId);
+		const conversationsVisible = ContextKeyExpr.and(
+			scopedToSession,
+			SessionIsCreatedContext,
+			SessionIsArchivedContext.negate(),
+			SessionHasSideChatsContext,
+		);
 
 		const allChats = session.chats.read(reader);
-		const activeChat = session.activeChat.read(reader);
 
-		const registerOpen = (chat: IChat, group: string, order: number) => {
+		const registerOpen = (chat: IChat, order: number) => {
 			const chatResource = chat.resource;
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
 			// Action IDs are global, so scope them to the session and a hash of the
@@ -1405,7 +1572,7 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 					super({
 						id: getSessionConversationActionId(session.sessionId, chatResource),
 						title,
-						menu: { id: Menus.SessionConversations, group, order, when: scopedToSession },
+						menu: { id: Menus.SessionConversations, group: SESSION_CONVERSATION_SIDE_CHATS_GROUP, order, when: conversationsVisible },
 					});
 				}
 				override async run(accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
@@ -1436,9 +1603,8 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
 				return;
 			}
-			const group = getSessionConversationGroupId(chat, activeChat, extUri);
-			if (group) {
-				registerOpen(chat, group, index);
+			if (isSessionConversationSideChat(chat)) {
+				registerOpen(chat, index);
 			}
 		});
 
@@ -1446,23 +1612,41 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 	}
 }
 
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+	submenu: Menus.SessionConversations,
+	title: localize2('chatCompositeBar.sideChats', "Side Chats"),
+	icon: Codicon.commentDiscussion,
+	group: 'secondary/2_chats',
+	order: 10,
+	when: ContextKeyExpr.and(
+		SessionIsCreatedContext,
+		SessionIsArchivedContext.negate(),
+		SessionHasSideChatsContext,
+	),
+});
+
 registerAction2(class TogglePinSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.togglePin',
-			title: localize2('chatCompositeBar.pin', "Pin Session"),
+			title: localize2('chatCompositeBar.pin', "Pin"),
 			icon: Codicon.pin,
 			toggled: {
 				condition: SessionIsStickyContext,
 				icon: Codicon.pinned,
-				title: localize('chatCompositeBar.unpin', "Unpin Session"),
+				title: localize('chatCompositeBar.unpin', "Unpin"),
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionBarToolbar,
-				group: '1_session',
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate()),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/4_pin',
 				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
-			},
+			}],
 		});
 	}
 
@@ -1477,10 +1661,10 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
 	command: {
 		id: 'sessions.chatCompositeBar.togglePin',
-		title: localize('chatCompositeBar.pinView', "Pin View"),
+		title: localize('chatCompositeBar.pinView', "Pin"),
 		toggled: {
 			condition: SessionIsStickyContext,
-			title: localize('chatCompositeBar.unpinView', "Unpin View"),
+			title: localize('chatCompositeBar.unpinView', "Unpin"),
 		},
 	},
 	group: '1_view',
@@ -1493,20 +1677,33 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		super({
 			id: 'sessions.sessionHeader.rename',
 			title: localize2('renameSessionHeader', "Rename..."),
+			icon: Codicon.edit,
 			menu: [{
 				id: Menus.SessionHeaderContext,
 				group: '2_edit',
 				order: 1,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/1_session',
+				order: 20,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionIsArchivedContext.negate()),
 			}],
 		});
 	}
 
-	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing();
+		// Renaming in the header title is the lightest-weight affordance, but it
+		// is only available while the header shows the title (e.g. not while the
+		// single-group chat tabs row replaces it); prompt for the new title when
+		// it cannot be used.
+		if (accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing()) {
+			return;
+		}
+		await accessor.get(ICommandService).executeCommand(RENAME_SESSION_COMMAND_ID, session);
 	}
 });
 
@@ -1519,7 +1716,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			menu: [{
 				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: '1_session',
+				group: 'secondary/4_pin',
 				order: 30,
 			}, {
 				id: Menus.SessionHeaderContext,
@@ -1543,17 +1740,17 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.toggleMaximize',
-			title: localize2('chatCompositeBar.maximize', "Maximize Session"),
+			title: localize2('chatCompositeBar.maximize', "Maximize"),
 			icon: Codicon.screenFull,
 			toggled: {
 				condition: SessionIsMaximizedContext,
 				icon: Codicon.screenNormal,
-				title: localize('chatCompositeBar.unmaximize', "Restore Session"),
+				title: localize('chatCompositeBar.unmaximize', "Restore"),
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: MultipleSessionsVisibleContext,
-				group: '1_session',
+				group: 'secondary/4_pin',
 				order: 20,
 			},
 		});

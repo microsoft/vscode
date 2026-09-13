@@ -61,6 +61,11 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+          onlyOnNodeModulesCacheMiss: true
+
       - task: Docker@1
         inputs:
           azureSubscriptionEndpoint: vscode
@@ -90,7 +95,6 @@ jobs:
           mkdir -p .build/nodejs-musl
           NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
           BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
-          az extension add --name azure-devops --upgrade --only-show-errors
           az artifacts universal download \
             --organization "https://dev.azure.com/monacotools" \
             --project "Monaco" \
@@ -128,6 +132,11 @@ jobs:
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+          onlyOnNodeModulesCacheMiss: true
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

@@ -19,6 +19,7 @@ import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -34,7 +35,7 @@ import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTy
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IBuiltinPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, IPromptFileContext, IPromptFileResource, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
-import { Delayer, raceCancellationError } from '../../../../../../base/common/async.js';
+import { Delayer, Limiter, raceCancellationError } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { type IParsedHookCommand } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -54,10 +55,38 @@ import { isAgentPluginForceEnabledByPolicy } from '../../plugins/agentPluginEnab
 import { ChatConfiguration } from '../../constants.js';
 
 /**
+ * Maximum number of prompt files to read in parallel during discovery.
+ *
+ * Discovery fans out over every visible agent, skill, prompt and hook file, so
+ * without a bound a single pass opens one file handle per file, which on large
+ * plugin or skill collections can exhaust the process file handle limit.
+ */
+const PROMPT_FILE_DISCOVERY_CONCURRENCY = 10;
+
+/**
  * Provides prompt services.
  */
 export class PromptsService extends Disposable implements IPromptsService {
 	public declare readonly _serviceBrand: undefined;
+
+	/**
+	 * Bounds how many prompt files discovery reads in parallel.
+	 *
+	 * Owned by the service rather than created per invocation on purpose: an
+	 * invalidation clears the cached discovery promise without cancelling the
+	 * computation it was tracking, so several passes can run at once. A limiter
+	 * per invocation would give each pass its own quota and the aggregate would
+	 * still grow with the number of passes, which is the exhaustion this bound
+	 * exists to prevent.
+	 */
+	private readonly _discoveryLimiter = this._register(new Limiter<unknown>(PROMPT_FILE_DISCOVERY_CONCURRENCY));
+
+	/**
+	 * Queues a discovery file read on the shared, service-wide limiter.
+	 */
+	private queueDiscoveryRead<T>(task: () => Promise<T>): Promise<T> {
+		return this._discoveryLimiter.queue(task) as Promise<T>;
+	}
 
 	/**
 	 * Prompt files locator utility.
@@ -537,7 +566,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			...enabledSkills,
 		];
 
-		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
+		const parseResults = await Promise.all(slashCommandFiles.map(promptPath => this.queueDiscoveryRead(async () => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
 				let rawName: string;
@@ -563,7 +592,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 				return { status: 'skipped', skipReason: 'parse-error', errorMessage: e instanceof Error ? e.message : String(e), promptPath } satisfies ISlashCommandDiscoveryResult;
 			}
-		}));
+		})));
 
 		// Deduplicate skills that resolve to the same canonical name. This can
 		// happen when two skill locations point at the same files, e.g. when
@@ -652,6 +681,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const commands = await this.getPromptSlashCommands(token);
 		const command = commands.find(cmd => cmd.name === name && matchesSessionType(cmd.sessionTypes, sessionType));
 		if (command) {
+			if (isAgentBuiltinCustomizationUri(command.uri)) {
+				return command;
+			}
 			return {
 				...command,
 				parsedPromptFile: await this.parseNew(command.uri, token),
@@ -736,7 +768,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
-		const files = await Promise.all(allAgentFiles.map(async (promptPath): Promise<IAgentDiscoveryResult> => {
+		const files = await Promise.all(allAgentFiles.map(promptPath => this.queueDiscoveryRead(async (): Promise<IAgentDiscoveryResult> => {
 			const uri = promptPath.uri;
 			const isEnabled = !disabledAgents.has(uri);
 
@@ -765,10 +797,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const skipReason = isEnabled ? undefined : 'disabled';
 				return { status, skipReason, promptPath: this.withPromptPathMetadata(promptPath, agent.name, agent.description), agent };
 			} catch (e) {
+				if (isCancellationError(e)) {
+					throw e;
+				}
 				const error = e instanceof Error ? e : new Error(String(e));
 				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 					this.logger.warn(`[computeAgentDiscoveryInfo] Skipping agent file that does not exist: ${uri}`, error.message);
-				} else if (!isCancellationError(e)) {
+				} else {
 					this.logger.error(`[computeAgentDiscoveryInfo] Failed to parse agent file: ${uri}`, error);
 				}
 				return {
@@ -778,7 +813,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					promptPath,
 				};
 			}
-		}));
+		})));
 
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent);
 		return { type: PromptsType.agent, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
@@ -1253,12 +1288,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
 		// Process each hook file in parallel
-		const fileResults = await Promise.all(hookFiles.map(async (hookFile): Promise<{
+		type HookFileResult = {
 			file?: IPromptFileDiscoveryResult;
 			hooks?: Map<HookType, IParsedHookCommand[]>;
 			sourceUri?: URI;
 			hasDisabledClaudeHooks?: boolean;
-		}> => {
+		};
+		const fileResults = await Promise.all(hookFiles.map(hookFile => this.queueDiscoveryRead(async (): Promise<HookFileResult> => {
 			const name = basename(hookFile.uri);
 
 			// Plugins are handled separately down below because they do their own parsing+interpolation
@@ -1365,7 +1401,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					},
 				};
 			}
-		}));
+		})));
 
 		// Merge results from parallel processing
 		const files: IPromptFileDiscoveryResult[] = [];
@@ -1602,12 +1638,13 @@ class CachedPromise<T> extends Disposable {
 				throw err;
 			});
 			// The pool is only meaningful while the computation is in flight.
-			promise.finally(() => {
+			const disposePool = () => {
 				if (this.cachedPool === pool) {
 					this.cachedPool = undefined;
 				}
 				pool!.dispose();
-			});
+			};
+			promise.then(disposePool, disposePool);
 			this.cachedPromise = promise;
 			this.cachedPool = pool;
 		}

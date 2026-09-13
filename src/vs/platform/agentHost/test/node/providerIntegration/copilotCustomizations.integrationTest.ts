@@ -140,7 +140,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 	suiteSetup(async function () {
 		this.timeout(SETUP_TIMEOUT_MS);
-		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`);
+		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
 		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
 		tempDirs.push(userHomeDir);
 	});
@@ -238,8 +238,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			await runSimpleSkillWatchTest('scan');
 		});
 
-		// skipped for https://github.com/github/copilot-agent-runtime/issues/13285
-		test.skip('watch skill file changes [discover]', async function () {
+		test('watch skill file changes [discover]', async function () {
 			this.timeout(TEST_TIMEOUT_MS);
 			await runSimpleSkillWatchTest('discover');
 		});
@@ -259,8 +258,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			await runSimpleInstructionWatchTest('scan');
 		});
 
-		// skipped for https://github.com/github/copilot-agent-runtime/issues/13000
-		test.skip('watch instruction file changes [discover]', async function () {
+		test('watch instruction file changes [discover]', async function () {
 			this.timeout(TEST_TIMEOUT_MS);
 			await runSimpleInstructionWatchTest('discover');
 		});
@@ -354,7 +352,13 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		// Filter out skills shipped inside the Copilot CLI package (node_modules/@github/copilot-<target>/builtin/<skill>),
 		// e.g. `customize-cloud-agent` and `github-pr-media`. These vary with the bundled CLI version and are not part of
 		// the workspace/user customizations under test.
-		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && /\/builtin\/[^/]+$/.test(customization.uri));
+		const isBuiltInSkill = customization.type === CustomizationType.Directory
+			&& customization.contents === CustomizationType.Skill
+			&& /\/builtin\/[^/]+$/.test(customization.uri);
+		const isBuiltInGitHubMcpServer = customization.type === CustomizationType.McpServer
+			&& customization.uri.startsWith('mcp-top-level:copilotcli:')
+			&& customization.uri.endsWith(':github-mcp-server');
+		return !isBuiltInSkill && !isBuiltInGitHubMcpServer;
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
@@ -501,7 +505,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				type: CustomizationType.Directory,
 				contents: CustomizationType.Rule,
 				uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
-				children: discoveryMode === 'scan' ? [URI.file(userInstructionFile).toString()] : [],
+				children: [URI.file(userInstructionFile).toString()],
 			},
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
@@ -837,6 +841,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, `real-sdk-customizations-watch-simple-${discoveryMode}`, createdSessions, URI.file(workspaceDir));
 		await setupSession(sessionUri, `real-sdk-customizations-watch-simple-client-${discoveryMode}`, discoveryMode, `turn-customizations-watch-simple-${discoveryMode}`);
 		const instructionsUri = URI.file(instructionsDir).toString();
+		const expectedInstructionName = (fileName: string, configuredName: string): string => discoveryMode === 'discover' ? fileName : configuredName;
 
 		const assertAllCustomizations = async (instructionChildren: ReadonlyArray<{ uri: string; name: string }>): Promise<void> => {
 			const session = await fetchSessionWithChat(client, sessionUri);
@@ -871,7 +876,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 					type: CustomizationType.Directory,
 					contents: CustomizationType.Rule,
 					uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
-					children: [{ type: CustomizationType.Rule, uri: URI.file(userInstructionFile).toString(), name: 'User Policy' }],
+					children: [{ type: CustomizationType.Rule, uri: URI.file(userInstructionFile).toString(), name: expectedInstructionName('user.instructions.md', 'User Policy') }],
 				},
 				{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.claude', 'skills')).toString(), children: [] },
@@ -882,7 +887,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
 		};
 
-		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Initial Policy' }]));
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: expectedInstructionName('policy.instructions.md', 'Initial Policy') }]));
 
 		client.clearReceived();
 		await applyAndWaitForAssert(
@@ -894,7 +899,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				'---',
 				'Updated instruction body.',
 			].join('\n')),
-			() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' }]),
+			() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: expectedInstructionName('policy.instructions.md', 'Updated Policy') }]),
 		);
 
 		client.clearReceived();
@@ -908,15 +913,15 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				'Added instruction body.',
 			].join('\n')),
 			() => assertAllCustomizations([
-				{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' },
-				{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' },
+				{ uri: URI.file(instructionFile).toString(), name: expectedInstructionName('policy.instructions.md', 'Updated Policy') },
+				{ uri: URI.file(addedInstructionFile).toString(), name: expectedInstructionName('added.instructions.md', 'Added Policy') },
 			]),
 		);
 
 		client.clearReceived();
 		await applyAndWaitForAssert(
 			() => rm(instructionFile, { force: true }),
-			() => assertAllCustomizations([{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' }]),
+			() => assertAllCustomizations([{ uri: URI.file(addedInstructionFile).toString(), name: expectedInstructionName('added.instructions.md', 'Added Policy') }]),
 		);
 	}
 

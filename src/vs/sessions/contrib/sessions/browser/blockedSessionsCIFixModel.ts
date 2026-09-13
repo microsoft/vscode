@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatSendResult, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -16,13 +15,6 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubCheckStatus } from '../../github/common/types.js';
 import { ISessionCIFixModel, ISessionCIFixState } from './views/sessionsList.js';
-
-export interface IBlockedSessionsCIFixModel extends ISessionCIFixModel {
-	readonly _serviceBrand: undefined;
-	readonly hiddenSessions: IObservable<ReadonlySet<string>>;
-}
-
-export const IBlockedSessionsCIFixModel = createDecorator<IBlockedSessionsCIFixModel>('blockedSessionsCIFixModel');
 
 /**
  * Backs the per-session "Fix CI" row shown in the blocked-sessions dropdown for
@@ -36,9 +28,7 @@ export const IBlockedSessionsCIFixModel = createDecorator<IBlockedSessionsCIFixM
  * by the time the submit resolves the session is in progress and so is no longer
  * blocked, keeping it out of the list without a flicker.
  */
-export class BlockedSessionsCIFixModel extends Disposable implements IBlockedSessionsCIFixModel {
-
-	declare readonly _serviceBrand: undefined;
+export class BlockedSessionsCIFixModel extends Disposable implements ISessionCIFixModel {
 
 	/** Cached CI-state observables, keyed by session, to keep references stable and GC-friendly. */
 	private readonly _states = new WeakMap<ISession, IObservable<ISessionCIFixState | undefined>>();
@@ -68,13 +58,16 @@ export class BlockedSessionsCIFixModel extends Disposable implements IBlockedSes
 					return undefined;
 				}
 
-				const prRef = reader.store.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
+				// `delayedStore` (released *after* the recompute) keeps these ref-counted,
+				// shared models alive across a recompute; `store` would release the last
+				// reference first and force an empty model plus a refetch every time.
+				const prRef = reader.delayedStore.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
 				const livePR = prRef.object.pullRequest.read(reader);
 				if (!livePR) {
 					return undefined;
 				}
 
-				const ciRef = reader.store.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, livePR.headSha));
+				const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, livePR.headSha));
 				const ciModel = ciRef.object;
 
 				// Once a fix has been requested for the current head commit, hide the

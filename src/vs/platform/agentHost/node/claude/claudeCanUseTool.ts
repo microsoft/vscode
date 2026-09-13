@@ -7,8 +7,10 @@ import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-ag
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
-import { ChatInputRequestPurpose, ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { extractServerToolName } from './claudeServerToolMcpServer.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
@@ -49,6 +51,7 @@ export interface IClaudeCanUseToolOptions {
 	readonly signal: AbortSignal;
 	readonly blockedPath?: string;
 	readonly toolUseID: string;
+	readonly requestId: string;
 	/**
 	 * Phase 12 step 5 — SDK-supplied subagent id for inner-tool
 	 * confirmations. When set, the bridge resolves the parent
@@ -147,16 +150,17 @@ async function dispatchCanUseTool(
 	const permissionKind = getClaudePermissionKind(toolName);
 	const displayName = getClaudeToolDisplayName(toolName);
 	const permissionPath = options.blockedPath ?? getClaudeToolPath(toolName, input);
-	const toolInputString = getClaudeToolInputString(toolName, input);
+	const serverDisplay = serverToolName ? getServerToolDisplay(serverToolName, input) : undefined;
+	const toolInputString = serverDisplay?.hideConfirmationInput ? undefined : getClaudeToolInputString(toolName, input);
 	const meta = buildClaudeToolMeta(toolName);
 	const state: ToolCallPendingConfirmationState = {
 		status: ToolCallStatus.PendingConfirmation,
 		toolCallId: options.toolUseID,
 		toolName,
 		displayName,
-		invocationMessage: getClaudeInvocationMessage(toolName, displayName, input),
+		invocationMessage: serverDisplay?.confirmationMessage ?? getClaudeInvocationMessage(toolName, displayName, input),
 		toolInput: toolInputString,
-		confirmationTitle: getClaudeConfirmationTitle(toolName),
+		confirmationTitle: serverDisplay?.confirmationTitle ?? getClaudeConfirmationTitle(toolName),
 		...(meta ? { _meta: meta } : {}),
 	};
 
@@ -284,11 +288,10 @@ async function handleAskUserQuestion(
 	}
 
 	const parentToolCallId = resolveSubagentParent(session, options);
-	const answer = await session.requestUserInput({
+	const answer = await session.requestUserInput(withChatInputRequestPurpose({
 		id: toolUseID,
-		purpose: ChatInputRequestPurpose.AskUser,
 		questions: buildAskUserSessionInputQuestions(askInput),
-	}, parentToolCallId);
+	}, ChatInputRequestPurpose.AskUser), parentToolCallId);
 	if (answer.response !== ChatInputResponseKind.Accept || !answer.answers) {
 		return { behavior: 'deny', message: CLAUDE_QUESTION_CANCELLED_MESSAGE };
 	}

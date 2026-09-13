@@ -13,6 +13,11 @@ import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, I
 export const IHostService = createDecorator<IHostService>('hostService');
 
 export interface IToastOptions {
+	/**
+	 * Prevents another live native toast with the same key from being shown.
+	 */
+	readonly dedupeKey?: string;
+
 	readonly title: string;
 	readonly body?: string;
 
@@ -23,6 +28,11 @@ export interface IToastOptions {
 
 export interface IToastResult {
 	readonly supported: boolean;
+
+	/**
+	 * True when a live native toast with the requested dedupe key is already visible.
+	 */
+	readonly suppressed?: boolean;
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;
@@ -115,9 +125,6 @@ export interface IHostService {
 	 * Get the location of the mouse cursor and its display bounds or `undefined` if unavailable.
 	 */
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle } | undefined>;
-
-	/** Get the native bounds of a window or `undefined` if unavailable. */
-	getWindowPosition(targetWindow: Window): Promise<IRectangle | undefined>;
 
 	/**
 	 * Get the list of opened windows, optionally including auxiliary windows.

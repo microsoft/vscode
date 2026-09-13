@@ -27,13 +27,6 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
-          type: chat/responsePart
-          turnId: ${turn_0}
-          part:
-            kind: markdown
-            content: I'll create that file.
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
@@ -51,7 +44,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: Created `result.txt` containing exactly `CREATED_VALUE`.
+            content: Created `result.txt` containing `CREATED_VALUE`.
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowDiscoveredConfigNudge, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
 import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
 
 suite('Sessions - Auth Gate', () => {
@@ -55,50 +55,6 @@ suite('Sessions - Auth Gate', () => {
 			ConditionalAuthState.Unresolved,
 			ConditionalAuthState.SignedOut,
 			ConditionalAuthState.SignedIn,
-		]);
-	});
-
-	test('shows the discovered-config nudge only when signed out, opted in, the type is usable without GitHub, and not muted', () => {
-		// Independent source of truth: the nudge is the calm inverse of the gate —
-		// it appears iff the user is signed out AND the opt-in is on AND that type
-		// is usable without GitHub AND the user has not muted it. Of all 16 input
-		// combinations only one satisfies every condition.
-		const cases = [
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: true },
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: true },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: true },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: true },
-		];
-
-		assert.deepStrictEqual(cases.map(shouldShowDiscoveredConfigNudge), [
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			true,
-			false,
 		]);
 	});
 });

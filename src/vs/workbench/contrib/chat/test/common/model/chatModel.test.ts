@@ -31,6 +31,7 @@ import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, ICh
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -93,6 +94,81 @@ suite('ChatModel', () => {
 		assert.strictEqual(model.sessionId, 'existing-session');
 		assert.strictEqual(model.timestamp, now - 1000);
 		assert.strictEqual(model.customTitle, 'My Chat');
+	});
+
+	test('Agent Merge identity survives JSON and operation log roundtrips', () => {
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: ([undefined, 'agentMerge'] as const).map(requestSource => ({
+				requestId: requestSource ? 'merge' : 'legacy',
+				message: { text: 'Repair the pull request', parts: [] },
+				variableData: { variables: [] },
+				response: [],
+				isSystemInitiated: true,
+				...(requestSource ? { requestSource } : {}),
+			})),
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: exportedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const operationLog = new ChatSessionOperationLog();
+		const serializedModels = [model.toJSON(), operationLog.read(operationLog.createInitial(model))];
+		assert.deepStrictEqual(serializedModels.map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel,
+				{ value, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+			));
+			return restored.getRequests().map(request => ({
+				id: request.id,
+				requestSource: request.requestSource,
+			}));
+		}), [
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
+		]);
+	});
+
+	test('backfills and persists legacy Agent Merge sources without reclassifying other requests', () => {
+		const prompt = '<agent_merge_state>\nAuthorized actions this run: fix failed required CI checks\n</agent_merge_state>';
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [
+				{ message: prompt, isSystemInitiated: true },
+				{ message: { text: `Context\n${prompt}`, parts: [] }, isSystemInitiated: true },
+				{ message: prompt },
+				{ message: prompt, isSystemInitiated: false },
+				{ message: prompt, isSystemInitiated: true, systemInitiatedLabel: 'Terminal needs input' },
+				{ message: prompt, isSystemInitiated: true, systemInitiatedLabel: '' },
+				{ message: '<agent_merge_state>malformed', isSystemInitiated: true },
+				{ message: 'Modern request', isSystemInitiated: true, requestSource: 'agentMerge' as const },
+			].map((request, index) => ({
+				requestId: `request-${index}`,
+				variableData: { variables: [] },
+				response: [],
+				...request,
+			})),
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: exportedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const operationLog = new ChatSessionOperationLog();
+		const expected = ['agentMerge', 'agentMerge', undefined, undefined, undefined, undefined, undefined, 'agentMerge'];
+		assert.deepStrictEqual({
+			model: model.getRequests().map(request => request.requestSource),
+			json: model.toJSON().requests.map(request => request.requestSource),
+			operationLog: operationLog.read(operationLog.createInitial(model)).requests.map(request => request.requestSource),
+		}, {
+			model: expected,
+			json: expected,
+			operationLog: expected,
+		});
 	});
 
 	test('legacy requests without timestamps keep display time unknown', () => {
@@ -529,6 +605,23 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual(serialized.attachments, [fileAttachment, implicitWithUri]);
 	});
 
+	test('inputModel.setState preserves contrib keys owned by other writers', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		// The chat service records "migration hint already shown" in `contrib`,
+		// then the input widget publishes its own contrib keys on the next sync
+		// (typing, sending, model change). That rebuild must not drop the
+		// service's key, or `chat.customizations.migrationHint: "once"` degrades
+		// into "always".
+		model.inputModel.setState({ contrib: { customizationMigrationHintShown: true } });
+		model.inputModel.setState({ inputText: 'typing', contrib: { widgetOwnedKey: 'from-widget' } });
+
+		assert.deepStrictEqual(model.inputModel.state.get()?.contrib, {
+			customizationMigrationHintShown: true,
+			widgetOwnedKey: 'from-widget',
+		});
+	});
+
 	test('modeInfo roundtrips through serialization', async () => {
 		const modeInfo: IChatRequestModeInfo = {
 			kind: ChatModeKind.Agent,
@@ -660,6 +753,24 @@ suite('Response', () => {
 		response.updateContent({ content: md1, kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+	});
+
+	test('resolved Auto routing replaces the row that is still routing', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'autoModeResolution' });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Working on it.') });
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } });
+		// Later routes each start their own row, including a switch back to a
+		// model used earlier in the turn.
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } });
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } });
+
+		assert.deepStrictEqual(response.value.map(part => part.kind === 'autoModeResolution' ? part : { kind: part.kind }), [
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			{ kind: 'markdownContent' },
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } },
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+		]);
 	});
 
 	test('system notification remains distinct from later response content', () => {
@@ -1637,6 +1748,59 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.isInProgress.get(), false);
 			assert.strictEqual(response.isIncomplete.get(), false);
 			assert.strictEqual(response.state, ResponseModelState.Complete);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('reopen clears terminal error state and keeps the request pending', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('partial') });
+		model.setResponse(request, { errorDetails: { message: 'failed' } });
+		request.response!.complete();
+
+		request.response!.reopen();
+
+		assert.deepStrictEqual({
+			state: request.response!.state,
+			isIncomplete: request.response!.isIncomplete.get(),
+			errorDetails: request.response!.result?.errorDetails,
+			response: request.response!.response.value,
+		}, {
+			state: ResponseModelState.Pending,
+			isIncomplete: true,
+			errorDetails: undefined,
+			response: [],
+		});
+	});
+
+	test('reopen excludes time spent failed from cumulative elapsed generation time', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const text = 'hello';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			const response = request.response!;
+
+			clock.tick(1000);
+			model.setResponse(request, { errorDetails: { message: 'failed' } });
+			response.complete();
+			const firstElapsedMs = response.elapsedMs;
+
+			clock.tick(5000);
+			response.reopen();
+			clock.tick(2000);
+			response.complete();
+
+			assert.deepStrictEqual({
+				firstElapsedMs,
+				finalElapsedMs: response.elapsedMs,
+			}, {
+				firstElapsedMs: 1000,
+				finalElapsedMs: 3000,
+			});
 		} finally {
 			clock.restore();
 		}

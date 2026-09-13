@@ -13,7 +13,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions, IFileChange, isFileSystemWatcher, FileChangesEvent, FileChangeType } from '../../common/files.js';
+import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -24,6 +24,41 @@ suite('File Service', () => {
 
 	teardown(() => {
 		disposables.clear();
+	});
+
+	test('resolveAll does not trace missing resources', async () => {
+		const traces: (string | Error)[] = [];
+		const logService = new class extends NullLogService {
+			override trace(message: string | Error): void {
+				traces.push(message);
+			}
+		}();
+		const service = disposables.add(new FileService(logService));
+		disposables.add(service.registerProvider('test', new class extends NullFileSystemProvider {
+			override async stat(resource: URI): Promise<IStat> {
+				if (resource.path === '/missing') {
+					throw createFileSystemProviderError('missing', FileSystemProviderErrorCode.FileNotFound);
+				}
+
+				throw createFileSystemProviderError('unavailable', FileSystemProviderErrorCode.Unavailable);
+			}
+		}()));
+
+		const result = await service.resolveAll([
+			{ resource: URI.parse('test:///missing') },
+			{ resource: URI.parse('test:///unavailable') },
+		]);
+
+		assert.deepStrictEqual({
+			result,
+			traces: traces.map(trace => trace.toString()),
+		}, {
+			result: [
+				{ stat: undefined, success: false },
+				{ stat: undefined, success: false },
+			],
+			traces: ['Unavailable (FileSystemError): unavailable'],
+		});
 	});
 
 	test('provider registration', async () => {

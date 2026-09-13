@@ -373,13 +373,6 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 	});
 }
 
-export function getElectronVersion(): Record<string, string> {
-	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
-	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { electronVersion, msBuildId };
-}
-
 export function getVersionedResourcesFolder(platform: string, commit: string): string {
 	const productJson = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 	const useVersionedUpdate = platform === 'win32' && productJson.win32VersionedUpdate;
