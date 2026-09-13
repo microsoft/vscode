@@ -890,6 +890,8 @@ class CodexConnectionReplacedError extends Error {
 	}
 }
 
+class CodexStartupCleanupError extends AggregateError { }
+
 interface ICodexCustomizationLaunch {
 	readonly config: Record<string, JsonValue>;
 	readonly developerInstructions?: string;
@@ -2345,6 +2347,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 		} catch (error) {
+			if (error instanceof CodexStartupCleanupError) {
+				throw error;
+			}
 			if (!(error instanceof CancellationError)) {
 				this._logService.warn(`[Codex] startup account probe failed: ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -2582,7 +2587,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 			}
 			if (errors.length > 1) {
-				throw new AggregateError(errors, `Failed to clean up Codex app-server startup (pid=${child?.pid})`);
+				throw new CodexStartupCleanupError(errors, `Failed to clean up Codex app-server startup (pid=${child?.pid})`);
 			}
 			throw err;
 		}

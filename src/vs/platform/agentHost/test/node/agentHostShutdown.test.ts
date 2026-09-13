@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { flushAgentHostPersistenceBeforeShutdown, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
+import { AGENT_HOST_SHUTDOWN_PHASE_TIMEOUT_MS, AGENT_HOST_SHUTDOWN_TIMEOUT_MS, flushAgentHostPersistenceBeforeShutdown, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
+import { getServerShutdownTimeout } from './serverIntegrationTestHelpers.js';
 
 suite('AgentHostShutdown', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -72,4 +75,28 @@ suite('AgentHostShutdown', () => {
 		);
 		assert.deepStrictEqual({ succeeded, steps }, { succeeded: false, steps: ['provider shutdown', 'persistence flush'] });
 	});
+
+	test('the local server timeout covers every shutdown phase plus cleanup margin', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const phaseDuration = AGENT_HOST_SHUTDOWN_PHASE_TIMEOUT_MS - 1;
+		const started = Date.now();
+		const shutdown = shutdownAgentHostBeforeDispose(
+			() => timeout(phaseDuration),
+			() => timeout(phaseDuration),
+			() => [timeout(phaseDuration)],
+			AGENT_HOST_SHUTDOWN_PHASE_TIMEOUT_MS,
+			new NullLogService(),
+		);
+		const succeeded = await raceTimeout(shutdown, getServerShutdownTimeout(false));
+		assert.deepStrictEqual({
+			succeeded,
+			elapsed: Date.now() - started,
+			localTimeout: getServerShutdownTimeout(false),
+			extendedTimeout: getServerShutdownTimeout(true),
+		}, {
+			succeeded: true,
+			elapsed: 3 * phaseDuration,
+			localTimeout: AGENT_HOST_SHUTDOWN_TIMEOUT_MS + 2_000,
+			extendedTimeout: Math.max(30_000, AGENT_HOST_SHUTDOWN_TIMEOUT_MS + 2_000),
+		});
+	}));
 });

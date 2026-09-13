@@ -6,12 +6,15 @@
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { toDisposable, type DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
+import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -34,7 +37,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
 import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
-import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
+import { CodexAgent, codexBinaryTriple, codexPackageSuffix, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService, type ICodexProxyHandle } from '../../../node/codex/codexProxyService.js';
 import type { ICodexAppServerClient } from '../../../node/codex/codexAppServerClient.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
@@ -990,11 +993,73 @@ suite('CodexAgent model refresh', () => {
 		await connecting;
 	});
 
-	test('background startup probe cleanup errors are retained for shutdown', async () => {
-		const agent = createAgent(disposables, async () => []);
-		const cleanupError = new AggregateError([new Error('owned process cleanup failed')], 'Probe cleanup failed');
-		agent['_probeAccountAtStartup'] = async () => { throw cleanupError; };
-		await assert.rejects(agent.shutdown(), error => error instanceof AggregateError && error.errors.includes(cleanupError));
+	for (const cleanupFails of [false, true]) {
+		test(`background startup probe ${cleanupFails ? 'retains cleanup errors' : 'suppresses expected errors'} after raw startup fails`, async () => {
+			const { agent, sdkDownloader, runStartupAccountProbe } = createAgentContext(disposables, async () => []);
+			const sdkRoot = mkdtempSync(join(tmpdir(), 'codex-startup-cleanup-test-'));
+			disposables.add(toDisposable(() => rmSync(sdkRoot, { recursive: true, force: true })));
+			const target = codexPackageSuffix(process.platform, process.arch);
+			assert.ok(target);
+			const triple = codexBinaryTriple(target);
+			assert.ok(triple);
+			const binaryDirectory = join(sdkRoot, 'node_modules', `@openai/codex-${target}`, 'vendor', triple, 'bin');
+			mkdirSync(binaryDirectory, { recursive: true });
+			writeFileSync(join(binaryDirectory, process.platform === 'win32' ? 'codex.exe' : 'codex'), '', { mode: 0o700 });
+			sdkDownloader.loadSdkRootResult = async () => sdkRoot;
+			const startupError = new Error('startup configuration unavailable');
+			const cleanupError = new Error('proxy cleanup failed');
+			let proxyDisposals = 0;
+			agent['_codexProxyService'].start = async () => upcastPartial<ICodexProxyHandle>({
+				dispose: () => {
+					proxyDisposals++;
+					if (cleanupFails) {
+						throw cleanupError;
+					}
+				},
+			});
+			// Fail before spawn while still exercising raw startup's real resource cleanup.
+			agent['_otelService'].getNativeSdkTelemetryConfig = async () => { throw startupError; };
+			agent['_probeAccountAtStartup'] = runStartupAccountProbe;
+
+			await agent['_startupAccountProbe'].p;
+			const probeError = agent['_startupAccountProbeError'];
+			if (cleanupFails) {
+				assert.ok(probeError instanceof AggregateError);
+				assert.deepStrictEqual(probeError.errors, [startupError, cleanupError]);
+				await assert.rejects(agent.shutdown(), error => error instanceof AggregateError && error.errors.includes(probeError));
+			} else {
+				assert.strictEqual(probeError, undefined);
+				await agent.shutdown();
+			}
+			assert.strictEqual(proxyDisposals, 1);
+		});
+	}
+
+	test('background startup probe still suppresses ordinary request aggregates', async () => {
+		const { agent, runStartupAccountProbe } = createAgentContext(disposables, async () => []);
+		const requestError = new AggregateError([new Error('account request unavailable')], 'Account lookup failed');
+		const steps: string[] = [];
+		agent['_startRawConnection'] = async () => ({
+			client: upcastPartial<ICodexAppServerClient>({
+				request: async () => { throw requestError; },
+				shutdown: async () => { steps.push('shutdown'); },
+			}),
+			child: upcastPartial<ChildProcessWithoutNullStreams>({}),
+			proxyHandle: upcastPartial<ICodexProxyHandle>({ dispose: () => { steps.push('proxy'); } }),
+		});
+		agent['_probeAccountAtStartup'] = runStartupAccountProbe;
+		await agent['_startupAccountProbe'].p;
+		await agent.shutdown();
+		assert.deepStrictEqual({ error: agent['_startupAccountProbeError'], steps }, { error: undefined, steps: ['shutdown', 'proxy'] });
+	});
+
+	test('background startup probe still suppresses cancelled startup', async () => {
+		const { agent, runStartupAccountProbe } = createAgentContext(disposables, async () => []);
+		agent['_startRawConnection'] = async () => { throw new CancellationError(); };
+		agent['_probeAccountAtStartup'] = runStartupAccountProbe;
+		await agent['_startupAccountProbe'].p;
+		await agent.shutdown();
+		assert.strictEqual(agent['_startupAccountProbeError'], undefined);
 	});
 
 	test('shutdown suppresses chat discovery whose SDK check was already in flight', async () => {

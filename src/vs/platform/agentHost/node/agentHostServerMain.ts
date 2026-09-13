@@ -29,7 +29,7 @@ import { LoggerService } from '../../log/node/loggerService.js';
 import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
-import { shutdownAgentHostBeforeDispose } from './agentHostShutdown.js';
+import { AGENT_HOST_SHUTDOWN_PHASE_TIMEOUT_MS, shutdownAgentHostBeforeDispose } from './agentHostShutdown.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -389,7 +389,7 @@ async function main(): Promise<void> {
 			() => protocolHandler.whenIdle(),
 			() => agentService.shutdown(),
 			() => [sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
-			4500,
+			AGENT_HOST_SHUTDOWN_PHASE_TIMEOUT_MS,
 			logService,
 		);
 		disposables.dispose();

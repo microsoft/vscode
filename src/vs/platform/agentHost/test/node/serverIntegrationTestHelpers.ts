@@ -65,6 +65,7 @@ import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
 import { shutdownProcessTree } from '../../../../base/node/processes.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
+import { AGENT_HOST_SHUTDOWN_TIMEOUT_MS } from '../../node/agentHostShutdown.js';
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
@@ -660,7 +661,10 @@ export interface IServerHandle {
 	capiReplay?: CapiReplayProxy;
 }
 
-const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
+export function getServerShutdownTimeout(extended = isCI || isWindows || AGENT_HOST_E2E_COVERAGE): number {
+	const timeoutMs = AGENT_HOST_SHUTDOWN_TIMEOUT_MS + 2_000;
+	return extended ? Math.max(30_000, timeoutMs) : timeoutMs;
+}
 
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
 export async function stopServer(server: IServerHandle | undefined): Promise<void> {
@@ -668,7 +672,7 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 	if (!serverProcess) {
 		return;
 	}
-	await shutdownProcessTree(serverProcess, SERVER_SHUTDOWN_TIMEOUT_MS);
+	await shutdownProcessTree(serverProcess, getServerShutdownTimeout());
 	if (serverProcess.exitCode !== 0) {
 		throw new Error(`Agent Host test server did not shut down cleanly (pid=${serverProcess.pid}, code=${serverProcess.exitCode}, signal=${serverProcess.signalCode}).\n${server?.output ?? ''}`);
 	}

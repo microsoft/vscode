@@ -6,6 +6,9 @@
 import { raceTimeout } from '../../../base/common/async.js';
 import type { ILogService } from '../../log/common/log.js';
 
+export const AGENT_HOST_SHUTDOWN_PHASE_TIMEOUT_MS = 4_500;
+export const AGENT_HOST_SHUTDOWN_TIMEOUT_MS = 3 * AGENT_HOST_SHUTDOWN_PHASE_TIMEOUT_MS;
+
 /**
  * Drains protocol requests and providers before flushing persistence, without letting shutdown block process exit indefinitely.
  */
