@@ -11,6 +11,7 @@ import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { IAccountAccess } from '../common/accountAccess';
+import { acquireTokenSilentWithCache } from './tokenCache';
 import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
@@ -110,7 +111,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
-		let result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
+		let result = await this._acquireTokenSilent(request);
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
 		// Check expiration of id token and if it's 5min before expiration, force a refresh.
 		// this is what MSAL does for access tokens already so we're just adding it for id tokens since we care about those.
@@ -127,7 +128,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
 					? { ...request, claims: request.claims ?? '{ "id_token": {}}' }
 					: { ...request, forceRefresh: true };
-				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
+				result = await this._acquireTokenSilent(newRequest);
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
 			}
 			const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
@@ -168,6 +169,12 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
+	}
+
+	private _acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
+		return this._sequencer.queue(() => this.isBrokerAvailable
+			? this._pca.acquireTokenSilent(request)
+			: acquireTokenSilentWithCache(this._pca, this._secretStorageCachePlugin, request));
 	}
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
