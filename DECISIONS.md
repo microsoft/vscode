@@ -8,9 +8,9 @@ information — add a superseding entry instead of editing an old one.
 
 ## D-003 — Governance gate lives in `platform/`, agent features live above it
 
-**Status:** proposed, pending sign-off
+**Status:** accepted
 **Date:** 2026-09-13
-**Gates:** Phase 1 (governance gate MVP) cannot start until this is accepted.
+**Signed off:** 2026-09-13 — Phase 1 unblocked.
 
 ### Context
 

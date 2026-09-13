@@ -16,11 +16,22 @@ import eslint from './gulp-eslint.ts';
 import * as formatter from './lib/formatter.ts';
 import gulpstylelint from './stylelint.ts';
 
-const copyrightHeaderLines = [
-	'/*---------------------------------------------------------------------------------------------',
-	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
-	' *--------------------------------------------------------------------------------------------*/',
+// Upstream files keep Microsoft's header. Files authored for this fork carry the
+// Kente Workbench header instead — claiming Microsoft copyright on code they did
+// not write would be plainly wrong. Either variant is accepted.
+const copyrightHeaderVariants = [
+	[
+		'/*---------------------------------------------------------------------------------------------',
+		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/',
+	],
+	[
+		'/*---------------------------------------------------------------------------------------------',
+		' *  Copyright (c) Kente Workbench contributors. All rights reserved.',
+		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/',
+	],
 ];
 
 interface VinylFileWithLines extends VinylFile {
@@ -167,12 +178,12 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const copyrights = es.through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
-			}
+		const hasValidHeader = copyrightHeaderVariants.some(
+			header => header.every((headerLine, i) => lines[i] === headerLine)
+		);
+		if (!hasValidHeader) {
+			console.error(file.relative + ': Missing or bad copyright statement');
+			errorCount++;
 		}
 
 		this.emit('data', file);
