@@ -253,7 +253,7 @@ export class SedFileWriteParser {
 				inDoubleQuote = !inDoubleQuote;
 				continue;
 			}
-			if (char === '~' && !inSingleQuote && !inDoubleQuote) {
+			if ((char === '~' || char === '^') && !inSingleQuote && !inDoubleQuote) {
 				return true;
 			}
 		}

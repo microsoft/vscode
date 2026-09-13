@@ -87,11 +87,15 @@ suite('SedFileWriteParser', () => {
 	test('preserves runtime expansion metadata for file and backup targets', () => {
 		assert.deepStrictEqual({
 			quotedWildcard: parser.extractFileWriteDetails('sed -i "s/foo/bar/" \'safe-*\''),
+			quotedCaret: parser.extractFileWriteDetails('sed -i "s/foo/bar/" \'safe^name\''),
 			expandedFile: parser.extractFileWriteDetails('sed -i "s/foo/bar/" ~/../outside/file.txt'),
+			extendedGlobFile: parser.extractFileWriteDetails('sed -i "s/foo/bar/" ^foo/../package.json'),
 			expandedBackup: parser.extractFileWriteDetails('sed --in-place=$HOME/../outside/* "s/foo/bar/" file.txt'),
 		}, {
 			quotedWildcard: [{ path: 'safe-*', hasUnquotedPathExpansion: false }],
+			quotedCaret: [{ path: 'safe^name', hasUnquotedPathExpansion: false }],
 			expandedFile: [{ path: '~/../outside/file.txt', hasUnquotedPathExpansion: true }],
+			extendedGlobFile: [{ path: '^foo/../package.json', hasUnquotedPathExpansion: true }],
 			expandedBackup: [
 				{ path: 'file.txt', hasUnquotedPathExpansion: false },
 				{ path: '$HOME/../outside/file.txt', hasUnquotedPathExpansion: true },
