@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getGitHubPullRequestRefs, getUntitledSessionTitle, ISession, isActiveSessionStatus, SessionStatus } from '../../../services/sessions/common/session.js';
+import { fuzzyContains } from '../../../../base/common/strings.js';
 import { IWorktreeDashboardEntry, WorktreeEntryStatus } from './worktreeDashboard.js';
 
 /** A working directory shown for a dashboard session. */
@@ -59,6 +60,35 @@ export function buildSessionRows(sessions: readonly ISession[], worktreeEntries:
 			};
 		})
 		.sort((a, b) => b.session.updatedAt.get().getTime() - a.session.updatedAt.get().getTime());
+}
+
+/** Filters session rows using the text users see in the Sessions table and chat list. */
+export function filterSessionRows(rows: readonly IAgentsDashboardSessionRow[], query: string): IAgentsDashboardSessionRow[] {
+	const terms = query.trim().split(/\s+/).filter(Boolean);
+	if (terms.length === 0) {
+		return [...rows];
+	}
+	return rows.filter(row => {
+		const status = sessionStatusSearchLabel(row.status);
+		const searchableText = [
+			row.title,
+			...row.workingDirectories.map(directory => directory.path),
+			...row.session.chats.get().map(chat => chat.title.get()),
+			status,
+			row.archived ? 'archived' : '',
+		].join(' ');
+		return terms.every(term => fuzzyContains(searchableText, term));
+	});
+}
+
+function sessionStatusSearchLabel(status: SessionStatus): string {
+	switch (status) {
+		case SessionStatus.Untitled: return 'new untitled';
+		case SessionStatus.InProgress: return 'working in progress';
+		case SessionStatus.NeedsInput: return 'input needed';
+		case SessionStatus.Completed: return 'done completed';
+		case SessionStatus.Error: return 'failed error';
+	}
 }
 
 /** Builds the aggregate operational report from the visible session rows. */

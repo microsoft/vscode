@@ -31,11 +31,13 @@ class AgentsDashboardAccessibilityHelp implements IAccessibleViewImplementation 
 		const content = [
 			localize('agentsDashboard.help.overview', "You are in Manage Sessions. It contains a Sessions table with working directories, worktree size, credits, and status, plus a Dashboard with historical statistics."),
 			localize('agentsDashboard.help.tabs', "Use the Sessions and Dashboard tabs to switch between session management and aggregate historical graphs. Use Left Arrow and Right Arrow while a tab is focused."),
+			localize('agentsDashboard.help.search', "Use the search field above the Sessions table to filter sessions by title, working directory, chat title, status, or archive state."),
 			localize('agentsDashboard.help.range', "The Dashboard tab can show Today, 7 days, or 30 days. Use Tab to reach the range buttons and press Enter or Space to select a range."),
 			localize('agentsDashboard.help.chatActivity', "In the Sessions tab, click a session row or press Space on the focused row to expand its activity directly below the row. The activity runs from session start to completion or now and shows requests, messages between peer chats, and pull request creation. Repeat the action or press Escape to collapse it."),
 			localize('agentsDashboard.help.tables', "Use Up Arrow and Down Arrow to navigate the table. Press Enter to open the focused session."),
 			localize('agentsDashboard.help.sessionActions', "Session actions appear when a row is hovered or focused. Each session can be archived or unarchived, and deleted when its provider supports deletion. Deletion asks for confirmation."),
 			localize('agentsDashboard.help.refresh', "Use the Refresh action beside the command center to rescan worktrees and disk usage."),
+			localize('agentsDashboard.help.close', "Use Close Manage Sessions in the tab bar to return to the Sessions window."),
 			localize('agentsDashboard.help.accessibleView', "Use Open Accessible View to read the current dashboard as text."),
 		].join('\n');
 		return new AccessibleContentProvider(

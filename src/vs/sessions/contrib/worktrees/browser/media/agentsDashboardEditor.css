@@ -88,7 +88,7 @@
 .agents-dashboard-chat-inline-body {
 	flex: 1 1 auto;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .agents-dashboard-editor:focus-visible {
@@ -167,12 +167,16 @@
 	display: flex;
 	flex: 1 1 auto;
 	min-height: 0;
+	margin-right: calc(-1 * var(--vscode-spacing-size120));
+	margin-left: calc(-1 * var(--vscode-spacing-size120));
+	overflow: hidden;
 }
 
 .agents-dashboard-sessions-table-pane {
 	width: 100%;
 	height: 100%;
 	min-height: 0;
+	overflow: hidden;
 }
 
 .agents-dashboard-statistics-header {
@@ -566,6 +570,57 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
+.agents-dashboard-search {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	background: var(--vscode-editorWidget-background);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+}
+
+.agents-dashboard-search .settings-header-widget {
+	position: relative;
+	display: flex;
+	width: 100%;
+}
+
+.agents-dashboard-search .settings-search-container {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agents-dashboard-search .settings-search-input > .monaco-inputbox {
+	height: var(--vscode-spacing-size320);
+}
+
+.agents-dashboard-search .settings-search-input > .monaco-inputbox .input {
+	padding-left: var(--vscode-spacing-size100);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.agents-dashboard-search .settings-search-controls {
+	position: absolute;
+	top: 0;
+	right: var(--vscode-spacing-size100);
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	height: var(--vscode-spacing-size320);
+}
+
+.agents-dashboard-search .settings-count-widget {
+	margin: var(--vscode-spacing-size60) 0;
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.agents-dashboard-search .settings-count-widget:empty {
+	visibility: hidden;
+}
+
+.agents-dashboard-search .settings-count-widget.hide {
+	display: block;
+}
+
 .agents-dashboard-table-container {
 	flex: 1 1 auto;
 	min-width: 0;
@@ -764,7 +819,8 @@
 }
 
 .agents-dashboard-cell-actions {
-	justify-content: flex-start;
+	justify-content: flex-end;
+	padding-right: var(--vscode-spacing-size120);
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 80ms linear;

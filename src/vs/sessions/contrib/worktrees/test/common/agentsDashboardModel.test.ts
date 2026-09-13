@@ -9,7 +9,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { buildAgentsDashboardSummary, buildSessionRows, getArchivedSessionWorktrees, getMergedPullRequestSessions } from '../../common/agentsDashboardModel.js';
+import { buildAgentsDashboardSummary, buildSessionRows, filterSessionRows, getArchivedSessionWorktrees, getMergedPullRequestSessions } from '../../common/agentsDashboardModel.js';
 import { IWorktreeDashboardEntry, WorktreeEntryStatus } from '../../common/worktreeDashboard.js';
 
 const stubChat: IChat = {
@@ -185,6 +185,26 @@ suite('AgentsDashboardModel', () => {
 			doneSessions: 1,
 			pullRequests: 1,
 			worktreeSizeBytes: 3072,
+		});
+	});
+
+	test('filterSessionRows searches titles, paths, chat titles, status, and archive state', () => {
+		const active = stubSession({ sessionId: 'active', title: 'Refactor Search', updatedAt: new Date(), status: SessionStatus.InProgress, workspaceLabel: 'repo', workspaceUri: URI.file('/work/search') });
+		const archived = stubSession({ sessionId: 'archived', title: 'Update Docs', updatedAt: new Date(), isArchived: true, workspaceLabel: 'docs', workspaceUri: URI.file('/work/docs') });
+		const rows = buildSessionRows([active, archived]);
+
+		assert.deepStrictEqual({
+			title: filterSessionRows(rows, 'ref srch').map(row => row.title),
+			path: filterSessionRows(rows, 'work docs').map(row => row.title),
+			status: filterSessionRows(rows, 'working').map(row => row.title),
+			archive: filterSessionRows(rows, 'archived').map(row => row.title),
+			none: filterSessionRows(rows, 'missing').map(row => row.title),
+		}, {
+			title: ['Refactor Search'],
+			path: ['Update Docs'],
+			status: ['Refactor Search'],
+			archive: ['Update Docs'],
+			none: [],
 		});
 	});
 

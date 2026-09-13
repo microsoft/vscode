@@ -131,7 +131,7 @@ suite('AgentsDashboardHistoryService', () => {
 		]);
 	});
 
-	test('records delegated requests between peer chats', () => {
+	test('records delegated requests between peer chats', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const now = Date.now();
 		const sessionResource = URI.parse('test-session:///session');
@@ -197,6 +197,9 @@ suite('AgentsDashboardHistoryService', () => {
 		}();
 
 		const service = disposables.add(new AgentsDashboardHistoryService(storageService, sessionsManagementService, worktreeDashboardService, chatService));
+		await timeout(0);
+		modelChanged.fire({ kind: 'addRequest', request });
+		modelChanged.fire({ kind: 'changedRequest', request });
 
 		assert.deepStrictEqual(service.events.get().filter(event => event.type === AgentsDashboardHistoryEventType.ChatDelegatedRequest), [{
 			id: 'session:chat-delegation:delegated-request',

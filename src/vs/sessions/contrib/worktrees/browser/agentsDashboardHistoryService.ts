@@ -21,6 +21,7 @@ const STORAGE_KEY = 'sessions.agentsDashboard.history';
 const RETENTION_DAYS = 31;
 const MAX_EVENTS = 10_000;
 const MAX_SESSIONS = 2_000;
+const CHAT_MODEL_BACKFILL_BATCH_SIZE = 4;
 
 interface IStoredSessionSnapshot {
 	readonly createdAt: number;
@@ -51,6 +52,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _events: ISettableObservable<readonly AgentsDashboardHistoryEvent[]>;
+	private readonly _eventIds = new Set<string>();
 	readonly events: IObservable<readonly AgentsDashboardHistoryEvent[]>;
 	private readonly _sessions = new Map<string, IStoredSessionSnapshot>();
 	private _diskUsageBytes: number | undefined;
@@ -58,6 +60,8 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 	private _largestSessionStorageBytes: number | undefined;
 	private readonly _saveScheduler = this._register(new RunOnceScheduler(() => this._save(), 200));
 	private readonly _trackedChatModels = this._register(new DisposableMap<string>());
+	private readonly _pendingChatModels = new Map<string, IChatModel>();
+	private readonly _chatModelBackfillScheduler = this._register(new RunOnceScheduler(() => this._processPendingChatModels(), 0));
 	private _storageUpdatedAt = 0;
 	private _interactionSequence = 0;
 
@@ -70,6 +74,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		super();
 		const stored = this._load();
 		this._events = observableValue<readonly AgentsDashboardHistoryEvent[]>(this, stored.events);
+		this._resetEventIds(stored.events);
 		this.events = this._events;
 		for (const [sessionId, snapshot] of Object.entries(stored.sessions)) {
 			this._sessions.set(sessionId, snapshot);
@@ -98,12 +103,12 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 					chat.updatedAt.read(reader);
 					const model = this.chatService.getSession(chat.resource);
 					if (model) {
-						this._trackChatModel(model);
+						this._queueChatModel(model);
 					}
 				}
 			}
 			for (const model of this.chatService.chatModels.read(reader)) {
-				this._trackChatModel(model);
+				this._queueChatModel(model);
 			}
 			this.record(
 				sessions,
@@ -114,6 +119,29 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		this._register(sessionsManagementService.onDidSendRequest(event => {
 			this._recordChatInteraction(event.session, event.chat);
 		}));
+	}
+
+	private _queueChatModel(model: IChatModel): void {
+		const key = model.sessionResource.toString();
+		if (this._trackedChatModels.has(key) || this._pendingChatModels.has(key)) {
+			return;
+		}
+		this._pendingChatModels.set(key, model);
+		this._chatModelBackfillScheduler.schedule();
+	}
+
+	private _processPendingChatModels(): void {
+		let processed = 0;
+		for (const [key, model] of this._pendingChatModels) {
+			this._pendingChatModels.delete(key);
+			this._trackChatModel(model);
+			if (++processed >= CHAT_MODEL_BACKFILL_BATCH_SIZE) {
+				break;
+			}
+		}
+		if (this._pendingChatModels.size > 0) {
+			this._chatModelBackfillScheduler.schedule();
+		}
 	}
 
 	private _trackChatModel(model: IChatModel): void {
@@ -138,9 +166,8 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 			return;
 		}
 		const chats = target.session.chats.get();
-		const events = [...this._events.get()];
-		const knownIds = new Set(events.map(event => event.id));
-		let changed = false;
+		const newEvents: AgentsDashboardHistoryEvent[] = [];
+		const retentionStart = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
 		for (const request of model.getRequests()) {
 			if (request.origin?.kind !== ChatRequestOriginKind.Delegation || request.origin.delegationScope !== 'chat') {
 				continue;
@@ -156,24 +183,26 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 			if (sourceKind !== 'main' && sourceKind !== 'chat') {
 				continue;
 			}
-			const id = `${target.session.sessionId}:chat-delegation:${request.id}`;
-			if (knownIds.has(id)) {
+			const timestamp = request.requestTimestamp ?? request.timestamp;
+			if (timestamp < retentionStart) {
 				continue;
 			}
-			knownIds.add(id);
-			events.push({
+			const id = `${target.session.sessionId}:chat-delegation:${request.id}`;
+			if (this._eventIds.has(id)) {
+				continue;
+			}
+			this._eventIds.add(id);
+			newEvents.push({
 				id,
 				type: AgentsDashboardHistoryEventType.ChatDelegatedRequest,
-				timestamp: request.requestTimestamp ?? request.timestamp,
+				timestamp,
 				sessionId: target.session.sessionId,
 				sourceChatId: getAgentsDashboardChatId(sourceChat.resource),
 				targetChatId: getAgentsDashboardChatId(target.chat.resource),
 			});
-			changed = true;
 		}
-		if (changed) {
-			const retentionStart = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-			this._events.set(events.filter(event => event.timestamp >= retentionStart).slice(-MAX_EVENTS), undefined);
+		if (newEvents.length > 0) {
+			this._setEvents([...this._events.get(), ...newEvents].filter(event => event.timestamp >= retentionStart).slice(-MAX_EVENTS));
 			this._saveScheduler.schedule();
 		}
 	}
@@ -218,7 +247,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		const retained = events.filter(event => event.timestamp >= retentionStart).slice(-MAX_EVENTS);
 		const eventsChanged = retained.length !== previousEvents.length || retained.some((event, index) => event !== previousEvents[index]);
 		if (eventsChanged) {
-			this._events.set(retained, undefined);
+			this._setEvents(retained);
 		}
 		const currentSessionIds = new Set(sessions.map(session => session.sessionId));
 		for (const sessionId of this._sessions.keys()) {
@@ -314,7 +343,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 			chatId,
 		};
 		const retentionStart = timestamp - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-		this._events.set([...this._events.get(), event].filter(candidate => candidate.timestamp >= retentionStart).slice(-MAX_EVENTS), undefined);
+		this._setEvents([...this._events.get(), event].filter(candidate => candidate.timestamp >= retentionStart).slice(-MAX_EVENTS));
 		this._saveScheduler.schedule();
 	}
 
@@ -376,7 +405,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		}
 		const mergedEvents = [...events.values()].sort((a, b) => a.timestamp - b.timestamp).slice(-MAX_EVENTS);
 		if (mergedEvents.length !== this._events.get().length || mergedEvents.some((event, index) => event.id !== this._events.get()[index]?.id)) {
-			this._events.set(mergedEvents, undefined);
+			this._setEvents(mergedEvents);
 		}
 		for (const [sessionId, snapshot] of Object.entries(stored.sessions)) {
 			if ((this._sessions.get(sessionId)?.observedAt ?? 0) < snapshot.observedAt) {
@@ -388,6 +417,18 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 			this._diskUsageBytes = stored.diskUsageBytes;
 			this._medianSessionStorageBytes = stored.medianSessionStorageBytes;
 			this._largestSessionStorageBytes = stored.largestSessionStorageBytes;
+		}
+	}
+
+	private _setEvents(events: readonly AgentsDashboardHistoryEvent[]): void {
+		this._events.set(events, undefined);
+		this._resetEventIds(events);
+	}
+
+	private _resetEventIds(events: readonly AgentsDashboardHistoryEvent[]): void {
+		this._eventIds.clear();
+		for (const event of events) {
+			this._eventIds.add(event.id);
 		}
 	}
 }

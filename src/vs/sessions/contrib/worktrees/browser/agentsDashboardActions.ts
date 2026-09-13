@@ -14,9 +14,10 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { ActiveCustomViewIdContext } from '../../../common/contextkeys.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { AGENTS_DASHBOARD_CUSTOM_VIEW_ID, ARCHIVE_MERGED_PULL_REQUEST_SESSIONS_COMMAND_ID, DELETE_ARCHIVED_SESSION_WORKTREES_COMMAND_ID, OPEN_AGENTS_DASHBOARD_COMMAND_ID, REFRESH_AGENTS_DASHBOARD_COMMAND_ID } from '../common/agentsDashboard.js';
+import { AGENTS_DASHBOARD_CUSTOM_VIEW_ID, ARCHIVE_MERGED_PULL_REQUEST_SESSIONS_COMMAND_ID, CLOSE_AGENTS_DASHBOARD_COMMAND_ID, DELETE_ARCHIVED_SESSION_WORKTREES_COMMAND_ID, OPEN_AGENTS_DASHBOARD_COMMAND_ID, REFRESH_AGENTS_DASHBOARD_COMMAND_ID } from '../common/agentsDashboard.js';
 import { getArchivedSessionWorktrees, getMergedPullRequestSessions } from '../common/agentsDashboardModel.js';
 import { IWorktreeDashboardService } from '../common/worktreeDashboard.js';
 import { WorktreeContainsChangesError } from '../common/worktreeDashboardErrors.js';
@@ -66,6 +67,27 @@ registerAction2(class RefreshAgentsDashboardAction extends Action2 {
 				message: localize('agentsDashboard.refreshFailed', "Failed to refresh Manage Sessions: {0}", toErrorMessage(error)),
 			});
 		}
+	}
+});
+
+registerAction2(class CloseAgentsDashboardAction extends Action2 {
+	constructor() {
+		super({
+			id: CLOSE_AGENTS_DASHBOARD_COMMAND_ID,
+			title: localize2('closeAgentsDashboard', "Close Manage Sessions"),
+			icon: Codicon.close,
+			precondition: ActiveCustomViewIdContext.isEqualTo(AGENTS_DASHBOARD_CUSTOM_VIEW_ID),
+			menu: [{
+				id: Menus.AgentsDashboardTabs,
+				group: 'navigation',
+				order: 2,
+				when: ActiveCustomViewIdContext.isEqualTo(AGENTS_DASHBOARD_CUSTOM_VIEW_ID),
+			}],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ICustomViewService).hideCustomView();
 	}
 });
 
