@@ -442,6 +442,24 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.filesystem.denyWrite.includes('/real/deny-write'), 'Configured denyWrite symlink target should be included');
 	});
 
+	test('rejects Ruby gem symlink targets that broaden read access', async () => {
+		for (const broadTarget of ['/home/user/.gem', '/home/user', '/']) {
+			fileService.setRealpath('/home/user/.gem/ruby', broadTarget);
+			fileService.setRealpath('/home/user/.gem/specs', '/opt/ruby-gem-specs');
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+			await engine.wrapCommand('ruby --version', false, undefined, undefined, [{ keyword: 'ruby', args: ['--version'] }]);
+
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath, 'Config path should be defined');
+			const config = JSON.parse(createdFiles.get(configPath)!);
+			ok(config.filesystem.allowRead.includes('/home/user/.gem/ruby'), 'Ruby gem path should remain readable through the symlink');
+			ok(config.filesystem.allowRead.includes('/home/user/.gem/specs'), 'Ruby gem specs path should remain readable');
+			ok(config.filesystem.allowRead.includes('/opt/ruby-gem-specs'), 'Dedicated external gem directory should remain readable');
+			ok(!config.filesystem.allowRead.includes(broadTarget), `Broad Ruby gem target should be excluded: ${broadTarget}`);
+		}
+	});
+
 	test('keeps filesystem paths without symlinks when writing the config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-plain'],
