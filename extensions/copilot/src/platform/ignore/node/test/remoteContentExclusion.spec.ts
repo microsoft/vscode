@@ -683,6 +683,21 @@ suite('RemoteContentExclusion', () => {
 			expect(await remoteContentExclusion.isIgnored(file, CancellationToken.None)).toBe(true);
 		});
 
+		test('evaluates provided contents for a file that does not exist', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { ifAnyMatch: ['CONFIDENTIAL'], ifNoneMatch: ['PUBLIC'] } });
+
+			expect({
+				confidential: await remoteContentExclusion.isIgnored(file, CancellationToken.None, '// CONFIDENTIAL'),
+				unmarked: await remoteContentExclusion.isIgnored(file, CancellationToken.None, 'export const a = 1;'),
+				public: await remoteContentExclusion.isIgnored(file, CancellationToken.None, '// PUBLIC'),
+			}).toEqual({
+				confidential: true,
+				unmarked: true,
+				public: false,
+			});
+		});
+
 		test('reports regex exclusions only once a regex rule has been fetched', async () => {
 			routeToRepos(['/workspace/repo-a']);
 			respondWithRules({ '/workspace/repo-a': { ifAnyMatch: ['CONFIDENTIAL'] } });

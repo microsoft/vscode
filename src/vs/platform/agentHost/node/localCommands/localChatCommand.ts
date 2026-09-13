@@ -217,15 +217,7 @@ export class AgentHostLocalCommands extends Disposable {
 		if (index < 0) {
 			return;
 		}
-		// Anchor = the nearest preceding turn in this chat that is not itself a
-		// local turn.
-		let anchorTurnId: string | undefined;
-		for (let i = index - 1; i >= 0; i--) {
-			if (!this._localTurns.isLocal(chat, turns[i].id)) {
-				anchorTurnId = turns[i].id;
-				break;
-			}
-		}
+		const anchorTurnId = this._localTurns.findAnchorTurnId(chat, turns, turnId);
 		this._localTurns.record(session, chat, sanitizeLocalTurnForPersistence(turns[index]), anchorTurnId);
 	}
 }

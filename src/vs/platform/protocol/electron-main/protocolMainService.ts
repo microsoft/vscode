@@ -14,6 +14,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
+import { NodeRemoteResourceResponse } from '../../remote/common/electronRemoteResources.js';
+import { createManagedRemoteResourceRequestHandler } from './managedRemoteResourceProtocol.js';
 import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
@@ -75,6 +77,14 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		}
 
 		return Disposable.None;
+	}
+
+	registerManagedRemoteResourceProtocol(requestRemoteResource: (url: URI) => Promise<NodeRemoteResourceResponse>): void {
+		session.defaultSession.protocol.registerBufferProtocol(
+			Schemas.vscodeManagedRemoteResource,
+			createManagedRemoteResourceRequestHandler(requestRemoteResource, this.logService)
+		);
+		this._register(toDisposable(() => session.defaultSession.protocol.unregisterProtocol(Schemas.vscodeManagedRemoteResource)));
 	}
 
 	//#region file://

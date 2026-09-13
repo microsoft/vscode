@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext } from '../../../common/agentHostChatContributionsService.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
-import { chatStorageUri, hasReportedUsage, isSubagentChatUri, type Turn, type UsageInfo } from '../../../common/state/sessionState.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
+import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
+import { ActionType, isChatAction, type ChatAction } from '../../../common/state/sessionActions.js';
+import { chatStorageUri, hasReportedUsage, isAhpChatChannel, isSubagentChatUri, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
 
-/** Re-attaches persisted per-turn usage to restored turns. */
+/** Owns persisted per-turn usage in both directions, recording it live and re-attaching it to restored turns. */
 export class PersistedTurnUsageContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'persistedTurnUsage';
@@ -24,6 +25,19 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		super();
 	}
 
+	onDidDispatchAction(dispatched: IDispatchedAction): void {
+		// A rejected action never reduced, so its payload must not be persisted as though
+		// it had. `ChatUsage` is server-only today and cannot be rejected, but the guard
+		// keeps that from becoming a silent durable-state bug if it ever becomes
+		// client-dispatchable.
+		if (dispatched.rejectionReason !== undefined) {
+			return;
+		}
+		if (isAhpChatChannel(dispatched.channel) && isChatAction(dispatched.action)) {
+			this._trackTurnUsage(dispatched.channel, dispatched.action);
+		}
+	}
+
 	/**
 	 * Re-attaches persisted per-turn {@link UsageInfo} to reconstructed turns.
 	 *
@@ -31,9 +45,9 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	 * SDK's `assistant.usage` event is explicitly ephemeral and the Claude
 	 * transcript replay produces none - so restored turns come back without it.
 	 * Without this the chat's context-usage gauge stays hidden after a reload
-	 * and the session cost total restarts from zero. Usage recorded live by
-	 * {@link AgentSideEffects} is looked up by turn id (or the turn's SDK event
-	 * id, which is what a restored turn is keyed by).
+	 * and the session cost total restarts from zero. Usage recorded live by this
+	 * contribution is looked up by turn id (or the turn's SDK event id, which is
+	 * what a restored turn is keyed by).
 	 *
 	 * NOTE: the lookup only lands for providers that record the bridge between
 	 * the live protocol turn id (a host-generated uuid) and the id a restored
@@ -100,5 +114,52 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 				return turn;
 			}
 		});
+	}
+
+	/**
+	 * Persists the usage reported for a chat's turn.
+	 *
+	 * Agent backends do not durably record token/credit usage themselves (the
+	 * Copilot SDK's `assistant.usage` event is explicitly ephemeral, and the
+	 * Claude transcript replay produces none), so a restored session would
+	 * otherwise come back with no context-usage gauge and a session cost of 0.
+	 * See this contribution's {@link onHydrateTurns} for which providers can
+	 * currently match these rows back on restore.
+	 *
+	 * Written on every report rather than buffered until the turn ends: the row
+	 * is keyed by turn id and written with `INSERT OR REPLACE` through a
+	 * sequencer, so "last report wins" is already a property of the storage
+	 * layer, and persisting eagerly means a turn cut short by a crash or
+	 * disconnect keeps the usage it had already accrued.
+	 *
+	 * Subagent chats are skipped: their cost is already folded into the parent
+	 * turn's aggregate, so recording it again would double-count.
+	 */
+	private _trackTurnUsage(channel: ProtocolURI, action: ChatAction): void {
+		if (action.type !== ActionType.ChatUsage || isSubagentChatUri(channel)) {
+			return;
+		}
+		// Usage reported with no active turn carries an empty turn id (see
+		// `CopilotAgentSession._turnId`). No turn can ever match it, and no
+		// prune path can remove it, so it would be a permanent orphan row.
+		if (!action.turnId) {
+			return;
+		}
+		// Agents key their storage by the chat's own URI, which is where the
+		// `turns` rows that `getTurnUsages` joins against live.
+		const storage = chatStorageUri(channel);
+		if (!storage) {
+			return;
+		}
+		let ref: IReference<ISessionDatabase>;
+		try {
+			ref = this._sessionDataService.openDatabase(storage);
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] Failed to open database to persist turn usage for ${channel}`, err);
+			return;
+		}
+		ref.object.setTurnUsage(action.turnId, JSON.stringify(action.usage)).catch(err => {
+			this._logService.warn(`[AgentSideEffects] Failed to persist turn usage for ${channel}/${action.turnId}`, err);
+		}).finally(() => ref.dispose());
 	}
 }

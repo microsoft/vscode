@@ -19,7 +19,7 @@ import { TestThemeService } from '../../../theme/test/common/testThemeService.js
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { QuickPick } from '../../browser/quickInput.js';
+import { backButton, QuickPick } from '../../browser/quickInput.js';
 import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
@@ -163,6 +163,28 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			{ display: '', closing: false, inert: false, visible: true },
 			{ display: 'none', closing: false, inert: false, visible: false },
 		]);
+	});
+
+	test('title bar is hidden when empty', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		const titleBar = fixture.querySelector<HTMLElement>('.quick-input-titlebar')!;
+		const states: string[] = [];
+		const recordState = () => states.push(titleBar.style.display);
+
+		quickpick.show();
+		recordState();
+
+		quickpick.title = 'Title';
+		recordState();
+
+		quickpick.title = undefined;
+		quickpick.buttons = [backButton];
+		recordState();
+
+		quickpick.buttons = [];
+		recordState();
+
+		assert.deepStrictEqual(states, ['none', '', '', 'none']);
 	});
 
 	test('overlay picker aligns its input with the anchor and bypasses motion', () => {
@@ -382,6 +404,24 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
+	});
+
+	test('id is exposed as DOM metadata and cleared when absent', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.items = [{ id: 'item-id', label: 'item with id' }];
+		quickpick.show();
+
+		const entry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
+		const id = entry.getAttribute('data-quick-input-id');
+
+		quickpick.items = [{ label: 'item without id' }];
+		const recycledEntry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
+		const recycledId = recycledEntry.getAttribute('data-quick-input-id');
+
+		assert.deepStrictEqual({ id, recycledId }, {
+			id: 'item-id',
+			recycledId: null
+		});
 	});
 
 	test('isKeyModified - returns false when no modifiers are pressed', () => {

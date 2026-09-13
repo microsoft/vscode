@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, shouldForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -106,19 +106,40 @@ suite('Copilot managed settings projection', () => {
 		assert.strictEqual(managedModelValue(), managedModelValue());
 	});
 
-	test('forceRemoteSettingsRefresh uses native MDM over the cached server value', () => {
+	test('managedSettingsDisabledValue forces false only while managed settings are active', () => {
 		assert.deepStrictEqual({
-			serverTrue: shouldForceRemoteSettingsRefresh(undefined, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			nativeTrue: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }),
-			nativeFalse: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			malformedNative: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: 'true' }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
-			unset: shouldForceRemoteSettingsRefresh(undefined, undefined),
+			active: managedSettingsDisabledValue({ managedSettingsActive: true }),
+			inactive: managedSettingsDisabledValue({ managedSettingsActive: false }),
+			unset: managedSettingsDisabledValue({}),
+			previewFeaturesDisabled: managedSettingsDisabledValue({ chat_preview_features_enabled: false }),
 		}, {
-			serverTrue: true,
-			nativeTrue: true,
-			nativeFalse: false,
-			malformedNative: true,
-			unset: false,
+			active: false,
+			inactive: undefined,
+			unset: undefined,
+			previewFeaturesDisabled: undefined,
+		});
+	});
+
+	test('forceRemoteSettingsRefresh resolves across all channels and reports the winning source', () => {
+		const key = COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY;
+		assert.deepStrictEqual({
+			serverTrue: resolveForceRemoteSettingsRefresh(undefined, { [key]: true }, undefined),
+			nativeTrue: resolveForceRemoteSettingsRefresh({ [key]: true }, { [key]: false }, undefined),
+			nativeFalse: resolveForceRemoteSettingsRefresh({ [key]: false }, { [key]: true }, undefined),
+			malformedNative: resolveForceRemoteSettingsRefresh({ [key]: 'true' }, { [key]: true }, undefined),
+			fileTrue: resolveForceRemoteSettingsRefresh(undefined, undefined, { [key]: true }),
+			serverBeatsFile: resolveForceRemoteSettingsRefresh(undefined, { [key]: false }, { [key]: true }),
+			unset: resolveForceRemoteSettingsRefresh(undefined, undefined, undefined),
+		}, {
+			serverTrue: { effective: true, source: 'server' },
+			nativeTrue: { effective: true, source: 'nativeMdm' },
+			nativeFalse: { effective: false },
+			// A malformed value is treated as absent so it cannot mask a lower-precedence channel.
+			malformedNative: { effective: true, source: 'server' },
+			// The file channel participates; a native/server-only resolver ignored it.
+			fileTrue: { effective: true, source: 'file' },
+			serverBeatsFile: { effective: false },
+			unset: { effective: false },
 		});
 	});
 
@@ -160,6 +181,53 @@ suite('Copilot managed settings projection', () => {
 suite('Copilot managed settings per-key precedence (pickManagedSettings)', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('managed sandbox enablement is force-on-wins across every channel combination', () => {
+		const key = COPILOT_SANDBOX_ENABLED_KEY;
+		const values = [undefined, false, true];
+		for (const native of values) {
+			for (const server of values) {
+				for (const file of values) {
+					const pick = pickManagedSettings(
+						native === undefined ? undefined : { [key]: native },
+						server === undefined ? undefined : { [key]: server },
+						file === undefined ? undefined : { [key]: file },
+					);
+					const enabled = [native, server, file].includes(true);
+					assert.deepStrictEqual(pick.values[key], enabled ? true : native ?? server ?? file, JSON.stringify({ native, server, file }));
+				}
+			}
+		}
+	});
+
+	test('sandbox force-on reports the restrictive source while retaining all contributions', () => {
+		const key = COPILOT_SANDBOX_ENABLED_KEY;
+		const pick = pickManagedSettings({ [key]: false }, { [key]: true }, { [key]: true });
+		assert.deepStrictEqual(pick, {
+			values: { [key]: true },
+			resolutions: new Map([[key, {
+				value: true,
+				source: 'server',
+				contributions: [
+					{ channel: 'nativeMdm', value: false },
+					{ channel: 'server', value: true },
+					{ channel: 'file', value: true },
+				],
+			}]]),
+			activeSources: ['server'],
+		});
+	});
+
+	test('malformed higher-precedence sandbox values cannot mask a managed force-on', () => {
+		const key = COPILOT_SANDBOX_ENABLED_KEY;
+		assert.deepStrictEqual({
+			string: pickManagedSettings({ [key]: 'false' }, { [key]: true }, undefined).values[key],
+			number: pickManagedSettings({ [key]: 0 }, { [key]: false }, { [key]: true }).values[key],
+		}, {
+			string: true,
+			number: true,
+		});
+	});
 
 	test('distinct keys each win from their highest-precedence channel; a lower channel fills a gap the higher ones leave', () => {
 		// The headline per-key behavior: `shared` is contested by all three (native wins) while

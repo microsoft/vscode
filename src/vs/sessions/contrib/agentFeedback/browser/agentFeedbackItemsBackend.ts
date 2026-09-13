@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
@@ -12,7 +13,7 @@ import { IAgentSubscription } from '../../../../platform/agentHost/common/state/
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
-import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta, type IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -173,6 +174,7 @@ interface IFeedbackMetaView {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly pendingAgentReveal?: boolean;
 }
 
@@ -218,6 +220,7 @@ function readFeedbackMeta(annotation: Annotation): IFeedbackMetaView | undefined
 		codeSelection: base.codeSelection,
 		diffHunks: base.diffHunks,
 		sourcePRReviewCommentId: base.sourcePRReviewCommentId,
+		sourcePullRequest: base.sourcePullRequest,
 		pendingAgentReveal: base.pendingAgentReveal,
 	};
 }
@@ -263,6 +266,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		sourcePullRequest: feedback.sourcePullRequest,
 		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
 	return {
@@ -301,6 +305,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 		diffHunks: meta?.diffHunks,
 		kind: meta?.kind ?? AgentFeedbackKind.UserReview,
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
+		sourcePullRequest: meta?.sourcePullRequest,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
 		pendingAgentReveal: meta?.pendingAgentReveal,
@@ -334,7 +339,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	private readonly _channels = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _channelBySession = new Map<string, ITrackedChannel>();
 	private readonly _sessionResourceByKey = new Map<string, URI>();
-	/** Local cache so reads work before the first snapshot arrives. */
+	/** Optimistic local state, reconciled from each annotations snapshot/action. */
 	private readonly _cacheBySession = new Map<string, IAgentFeedback[]>();
 	/**
 	 * Signature of the feedback set we last fired {@link onDidChangeItems} for,
@@ -350,6 +355,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	 * the authoritative set before acting.
 	 */
 	private readonly _loadedBySession = new Set<string>();
+	private readonly _suspendedAnnotationsReconciliation = new Set<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -366,10 +372,16 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 
 	getItems(sessionResource: URI): readonly IAgentFeedback[] {
 		const channel = this._ensureChannel(sessionResource);
-		if (channel && this._hasSnapshot(channel.subscription)) {
-			return orderFeedbackItems(this._decode(channel, sessionResource));
+		const cached = this._cacheBySession.get(sessionResource.toString());
+		if (cached) {
+			return orderFeedbackItems(cached);
 		}
-		return orderFeedbackItems(this._cacheBySession.get(sessionResource.toString()) ?? []);
+		if (channel && this._hasSnapshot(channel.subscription)) {
+			const items = this._decode(channel, sessionResource);
+			this._cacheBySession.set(sessionResource.toString(), items);
+			return orderFeedbackItems(items);
+		}
+		return [];
 	}
 
 	hasLoaded(sessionResource: URI): boolean {
@@ -383,48 +395,48 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	upsert(feedback: IAgentFeedback): void {
 		const channel = this._ensureChannel(feedback.sessionResource);
 		this._cacheUpsert(feedback);
+		this._emitIfChanged(feedback.sessionResource);
 		if (!channel) {
-			this._onDidChangeItems.fire(feedback.sessionResource);
 			return;
 		}
 		channel.connection.dispatch(channel.annotationsUri.toString(), {
 			type: ActionType.AnnotationsSet,
 			annotation: feedbackToAnnotation(feedback, channel.connection),
 		});
-		if (!this._hasSnapshot(channel.subscription)) {
-			this._onDidChangeItems.fire(feedback.sessionResource);
-		}
 	}
 
 	remove(sessionResource: URI, feedbackId: string): void {
 		const channel = this._ensureChannel(sessionResource);
 		this._cacheRemove(sessionResource, feedbackId);
+		this._emitIfChanged(sessionResource);
 		if (!channel) {
-			this._onDidChangeItems.fire(sessionResource);
 			return;
 		}
 		channel.connection.dispatch(channel.annotationsUri.toString(), {
 			type: ActionType.AnnotationsRemoved,
 			annotationId: feedbackId,
 		});
-		if (!this._hasSnapshot(channel.subscription)) {
-			this._onDidChangeItems.fire(sessionResource);
-		}
 	}
 
 	clear(sessionResource: URI): void {
+		const key = sessionResource.toString();
 		const items = this.getItems(sessionResource);
 		const channel = this._ensureChannel(sessionResource);
-		this._cacheBySession.delete(sessionResource.toString());
+		this._cacheBySession.set(key, []);
+		this._emitIfChanged(sessionResource);
 		if (channel) {
-			for (const item of items) {
-				channel.connection.dispatch(channel.annotationsUri.toString(), {
-					type: ActionType.AnnotationsRemoved,
-					annotationId: item.id,
-				});
+			this._suspendedAnnotationsReconciliation.add(key);
+			try {
+				for (const item of items) {
+					channel.connection.dispatch(channel.annotationsUri.toString(), {
+						type: ActionType.AnnotationsRemoved,
+						annotationId: item.id,
+					});
+				}
+			} finally {
+				this._suspendedAnnotationsReconciliation.delete(key);
 			}
 		}
-		this._onDidChangeItems.fire(sessionResource);
 	}
 
 	getSessionsWithItems(): URI[] {
@@ -475,21 +487,32 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	 */
 	private _onAnnotationsChange(sessionResource: URI): void {
 		const key = sessionResource.toString();
+		if (this._suspendedAnnotationsReconciliation.has(key)) {
+			return;
+		}
 		const channel = this._channelBySession.get(key);
 		if (!channel) {
 			return;
 		}
+		if (!this._hasSnapshot(channel.subscription)) {
+			return;
+		}
+		this._cacheBySession.set(key, this._decode(channel, sessionResource));
 		// Fire once when the snapshot first arrives so consumers learn that the
 		// feedback set is now authoritative, even if it is empty (and thus has
 		// the same — empty — signature as before loading).
-		if (this._hasSnapshot(channel.subscription) && !this._loadedBySession.has(key)) {
+		if (!this._loadedBySession.has(key)) {
 			this._loadedBySession.add(key);
-			this._signatureBySession.set(key, this._feedbackSignature(channel.subscription));
-			this._onDidChangeItems.fire(sessionResource);
+			this._emitIfChanged(sessionResource, true);
 			return;
 		}
-		const signature = this._feedbackSignature(channel.subscription);
-		if (this._signatureBySession.get(key) === signature) {
+		this._emitIfChanged(sessionResource);
+	}
+
+	private _emitIfChanged(sessionResource: URI, force = false): void {
+		const key = sessionResource.toString();
+		const signature = this._feedbackSignature(this._cacheBySession.get(key) ?? []);
+		if (!force && this._signatureBySession.get(key) === signature) {
 			return;
 		}
 		this._signatureBySession.set(key, signature);
@@ -497,29 +520,30 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	}
 
 	/**
-	 * A stable signature of the feedback-bearing annotations in the
-	 * subscription's current snapshot (sorted by id). Excludes annotations
-	 * without feedback metadata so unrelated annotation activity on the shared
-	 * channel is ignored.
+	 * A stable signature of the visible feedback state, sorted by id.
 	 */
-	private _feedbackSignature(subscription: IAgentSubscription<AnnotationsState>): string {
-		const value = subscription.value;
-		if (!value || value instanceof Error) {
-			return '';
-		}
-		const feedback = value.annotations
-			.map(annotation => ({ annotation, meta: readFeedbackMeta(annotation) }))
-			.filter(({ annotation, meta }) => meta !== undefined && (annotation.entries?.length ?? 0) > 0)
-			.map(({ annotation, meta }) => ({
-				id: annotation.id,
-				resource: annotation.resource,
-				range: annotation.range,
-				resolved: annotation.resolved,
-				entries: annotation.entries,
-				meta,
-			}))
-			.sort((a, b) => a.id.localeCompare(b.id));
-		return JSON.stringify(feedback);
+	private _feedbackSignature(items: readonly IAgentFeedback[]): string {
+		return JSON.stringify(items
+			.map(item => [
+				item.id,
+				item.text,
+				getComparisonKey(item.resourceUri),
+				item.range.startLineNumber,
+				item.range.startColumn,
+				item.range.endLineNumber,
+				item.range.endColumn,
+				getComparisonKey(item.sessionResource),
+				item.suggestion ?? null,
+				item.codeSelection ?? null,
+				item.diffHunks ?? null,
+				item.kind,
+				item.sourcePRReviewCommentId ?? null,
+				item.sourcePullRequest ?? null,
+				item.replies ?? null,
+				item.state,
+				item.pendingAgentReveal ?? null,
+			] as const)
+			.sort((a, b) => a[0].localeCompare(b[0])));
 	}
 
 	private _cacheUpsert(feedback: IAgentFeedback): void {
@@ -586,9 +610,11 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			annotationsUri: resolved.annotationsUri,
 			subscription: ref.object,
 		};
-		this._signatureBySession.set(key, this._feedbackSignature(ref.object));
 		if (this._hasSnapshot(ref.object)) {
 			this._loadedBySession.add(key);
+			const items = this._decode(channel, sessionResource);
+			this._cacheBySession.set(key, items);
+			this._signatureBySession.set(key, this._feedbackSignature(items));
 		}
 		store.add(ref.object.onDidChange(() => this._onAnnotationsChange(sessionResource)));
 
