@@ -353,6 +353,36 @@ suite('Workbench - TerminalInstance', () => {
 			await runCommandPromise;
 		});
 
+		test('sendPath preserves paste versus execute semantics', async () => {
+			const instance = await createTerminalInstance();
+			const preparedModes: boolean[] = [];
+			const sentText: unknown[][] = [];
+			instance.preparePathForShell = async (_path, shouldExecute = false) => {
+				preparedModes.push(shouldExecute);
+				return shouldExecute ? '& \'file\'' : '\'file\'';
+			};
+			instance.sendText = async (...args) => {
+				sentText.push(args);
+			};
+
+			await instance.sendPath('/test/file', false);
+			await instance.sendPath('/test/file', true);
+
+			deepStrictEqual(preparedModes, [false, true]);
+			deepStrictEqual(sentText, [['\'file\'', false], ['& \'file\'', true]]);
+		});
+
+		test('external file drop contains a rejected sendPath promise', async () => {
+			const instance = await createTerminalInstance();
+			let didSendText = false;
+			instance.preparePathForShell = async () => { throw new Error('unsafe path'); };
+			instance.sendText = async () => { didSendText = true; };
+
+			await instance.sendPath('/test/file', false);
+
+			strictEqual(didSendText, false);
+		});
+
 		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {
 			const instance = await createTerminalInstance();
 			const xterm = await instance.xtermReadyPromise;
