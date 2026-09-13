@@ -132,6 +132,14 @@ suite('CommandLineAutoApprover', () => {
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});
+
+		test('preserves an explicit user allow', async () => {
+			setAutoApproveWithCommandLine({
+				...(terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean>),
+				sort: true,
+			});
+			deepStrictEqual(await Promise.all(['sort input.txt', 'sort -o output.txt input.txt'].map(isAutoApproved)), [true, false]);
+		});
 	});
 
 	suite('default tree rules', () => {
