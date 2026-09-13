@@ -90,12 +90,21 @@ suite('SedFileWriteParser', () => {
 			quotedCaret: parser.extractFileWriteDetails('sed -i "s/foo/bar/" \'safe^name\''),
 			expandedFile: parser.extractFileWriteDetails('sed -i "s/foo/bar/" ~/../outside/file.txt'),
 			extendedGlobFile: parser.extractFileWriteDetails('sed -i "s/foo/bar/" ^foo/../package.json'),
+			commandNameExpansion: parser.extractFileWriteDetails('sed -i "s/foo/bar/" =node'),
+			repetitionGlob: parser.extractFileWriteDetails('sed -i "s/foo/bar/" README.md#'),
+			literalQuotes: parser.extractFileWriteDetails('sed -i "s/foo/bar/" "\'safe\'" \'"safe"\''),
 			expandedBackup: parser.extractFileWriteDetails('sed --in-place=$HOME/../outside/* "s/foo/bar/" file.txt'),
 		}, {
 			quotedWildcard: [{ path: 'safe-*', hasUnquotedPathExpansion: false }],
 			quotedCaret: [{ path: 'safe^name', hasUnquotedPathExpansion: false }],
 			expandedFile: [{ path: '~/../outside/file.txt', hasUnquotedPathExpansion: true }],
 			extendedGlobFile: [{ path: '^foo/../package.json', hasUnquotedPathExpansion: true }],
+			commandNameExpansion: [{ path: '=node', hasUnquotedPathExpansion: true }],
+			repetitionGlob: [{ path: 'README.md#', hasUnquotedPathExpansion: true }],
+			literalQuotes: [
+				{ path: '\'safe\'', hasUnquotedPathExpansion: false },
+				{ path: '"safe"', hasUnquotedPathExpansion: false },
+			],
 			expandedBackup: [
 				{ path: 'file.txt', hasUnquotedPathExpansion: false },
 				{ path: '$HOME/../outside/file.txt', hasUnquotedPathExpansion: true },
