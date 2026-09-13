@@ -67,6 +67,8 @@ suite('Extension host workspace symbol cache', () => {
 		await pending.complete([{ name: 'late', kind: SymbolKind.Function, containerName: '', location: { uri: resource, range: new Range(new Position(0, 0), new Position(0, 0)) } }]);
 		await timeout(0);
 
+		// Each provider owns a fresh Cache whose IDs start at 1. Cancellation returns no DTO,
+		// so probe the entry that would exist if the late result had been cached.
 		await extHost.$resolveWorkspaceSymbol(handle, {
 			name: 'late', kind: LanguageSymbolKind.Function, location: { uri: resource, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } }, cacheId: [1, 0]
 		}, CancellationToken.None);
