@@ -3940,7 +3940,8 @@ export class CopilotAgentSession extends Disposable {
 			this._deletePendingEditContent(toolCallId);
 			const pendingRequest = { managedApprovalRequired };
 			const pendingPermission = this._pendingPermissions.register(toolCallId, pendingRequest);
-			const isPending = () => this._pendingPermissions.getMetadata(toolCallId) === pendingRequest;
+			const permissionRequest = this._createPermissionRequestHandle(toolCallId, pendingRequest);
+			const isPending = permissionRequest.isPending;
 			// Observe supersession while preview or sandbox work is still in flight; awaiters retain the rejection.
 			void pendingPermission.catch(error => this._logService.trace(`[Copilot:${this.sessionId}] Pending permission request failed: toolCallId=${toolCallId}`, error));
 
@@ -3986,10 +3987,10 @@ export class CopilotAgentSession extends Disposable {
 			// parent session, which has no matching ChatToolCallStart.
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
-			this._publishedPermissionRequests.set(toolCallId, pendingRequest);
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
+				permissionRequest,
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId,
@@ -4447,6 +4448,25 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Ignoring permission response for a superseded confirmation: toolCallId=${requestId}`);
 			return false;
 		}
+		return this._completePermissionRequest(requestId, approved);
+	}
+
+	private _createPermissionRequestHandle(requestId: string, pendingRequest: IPendingPermissionRequest): NonNullable<IAgentToolPendingConfirmationSignal['permissionRequest']> {
+		const isPending = () => this._pendingPermissions.getMetadata(requestId) === pendingRequest;
+		return {
+			isPending,
+			onWillPublish: () => {
+				if (!isPending()) {
+					return false;
+				}
+				this._publishedPermissionRequests.set(requestId, pendingRequest);
+				return true;
+			},
+			respond: approved => isPending() && this._completePermissionRequest(requestId, approved),
+		};
+	}
+
+	private _completePermissionRequest(requestId: string, approved: boolean): boolean {
 		if (this._pendingPermissions.respond(requestId, approved ? { kind: 'approve-once' } : USER_DENIED_PERMISSION_RESULT)) {
 			this._deletePendingEditContent(requestId);
 			return true;
@@ -4463,6 +4483,7 @@ export class CopilotAgentSession extends Disposable {
 		this._deletePendingEditContent(request.toolCallId);
 		const pendingRequest = { managedApprovalRequired };
 		const pendingPermission = this._pendingPermissions.register(request.toolCallId, pendingRequest);
+		const permissionRequest = this._createPermissionRequestHandle(request.toolCallId, pendingRequest);
 
 		const displayName = getToolDisplayName(request.toolName);
 		const blockedDomains = request.blockedDomains?.length ? request.blockedDomains.join(', ') : undefined;
@@ -4476,10 +4497,10 @@ export class CopilotAgentSession extends Disposable {
 				: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
 
 		const parentToolCallId = this._activeToolCalls.get(request.toolCallId)?.parentToolCallId;
-		this._publishedPermissionRequests.set(request.toolCallId, pendingRequest);
 		this._onDidSessionProgress.fire({
 			kind: 'pending_confirmation',
 			chat: this._chatChannelUri,
+			permissionRequest,
 			state: {
 				status: ToolCallStatus.PendingConfirmation,
 				toolCallId: request.toolCallId,

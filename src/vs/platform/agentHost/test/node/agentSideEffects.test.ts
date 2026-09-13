@@ -4408,6 +4408,88 @@ suite('AgentSideEffects', () => {
 
 	suite('tool_ready dispatches progress actions to advance tool call state', () => {
 
+		test('binds permission publication after the asynchronous policy check and immediately before AHP ready', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-publication', toolName: 'write', displayName: 'Write File',
+				},
+			});
+			const order: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.channel === defaultChatUri && envelope.action.type === ActionType.ChatToolCallReady) {
+					order.push('ready');
+				}
+			}));
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-publication', toolName: 'write', displayName: 'Write File',
+					invocationMessage: 'Create denied.lock', confirmationTitle: 'Create file?',
+				},
+				permissionKind: 'write',
+				permissionPath: '/workspace/denied.lock',
+				permissionRequest: {
+					isPending: () => true,
+					onWillPublish: () => { order.push('publish'); return true; },
+					respond: () => { throw new Error('This request must be confirmed by the user'); },
+				},
+			});
+
+			assert.strictEqual(order.length, 0, 'Provider-signal emission must not publish the confirmation');
+			await waitForState(stateManager, () => order.includes('ready') || undefined);
+			assert.deepStrictEqual(order, ['publish', 'ready']);
+		});
+
+		test('drops a permission request superseded during the asynchronous policy check', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-superseded', toolName: 'write', displayName: 'Write File',
+				},
+			});
+			let pending = true;
+			let publicationCount = 0;
+			const responses: boolean[] = [];
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-superseded', toolName: 'write', displayName: 'Write File',
+					invocationMessage: 'Create superseded.lock', confirmationTitle: 'Create file?',
+				},
+				permissionRequest: {
+					isPending: () => pending,
+					onWillPublish: () => { publicationCount++; return pending; },
+					respond: approved => { responses.push(approved); return true; },
+				},
+			});
+			pending = false;
+			await timeout(0);
+			const part = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts[0];
+
+			assert.deepStrictEqual({
+				publicationCount,
+				responses,
+				legacyResponses: agent.respondToPermissionCalls,
+				status: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+			}, {
+				publicationCount: 0,
+				responses: [],
+				legacyResponses: [],
+				status: ToolCallStatus.Streaming,
+			});
+		});
+
 		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', async () => {
 			setupSession();
 			startTurn('turn-1');
@@ -5012,6 +5094,47 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-bypass-1', approved: true },
 			]);
+		});
+
+		test('auto-approval resolves the originating permission at AHP publication', async () => {
+			setupSessionWithConfig('autoApprove');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-owned-approval', toolName: 'write', displayName: 'Write File',
+				},
+			});
+			const order: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.channel === defaultChatUri && envelope.action.type === ActionType.ChatToolCallReady) {
+					order.push('ready');
+				}
+			}));
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-owned-approval', toolName: 'write', displayName: 'Write File',
+					invocationMessage: 'Create approved.lock', confirmationTitle: 'Create file?',
+				},
+				permissionKind: 'write',
+				permissionPath: '/workspace/approved.lock',
+				permissionRequest: {
+					isPending: () => true,
+					onWillPublish: () => { order.push('publish'); return true; },
+					respond: approved => { order.push(`respond:${approved}`); return true; },
+				},
+			});
+
+			assert.strictEqual(order.length, 0);
+			await waitForState(stateManager, () => order.includes('ready') || undefined);
+			assert.deepStrictEqual({ order, legacyResponses: agent.respondToPermissionCalls }, {
+				order: ['publish', 'respond:true', 'ready'],
+				legacyResponses: [],
+			});
 		});
 
 		test('auto-approves shell commands when autoApprove is set to bypass', async () => {
@@ -7355,32 +7478,46 @@ suite('AgentSideEffects', () => {
 				}
 			}));
 
-			agent.fireProgress({
-				kind: 'action', resource: URI.parse(defaultChatUri),
-				action: {
-					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-snapshot-write', toolName: 'edit', displayName: 'Edit', contributor: undefined,
-					_meta: { toolKind: undefined, language: undefined },
-				},
-			});
-			agent.fireProgress({
-				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
-				state: {
-					status: ToolCallStatus.PendingConfirmation,
-					toolCallId: 'tc-snapshot-write', toolName: 'edit', displayName: 'Edit',
-					invocationMessage: 'Edit file', toolInput: undefined,
-					confirmationTitle: 'Edit file', edits: undefined,
-				},
-				permissionKind: 'write',
-				permissionPath: '/session-data/session-1/attachments/abc/Pasted text #1.txt',
-			});
+			const scopedResponses: boolean[] = [];
+			let publicationCount = 0;
+			for (const requestScoped of [false, true]) {
+				const toolCallId = requestScoped ? 'tc-scoped-snapshot-write' : 'tc-snapshot-write';
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'edit', displayName: 'Edit', contributor: undefined,
+						_meta: { toolKind: undefined, language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId, toolName: 'edit', displayName: 'Edit',
+						invocationMessage: 'Edit file', toolInput: undefined,
+						confirmationTitle: 'Edit file', edits: undefined,
+					},
+					permissionKind: 'write',
+					permissionPath: '/session-data/session-1/attachments/abc/Pasted text #1.txt',
+					permissionRequest: requestScoped ? {
+						isPending: () => true,
+						onWillPublish: () => { publicationCount++; return true; },
+						respond: approved => { scopedResponses.push(approved); return true; },
+					} : undefined,
+				});
+			}
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			assert.deepStrictEqual({
 				responses: agent.respondToPermissionCalls,
+				scopedResponses,
+				publicationCount,
 				readyActionCount: readyActions.length,
 			}, {
 				responses: [{ requestId: 'tc-snapshot-write', approved: false }],
+				scopedResponses: [false],
+				publicationCount: 0,
 				readyActionCount: 0,
 			});
 		});

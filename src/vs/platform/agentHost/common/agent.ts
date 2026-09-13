@@ -939,6 +939,13 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly chat: URI;
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
+	/** Host-only control of the originating permission request, never serialized into AHP. */
+	readonly permissionRequest?: {
+		isPending(): boolean;
+		/** Binds the confirmation immediately before AHP publication, returning false if superseded. */
+		onWillPublish(): boolean;
+		respond(approved: boolean): boolean;
+	};
 	/** Host-only auto-approval kind (not part of the dispatched action). */
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */

@@ -633,7 +633,7 @@ export class AgentSideEffects extends Disposable {
 				} else {
 					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
 					if (signal.kind === 'pending_confirmation') {
-						agent.respondToPermissionRequest(signal.state.toolCallId, false);
+						this._respondToPermissionRequest(signal, agent, false);
 					}
 				}
 				return;
@@ -642,7 +642,7 @@ export class AgentSideEffects extends Disposable {
 			const pendingSignals = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
 			if (signal.kind === 'pending_confirmation' && !pendingSignals) {
 				this._logService.error(`[AgentSideEffects] Denying permission for unroutable subagent ${sessionKey}/${parentToolCallId}: toolCallId=${signal.state.toolCallId}`);
-				agent.respondToPermissionRequest(signal.state.toolCallId, false);
+				this._respondToPermissionRequest(signal, agent, false);
 				return;
 			}
 
@@ -1282,6 +1282,18 @@ export class AgentSideEffects extends Disposable {
 
 	// ---- Side-effect handlers --------------------------------------------------
 
+	private _respondToPermissionRequest(signal: IAgentToolPendingConfirmationSignal, agent: IAgent, approved: boolean): boolean | undefined {
+		if (signal.permissionRequest) {
+			const responded = signal.permissionRequest.respond(approved);
+			if (!responded) {
+				this._logService.trace(`[AgentSideEffects] Dropping stale permission decision for ${signal.state.toolCallId}`);
+			}
+			return responded;
+		}
+		agent.respondToPermissionRequest(signal.state.toolCallId, approved);
+		return undefined;
+	}
+
 	/**
 	 * Handles a `pending_confirmation` signal end-to-end: checks for
 	 * auto-approval via the permission manager, and if not auto-approved,
@@ -1306,6 +1318,10 @@ export class AgentSideEffects extends Disposable {
 		const autoApproval = e.managedApprovalRequired || forbiddenSnapshotWrite
 			? undefined
 			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+		if (e.permissionRequest && !e.permissionRequest.isPending()) {
+			this._logService.trace(`[AgentSideEffects] Dropping superseded permission request for ${e.state.toolCallId}`);
+			return;
+		}
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 		if (toolCall
@@ -1328,7 +1344,7 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn(`[AgentSideEffects] Denying write to read-only attachment snapshot: toolCallId=${e.state.toolCallId}`);
 			this._toolCallAgents.delete(toolCallKey);
 			this._managedApprovalToolCalls.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, false);
+			this._respondToPermissionRequest(e, agent, false);
 			return;
 		}
 		if (e.managedApprovalRequired) {
@@ -1339,12 +1355,12 @@ export class AgentSideEffects extends Disposable {
 		const clientShouldAutoApprove = autoApproval !== undefined
 			&& contributor?.kind === ToolCallContributorKind.Client
 			&& !!e.state.confirmationTitle;
+		const hostShouldAutoApprove = autoApproval !== undefined && !clientShouldAutoApprove;
 		if (clientShouldAutoApprove) {
 			this._toolCallAgents.set(toolCallKey, agent.id);
 			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
 		} else if (autoApproval !== undefined) {
 			this._toolCallAgents.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, true);
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
@@ -1361,6 +1377,13 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);
 		if (readyAction.confirmed) {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
+		}
+		if (e.permissionRequest && !e.permissionRequest.onWillPublish()) {
+			this._logService.trace(`[AgentSideEffects] Dropping superseded permission publication for ${e.state.toolCallId}`);
+			return;
+		}
+		if (hostShouldAutoApprove && this._respondToPermissionRequest(e, agent, true) === false) {
+			return;
 		}
 		this._stateManager.dispatchServerAction(sessionKey, readyAction);
 		// This action is synthesized here rather than routed through

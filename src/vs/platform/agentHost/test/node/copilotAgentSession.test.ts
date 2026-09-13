@@ -800,6 +800,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
 	beforeFileWrite?: (resource: URI) => Promise<void>;
+	onPendingConfirmation?: (signal: IAgentToolPendingConfirmationSignal) => void;
 	shellInitWriteFailures?: number;
 	fileAtomicWrite?: boolean;
 	shellInitWriteGate?: Promise<void>;
@@ -862,6 +863,13 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	disposables.add(progressEmitter.event(signal => {
 		signals.push(signal);
+		if (signal.kind === 'pending_confirmation') {
+			if (options?.onPendingConfirmation) {
+				options.onPendingConfirmation(signal);
+			} else {
+				signal.permissionRequest?.onWillPublish();
+			}
+		}
 		for (let i = waiters.length - 1; i >= 0; i--) {
 			if (waiters[i].predicate(signal)) {
 				const { deferred } = waiters[i];
@@ -5097,7 +5105,7 @@ suite('CopilotAgentSession', () => {
 			const fileName = '/workspace/denied.lock';
 			const deniedResult = { kind: 'reject', feedback: 'The user denied permission.' };
 
-			async function startPendingCreate(previewCount = 1) {
+			async function startPendingCreate(previewCount = 1, onPendingConfirmation?: (signal: IAgentToolPendingConfirmationSignal) => void) {
 				const previews = Array.from({ length: previewCount }, () => ({
 					started: new DeferredPromise<void>(),
 					release: new DeferredPromise<void>(),
@@ -5106,6 +5114,7 @@ suite('CopilotAgentSession', () => {
 				const logService = new CapturingLogService();
 				const result = await createAgentSession(disposables, {
 					logService,
+					onPendingConfirmation,
 					beforeFileWrite: async () => {
 						const preview = previews[previewIndex++];
 						await preview.started.complete();
@@ -5389,6 +5398,53 @@ suite('CopilotAgentSession', () => {
 					});
 				});
 			}
+
+			test('a replacement provider signal does not activate its confirmation before AHP publication', async () => {
+				const confirmations: IAgentToolPendingConfirmationSignal[] = [];
+				const { session, runtime, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2, signal => {
+					confirmations.push(signal);
+					if (confirmations.length === 1) {
+						signal.permissionRequest?.onWillPublish();
+					}
+				});
+				const originalOutcome = assert.rejects(permission, CancellationError);
+				await releasePreview.complete();
+				await waitForSignal(signal => signal === confirmations[0]);
+				const replacement = runtime.handlePermissionRequest({
+					kind: 'write',
+					fileName: '/workspace/replacement.lock',
+					newFileContents: 'REPLACEMENT_CONTENT',
+					toolCallId,
+				});
+				await previews[1].started.p;
+				await originalOutcome;
+				await previews[1].release.complete();
+				await waitForSignal(signal => signal === confirmations[1]);
+
+				const staleApprovalAccepted = session.respondToPermissionRequest(toolCallId, true);
+				const stalePolicyApprovalAccepted = confirmations[0].permissionRequest?.respond(true);
+				const stalePublicationAccepted = confirmations[0].permissionRequest?.onWillPublish();
+				const published = confirmations[1].permissionRequest?.onWillPublish();
+				const denialAccepted = session.respondToPermissionRequest(toolCallId, false);
+
+				assert.deepStrictEqual({
+					staleApprovalAccepted,
+					stalePolicyApprovalAccepted,
+					stalePublicationAccepted,
+					published,
+					denialAccepted,
+					result: await replacement,
+					storedFiles: [...storedFileContents.keys()],
+				}, {
+					staleApprovalAccepted: false,
+					stalePolicyApprovalAccepted: false,
+					stalePublicationAccepted: false,
+					published: true,
+					denialAccepted: true,
+					result: deniedResult,
+					storedFiles: [],
+				});
+			});
 
 			for (const ending of ['abort', 'dispose'] as const) {
 				test(`${ending} without a user decision cancels the pending preview rather than manufacturing denial feedback`, async () => {
