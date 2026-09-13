@@ -1277,11 +1277,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		store.add(dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e)));
 		store.add(dndController.onDropFile(async path => {
 			this.focus();
-			try {
-				await this.sendPath(path, false);
-			} catch (error) {
-				this._logService.warn('Could not prepare dropped terminal path', error);
-			}
+			await this.sendPath(path, false);
 		}));
 		store.add(new dom.DragAndDropObserver(container, dndController));
 		this._dndObserver.value = store;
@@ -1428,7 +1424,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
-		return this.sendText(await this.preparePathForShell(originalPath, shouldExecute), shouldExecute);
+		try {
+			await this.sendText(await this.preparePathForShell(originalPath, shouldExecute), shouldExecute);
+		} catch (error) {
+			this._logService.warn('Could not prepare terminal path', error);
+		}
 	}
 
 	async preparePathForShell(originalPath: string | URI, shouldExecute: boolean = false): Promise<string> {
