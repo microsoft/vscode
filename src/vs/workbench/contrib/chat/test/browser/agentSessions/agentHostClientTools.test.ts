@@ -21,6 +21,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../../../platform/agentHost/common/meta/agentToolConfirmationMeta.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -1127,6 +1128,66 @@ suite('AgentHostClientTools', () => {
 			assert.strictEqual(runTestsDef.description, 'Runs unit tests');
 		});
 
+		for (const approved of [false, true]) {
+			test(`scoped client-tool ${approved ? 'approval' : 'denial'} echoes its prompt identity`, async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+				await provideSessionWithPendingConfirmationClientTool(handler, connection, 'client-permission');
+				const invocation = toolsService.begunToolCalls.find(invocation => invocation.toolCallId === 'tool-call-1');
+				assert.ok(invocation);
+				IChatToolInvocation.confirmWith(invocation, approved ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied });
+				await timeout(0);
+				assert.deepStrictEqual(connection.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatToolCallConfirmed
+					? [{ id: readToolConfirmationId(entry.action), approved: entry.action.approved }]
+					: []), [{ id: 'client-permission', approved }]);
+			});
+
+			for (const delayedDecision of [false, true]) {
+				test(`scoped server confirmation echoes only its own identity (${approved ? 'approve' : 'deny'}, ${delayedDecision ? 'late callback' : 'late dispatch'})`, async () => {
+					const { handler, connection } = createHandlerWithMocks(disposables, []);
+					const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session-1')));
+					connection.applySessionAction(chat, {
+						type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(),
+						message: { text: 'Create file', origin: { kind: MessageKind.User } },
+					});
+					connection.applySessionAction(chat, {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'create-file',
+						toolName: 'create', displayName: 'Create File',
+					});
+					const ready = (id: string) => connection.applySessionAction(chat, withToolConfirmationId({
+						type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'create-file',
+						invocationMessage: `Create ${id}.txt`, confirmationTitle: 'Create file?', toolInput: `{"path":"${id}.txt"}`,
+					}, id));
+					ready('original');
+					const session = await handler.provideChatSessionContent(URI.parse('agent-host-copilot:/session-1'), CancellationToken.None);
+					await timeout(0);
+					const invocation = session.progressObs?.get().find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'create-file');
+					assert.ok(invocation);
+					const oldState = invocation.state.get();
+					assert.strictEqual(oldState.type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+					if (oldState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						throw new Error('Expected the original confirmation');
+					}
+					const decision = approved ? { type: ToolConfirmKind.UserAction as const } : { type: ToolConfirmKind.Denied as const };
+					if (!delayedDecision) {
+						oldState.confirm(decision);
+					}
+					ready('replacement');
+					if (delayedDecision) {
+						oldState.confirm(decision);
+					}
+					await timeout(0);
+					assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+					IChatToolInvocation.confirmWith(invocation, decision);
+					await timeout(0);
+
+					assert.deepStrictEqual(connection.dispatchedActions
+						.flatMap(entry => entry.action.type === ActionType.ChatToolCallConfirmed ? [{ id: readToolConfirmationId(entry.action), approved: entry.action.approved }] : []), [
+						{ id: 'replacement', approved },
+					]);
+				});
+			}
+		}
+
 		test('handles tools with when clauses via observeTools filtering', () => {
 			// The observeTools method already filters by `when` clauses.
 			// When a tool has a `when` clause that doesn't match, it won't
@@ -1800,7 +1861,7 @@ suite('AgentHostClientTools', () => {
 			);
 		});
 
-		async function provideSessionWithPendingConfirmationClientTool(handler: AgentHostSessionHandler, connection: MockAgentHostConnection): Promise<URI> {
+		async function provideSessionWithPendingConfirmationClientTool(handler: AgentHostSessionHandler, connection: MockAgentHostConnection, confirmationId?: string): Promise<URI> {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
@@ -1830,6 +1891,7 @@ suite('AgentHostClientTools', () => {
 					{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
 					{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
 				],
+				...withToolConfirmationId({}, confirmationId),
 			} as ChatAction);
 
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -1849,6 +1911,7 @@ suite('AgentHostClientTools', () => {
 						toolInput: '{"task":"build"}',
 						confirmationTitle: 'Run Task',
 						contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+						...withToolConfirmationId({}, confirmationId),
 					},
 				},
 			});

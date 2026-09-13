@@ -7,19 +7,25 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import sinon from 'sinon';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import product from '../../../product/common/product.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -35,12 +41,13 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readToolConfirmationId, withToolConfirmationId } from '../../common/meta/agentToolConfirmationMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
-import { TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, ToolCallCancellationReason } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -59,6 +66,8 @@ import { AgentHostClientConnectionService } from '../../node/agentHostClientConn
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { MockAgent } from './mockAgent.js';
+import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { SessionPermissionManager } from '../../node/sessionPermissions.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -798,6 +807,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	beforeFileWrite?: (resource: URI) => Promise<void>;
+	onPendingConfirmation?: (signal: IAgentToolPendingConfirmationSignal) => void;
+	onProgress?: (signal: AgentSignal) => void;
 	shellInitWriteFailures?: number;
 	fileAtomicWrite?: boolean;
 	shellInitWriteGate?: Promise<void>;
@@ -860,6 +872,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	disposables.add(progressEmitter.event(signal => {
 		signals.push(signal);
+		options?.onProgress?.(signal);
+		if (signal.kind === 'pending_confirmation') {
+			if (options?.onPendingConfirmation) {
+				options.onPendingConfirmation(signal);
+			} else {
+				signal.permissionRequest?.onWillPublish();
+			}
+		}
 		for (let i = waiters.length - 1; i >= 0; i--) {
 			if (waiters[i].predicate(signal)) {
 				const { deferred } = waiters[i];
@@ -960,6 +980,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
 			resource.path.includes('/agentHost/shellInit/'),
 		writeFile: async (resource: URI, content: VSBuffer, writeOptions?: IWriteFileOptions) => {
+			if (options?.beforeFileWrite) {
+				await options.beforeFileWrite(resource);
+			}
 			fileWriteOptions.set(resource.fsPath, writeOptions);
 			if (resource.path.includes('/agentHost/shellInit/')) {
 				options?.onShellInitWrite?.();
@@ -5086,6 +5109,631 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await resultPromise, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
+		suite('denied creation continuation', () => {
+			const turnId = 'turn-denied-create';
+			const toolCallId = 'tc-denied-create';
+			const fileName = '/workspace/denied.lock';
+			const deniedResult = { kind: 'reject', feedback: 'The user denied permission.' };
+
+			async function createHost() {
+				const files = disposables.add(new FileService(new NullLogService()));
+				disposables.add(files.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+				const agent = disposables.add(new MockAgent());
+				const host = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(), { ...product, _serviceBrand: undefined }, createNoopGitService()));
+				registerTestAgentProvider(host, agent);
+				const sessionUri = await host.createSession({ provider: agent.id });
+				const chatUri = buildDefaultChatUri(sessionUri);
+				const stateManager = getTestAgentStateManager(host);
+				stateManager.dispatchServerAction(chatUri, {
+					type: ActionType.ChatTurnStarted, turnId, startedAt: new Date(0).toISOString(),
+					message: { text: 'Create a file', origin: { kind: MessageKind.User } },
+				});
+				const readyActions: ChatToolCallReadyAction[] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+					if (envelope.channel === chatUri && envelope.action.type === ActionType.ChatToolCallReady && !envelope.action.confirmed) {
+						readyActions.push(envelope.action);
+					}
+				}));
+				const waitForReady = async (count: number) => {
+					if (readyActions.length < count) {
+						await Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, () => readyActions.length >= count));
+					}
+					return readyActions[count - 1];
+				};
+				let clientSeq = 0;
+				const decide = (id: string | undefined, approved: boolean, decisionTurnId = turnId) => host.dispatchAction(chatUri, withToolConfirmationId(approved ? {
+					type: ActionType.ChatToolCallConfirmed, turnId: decisionTurnId, toolCallId, approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+				} : {
+					type: ActionType.ChatToolCallConfirmed, turnId: decisionTurnId, toolCallId, approved: false, reason: ToolCallCancellationReason.Denied,
+				}, id), 'test', ++clientSeq);
+				const createProvider = (beforeFileWrite?: (resource: URI) => Promise<void>) => createAgentSession(disposables, {
+					sessionUri,
+					onProgress: signal => agent.fireProgress(signal),
+					onPendingConfirmation: () => { },
+					beforeFileWrite,
+				});
+				const startTool = (provider: Awaited<ReturnType<typeof createProvider>>) => {
+					provider.session.resetTurnState(turnId);
+					provider.mockSession.fire('user.message', { content: 'Create a file' });
+					provider.mockSession.fire('tool.execution_start', { toolCallId, toolName: 'create', arguments: { path: fileName, file_text: 'CONTENT' } });
+				};
+				const request = (provider: Awaited<ReturnType<typeof createProvider>>, content: string) => provider.runtime.handlePermissionRequest({
+					kind: 'write', fileName, newFileContents: content, toolCallId,
+				});
+				return { host, agent, stateManager, sessionUri, chatUri, readyActions, waitForReady, decide, createProvider, startTool, request };
+			}
+
+			for (const approved of [false, true]) {
+				test(`scoped ${approved ? 'approval' : 'denial'} is validated before host reduction and cannot target a replacement`, async () => {
+					const ctx = await createHost();
+					const replacementPreview = new DeferredPromise<void>();
+					const releasePreview = new DeferredPromise<void>();
+					let writes = 0;
+					const provider = await ctx.createProvider(async () => {
+						if (++writes === 2) {
+							await replacementPreview.complete();
+							await releasePreview.p;
+						}
+					});
+					ctx.startTool(provider);
+					const original = assert.rejects(ctx.request(provider, 'ORIGINAL'), CancellationError);
+					const first = await ctx.waitForReady(1);
+					let replacementSettled = false;
+					const replacement = ctx.request(provider, 'REPLACEMENT').then(result => { replacementSettled = true; return result; });
+					await replacementPreview.p;
+					await original;
+					const before = ctx.stateManager.getChatState(ctx.chatUri);
+					ctx.decide(readToolConfirmationId(first), approved);
+					assert.strictEqual(ctx.stateManager.getChatState(ctx.chatUri), before, 'A stale decision cannot reach the reducer while the preview is pending');
+					await releasePreview.complete();
+					const second = await ctx.waitForReady(2);
+					const published = ctx.stateManager.getChatState(ctx.chatUri);
+					ctx.decide(readToolConfirmationId(first), approved);
+					ctx.decide(undefined, approved);
+					ctx.decide('', approved);
+					assert.strictEqual(ctx.stateManager.getChatState(ctx.chatUri), published, 'Old or missing identities cannot mutate a republished tool');
+					assert.strictEqual(replacementSettled, false);
+					ctx.decide(readToolConfirmationId(second), approved);
+					const result = await replacement;
+					const after = ctx.stateManager.getChatState(ctx.chatUri);
+					ctx.decide(readToolConfirmationId(second), !approved);
+					assert.strictEqual(ctx.stateManager.getChatState(ctx.chatUri), after, 'A settled identity cannot act twice');
+					finalResponse(provider.mockSession);
+
+					assert.deepStrictEqual({
+						result,
+						legacyResponses: ctx.agent.respondToPermissionCalls,
+						storedFiles: [...provider.storedFileContents.keys()],
+						activeTurn: ctx.stateManager.getChatState(ctx.chatUri)?.activeTurn,
+						completedTurns: ctx.stateManager.getChatState(ctx.chatUri)?.turns.length,
+					}, {
+						result: approved ? { kind: 'approve-once' } : deniedResult,
+						legacyResponses: [],
+						storedFiles: [],
+						activeTurn: undefined,
+						completedTurns: 1,
+					});
+				});
+			}
+
+			for (const approved of [false, true]) {
+				test(`legacy unscoped ${approved ? 'approval' : 'denial'} retains its existing host behavior`, async () => {
+					const ctx = await createHost();
+					ctx.agent.fireProgress({
+						kind: 'action', resource: URI.parse(ctx.chatUri),
+						action: { type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: 'create', displayName: 'Create File' },
+					});
+					ctx.agent.fireProgress({
+						kind: 'pending_confirmation', chat: URI.parse(ctx.chatUri),
+						state: {
+							status: ToolCallStatus.PendingConfirmation, toolCallId, toolName: 'create', displayName: 'Create File',
+							invocationMessage: 'Create file', confirmationTitle: 'Create file?',
+						},
+					});
+					const ready = await ctx.waitForReady(1);
+					ctx.decide(undefined, approved);
+					const part = ctx.stateManager.getChatState(ctx.chatUri)?.activeTurn?.responseParts[0];
+					assert.deepStrictEqual({
+						confirmationId: readToolConfirmationId(ready),
+						responses: ctx.agent.respondToPermissionCalls,
+						status: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+					}, {
+						confirmationId: undefined,
+						responses: [{ requestId: toolCallId, approved }],
+						status: approved ? ToolCallStatus.Running : ToolCallStatus.Cancelled,
+					});
+				});
+			}
+
+			for (const ending of ['supersede', 'abort', 'dispose'] as const) {
+				for (const approved of [false, true]) {
+					for (const publishReplacement of [false, true]) {
+						test(`delayed ${approved ? 'approval' : 'denial'} cannot reactivate a request after ${ending} ${publishReplacement ? 'after' : 'before'} replacement publication`, async () => {
+							const ctx = await createHost();
+							const policyEntered = new DeferredPromise<void>();
+							const releasePolicy = new DeferredPromise<ToolCallConfirmationReason | undefined>();
+							const replacementPolicyEntered = new DeferredPromise<void>();
+							const releaseReplacementPolicy = new DeferredPromise<void>();
+							let calls = 0;
+							const stub = sinon.stub(SessionPermissionManager.prototype, 'getAutoApproval').callsFake(async () => {
+								if (++calls === 1) {
+									await policyEntered.complete();
+									return releasePolicy.p;
+								}
+								if (!publishReplacement) {
+									await replacementPolicyEntered.complete();
+									await releaseReplacementPolicy.p;
+								}
+								return undefined;
+							});
+							disposables.add(toDisposable(() => stub.restore()));
+							const originalProvider = await ctx.createProvider();
+							ctx.startTool(originalProvider);
+							const originalPromise = ctx.request(originalProvider, 'ORIGINAL');
+							const originalOutcome = originalPromise.then(result => result, error => {
+								assert.ok(error instanceof CancellationError);
+								return 'superseded';
+							});
+							await policyEntered.p;
+							const signal = originalProvider.signals.find((signal): signal is IAgentToolPendingConfirmationSignal => signal.kind === 'pending_confirmation');
+							assert.ok(signal?.permissionRequest);
+							const handle = signal.permissionRequest;
+							let replacementProvider = originalProvider;
+							if (ending === 'abort') {
+								await originalProvider.session.abort();
+								originalProvider.session.discardActiveTurn();
+								await originalProvider.session.send('Fresh system work', undefined, turnId);
+							} else if (ending === 'dispose') {
+								originalProvider.session.dispose();
+								replacementProvider = await ctx.createProvider();
+								ctx.startTool(replacementProvider);
+							}
+							let settled = false;
+							const replacement = ctx.request(replacementProvider, 'REPLACEMENT').then(result => { settled = true; return result; });
+							if (publishReplacement) {
+								await ctx.waitForReady(1);
+							} else {
+								await replacementPolicyEntered.p;
+							}
+							const before = ctx.stateManager.getChatState(ctx.chatUri);
+							const staleResults = [handle.isPending(), handle.onWillPublish(), handle.respond(approved)];
+							await releasePolicy.complete(approved ? ToolCallConfirmationReason.Setting : undefined);
+							await timeout(0);
+							ctx.decide(handle.id, approved);
+							assert.strictEqual(ctx.stateManager.getChatState(ctx.chatUri), before);
+							assert.strictEqual(settled, false);
+							await releaseReplacementPolicy.complete();
+							const ready = await ctx.waitForReady(1);
+							ctx.decide(readToolConfirmationId(ready), false, ready.turnId);
+
+							assert.deepStrictEqual({
+								staleResults,
+								original: await originalOutcome,
+								replacement: await replacement,
+								publications: ctx.readyActions.length,
+								legacyResponses: ctx.agent.respondToPermissionCalls,
+								storedFiles: [...replacementProvider.storedFileContents.keys()],
+							}, {
+								staleResults: [false, false, false],
+								original: ending === 'supersede' ? 'superseded' : { kind: 'reject' },
+								replacement: deniedResult,
+								publications: 1,
+								legacyResponses: [],
+								storedFiles: [],
+							});
+						});
+					}
+				}
+			}
+
+			async function startPendingCreate(previewCount = 1, onPendingConfirmation?: (signal: IAgentToolPendingConfirmationSignal) => void) {
+				const previews = Array.from({ length: previewCount }, () => ({
+					started: new DeferredPromise<void>(),
+					release: new DeferredPromise<void>(),
+				}));
+				let previewIndex = 0;
+				const logService = new CapturingLogService();
+				const result = await createAgentSession(disposables, {
+					logService,
+					onPendingConfirmation,
+					beforeFileWrite: async () => {
+						const preview = previews[previewIndex++];
+						await preview.started.complete();
+						await preview.release.p;
+					},
+				});
+				result.session.resetTurnState(turnId);
+				result.mockSession.fire('user.message', { content: 'Create denied.lock, or reply denied if permission is denied.' });
+				const toolStart = { toolCallId, toolName: 'create', arguments: { path: fileName, file_text: 'DENIED_CONTENT' } };
+				result.mockSession.fire('tool.execution_start', toolStart);
+				const permission = result.runtime.handlePermissionRequest({
+					kind: 'write',
+					fileName,
+					newFileContents: 'DENIED_CONTENT',
+					toolCallId,
+				});
+				await previews[0].started.p;
+				return { ...result, permission, releasePreview: previews[0].release, previews, logService, toolStart };
+			}
+
+			function finalResponse(mockSession: MockCopilotSession): void {
+				mockSession.fire('assistant.message_delta', { messageId: 'denial-response', deltaContent: 'denied' });
+				mockSession.fire('assistant.message', { messageId: 'denial-response', content: 'denied' });
+				mockSession.fire('session.idle', {});
+			}
+
+			function terminalActions(signals: AgentSignal[]) {
+				return getActions(signals)
+					.filter(action => action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError)
+					.map(action => ({
+						type: action.type,
+						turnId: action.turnId,
+						...(action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown ? { content: action.part.content } : {}),
+					}));
+			}
+
+			for (const ordering of ['callback-before-idle', 'idle-before-callback'] as const) {
+				test(`preserves an early denial with ${ordering} and duplicate tool-ready events`, async () => {
+					const { session, mockSession, signals, permission, releasePreview, storedFileContents, toolStart } = await startPendingCreate();
+					const responses = [session.respondToPermissionRequest(toolCallId, false)];
+					mockSession.fire('tool.execution_start', toolStart);
+					responses.push(session.respondToPermissionRequest(toolCallId, false));
+					if (ordering === 'idle-before-callback') {
+						finalResponse(mockSession);
+					}
+					await releasePreview.complete();
+					const result = await permission;
+					if (ordering === 'callback-before-idle') {
+						finalResponse(mockSession);
+					}
+					mockSession.fire('session.idle', {});
+
+					assert.deepStrictEqual({
+						result,
+						responses,
+						readyCount: getActions(signals).filter(action => action.type === ActionType.ChatToolCallReady).length,
+						confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+						fileCreated: storedFileContents.has(URI.file(fileName).toString()),
+						retainedPreviewCount: storedFileContents.size,
+						actions: terminalActions(signals),
+						activeTurn: session.currentTurnId,
+					}, {
+						result: deniedResult,
+						responses: [true, false],
+						readyCount: 2,
+						confirmations: 0,
+						fileCreated: false,
+						retainedPreviewCount: 0,
+						actions: [
+							{ type: ActionType.ChatResponsePart, turnId, content: 'denied' },
+							{ type: ActionType.ChatTurnComplete, turnId },
+						],
+						activeTurn: undefined,
+					});
+				});
+			}
+
+			test('a failed preview preserves the settled denial and allows the final response', async () => {
+				const { session, mockSession, signals, permission, releasePreview, storedFileContents, logService } = await startPendingCreate();
+				session.respondToPermissionRequest(toolCallId, false);
+				await releasePreview.error(new Error('Preview write failed'));
+				const result = await permission;
+				finalResponse(mockSession);
+
+				assert.deepStrictEqual({
+					result,
+					warnings: logService.warnings.length,
+					storedFiles: [...storedFileContents.keys()],
+					actions: terminalActions(signals),
+					activeTurn: session.currentTurnId,
+				}, {
+					result: deniedResult,
+					warnings: 1,
+					storedFiles: [],
+					actions: [
+						{ type: ActionType.ChatResponsePart, turnId, content: 'denied' },
+						{ type: ActionType.ChatTurnComplete, turnId },
+					],
+					activeTurn: undefined,
+				});
+			});
+
+			test('one post-preview denial preserves feedback and completes the turn', async () => {
+				const { session, mockSession, signals, permission, releasePreview, waitForSignal, storedFileContents } = await startPendingCreate();
+				await releasePreview.complete();
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				const responses = [session.respondToPermissionRequest(toolCallId, false), session.respondToPermissionRequest(toolCallId, false)];
+				const result = await permission;
+				finalResponse(mockSession);
+
+				assert.deepStrictEqual({
+					result,
+					responses,
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+					storedFiles: [...storedFileContents.keys()],
+					actions: terminalActions(signals),
+					activeTurn: session.currentTurnId,
+				}, {
+					result: deniedResult,
+					responses: [true, false],
+					confirmations: 1,
+					storedFiles: [],
+					actions: [
+						{ type: ActionType.ChatResponsePart, turnId, content: 'denied' },
+						{ type: ActionType.ChatTurnComplete, turnId },
+					],
+					activeTurn: undefined,
+				});
+			});
+
+			for (const originalDecision of ['pending', 'denied', 'approved'] as const) {
+				test(`${originalDecision} preview cannot publish or overwrite a replacement request using the same toolCallId`, async () => {
+					const { session, runtime, signals, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2);
+					const originalOutcome = permission.then(result => result, error => {
+						assert.ok(error instanceof CancellationError);
+						return 'superseded';
+					});
+					if (originalDecision !== 'pending') {
+						session.respondToPermissionRequest(toolCallId, originalDecision === 'approved');
+					}
+					let replacementSettled = false;
+					const replacement = runtime.handlePermissionRequest({
+						kind: 'write',
+						fileName,
+						newFileContents: 'REPLACEMENT_CONTENT',
+						toolCallId,
+						managedApprovalRequired: true,
+					}).then(result => {
+						replacementSettled = true;
+						return result;
+					});
+					await previews[1].started.p;
+					await previews[1].release.complete();
+					const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+					assert.strictEqual(confirmation.kind, 'pending_confirmation');
+					if (confirmation.kind !== 'pending_confirmation') {
+						throw new Error('Expected the replacement confirmation');
+					}
+					const replacementPreview = confirmation.state.edits?.items[0].after?.content.uri;
+					assert.ok(replacementPreview);
+					await timeout(0);
+					await releasePreview.complete();
+					const originalResult = await originalOutcome;
+					const settledBeforeDenial = replacementSettled;
+					const previewContent = storedFileContents.get(replacementPreview);
+					const responses = [session.respondToPermissionRequest(toolCallId, false), session.respondToPermissionRequest(toolCallId, false)];
+					const replacementResult = await replacement;
+
+					assert.deepStrictEqual({
+						originalResult,
+						replacementResult,
+						settledBeforeDenial,
+						previewContent,
+						responses,
+						confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+						storedFiles: [...storedFileContents.keys()],
+					}, {
+						originalResult: originalDecision === 'pending' ? 'superseded' : originalDecision === 'denied' ? deniedResult : { kind: 'approve-once' },
+						replacementResult: deniedResult,
+						settledBeforeDenial: false,
+						previewContent: 'REPLACEMENT_CONTENT',
+						responses: [true, false],
+						confirmations: 1,
+						storedFiles: [],
+					});
+				});
+			}
+
+			test('superseding a published preview removes its content without deleting the replacement preview', async () => {
+				const { session, runtime, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2);
+				const originalOutcome = assert.rejects(permission, CancellationError);
+				await releasePreview.complete();
+				const originalConfirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.strictEqual(originalConfirmation.kind, 'pending_confirmation');
+				if (originalConfirmation.kind !== 'pending_confirmation') {
+					throw new Error('Expected the original confirmation');
+				}
+				const originalPreview = originalConfirmation.state.edits?.items[0].after?.content.uri;
+				assert.ok(originalPreview);
+				const replacement = runtime.handlePermissionRequest({
+					kind: 'write',
+					fileName,
+					newFileContents: 'REPLACEMENT_CONTENT',
+					toolCallId,
+					managedApprovalRequired: true,
+				});
+				await previews[1].started.p;
+				await originalOutcome;
+				const originalPreviewRetained = storedFileContents.has(originalPreview);
+				await previews[1].release.complete();
+				const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal !== originalConfirmation);
+				assert.strictEqual(confirmation.kind, 'pending_confirmation');
+				if (confirmation.kind !== 'pending_confirmation') {
+					throw new Error('Expected the replacement confirmation');
+				}
+				const replacementPreview = confirmation.state.edits?.items[0].after?.content.uri;
+				assert.ok(replacementPreview);
+				const previewContent = storedFileContents.get(replacementPreview);
+				const responded = session.respondToPermissionRequest(toolCallId, false);
+
+				assert.deepStrictEqual({
+					originalPreviewRetained,
+					previewContent,
+					responded,
+					result: await replacement,
+					storedFiles: [...storedFileContents.keys()],
+				}, {
+					originalPreviewRetained: false,
+					previewContent: 'REPLACEMENT_CONTENT',
+					responded: true,
+					result: deniedResult,
+					storedFiles: [],
+				});
+			});
+
+			for (const { approveReplacement, completeOldTool } of [
+				{ approveReplacement: false, completeOldTool: false },
+				{ approveReplacement: true, completeOldTool: false },
+				{ approveReplacement: false, completeOldTool: true },
+			]) {
+				test(`an old published approval cannot ${approveReplacement ? 'approve' : 'override denial of'} a replacement while its preview is pending${completeOldTool ? ' after the old tool completes' : ''}`, async () => {
+					const { session, runtime, mockSession, signals, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2);
+					const originalOutcome = assert.rejects(permission, CancellationError);
+					await releasePreview.complete();
+					await waitForSignal(signal => signal.kind === 'pending_confirmation');
+					const replacementFileName = '/workspace/replacement.lock';
+					const replacement = runtime.handlePermissionRequest({
+						kind: 'write',
+						fileName: replacementFileName,
+						newFileContents: 'REPLACEMENT_CONTENT',
+						toolCallId,
+						managedApprovalRequired: true,
+					});
+					await previews[1].started.p;
+					await originalOutcome;
+					if (completeOldTool) {
+						mockSession.fire('tool.execution_complete', { toolCallId, success: false });
+					}
+
+					const staleApprovalAccepted = session.respondToPermissionRequest(toolCallId, true);
+					await previews[1].release.complete();
+					await timeout(0);
+					const confirmations = signals.filter(signal => signal.kind === 'pending_confirmation');
+					const replacementPreview = confirmations.at(-1)?.state.edits?.items[0].after;
+					const replacementResponseAccepted = session.respondToPermissionRequest(toolCallId, approveReplacement);
+
+					assert.deepStrictEqual({
+						staleApprovalAccepted,
+						confirmationCount: confirmations.length,
+						confirmedFile: replacementPreview?.uri,
+						replacementResponseAccepted,
+						result: await replacement,
+						storedFiles: [...storedFileContents.keys()],
+					}, {
+						staleApprovalAccepted: false,
+						confirmationCount: 2,
+						confirmedFile: URI.file(replacementFileName).toString(),
+						replacementResponseAccepted: true,
+						result: approveReplacement ? { kind: 'approve-once' } : deniedResult,
+						storedFiles: [],
+					});
+				});
+			}
+
+			test('a replacement provider signal does not activate its confirmation before AHP publication', async () => {
+				const confirmations: IAgentToolPendingConfirmationSignal[] = [];
+				const { session, runtime, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2, signal => {
+					confirmations.push(signal);
+					if (confirmations.length === 1) {
+						signal.permissionRequest?.onWillPublish();
+					}
+				});
+				const originalOutcome = assert.rejects(permission, CancellationError);
+				await releasePreview.complete();
+				await waitForSignal(signal => signal === confirmations[0]);
+				const replacement = runtime.handlePermissionRequest({
+					kind: 'write',
+					fileName: '/workspace/replacement.lock',
+					newFileContents: 'REPLACEMENT_CONTENT',
+					toolCallId,
+				});
+				await previews[1].started.p;
+				await originalOutcome;
+				await previews[1].release.complete();
+				await waitForSignal(signal => signal === confirmations[1]);
+
+				const staleApprovalAccepted = session.respondToPermissionRequest(toolCallId, true);
+				const stalePolicyApprovalAccepted = confirmations[0].permissionRequest?.respond(true);
+				const stalePublicationAccepted = confirmations[0].permissionRequest?.onWillPublish();
+				const published = confirmations[1].permissionRequest?.onWillPublish();
+				const denialAccepted = session.respondToPermissionRequest(toolCallId, false);
+
+				assert.deepStrictEqual({
+					staleApprovalAccepted,
+					stalePolicyApprovalAccepted,
+					stalePublicationAccepted,
+					published,
+					denialAccepted,
+					result: await replacement,
+					storedFiles: [...storedFileContents.keys()],
+				}, {
+					staleApprovalAccepted: false,
+					stalePolicyApprovalAccepted: false,
+					stalePublicationAccepted: false,
+					published: true,
+					denialAccepted: true,
+					result: deniedResult,
+					storedFiles: [],
+				});
+			});
+
+			for (const ending of ['abort', 'dispose'] as const) {
+				test(`${ending} without a user decision cancels the pending preview rather than manufacturing denial feedback`, async () => {
+					const { session, mockSession, signals, permission, releasePreview, storedFileContents } = await startPendingCreate();
+					if (ending === 'abort') {
+						await session.abort();
+						mockSession.fire('session.idle', { aborted: true });
+					} else {
+						session.dispose();
+					}
+					const result = await permission;
+					await releasePreview.complete();
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						result,
+						lateResponse: session.respondToPermissionRequest(toolCallId, true),
+						confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+						storedFiles: [...storedFileContents.keys()],
+						actions: terminalActions(signals),
+						activeTurn: session.currentTurnId,
+					}, {
+						result: { kind: 'reject' },
+						lateResponse: false,
+						confirmations: 0,
+						storedFiles: [],
+						actions: [],
+						activeTurn: undefined,
+					});
+				});
+			}
+
+			for (const ending of ['error', 'abort', 'dispose'] as const) {
+				test(`${ending} during a denied preview does not revive the turn or settle the callback twice`, async () => {
+					const { session, mockSession, signals, permission, releasePreview, storedFileContents } = await startPendingCreate();
+					const responses = [session.respondToPermissionRequest(toolCallId, false)];
+					if (ending === 'error') {
+						mockSession.fire('session.error', { errorType: 'test', message: 'Provider failed' });
+					} else if (ending === 'abort') {
+						await session.abort();
+						mockSession.fire('session.idle', { aborted: true });
+					} else {
+						session.dispose();
+					}
+					await releasePreview.complete();
+					const result = await permission;
+					responses.push(session.respondToPermissionRequest(toolCallId, false));
+					// Disposal releases the guarded callback before the preview's promise chain drains.
+					await timeout(0);
+					mockSession.fire('session.idle', {});
+
+					assert.deepStrictEqual({
+						result,
+						responses,
+						storedFiles: [...storedFileContents.keys()],
+						actions: terminalActions(signals),
+						activeTurn: session.currentTurnId,
+					}, {
+						result: ending === 'error' ? deniedResult : { kind: 'reject' },
+						responses: [true, false],
+						storedFiles: [],
+						actions: ending === 'error' ? [{ type: ActionType.ChatError, turnId }] : [],
+						activeTurn: undefined,
+					});
+				});
+			}
+		});
+
 		test('auto-approves write permission for session-state plan files', async () => {
 			const previousCopilotHome = process.env['COPILOT_HOME'];
 			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
@@ -5383,6 +6031,105 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approve-once');
 			assert.strictEqual(signals.length, 0);
 		});
+
+		test('preserves denial feedback when confirmation races the sandbox check', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+			const permission = runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxed-denied',
+				fullCommandText: 'echo denied',
+			});
+			const responded = session.respondToPermissionRequest('tc-sandboxed-denied', false);
+
+			assert.deepStrictEqual({
+				responded,
+				result: await permission,
+				signalCount: signals.length,
+			}, {
+				responded: true,
+				result: { kind: 'reject', feedback: 'The user denied permission.' },
+				signalCount: 0,
+			});
+		});
+
+		for (const ending of ['abort', 'dispose'] as const) {
+			test(`${ending} during a sandbox check does not approve the request or add denial feedback`, async () => {
+				const { session, runtime, signals } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				});
+				const permission = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId: 'tc-sandboxed-cancelled',
+					fullCommandText: 'echo cancelled',
+				});
+				if (ending === 'abort') {
+					await session.abort();
+				} else {
+					session.dispose();
+				}
+
+				assert.deepStrictEqual({
+					result: await permission,
+					lateResponse: session.respondToPermissionRequest('tc-sandboxed-cancelled', true),
+					signalCount: signals.length,
+				}, {
+					result: { kind: 'reject' },
+					lateResponse: false,
+					signalCount: 0,
+				});
+			});
+		}
+
+		for (const originalDecision of ['pending', 'denied', 'approved'] as const) {
+			test(`${originalDecision} sandbox check cannot authorize a replacement request using the same toolCallId`, async () => {
+				const { session, runtime, signals } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				});
+				const toolCallId = 'tc-sandboxed-reused';
+				const original = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId,
+					fullCommandText: 'echo first',
+				}).then(result => result, error => {
+					assert.ok(error instanceof CancellationError);
+					return 'superseded';
+				});
+				if (originalDecision !== 'pending') {
+					session.respondToPermissionRequest(toolCallId, originalDecision === 'approved');
+				}
+				let replacementSettled = false;
+				const replacement = runtime.handlePermissionRequest({
+					kind: 'shell',
+					toolCallId,
+					fullCommandText: 'echo replacement',
+					managedApprovalRequired: true,
+					requestSandboxBypass: true,
+				}).then(result => {
+					replacementSettled = true;
+					return result;
+				});
+				const originalResult = await original;
+				await timeout(0);
+				const settledBeforeDenial = replacementSettled;
+				const responded = session.respondToPermissionRequest(toolCallId, false);
+
+				assert.deepStrictEqual({
+					originalResult,
+					replacementResult: await replacement,
+					settledBeforeDenial,
+					responded,
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				}, {
+					originalResult: originalDecision === 'pending' ? 'superseded' : originalDecision === 'denied' ? { kind: 'reject', feedback: 'The user denied permission.' } : { kind: 'approve-once' },
+					replacementResult: { kind: 'reject', feedback: 'The user denied permission.' },
+					settledBeforeDenial: false,
+					responded: true,
+					confirmations: 1,
+				});
+			});
+		}
 
 		test('does not auto-approve a sandboxed shell command for a file-scoped surface', async () => {
 			// The sandbox contains a command to the workspace, not to inline

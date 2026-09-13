@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../common/meta/agentToolConfirmationMeta.js';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -404,13 +405,14 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 					const envelope = getActionEnvelope(ready);
 					if (!processedSeqs.has(envelope.serverSeq)) {
 						processedSeqs.add(envelope.serverSeq);
-						const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
+						const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string; _meta?: Record<string, unknown> };
 						if (!action.confirmed) {
 							context.client.dispatch({
 								channel: envelope.channel,
 								clientSeq: ++approvalSeq,
 								action: {
 									type: ActionType.ChatToolCallConfirmed,
+									_meta: withToolConfirmationId({}, readToolConfirmationId(action))._meta,
 									turnId: action.turnId,
 									toolCallId: action.toolCallId, approved: true,
 									confirmed: ToolCallConfirmationReason.UserAction,
@@ -521,13 +523,14 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 					const envelope = getActionEnvelope(ready);
 					if (!processedSeqs.has(envelope.serverSeq)) {
 						processedSeqs.add(envelope.serverSeq);
-						const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
+						const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string; _meta?: Record<string, unknown> };
 						if (!action.confirmed) {
 							context.client.dispatch({
 								channel: envelope.channel,
 								clientSeq: ++approvalSeq,
 								action: {
 									type: ActionType.ChatToolCallConfirmed,
+									_meta: withToolConfirmationId({}, readToolConfirmationId(action))._meta,
 									turnId: action.turnId,
 									toolCallId: action.toolCallId, approved: true,
 									confirmed: ToolCallConfirmationReason.UserAction,

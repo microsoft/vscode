@@ -22,6 +22,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { hasToolConfirmationId, readToolConfirmationId, withToolConfirmationId } from '../common/meta/agentToolConfirmationMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -31,7 +32,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatToolCallCompleteAction, type ChatToolCallConfirmedAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
 	createErrorResponsePart,
@@ -192,6 +193,10 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
+	private readonly _toolCallPermissionRequests = new Map<string, {
+		readonly turnId: string;
+		readonly request: NonNullable<IAgentToolPendingConfirmationSignal['permissionRequest']>;
+	}>();
 	/** Managed confirmations are human-only and must never seed host-side session permissions. */
 	private readonly _managedApprovalToolCalls = new Set<string>();
 	private readonly _resumedTurnExecutions = new Map<string, IResumedTurnExecution>();
@@ -633,7 +638,7 @@ export class AgentSideEffects extends Disposable {
 				} else {
 					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
 					if (signal.kind === 'pending_confirmation') {
-						agent.respondToPermissionRequest(signal.state.toolCallId, false);
+						this._respondToPermissionRequest(signal, agent, false);
 					}
 				}
 				return;
@@ -642,7 +647,7 @@ export class AgentSideEffects extends Disposable {
 			const pendingSignals = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
 			if (signal.kind === 'pending_confirmation' && !pendingSignals) {
 				this._logService.error(`[AgentSideEffects] Denying permission for unroutable subagent ${sessionKey}/${parentToolCallId}: toolCallId=${signal.state.toolCallId}`);
-				agent.respondToPermissionRequest(signal.state.toolCallId, false);
+				this._respondToPermissionRequest(signal, agent, false);
 				return;
 			}
 
@@ -864,6 +869,11 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatToolCallComplete) {
+			const key = `${sessionKey}:${action.toolCallId}`;
+			const permission = this._toolCallPermissionRequests.get(key);
+			if (permission && !permission.request.isPending()) {
+				this._toolCallPermissionRequests.delete(key);
+			}
 			this._turnTracker.toolCallEnded(sessionKey, turnId, action.toolCallId);
 
 			// Emit `languageModelToolInvoked` telemetry for the completed tool
@@ -1210,6 +1220,11 @@ export class AgentSideEffects extends Disposable {
 	 * channel they describe.
 	 */
 	clearChannelTelemetry(channel: ProtocolURI): void {
+		for (const key of this._toolCallPermissionRequests.keys()) {
+			if (key.startsWith(`${channel}:`)) {
+				this._toolCallPermissionRequests.delete(key);
+			}
+		}
 		this._toolCallTracker.clearSession(channel);
 		this._turnTracker.clearSession(channel);
 		const prefix = `${channel}\0`;
@@ -1282,6 +1297,18 @@ export class AgentSideEffects extends Disposable {
 
 	// ---- Side-effect handlers --------------------------------------------------
 
+	private _respondToPermissionRequest(signal: IAgentToolPendingConfirmationSignal, agent: IAgent, approved: boolean): boolean | undefined {
+		if (signal.permissionRequest) {
+			const responded = signal.permissionRequest.respond(approved);
+			if (!responded) {
+				this._logService.trace(`[AgentSideEffects] Dropping stale permission decision for ${signal.state.toolCallId}`);
+			}
+			return responded;
+		}
+		agent.respondToPermissionRequest(signal.state.toolCallId, approved);
+		return undefined;
+	}
+
 	/**
 	 * Handles a `pending_confirmation` signal end-to-end: checks for
 	 * auto-approval via the permission manager, and if not auto-approved,
@@ -1306,6 +1333,10 @@ export class AgentSideEffects extends Disposable {
 		const autoApproval = e.managedApprovalRequired || forbiddenSnapshotWrite
 			? undefined
 			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+		if (e.permissionRequest && !e.permissionRequest.isPending()) {
+			this._logService.trace(`[AgentSideEffects] Dropping superseded permission request for ${e.state.toolCallId}`);
+			return;
+		}
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 		if (toolCall
@@ -1328,44 +1359,109 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn(`[AgentSideEffects] Denying write to read-only attachment snapshot: toolCallId=${e.state.toolCallId}`);
 			this._toolCallAgents.delete(toolCallKey);
 			this._managedApprovalToolCalls.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, false);
+			this._respondToPermissionRequest(e, agent, false);
 			return;
+		}
+		const clientShouldAutoApprove = autoApproval !== undefined
+			&& contributor?.kind === ToolCallContributorKind.Client
+			&& !!e.state.confirmationTitle;
+		const hostShouldAutoApprove = autoApproval !== undefined && !clientShouldAutoApprove;
+		if (clientShouldAutoApprove) {
+			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
+		} else if (autoApproval !== undefined) {
+			// Strip confirmationTitle so createToolReadyAction emits the
+			// auto-approved (no-options) action.
+			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
+		}
+		if (autoApproval === undefined && !e.managedApprovalRequired && this._permissionManager.isAutoApproveRuleResolvable(approvalEvent, sessionKey)) {
+			// Mark confirmations where a persistent allow rule can suppress the next equivalent prompt.
+			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRuleResolvable: true }) } } };
+		}
+		const readyAction = withToolConfirmationId(this._permissionManager.createToolReadyAction(effective, sessionKey, turnId), e.permissionRequest?.id);
+		if (e.permissionRequest && !e.permissionRequest.onWillPublish()) {
+			this._logService.trace(`[AgentSideEffects] Dropping superseded permission publication for ${e.state.toolCallId}`);
+			return;
+		}
+		if (e.permissionRequest) {
+			this._toolCallPermissionRequests.set(toolCallKey, { turnId, request: e.permissionRequest });
 		}
 		if (e.managedApprovalRequired) {
 			this._managedApprovalToolCalls.add(toolCallKey);
 		} else {
 			this._managedApprovalToolCalls.delete(toolCallKey);
 		}
-		const clientShouldAutoApprove = autoApproval !== undefined
-			&& contributor?.kind === ToolCallContributorKind.Client
-			&& !!e.state.confirmationTitle;
-		if (clientShouldAutoApprove) {
-			this._toolCallAgents.set(toolCallKey, agent.id);
-			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
-		} else if (autoApproval !== undefined) {
+		if (hostShouldAutoApprove) {
 			this._toolCallAgents.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, true);
-			// Strip confirmationTitle so createToolReadyAction emits the
-			// auto-approved (no-options) action.
-			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
-		} else if (effective.state.confirmationTitle) {
-			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
+		} else if (clientShouldAutoApprove || effective.state.confirmationTitle) {
 			this._toolCallAgents.set(toolCallKey, agent.id);
 		}
-		if (autoApproval === undefined && !e.managedApprovalRequired && this._permissionManager.isAutoApproveRuleResolvable(approvalEvent, sessionKey)) {
-			// Mark confirmations where a persistent allow rule can suppress the next equivalent prompt.
-			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRuleResolvable: true }) } } };
-		}
-		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
 		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
 		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);
 		if (readyAction.confirmed) {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
 		}
+		if (hostShouldAutoApprove && this._respondToPermissionRequest(e, agent, true) === false) {
+			return;
+		}
 		this._stateManager.dispatchServerAction(sessionKey, readyAction);
 		// This action is synthesized here rather than routed through
 		// `_dispatchActionForSession`, so feed the hang watchdog explicitly.
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
+	}
+
+	/** Validates without side effects and captures the exact request before the client action is reduced. */
+	prepareToolCallConfirmation(channel: ProtocolURI, action: ChatToolCallConfirmedAction): () => void {
+		const key = `${channel}:${action.toolCallId}`;
+		const scoped = this._toolCallPermissionRequests.get(key);
+		const turn = this._stateManager.getChatState(channel)?.activeTurn;
+		const part = turn?.responseParts.find(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === action.toolCallId);
+		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		if (scoped || hasToolConfirmationId(action) || (toolCall && hasToolConfirmationId(toolCall))) {
+			if (!scoped || turn?.id !== action.turnId || scoped.turnId !== action.turnId || scoped.request.id !== readToolConfirmationId(action) || !scoped.request.isPending()
+				|| !toolCall || (toolCall.status !== ToolCallStatus.PendingConfirmation && toolCall.status !== ToolCallStatus.Running)) {
+				throw new Error('The tool confirmation is missing, stale, or no longer pending.');
+			}
+		}
+		const request = scoped?.request;
+		return () => {
+			if (request && !request.isPending()) {
+				this._logService.trace(`[AgentSideEffects] Dropping invalidated confirmation for ${action.toolCallId}`);
+				return;
+			}
+			this._handleToolCallConfirmed(channel, action, request);
+		};
+	}
+
+	private _handleToolCallConfirmed(channel: ProtocolURI, action: ChatToolCallConfirmedAction, request: IAgentToolPendingConfirmationSignal['permissionRequest']): void {
+		if (!isAhpChatChannel(channel)) {
+			throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
+		}
+		const toolCallKey = `${channel}:${action.toolCallId}`;
+		if (action.approved) {
+			this._toolCallTracker.toolCallExecutionStarted(channel, action.toolCallId);
+		} else {
+			this._turnTracker.toolCallEnded(channel, action.turnId, action.toolCallId);
+		}
+		const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
+		const agentId = this._toolCallAgents.get(toolCallKey);
+		if (request) {
+			this._toolCallAgents.delete(toolCallKey);
+			if (!request.respond(action.approved)) {
+				this._logService.warn(`[AgentSideEffects] Permission request was invalidated before its decision: ${action.toolCallId}`);
+			}
+			if (this._toolCallPermissionRequests.get(toolCallKey)?.request === request) {
+				this._toolCallPermissionRequests.delete(toolCallKey);
+			}
+		} else if (agentId) {
+			this._toolCallAgents.delete(toolCallKey);
+			this._options.agents.get().find(agent => agent.id === agentId)?.respondToPermissionRequest(action.toolCallId, action.approved);
+		} else {
+			this._logService.warn(`[AgentSideEffects] No agent for tool call confirmation: ${action.toolCallId}`);
+		}
+		if (action.approved && !managedApprovalRequired) {
+			this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
+		}
 	}
 
 	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false): void {
@@ -1443,35 +1539,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.ChatToolCallConfirmed: {
-				if (!chatChannel) {
-					throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
-				}
-				const toolCallKey = `${channel}:${action.toolCallId}`;
-				if (action.approved) {
-					this._toolCallTracker.toolCallExecutionStarted(channel, action.toolCallId);
-				} else {
-					// A denial is terminal: the reducer moves the call to
-					// `cancelled` and ignores any later completion for it, so
-					// this is the last chance to drop it from the turn's
-					// in-flight set. Leaving it would make a subsequent hang
-					// report `runningTool` for a tool that will never run.
-					this._turnTracker.toolCallEnded(channel, action.turnId, action.toolCallId);
-				}
-				const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
-				const agentId = this._toolCallAgents.get(toolCallKey);
-				if (agentId) {
-					this._toolCallAgents.delete(toolCallKey);
-					const agent = this._options.agents.get().find(a => a.id === agentId);
-					agent?.respondToPermissionRequest(action.toolCallId, action.approved);
-				} else {
-					this._logService.warn(`[AgentSideEffects] No agent for tool call confirmation: ${action.toolCallId}`);
-				}
-
-				// When the user chose "Allow in this Session", add the tool
-				// to the session's permissions so future calls are auto-approved.
-				if (action.approved && !managedApprovalRequired) {
-					this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
-				}
+				this.prepareToolCallConfirmation(channel, action)();
 				break;
 			}
 			case ActionType.ChatInputCompleted: {
@@ -1887,6 +1955,7 @@ export class AgentSideEffects extends Disposable {
 
 	override dispose(): void {
 		this._toolCallAgents.clear();
+		this._toolCallPermissionRequests.clear();
 		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();
 		this._inputRequestTracker.clear();

@@ -36,6 +36,7 @@ import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationI
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../../../platform/agentHost/common/meta/agentToolConfirmationMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -3259,13 +3260,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		cancellationToken: CancellationToken,
 		getProtocolOptions: () => ConfirmationOption[] | undefined,
 		chatURI?: string,
+		confirmationId?: string,
+		isCurrent: () => boolean = () => true,
 	): void {
+		const capturedOptions = confirmationId === undefined ? undefined : getProtocolOptions();
 		IChatToolInvocation.awaitConfirmation(invocation, cancellationToken).then(reason => {
+			if (!isCurrent()) {
+				this._logService.trace(`[AgentHost] Ignoring superseded tool confirmation: toolCallId=${toolCallId}`);
+				return;
+			}
 			// When the user picked a custom button, resolve the matching
 			// protocol option so we can forward `selectedOptionId` and
 			// derive approve/deny from the option's kind.
 			let selectedOption: ConfirmationOption | undefined;
-			const protocolOptions = getProtocolOptions();
+			const protocolOptions = confirmationId === undefined ? getProtocolOptions() : capturedOptions;
 			if (reason.type === ToolConfirmKind.UserAction && reason.selectedButton && protocolOptions) {
 				selectedOption = protocolOptions.find(o => o.id === reason.selectedButton);
 			}
@@ -3276,7 +3284,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			const target = this._requireChatURI(chatURI, ActionType.ChatToolCallConfirmed);
-			this._resolveToolCall(target, turnId, toolCallId, approved
+			this._resolveToolCall(target, turnId, toolCallId, withToolConfirmationId(approved
 				? {
 					type: ActionType.ChatToolCallConfirmed,
 					turnId,
@@ -3292,7 +3300,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					approved: false,
 					reason: ToolCallCancellationReason.Denied,
 					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
-				});
+				}, confirmationId));
 		}).catch(err => {
 			this._logService.warn(`[AgentHost] Tool confirmation failed for toolCallId=${toolCallId}`, err);
 		});
@@ -3996,7 +4004,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * outcomes, so each is tracked separately.
 	 */
 	private _resolveToolCall(chatURI: string, turnId: string, toolCallId: string, action: ClientChatAction): void {
-		const key = `${this._toolCallKey(chatURI, turnId, toolCallId)}\0${action.type}`;
+		const confirmationId = action.type === ActionType.ChatToolCallConfirmed ? readToolConfirmationId(action) : undefined;
+		const key = `${this._toolCallKey(chatURI, turnId, toolCallId)}\0${action.type}\0${confirmationId ?? ''}`;
 		if (this._resolvedToolCalls.has(key)) {
 			this._logService.trace(`[AgentHost] Tool call outcome was already dispatched: ${toolCallId} (${action.type})`);
 			return;
@@ -4066,6 +4075,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						approved: false,
 						reason: ToolCallCancellationReason.Skipped,
 						reasonMessage,
+						...withToolConfirmationId({}, readToolConfirmationId(toolCall)),
 					}
 					: {
 						type: ActionType.ChatToolCallComplete,
@@ -4127,7 +4137,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Hook up a tool first observed after it already entered confirmation.
 		if (initial.status === ToolCallStatus.PendingConfirmation && !IChatToolInvocation.isComplete(invocation)) {
-			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI);
+			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI, readToolConfirmationId(initial),
+				() => readToolConfirmationId(initial) === readToolConfirmationId(part$.read(undefined).toolCall));
 		}
 		this._trackSubagentToolCall(initial, invocation, opts, subagentContext);
 		const outputTerminalAttachment: IOutputTerminalAttachment = {
@@ -4136,6 +4147,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Reuse the invocation whenever a tool enters confirmation to avoid duplicate cards.
 		let previousStatus: ToolCallStatus | undefined = initial.status;
+		let previousConfirmationId = readToolConfirmationId(initial);
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const status = tc.status;
@@ -4144,8 +4156,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				confirmationOptions = tc.options;
 			}
 			const enteringConfirmation = status === ToolCallStatus.PendingConfirmation
-				&& previousStatus !== ToolCallStatus.PendingConfirmation;
+				&& (previousStatus !== ToolCallStatus.PendingConfirmation || readToolConfirmationId(tc) !== previousConfirmationId);
+			const newConfirmation = readToolConfirmationId(tc) !== previousConfirmationId && readToolConfirmationId(tc) !== undefined;
 			previousStatus = status;
+			previousConfirmationId = readToolConfirmationId(tc);
 
 			if (status === ToolCallStatus.Streaming) {
 				updateStreamingToolInvocation(invocation, tc, this._config.connectionAuthority);
@@ -4153,10 +4167,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// A re-ask is a fresh obligation, so a previous answer must not
 				// suppress this one.
 				this._forgetResolvedToolCall(this._toolCallKey(opts.chatURI, opts.turnId, toolCallId));
-				if (!IChatToolInvocation.isComplete(invocation)) {
+				if (newConfirmation || !IChatToolInvocation.isComplete(invocation)) {
 					const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris);
-					invocation.requestConfirmation(prepared);
-					this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI);
+					invocation.requestConfirmation(prepared, newConfirmation);
+					this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI, readToolConfirmationId(tc),
+						() => readToolConfirmationId(tc) === readToolConfirmationId(part$.read(undefined).toolCall));
 				}
 			} else if (status === ToolCallStatus.PendingConfirmation) {
 				// The protocol can refresh a pending tool's command without an
@@ -4451,12 +4466,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._trackSubagentToolCall(initial, invocation, opts, subagentContext);
 
 		let confirmationDispatched = false;
+		let confirmationId = readToolConfirmationId(initial);
 
 		// Drive `ChatToolCallConfirmed` from the invocation's confirmation
 		// gate. The watcher's `invokeTool` transitions the shared invocation;
 		// this reports the outcome to the protocol. The autorun runs
 		// synchronously many times; the guard keeps it idempotent.
 		store.add(autorun(reader => {
+			const protocolToolCall = part$.read(reader).toolCall;
+			const nextConfirmationId = readToolConfirmationId(protocolToolCall);
+			if (nextConfirmationId !== undefined && nextConfirmationId !== confirmationId) {
+				confirmationId = nextConfirmationId;
+				confirmationDispatched = false;
+				if (protocolToolCall.status === ToolCallStatus.PendingConfirmation) {
+					const prepared = toolCallStateToPreparedInvocation(protocolToolCall, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris);
+					invocation.requestConfirmation(prepared, true);
+				}
+			}
 			const state = invocation.state.read(reader);
 			if (confirmationDispatched) {
 				return;
@@ -4466,7 +4492,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const selectedOptionId = state.confirmed.type === ToolConfirmKind.UserAction ? state.confirmed.selectedButton : undefined;
 				const approved = state.confirmed.type !== ToolConfirmKind.UserAction
 					|| state.confirmed.selectedButtonKind !== ConfirmationOptionKind.Deny;
-				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, approved
+				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, withToolConfirmationId(approved
 					? {
 						type: ActionType.ChatToolCallConfirmed,
 						turnId: opts.turnId,
@@ -4482,7 +4508,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						approved: false,
 						reason: ToolCallCancellationReason.Denied,
 						...(selectedOptionId ? { selectedOptionId } : {}),
-					});
+					}, confirmationId));
 			} else if (state.type === IChatToolInvocation.StateKind.Cancelled) {
 				// Pre-execution cancellation (a denied confirmation). If the
 				// protocol call already reached a terminal state the server
@@ -4492,13 +4518,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (status === ToolCallStatus.Cancelled || status === ToolCallStatus.Completed) {
 					return;
 				}
-				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, {
+				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, withToolConfirmationId({
 					type: ActionType.ChatToolCallConfirmed,
 					turnId: opts.turnId,
 					toolCallId,
 					approved: false,
 					reason: ToolCallCancellationReason.Denied,
-				});
+				}, confirmationId));
 			}
 		}));
 
