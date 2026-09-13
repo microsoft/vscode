@@ -16,8 +16,9 @@ import { NoModelRequests, readCanvasFixtureAudit, waitFor } from './copilotCanva
 
 const extensionName = 'local-canvas-fixture';
 const extensionId = `user:${extensionName}`;
-const sdkPath = dirname(fileURLToPath(import.meta.resolve('@github/copilot-sdk')));
-const cliPath = join(dirname(createRequire(import.meta.url).resolve('@github/copilot/package.json')), 'npm-loader.js');
+const nodeRequire = createRequire(import.meta.url);
+const sdkPath = dirname(nodeRequire.resolve('@github/copilot-sdk'));
+const cliPath = join(dirname(nodeRequire.resolve('@github/copilot/package.json')), 'npm-loader.js');
 const canvasTools = ['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action'];
 
 type CanvasInstance = Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
@@ -802,7 +803,7 @@ suite('Agent Host Provider Integration - Copilot Local Custom Canvases', functio
 				closeCount: 1,
 			});
 			assert.deepStrictEqual(await client.stop(), []);
-			await assert.rejects(() => fetch(fixtureUrl(second, '/health'), { signal: AbortSignal.timeout(2000) }), /fetch failed/);
+			await assert.rejects(() => fetch(fixtureUrl(second, '/health'), { signal: AbortSignal.timeout(2000) }), /fetch failed|Failed to fetch/);
 			const restoredClient = await fixture.start();
 			const restoreCursor = fixture.events.length;
 			const restored = await restoredClient.resumeSession(session.sessionId, fixture.config());

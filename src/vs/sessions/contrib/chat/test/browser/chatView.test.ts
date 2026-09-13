@@ -1731,6 +1731,7 @@ suite('Sessions - Chat View', () => {
 				_interactiveDisposable: lifetime.add(new MutableDisposable()),
 				_currentChatResourceObs: observableValue<URI | undefined>(lifetime, undefined),
 				_currentSessionObs: observableValue<ISession | undefined>(lifetime, undefined),
+				_isPrimaryObs: constObservable(true),
 				hasVisibleTranscriptContent: observableValue(lifetime, false),
 				isLoadingTranscript: observableValue(lifetime, false),
 				_externalSessionBanner: { setSession: () => { } },
