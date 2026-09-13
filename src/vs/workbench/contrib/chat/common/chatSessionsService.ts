@@ -17,9 +17,10 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
-import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
+import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
 export const enum ChatSessionsExtensions {
@@ -165,6 +166,11 @@ export interface IChatSessionsExtensionPoint {
 	readonly inputPlaceholder?: string;
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
+	/**
+	 * Chat surfaces where this session type's agent can be selected.
+	 * Defaults to the primary Chat surface.
+	 */
+	readonly locations?: ChatAgentLocation[];
 	readonly canDelegate?: boolean;
 	readonly isReadOnly?: boolean;
 	/**
@@ -212,7 +218,7 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly onDidChangeRequiresCopilotSignIn?: Event<void>;
 	/**
-	 * When false, the delegation picker is hidden for this session type.
+	 * Whether this session type can delegate to another session.
 	 * Defaults to true.
 	 */
 	readonly supportsDelegation?: boolean;
@@ -306,7 +312,10 @@ export type IChatSessionHistoryItem = {
 	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
+	/** The feature that submitted this request on the user's behalf. */
+	requestSource?: ChatRequestSource;
 	isHidden?: boolean;
+	isRequestHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
 	origin?: IChatRequestOrigin;
@@ -336,9 +345,14 @@ export interface IChatSessionServerRequest {
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
+	/** The feature that submitted this request on the user's behalf. */
+	readonly requestSource?: ChatRequestSource;
 	readonly isHidden?: boolean;
+	readonly isRequestHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	/** Reopen the existing request with this id instead of adding another request. */
+	readonly resume?: boolean;
 	readonly origin?: IChatRequestOrigin;
 }
 
@@ -392,6 +406,10 @@ export function isRemoteAgentHostTarget(target: string): boolean {
  */
 export function isAgentHostTarget(target: string): boolean {
 	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
+}
+
+export function isAgentHostSessionResource(resource: URI): boolean {
+	return isAgentHostTarget(resource.scheme);
 }
 
 /**
@@ -458,6 +476,9 @@ export interface IChatSession extends IDisposable {
 
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+
+	/** Updates provider-owned metadata for a session. */
+	updateChatSessionMetadata?(sessionResource: URI, metadata: Record<string, unknown>): void;
 
 	/** Resolves a parsed response Markdown URI before it is sanitized and rendered. */
 	resolveChatResponseUri?(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
@@ -547,6 +568,7 @@ export interface IChatInputCompletionResourceAttachment {
 export interface IChatInputCompletionCommandAttachment {
 	readonly kind: 'command';
 	readonly command: string;
+	readonly isSkill?: true;
 	readonly description: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
@@ -619,6 +641,12 @@ export interface IChatNewSessionRequest {
 	readonly command?: string;
 
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+	/** VS Code-specific metadata forwarded to Agent Host session creation. */
+	readonly _meta?: Record<string, unknown>;
+	/**
+	 * Marks this session as a throwaway UI surface that must not be retained or listed.
+	 */
+	readonly isEphemeral?: boolean;
 
 	/**
 	 * The chat-input session resource the user was typing into when this
@@ -633,6 +661,7 @@ export interface IChatNewSessionRequest {
 
 export interface IChatSessionItemsDelta {
 	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	/** Sessions no longer provided by the controller. Retained content is disposed and pending resolutions are cancelled. */
 	readonly removed?: readonly URI[];
 }
 
@@ -645,6 +674,11 @@ export interface IChatSessionItemController {
 	refresh(token: CancellationToken): Promise<void>;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Notifies the controller that a locally-created session now exists on its backend.
+	 */
+	notifySessionMaterialized?(resource: URI): void;
 
 	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
@@ -845,6 +879,7 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+	updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): boolean;
 	/** Resolves a parsed response Markdown URI through its session content provider. */
 	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
@@ -959,6 +994,11 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Notifies the registered controller that a locally-created session now exists on its backend.
+	 */
+	notifySessionMaterialized?(sessionResource: URI): void;
 
 	/**
 	 * Permanently deletes a chat session item by delegating to the registered controller's `deleteChatSessionItem`

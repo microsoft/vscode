@@ -109,7 +109,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	/**
 	 * Reveal the session if already open, otherwise open it.
 	 */
-	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
 		const t0 = Date.now();
@@ -131,7 +131,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		if (target === ChatViewPaneTarget || typeof target === 'undefined') {
 			const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 			if (chatView) {
-				await chatView.loadSession(sessionResource);
+				await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason);
 				if (!options?.preserveFocus) {
 					chatView.focusInput();
 				}

@@ -11,11 +11,22 @@
 // to reach an agent host over one transport; it does not define a new kind of agent host.
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
+
+/**
+ * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
+ * remote-agent-host relay, so it needs that setting too.
+ */
+export function isCloudSandboxEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(CloudSandboxEnabledSettingId) === true
+		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
+}
 
 /** Prefix for the synthesized display address of a cloud sandbox connection. */
 export const CLOUD_SANDBOX_ADDRESS_PREFIX = 'cloudsandbox:';
@@ -54,8 +65,36 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
  * not overlap. Sandbox tasks are expected to move under one of those slugs eventually, at which
  * point both providers would list the same task and the sessions list would show it twice — the
  * setting keeps that from reaching everyone before the overlap is resolved.
+ *
+ * That migration also breaks discovery, which requires this slug *and* the `sandboxes` compute
+ * provider to recognize a task. Both must be resolved before the setting is enabled by default.
  */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
+
+/**
+ * Sentinel environment id asking Mission Control to provision a fresh sandbox VM. Never a real
+ * environment: the concrete id comes back on the created session and everything must address that
+ * one — see {@link ICloudSandboxCreatedSession.environmentId}.
+ */
+export const CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID = 'github-sandbox';
+
+/** What to provision a sandbox session for. */
+export interface ICloudSandboxCreateSessionRequest {
+	/** Repository to bind the sandbox to, as `owner/name`. Omitted for a repo-less sandbox. */
+	readonly repoNwo?: string;
+	/** First user turn. Mission Control starts no run, so the client sends it over the relay. */
+	readonly prompt: string;
+}
+
+/** A freshly provisioned sandbox task/session pair, bound to a concrete environment. */
+export interface ICloudSandboxCreatedSession {
+	/** Mission Control task id owning the session; the key its persisted AHP history is under. */
+	readonly taskId: string;
+	/** Session id, issued as `ahp-session:/<sessionId>` and listed back by the host under that id. */
+	readonly sessionId: string;
+	/** The sandbox VM Mission Control bound, never {@link CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID}. */
+	readonly environmentId: string;
+}
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
 export interface ICloudSandboxDiscoveredSession {
@@ -219,10 +258,14 @@ export interface ICloudSandboxApiService {
 	listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult>;
 
 	/**
-	 * Read a task's persisted AHP history and fold it back into session and chat state.
-	 *
-	 * Mission Control mirrors every `ActionEnvelope` it relays, so this rebuilds the conversation
-	 * **without the sandbox**. `undefined` when the task has no AHP history.
+	 * Provision a new sandbox task and its bound session. Mission Control starts no run, so the
+	 * caller sends {@link ICloudSandboxCreateSessionRequest.prompt} over the relay itself.
+	 */
+	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession>;
+
+	/**
+	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
+	 * Mission Control's mirror, so it works without the sandbox. `undefined` when there is none.
 	 */
 	getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined>;
 }

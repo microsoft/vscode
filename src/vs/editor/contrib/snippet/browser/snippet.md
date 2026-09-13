@@ -122,7 +122,7 @@ variable    ::= '$' var | '${' var }'
                 | '${' var transform '}'
 transform   ::= '/' regex '/' (format | text)+ '/' options
 format      ::= '$' int | '${' int '}'
-                | '${' int ':' '/upcase' | '/downcase' | '/capitalize' | '/camelcase' | '/pascalcase' | '/kebabcase' | '/snakecase' '}'
+                | '${' int ':' ('/upcase' | '/downcase' | '/capitalize' | '/camelcase' | '/pascalcase' | '/kebabcase' | '/snakecase') '}'
                 | '${' int ':+' if '}'
                 | '${' int ':?' if ':' else '}'
                 | '${' int ':-' else '}' | '${' int ':' else '}'

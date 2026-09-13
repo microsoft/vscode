@@ -38,6 +38,7 @@ export type LinkPresentationKind =
 	| 'file'
 	| 'folder'
 	| 'session'
+	| 'chat'
 	| 'repository'
 	| 'branch';
 
@@ -123,6 +124,7 @@ function isLinkPresentationKind(value: unknown): value is LinkPresentationKind {
 		|| value === 'file'
 		|| value === 'folder'
 		|| value === 'session'
+		|| value === 'chat'
 		|| value === 'repository'
 		|| value === 'branch';
 }
@@ -155,14 +157,14 @@ export interface ILinkPresentationProvider {
 export interface ILinkPresentationProviderRegistration {
 	readonly id: string;
 	readonly uriPattern: RegExp;
-	readonly initialKind: LinkPresentationKind;
+	readonly kind: LinkPresentationKind;
 	readonly enablement?: string;
 }
 
 export interface ILinkPresentationRule {
 	readonly id: string;
 	readonly uriPattern: RegExp;
-	readonly initialKind: LinkPresentationKind;
+	readonly kind: LinkPresentationKind;
 }
 
 export interface ILinkPresentationService {

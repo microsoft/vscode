@@ -63,11 +63,9 @@ type QuickInputOverlayLayoutCorrection = {
 	readonly width: number;
 };
 
-export function getQuickInputWidth(availableWidth: number): number {
-	return Math.min(availableWidth * 0.62, 600);
-}
-
 export class QuickInputController extends Disposable {
+	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
+
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
@@ -776,6 +774,7 @@ export class QuickInputController extends Disposable {
 
 	private setVisibilities(visibilities: Visibilities) {
 		const ui = this.getUI();
+		ui.titleBar.style.display = visibilities.title ? '' : 'none';
 		ui.title.style.display = visibilities.title ? '' : 'none';
 		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
@@ -944,7 +943,7 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			let width = getQuickInputWidth(this.dimension!.width);
+			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
 			let listHeight = this.dimension && this.dimension.height * 0.4;

@@ -76,6 +76,13 @@ const copilotTgrepPlatforms = [
 
 const mxcArchitectures = ['x64', 'arm64'];
 
+const copilotOutOfProcessRuntimeExecutables = [
+	'copilot-runtime',
+	'copilot-runtime-bin',
+	'copilot-runtime.exe',
+	'copilot-runtime-bin.exe',
+];
+
 function toCopilotTgrepPlatformArch(platform: string, arch: string): string {
 	if (platform === 'alpine') {
 		return `linuxmusl-${arch}`;
@@ -191,6 +198,7 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 		...excludes,
 		'!**/node_modules/@github/copilot-*/copilot',
 		'!**/node_modules/@github/copilot-*/copilot.exe',
+		...copilotOutOfProcessRuntimeExecutables.map(executable => `!**/node_modules/@github/copilot-*/prebuilds/*/${executable}`),
 	];
 }
 
@@ -211,6 +219,7 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 		path.posix.join(copilotPlatformPackageDir, '**'),
 		`!${path.posix.join(copilotPlatformPackageDir, 'copilot')}`,
 		`!${path.posix.join(copilotPlatformPackageDir, 'copilot.exe')}`,
+		...copilotOutOfProcessRuntimeExecutables.map(executable => `!${path.posix.join(copilotPlatformPackageDir, 'prebuilds', '*', executable)}`),
 		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotPlatformPackageDir, dir, '**')}`),
 		...getCopilotOptionalNativePayloadFiles(platform).map(file => `!${path.posix.join(copilotPlatformPackageDir, file)}`),
 	];
@@ -316,6 +325,10 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
 		// Built-in materialization copies the whole prebuilds tree (not the gulp
 		// exclude globs above), so drop mediaremote-adapter explicitly afterward.
 		fs.rmSync(path.join(sdkPrebuildsTarget, 'mediaremote-adapter'), { recursive: true, force: true });
+		// The out-of-process runtime wrappers are not used by the built-in extension.
+		for (const executable of copilotOutOfProcessRuntimeExecutables) {
+			fs.rmSync(path.join(sdkPrebuildsTarget, executable), { force: true });
+		}
 
 		if (!copilotTgrepPlatforms.includes(tgrepPlatformArch)) {
 			return;

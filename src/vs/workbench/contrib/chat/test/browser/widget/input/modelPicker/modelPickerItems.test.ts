@@ -208,6 +208,36 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(provider.getWidgetRole(), 'menu');
 	});
 
+	test('search uses listbox options and announces the current model without menu check state', () => {
+		const provider = getModelPickerAccessibilityProvider(true);
+		const item: IActionListItem<IActionWidgetDropdownAction> = {
+			kind: ActionListItemKind.Action,
+			label: 'Test Model',
+			item: {
+				id: 'test-model',
+				label: 'Test Model',
+				enabled: true,
+				checked: true,
+				class: undefined,
+				tooltip: '',
+				run: () => { },
+			},
+		};
+		assert.deepStrictEqual({
+			role: provider.getRole(item),
+			listRole: provider.getWidgetRole(),
+			checked: provider.isChecked(item),
+			label: provider.getAriaLabel(item),
+			separatorRole: provider.getRole({ kind: ActionListItemKind.Separator }),
+		}, {
+			role: 'option',
+			listRole: 'listbox',
+			checked: undefined,
+			label: 'Test Model, Current model',
+			separatorRole: 'separator',
+		});
+	});
+
 	test('accessibility provider announces the Restricted Mode Trust action as a plain menuitem (not a radio)', () => {
 		const provider = getModelPickerAccessibilityProvider();
 		const trust = getActionItems(callBuild([], { restrictedMode: true, onRequestTrust: () => { } })).find(a => a.item?.id === 'restrictedModeTrust')!;
@@ -242,6 +272,29 @@ suite('buildModelPickerItems', () => {
 			description: 'Copilot',
 			ariaDescription: 'Medium cost',
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
+	});
+
+	test('accessibility provider announces hover notices with their severity', () => {
+		const model = createModel('gpt-4.1', 'GPT-4.1');
+		model.metadata = {
+			...model.metadata,
+			priceCategory: 'medium',
+			warningText: { data_retention: 'Prompts are **retained** for 30 days.' },
+			infoText: { model_relocated: 'Now serves from a [new region](https://aka.ms/region).' },
+		} as ILanguageModelChatMetadata;
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([model])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(
+			provider.getAriaLabel(item),
+			'GPT-4.1, Medium cost, Warning: Prompts are retained for 30 days., Info: Now serves from a new region.');
+	});
+
+	test('accessibility provider leaves models without notices unchanged', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([createModel('gpt-4.1', 'GPT-4.1')])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(provider.getAriaLabel(item), 'GPT-4.1');
 	});
 
 	test('auto model always appears first', () => {

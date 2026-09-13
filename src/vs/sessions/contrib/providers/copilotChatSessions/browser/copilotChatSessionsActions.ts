@@ -5,28 +5,28 @@
 
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BranchPicker } from './branchPicker.js';
-import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-import { ModePicker, ModePickerModel } from './modePicker.js';
+import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType } from './copilotChatSessionsProvider.js';
+import { ModePicker, ScopedModePickerModelCache } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { SandboxPicker } from './sandboxPicker.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
+const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(ContextKeyExpr.equals(SessionTypeContext.key, CopilotCloudSessionType.id), IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
@@ -41,6 +41,23 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCLI, SessionHasGitRepositoryContext),
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.defaultCopilot.sandboxPicker',
+			title: localize2('sandboxPicker', "Sandbox"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionRepositoryConfig,
+				group: 'navigation',
+				order: 3,
+				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled),
 			}],
 		});
 	}
@@ -117,24 +134,12 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
-		this._register(autorun(reader => {
-			const session = sessionsService.activeSession.read(reader);
-			if (session) {
-				const provider = sessionsProvidersService.getProvider(session.providerId);
-				if (provider instanceof CopilotChatSessionsProvider) {
-					const selectedModeId = session.mode.read(reader)?.id;
-					modePickerModel.setSession(session, selectedModeId);
-					return;
-				}
-			}
-			modePickerModel.setSession(undefined, undefined);
-		}));
+		const modePickerModels = this._register(new ScopedModePickerModelCache(session =>
+			sessionsProvidersService.getProvider(session.providerId) instanceof CopilotChatSessionsProvider
+		));
 
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
@@ -145,11 +150,20 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 			},
 		));
 		this._register(actionViewItemService.register(
+			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.sandboxPicker',
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const picker = scopedInstantiationService.createInstance(SandboxPicker, session);
+				return new PickerActionViewItem(picker);
+			},
+		));
+		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 				const disposableStore = new DisposableStore();
+				const modePickerModel = disposableStore.add(modePickerModels.acquire(session, scopedInstantiationService));
+				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel.model, session);
 				disposableStore.add(picker.onDidSelect(mode => {
 					const scopedSession = session.get();
 					if (!scopedSession) {

@@ -20,7 +20,7 @@ import { getShellIntegrationInjection } from '../../terminal/node/terminalEnviro
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
-import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
+import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -130,7 +130,6 @@ export interface IAgentHostTerminalManager {
 	getContent(uri: string): string | undefined;
 	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
-	getExitCode(uri: string): number | undefined;
 	supportsCommandDetection(uri: string): boolean;
 	disposeTerminal(uri: string): void;
 	getTerminalInfos(): TerminalInfo[];
@@ -178,7 +177,7 @@ interface IManagedTerminal {
 	content: TerminalContentPart[];
 	contentSize: number;
 	claim: TerminalClaim;
-	exitCode?: number;
+	lifecycle: TerminalState['lifecycle'];
 	commandTracker?: ICommandTracker;
 	headlessTerminal?: AgentHostHeadlessTerminal;
 	terminalQueryFilterState: ITerminalQueryFilterState;
@@ -194,7 +193,7 @@ interface IOutputTerminal {
 	content: TerminalContentPart[];
 	contentSize: number;
 	claim: TerminalClaim;
-	exitCode?: number;
+	lifecycle: TerminalState['lifecycle'];
 }
 
 /**
@@ -252,7 +251,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			resource: t.uri,
 			title: t.title,
 			claim: t.claim,
-			exitCode: t.exitCode,
+			lifecycle: t.lifecycle,
 		}));
 	}
 
@@ -263,7 +262,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return {
 				title: outputTerminal.title,
 				content: outputTerminal.content,
-				exitCode: outputTerminal.exitCode,
+				lifecycle: outputTerminal.lifecycle,
 				claim: outputTerminal.claim,
 				isPty: false,
 			};
@@ -278,7 +277,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			cols: terminal.cols,
 			rows: terminal.rows,
 			content: terminal.content,
-			exitCode: terminal.exitCode,
+			lifecycle: terminal.lifecycle,
 			claim: terminal.claim,
 			supportsCommandDetection: terminal.commandTracker?.detectionAvailableEmitted,
 			isPty: true,
@@ -427,6 +426,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			content: [],
 			contentSize: 0,
 			claim,
+			lifecycle: { status: TerminalLifecycleStatus.Running },
 			commandTracker,
 			headlessTerminal,
 			terminalQueryFilterState: { pendingData: '' },
@@ -456,7 +456,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		store.add(toDisposable(() => dataListener.dispose()));
 
 		const exitListener = ptyProcess.onExit(e => {
-			managed.exitCode = e.exitCode;
+			managed.lifecycle = { status: TerminalLifecycleStatus.Exited, exitCode: e.exitCode };
 			managed.onExitEmitter.fire(e.exitCode);
 			onFirstData.complete();
 			this._stateManager.dispatchServerAction(uri, {
@@ -501,7 +501,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Send input data to a terminal's PTY process. */
 	writeInput(uri: string, data: string): void {
 		const terminal = this._terminals.get(uri);
-		if (terminal && terminal.exitCode === undefined) {
+		if (terminal?.lifecycle.status === TerminalLifecycleStatus.Running) {
 			terminal.pty.write(data);
 		}
 	}
@@ -586,15 +586,10 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		return terminal?.commandTracker?.detectionAvailableEmitted ?? false;
 	}
 
-	/** Get the exit code for a terminal, or undefined if still running. */
-	getExitCode(uri: string): number | undefined {
-		return this._terminals.get(uri)?.exitCode;
-	}
-
 	/** Resize a terminal. */
 	private _resize(uri: string, cols: number, rows: number): void {
 		const terminal = this._terminals.get(uri);
-		if (terminal && terminal.exitCode === undefined) {
+		if (terminal?.lifecycle.status === TerminalLifecycleStatus.Running) {
 			terminal.cols = cols;
 			terminal.rows = rows;
 			terminal.pty.resize(cols, rows);
@@ -849,6 +844,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			content: [],
 			contentSize: 0,
 			claim: options.claim,
+			lifecycle: { status: TerminalLifecycleStatus.Running },
 		});
 	}
 
@@ -882,16 +878,15 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Record the command's exit on an output-only terminal and notify subscribers. */
 	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void {
 		const terminal = this._outputTerminals.get(uri);
-		if (!terminal || terminal.exitCode !== undefined) {
+		if (!terminal || terminal.lifecycle.status === TerminalLifecycleStatus.Exited) {
 			return;
 		}
-		if (exitCode !== undefined) {
-			terminal.exitCode = exitCode;
-			this._stateManager.dispatchServerAction(uri, {
-				type: ActionType.TerminalExited,
-				exitCode,
-			});
-		}
+		terminal.lifecycle = exitCode === undefined
+			? { status: TerminalLifecycleStatus.Exited }
+			: { status: TerminalLifecycleStatus.Exited, exitCode };
+		this._stateManager.dispatchServerAction(uri, exitCode === undefined
+			? { type: ActionType.TerminalExited }
+			: { type: ActionType.TerminalExited, exitCode });
 	}
 
 	/** Dispose a terminal: kill the process and remove it. */

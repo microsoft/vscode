@@ -340,7 +340,8 @@ export class MobileMultiDiffView extends Disposable {
 			return;
 		}
 
-		const layout = this.computeCurrentVirtualLayout();
+		const viewportHeight = this.scrollWrapper.clientHeight;
+		const layout = this.computeCurrentVirtualLayout(viewportHeight);
 		this.currentLayout = layout;
 		this.virtualContent.style.height = `${layout.totalHeight}px`;
 
@@ -357,7 +358,7 @@ export class MobileMultiDiffView extends Disposable {
 		for (const item of layout.items) {
 			const state = this.fileStates[item.index];
 			const section = this.ensureFileSection(state);
-			this.applyVirtualLayout(section, state, item);
+			this.applyVirtualLayout(section, state, item, viewportHeight);
 			if (!this.mountedIndexes.has(item.index)) {
 				this.mountedIndexes.add(item.index);
 			}
@@ -375,18 +376,18 @@ export class MobileMultiDiffView extends Disposable {
 		}
 	}
 
-	private applyVirtualLayout(section: HTMLElement, state: IMobileMultiDiffFileState, item: IMobileMultiDiffVirtualItemLayout): void {
+	private applyVirtualLayout(section: HTMLElement, state: IMobileMultiDiffFileState, item: IMobileMultiDiffVirtualItemLayout, viewportHeight: number): void {
 		section.style.top = `${item.renderTop}px`;
 		section.style.height = `${item.renderHeight}px`;
 		const bodyOffset = Math.max(0, item.innerOffset - VIRTUALIZER_METRICS.fileHeaderHeight);
 		state.bodyScrollTop = bodyOffset;
-		state.bodyViewportHeight = Math.max(0, this.scrollWrapper.clientHeight - VIRTUALIZER_METRICS.fileHeaderHeight);
+		state.bodyViewportHeight = Math.max(0, viewportHeight - VIRTUALIZER_METRICS.fileHeaderHeight);
 		const content = state.content!;
 		content.classList.toggle('mobile-multi-diff-file-content-placeholder', state.loadState !== 'loaded');
 		if (state.loadState === 'loaded') {
 			content.style.height = '';
 			content.style.transform = '';
-			this.renderLoadedFileContent(state);
+			this.renderLoadedFileContent(state, viewportHeight);
 		} else {
 			const bodyHeight = Math.max(0, item.renderHeight - VIRTUALIZER_METRICS.fileHeaderHeight);
 			const placeholderHeight = Math.min(
@@ -452,12 +453,12 @@ export class MobileMultiDiffView extends Disposable {
 		empty.style.height = `${visibleHeight}px`;
 	}
 
-	private renderLoadedFileContent(state: IMobileMultiDiffFileState): void {
+	private renderLoadedFileContent(state: IMobileMultiDiffFileState, viewportHeight = this.scrollWrapper.clientHeight): void {
 		if (!state.content || !state.renderData) {
 			return;
 		}
 
-		const bodyOverscan = Math.max(this.scrollWrapper.clientHeight, 480);
+		const bodyOverscan = Math.max(viewportHeight, 480);
 		const visibleTop = Math.max(0, state.bodyScrollTop - bodyOverscan);
 		const visibleBottom = Math.min(
 			state.renderData.bodyHeight,
@@ -488,11 +489,11 @@ export class MobileMultiDiffView extends Disposable {
 		};
 	}
 
-	private computeCurrentVirtualLayout(): ReturnType<typeof computeMobileMultiDiffVirtualLayout> {
+	private computeCurrentVirtualLayout(viewportHeight: number): ReturnType<typeof computeMobileMultiDiffVirtualLayout> {
 		return computeMobileMultiDiffVirtualLayout(this.fileStates.map(state => this.toVirtualItem(state)), {
-			viewportHeight: this.scrollWrapper.clientHeight,
+			viewportHeight,
 			scrollTop: this.scrollWrapper.scrollTop,
-			overscan: Math.max(this.scrollWrapper.clientHeight, 480),
+			overscan: Math.max(viewportHeight, 480),
 			metrics: VIRTUALIZER_METRICS,
 		});
 	}

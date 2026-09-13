@@ -59,6 +59,7 @@ export interface IChatContentPartDiffData {
 
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
+	readonly readOnly?: boolean;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;

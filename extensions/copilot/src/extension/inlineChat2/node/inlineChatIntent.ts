@@ -506,6 +506,7 @@ class InlineChatToolCalling {
 							const result = await this._toolsService.invokeToolWithEndpoint(toolCall.name, {
 								input,
 								toolInvocationToken: request.toolInvocationToken,
+								chatSessionResource: request.sessionResource,
 								// Split on `__vscode` so it's the chat stream id
 								// TODO @lramos15 - This is a gross hack
 								chatStreamToolCallId: toolCall.id.split('__vscode')[0],
@@ -515,7 +516,7 @@ class InlineChatToolCalling {
 
 							if (result.hasError) {
 								failedEdits.push([toolCall, result]);
-								stream.progress(l10n.t('Looking not yet good, trying again...'));
+								stream.progress(l10n.t('An error occurred, trying again...'));
 							}
 
 							this._logService.trace(`Tool ${toolCall.name} invocation result: ${JSON.stringify(result)}`);

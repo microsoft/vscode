@@ -11,8 +11,10 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -22,6 +24,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import './media/chatCollapsibleContentPart.css';
 
 
@@ -43,6 +46,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	private _contentElement?: HTMLElement;
 	private _contentInitialized = false;
 	private _animationContainer: HTMLElement | undefined;
+	private _isExpandable = true;
 	private ariaLabel: string;
 
 	public get icon(): ThemeIcon | undefined {
@@ -50,7 +54,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	public set icon(value: ThemeIcon | undefined) {
-		this._overrideIcon.set(value, undefined);
+		this._overrideIcon.set(value ? getCompactCodicon(value) : undefined, undefined);
 	}
 
 	protected readonly element: ChatTreeItem;
@@ -60,13 +64,14 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		context: IChatContentPartRenderContext,
 		private readonly hoverMessage: IMarkdownString | undefined,
 		@IHoverService protected readonly hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _collapsibleConfigurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.ariaLabel = typeof title === 'string' ? title : title.value;
 		this.element = context.element;
 		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
-		this._showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, configurationService);
+		this._showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, this._collapsibleConfigurationService);
 	}
 
 	get domNode(): HTMLElement {
@@ -106,7 +111,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}
 
 		// Add hover chevron indicator on the right (decorative, hide from screen readers)
-		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right', { 'aria-hidden': 'true' });
+		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right-compact', { 'aria-hidden': 'true' });
 		this._hoverChevron = hoverChevron;
 		collapseButton.element.appendChild(hoverChevron);
 
@@ -121,6 +126,11 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 		// Initialize the expanded state based on the subclass's isExpanded() method
 		this._isExpanded.set(this.isExpanded(), undefined);
+
+		// The header only exists now, so re-apply a non-expandable row's state.
+		if (!this._isExpandable) {
+			this.setExpandable(false);
+		}
 
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
@@ -158,10 +168,97 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		return this._domNode;
 	}
 
+	protected get collapsibleKind(): string {
+		return 'unknown';
+	}
+
+	protected get collapsibleInThinking(): boolean {
+		return false;
+	}
+
 	protected toggleExpanded(): void {
+		if (!this._isExpandable) {
+			return;
+		}
+		this.logUserToggle();
 		const value = this._isExpanded.get();
 		this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		this._isExpanded.set(!value, undefined);
+	}
+
+	/**
+	 * Turns the row into a plain status line: it no longer toggles, and it drops
+	 * the affordances that would otherwise promise expansion — including its
+	 * place in the tab order, so it is not a focusable dead control.
+	 */
+	protected setExpandable(expandable: boolean): void {
+		this._isExpandable = expandable;
+		this._domNode?.classList.toggle('chat-collapsible-not-expandable', !expandable);
+		this._hoverChevron?.classList.toggle('hidden', !expandable);
+		const button = this._collapseButton?.element;
+		if (button) {
+			button.tabIndex = expandable ? 0 : -1;
+			if (expandable) {
+				button.setAttribute('role', 'button');
+				button.removeAttribute('aria-disabled');
+				button.ariaExpanded = String(this.isExpanded());
+			} else {
+				// A row that cannot expand is a status line, not a disabled button,
+				// so drop the button semantics rather than marking it unavailable.
+				button.removeAttribute('role');
+				button.removeAttribute('aria-disabled');
+				button.removeAttribute('aria-expanded');
+			}
+		}
+		if (!expandable) {
+			this.setExpanded(false);
+		}
+	}
+
+	private logUserToggle(): void {
+		type ChatCollapsibleToggleEvent = {
+			kind: string;
+			previousExpanded: boolean;
+			thinkingStyle: string;
+			inThinking: boolean;
+		};
+		type ChatCollapsibleToggleClassification = {
+			owner: 'justschen';
+			comment: 'Track when a user expands or collapses a chat collapsible block.';
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which collapsible chat block was toggled.' };
+			previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the block was expanded before the toggle.' };
+			thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured thinking display mode when the block was toggled.' };
+			inThinking: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the block is rendered inside a thinking container.' };
+		};
+		const previousExpanded = this.isExpanded();
+		const thinkingStyle = this._collapsibleConfigurationService.getValue<string>(ChatConfiguration.ThinkingStyle) ?? 'unknown';
+		const kind = this.collapsibleKind;
+		const inThinking = this.collapsibleInThinking;
+		this.telemetryService.publicLog2<ChatCollapsibleToggleEvent, ChatCollapsibleToggleClassification>('chat.collapsibleToggle', {
+			kind,
+			previousExpanded,
+			thinkingStyle,
+			inThinking,
+		});
+		if (kind === 'terminal') {
+			type ChatTerminalThinkingBlockToggleEvent = {
+				previousExpanded: boolean;
+				inThinking: boolean;
+				thinkingStyle: string;
+			};
+			type ChatTerminalThinkingBlockToggleClassification = {
+				owner: 'anthonykim1';
+				comment: 'Track when a user expands or collapses a terminal command block in chat thinking.';
+				previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal block was expanded before the toggle.' };
+				inThinking: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal block is rendered inside a thinking container.' };
+				thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured thinking display mode when the block was toggled.' };
+			};
+			this.telemetryService.publicLog2<ChatTerminalThinkingBlockToggleEvent, ChatTerminalThinkingBlockToggleClassification>('terminal/chatThinkingBlockToggle', {
+				previousExpanded,
+				inThinking,
+				thinkingStyle,
+			});
+		}
 	}
 
 	protected abstract initContent(): HTMLElement;
@@ -194,7 +291,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
 		element.ariaLabel = label;
-		element.ariaExpanded = String(expanded);
+		element.ariaExpanded = this._isExpandable ? String(expanded) : null;
 	}
 
 	addDisposable(disposable: IDisposable): void {
