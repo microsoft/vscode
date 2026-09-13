@@ -49,7 +49,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	private _kernelDetectionTask = new Map<number, vscode.NotebookControllerDetectionTask>();
 	private _kernelDetectionTaskHandlePool: number = 0;
 
-	private _kernelSourceActionProviders = new Map<number, vscode.NotebookKernelSourceActionProvider>();
+	private _kernelSourceActionProviders = new Map<number, { provider: vscode.NotebookKernelSourceActionProvider; commands: DisposableStore; requestId: number }>();
 	private _kernelSourceActionProviderHandlePool: number = 0;
 
 	private readonly _kernelData = new Map<number, IKernelData>();
@@ -339,7 +339,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const eventHandle = typeof provider.onDidChangeNotebookKernelSourceActions === 'function' ? handle : undefined;
 		const that = this;
 
-		this._kernelSourceActionProviders.set(handle, provider);
+		const commands = new DisposableStore();
+		this._kernelSourceActionProviders.set(handle, { provider, commands, requestId: 0 });
 		this._logService.trace(`NotebookKernelSourceActionProvider[${handle}], CREATED by ${extension.identifier.value}`);
 		this._proxy.$addKernelSourceActionProvider(handle, handle, viewType);
 
@@ -351,6 +352,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return {
 			dispose: () => {
 				this._kernelSourceActionProviders.delete(handle);
+				commands.dispose();
 				that._proxy.$removeKernelSourceActionProvider(handle, handle);
 				subscription?.dispose();
 			}
@@ -358,11 +360,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	}
 
 	async $provideKernelSourceActions(handle: number, token: CancellationToken): Promise<INotebookKernelSourceAction[]> {
-		const provider = this._kernelSourceActionProviders.get(handle);
-		if (provider) {
-			const disposables = new DisposableStore();
-			const ret = await provider.provideNotebookKernelSourceActions(token);
-			return (ret ?? []).map(item => extHostTypeConverters.NotebookKernelSourceAction.from(item, this._commands.converter, disposables));
+		const entry = this._kernelSourceActionProviders.get(handle);
+		if (entry) {
+			const requestId = ++entry.requestId;
+			const ret = await entry.provider.provideNotebookKernelSourceActions(token);
+			if (this._kernelSourceActionProviders.get(handle) !== entry || entry.requestId !== requestId || token.isCancellationRequested) {
+				return [];
+			}
+			entry.commands.clear();
+			return (ret ?? []).map(item => extHostTypeConverters.NotebookKernelSourceAction.from(item, this._commands.converter, entry.commands));
 		}
 		return [];
 	}
