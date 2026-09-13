@@ -6,10 +6,11 @@
 import './media/agentFeedbackEditorInput.css';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ActionRunner, toAction } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -37,7 +38,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { FeedbackInputWidget } from './feedbackInputWidget.js';
+import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from './feedbackInputWidget.js';
 import { ICodeReviewService, IPRReviewCommentTarget } from '../../codeReview/browser/codeReviewService.js';
 import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 
@@ -160,6 +161,10 @@ export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidg
 		this._core.setActionLabels(primaryLabel, secondaryLabel);
 	}
 
+	setAdditionalActions(actions: readonly IFeedbackInputWidgetAdditionalAction[]): void {
+		this._core.setAdditionalActions(actions);
+	}
+
 	private _computeContentWidth(): number {
 		// The widget sticks to the editor's content left edge, so the space it
 		// has available is the content area width (to the right of the line
@@ -254,7 +259,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			}
 			// Defer so focus has settled to the new target
 			getWindow(this._editor.getDomNode()!).setTimeout(() => {
-				if (!this._visible) {
+				if (this._store.isDisposed || !this._visible) {
 					return;
 				}
 				if (this._isWidgetTarget(getWindow(this._editor.getDomNode()!).document.activeElement)) {
@@ -414,10 +419,22 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._selectedPRCommentTarget = undefined;
 		const preferBelow = selection.getDirection() === SelectionDirection.LTR;
 		const anchorPosition = preferBelow ? selection.getEndPosition() : selection.getStartPosition();
-		this._show(Range.lift(selection), anchorPosition, preferBelow);
+		this._show(
+			Range.lift(selection),
+			anchorPosition,
+			preferBelow,
+			false,
+			this._getPRCommentPullRequests(sessionResource, model.uri),
+		);
 	}
 
-	private _show(range: Range, anchorPosition: Position, preferBelow: boolean, focusInput = false): void {
+	private _show(
+		range: Range,
+		anchorPosition: Position,
+		preferBelow: boolean,
+		focusInput = false,
+		prCommentPullRequests: readonly IGitHubPullRequestRef[] = [],
+	): void {
 		const widget = this._ensureWidget();
 		this._clearHoverGlyph();
 
@@ -436,6 +453,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._selectedPRCommentTarget ? localize('agentFeedback.addPRCommentAction', "Add PR Comment") : localize('agentFeedback.addAction', "Add"),
 			this._selectedPRCommentTarget ? localize('agentFeedback.addPRCommentAction', "Add PR Comment") : localize('agentFeedback.addAndSubmit', "Add and Submit"),
 		);
+		this._setInputPRCommentActions(widget, prCommentPullRequests);
 		widget.clearInput();
 		widget.show();
 		this._updatePosition();
@@ -472,6 +490,28 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _hasInputText(): boolean {
 		return !!this._widget && this._widget.inputElement.value.trim().length > 0;
+	}
+
+	private _getPRCommentPullRequests(sessionResource: URI, resource: URI): readonly IGitHubPullRequestRef[] {
+		if (this._configurationService.getValue<boolean>(AGENTS_WINDOW_PR_COMMENTS_SETTING) !== true) {
+			return [];
+		}
+		return this._codeReviewService.getPRReviewCommentPullRequests(sessionResource, resource);
+	}
+
+	private _setInputPRCommentActions(widget: AgentFeedbackInputWidget, pullRequests: readonly IGitHubPullRequestRef[]): void {
+		const actions = pullRequests.map(pullRequest => {
+			return {
+				id: `agentFeedback.input.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
+				label: pullRequests.length === 1
+					? localize('agentFeedback.addPRCommentAction', "Add PR Comment")
+					: localize('agentFeedback.addPRCommentActionWithPR', "Add PR Comment ({0}/{1}#{2})", pullRequest.owner, pullRequest.repo, pullRequest.number),
+				run: async () => {
+					await this._addFeedback(pullRequest);
+				},
+			};
+		});
+		widget.setAdditionalActions(actions);
 	}
 
 	showAtCurrentLine(focusInput = true): void {
@@ -521,10 +561,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._selectingCommentTarget = true;
 		try {
 			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-			const pullRequests = this._agentFeedbackService.isAgentHostSession(sessionResource)
-				&& this._configurationService.getValue<boolean>(AGENTS_WINDOW_PR_COMMENTS_SETTING) === true
-				? this._codeReviewService.getPRReviewCommentPullRequests(sessionResource, model.uri)
-				: [];
+			const pullRequests = this._getPRCommentPullRequests(sessionResource, model.uri);
 			const pullRequest = await this._pickCommentTarget(pullRequests, anchor);
 			if (pullRequest === undefined || !isEqual(this._editor.getModel()?.uri, model.uri)) {
 				return;
@@ -532,14 +569,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 			let target: IPRReviewCommentTarget | undefined;
 			if (pullRequest) {
-				try {
-					[target] = await this._codeReviewService.getPRReviewCommentTargets(sessionResource, model.uri, range, model.getValue(), pullRequest);
-				} catch (error) {
-					this._notificationService.error(localize('agentFeedback.loadPRCommentTargetsFailed', "Failed to load pull request comment targets: {0}", getErrorMessage(error)));
-					return;
-				}
+				target = await this._resolvePRCommentTarget(sessionResource, model, range, pullRequest);
 				if (!target) {
-					this._notificationService.warn(localize('agentFeedback.prCommentUnavailableForLine', "A pull request comment cannot be added to this line."));
 					return;
 				}
 			}
@@ -559,47 +590,53 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		return new Promise(resolve => {
-			const disposables = new DisposableStore();
-			let selectedPullRequest: IGitHubPullRequestRef | null | undefined;
 			const actions = [
 				toAction({
 					id: 'agentFeedback.commentTarget.agentFeedback',
 					label: localize('agentFeedback.commentTarget', "Agent Feedback"),
-					run: () => { },
+					run: () => resolve(null),
 				}),
 				...pullRequests.map(pullRequest => toAction({
 					id: `agentFeedback.commentTarget.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
 					label: pullRequests.length === 1
 						? localize('agentFeedback.prCommentTarget', "Pull Request Comment")
 						: localize('agentFeedback.prCommentTargetWithPR', "Pull Request ({0}/{1}#{2}) Comment", pullRequest.owner, pullRequest.repo, pullRequest.number),
-					run: () => { },
+					run: () => resolve(pullRequest),
 				})),
 			];
-			const pullRequestsByAction = new Map([
-				[actions[0].id, null],
-				...actions.slice(1).map((action, index) => [action.id, pullRequests[index]] as const),
-			]);
-			const actionRunner = disposables.add(new ActionRunner());
-			disposables.add(actionRunner.onWillRun(event => {
-				selectedPullRequest = pullRequestsByAction.get(event.action.id);
-				resolve(selectedPullRequest);
-			}));
 			this._contextMenuService.showContextMenu({
 				domForShadowRoot: this._editor.getOption(EditorOption.useShadowDOM) && !isIOS ? this._editor.getDomNode() ?? undefined : undefined,
 				useWindowContainerForShadowRoot: this._editor.getOption(EditorOption.useShadowDOM) && !isIOS && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				getMenuClassName: () => 'agent-feedback-comment-target-menu',
-				actionRunner,
 				autoSelectFirstItem: true,
 				onHide: didCancel => {
 					if (didCancel) {
 						resolve(undefined);
 					}
-					getWindow(this._editor.getDomNode()!).setTimeout(() => disposables.dispose(), 0);
 				},
 			});
 		});
+	}
+
+	private async _resolvePRCommentTarget(
+		sessionResource: URI,
+		model: ITextModel,
+		range: Range,
+		pullRequest: IGitHubPullRequestRef,
+	): Promise<IPRReviewCommentTarget | undefined> {
+		let target: IPRReviewCommentTarget | undefined;
+		try {
+			[target] = await this._codeReviewService.getPRReviewCommentTargets(sessionResource, model.uri, range, model.getValue(), pullRequest);
+		} catch (error) {
+			this._notificationService.error(localize('agentFeedback.loadPRCommentTargetsFailed', "Failed to load pull request comment targets: {0}", getErrorMessage(error)));
+			return undefined;
+		}
+		if (!target) {
+			this._notificationService.warn(localize('agentFeedback.prCommentUnavailableForLine', "A pull request comment cannot be added to this line."));
+		}
+		return target;
 	}
 
 	private _getSessionForModel(): URI | undefined {
@@ -733,7 +770,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._widgetListeners.add(addStandardDisposableListener(widget.inputElement, 'blur', () => {
 			const win = getWindow(widget.inputElement);
 			win.setTimeout(() => {
-				if (!this._visible) {
+				if (this._store.isDisposed || !this._visible) {
 					return;
 				}
 				if (this._editor.hasWidgetFocus()) {
@@ -756,7 +793,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._editor.focus();
 	}
 
-	private async _addFeedback(): Promise<boolean> {
+	private async _addFeedback(pullRequest?: IGitHubPullRequestRef): Promise<boolean> {
 		const widget = this._widget;
 		if (!widget || widget.isBusy) {
 			return false;
@@ -773,10 +810,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		if (this._selectedPRCommentTarget) {
+		const addPRComment = this._selectedPRCommentTarget !== undefined || pullRequest !== undefined;
+		if (addPRComment) {
 			widget.setBusy(true, localize('agentFeedback.addingPRComment', "Adding pull request comment"));
 			try {
-				await this._codeReviewService.createPRReviewComment(this._selectedPRCommentTarget, text);
+				const target = this._selectedPRCommentTarget
+					?? (pullRequest ? await this._resolvePRCommentTarget(this._sessionResource, model, range, pullRequest) : undefined);
+				if (!target) {
+					return false;
+				}
+				await this._codeReviewService.createPRReviewComment(target, text);
 			} catch (error) {
 				this._notificationService.error(localize('agentFeedback.addPRCommentFailed', "Failed to add pull request comment: {0}", getErrorMessage(error)));
 				return false;
@@ -896,6 +939,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 
 	override dispose(): void {
+		this._hide();
 		if (this._widget) {
 			this._editor.removeOverlayWidget(this._widget);
 			this._widget.dispose();
