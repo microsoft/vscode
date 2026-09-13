@@ -230,6 +230,9 @@ export async function showRunRecentQuickPick(
 		const cwds = instance.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 		if (cwds && cwds.length > 0) {
 			for (const label of cwds) {
+				if (!isSafeTerminalHistoryText(label)) {
+					continue;
+				}
 				const itemUri = URI.file(label);
 				if (!uniqueUris.has(itemUri)) {
 					uniqueUris.add(itemUri);
@@ -248,7 +251,7 @@ export async function showRunRecentQuickPick(
 		const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 		// Only add previous session item if it's not in this session and it matches the remote authority
 		for (const [label, info] of history.entries) {
-			if (info === null || info.remoteAuthority === instance.remoteAuthority) {
+			if (isSafeTerminalHistoryText(label) && (info === null || info.remoteAuthority === instance.remoteAuthority)) {
 				const itemUri = info?.remoteAuthority ? await pathService.fileURI(label) : URI.file(label);
 				if (!uniqueUris.has(itemUri)) {
 					uniqueUris.add(itemUri);
@@ -376,10 +379,10 @@ export async function showRunRecentQuickPick(
 			text = `cd ${await instance.preparePathForShell(result.rawLabel)}`;
 		} else { // command
 			text = result.rawLabel;
-			if (!isSafeTerminalHistoryText(text)) {
-				quickPick.hide();
-				return;
-			}
+		}
+		if (!isSafeTerminalHistoryText(text)) {
+			quickPick.hide();
+			return;
 		}
 		quickPick.hide();
 		terminalScrollStateSaved = false;
