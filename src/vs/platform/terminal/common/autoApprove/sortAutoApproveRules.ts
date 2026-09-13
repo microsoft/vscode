@@ -7,11 +7,10 @@
  * Default auto-approval rules for `sort`.
  */
 export const sortAutoApproveRules: Readonly<Record<string, boolean>> = {
-	'/^sort\\b(?!-)/': true,
-
 	// - `-o`: Writes output to a file.
 	// - `-S`: Can request enough memory to cause denial of service.
-	'/^sort\\b.*\\s-(o|S)\\b/': false,
+	'/^sort\\b.*\\s(?:-[^-\\s]*[oS]|--output(?:=|\\s))/': false,
+	'/^sort\\b.*\\s(?:[\'"]|\\\\)+[^\\s]*[oS]/': false,
 
 	// GNU sort accepts unique long-option abbreviations. `--co` is the shortest unique
 	// abbreviation for `--compress-program`; deny it and every longer spelling. Ignore

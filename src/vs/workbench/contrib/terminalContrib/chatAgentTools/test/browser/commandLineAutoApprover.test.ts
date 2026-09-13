@@ -101,7 +101,7 @@ suite('CommandLineAutoApprover', () => {
 			);
 		});
 
-		test('auto-approves benign forms', async () => {
+		test('requires approval for benign forms', async () => {
 			const commands = [
 				'sort input.txt',
 				'sort --check input.txt',
@@ -110,12 +110,18 @@ suite('CommandLineAutoApprover', () => {
 				'sort --buffer-size=1K input.txt',
 				'sort<input.txt',
 			];
-			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => true));
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
 		});
 
 		test('denies blocked options', async () => {
 			const commands = [
 				'sort -o output.txt input.txt',
+				'sort -ooutput.txt input.txt',
+				'sort -ro output.txt input.txt',
+				'sort --output=output.txt input.txt',
+				'sort "-o" output.txt input.txt',
+				'sort "--output=output.txt" input.txt',
+				'sort \\-\\o output.txt input.txt',
 				'sort -S 1G input.txt',
 				'sort --compress-program=/bin/sh input.txt',
 				'sort --compress-program /bin/sh input.txt',
@@ -131,6 +137,57 @@ suite('CommandLineAutoApprover', () => {
 				'sort $\'--compress-program=/bin/sh\' input.txt',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
+
+		test('preserves an explicit user allow', async () => {
+			setAutoApproveWithCommandLine({
+				...(terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean>),
+				sort: true,
+			});
+			deepStrictEqual(await Promise.all([
+				'sort input.txt',
+				'sort -o output.txt input.txt',
+				'sort -ooutput.txt input.txt',
+				'sort -ro output.txt input.txt',
+				'sort --output=output.txt input.txt',
+				'sort "-o" output.txt input.txt',
+				'sort "--output=output.txt" input.txt',
+				'sort \\-\\o output.txt input.txt',
+			].map(isAutoApproved)), [true, false, false, false, false, false, false, false]);
+		});
+	});
+
+	suite('default tree rules', () => {
+		setup(() => {
+			setAutoApproveWithCommandLine(
+				terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+			);
+		});
+
+		test('requires approval for all forms', async () => {
+			const commands = [
+				'tree',
+				'tree .',
+				'tree -i .',
+				'tree -o output.txt .',
+				'tree -io output.txt .',
+				'tree -R -L 2 .',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
+
+		test('preserves an explicit user allow while blocking output files', async () => {
+			setAutoApproveWithCommandLine({
+				...(terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean>),
+				'/^tree\\b/': true,
+			});
+			deepStrictEqual(await Promise.all([
+				'tree .',
+				'tree -o output.txt .',
+				'tree -io output.txt .',
+				'tree "-o" output.txt .',
+				'tree \\-\\o output.txt .',
+			].map(isAutoApproved)), [true, false, false, false, false]);
 		});
 	});
 
