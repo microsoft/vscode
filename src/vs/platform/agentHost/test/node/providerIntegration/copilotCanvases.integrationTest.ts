@@ -9,9 +9,10 @@ import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { CopilotClient, RuntimeConnection, type CopilotSession, type SessionConfig, type SessionEvent } from '@github/copilot-sdk';
 import { dirname, join } from '../../../../../base/common/path.js';
+import { vArray, vNumber, vObj } from '../../../../../base/common/validation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
-import { NoModelRequests, readCanvasFixtureAudit, waitFor } from './copilotCanvasTestUtils.js';
+import { NoModelRequests, processIsRunning, readCanvasFixtureAudit, waitFor } from './copilotCanvasTestUtils.js';
 
 const extensionName = 'local-canvas-fixture';
 const extensionId = `user:${extensionName}`;
@@ -206,7 +207,11 @@ class CanvasFixtureRuntime {
 			}
 		}
 		for (const directory of this.extensionDirectories) {
-			assert.deepStrictEqual(await this.readAudit('stopped', directory), await this.readAudit('started', directory));
+			const started = vArray(vObj({ pid: vNumber() })).validateOrThrow(await this.readAudit('started', directory));
+			for (const { pid } of started) {
+				assert.ok(Number.isSafeInteger(pid) && pid > 0);
+				await waitFor(async () => processIsRunning(pid), running => !running);
+			}
 		}
 		assert.deepStrictEqual(this.modelRequests.requests, []);
 		if (errors.length) {

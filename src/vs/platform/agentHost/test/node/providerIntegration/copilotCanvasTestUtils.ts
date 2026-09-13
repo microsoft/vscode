@@ -8,8 +8,20 @@ import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { CopilotRequestHandler } from '@github/copilot-sdk';
 import { timeout } from '../../../../../base/common/async.js';
+import { getErrorCode } from '../../../../../base/common/errors.js';
 import { join } from '../../../../../base/common/path.js';
 import { hasKey } from '../../../../../base/common/types.js';
+
+export function processIsRunning(pid: number): boolean {
+	try {
+		return process.kill(pid, 0);
+	} catch (error) {
+		if (getErrorCode(error) === 'ESRCH') {
+			return false;
+		}
+		throw error;
+	}
+}
 
 export async function waitFor<T>(read: () => Promise<T>, predicate: (value: T) => boolean): Promise<T> {
 	let value = await read();

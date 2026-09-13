@@ -1201,8 +1201,8 @@ export interface IAgent extends IAgentHostCanvasOperations {
 	/** Materializes and retains an explicitly admitted canvas backing before executable effects. */
 	prepareCanvasExecution?(chat: URI, extensionId: string, workingDirectories: readonly URI[], onWillExecute: () => void, context: IAgentChatContext): Promise<void>;
 
-	/** Retires only this chat's executable canvas backing, preserving logical records and data. */
-	revokeCanvasExecution?(chat: URI): Promise<void>;
+	/** Retires this chat's backing, optionally only if it includes the removed working directory. */
+	revokeCanvasExecution?(chat: URI, removedDirectory?: URI): Promise<void>;
 
 	/** Captures retirement authority for the current backing, never for a later replacement. */
 	getCanvasExecution?(chat: URI): { isCurrent(): boolean; retire(): Promise<void> } | undefined;

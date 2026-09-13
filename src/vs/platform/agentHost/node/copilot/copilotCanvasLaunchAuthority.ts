@@ -18,7 +18,7 @@ export interface ICopilotCanvasLaunchScope {
 	readonly sessionId: string;
 	readonly session: URI;
 	readonly chat: URI;
-	readonly workspace: URI;
+	readonly workingDirectories: readonly [URI, ...URI[]];
 	readonly pluginDirectories: readonly URI[];
 	/** Disconnects this exact backing without deleting its retained state. */
 	stop(): Promise<void>;
@@ -70,7 +70,7 @@ export class CopilotCanvasLaunchAuthority extends Disposable {
 		if (!this.enabled || this._scopes.has(scope.sessionId) || this._scopes.size >= 128) {
 			throw new Error('Canvas launch authority is unavailable or the backing is already registered.');
 		}
-		const bound: IBoundScope = { scope, launches: new Map(), retained: false, revoked: false };
+		const bound: IBoundScope = { scope: { ...scope, workingDirectories: [...scope.workingDirectories] }, launches: new Map(), retained: false, revoked: false };
 		this._scopes.set(scope.sessionId, bound);
 		const lease = toDisposable(() => {
 			bound.revoked = true;
@@ -93,7 +93,7 @@ export class CopilotCanvasLaunchAuthority extends Disposable {
 		if (!bound?.retained || !this._isCurrent(bound)) {
 			return undefined;
 		}
-		const launch = await this._packages.resolveLaunch(extensionId, modulePath, bound.scope.workspace);
+		const launch = await this._packages.resolveLaunch(extensionId, modulePath, bound.scope.workingDirectories[0]);
 		if (!launch || !this._isCurrent(bound) || !bound.scope.pluginDirectories.some(directory => isEqual(directory, launch.pluginDirectory))
 			|| !this._isEnabled(bound, launch)) {
 			return undefined;
@@ -102,9 +102,9 @@ export class CopilotCanvasLaunchAuthority extends Disposable {
 		return launch;
 	}
 
-	revokeChat(chat: URI): void {
+	revokeChat(chat: URI, removedDirectory?: URI): void {
 		for (const bound of this._scopes.values()) {
-			if (isEqual(bound.scope.chat, chat)) {
+			if (isEqual(bound.scope.chat, chat) && (!removedDirectory || bound.scope.workingDirectories.some(directory => isEqual(directory, removedDirectory)))) {
 				this._revoke(bound);
 			}
 		}
@@ -144,7 +144,7 @@ export class CopilotCanvasLaunchAuthority extends Disposable {
 
 	private _isEnabled(bound: IBoundScope, launch: ICanvasPackageLaunch): boolean {
 		const item = this._packages.list().find(item => item.id === launch.packageId);
-		return !!item && isCanvasPackageEnabled(item, launch, this._packages, this._enablement, bound.scope.session, bound.scope.workspace);
+		return !!item && isCanvasPackageEnabled(item, launch, this._packages, this._enablement, bound.scope.session, bound.scope.workingDirectories[0]);
 	}
 
 	private _reconcile(): void {

@@ -55,10 +55,10 @@ suite('CopilotCanvasLaunchAuthority', () => {
 		};
 		const authority = store.add(new CopilotCanvasLaunchAuthority(() => local, packages, enablement, configuration, log));
 		const stops: string[] = [];
-		const bind = (sessionId: string, directories = [pluginDirectory], retained = true) => {
+		const bind = (sessionId: string, directories = [pluginDirectory], retained = true, workingDirectories: readonly [URI, ...URI[]] = [workspace]) => {
 			const chat = URI.parse(`ahp-chat:/session/${sessionId}`);
 			const lease = store.add(authority.bind({
-				sessionId, chat, session: URI.parse('copilotcli:/session'), workspace, pluginDirectories: directories,
+				sessionId, chat, session: URI.parse('copilotcli:/session'), workingDirectories, pluginDirectories: directories,
 				stop: async () => { stops.push(sessionId); },
 			}));
 			if (retained) {
@@ -152,6 +152,44 @@ suite('CopilotCanvasLaunchAuthority', () => {
 	test('a remote host cannot bind launch authority even when the preview is enabled', () => {
 		const f = fixture(false);
 		assert.throws(() => f.bind('sdk-main'), /unavailable/);
+	});
+
+	test('materializing a resolved worktree does not revoke its pending launch lease', async () => {
+		const f = fixture();
+		const resolved = URI.file('/resolved-worktree');
+		const pending = f.bind('sdk-pending', [pluginDirectory], false, [resolved]);
+		f.authority.revokeChat(pending.chat, workspace);
+		await f.authority.whenIdle();
+		pending.lease.assertCurrent();
+		assert.deepStrictEqual(f.stops, []);
+
+		f.authority.revokeChat(pending.chat, resolved);
+		await f.authority.whenIdle();
+		assert.throws(() => pending.lease.assertCurrent(), /Cancel/);
+		assert.deepStrictEqual(f.stops, ['sdk-pending']);
+	});
+
+	test('removing a secondary working directory revokes its backing and keeps unrelated peers', async () => {
+		const f = fixture();
+		const secondary = URI.file('/secondary');
+		const main = f.bind('sdk-main', [pluginDirectory], true, [workspace, secondary]);
+		const peer = f.bind('sdk-peer');
+		f.authority.revokeChat(main.chat, secondary);
+		await f.authority.whenIdle();
+		assert.throws(() => main.lease.assertCurrent(), /Cancel/);
+		peer.lease.assertCurrent();
+		assert.deepStrictEqual(f.stops, ['sdk-main']);
+	});
+
+	test('keeps the working directories captured when the backing was bound', async () => {
+		const f = fixture();
+		const directories: [URI, ...URI[]] = [workspace];
+		const main = f.bind('sdk-main', [pluginDirectory], true, directories);
+		directories[0] = URI.file('/replacement');
+		f.authority.revokeChat(main.chat, workspace);
+		await f.authority.whenIdle();
+		assert.throws(() => main.lease.assertCurrent(), /Cancel/);
+		assert.deepStrictEqual(f.stops, ['sdk-main']);
 	});
 
 	test('replacing the SDK client retires every backing lease before asynchronous shutdown', async () => {

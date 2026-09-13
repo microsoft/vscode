@@ -13,7 +13,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { dirname, isAbsolute, join, relative, sep } from '../../../base/common/path.js';
-import { isEqual, isEqualOrParent } from '../../../base/common/resources.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { extUri, extUriIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { vArray, vNumber, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
@@ -27,6 +28,7 @@ const STORAGE_KEY = 'canvasPackages.v1';
 const PLUGIN_MANIFEST = '.plugin/plugin.json';
 const EXTENSIONS_DIRECTORY = 'com.github.copilot/extensions';
 const ENTRYPOINTS = new Set(['extension.mjs', 'extension.cjs', 'extension.js']);
+const fileUris = isWindows ? extUriIgnorePathCase : extUri;
 const REVISION_PATTERN = /^[a-f0-9]{64}$/;
 
 export interface ICanvasPackageLimits {
@@ -158,7 +160,7 @@ export class AgentHostCanvasPackagesService extends Disposable implements IAgent
 		this._assertAvailable();
 		const canonicalSource = await this._localDirectory(source);
 		const root = await this._ensureRoot();
-		if (isEqualOrParent(root, canonicalSource) || isEqualOrParent(canonicalSource, root)) {
+		if (fileUris.isEqualOrParent(root, canonicalSource) || fileUris.isEqualOrParent(canonicalSource, root)) {
 			throw new Error(localize('canvasPackage.sourceOverlapsStorage', "Choose a source folder outside the canvas package storage directory."));
 		}
 		const sourceFiles = await this._readFiles(canonicalSource, token, true);
@@ -166,7 +168,7 @@ export class AgentHostCanvasPackagesService extends Disposable implements IAgent
 
 		return this._mutations.queue(async () => {
 			this._checkCancellation(token);
-			const previous = this._packages.find(item => isEqual(URI.parse(item.source), canonicalSource));
+			const previous = this._packages.find(item => fileUris.isEqual(URI.parse(item.source), canonicalSource));
 			if (!previous && this._packages.length >= this.limits.maxPackages) {
 				throw new Error(localize('canvasPackage.tooManyPackages', "The limit of {0} installed canvas packages has been reached.", this.limits.maxPackages));
 			}
@@ -197,7 +199,7 @@ export class AgentHostCanvasPackagesService extends Disposable implements IAgent
 					await rename(staging.fsPath, destination.fsPath);
 					staged = false;
 				} catch (error) {
-					if (!this._isExistingDirectoryError(error)) {
+					if (!await this._isExistingDirectoryError(error, destination)) {
 						throw error;
 					}
 					await this._verifySnapshot(id, revision);
@@ -282,7 +284,7 @@ export class AgentHostCanvasPackagesService extends Disposable implements IAgent
 		}
 		const approval = this._packages.find(item => item.id === id)?.approval;
 		return approval?.revision === revision && (!approval.workspaces
-			|| approval.workspaces.some(scope => isEqual(URI.parse(scope), workspace)));
+			|| approval.workspaces.some(scope => fileUris.isEqual(URI.parse(scope), workspace)));
 	}
 
 	async getApprovedPluginDirectories(workspace: URI): Promise<readonly URI[]> {
@@ -318,11 +320,11 @@ export class AgentHostCanvasPackagesService extends Disposable implements IAgent
 				continue;
 			}
 			const pluginDirectory = this._snapshot(item.id, revision);
-			if (!isEqualOrParent(URI.file(modulePath), pluginDirectory)) {
+			if (!fileUris.isEqualOrParent(URI.file(modulePath), pluginDirectory)) {
 				continue;
 			}
 			const files = await this._verifySnapshot(item.id, revision);
-			const entry = files.find(file => this._isEntrypoint(file.path) && isEqual(URI.file(join(pluginDirectory.fsPath, ...file.path.split('/'))), URI.file(modulePath)));
+			const entry = files.find(file => this._isEntrypoint(file.path) && fileUris.isEqual(URI.file(join(pluginDirectory.fsPath, ...file.path.split('/'))), URI.file(modulePath)));
 			if (!entry || extensionId !== `plugin:${this._pluginName(item.id)}:${entry.path.split('/')[2]}` || !this.isApproved(item.id, revision, canonicalWorkspace)) {
 				this.logService.warn('[CanvasPackages] Declined an extension whose identity or approval changed.');
 				return undefined;
@@ -567,8 +569,18 @@ export class AgentHostCanvasPackagesService extends Disposable implements IAgent
 		}
 	}
 
-	private _isExistingDirectoryError(error: unknown): boolean {
+	private async _isExistingDirectoryError(error: unknown, destination: URI): Promise<boolean> {
 		const code = getErrorCode(error);
+		if (isWindows && code === 'EPERM') {
+			try {
+				return (await lstat(destination.fsPath)).isDirectory();
+			} catch (statError) {
+				if (getErrorCode(statError) === 'ENOENT') {
+					return false;
+				}
+				throw statError;
+			}
+		}
 		return code === 'EEXIST' || code === 'ENOTEMPTY';
 	}
 }

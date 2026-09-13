@@ -115,7 +115,7 @@ suite('Local canvas PoC launch containment', () => {
 		}, { beforeLocalCommands: true, dispositions: Array(3).fill(['reject', 'localCanvasPocWorkspace', 'validation']) });
 		assert.ok(dispositions.every(value => value?.kind === 'reject'
 			&& value.error.message.includes(poc.workspace.fsPath)
-			&& value.error.message.includes(join(root, 'cached-workspace'))));
+			&& value.error.message.includes(URI.file(join(root, 'cached-workspace')).fsPath)));
 	});
 
 	test('admits demo peers, rejects missing/multi-root state and is inert without an opt-in', () => {

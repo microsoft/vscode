@@ -39,7 +39,7 @@ import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { CopilotAgent } from '../../../node/copilot/copilotAgent.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { loadCopilotCanvasSdk, readCopilotCanvasSdkConfiguration, type CopilotCanvasLaunchProvider, type ICopilotCanvasClientBridge, type ICopilotCanvasLaunchRequest } from '../../../node/copilot/copilotCanvasSdk.js';
-import { waitFor } from './copilotCanvasTestUtils.js';
+import { processIsRunning, waitFor } from './copilotCanvasTestUtils.js';
 
 class RecordingCanvasAgent extends CopilotAgent {
 	readonly resolutions: { request: ICopilotCanvasLaunchRequest; approved: boolean }[] = [];
@@ -89,20 +89,6 @@ async function stopHost(host: IAgentHostRuntime): Promise<void> {
 class UnwatchedDiskFileSystemProvider extends DiskFileSystemProvider {
 	override watch() {
 		return Disposable.None;
-	}
-}
-
-function processIsRunning(pid: number): boolean {
-	try {
-		return process.kill(pid, 0);
-	} catch (error) {
-		if (error instanceof Error) {
-			const nodeError: NodeJS.ErrnoException = error;
-			if (nodeError.code === 'ESRCH') {
-				return false;
-			}
-		}
-		throw error;
 	}
 }
 
@@ -469,11 +455,14 @@ suite('Agent Host Provider Integration - Public Canvas SDK', function () {
 		const log = store.add(new RecordingLogService());
 		let modelCalls = 0;
 		try {
-			for (const path of ['home/.config', 'copilot-home', 'workspace', 'profile']) {
+			for (const path of ['home/.config', 'copilot-home', 'workspace', 'resolved-worktree', 'profile']) {
 				await mkdir(join(configuredRoot, path), { recursive: true });
 			}
-			const workspace = URI.file(await realpath(join(configuredRoot, 'workspace')));
-			await promisify(execFile)('git', ['init', '--quiet', '--initial-branch=ulugbekna/canvas-approval-test', workspace.fsPath]);
+			const originalWorkspace = URI.file(await realpath(join(configuredRoot, 'workspace')));
+			const workspace = URI.file(await realpath(join(configuredRoot, 'resolved-worktree')));
+			for (const directory of [originalWorkspace, workspace]) {
+				await promisify(execFile)('git', ['init', '--quiet', '--initial-branch=ulugbekna/canvas-approval-test', directory.fsPath]);
+			}
 			const source = join(configuredRoot, 'source');
 			await cp(fileURLToPath(new URL('./fixtures/liveCanvas/', import.meta.url)), source, { recursive: true });
 			const registry = new ByokLmBridgeRegistry();
@@ -515,7 +504,7 @@ suite('Agent Host Provider Integration - Public Canvas SDK', function () {
 			assert.ok(runtime.agentService.canvasProtocol.initialize);
 			await runtime.agentService.canvasProtocol.initialize(true);
 			const session = await runtime.agentService.createSession({
-				provider: 'copilotcli', model: { id: 'canvas/offline' }, workingDirectories: [workspace],
+				provider: 'copilotcli', model: { id: 'canvas/offline' }, workingDirectories: [originalWorkspace],
 				config: { [SessionConfigKey.Isolation]: 'folder' },
 			});
 			const chat = URI.parse(buildDefaultChatUri(session));
@@ -527,13 +516,21 @@ suite('Agent Host Provider Integration - Public Canvas SDK', function () {
 			assert.strictEqual(agent.resolutions.filter(resolution => resolution.approved).length, 0);
 			const pkg = await services.packages.prepare(URI.file(source));
 			await services.packages.approve(pkg.id, pkg.revision, workspace);
+			const extensionId = canvasPackageExtensionId(pkg.id);
+			const opened = await runtime.agentService.canvasProtocol.open('canvas-approval-test', {
+				channel: session.toString(),
+				canvas: 'ahp-canvas:/approved-without-another-turn',
+				title: 'Approved without another turn',
+				identity: { chat: chat.toString(), source: agent.getCanvasSource(chat, extensionId), canvasType: 'counter', instanceId: 'approved-without-another-turn' },
+				input: {}, requestId: 'approved-without-another-turn',
+			});
+			assert.strictEqual(opened.canvas.identity.chat, chat.toString());
 			await Promise.all([
 				agent.chats.changeModel(chat, { id: 'canvas/offline' }, createAgentChatContext(services.state, session, chat)),
 				agent.chats.changeAgent(chat, undefined, createAgentChatContext(services.state, session, chat)),
 			]);
 			await agent.chats.sendMessage(chat, 'Continue the same chat after approving its first canvas package.', [workspace], undefined, generateUuid(), undefined, createAgentChatContext(services.state, session, chat));
 			await waitFor(readEvents, events => events.filter(event => event.type === 'assistant.message').length === 2);
-			const extensionId = canvasPackageExtensionId(pkg.id);
 			await waitFor(() => runtime!.agentService.getCanvases(chat), value => value.catalog.some(canvas => canvas.extensionId === extensionId));
 			const [snapshot] = await services.packages.getApprovedSnapshots(workspace);
 			assert.ok(snapshot);

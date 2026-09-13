@@ -113,7 +113,7 @@ suite('Local canvas PoC opt-in', () => {
 			normal: { home: normal.HOME, profile: normal.USERPROFILE, copilot: normal.COPILOT_HOME, config: normal.XDG_CONFIG_HOME, optInForwarded: normal[LocalCanvasPocRootEnvVar] },
 			isolated: { home: isolated.HOME, profile: isolated.USERPROFILE, copilot: isolated.COPILOT_HOME, config: isolated.XDG_CONFIG_HOME, gh: isolated.GH_CONFIG_DIR, sentinel: isolated.TEST_SENTINEL, keychain: isolated.COPILOT_DISABLE_KEYTAR },
 		}, {
-			clientOptions: { workingDirectory: join(root, 'workspace'), baseDirectory: join(root, 'copilot-home') },
+			clientOptions: { workingDirectory: poc.workspace.fsPath, baseDirectory: join(root, 'copilot-home') },
 			normal: { home: input.HOME, profile: input.USERPROFILE, copilot: input.COPILOT_HOME, config: input.XDG_CONFIG_HOME, optInForwarded: undefined },
 			isolated: { home: join(root, 'home'), profile: join(root, 'home'), copilot: join(root, 'copilot-home'), config: join(root, 'home', '.config'), gh: join(root, 'home', '.config', 'gh'), sentinel: 'preserved', keychain: '1' },
 		});

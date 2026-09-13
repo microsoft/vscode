@@ -50,6 +50,7 @@ export class LocalCanvasesContribution extends Disposable implements IAgentHostC
 			return;
 		}
 		const action = dispatched.action;
+		let removedDirectory: URI | undefined;
 		switch (action.type) {
 			case ActionType.SessionIsArchivedChanged:
 				if (!action.isArchived) {
@@ -58,6 +59,7 @@ export class LocalCanvasesContribution extends Disposable implements IAgentHostC
 				break;
 			case ActionType.SessionWorkingDirectoryRemoved:
 			case ActionType.SessionWorkingDirectoryReplaced:
+				removedDirectory = URI.parse(action.directory);
 				break;
 			case ActionType.SessionChatUpdated:
 				if (action.changes.interactivity === undefined || !isChatReadOnly(action.changes.interactivity, false)) {
@@ -72,13 +74,13 @@ export class LocalCanvasesContribution extends Disposable implements IAgentHostC
 				return;
 		}
 		for (const chat of this._stateManager.getSessionState(dispatched.session)?.chats ?? []) {
-			this._revoke(dispatched.session, chat.resource);
+			this._revoke(dispatched.session, chat.resource, removedDirectory);
 		}
 	}
 
-	private _revoke(session: string, chat: string): void {
+	private _revoke(session: string, chat: string, removedDirectory?: URI): void {
 		const provider = this._providers.getProviderForSession(session);
-		void provider?.revokeCanvasExecution?.(URI.parse(chat)).catch(error => {
+		void provider?.revokeCanvasExecution?.(URI.parse(chat), removedDirectory).catch(error => {
 			this._logService.error('[LocalCanvasesContribution] Failed to retire a canvas backing.', error);
 		});
 	}

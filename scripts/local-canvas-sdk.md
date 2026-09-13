@@ -109,20 +109,21 @@ next turn. Ordinary shutdown notification handling is unchanged.
 Package removal unregisters the package and revokes its grants. Inert cached
 snapshots and saved document data remain; removal is not a secure-erasure operation.
 
-### Known development-runtime limitation
+### Existing conversations and worktrees
 
-Approving a package after a chat has completed a turn can fail on the next
-same-session resume with `Hook processor is not configured`. This was reproduced
-using only the public SDK: an awaited model change followed by disconnect and
-same-ID resume can race runtime hook initialization. The integration regression
-for this sequence remains failing with the current development artifacts.
+A package can be approved and opened after an ordinary turn without sending
+another message first. The host refreshes an already initialized catalog when
+the requested package is absent, retaining and resuming the same backing rather
+than replacing the conversation. This requires the matching runtime's same-ID
+resume repair; registry metadata alone must not identify a disposed session as
+a live session with usable hook services.
 
-For the validated initial workflow, approve the package before creating a new
-chat. This avoids the affected sequence; it is not a repair for an existing
-conversation. The host does not silently skip model changes, retry an
-indeterminate operation or replace the conversation to hide the error. An
-upstream lifecycle fix and requalification are required before this limitation
-can be removed.
+Package selection, resource trust and workspace approval address the session's
+effective working directory, including a materialized worktree. Replacing the
+original folder with that worktree does not revoke a new backing already bound
+to the worktree. Removing any directory that an existing backing actually uses
+does retire it; archiving or making the chat read-only still retires its entire
+canvas backing.
 
 The environment selects three matching artifacts:
 
@@ -180,4 +181,6 @@ retention and cold restoration. Native UI and Windows/Linux qualification remain
 separate. The live test also verifies a failed first open, unknown runtime
 backings, refusal of the bundled SDK as a development bridge, rejection of an
 older runtime acknowledgement, and an ordinary mock-model turn through the
-unchanged bundled SDK after disabling preview.
+unchanged bundled SDK after disabling preview. It also covers first-turn
+worktree materialization and immediate opening after package approval in an
+existing conversation, preserving the backing and its prior messages.

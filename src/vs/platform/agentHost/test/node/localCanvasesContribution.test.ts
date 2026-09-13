@@ -29,9 +29,11 @@ suite('LocalCanvasesContribution', () => {
 		state.createSession({ resource: session, provider: 'copilot', title: '', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' });
 		state.addChat(session, second);
 		const calls: string[] = [];
+		const removedDirectories: (string | undefined)[] = [];
 		class CanvasAgent extends MockAgent {
-			async revokeCanvasExecution(chat: URI): Promise<void> {
+			async revokeCanvasExecution(chat: URI, removedDirectory?: URI): Promise<void> {
 				calls.push(chat.toString());
+				removedDirectories.push(removedDirectory?.toString());
 			}
 		}
 		const agent = store.add(new CanvasAgent('copilot'));
@@ -41,7 +43,7 @@ suite('LocalCanvasesContribution', () => {
 			state,
 			new NullLogService(),
 		));
-		return { contribution, calls, state };
+		return { contribution, calls, removedDirectories, state };
 	}
 
 	function canvasFixture() {
@@ -110,6 +112,17 @@ suite('LocalCanvasesContribution', () => {
 		contribution.onDidDispatchAction({ session, channel: session, action: { type: ActionType.SessionChatUpdated, chat: second, changes: { interactivity: ChatInteractivity.ReadOnly } } });
 		contribution.onDidDispatchAction({ session, channel: session, action: { type: ActionType.SessionChatRemoved, chat: second } });
 		assert.deepStrictEqual(calls, [second, second]);
+	});
+
+	test('directory changes retire only authority associated with the removed directory', () => {
+		const { contribution, calls, removedDirectories } = fixture();
+		const directory = URI.file('/original').toString();
+		contribution.onDidDispatchAction({ session, channel: session, action: { type: ActionType.SessionWorkingDirectoryReplaced, directory, replacement: URI.file('/resolved-worktree').toString() } });
+		contribution.onDidDispatchAction({ session, channel: session, action: { type: ActionType.SessionWorkingDirectoryRemoved, directory } });
+		assert.deepStrictEqual({ calls, removedDirectories }, {
+			calls: [first, second, first, second],
+			removedDirectories: [directory, directory, directory, directory],
+		});
 	});
 
 	test('rejected actions and unrelated metadata cannot revoke a live backing', () => {

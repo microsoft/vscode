@@ -17,7 +17,12 @@ import { createCopilotCanvasLaunchProvider, loadCopilotCanvasSdk, LocalCanvasRun
 
 suite('CopilotCanvasSdk', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-	const configuration = { sdkEntry: 'file:///development/sdk/index.js', bridgeEntry: 'file:///development/bridge.mjs', runtimeCli: '/development/runtime/index.js' };
+	const developmentRoot = join(process.cwd(), '.build', 'canvas-sdk-configuration');
+	const configuration = {
+		sdkEntry: pathToFileURL(join(developmentRoot, 'sdk', 'index.js')).href,
+		bridgeEntry: pathToFileURL(join(developmentRoot, 'bridge.mjs')).href,
+		runtimeCli: join(developmentRoot, 'runtime', 'index.js'),
+	};
 	const environment = {
 		[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeMainProcess,
 		[LocalCanvasSdkEntryEnvVar]: configuration.sdkEntry,

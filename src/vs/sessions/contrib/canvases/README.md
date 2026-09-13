@@ -1,8 +1,8 @@
-# Local canvas proof of concept
+# Local canvases in the Agents Window
 
-The desktop Agents Window exposes **Canvases** in the owning session's toolbar and header menu when the local MessagePort connection negotiates the canvas capability, that chat's live runtime advertises support, and AI features are enabled. Send a message first to materialize the opted-in chat runtime. Normal sessions, remote providers, other providers, and the web workbench do not expose this entry.
+The desktop Agents Window exposes **Canvases** in the owning session's toolbar and header menu when the local MessagePort connection negotiates the canvas capability, the preview is enabled, and AI features are enabled. The qualified macOS arm64 source-build preview uses the matching development SDK/runtime and explicitly approved packages. Opening an approved package can materialize a retained backing without a preparatory message; approving a package after an existing turn does not require another message either. Built releases, remote providers, other providers, and the web workbench do not expose this preview.
 
-This is an isolated development proof of concept. The host must opt in with `VSCODE_LOCAL_CANVAS_POC_ROOT`, with the dedicated `<root>/workspace` and reviewed user-scope extension. See the [local launch guide](../../../../../scripts/local-canvas-poc.md). The integrated browser is **not** a security sandbox for arbitrary untrusted extensions; runtime trust hardening is deferred.
+See the [development SDK launch guide](../../../../../scripts/local-canvas-sdk.md) for immutable package preparation, exact-workspace approval and isolated launch profiles. The separate reviewed-fixture [proof of concept](../../../../../scripts/local-canvas-poc.md) uses `VSCODE_LOCAL_CANVAS_POC_ROOT` and a dedicated workspace. In either route, the backend is a Node process with the user's permissions, **not a sandbox**. Browser origin confinement does not restrict backend filesystem or network access.
 
 ## Using a canvas
 
@@ -11,7 +11,7 @@ This is an isolated development proof of concept. The host must opt in with `VSC
 - Canvas and action inputs are **JSON**, not JavaScript object literals. Quote property names and string values, and satisfy the schema shown in the input prompt. Runtime errors are surfaced without replaying the operation. Canceling the prompt does not open or invoke anything.
 - Closing an editor tab only hides the canvas. **Close Canvas** closes the logical instance through its owning chat.
 - **Refresh Canvases** reads current state and retries visible unavailable editors. **Restart Canvas Provider** uses the guarded local reload RPC; acknowledgment can precede page readiness. An already-visible unavailable editor gets one automatic rebind attempt when its current endpoint becomes ready. A failed attempt remains explicitly retryable. Neither command reopens hidden tabs or replays SDK open calls.
-- Instances added after the initial catalog observation produce an **Open Canvas** notification. Restored identities and endpoint updates never steal focus.
+- New instances in the active chat reveal once their endpoint is ready, without taking focus. A newer navigation prevents a late reveal. **Open Canvas** notifications and **Reveal Canvas** remain available for background or hidden instances. Restored identities and endpoint updates do not reopen hidden tabs.
 
 ## Command arguments
 

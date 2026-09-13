@@ -3362,7 +3362,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			await this._withCanvasExecution(chat, onWillExecute, async () => {
 				const previous = this._findChatByUri(chat);
-				if (previous?.requiresCanvasInitialization) {
+				const declarations = previous?.canvases?.state.catalog;
+				if (previous && (previous.requiresCanvasInitialization || declarations && !declarations.some(canvas => canvas.extensionId === extensionId))) {
 					await this._retainCanvasBacking(chat, previous);
 					await this._destroyLiveSession(previous, true);
 				}
@@ -3448,10 +3449,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	async revokeCanvasExecution(chat: URI): Promise<void> {
-		this._canvasLaunchAuthority.revokeChat(chat);
+	async revokeCanvasExecution(chat: URI, removedDirectory?: URI): Promise<void> {
+		this._canvasLaunchAuthority.revokeChat(chat, removedDirectory);
 		const session = this._findChatByUri(chat);
-		if (session?.canvases) {
+		if (session?.canvases && (!removedDirectory || isEqual(session.workingDirectory, removedDirectory) || session.appliedAdditionalDirectories.some(directory => isEqual(directory, removedDirectory)))) {
 			await this._stopCanvasSession(session);
 		}
 		await this._canvasLaunchAuthority.whenIdle();
@@ -5586,7 +5587,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					sessionId: launchPlan.sessionId,
 					session: sessionUri,
 					chat: chatChannelUri,
-					workspace: launchPlan.workingDirectory,
+					workingDirectories: [launchPlan.workingDirectory, ...(launchPlan.additionalDirectories ?? [])],
 					pluginDirectories: launchPlan.snapshot.plugins.flatMap(plugin => plugin.pluginDir ? [plugin.pluginDir] : []),
 					stop: () => this._stopCanvasSession(agentSession),
 				});
