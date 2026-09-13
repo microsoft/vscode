@@ -12,9 +12,11 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -38,7 +40,7 @@ import { ISessionGroup, ISessionGroupsService } from '../../../../../sessions/se
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionSectionOrderService } from '../../../../../sessions/services/sessions/browser/sessionSectionOrderService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -54,7 +56,9 @@ import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFol
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionReason, BlockedSessions } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -132,6 +136,8 @@ interface ISessionSpec {
 	readonly minutesAgo: number;
 	readonly changesSummary?: ISessionChangesSummary;
 	readonly group?: string;
+	readonly isRead?: boolean;
+	readonly hasFailingCI?: boolean;
 	/** Nested (non-main) chats shown as child rows under the session. */
 	readonly chats?: readonly IChatSpec[];
 	/** Terminal command awaiting approval on the session's main chat (renders on the session row). */
@@ -206,7 +212,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(spec.workspace ? createWorkspace(spec.workspace) : undefined);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!spec.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
-		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly isRead: IObservable<boolean> = constObservable(spec.isRead ?? true);
 		override readonly changes: IObservable<readonly never[]> = constObservable([]);
 		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
@@ -229,6 +235,9 @@ interface IRenderOptions {
 	readonly sessions: readonly ISessionSpec[];
 	readonly groups?: readonly ISessionGroup[];
 	readonly grouping?: SessionsGrouping;
+	readonly collapsed?: boolean;
+	readonly showUnreadInCollapsedSections?: boolean;
+	readonly reducedMotion?: boolean;
 	readonly width?: number;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
@@ -270,6 +279,12 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
+			const reducedMotion = options.reducedMotion;
+			if (reducedMotion !== undefined) {
+				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}());
+			}
 			if (options.showFocusedToolbar || options.focusSelectedSession) {
 				const archiveAction = new class extends mock<MenuItemAction>() {
 					override readonly id = 'sessions.fixture.archive';
@@ -327,19 +342,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override isSessionPinned(): boolean { return false; }
 				override migrateLegacyReadState(): void { }
 				override getSortKey(session: ISession): number { return session.createdAt.getTime(); }
-				override getStatusIcon(status: SessionStatus, isRead: boolean): ThemeIcon {
-					switch (status) {
-						case SessionStatus.InProgress:
-							return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-						case SessionStatus.NeedsInput:
-							return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-						default:
-							if (!isRead) {
-								return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
-							}
-							return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-					}
-				}
+				override getStatusIcon = SessionsListModelService.prototype.getStatusIcon;
 			}());
 			reg.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 				override readonly onDidChange = Event.None;
@@ -436,11 +439,21 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		}());
 	}
 
+	instantiationService.stubInstance(BlockedSessions, new class extends mock<BlockedSessions>() {
+		override readonly blockedSessionsWithReasons = constObservable(sessions
+			.filter((_session, index) => options.sessions[index].hasFailingCI)
+			.map(session => ({ session, reason: BlockedSessionReason.FailingCI, occurrenceId: 'failingCI:fixture' })));
+		override dispose = Disposable.None.dispose;
+	}());
+
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
 	if (options.automationBadgeStyle) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, options.automationBadgeStyle);
+	}
+	if (options.showUnreadInCollapsedSections !== undefined) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, options.showUnreadInCollapsedSections);
 	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
@@ -481,6 +494,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	if (options.collapsed) {
+		list.collapseAllSections();
+	}
 	if (options.archiveOnboarding) {
 		listHost.style.width = `${width}px`;
 		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
@@ -584,6 +600,21 @@ const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'b', title: 'Add reconnect backoff', workspace: 'agent-host-protocol', minutesAgo: 64, group: GROUP.id },
 	{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 },
 ];
+const COLLAPSED_SECTION_SESSIONS: readonly ISessionSpec[] = [
+	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, isRead: false },
+	{ id: 'workspace-read', title: 'Read session in the workspace', workspace: 'vscode', minutesAgo: 24 },
+	{ id: 'workspace-unread', title: 'Unread session in the workspace', workspace: 'vscode-docs', minutesAgo: 36, isRead: false },
+];
+const COLLAPSED_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
+	...COLLAPSED_SECTION_SESSIONS,
+	{ id: 'grouped-needs-input', title: 'Needs input in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, status: SessionStatus.NeedsInput },
+	{ id: 'workspace-needs-input', title: 'Needs input in the workspace', workspace: 'vscode-docs', minutesAgo: 60, status: SessionStatus.NeedsInput },
+];
+const COLLAPSED_CI_FAILURE_SESSIONS: readonly ISessionSpec[] = [
+	...COLLAPSED_SECTION_SESSIONS,
+	{ id: 'grouped-failing-ci', title: 'CI failure in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, hasFailingCI: true },
+	{ id: 'workspace-failing-ci', title: 'CI failure in the workspace', workspace: 'vscode-docs', minutesAgo: 60, hasFailingCI: true },
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
@@ -597,6 +628,42 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
+	}),
+	SessionsList_CollapsedUnreadSections: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Filled unread indicators replace the icons for Release work and vscode-docs. The vscode section retains its folder icon because its unread session appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_SECTION_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: true }),
+	}),
+	SessionsList_CollapsedUnreadSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed and retain their normal group or folder icons despite containing unread sessions, because collapsed-section indicators are disabled by default.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_SECTION_SESSIONS, groups: [GROUP], collapsed: true }),
+	}),
+	SessionsList_CollapsedNeedsInputSections: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Orange ring pixel spinners replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its needs-input session appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_NEEDS_INPUT_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: true, reducedMotion: false }),
+	}),
+	SessionsList_CollapsedNeedsInputSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All collapsed sections retain their normal group or folder icons despite containing unread and needs-input sessions, because collapsed-section indicators are disabled by default.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_NEEDS_INPUT_SESSIONS, groups: [GROUP], collapsed: true, reducedMotion: false }),
+	}),
+	SessionsList_CollapsedCIFailureSections: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Orange dots replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its session with failing CI appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_CI_FAILURE_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: true }),
+	}),
+	SessionsList_CollapsedCIFailureSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All collapsed sections retain their normal group or folder icons despite containing unread sessions and CI failures, because collapsed-section indicators are disabled by default.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_CI_FAILURE_SESSIONS, groups: [GROUP], collapsed: true }),
 	}),
 	SessionsList_CustomGroup_LongWorkspaceNarrow: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {

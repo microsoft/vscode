@@ -331,10 +331,18 @@ suite('GitHubPRFetcher', () => {
 	});
 
 	test('getPullRequest maps closed PR', async () => {
-		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false }));
+		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false, closed_at: '2024-03-04T00:00:00Z' }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
 		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Closed);
+		assert.strictEqual(pr.data?.closedAt, '2024-03-04T00:00:00Z');
+	});
+
+	test('getPullRequest omits closedAt for an open PR', async () => {
+		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));
+
+		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
+		assert.strictEqual(pr.data?.closedAt, undefined);
 	});
 
 	test('getReviewThreads returns GraphQL thread metadata', async () => {
@@ -811,6 +819,7 @@ function makePRResponse(overrides: {
 	draft: boolean;
 	mergeable?: boolean | null;
 	mergeable_state?: string;
+	closed_at?: string | null;
 }): unknown {
 	return {
 		number: 1,
@@ -824,6 +833,7 @@ function makePRResponse(overrides: {
 		created_at: '2024-01-01T00:00:00Z',
 		updated_at: '2024-01-02T00:00:00Z',
 		merged_at: overrides.merged ? '2024-01-02T00:00:00Z' : null,
+		closed_at: overrides.closed_at ?? (overrides.state === 'closed' ? '2024-01-03T00:00:00Z' : null),
 		mergeable: overrides.mergeable ?? true,
 		mergeable_state: overrides.mergeable_state ?? 'clean',
 		merged: overrides.merged,

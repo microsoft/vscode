@@ -31,6 +31,7 @@ interface IGitHubPRResponse {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly merged_at: string | null;
+	readonly closed_at?: string | null;
 	readonly mergeable: boolean | null;
 	readonly mergeable_state: string;
 	readonly merged: boolean;
@@ -467,6 +468,7 @@ function mapPullRequest(data: IGitHubPRResponse): IGitHubPullRequest {
 		createdAt: data.created_at,
 		updatedAt: data.updated_at,
 		mergedAt: data.merged_at ?? undefined,
+		...(data.closed_at ? { closedAt: data.closed_at } : {}),
 		mergeable: data.mergeable ?? undefined,
 		mergeableState: data.mergeable_state,
 	};

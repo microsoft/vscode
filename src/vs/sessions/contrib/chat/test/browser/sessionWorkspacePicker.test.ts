@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -497,6 +497,14 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.deepStrictEqual({
 			tabbed: getRemoteItems(tabbedPicker),
 			unifiedTopLevel: getRemoteItems(unifiedPicker),
+			unifiedListOptions: {
+				submenuPointerIntent: unifiedPicker.getListOptions().submenuPointerIntent,
+				preserveVerticalPosition: unifiedRemoteItem?.hover?.preserveVerticalPosition,
+				alignToAnchorTop: unifiedRemoteItem?.hover?.alignToAnchorTop,
+				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
+				submenuFilterPlaceholder: unifiedRemoteItem?.submenuOptions?.filterPlaceholder,
+				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
+			},
 			unifiedSubmenu: unifiedRemoteActions instanceof SubmenuAction
 				? unifiedRemoteActions.actions.map(action => ({
 					label: action.label,
@@ -512,12 +520,20 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Provider agenthost-wsl', description: 'Online · 2 active sessions', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
 			],
 			unifiedTopLevel: [],
+			unifiedListOptions: {
+				submenuPointerIntent: true,
+				preserveVerticalPosition: true,
+				alignToAnchorTop: true,
+				submenuFilter: true,
+				submenuFilterPlaceholder: 'Search Remote',
+				submenuWidth: 180,
+			},
 			unifiedSubmenu: [
-				{ label: 'Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
-				{ label: 'Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
-				{ label: 'Provider agenthost-tunnel-idle', icon: Codicon.cloud.id },
-				{ label: 'Provider agenthost-ssh', icon: Codicon.remote.id },
-				{ label: 'Provider agenthost-wsl', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-tunnel-idle', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-ssh', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-wsl', icon: Codicon.remote.id },
 			],
 		});
 	});
@@ -3817,6 +3833,10 @@ class TestablePicker extends WorkspacePicker {
 		return this._buildItems();
 	}
 
+	getListOptions(): IActionListOptions {
+		return this._buildListOptions(this.getItems(), undefined);
+	}
+
 	getItemLabels(): string[] {
 		return this.getItems().flatMap(entry => entry.label ? [entry.label] : []);
 	}
@@ -4544,7 +4564,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			remoteItems: [
 				{ label: 'remote-project', enabled: false, removable: true },
 				{ label: 'Select Remote', enabled: false, removable: false },
-				{ label: 'Provider agenthost-menu', enabled: true, removable: false },
+				{ label: 'Manage Provider agenthost-menu', enabled: true, removable: false },
 			],
 		});
 	});
