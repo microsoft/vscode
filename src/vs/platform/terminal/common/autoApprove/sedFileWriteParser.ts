@@ -19,6 +19,11 @@ export interface ISedFileWrite {
 	readonly hasUnquotedPathExpansion: boolean;
 }
 
+interface ISedBackupSuffix {
+	readonly value: string;
+	readonly hasUnquotedPathExpansion: boolean;
+}
+
 export class SedFileWriteParser {
 	readonly commandName = 'sed';
 
@@ -49,23 +54,26 @@ export class SedFileWriteParser {
 		return [
 			...files,
 			...files.map(file => ({
-				path: backupSuffix.includes('*') ? backupSuffix.replaceAll('*', file.path) : `${file.path}${backupSuffix}`,
-				hasUnquotedPathExpansion: false,
+				path: backupSuffix.value.includes('*') ? backupSuffix.value.replaceAll('*', file.path) : `${file.path}${backupSuffix.value}`,
+				hasUnquotedPathExpansion: file.hasUnquotedPathExpansion || backupSuffix.hasUnquotedPathExpansion,
 			})),
 		];
 	}
 
-	private _extractBackupSuffix(tokens: string[], rawTokens: string[]): string | undefined {
-		let backupSuffix: string | undefined;
+	private _extractBackupSuffix(tokens: string[], rawTokens: string[]): ISedBackupSuffix | undefined {
+		let backupSuffix: ISedBackupSuffix | undefined;
 		for (let i = 1; i < tokens.length; i++) {
 			const token = tokens[i];
 			if (token === '--') {
 				break;
 			}
 			if (this._isLongInPlaceOption(token)) {
-				backupSuffix = token.includes('=')
-					? this._stripSurroundingQuotes(token.slice(token.indexOf('=') + 1))
-					: '';
+				const equalsIndex = token.indexOf('=');
+				const rawEqualsIndex = rawTokens[i].indexOf('=');
+				backupSuffix = equalsIndex === -1 ? undefined : {
+					value: this._stripSurroundingQuotes(token.slice(equalsIndex + 1)),
+					hasUnquotedPathExpansion: rawEqualsIndex !== -1 && this._hasRuntimePathExpansion(rawTokens[i].slice(rawEqualsIndex + 1)),
+				};
 				continue;
 			}
 			if (!/^-[^-]/.test(token)) {
@@ -80,22 +88,28 @@ export class SedFileWriteParser {
 			}
 			const attached = flags.slice(inPlaceIndex + 1);
 			if (attached) {
-				backupSuffix = this._stripSurroundingQuotes(attached);
+				backupSuffix = {
+					value: this._stripSurroundingQuotes(attached),
+					hasUnquotedPathExpansion: this._hasRuntimePathExpansion(rawTokens[i]),
+				};
 				continue;
 			}
 			const next = tokens[i + 1];
 			const rawNext = rawTokens[i + 1];
 			if (next === '' || next === '\'\'' || next === '""') {
-				backupSuffix = '';
+				backupSuffix = undefined;
 				continue;
 			}
 			if (next && rawNext && ((rawNext.startsWith('\'') && rawNext.endsWith('\'')) || (rawNext.startsWith('"') && rawNext.endsWith('"')))) {
 				if (next.startsWith('.') && next.length <= 10 && !next.includes('/')) {
-					backupSuffix = next;
+					backupSuffix = {
+						value: next,
+						hasUnquotedPathExpansion: this._hasRuntimePathExpansion(rawNext),
+					};
 					continue;
 				}
 			}
-			backupSuffix = '';
+			backupSuffix = undefined;
 		}
 		return backupSuffix;
 	}
@@ -219,7 +233,10 @@ export class SedFileWriteParser {
 		return false;
 	}
 
-	private _hasUnquotedPathExpansion(value: string): boolean {
+	private _hasRuntimePathExpansion(value: string): boolean {
+		if (this._containsRuntimeExpansion(value)) {
+			return true;
+		}
 		let inSingleQuote = false;
 		let inDoubleQuote = false;
 		for (let i = 0; i < value.length; i++) {
@@ -236,7 +253,7 @@ export class SedFileWriteParser {
 				inDoubleQuote = !inDoubleQuote;
 				continue;
 			}
-			if (!inSingleQuote && !inDoubleQuote && (char === '*' || char === '?' || char === '[')) {
+			if (char === '~' && !inSingleQuote && !inDoubleQuote) {
 				return true;
 			}
 		}
@@ -420,7 +437,7 @@ export class SedFileWriteParser {
 			}
 			files.push({
 				path: file,
-				hasUnquotedPathExpansion: this._hasUnquotedPathExpansion(rawTokens[i]),
+				hasUnquotedPathExpansion: this._hasRuntimePathExpansion(rawTokens[i]),
 			});
 			i++;
 		}
