@@ -664,6 +664,7 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
 	...sortAutoApproveRules,
 	'/^tree\\b.*\\s-[^-\\s]*o/': false,
+	'/^tree\\b.*\\s(?:[\'"]|\\\\)+[^\\s]*o/': false,
 	'/^xxd$/': true,
 	'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
 

@@ -181,7 +181,13 @@ suite('CommandLineAutoApprover', () => {
 				...(terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean>),
 				'/^tree\\b/': true,
 			});
-			deepStrictEqual(await Promise.all(['tree .', 'tree -o output.txt .', 'tree -io output.txt .'].map(isAutoApproved)), [true, false, false]);
+			deepStrictEqual(await Promise.all([
+				'tree .',
+				'tree -o output.txt .',
+				'tree -io output.txt .',
+				'tree "-o" output.txt .',
+				'tree \\-\\o output.txt .',
+			].map(isAutoApproved)), [true, false, false, false, false]);
 		});
 	});
 
