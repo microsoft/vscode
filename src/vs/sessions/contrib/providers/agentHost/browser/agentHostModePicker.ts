@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -31,11 +31,12 @@ import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/c
 import { getAgentHostModeIcon } from './agentHostModeIcon.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerTrigger, renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerTrigger, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 
 export interface IAgentHostSessionEnumPickerItem {
+	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
@@ -52,6 +53,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _triggerGesture = this._register(new MutableDisposable());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private readonly _pickerListener = this._register(new MutableDisposable());
 	private _containerElement: HTMLElement | undefined;
 	private _slotElement: HTMLElement | undefined;
 	protected _triggerElement: HTMLElement | undefined;
@@ -142,6 +144,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected _createTrigger(slot: HTMLElement): HTMLElement { return dom.append(slot, dom.$('a.action-label')); }
 	protected _getTriggerTooltip(tooltip: string): string { return tooltip; }
 	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] { return []; }
+	protected _watchActionItems(_items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable { return Disposable.None; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
 	protected _onDidSelectValue(_previousValue: string, _selectedValue: string): void { }
 
@@ -151,7 +154,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			label: item.label,
 			detail: item.description,
 			group: { title: '', icon: this._getActionItemIcon(item, currentValue) },
-			item: { ...item, checked: item.value === currentValue },
+			item: { ...item, id: item.value, checked: item.value === currentValue },
 		}));
 	}
 
@@ -188,7 +191,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		return this._showPicker(anchor, onHide);
 	}
 
-	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
+	protected _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._session.get();
 		if (!session) {
 			return undefined;
@@ -282,6 +285,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		const actionItems = this._getActionItems(ctx.items, ctx.currentValue);
 		actionItems.push(...this._getFooterActionItems());
 		const ariaTarget = this._triggerElement?.contains(anchor) ? anchor : this._triggerElement;
+		const combinedTrigger = this._triggerElement?.classList.contains('agent-host-mode-permissions-trigger') ? this._triggerElement : undefined;
 
 		const delegate: IActionListDelegate<IAgentHostSessionEnumPickerItem | IAction> = {
 			onSelect: async item => {
@@ -311,7 +315,9 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			},
 			onHide: () => {
 				this._pickerVisible = false;
+				this._pickerListener.clear();
 				ariaTarget?.setAttribute('aria-expanded', 'false');
+				combinedTrigger?.removeAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE);
 				anchor.focus();
 				onHide?.();
 			},
@@ -330,6 +336,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			this._getAccessibilityProvider(),
 			listOptions,
 		);
+		combinedTrigger?.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
+		this._pickerListener.value = this._watchActionItems(actionItems);
 		return true;
 	}
 }
@@ -366,9 +374,14 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			this._permissionDelegate.isModePickerCombined.read(reader);
 			this._permissionDelegate.currentPermissionLevel.read(reader);
 			this._permissionDelegate.isResolving.read(reader);
+			this._permissionDelegate.sandboxToggleSettingId.read(reader);
 			this._permissionDelegate.managedSandboxEnforced.read(reader);
 			this._permissionDelegate.managedSandboxAllowsBypass.read(reader);
 			this._hidePicker();
+			this._updateTrigger();
+		}));
+		this._register(autorun(reader => {
+			this._permissionDelegate.sandboxEnabled.read(reader);
 			this._updateTrigger();
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -388,7 +401,10 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		this._splitTrigger.clear();
 		if (this._permissionDelegate.isModePickerCombined.get()) {
 			this._splitTrigger.value = renderModePickerTrigger(trigger, { label, icon, labelClassName: 'sessions-chat-dropdown-label' }, this._permissionPicker.presentation, (anchor, openPermissions) => {
-				this._showPicker(anchor, undefined, getModePermissionsPickerOptions(openPermissions));
+				const initialFocusItemId = openPermissions
+					? `permissionPicker.${this._permissionDelegate.currentPermissionLevel.get()}`
+					: this._getActiveContext()?.currentValue;
+				this._showPicker(anchor, undefined, getModePermissionsPickerOptions(openPermissions, initialFocusItemId));
 			}, previous);
 		} else {
 			trigger.classList.remove('agent-host-mode-permissions-trigger');
@@ -418,7 +434,6 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	protected override _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
 		const session = this._session.get();
 		return this._permissionDelegate.isModePickerCombined.get() ? [
-			{ kind: ActionListItemKind.Separator },
 			...createModePickerPermissionsItems<IAgentHostSessionEnumPickerItem>(this._permissionPicker.presentation, this._permissionPicker.getActionListItems(() => this._session.get() === session), async () => {
 				this._hidePicker();
 				await this._preferencesService.openSettings({ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY });
@@ -428,6 +443,10 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 
 	protected override _getActionItems(items: readonly IAgentHostSessionEnumPickerItem[], currentValue: string): IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
 		return createModePickerModeItems(super._getActionItems(items, currentValue), this._permissionDelegate.isModePickerCombined.get());
+	}
+
+	protected override _watchActionItems(items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable {
+		return this._permissionPicker.watchSandboxToggle(items);
 	}
 
 	protected override _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {
@@ -444,7 +463,9 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override _getListOptions(): IActionListOptions {
-		return this._permissionDelegate.isModePickerCombined.get() ? getModePermissionsPickerOptions() : { minWidth: 260 };
+		return this._permissionDelegate.isModePickerCombined.get()
+			? getModePermissionsPickerOptions(false, this._getActiveContext()?.currentValue)
+			: { minWidth: 260 };
 	}
 
 	protected _isWellKnownSchema(schema: SessionConfigPropertySchema): boolean {

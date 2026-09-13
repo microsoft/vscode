@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { isSessionStatusArchived, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isSessionStatusArchived, MessageKind, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
@@ -36,7 +36,7 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly enabled?: boolean;
 		readonly archiveAfterDays?: number;
 		readonly deleteAfterDays?: number;
-		readonly onResolve?: (configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI) => void;
+		readonly onResolve?: (configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI, resolveCount: number) => void;
 		readonly pullRequestUrls?: readonly string[];
 		readonly deleteError?: Error;
 		readonly autoArchivedAt?: number;
@@ -44,6 +44,7 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly worktreePresent?: boolean;
 		readonly onGetAutoArchivedAt?: (configurationService: AgentConfigurationService) => void;
 		readonly onSetAutoArchivedAt?: (timestamp: number, configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI) => void;
+		readonly onDeleteValidationResolved?: (configurationService: AgentConfigurationService) => void;
 	}) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -90,7 +91,7 @@ suite('AgentHostSessionLifecycle', () => {
 				resolved.push(sessionKey);
 				resolvedPullRequestUrls.push(pullRequestUrl);
 				assert.ok((options?.pullRequestUrls ?? [PULL_REQUEST_URL]).includes(pullRequestUrl));
-				options?.onResolve?.(configurationService, stateManager, session);
+				options?.onResolve?.(configurationService, stateManager, session, resolved.length);
 				return options?.resolveStatus?.(pullRequestUrl) ?? options?.status;
 			}
 			override dispose() { }
@@ -138,8 +139,16 @@ suite('AgentHostSessionLifecycle', () => {
 					cleanedWorktrees.push(resource.toString());
 					worktreePresent = false;
 				},
-				deleteSession: async (resource, validate) => {
-					if (!await validate()) {
+				deleteSession: async (resource, validate, canCommit) => {
+					const validation = validate();
+					if (options?.onDeleteValidationResolved) {
+						void validation.then(valid => {
+							if (valid) {
+								options.onDeleteValidationResolved?.(configurationService);
+							}
+						});
+					}
+					if (!await validation || !canCommit()) {
 						return false;
 					}
 					deleted.push(resource.toString());
@@ -269,6 +278,83 @@ suite('AgentHostSessionLifecycle', () => {
 			status: SessionStatus.Idle | SessionStatus.IsArchived,
 			archivedWhenTimestampWritten: true,
 			autoArchiveTimestamps: [NOW],
+		});
+	});
+
+	test('does not archive when automatic archival is disabled during final pull request validation', async () => {
+		const { lifecycle, stateManager, session, archivedSessions, autoArchiveTimestamps } = createHarness({
+			status: mergedPullRequestStatus(),
+			onResolve: (configurationService, _stateManager, _session, resolveCount) => {
+				if (resolveCount === 2) {
+					configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 0 });
+				}
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			archivedSessions,
+			autoArchiveTimestamps,
+			status: stateManager.getSessionSummary(session.toString())?.status,
+		}, {
+			archivedSessions: [],
+			autoArchiveTimestamps: [],
+			status: SessionStatus.Idle,
+		});
+	});
+
+	test('does not archive a session that starts a turn during final pull request validation', async () => {
+		const { lifecycle, stateManager, session, archivedSessions, autoArchiveTimestamps } = createHarness({
+			status: mergedPullRequestStatus(),
+			onResolve: (_configurationService, manager, resource, resolveCount) => {
+				if (resolveCount === 2) {
+					manager.dispatchServerAction(buildDefaultChatUri(resource.toString()), {
+						type: ActionType.ChatTurnStarted,
+						turnId: 'turn-1',
+						startedAt: new Date(NOW).toISOString(),
+						message: { text: 'continue', origin: { kind: MessageKind.User } },
+					});
+				}
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			archivedSessions,
+			autoArchiveTimestamps,
+			status: stateManager.getSessionSummary(session.toString())?.status,
+		}, {
+			archivedSessions: [],
+			autoArchiveTimestamps: [],
+			status: SessionStatus.InProgress,
+		});
+	});
+
+	test('does not record automatic archival when manually archived during final pull request validation', async () => {
+		const { lifecycle, stateManager, session, archivedSessions, autoArchiveTimestamps } = createHarness({
+			status: mergedPullRequestStatus(),
+			onResolve: (_configurationService, manager, resource, resolveCount) => {
+				if (resolveCount === 2) {
+					manager.dispatchServerAction(resource.toString(), {
+						type: ActionType.SessionIsArchivedChanged,
+						isArchived: true,
+					});
+				}
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			archivedSessions,
+			autoArchiveTimestamps,
+			status: stateManager.getSessionSummary(session.toString())?.status,
+		}, {
+			archivedSessions: [],
+			autoArchiveTimestamps: [],
+			status: SessionStatus.Idle | SessionStatus.IsArchived,
 		});
 	});
 
@@ -467,6 +553,52 @@ suite('AgentHostSessionLifecycle', () => {
 				if (++metadataReads === 2) {
 					configurationService.updateRootConfig({ [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
 				}
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('does not delete when cleanup is disabled during final pull request validation', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			onResolve: (configurationService, _stateManager, _session, resolveCount) => {
+				if (resolveCount === 3) {
+					configurationService.updateRootConfig({ [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
+				}
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('does not delete when cleanup is disabled before the disposer commit boundary', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			onDeleteValidationResolved: configurationService => {
+				configurationService.updateRootConfig({ [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
 			},
 		});
 

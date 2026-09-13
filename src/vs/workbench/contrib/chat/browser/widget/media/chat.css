@@ -114,11 +114,6 @@
 	-webkit-user-select: text;
 }
 
-.interactive-session.chat-pet-enabled .interactive-item-container.chat-most-recent-response::after {
-	content: "";
-	flex: 0 0 48px;
-}
-
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
 	display: flex;
 	align-items: center;
@@ -1968,6 +1963,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
+}
+
+.interactive-session .chat-input-picker-label {
+	transform: translateY(1px);
+}
+
+.chat-input-picker-item .chat-input-picker-sandbox-icon {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
 }
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning {
@@ -4385,14 +4389,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child) {
 			display: flex;
 			align-items: center;
-			gap: 4px;
+			position: relative;
+			/* Reserves the gutter the absolutely positioned separator is drawn into. */
+			margin-left: var(--vscode-spacing-size80);
 		}
 
 		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child)::before {
 			content: '\00B7';
+			position: absolute;
+			right: 100%;
+			top: 0;
+			bottom: 0;
+			display: flex;
+			align-items: center;
+			margin-right: var(--vscode-spacing-size40);
 			font-size: var(--vscode-fontSize-label1);
 			line-height: 18px;
 			color: var(--vscode-descriptionForeground);
+			pointer-events: none;
 		}
 
 		.monaco-toolbar .action-label:hover {

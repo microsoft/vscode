@@ -10,7 +10,7 @@ import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type Chat
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
-import { SessionConfigKey } from './sessionConfigKeys.js';
+import { SessionConfigKey, type SessionSandboxEnabled } from './sessionConfigKeys.js';
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
@@ -344,6 +344,13 @@ const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
  * provider-specific properties.
  */
 export const platformSessionSchema = createSchema({
+	[SessionConfigKey.SandboxEnabled]: schemaProperty<SessionSandboxEnabled>({
+		type: 'string',
+		title: localize('agentHost.sessionConfig.sandboxEnabled', "Sandbox"),
+		description: localize('agentHost.sessionConfig.sandboxEnabledDescription', "Sandbox behavior for this session. Default follows the global setting."),
+		enum: ['default', 'on', 'off'],
+		sessionMutable: true,
+	}),
 	[SessionConfigKey.AutoApprove]: schemaProperty<AutoApproveLevel>({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
@@ -496,6 +503,13 @@ export const AgentHostAutoApprovePolicyRestrictedConfigKey = 'autoApprovePolicyR
 export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
 
 export const AgentHostAutoReplyAnswer = 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.';
+
+export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
+
+interface IAgentHostWorkspaceTrust {
+	readonly enabled: boolean;
+	readonly trustedUris: readonly string[];
+}
 
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
@@ -821,6 +835,20 @@ export const platformRootSchema = createSchema({
 		default: false,
 		readOnly: true,
 	}),
+	[AgentHostWorkspaceTrustConfigKey]: schemaProperty<IAgentHostWorkspaceTrust>({
+		type: 'object',
+		title: localize('agentHost.config.workspaceTrust', "Workspace Trust"),
+		properties: {
+			enabled: { type: 'boolean', title: localize('agentHost.config.workspaceTrust.enabled', "Enabled") },
+			trustedUris: {
+				type: 'array',
+				title: localize('agentHost.config.workspaceTrust.trustedUris', "Trusted Folders"),
+				items: { type: 'string', title: localize('agentHost.config.workspaceTrust.uri', "Folder URI") },
+			},
+		},
+		required: ['enabled', 'trustedUris'],
+		readOnly: true,
+	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
@@ -952,4 +980,5 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	AgentHostTerminalAutoApproveRulesConfigKey,
 	AgentHostEditAutoApprovePatternsConfigKey,
 	AgentHostAutoReplyEnabledConfigKey,
+	AgentHostWorkspaceTrustConfigKey,
 ]);

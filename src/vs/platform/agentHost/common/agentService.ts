@@ -184,9 +184,11 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 
 /**
  * Configuration key controlling whether the Codex provider is registered in
- * the agent host process. When `false` (the default), the agent host skips
- * registering the Codex provider regardless of SDK availability. The agent
- * host process must be restarted for changes to take effect.
+ * the agent host process. When `false`, the agent host skips registering the
+ * Codex provider regardless of SDK availability. The setting defaults to
+ * enabled outside Stable and disabled in Stable, subject to its startup
+ * experiment override. The agent host process must be restarted to unregister
+ * a provider that is already running.
  */
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
@@ -211,14 +213,17 @@ export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
 /**
  * Environment variable form of {@link AgentHostClaudeAgentEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true` for Claude, `false` for Codex).
+ * `'false'`; absent uses the agent host's Claude fallback (`true`). The
+ * starters normally forward the resolved setting explicitly.
  */
 export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
 
 /**
  * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`false`).
+ * `'false'`; absent uses the host-level fallback (`false`), independently of
+ * the product-quality-specific setting default. The starters normally forward
+ * the resolved setting explicitly.
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
@@ -254,10 +259,9 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
- * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
- * is `false`). Supported values are:
+ * shell tool. Supported values are:
  *
- *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
+ *  - `'off'` (the default): sandboxing is explicitly disabled for the SDK shell
  *    path \u2014 commands run unsandboxed.
  *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
  *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
@@ -265,10 +269,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
  *
  * Unrestricted outbound network is controlled separately by
  * `chat.agent.sandbox.allowNetwork`.
- *
- * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
- * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
- * commands and reads `chat.agent.sandbox.enabled` directly.
  */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
@@ -287,11 +287,9 @@ export type AgentHostCopilotSandboxSettingId =
 	| typeof AgentHostSdkSandboxEnabledSettingId
 	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
 
-export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
-	if (customTerminalToolEnabled) {
-		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-	}
-	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+export function getAgentHostCopilotSandboxSettingId(windows = isWindows): AgentHostCopilotSandboxSettingId {
+	// TODO: Check Agent Host-specific sandbox settings once they are enabled for users.
+	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 /**
@@ -821,6 +819,8 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
+	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1127,6 +1127,8 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Requires the VS Code artifact removal capability advertised by initialize. */
+	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;

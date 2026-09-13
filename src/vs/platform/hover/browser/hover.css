@@ -48,6 +48,10 @@
 	padding: 2px 8px;
 }
 
+.monaco-hover.workbench-hover.managed-hover-content-owns-padding .hover-contents {
+	padding: 0;
+}
+
 .workbench-hover-container.locked .monaco-hover.workbench-hover {
 	outline: 1px solid var(--vscode-editorHoverWidget-border);
 }
@@ -65,15 +69,15 @@
 .workbench-hover-pointer:after {
 	content: '';
 	position: absolute;
-	width: 5px;
-	height: 5px;
+	/* Border box keeps the caret 6px wide so its centre stays exactly PointerSize from its origin. */
+	box-sizing: border-box;
+	width: 6px;
+	height: 6px;
 	background-color: var(--vscode-editorHoverWidget-background);
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
 .workbench-hover-container:not(:focus-within).locked .workbench-hover-pointer:after {
-	width: 4px;
-	height: 4px;
 	border-right-width: 2px;
 	border-bottom-width: 2px;
 }

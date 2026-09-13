@@ -16,6 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { McpResourceFormat } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
@@ -412,6 +413,48 @@ suite('agentHostMcpServerSupport', () => {
 				],
 			},
 		]);
+	});
+
+	test('retains root provenance for installed-only servers without client forwarding', async () => {
+		const root = URI.file('/workspace');
+		const result = await mergeInstalledMcpServersIntoAgentHostSupportAssessment(
+			await assess([], [root]),
+			[{
+				id: 'workspace-dot-mcp.0.disabled',
+				name: 'disabled',
+				label: 'Disabled root server',
+				configuration: { type: McpServerType.LOCAL, command: 'server' },
+				configPath: {
+					id: 'workspace-dot-mcp.0',
+					collectionId: 'workspace-dot-mcp.0',
+					format: McpResourceFormat.WorkspaceRoot,
+					provenance: McpCollectionProvenance.WorkspaceDotMcp,
+					key: 'workspaceFolderValue',
+					label: 'workspace/.mcp.json',
+					scope: StorageScope.WORKSPACE,
+					target: ConfigurationTarget.WORKSPACE_FOLDER,
+					order: 1,
+					uri: URI.joinPath(root, '.mcp.json'),
+				},
+				sandbox: undefined,
+				runtimeState: McpServerEnablementState.DisabledByAccess,
+			}],
+			makeConfigurationResolverService(),
+			[root],
+		);
+		assert.deepStrictEqual(result.servers.map(server => ({
+			id: server.id,
+			collectionId: server.collectionId,
+			source: server.source.kind,
+			delivery: server.delivery,
+			enablement: server.enablement,
+		})), [{
+			id: 'workspace-dot-mcp.0.disabled',
+			collectionId: 'workspace-dot-mcp.0',
+			source: AgentHostMcpServerSourceKind.WorkspaceDotMcp,
+			delivery: AgentHostMcpServerDelivery.NotDelivered,
+			enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledByAccess },
+		}]);
 	});
 
 	test('reacts to runtime enablement changes', async () => {

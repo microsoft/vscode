@@ -15,7 +15,7 @@ import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/mod
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewChatVoiceComposer, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { INewChatVoiceComposer, isNewChatStandaloneDictationVisible, isNewChatVoiceInputModePillActive, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 
 suite('NewChatVoiceTargetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -105,5 +105,33 @@ suite('NewChatVoiceTargetService', () => {
 		assert.strictEqual(isNewChatVoiceSessionActive(true, false, URI.parse('agent-host-copilot:/session-1'), false), false);
 		assert.strictEqual(isNewChatVoiceSessionActive(true, false, undefined, false), false);
 		assert.strictEqual(isNewChatVoiceSessionActive(false, false, undefined, true), false);
+	});
+
+	test('new-session composer uses exactly one voice control for voice-only sessions', () => {
+		assert.deepStrictEqual([
+			isNewChatVoiceInputModePillActive(false, true, false),
+			isNewChatVoiceInputModePillActive(false, true, true),
+			isNewChatVoiceInputModePillActive(true, true, false),
+			isNewChatVoiceInputModePillActive(true, false, true),
+		], [
+			false,
+			true,
+			true,
+			false,
+		]);
+	});
+
+	test('new-session composer never shows standalone dictation with the segmented control', () => {
+		assert.deepStrictEqual([
+			isNewChatStandaloneDictationVisible(false, false),
+			isNewChatStandaloneDictationVisible(true, false),
+			isNewChatStandaloneDictationVisible(false, true),
+			isNewChatStandaloneDictationVisible(true, true),
+		], [
+			false,
+			true,
+			false,
+			false,
+		]);
 	});
 });

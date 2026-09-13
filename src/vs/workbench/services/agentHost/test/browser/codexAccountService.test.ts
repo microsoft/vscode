@@ -84,7 +84,7 @@ suite('CodexAccountService', () => {
 		disposables.add(actions[0] as Action);
 
 		assert.deepStrictEqual(actions.map(action => ({ label: action.label, enabled: action.enabled })), [
-			{ label: 'Downloading Codex agent…', enabled: false },
+			{ label: 'Downloading Codex Agent…', enabled: false },
 		]);
 	});
 

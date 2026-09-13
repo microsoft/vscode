@@ -65,8 +65,9 @@ import { AgentSessionResidency } from './agentSessionResidency.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IAgentServiceSessionServerToolAccessor, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, validateRenameTitle } from './shared/sessionServerTools.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
+import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 
 import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
@@ -1206,8 +1207,20 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createArtifactServerToolAccessor(): IArtifactServerToolAccessor {
 		return {
 			isEnabled: () => this._isArtifactToolsEnabled(),
-			persist: (session, artifacts) => persistSessionMetadata(this._sessionDataService, this._logService, session, SESSION_ARTIFACTS_KEY, stringifySessionArtifacts(artifacts)),
+			persist: async (session, artifacts) => {
+				try {
+					await persistSessionMetadataValues(this._sessionDataService, session, { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts) });
+				} catch (error) {
+					this._logService.error('[AgentService] Failed to persist session artifacts', error);
+					throw error;
+				}
+			},
 		};
+	}
+
+	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		await this.restoreSession(session);
+		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId);
 	}
 
 	private _isArtifactToolsEnabled(): boolean {
@@ -1929,20 +1942,23 @@ export class AgentService extends Disposable implements IAgentService {
 			if (identity.external && !readSessionEhcliAdoptable(metadata._meta) && this._isExternalSessionOlderThanMaxAge(metadata.modifiedTime, Date.now())) {
 				continue;
 			}
+			const wasRegistered = existing.has(identity.session.toString());
 			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
 			if (registered) {
 				this._invalidateSessionList();
-				if (identity.external && existing.get(identity.session.toString()) !== true) {
-					await this._initializeExternalSessionReadState(identity.session);
-				}
 				existing.set(identity.session.toString(), identity.external);
-				if (identity.external && !metadata.summary) {
-					untitledExternal.push(metadata);
-				}
-				if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
-					registeredExternal = true;
-				} else {
-					await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
+				if (!wasRegistered) {
+					if (identity.external) {
+						await this._initializeExternalSessionReadState(identity.session);
+						if (!metadata.summary) {
+							untitledExternal.push(metadata);
+						}
+					}
+					if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
+						registeredExternal = true;
+					} else {
+						await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
+					}
 				}
 			}
 		}
@@ -2290,7 +2306,7 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						? { customTitle: true, configValues: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
 						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
@@ -3935,7 +3951,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 *
 	 * `displayName` is the provider's brand noun (e.g. `Claude`). It is woven
 	 * into the notification's localized, human-readable `message` (e.g.
-	 * "Downloading Claude agent") so a generic client can render the indicator
+	 * "Downloading Claude Agent") so a generic client can render the indicator
 	 * verbatim without knowing the resource is an agent SDK. No trailing
 	 * ellipsis: clients render progress as "<title>: <percent>", so an ellipsis
 	 * would read as an unusual "…:" (see #324455).
@@ -3948,7 +3964,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// On terminal frames force `progress === total` so clients dismiss the
 		// indicator in both determinate and indeterminate cases.
 		const total = terminal ? receivedBytes : totalBytes;
-		const message = localize('agentHost.download.agentSdkTitle', "Downloading {0} agent", displayName);
+		const message = localize('agentHost.download.agentSdkTitle', "Downloading {0} Agent", displayName);
 		// `progressToken` is the download's own stable identity (the package id),
 		// shared by every session of the provider, so the client coalesces all
 		// frames into one indicator and dismisses it on the terminal frame.
@@ -4199,10 +4215,10 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session));
 	}
 
-	async disposeSessionIf(session: URI, validate: () => Promise<boolean>): Promise<boolean> {
+	async disposeSessionIf(session: URI, validate: () => Promise<boolean>, canCommit: () => boolean): Promise<boolean> {
 		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
 		return this._sessionResidency.runDisposal(session, async () => {
-			if (!await validate()) {
+			if (!await validate() || !canCommit()) {
 				return false;
 			}
 			await this._doDisposeSession(session);
@@ -4221,7 +4237,7 @@ export class AgentService extends Disposable implements IAgentService {
 			isArchived: true,
 		} as const;
 		this._stateManager.dispatchServerAction(channel, action);
-		this._sideEffects.handleAction(channel, action);
+		this._sideEffects.handleAction(channel, action, undefined, AgentHostClientType.Unknown, undefined, true);
 	}
 
 	cleanupWorktree(session: URI, sessionId: string): Promise<void> {
@@ -5939,8 +5955,9 @@ export class AgentService extends Disposable implements IAgentService {
 			...promises
 		]);
 		if (restoredConfig) {
+			const previousConfig = this._stateManager.getSessionState(sessionStr)?.config;
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
-			this._changesetCoordinator.onSessionConfigRestored(sessionStr);
+			this._changesetCoordinator.onSessionConfigRestored(sessionStr, previousConfig);
 			// Seeded config bypasses `onDidChangeSessionConfig`, so heal the
 			// index for a session enabled before it was introduced.
 			this._syncAgentMergeIndex(session, undefined, restoredConfig);

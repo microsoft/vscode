@@ -8,10 +8,10 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
-import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACT_TYPES, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
-import type { AgentHostStateManager } from '../agentHostStateManager.js';
-import type { IServerToolDisplay, IServerToolExecutionContext, IServerToolGroup } from './agentServerToolHost.js';
+import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
+import { SessionArtifacts } from './sessionArtifacts.js';
 
 const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
 
@@ -26,7 +26,7 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 		label: { type: 'string', description: 'Short label shown to the user.' },
 		isArtifact: {
 			type: 'boolean',
-			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a report written outside the workspace. References are existing resources the user should look at because of this task.`,
+			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report the user asked for. References are existing resources the user should look at because of this task.`,
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
 		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
@@ -65,7 +65,7 @@ export const artifactServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifactOrReference,
 		title: 'Add Artifact or Reference',
-		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a plan or report written outside the workspace. References are noteworthy existing resources the user will likely want to view. Do not record routine files, incidental resources, or sessions and chats created with session-management tools.`,
+		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report or plan the user asked for. References are noteworthy existing resources the user will likely want to view. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register.`,
 		inputSchema: addArtifactInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -90,7 +90,7 @@ export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
 	/** Persists a session's artifacts and references so they survive a host restart. */
-	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void;
+	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 }
 
 /** The noun an entry is described by, so every message names what it acted on. */
@@ -121,33 +121,6 @@ function artifactDisplayInputs(args: unknown): readonly IArtifactDisplayInput[] 
 function describeArtifact(artifact: ISessionArtifact): string {
 	const value = artifact.link ?? artifact.uri ?? artifact.commitHash ?? '';
 	return `${artifact.id} (${artifact.type}, ${entryNoun(artifact.isArtifact)}) ${artifact.label}${value ? ` — ${value}` : ''}`;
-}
-
-/**
- * Reads, mutates and republishes the artifacts and references of the session
- * that owns the executing chat. They live on the session's `_meta` bag, so a
- * change reaches subscribed clients through the regular action envelope.
- */
-class SessionArtifacts {
-
-	private readonly _session: string;
-
-	constructor(
-		private readonly _stateManager: AgentHostStateManager,
-		context: IServerToolExecutionContext,
-	) {
-		this._session = parseRequiredSessionUriFromChatUri(context.chatUri);
-	}
-
-	read(): SessionArtifactCollection {
-		return new SessionArtifactCollection(readSessionArtifacts(this._stateManager.getSessionState(this._session)?._meta));
-	}
-
-	write(artifacts: readonly ISessionArtifact[], accessor: IArtifactServerToolAccessor): void {
-		const meta = this._stateManager.getSessionState(this._session)?._meta;
-		this._stateManager.setSessionMeta(this._session, withSessionArtifacts(meta, artifacts));
-		accessor.persist(this._session, artifacts);
-	}
 }
 
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
@@ -200,12 +173,12 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					return undefined;
 			}
 		},
-		execute(stateManager, context, toolName, rawArgs): string {
+		async execute(stateManager, context, toolName, rawArgs): Promise<string> {
 			if (!accessor) {
 				throw new Error(`${toolName} is unavailable in this host.`);
 			}
 
-			const artifacts = new SessionArtifacts(stateManager, context);
+			const artifacts = new SessionArtifacts(stateManager, parseRequiredSessionUriFromChatUri(context.chatUri), accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
 					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
@@ -214,32 +187,28 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
 						}
 					}
-					let collection = artifacts.read();
-					let changed = false;
-					const messages: string[] = [];
-					for (const input of inputs) {
-						const result = collection.add(input, generateUuid);
-						collection = new SessionArtifactCollection(result.artifacts);
-						changed ||= result.added;
-						messages.push(result.added
-							? `Added ${entryNoun(result.artifact.isArtifact)}: ${describeArtifact(result.artifact)}`
-							: `Already recorded: ${describeArtifact(result.artifact)}`);
-					}
-					if (changed) {
-						artifacts.write(collection.artifacts, accessor);
-					}
-					return messages.join('\n');
+					const result = await artifacts.mutate(collection => {
+						const messages: string[] = [];
+						for (const input of inputs) {
+							const result = collection.add(input, generateUuid);
+							collection = new SessionArtifactCollection(result.artifacts);
+							messages.push(result.added
+								? `Added ${entryNoun(result.artifact.isArtifact)}: ${describeArtifact(result.artifact)}`
+								: `Already recorded: ${describeArtifact(result.artifact)}`);
+						}
+						return { artifacts: collection.artifacts, messages };
+					});
+					return result.messages.join('\n');
 				}
 				case ArtifactServerToolName.RemoveArtifactOrReference: {
 					const id = (rawArgs as { id?: unknown } | undefined)?.id;
 					if (typeof id !== 'string' || id.length === 0) {
 						throw new Error(`Invalid ${ArtifactServerToolName.RemoveArtifactOrReference} input: id must be a non-empty string.`);
 					}
-					const result = artifacts.read().remove(id);
+					const result = await artifacts.mutate(collection => collection.remove(id));
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
 					}
-					artifacts.write(result.artifacts, accessor);
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
 					return `${message}: ${describeArtifact(result.removed)}`;
 				}
@@ -259,4 +228,4 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 /**
  * The instruction added to the first outgoing turn while artifact tools are enabled.
  */
-export const ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. ${artifactClassification} Other artifacts are durable results you produce beyond ordinary workspace edits; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools.`;
+export const ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user explicitly requested or standalone results the user is clearly likely to reopen, download, or reuse; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register.`;

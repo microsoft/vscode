@@ -76,7 +76,9 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				return;
 			}
 
-			const items = this._getOrderedVisibleItems();
+			const items = this._getVisibleItemBounds()
+				.sort((a, b) => b.bounds.left - a.bounds.left)
+				.map(({ item }) => item);
 			for (const item of items) {
 				item.setMinimal?.(false);
 				item.setCompact(false);
@@ -109,7 +111,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 			return true;
 		}
 
-		let visibleItemCount = this._getOrderedVisibleItems().length;
+		let visibleItemCount = this._getVisibleItemBounds().length;
 		while (true) {
 			this._setHiddenItemsCompact();
 			this._delegate.relayout?.();
@@ -117,7 +119,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				return true;
 			}
 
-			const nextVisibleItemCount = this._getOrderedVisibleItems().length;
+			const nextVisibleItemCount = this._getVisibleItemBounds().length;
 			if (nextVisibleItemCount <= visibleItemCount) {
 				return false;
 			}
@@ -134,31 +136,36 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		}
 	}
 
-	private _getOrderedVisibleItems(): IChatInputPickerResponsiveLayoutItem[] {
-		return this._delegate.getItems()
-			.filter(item => item.element?.isConnected && item.element.getClientRects().length > 0)
-			.sort((a, b) => b.element!.getBoundingClientRect().left - a.element!.getBoundingClientRect().left);
+	private _getVisibleItemBounds(): { item: IChatInputPickerResponsiveLayoutItem; bounds: DOMRect }[] {
+		const items: { item: IChatInputPickerResponsiveLayoutItem; bounds: DOMRect }[] = [];
+		for (const item of this._delegate.getItems()) {
+			const element = item.element;
+			if (element?.isConnected && element.getClientRects().length > 0) {
+				items.push({ item, bounds: element.getBoundingClientRect() });
+			}
+		}
+		return items;
 	}
 
 	private _fitsAvailableWidth(availableWidth: number): boolean {
-		const items = this._getOrderedVisibleItems();
-		const preferredLayout = this._measurePreferredLayout(items);
-		if (!items.some(item => item.canShrink) && preferredLayout.width > availableWidth + WIDTH_TOLERANCE) {
-			return false;
-		}
-
 		const laneBounds = this._element.getBoundingClientRect();
-		const itemBounds = items
-			.map(item => ({ item, bounds: item.element!.getBoundingClientRect() }))
+		const itemBounds = this._getVisibleItemBounds()
 			.sort((a, b) => a.bounds.left - b.bounds.left);
 		for (let index = 0; index < itemBounds.length; index++) {
-			const { item, bounds } = itemBounds[index];
+			const { bounds } = itemBounds[index];
 			if (bounds.left < laneBounds.left - WIDTH_TOLERANCE || bounds.right > laneBounds.right + WIDTH_TOLERANCE) {
 				return false;
 			}
 			if (index > 0 && bounds.left < itemBounds[index - 1].bounds.right - WIDTH_TOLERANCE) {
 				return false;
 			}
+		}
+
+		const preferredLayout = this._measurePreferredLayout(itemBounds.map(({ item }) => item));
+		if (!itemBounds.some(({ item }) => item.canShrink) && preferredLayout.width > availableWidth + WIDTH_TOLERANCE) {
+			return false;
+		}
+		for (const { item, bounds } of itemBounds) {
 			const preferredWidth = preferredLayout.itemWidths.get(item);
 			if (!item.canShrink && preferredWidth !== undefined && bounds.width < preferredWidth - WIDTH_TOLERANCE) {
 				return false;
@@ -194,19 +201,26 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		measurement.style.maxWidth = 'none';
 		measurement.style.flex = 'none';
 		measurementHost.appendChild(measurement);
+
+		const measuredItems = new Map<IChatInputPickerResponsiveLayoutItem, HTMLElement>();
+		for (const item of items) {
+			const path = item.element ? this._getElementPath(item.element) : undefined;
+			const measuredItem = path ? this._getElementAtPath(measurement, path) : undefined;
+			if (measuredItem) {
+				measuredItem.style.flex = 'none';
+				measuredItem.style.width = 'max-content';
+				measuredItem.style.minWidth = 'max-content';
+				measuredItem.style.maxWidth = 'none';
+				measuredItems.set(item, measuredItem);
+			}
+		}
+
+		// Prepare the detached clone before reading any geometry to avoid a layout per picker.
 		parent.appendChild(measurementHost);
 		try {
 			const itemWidths = new Map<IChatInputPickerResponsiveLayoutItem, number>();
-			for (const item of items) {
-				const path = item.element ? this._getElementPath(item.element) : undefined;
-				const measuredItem = path ? this._getElementAtPath(measurement, path) : undefined;
-				if (measuredItem) {
-					measuredItem.style.flex = 'none';
-					measuredItem.style.width = 'max-content';
-					measuredItem.style.minWidth = 'max-content';
-					measuredItem.style.maxWidth = 'none';
-					itemWidths.set(item, measuredItem.getBoundingClientRect().width);
-				}
+			for (const [item, measuredItem] of measuredItems) {
+				itemWidths.set(item, measuredItem.getBoundingClientRect().width);
 			}
 			return { width: measurement.getBoundingClientRect().width, itemWidths };
 		} finally {

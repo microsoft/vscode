@@ -15,7 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
-import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -23,6 +23,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
+import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 export interface IAgentHostChangeset extends Changeset {
@@ -335,11 +336,17 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return changesetState.operations?.map(toSessionChangesetOperation) ?? [];
 		});
 
+		const pullRequestCreation = new AgentHostPullRequestCreation(
+			() => this._options.getConnection(),
+			() => this.channelUriObs.get(),
+			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
+		);
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
 			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
-			return operationsObs.read(reader).map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
-				? { ...operation, status: SessionChangesetOperationStatus.Running }
-				: operation);
+			return pullRequestCreation.mapOperations(operationsObs.read(reader))
+				.map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
+					? { ...operation, status: SessionChangesetOperationStatus.Running }
+					: operation);
 		});
 	}
 
@@ -355,6 +362,10 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	}
 
 	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
+		await this._invokeOperation(operationId, target, _meta);
+	}
+
+	private async _invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<InvokeChangesetOperationResult | undefined> {
 		const connection = this._options.getConnection();
 		if (!connection) {
 			throw new Error(`Cannot invoke changeset operation '${operationId}' because the agent host connection is unavailable.`);
@@ -384,7 +395,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 		this._setOperationLocallyRunning(operationId, true);
 		try {
-			await connection.invokeChangesetOperation({
+			return await connection.invokeChangesetOperation({
 				operationId,
 				channel: channel.toString(),
 				target: target?.kind === 'resource'

@@ -40,6 +40,9 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 
+/** Action ID of the auto-appended toolbar action created from {@link IActionListItem.onRemove}. */
+const removeToolbarActionId = 'actionList.remove';
+
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
@@ -69,6 +72,15 @@ export interface IActionListItemHover {
 	/** Whether to show the expandable hover's row chevron. Defaults to true. */
 	readonly showIndicator?: boolean;
 	/**
+	 * Includes the focused row's toolbar actions and hover-panel controls in one
+	 * Tab sequence while the list retains Up/Down navigation ownership.
+	 */
+	readonly tabThroughPanel?: boolean;
+	/** Interactive elements owned by the hover content, in forward Tab order. */
+	readonly getTabbableElements?: () => readonly HTMLElement[];
+	/** Whether the hover content supplies its own inset from the panel boundary. */
+	readonly contentOwnsPadding?: boolean;
+	/**
 	 * CSS class set on the hover panel while this item's hover is showing, so a
 	 * consumer can style the panel without reaching for the content inside it.
 	 */
@@ -77,6 +89,8 @@ export interface IActionListItemHover {
 	readonly alignToParent?: boolean;
 	/** Keep the initial top edge as content or rows change, scrolling at the viewport edge. */
 	readonly preserveVerticalPosition?: boolean;
+	/** Align the panel's top edge with the row that opened it. */
+	readonly alignToAnchorTop?: boolean;
 }
 
 export interface IActionListUpdateOptions {
@@ -139,6 +153,8 @@ export interface IActionListItem<T> {
 	 * the chevron opens an inline submenu with these actions.
 	 */
 	readonly submenuActions?: IAction[];
+	/** Options for the action list rendered in the nested submenu panel. */
+	readonly submenuOptions?: IActionListOptions;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
@@ -158,8 +174,6 @@ export interface IActionListItem<T> {
 	 * collapsible sections.
 	 */
 	readonly section?: string;
-	/** Keeps a visual highlight within this group, initially on its checked item, then on its hovered or focused item. */
-	readonly focusGroup?: string;
 	/**
 	 * When true, clicking this item toggles the section's collapsed state
 	 * instead of selecting it.
@@ -283,7 +297,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
-		private readonly _highlightedItemByGroup: ReadonlyMap<string, T>,
+		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -337,8 +351,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
 		// Clear previous element disposables
 		data.elementDisposables.clear();
-		data.container.classList.toggle('focus-group-highlighted', element.focusGroup !== undefined
-			&& element.item !== undefined && this._highlightedItemByGroup.get(element.focusGroup) === element.item);
 
 		if (element.iconClasses?.length) {
 			data.icon.className = ['icon', ...element.iconClasses].join(' ');
@@ -498,7 +510,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const toolbarActions = [...(element.toolbarActions ?? [])];
 		if (element.onRemove) {
 			toolbarActions.push(toAction({
-				id: 'actionList.remove',
+				id: removeToolbarActionId,
 				label: localize('actionList.remove', "Remove"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: async () => {
@@ -512,6 +524,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
 			actionBar.push(toolbarActions, { icon: true, label: false });
+			data.elementDisposables.add(this._registerToolbar(element, actionBar));
 		}
 
 		if (hasSubmenuIndicator(element)) {
@@ -668,11 +681,12 @@ export interface IActionListOptions {
 
 	/** Optional action item id to focus when the list opens. */
 	readonly initialFocusItemId?: string;
-	/** Initially focuses the checked or first enabled action in this focus group. */
-	readonly initialFocusGroup?: string;
 
 	/** Show immediate, persistent previews for the focused or hovered row. */
 	readonly persistentHover?: boolean;
+
+	/** Preserve the open submenu while the pointer travels diagonally toward it. */
+	readonly submenuPointerIntent?: boolean;
 
 	/**
 	 * Controls the gutter kept for the submenu chevron on items that have none.
@@ -752,7 +766,6 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly _list: List<IActionListItem<T>>;
 	private _initialFocusItemId: string | undefined;
-	private _initialFocusGroup: string | undefined;
 
 	protected readonly _actionLineHeight: number;
 	protected readonly _headerLineHeight = 24;
@@ -782,6 +795,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _imeSessionInProgress = false;
 	private _suppressHover = false;
 	private _ignoreInitialHover = true;
+	private _keyboardNavigation: boolean | undefined;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
@@ -789,8 +803,8 @@ export class ActionListWidget<T> extends Disposable {
 	private _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
-	private readonly _highlightedItemByGroup = new Map<string, T>();
 	private readonly _standaloneToggles = new Map<IActionListItem<T>, Switch>();
+	private readonly _itemToolbars = new Map<IActionListItem<T>, ActionBar>();
 	private _visibleMenuItems: readonly IActionListItem<T>[];
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
@@ -816,7 +830,6 @@ export class ActionListWidget<T> extends Disposable {
 		this._visibleMenuItems = items;
 		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this._filterText = this._options?.showFilter ? this._options.initialFilterValue ?? '' : '';
-		this._initialFocusGroup = this._options?.initialFocusGroup;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
@@ -847,17 +860,25 @@ export class ActionListWidget<T> extends Disposable {
 		// the way back to the row it belongs to lives here. A panel that does have a
 		// submenu list stops these keys before they reach this handler.
 		this._register(dom.addDisposableListener(this._submenuContainer, 'keydown', (e: KeyboardEvent) => {
+			if ((e.key === 'Enter' || e.key === ' ') && this._currentSubmenuElement?.hover?.tabThroughPanel) {
+				const target = dom.isHTMLElement(e.target) ? e.target : undefined;
+				if (target && this._currentSubmenuElement.hover.getTabbableElements?.().includes(target)) {
+					e.stopPropagation();
+					return;
+				}
+			}
 			if (e.key !== 'ArrowLeft' && e.key !== 'Escape') {
 				return;
 			}
 			dom.EventHelper.stop(e, true);
 			this._hideSubmenu();
+			this._setKeyboardNavigation(true);
 			this._list.domFocus();
 		}));
 
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseenter', () => {
 			this._cancelSubmenuHide();
-			if (this._options?.persistentHover) {
+			if (this._usesSubmenuPointerIntent()) {
 				this._cancelSubmenuShow();
 				this._resetSubmenuPointer();
 			}
@@ -870,7 +891,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._cancelSubmenuShow();
 			this._resetSubmenuPointer();
 		}));
-		if (this._options?.persistentHover) {
+		if (this._usesSubmenuPointerIntent()) {
 			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_MOVE, event => {
 				if (dom.isHTMLElement(event.target) && this._expandedTrigger?.contains(event.target)) {
 					this._updateSubmenuPointer(event);
@@ -912,7 +933,14 @@ export class ActionListWidget<T> extends Disposable {
 						this._standaloneToggles.delete(item);
 					}
 				});
-			}, this._highlightedItemByGroup, this._keybindingService, this._openerService),
+			}, (item, toolbar) => {
+				this._itemToolbars.set(item, toolbar);
+				return toDisposable(() => {
+					if (this._itemToolbars.get(item) === toolbar) {
+						this._itemToolbars.delete(item);
+					}
+				});
+			}, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -984,6 +1012,12 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._list.style(defaultListStyles);
 
+		this._register(this._list.onKeyDown(() => this._setKeyboardNavigation(true)));
+		this._register(dom.addDisposableListener(this._list.getHTMLElement(), dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
+			if (e.movementX !== 0 || e.movementY !== 0) {
+				this._setKeyboardNavigation(false);
+			}
+		}));
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		// Ignore the initial mouseover when a keyboard-invoked menu appears beneath a stationary pointer,
 		// so the item under the pointer does not take keyboard focus.
@@ -1003,6 +1037,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._register(this._list.onMouseDown(() => {
 			initialMouseMove.clear();
 			this._ignoreInitialHover = false;
+			this._setKeyboardNavigation(false);
 		}));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
@@ -1026,6 +1061,14 @@ export class ActionListWidget<T> extends Disposable {
 				this._filterInput.value = this._filterText;
 				this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
 				filterRow.appendChild(this._filterInput);
+				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.KEY_DOWN, e => {
+					this._setKeyboardNavigation(true);
+					if (!e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey
+						&& this._filterInput?.closest('.action-list-submenu-panel')) {
+						e.stopPropagation();
+					}
+				}));
+				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.MOUSE_DOWN, () => this._setKeyboardNavigation(false)));
 
 				if (this._options.filterAsCombobox) {
 					const listElement = this._list.getHTMLElement();
@@ -1191,7 +1234,9 @@ export class ActionListWidget<T> extends Disposable {
 						const rowElement = this._getRowElement(focused[0]);
 						if (rowElement) {
 							this._showSubmenuForElement(element, rowElement);
-							if (this._currentSubmenuWidget) {
+							if (element.hover?.tabThroughPanel) {
+								this._focusFirstTabThroughPanelControl(element, rowElement);
+							} else if (this._currentSubmenuWidget) {
 								this._currentSubmenuWidget.focus();
 							} else {
 								this._submenuContainer.focus();
@@ -1201,6 +1246,7 @@ export class ActionListWidget<T> extends Disposable {
 				}
 			}
 		}));
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => this._handleTabThroughPanelKeyDown(e), true));
 
 		if (this._filterInput || this._options?.onType) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
@@ -1421,7 +1467,6 @@ export class ActionListWidget<T> extends Disposable {
 		const listHasFocus = dom.isAncestorOfActiveElement(this._list.getHTMLElement());
 
 		this._visibleMenuItems = visible;
-		this._restoreFocusGroupHighlights();
 		this._list.splice(0, this._list.length, visible);
 
 		// Notify the parent that a re-layout is needed
@@ -1446,14 +1491,13 @@ export class ActionListWidget<T> extends Disposable {
 						if ((el.item as { id?: string })?.id === focusedItemId) {
 							this._list.setFocus([i]);
 							this._list.reveal(i);
-							// Move DOM focus back to the list when the list had it: the splice
-							// above destroyed the previously focused row, leaving DOM focus on
-							// the body.
-							if (listHasFocus) {
-								this._list.domFocus();
-							}
 							break;
 						}
+					}
+					if (listHasFocus) {
+						// The focused row or its toolbar may have been removed by the update.
+						this._focusCheckedOrFirst();
+						this._list.domFocus();
 					}
 				}
 			}
@@ -1488,6 +1532,16 @@ export class ActionListWidget<T> extends Disposable {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
+	private _setKeyboardNavigation(keyboardNavigation: boolean | undefined): void {
+		if (this._keyboardNavigation === keyboardNavigation) {
+			return;
+		}
+		this._keyboardNavigation = keyboardNavigation;
+		const listElement = this._list.getHTMLElement();
+		listElement.classList.toggle('keyboard-navigation', keyboardNavigation === true);
+		listElement.classList.toggle('mouse-navigation', keyboardNavigation === false);
+	}
+
 	private _updateFilterActiveDescendant(): void {
 		if (!this._filterInput) {
 			return;
@@ -1501,6 +1555,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focus(): void {
+		this._setKeyboardNavigation(undefined);
 		if (this._filterInput && this._options?.focusFilterOnOpen) {
 			this._filterInput.focus();
 			// Highlight the first item so Enter works immediately
@@ -1509,6 +1564,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		this._list.domFocus();
 		this._focusCheckedOrFirst();
+		this._showTabThroughPanelForFocusedItem();
 	}
 
 	clearFocus(): void {
@@ -1655,35 +1711,14 @@ export class ActionListWidget<T> extends Disposable {
 		try {
 			const initialFocusItemId = this._initialFocusItemId;
 			this._initialFocusItemId = undefined;
-			const initialFocusGroup = this._initialFocusGroup;
-			this._initialFocusGroup = undefined;
 			if (initialFocusItemId) {
 				for (let i = 0; i < this._list.length; i++) {
 					const element = this._list.element(i);
-					if (element.kind === ActionListItemKind.Action && (element.item as { id?: string })?.id === initialFocusItemId) {
+					if (this.focusCondition(element) && (element.item as { id?: string })?.id === initialFocusItemId) {
 						this._list.setFocus([i]);
 						this._list.reveal(i);
 						return;
 					}
-				}
-			}
-			if (initialFocusGroup) {
-				let focusIndex: number | undefined;
-				for (let i = 0; i < this._list.length; i++) {
-					const element = this._list.element(i);
-					if (element.focusGroup !== initialFocusGroup || !this.focusCondition(element)) {
-						continue;
-					}
-					focusIndex ??= i;
-					if ((element.item as { checked?: boolean })?.checked) {
-						focusIndex = i;
-						break;
-					}
-				}
-				if (focusIndex !== undefined) {
-					this._list.setFocus([focusIndex]);
-					this._list.reveal(focusIndex);
-					return;
 				}
 			}
 			const [focusedIndex] = this._list.getFocus();
@@ -1697,7 +1732,7 @@ export class ActionListWidget<T> extends Disposable {
 			// Try to focus the checked item first
 			for (let i = 0; i < this._list.length; i++) {
 				const element = this._list.element(i);
-				if (element.kind === ActionListItemKind.Action && (element.item as { checked?: boolean })?.checked) {
+				if (this.focusCondition(element) && (element.item as { checked?: boolean })?.checked) {
 					this._list.setFocus([i]);
 					this._list.reveal(i);
 					return;
@@ -1882,6 +1917,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focusPrevious() {
+		this._setKeyboardNavigation(true);
 		if (this._focusFilterResult('previous')) {
 			return;
 		}
@@ -1922,6 +1958,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focusNext() {
+		this._setKeyboardNavigation(true);
 		if (this._focusFilterResult('next')) {
 			return;
 		}
@@ -2079,41 +2116,12 @@ export class ActionListWidget<T> extends Disposable {
 
 		// Show hover on focus change (suppress during programmatic initial focus)
 		if (!this._suppressHover) {
-			this._updateFocusGroupHighlight(element);
 			if (this._options?.persistentHover) {
 				this._cancelSubmenuShow();
 				this._resetSubmenuPointer();
 				this._list.reveal(focusIndex);
 			}
 			this._showHoverForElement(element, focusIndex);
-		}
-	}
-
-	private _restoreFocusGroupHighlights(): void {
-		for (const [group, item] of this._highlightedItemByGroup) {
-			if (!this._allMenuItems.some(candidate => candidate.focusGroup === group && candidate.item === item)) {
-				this._highlightedItemByGroup.delete(group);
-			}
-		}
-		for (const element of this._allMenuItems) {
-			if (element.focusGroup !== undefined && element.item !== undefined
-				&& (element.item as { checked?: boolean })?.checked === true && !this._highlightedItemByGroup.has(element.focusGroup)) {
-				this._highlightedItemByGroup.set(element.focusGroup, element.item);
-			}
-		}
-	}
-
-	private _updateFocusGroupHighlight(element: IActionListItem<T>): void {
-		const group = element.focusGroup;
-		if (group === undefined || element.item === undefined || this._highlightedItemByGroup.get(group) === element.item) {
-			return;
-		}
-		const previous = this._highlightedItemByGroup.get(group);
-		this._highlightedItemByGroup.set(group, element.item);
-		for (const [index, candidate] of this._visibleMenuItems.entries()) {
-			if (candidate.focusGroup === group && (candidate.item === previous || candidate.item === element.item)) {
-				this._getRowElement(index)?.classList.toggle('focus-group-highlighted', candidate.item === element.item);
-			}
 		}
 	}
 
@@ -2177,6 +2185,130 @@ export class ActionListWidget<T> extends Disposable {
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
 
+	private _showTabThroughPanelForFocusedItem(): void {
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const index = focused[0];
+		const element = this._list.element(index);
+		if (!element.hover?.tabThroughPanel) {
+			return;
+		}
+		const row = this._getRowElement(index);
+		if (row) {
+			this._showSubmenuForElement(element, row);
+		}
+	}
+
+	private _getTabThroughPanelControls(element: IActionListItem<T>, row: HTMLElement): { readonly toolbar: ActionBar | undefined; readonly panelControls: readonly HTMLElement[] } {
+		if (this._currentSubmenuElement !== element) {
+			this._showSubmenuForElement(element, row);
+		}
+		return {
+			toolbar: this._itemToolbars.get(element),
+			panelControls: element.hover?.getTabbableElements?.() ?? [],
+		};
+	}
+
+	private _focusFirstTabThroughPanelControl(element: IActionListItem<T>, row: HTMLElement): void {
+		const controls = this._getTabThroughPanelControls(element, row);
+		if (controls.toolbar?.length()) {
+			controls.toolbar.focus(0);
+		} else {
+			(controls.panelControls[0] ?? this._list.getHTMLElement()).focus();
+		}
+	}
+
+	private _handleTabThroughPanelKeyDown(event: KeyboardEvent): void {
+		if (event.isComposing) {
+			return;
+		}
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const index = focused[0];
+		const element = this._list.element(index);
+		if (!element.hover?.tabThroughPanel) {
+			return;
+		}
+		const row = this._getRowElement(index);
+		const activeElement = dom.getActiveElement();
+		if (!row || !dom.isHTMLElement(activeElement)) {
+			return;
+		}
+		const controls = this._getTabThroughPanelControls(element, row);
+		const inToolbar = controls.toolbar?.isFocused() ?? false;
+		const inPanel = this._submenuContainer.contains(activeElement);
+
+		if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && (inToolbar || inPanel)) {
+			dom.EventHelper.stop(event, true);
+			this._list.domFocus();
+			if (event.key === 'ArrowUp') {
+				this.focusPrevious();
+			} else {
+				this.focusNext();
+			}
+			return;
+		}
+
+		if (event.key !== 'Tab') {
+			return;
+		}
+
+		let target: HTMLElement | undefined;
+		if (event.shiftKey) {
+			if (inPanel) {
+				const panelControlIndex = controls.panelControls.indexOf(activeElement);
+				if (panelControlIndex > 0) {
+					target = controls.panelControls[panelControlIndex - 1];
+				} else if (controls.toolbar?.length()) {
+					dom.EventHelper.stop(event, true);
+					controls.toolbar.focus(controls.toolbar.length() - 1);
+					return;
+				} else {
+					target = this._list.getHTMLElement();
+				}
+			} else if (controls.toolbar?.isFocused()) {
+				const toolbarIndex = controls.toolbar.viewItems.findIndex((_, actionIndex) => controls.toolbar?.isFocused(actionIndex));
+				if (toolbarIndex > 0) {
+					dom.EventHelper.stop(event, true);
+					controls.toolbar.focus(toolbarIndex - 1);
+					return;
+				}
+				target = this._list.getHTMLElement();
+			}
+		} else if (activeElement === this._list.getHTMLElement()) {
+			if (controls.toolbar?.length()) {
+				dom.EventHelper.stop(event, true);
+				controls.toolbar.focus(0);
+				return;
+			}
+			target = controls.panelControls[0];
+		} else {
+			if (controls.toolbar?.isFocused()) {
+				const toolbarIndex = controls.toolbar.viewItems.findIndex((_, actionIndex) => controls.toolbar?.isFocused(actionIndex));
+				if (toolbarIndex + 1 < controls.toolbar.length()) {
+					dom.EventHelper.stop(event, true);
+					controls.toolbar.focus(toolbarIndex + 1);
+					return;
+				}
+				target = controls.panelControls[0];
+			} else {
+				const panelControlIndex = controls.panelControls.indexOf(activeElement);
+				if (panelControlIndex >= 0) {
+					target = controls.panelControls[panelControlIndex + 1] ?? this._list.getHTMLElement();
+				}
+			}
+		}
+
+		if (target) {
+			dom.EventHelper.stop(event, true);
+			target.focus();
+		}
+	}
+
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		if (this._currentSubmenuElement === element) {
 			return;
@@ -2228,9 +2360,10 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		const preserveVerticalPosition = element.hover?.preserveVerticalPosition;
+		const hasSubmenuActions = !!element.submenuActions?.length;
 		const content = preserveVerticalPosition ? dom.$('.action-list-submenu-content') : this._submenuContainer;
 		const viewport = preserveVerticalPosition ? dom.$('.action-list-submenu-viewport', undefined, content) : undefined;
-		const scrollbar = viewport ? this._submenuDisposables.add(new DomScrollableElement(viewport, {
+		const scrollbar = viewport && !hasSubmenuActions ? this._submenuDisposables.add(new DomScrollableElement(viewport, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			consumeMouseWheelIfScrollbarIsNeeded: true,
@@ -2248,6 +2381,8 @@ export class ActionListWidget<T> extends Disposable {
 					});
 				}
 			}));
+		} else if (viewport) {
+			this._submenuContainer.appendChild(viewport);
 		}
 
 		// When the item has hover content, render it as a header
@@ -2282,13 +2417,12 @@ export class ActionListWidget<T> extends Disposable {
 				hoverHeader = rendered.element;
 			}
 			hoverHeader.classList.add('action-list-submenu-hover-header');
+			hoverHeader.classList.toggle('content-owns-padding', element.hover?.contentOwnsPadding === true);
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
 			}
 			content.appendChild(hoverHeader);
 		}
-
-		const hasSubmenuActions = !!element.submenuActions?.length;
 
 		// Show container before creating widget so List can measure during construction
 		this._submenuContainer.style.display = '';
@@ -2308,6 +2442,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		let totalHeight = 0;
 		let maxWidth = hoverHeader ? hoverHeader.offsetWidth : 0;
+		let submenuWidget: ActionListWidget<IAction> | undefined;
 
 		if (hasSubmenuActions) {
 			// Convert submenu actions into ActionListWidget items
@@ -2337,7 +2472,8 @@ export class ActionListWidget<T> extends Disposable {
 						description: child.tooltip || undefined,
 						group: { title: '', icon },
 						hideIcon: false,
-						hover: hoverContent ? { content: hoverContent } : {},
+						hover: hoverContent ? { content: `${child.label}\n\n${hoverContent}` } : undefined,
+						tooltip: child.label,
 						onRemove: extendedChild.onRemove,
 					});
 				}
@@ -2348,7 +2484,8 @@ export class ActionListWidget<T> extends Disposable {
 			// Also include non-SubmenuAction items directly
 			for (const action of submenuActions) {
 				if (!(action instanceof SubmenuAction)) {
-					const extendedAction = action as IAction & { onRemove?: () => void };
+					const extendedAction = action as IAction & { hoverContent?: string; onRemove?: () => void };
+					const hoverContent = extendedAction.hoverContent;
 					submenuItems.push({
 						item: action,
 						kind: ActionListItemKind.Action,
@@ -2356,7 +2493,8 @@ export class ActionListWidget<T> extends Disposable {
 						description: action.tooltip || undefined,
 						group: { title: '' },
 						hideIcon: false,
-						hover: {},
+						hover: hoverContent ? { content: `${action.label}\n\n${hoverContent}` } : undefined,
+						tooltip: action.label,
 						onRemove: extendedAction.onRemove,
 					});
 				}
@@ -2375,33 +2513,49 @@ export class ActionListWidget<T> extends Disposable {
 				},
 			};
 
-			const submenuWidget = this._submenuDisposables.add(this._instantiationService.createInstance(
+			const createdSubmenuWidget = this._submenuDisposables.add(this._instantiationService.createInstance(
 				ActionListWidget<IAction>,
 				'submenu',
 				false,
 				submenuItems,
 				submenuDelegate,
 				undefined,
-				undefined,
+				element.submenuOptions,
 			));
-			content.appendChild(submenuWidget.domNode);
-			this._currentSubmenuWidget = submenuWidget;
+			submenuWidget = createdSubmenuWidget;
+			if (createdSubmenuWidget.headerContainer) {
+				content.appendChild(createdSubmenuWidget.headerContainer);
+			}
+			if (createdSubmenuWidget.filterContainer) {
+				content.appendChild(createdSubmenuWidget.filterContainer);
+			}
+			content.appendChild(createdSubmenuWidget.domNode);
+			this._currentSubmenuWidget = createdSubmenuWidget;
 
 			// The submenu widget's constructor focuses its first item by
 			// default; clear that until the user actually navigates into
 			// the submenu (via ArrowRight) so it doesn't render as if
 			// selected while the parent list still has focus.
-			submenuWidget.clearFocus();
+			createdSubmenuWidget.clearFocus();
 
-			totalHeight = submenuWidget.computeListHeight();
-			submenuWidget.layout(totalHeight);
-			const submenuMaxWidth = submenuWidget.computeMaxWidth(0);
+			totalHeight = createdSubmenuWidget.computeListHeight();
+			createdSubmenuWidget.layout(totalHeight);
+			const submenuMaxWidth = createdSubmenuWidget.computeMaxWidth(0);
 			maxWidth = Math.max(maxWidth, submenuMaxWidth);
-			submenuWidget.layout(totalHeight, maxWidth);
-			submenuWidget.domNode.style.width = `${maxWidth}px`;
+			createdSubmenuWidget.layout(totalHeight, maxWidth);
+			createdSubmenuWidget.domNode.style.width = `${maxWidth}px`;
+			if (element.submenuOptions) {
+				this._submenuContainer.style.boxSizing = 'border-box';
+				this._submenuContainer.style.width = `${maxWidth + 10}px`;
+			}
+			this._submenuDisposables.add(createdSubmenuWidget.onDidRequestLayout(() => {
+				totalHeight = createdSubmenuWidget.computeListHeight();
+				createdSubmenuWidget.layout(totalHeight, maxWidth);
+				this._layoutSubmenu?.();
+			}));
 
 			// Keyboard navigation in submenu
-			this._submenuDisposables.add(dom.addDisposableListener(submenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
+			this._submenuDisposables.add(dom.addDisposableListener(createdSubmenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
 				if (e.key === 'Escape') {
 					dom.EventHelper.stop(e, true);
 					this._hideSubmenu();
@@ -2409,16 +2563,17 @@ export class ActionListWidget<T> extends Disposable {
 				} else if (e.key === 'ArrowLeft') {
 					dom.EventHelper.stop(e, true);
 					this._hideSubmenu();
+					this._setKeyboardNavigation(true);
 					this._list.domFocus();
 				} else if (e.key === 'Enter' || e.key === ' ') {
 					dom.EventHelper.stop(e, true);
-					submenuWidget.acceptSelected();
+					createdSubmenuWidget.acceptSelected();
 				} else if (e.key === 'ArrowDown') {
 					dom.EventHelper.stop(e, true);
-					submenuWidget.focusNext();
+					createdSubmenuWidget.focusNext();
 				} else if (e.key === 'ArrowUp') {
 					dom.EventHelper.stop(e, true);
-					submenuWidget.focusPrevious();
+					createdSubmenuWidget.focusPrevious();
 				}
 			}));
 		}
@@ -2472,18 +2627,26 @@ export class ActionListWidget<T> extends Disposable {
 				: edgeRect.left - parentRect.left - panelWidth - gap;
 			this._submenuContainer.style.left = `${left / zoom}px`;
 
-			const panelHeight = alignToParent || preserveVerticalPosition ? panelRect.height : totalHeight + (hoverHeader?.offsetHeight ?? 0);
+			const panelHeight = panelRect.height;
 			if (preserveVerticalPosition) {
 				openingPanelHeight ??= panelHeight / zoom;
 			}
 			const anchorHeight = openingPanelHeight !== undefined ? openingPanelHeight * zoom : panelHeight;
 			let top = openingPanelTop !== undefined
 				? openingPanelTop * zoom
-				: row
-					? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
-					: panelRect.top - parentRect.top;
+				: row && currentElement.hover?.alignToAnchorTop
+					? anchorRect.top - parentRect.top
+					: row
+						? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
+						: panelRect.top - parentRect.top;
+			if (preserveVerticalPosition && currentElement.hover?.alignToAnchorTop && viewport && submenuWidget) {
+				const outerChromeHeight = panelRect.height - viewport.getBoundingClientRect().height;
+				const submenuChromeHeight = (submenuWidget.headerContainer?.offsetHeight ?? 0) + (submenuWidget.filterContainer?.offsetHeight ?? 0);
+				const minimumPanelHeight = outerChromeHeight + (submenuChromeHeight + this._actionLineHeight) * zoom;
+				top = Math.min(top, targetWindow.innerHeight - parentRect.top - minimumPanelHeight - 8);
+			}
 			const panelBottom = parentRect.top + top + anchorHeight;
-			if (panelBottom > targetWindow.innerHeight) {
+			if (panelBottom > targetWindow.innerHeight && !(preserveVerticalPosition && currentElement.hover?.alignToAnchorTop)) {
 				top -= panelBottom - targetWindow.innerHeight + 8;
 			}
 			if (parentRect.top + top < 0) {
@@ -2497,14 +2660,23 @@ export class ActionListWidget<T> extends Disposable {
 				const availableHeight = Math.max(0, (targetWindow.innerHeight - parentRect.top - top - 8) / zoom - chromeHeight);
 				viewport.style.height = `${Math.min(content.getBoundingClientRect().height / zoom, availableHeight)}px`;
 				scrollbar.scanDomNode();
+			} else if (viewport && submenuWidget) {
+				const chromeHeight = (panelRect.height - viewport.getBoundingClientRect().height) / zoom;
+				const availableHeight = Math.max(0, (targetWindow.innerHeight - parentRect.top - top - 8) / zoom - chromeHeight);
+				const submenuChromeHeight = (submenuWidget.headerContainer?.offsetHeight ?? 0) + (submenuWidget.filterContainer?.offsetHeight ?? 0);
+				const submenuHeight = Math.max(this._actionLineHeight, Math.min(totalHeight, availableHeight - submenuChromeHeight));
+				submenuWidget.layout(submenuHeight, maxWidth);
+				viewport.style.height = `${submenuChromeHeight + submenuHeight}px`;
 			}
 			this._submenuContainer.style.top = `${top / zoom}px`;
 		};
 		this._layoutSubmenu = layout;
 		layout();
 		if ((this._options?.persistentHover || element.hover?.alignToParent || preserveVerticalPosition) && this._currentSubmenuElement === element) {
-			const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', layout, targetWindow));
-			this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
+			if (!submenuWidget) {
+				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', layout, targetWindow));
+				this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
+			}
 			if (this._options?.persistentHover || preserveVerticalPosition) {
 				this._submenuDisposables.add(dom.addDisposableListener(targetWindow, dom.EventType.RESIZE, () => {
 					this._cancelSubmenuShow();
@@ -2551,6 +2723,8 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		this._expandedTrigger = undefined;
 		dom.clearNode(this._submenuContainer);
+		this._submenuContainer.style.width = '';
+		this._submenuContainer.style.boxSizing = this._options?.persistentHover ? 'border-box' : '';
 	}
 
 	private _scheduleSubmenuHide(): void {
@@ -2573,7 +2747,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _scheduleSubmenuShow(element: IActionListItem<T>, pointer: MouseEvent): void {
 		this._cancelSubmenuShow();
 		let delay = 500;
-		if (this._options?.persistentHover) {
+		if (this._usesSubmenuPointerIntent()) {
 			delay = 0;
 			const origin = this._submenuPointerOrigin;
 			if (origin && pointer.clientX !== origin.x && this._currentSubmenuElement && new dom.SafeTriangle(origin.x, origin.y, this._submenuContainer).contains(pointer.clientX, pointer.clientY)) {
@@ -2589,7 +2763,7 @@ export class ActionListWidget<T> extends Disposable {
 			const rowElement = index >= 0 ? this._getRowElement(index) : null;
 			if (rowElement) {
 				this._showSubmenuForElement(element, rowElement);
-				if (this._options?.persistentHover) {
+				if (this._usesSubmenuPointerIntent()) {
 					this._updateSubmenuPointer(pointer);
 				}
 			}
@@ -2611,6 +2785,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuPointerGraceDeadline = undefined;
 	}
 
+	private _usesSubmenuPointerIntent(): boolean {
+		return this._options?.persistentHover === true || this._options?.submenuPointerIntent === true;
+	}
+
 	private _cancelSubmenuShow(): void {
 		if (this._submenuShowTimeout !== undefined) {
 			clearTimeout(this._submenuShowTimeout);
@@ -2619,10 +2797,10 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
+		this._setKeyboardNavigation(false);
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
-			this._updateFocusGroupHighlight(element);
 			// Check if the hover target is inside a toolbar - if so, skip the splice
 			// to avoid re-rendering which would destroy the element mid-hover.
 			// But still maintain submenu state for items with submenu actions.
@@ -2651,11 +2829,11 @@ export class ActionListWidget<T> extends Disposable {
 				if (this._currentSubmenuElement === element) {
 					this._cancelSubmenuHide();
 					this._cancelSubmenuShow();
-					if (this._options?.persistentHover) {
+					if (this._usesSubmenuPointerIntent()) {
 						this._updateSubmenuPointer(e.browserEvent);
 					}
 				} else {
-					if (!this._options?.persistentHover) {
+					if (!this._usesSubmenuPointerIntent()) {
 						this._hideSubmenu();
 					}
 					this._scheduleSubmenuShow(element, e.browserEvent);
@@ -2667,7 +2845,9 @@ export class ActionListWidget<T> extends Disposable {
 				this._cancelSubmenuHide();
 			} else {
 				this._cancelSubmenuShow();
-				if (!this._options?.persistentHover) {
+				if (this._options?.submenuPointerIntent) {
+					this._scheduleSubmenuHide();
+				} else if (!this._options?.persistentHover) {
 					this._hideSubmenu();
 				}
 			}

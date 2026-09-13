@@ -24,6 +24,7 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
@@ -59,7 +60,7 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
-import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
+import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
@@ -289,7 +290,9 @@ function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStat
 }
 
 function isRememberedSessionConfigKey(property: string): boolean {
-	return property !== SessionConfigKey.Branch && !UNSAFE_SESSION_CONFIG_KEYS.has(property);
+	return property !== SessionConfigKey.Branch
+		&& property !== SessionConfigKey.SandboxEnabled
+		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
 function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
@@ -336,7 +339,12 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
-		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number);
+		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			x.title === y.title);
 }
 
 function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
@@ -348,12 +356,17 @@ function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString
 }
 
 /** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
-function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly IGitHubIssueRef[] | undefined {
+function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubIssueRef[] | undefined {
 	const refs: IGitHubIssueRef[] = [];
 	for (const url of issueUrls ?? []) {
 		const reference = parseGitHubIssueUrl(url);
 		if (reference) {
-			refs.push({ ...reference, uri: URI.parse(url) });
+			const title = titles.get(linkKey(url));
+			refs.push({
+				...reference,
+				uri: URI.parse(url),
+				...(title ? { title } : {}),
+			});
 		}
 	}
 	return refs.length > 0 ? refs : undefined;
@@ -387,7 +400,7 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { pullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
+	const { pullRequestUrls, pullRequestTitles, issueUrls, issueTitles } = partitionSessionArtifacts(meta);
 
 	// Recorded pull requests lead discovered ones, so the first is the newest.
 	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
@@ -408,7 +421,7 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
 	const pullRequest = pullRequests?.at(0);
-	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls))?.filter(belongsToRepository);
+	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls), issueTitles)?.filter(belongsToRepository);
 
 	return {
 		owner: repository.owner,
@@ -1172,7 +1185,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = this._options.agentCapabilities.read(reader)?.get(this.agentProvider);
+			this._options.connectionStatus?.read(reader);
+			const connection = this._options.getConnection();
 			return {
+				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -3867,6 +3883,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 		const remembered = migrateLegacyAutopilotConfig(config);
+		if (workspace && rememberedValues[SessionConfigKey.Isolation] === undefined) {
+			remembered[SessionConfigKey.Isolation] = this._baseConfigurationService.getValue<boolean>(USE_WORKTREE_SETTING) !== false ? 'worktree' : 'folder';
+		}
 
 		// `chat.defaultConfiguration` controls both axes. Per axis the
 		// precedence is: enterprise policy > remembered pick > effective
@@ -4005,11 +4024,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			: constObservable(false);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
-		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
-
-		// Remember portable config picks across sessions.
+	private _rememberSessionConfigValue(property: string, normalizedValue: unknown): void {
 		if (typeof normalizedValue === 'string' && isRememberedSessionConfigKey(property)) {
 			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 			const nextRememberedValues = Object.create(null) as Record<string, string>;
@@ -4021,6 +4036,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			nextRememberedValues[property] = normalizedValue;
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
+	}
+
+	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
+		this._rememberSessionConfigValue(property, normalizedValue);
 
 		// Mark resolution before firing so the first picker render is already inert.
 		const newSession = this._getNewSession(sessionId);
@@ -4793,6 +4814,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	async removeSessionArtifact(sessionId: string, artifactId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection?.removeSessionArtifact || !supportsAgentHostArtifactRemoval(connection.initializeResult.get())) {
+			throw new Error(localize('removeSessionArtifactUnavailable', "Removing artifacts is unavailable for this session."));
+		}
+		await connection.removeSessionArtifact(cached.backendUri, artifactId);
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const chatId = chatUri.fragment;
 		if (!chatId) {
@@ -5052,6 +5083,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			metadata: options.metadata,
 		};
 
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
@@ -5170,6 +5202,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			attachedContext,
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
 			hideFromTranscript: options.hideFromTranscript,
+			metadata: options.metadata,
 		};
 
 		// Chat session model was already created by createNewChat and
@@ -5210,6 +5243,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
+		}
+
+		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
+			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
+			if (rememberedValues[SessionConfigKey.Isolation] === undefined) {
+				this._rememberSessionConfigValue(SessionConfigKey.Isolation, newSession.getConfig()?.values[SessionConfigKey.Isolation]);
+			}
 		}
 
 		newSession.setStatus(SessionStatus.InProgress);

@@ -1123,7 +1123,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[] }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1135,6 +1135,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		modelConfiguration: overrides.modelConfiguration,
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
 		acceptedConfirmationData: overrides.acceptedConfirmationData,
+		metadata: overrides.metadata,
 	});
 }
 
@@ -1164,6 +1165,7 @@ async function startTurn(
 		modelConfiguration: Record<string, unknown>;
 		agentHostSessionConfig: Record<string, string>;
 		cancellationToken: CancellationToken;
+		metadata: Record<string, unknown>;
 		agentId: string;
 		beforeInvoke: () => void;
 	}>,
@@ -1193,6 +1195,7 @@ async function startTurn(
 			modelConfiguration: overrides?.modelConfiguration,
 			agentHostSessionConfig: overrides?.agentHostSessionConfig,
 			agentId,
+			metadata: overrides?.metadata,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -1408,15 +1411,15 @@ suite('AgentHostChatContribution', () => {
 		test('editor window renders SDK download progress from root/progress notifications', () => {
 			const { agentHostService, openedTitles } = createWithProgressRecorder(false);
 
-			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' });
 
-			assert.deepStrictEqual(openedTitles, ['Downloading Claude agent']);
+			assert.deepStrictEqual(openedTitles, ['Downloading Claude Agent']);
 		});
 
 		test('sessions window does not render download progress via the chat contribution', () => {
 			const { agentHostService, openedTitles } = createWithProgressRecorder(true);
 
-			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' });
 
 			assert.strictEqual(openedTitles.length, 0);
 		});
@@ -4040,6 +4043,20 @@ suite('AgentHostChatContribution', () => {
 
 	suite('session ID resolution', () => {
 
+		test('carries request metadata on the host turn instead of applying session configuration early', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const metadata = { 'test.request': { enabled: true } };
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hello', metadata });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			const action = agentHostService.turnActions[0].action;
+			assert.ok(action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual({
+				message: action.message,
+				configWrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionConfigChanged),
+			}, { message: { text: 'Hello', origin: { kind: MessageKind.User }, _meta: metadata }, configWrites: [] });
+		}));
+
 		test('requests backend session for provider-owned new resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -5292,14 +5309,21 @@ suite('AgentHostChatContribution', () => {
 			]);
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'Claude Sonnet 4.6 • 1 credit');
+			assert.deepStrictEqual({
+				details: result.details,
+				actualModels: collected.flat().filter(part => part.kind === 'usage').map(part => part.actualModelId),
+			}, {
+				details: 'Claude Sonnet 4.6 • 1 credit',
+				actualModels: [undefined, 'agent-host-copilot:claude-sonnet-4.6'],
+			});
 		}));
 
 		test('unregistered billed id shows model-id suffix (e.g. Auto billed as raptor-mini)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -8028,6 +8052,57 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(session.history.length, 0);
 		});
+
+		for (const [activeModel, hideAutoExplainability] of [['gpt-5', false], [undefined, false], ['gpt-5', true], ['claude-sonnet-4-6', false]] as const) {
+			test(`restored Auto requests preserve selected and actual models (active: ${activeModel}, hidden: ${hideAutoExplainability})`, async () => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
+					['agent-host-copilot:gpt-5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5' })],
+					['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' })],
+				]);
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, hideAutoExplainability });
+				const sessionUri = AgentSession.uri('copilot', 'sess-auto-survey');
+				const rawModelId = activeModel ?? 'gpt-5';
+				const actualModelId = activeModel === 'claude-sonnet-4-6' ? 'agent-host-copilot:claude-sonnet-4.6' : 'agent-host-copilot:gpt-5';
+				const modelName = languageModels.get(actualModelId)?.name;
+				const usage = { model: rawModelId, inputTokens: 100, outputTokens: 20, _meta: { autoModeResolved: { chosenModel: rawModelId } } };
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [{
+						id: 'completed-auto',
+						message: { text: 'Completed Auto request', origin: { kind: MessageKind.User }, model: { id: 'auto' } },
+						responseParts: [],
+						usage,
+						state: TurnState.Complete,
+					}],
+					activeTurn: {
+						id: 'active-auto',
+						startedAt: '2025-01-01T00:00:00.000Z',
+						message: { text: 'Active Auto request', origin: { kind: MessageKind.User }, model: { id: 'auto' } },
+						responseParts: [],
+						usage: activeModel ? usage : undefined,
+					},
+				});
+
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sess-auto-survey' });
+				const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+
+				assert.deepStrictEqual(session.history.map(item => item.type === 'request'
+					? { type: item.type, modelId: item.modelId }
+					: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
+					{ type: 'request', modelId: 'agent-host-copilot:auto' },
+					{ type: 'response', details: hideAutoExplainability ? 'Auto' : modelName, actualModelId },
+					{ type: 'request', modelId: 'agent-host-copilot:auto' },
+					{ type: 'response', details: hideAutoExplainability || !activeModel ? 'Auto' : modelName, actualModelId: undefined },
+				]);
+				assert.strictEqual(session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId, activeModel ? actualModelId : undefined);
+			});
+		}
 
 		test('history requests get per-turn modelId from usage or message model', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
@@ -12282,7 +12357,8 @@ suite('AgentHostChatContribution', () => {
 					}],
 				},
 			});
-			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: {} });
+			const metadata = { 'test.request': { enabled: true } };
+			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: { metadata } });
 			chatModel.firePendingRequestsChanged();
 
 			const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
@@ -12307,6 +12383,7 @@ suite('AgentHostChatContribution', () => {
 					message: {
 						text,
 						origin: { kind: MessageKind.User },
+						_meta: metadata,
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',
