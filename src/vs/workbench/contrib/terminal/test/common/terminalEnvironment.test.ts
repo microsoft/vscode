@@ -256,6 +256,10 @@ suite('Workbench - TerminalEnvironment', () => {
 			test('WSL', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.Wsl, wslPathBackend, OperatingSystem.Windows, true), '\'/mnt/c/foo/bar\'');
 			});
+			test('WSL conversion result is shell-escaped exactly once', async () => {
+				const backend = { getWslPath: async () => '/mnt/c/foo bar' };
+				strictEqual(await preparePathForShell('c:\\foo bar', 'bash', 'bash', WindowsShellType.Wsl, backend, OperatingSystem.Windows, true), '\'/mnt/c/foo bar\'');
+			});
 		});
 		suite('Windows frontend, Linux backend', () => {
 			test('Bash', async () => {
