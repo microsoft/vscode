@@ -987,19 +987,39 @@ export class TerminalSandboxEngine extends Disposable {
 		if (!userHome) {
 			return false;
 		}
-		const gemRoot = posix.join(userHome, '.gem');
-		const protectedPaths = new Set([userHome, gemRoot]);
+		const homeRoots = new Set([userHome]);
 		for (const resolvedPath of await this._resolveFileSystemPath(userHome)) {
-			protectedPaths.add(resolvedPath);
-			protectedPaths.add(posix.join(resolvedPath, '.gem'));
+			homeRoots.add(resolvedPath);
 		}
+		const gemRoots = new Set([...homeRoots].map(homeRoot => posix.join(homeRoot, '.gem')));
+		const gemRoot = posix.join(userHome, '.gem');
 		for (const resolvedPath of await this._resolveFileSystemPath(gemRoot)) {
-			protectedPaths.add(resolvedPath);
+			gemRoots.add(resolvedPath);
 		}
-		return ![...protectedPaths].some(protectedPath => {
-			const relativePath = posix.relative(target, protectedPath);
-			return relativePath === '' || (!relativePath.startsWith('..') && !posix.isAbsolute(relativePath));
-		});
+		const allowedRoots = new Set<string>();
+		for (const homeRoot of homeRoots) {
+			for (const relativePath of ['.gem/ruby', '.gem/specs', '.rbenv/versions', '.rbenv/shims', '.rvm/rubies']) {
+				allowedRoots.add(posix.join(homeRoot, relativePath));
+			}
+		}
+		for (const root of gemRoots) {
+			allowedRoots.add(posix.join(root, 'ruby'));
+			allowedRoots.add(posix.join(root, 'specs'));
+		}
+
+		const protectedRoots = [...homeRoots, ...gemRoots];
+		if (protectedRoots.some(root => this._isFileSystemPathEqualOrParent(target, root))) {
+			return false;
+		}
+		if (protectedRoots.some(root => this._isFileSystemPathEqualOrParent(root, target))) {
+			return [...allowedRoots].some(root => this._isFileSystemPathEqualOrParent(root, target));
+		}
+		return true;
+	}
+
+	private _isFileSystemPathEqualOrParent(parent: string, candidate: string): boolean {
+		const relativePath = posix.relative(parent, candidate);
+		return relativePath === '' || (!relativePath.startsWith('..') && !posix.isAbsolute(relativePath));
 	}
 
 	private _deduplicateFileSystemPaths(paths: readonly string[]): string[] {
