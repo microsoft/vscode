@@ -126,6 +126,7 @@ suite('NpmScriptAutoApprover', () => {
 				await t(command, { build: 'tsc', test: 'jest', start: 'node index.js' }, false);
 			}
 		});
+		test('npm positional arguments after the script require approval', () => t('npm run build target', { build: 'tsc' }, false));
 
 		test('npm CLI options cannot be treated as script names', async () => {
 			const commands = [
