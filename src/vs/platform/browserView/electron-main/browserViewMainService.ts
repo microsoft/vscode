@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
+import { BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewNavigationState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -244,6 +244,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async getState(id: string): Promise<IBrowserViewState> {
 		return this._getBrowserView(id).getState();
+	}
+
+	async getNavigationState(id: string): Promise<IBrowserViewNavigationState> {
+		return this._getBrowserView(id).getNavigationState();
 	}
 
 	async setAudience(id: string, audience: IBrowserViewAudience, enabled: boolean): Promise<void> {
@@ -484,7 +488,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				}, editorOptions, electronOptions);
 			},
 			(v, params) => this.showContextMenu(v, params),
-			options
+			options,
+			undefined
 		);
 		this.browserViews.set(id, view);
 		if (windowConfiguration?.theme) {

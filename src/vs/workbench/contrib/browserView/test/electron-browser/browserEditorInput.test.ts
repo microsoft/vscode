@@ -269,6 +269,7 @@ suite('BrowserEditorInput', () => {
 		url = 'https://loaded.example/';
 		title = '';
 		onDidNavigate.fire({
+			navigationStateVersion: 1,
 			url,
 			title,
 			canGoBack: false,

@@ -323,19 +323,25 @@ export interface IBrowserViewStorageKeys {
 	readonly permissions?: string;
 }
 
-export interface IBrowserViewState {
+/** Lightweight state used to reconcile navigation without transferring screenshots or session data. */
+export interface IBrowserViewNavigationState {
+	/** Monotonic version shared by navigation, title, loading, and favicon updates. */
+	navigationStateVersion: number;
 	url: string;
 	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 	loading: boolean;
+	lastFavicon: string | undefined;
+	lastError: IBrowserViewLoadError | undefined;
+	certificateError: IBrowserViewCertificateError | undefined;
+}
+
+export interface IBrowserViewState extends IBrowserViewNavigationState {
 	focused: boolean;
 	visible: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
-	lastFavicon: string | undefined;
-	lastError: IBrowserViewLoadError | undefined;
-	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
@@ -348,6 +354,7 @@ export interface IBrowserViewState {
 }
 
 export interface IBrowserViewNavigationEvent {
+	navigationStateVersion: number;
 	url: string;
 	title: string;
 	canGoBack: boolean;
@@ -356,6 +363,7 @@ export interface IBrowserViewNavigationEvent {
 }
 
 export interface IBrowserViewLoadingEvent {
+	navigationStateVersion: number;
 	loading: boolean;
 	error?: IBrowserViewLoadError;
 }
@@ -403,10 +411,12 @@ export interface IBrowserViewKeyDownEvent {
 }
 
 export interface IBrowserViewTitleChangeEvent {
+	navigationStateVersion: number;
 	title: string;
 }
 
 export interface IBrowserViewFaviconChangeEvent {
+	navigationStateVersion: number;
 	favicon: string | undefined;
 }
 
@@ -560,12 +570,12 @@ export interface IBrowserViewService {
 	setOwner(id: string, owner: IBrowserViewOwner): Promise<void>;
 
 	/**
-	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
-	 * @param id The browser view identifier
-	 * @return The state of the browser view for the given ID
-	 * @throws If no browser view exists for the given ID
+	 * Get the current state, or throw if the view doesn't exist.
 	 */
 	getState(id: string): Promise<IBrowserViewState>;
+
+	/** Subscribe before reading this snapshot and use its version to reconcile navigation-related events. */
+	getNavigationState(id: string): Promise<IBrowserViewNavigationState>;
 
 	/**
 	 * Adds an audience or, when disabled, removes every audience matching it.
