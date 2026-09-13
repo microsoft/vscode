@@ -576,8 +576,13 @@ suite('CommandAutoApprover', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('Write-Host hi>../../outside.txt', options),
 				approver.shouldAutoApprove('Write-Host hi >../../outside.txt', options),
-			], ['approved', 'noMatch']);
-			assert.deepStrictEqual(seen, ['../../outside.txt']);
+				approver.shouldAutoApprove('Write-Host pre"literal>text"post>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host pre"literal>text"post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal>text\'post', options),
+				approver.shouldAutoApprove('Write-Host escaped`>text', options),
+				approver.shouldAutoApprove('Write-Host payload>$null', options),
+			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'approved']);
+			assert.deepStrictEqual(seen, ['../../outside.txt', '../../outside.txt', '../../outside.txt']);
 		});
 
 		// The grammar parses `--flag=value` as an assignment expression that
