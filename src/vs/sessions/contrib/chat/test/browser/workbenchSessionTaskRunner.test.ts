@@ -15,8 +15,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ITaskEvent, Task, TaskEvent, TaskSourceKind, USER_TASKS_GROUP_KEY } from '../../../../../workbench/contrib/tasks/common/tasks.js';
-import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
+import { ITaskEvent, Task, TaskEvent, TaskRunSource, TaskSourceKind, USER_TASKS_GROUP_KEY } from '../../../../../workbench/contrib/tasks/common/tasks.js';
+import { IProblemMatcherRunOptions, ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
 import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { WorkbenchSessionTaskRunner } from '../../browser/workbenchSessionTaskRunner.js';
@@ -74,6 +74,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 	let terminatedTasks: { label: string }[];
 	let tasksByLabel: Map<string, Task>;
 	let taskLookups: (string | IWorkspaceFolder)[];
+	let taskRunSources: TaskRunSource[];
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
 	let activeTasks: Set<string>;
 	let taskStateEmitter: Emitter<ITaskEvent>;
@@ -89,6 +90,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		terminatedTasks = [];
 		tasksByLabel = new Map();
 		taskLookups = [];
+		taskRunSources = [];
 		workspaceFoldersByUri = new Map();
 		activeTasks = new Set();
 		taskStateEmitter = store.add(new Emitter<ITaskEvent>());
@@ -105,7 +107,8 @@ suite('WorkbenchSessionTaskRunner', () => {
 				const label = typeof alias === 'string' ? alias : '';
 				return tasksByLabel.get(label);
 			}
-			override run(task: Task | undefined) {
+			override run(task: Task | undefined, _options?: IProblemMatcherRunOptions, runSource?: TaskRunSource) {
+				taskRunSources.push(runSource ?? TaskRunSource.System);
 				if (!task) {
 					return Promise.resolve(undefined);
 				}
@@ -217,6 +220,20 @@ suite('WorkbenchSessionTaskRunner', () => {
 		await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace' });
 
 		assert.deepStrictEqual(ranTasks, []);
+	});
+
+	test('preserves approved task source across reload', async () => {
+		registerMockTask('build', worktreeUri, TaskSourceKind.User);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const cancellation = new CancellationTokenSource();
+
+		(await runner.runTask(makeTask('build'), session, { taskTarget: 'user', token: cancellation.token }))?.dispose();
+
+		assert.deepStrictEqual({ taskLookups, taskRunSources }, {
+			taskLookups: [USER_TASKS_GROUP_KEY],
+			taskRunSources: [TaskRunSource.System],
+		});
+		cancellation.dispose();
 	});
 
 	test('cancellation terminates a task while it is running', async () => {
