@@ -3445,6 +3445,12 @@ export class CopilotAgentSession extends Disposable {
 		this._abortingTurn = abortTarget;
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
+			for (const agentId of this._activeSubagentAgentIds) {
+				const parentToolCallId = this._parentToolCallIdsByAgentId.get(agentId);
+				if (parentToolCallId && this._rootTurnIdBySubagentToolCallId.get(parentToolCallId) === abortingTurn.id) {
+					this._completeSubagentTurn(agentId, parentToolCallId);
+				}
+			}
 		}
 		this._beginAbort();
 		this._drainPendingSteeringFlips();

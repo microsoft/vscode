@@ -515,6 +515,8 @@ The Responses (`/responses`) regenerator announces each output item before strea
 
 Copilot reconciles child completion from `rpc.tasks.list`. A resume or task-status notification invalidating an in-flight read must cause a trailing authoritative read, even without another notification. Trace logs identify discarded and applied status revisions. The delayed-query unit tests in `copilotAgentSession.test.ts` cover these races without polling the provider or changing replay assertions.
 
+Cancelling a root turn clears its child activity and usage bookkeeping before a retained child can be reused; a cancelled status reply arriving later must not clear the new turn's state.
+
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
