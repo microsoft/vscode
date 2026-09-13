@@ -72,6 +72,17 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures.map(e => e.node.text);
 	}
 
+	async countExecutionUnits(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<number> {
+		const query = languageId === TreeSitterCommandParserLanguage.Bash
+			? '[(command) (redirected_statement)] @unit'
+			: '[(command) (assignment_expression) (invokation_expression)] @unit';
+		const captures = await this._queryTree(languageId, commandLine, query);
+		return captures.filter(capture =>
+			capture.node.type !== 'command' ||
+			capture.node.parent?.type !== 'redirected_statement'
+		).length;
+	}
+
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
 		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
 		const querySource = languageId === TreeSitterCommandParserLanguage.PowerShell

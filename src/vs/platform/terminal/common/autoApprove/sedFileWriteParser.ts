@@ -18,19 +18,193 @@ export class SedFileWriteParser {
 	readonly commandName = 'sed';
 
 	canHandle(commandText: string): boolean {
-		// Check if this is a sed command
-		if (!commandText.match(/^sed\s+/)) {
+		const rawTokens = this._tokenizeCommand(commandText);
+		const tokens = rawTokens.map(token => this._decodeLiteralToken(token) ?? token);
+		if (tokens[0] !== 'sed') {
 			return false;
 		}
-
-		// Check for -i, -I, or --in-place flag
-		const inPlaceRegex = /(?:^|\s)(-[a-zA-Z]*[iI][a-zA-Z]*\S*|--in-place(?:=\S*)?|(-i|-I)\s*'[^']*'|(-i|-I)\s*"[^"]*")(?:\s|$)/;
-		return inPlaceRegex.test(commandText);
+		return this._hasLiteralInPlaceOption(tokens) || this._hasDynamicOption(rawTokens);
 	}
 
 	extractFileWrites(commandText: string): string[] {
-		const tokens = this._tokenizeCommand(commandText);
-		return this._extractFileTargets(tokens);
+		const rawTokens = this._tokenizeCommand(commandText);
+		const tokens = rawTokens.map(token => this._decodeLiteralToken(token) ?? token);
+		const files = this._extractFileTargets(tokens);
+		const backupSuffix = this._extractBackupSuffix(tokens);
+		if (this._hasDynamicOption(rawTokens)) {
+			return [...files, '$SED_IN_PLACE_OPTION'];
+		}
+		if (!backupSuffix) {
+			return files;
+		}
+		return [
+			...files,
+			...files.map(file => backupSuffix.includes('*') ? backupSuffix.replaceAll('*', file) : `${file}${backupSuffix}`),
+		];
+	}
+
+	private _extractBackupSuffix(tokens: string[]): string | undefined {
+		let backupSuffix: string | undefined;
+		for (let i = 1; i < tokens.length; i++) {
+			const token = tokens[i];
+			if (token === '--') {
+				break;
+			}
+			if (this._isLongInPlaceOption(token)) {
+				backupSuffix = token.includes('=')
+					? this._stripSurroundingQuotes(token.slice(token.indexOf('=') + 1))
+					: '';
+				continue;
+			}
+			if (!/^-[^-]/.test(token)) {
+				continue;
+			}
+			const flags = token.slice(1);
+			const lowerIndex = flags.indexOf('i');
+			const upperIndex = flags.indexOf('I');
+			const inPlaceIndex = lowerIndex >= 0 ? lowerIndex : upperIndex;
+			if (inPlaceIndex < 0) {
+				continue;
+			}
+			const attached = flags.slice(inPlaceIndex + 1);
+			if (attached) {
+				backupSuffix = this._stripSurroundingQuotes(attached);
+				continue;
+			}
+			const next = tokens[i + 1];
+			if (next === '' || next === '\'\'' || next === '""') {
+				backupSuffix = '';
+				continue;
+			}
+			if (next && ((next.startsWith('\'') && next.endsWith('\'')) || (next.startsWith('"') && next.endsWith('"')))) {
+				const unquoted = this._stripSurroundingQuotes(next);
+				if (unquoted.startsWith('.') && unquoted.length <= 10 && !unquoted.includes('/')) {
+					backupSuffix = unquoted;
+					continue;
+				}
+			}
+			backupSuffix = '';
+		}
+		return backupSuffix;
+	}
+
+	private _stripSurroundingQuotes(value: string): string {
+		if (
+			(value.startsWith('\'') && value.endsWith('\'')) ||
+			(value.startsWith('"') && value.endsWith('"'))
+		) {
+			return value.slice(1, -1);
+		}
+		return value;
+	}
+
+	private _decodeLiteralToken(value: string): string | undefined {
+		let result = '';
+		let inSingleQuote = false;
+		let inDoubleQuote = false;
+		for (let i = 0; i < value.length; i++) {
+			const char = value[i];
+			if (inSingleQuote) {
+				if (char === '\'') {
+					inSingleQuote = false;
+				} else {
+					result += char;
+				}
+				continue;
+			}
+			if (inDoubleQuote) {
+				if (char === '"') {
+					inDoubleQuote = false;
+				} else if (char === '\\' && i + 1 < value.length && '$`"\\\n'.includes(value[i + 1])) {
+					i++;
+					if (value[i] !== '\n') {
+						result += value[i];
+					}
+				} else {
+					result += char;
+				}
+				continue;
+			}
+			if (char === '\'') {
+				inSingleQuote = true;
+				continue;
+			}
+			if (char === '"') {
+				inDoubleQuote = true;
+				continue;
+			}
+			if (char === '\\') {
+				if (++i >= value.length) {
+					return undefined;
+				}
+				if (value[i] !== '\n') {
+					result += value[i];
+				}
+				continue;
+			}
+			result += char;
+		}
+		return inSingleQuote || inDoubleQuote ? undefined : result;
+	}
+
+	private _hasDynamicOption(tokens: readonly string[]): boolean {
+		for (let i = 1; i < tokens.length; i++) {
+			const decoded = this._decodeLiteralToken(tokens[i]);
+			if (decoded === '--') {
+				break;
+			}
+			if (
+				(decoded !== undefined && this._isLongInPlaceOption(decoded)) ||
+				!!decoded?.match(/^-[a-zA-Z]*[iI][a-zA-Z]*\S*$/)
+			) {
+				continue;
+			}
+			if (this._containsRuntimeExpansion(tokens[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _hasLiteralInPlaceOption(tokens: readonly string[]): boolean {
+		for (let i = 1; i < tokens.length; i++) {
+			const token = tokens[i];
+			if (token === '--') {
+				return false;
+			}
+			if (this._isLongInPlaceOption(token) || /^-[a-zA-Z]*[iI][a-zA-Z]*\S*$/.test(token)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _isLongInPlaceOption(token: string): boolean {
+		return /^--in-p(?:l(?:a(?:c(?:e)?)?)?)?(?:=.*)?$/.test(token);
+	}
+
+	private _containsRuntimeExpansion(value: string): boolean {
+		let inSingleQuote = false;
+		let inDoubleQuote = false;
+		for (let i = 0; i < value.length; i++) {
+			const char = value[i];
+			if (char === '\\' && !inSingleQuote) {
+				i++;
+				continue;
+			}
+			if (char === '\'' && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+				continue;
+			}
+			if (char === '"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+				continue;
+			}
+			if (!inSingleQuote && (char === '$' || char === '`' || char === '!' || (!inDoubleQuote && (char === '*' || char === '?' || char === '[' || char === '{')))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -100,13 +274,19 @@ export class SedFileWriteParser {
 		const files: string[] = [];
 		let i = 1; // Skip 'sed'
 		let foundScript = false;
+		let optionsEnded = false;
 
 		while (i < tokens.length) {
 			const token = tokens[i];
 
 			// Long options
-			if (token.startsWith('--')) {
-				if (token === '--in-place' || token.startsWith('--in-place=')) {
+			if (!optionsEnded && token === '--') {
+				optionsEnded = true;
+				i++;
+				continue;
+			}
+			if (!optionsEnded && token.startsWith('--')) {
+				if (this._isLongInPlaceOption(token)) {
 					// In-place flag (already verified we have one)
 					i++;
 					continue;
@@ -128,7 +308,7 @@ export class SedFileWriteParser {
 			}
 
 			// Short options
-			if (token.startsWith('-') && token.length > 1 && token[1] !== '-') {
+			if (!optionsEnded && token.startsWith('-') && token.length > 1 && token[1] !== '-') {
 				// Could be combined flags like -ni or -i.bak
 				const flags = token.slice(1);
 
@@ -149,7 +329,7 @@ export class SedFileWriteParser {
 					// macOS/BSD style: -i '' or -i "" (empty string backup suffix)
 					// Only treat it as a backup suffix if it's empty or looks like a backup
 					// extension (starts with '.' and is short). Don't match sed scripts like 's/foo/bar/'.
-					if (nextToken === '\'\'' || nextToken === '""') {
+					if (nextToken === '' || nextToken === '\'\'' || nextToken === '""') {
 						i += 2;
 						continue;
 					}

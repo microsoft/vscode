@@ -53,6 +53,17 @@ suite('terminalCommandParser', () => {
 			strictEqual(parsed?.segments[1].trailingSeparator, '||');
 		});
 
+		test('splits background command sequences', () => {
+			const parsed = parseCommand('npm install & npm test');
+			strictEqual(parsed?.segments.length, 2);
+			strictEqual(parsed?.segments[0].trailingSeparator, '&');
+		});
+
+		test('does not split redirection ampersands', () => {
+			const parsed = parseCommand('command 2>&1 &> output.txt');
+			strictEqual(parsed?.segments.length, 1);
+		});
+
 		test('does not split on separators inside quotes', () => {
 			const parsed = parseCommand(`echo "a;b" | wc -l`);
 			strictEqual(parsed?.segments.length, 2);
