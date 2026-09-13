@@ -120,6 +120,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
 	acceptPromptSuggestion: () => boolean = () => false,
+	cancelPromptSuggestion: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -145,7 +146,13 @@ export function registerAutomationDialogKeyboardNavigation(
 		const isPopup = target instanceof targetWindow.HTMLElement && isPopupTarget(target);
 		// Keep ownership of the Escape press when the popup closes and key repeat targets the form.
 		if (event.key === 'Escape' && !event.repeat) {
-			suppressPopupEscapeKeyUp = isPopup;
+			const promptSuggestionCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelPromptSuggestion();
+			suppressPopupEscapeKeyUp = isPopup || promptSuggestionCancelled;
+			if (promptSuggestionCancelled) {
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				return;
+			}
 		}
 		if (isPopup) {
 			return;
@@ -227,6 +234,7 @@ interface IRenderFormHandle {
 	readonly focusSessionConfigurationError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
+	readonly cancelPromptSuggestion: () => boolean;
 }
 
 export type AutomationSessionDraftTarget =
@@ -1538,6 +1546,14 @@ export function renderForm(
 				return false;
 			}
 			suggestController.acceptSelectedSuggestion(true, false);
+			return true;
+		},
+		cancelPromptSuggestion: () => {
+			const suggestController = SuggestController.get(chatInput.inputEditor);
+			if (!chatInput.inputEditor.hasTextFocus() || !suggestController || suggestController.model.state === SuggestState.Idle) {
+				return false;
+			}
+			suggestController.cancelSuggestWidget();
 			return true;
 		},
 	};

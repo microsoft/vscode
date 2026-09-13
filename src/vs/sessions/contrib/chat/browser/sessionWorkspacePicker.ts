@@ -797,11 +797,12 @@ export class WorkspacePicker extends Disposable {
 
 	protected _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
 		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces() && this._directPickerAttachesContext !== true;
+		const hasRemoteSubmenu = isConsolidatedWorkspacePicker && this._directPickerGroup === undefined;
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { className: 'sessions-new-chat-picker-list', reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: hasRemoteSubmenu, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			: { className: 'sessions-new-chat-picker-list', submenuPointerIntent: hasRemoteSubmenu, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
 	/**
@@ -1634,8 +1635,8 @@ export class WorkspacePicker extends Disposable {
 			if (useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE) {
 				const submenuAction = toAction({
 					id: `workspacePicker.remote.browse.${action.providerId}.${index}`,
-					label: actionLabel,
-					tooltip: action.description,
+					label: action.description || actionLabel,
+					tooltip: action.description ? actionLabel : undefined,
 					enabled: !isUnavailable,
 					run: () => setRemotePickerItem({ browseAction: action }),
 				});
@@ -1712,7 +1713,7 @@ export class WorkspacePicker extends Disposable {
 				if (useRemoteSubmenu) {
 					const submenuAction = toAction({
 						id: action.id,
-						label: action.label,
+						label: localize('workspacePicker.manageRemoteHost', "Manage {0}", action.label),
 						tooltip: action.tooltip,
 						enabled: action.enabled,
 						run: () => setRemotePickerItem({ run: () => action.run() }),
@@ -1763,7 +1764,16 @@ export class WorkspacePicker extends Disposable {
 				label: localize('workspacePicker.remote', "Remote"),
 				group: { title: '', icon: Codicon.remote },
 				item: remotePickerItem,
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
 				submenuActions: [new SubmenuAction('workspacePicker.remote.options', '', remoteSubmenuActions)],
+				submenuOptions: {
+					showFilter: true,
+					filterPlaceholder: localize('workspacePicker.remoteFilter', "Search Remote"),
+					filterAsCombobox: true,
+					minWidth: 180,
+					maxWidth: 180,
+					hideDefaultKeybindingTooltip: true,
+				},
 			});
 		}
 

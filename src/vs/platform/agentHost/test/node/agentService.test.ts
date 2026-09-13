@@ -1567,7 +1567,7 @@ suite('AgentService (node dispatcher)', () => {
 			progressToken: 'codex',
 			progress: 50,
 			total: 100,
-			message: 'Downloading Codex agent',
+			message: 'Downloading Codex Agent',
 		}]);
 	});
 
@@ -4233,12 +4233,13 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(archivedAtClose, true);
 		});
 
-		test('archiveSession runs archive side effects', async () => {
+		test('automatic archive uses strict worktree cleanup', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const cleaned: string[] = [];
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				cleanupWorktreeOnArchive: async session => { cleaned.push(session.toString()); },
+				cleanupWorktree: async session => { cleaned.push(session.toString()); },
+				cleanupWorktreeOnArchive: async () => { assert.fail('Automatic archive must not use manual worktree cleanup'); },
 			}));
 			getConfigurationService(svc).updateRootConfig({
 				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
@@ -13522,6 +13523,35 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('conditional session deletion checks the commit guard after asynchronous validation', async () => {
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const stateManager = getStateManager(localService);
+			const session = AgentSession.uri('copilot', 'conditional-delete-commit');
+			const sessionStr = session.toString();
+			stateManager.createSession({
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Archived',
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			let canCommit = true;
+
+			const deleted = await localService.disposeSessionIf(session, async () => {
+				queueMicrotask(() => canCommit = false);
+				return true;
+			}, () => canCommit);
+
+			assert.deepStrictEqual({
+				deleted,
+				archived: isSessionStatusArchived(stateManager.getSessionSummary(sessionStr)?.status),
+			}, {
+				deleted: false,
+				archived: true,
+			});
+		});
+
 		test('unarchiving is rejected after conditional session deletion begins', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -13542,7 +13572,7 @@ suite('AgentService (node dispatcher)', () => {
 				validationStarted.complete();
 				await finishValidation.p;
 				return false;
-			});
+			}, () => true);
 			await validationStarted.p;
 
 			const rejected = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>

@@ -19,11 +19,11 @@ import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING } from './views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
-import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../browser/sessionActionViewItem.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
 
@@ -72,11 +72,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			experiment: { mode: 'auto' }
 		},
-		[SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: {
+		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: localize('sessions.archiveSessionConfetti', "Controls whether a confetti animation is shown when archiving a session."),
+			description: localize('sessions.list.showUnreadInCollapsedSections', "Controls whether collapsed sections in the sessions list show needs-input, CI-failure, or unread indicators for the unarchived sessions they contain."),
 			default: false,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session as done."),
+			default: false,
+			// https://github.com/microsoft/vscode/issues/335801
 		},
 		[AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: {
 			type: 'string',
