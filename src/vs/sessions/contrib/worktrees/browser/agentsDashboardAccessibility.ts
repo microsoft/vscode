@@ -36,6 +36,7 @@ class AgentsDashboardAccessibilityHelp implements IAccessibleViewImplementation 
 			localize('agentsDashboard.help.chatActivity', "In the Sessions tab, click a session row or press Space on the focused row to expand its activity directly below the row. The activity runs from session start to completion or now and shows requests, messages between peer chats, and pull request creation. Repeat the action or press Escape to collapse it."),
 			localize('agentsDashboard.help.tables', "Use Up Arrow and Down Arrow to navigate the table. Press Enter to open the focused session."),
 			localize('agentsDashboard.help.sessionActions', "Session actions appear when a row is hovered or focused. Each session can be archived or unarchived, and deleted when its provider supports deletion. Deletion asks for confirmation."),
+			localize('agentsDashboard.help.calculateCredits', "When credits are unavailable, use Calculate Credits in the session actions to recover and store usage for that session. A partial label means some turns had no recoverable billing data."),
 			localize('agentsDashboard.help.refresh', "Use the Refresh action beside the command center to rescan worktrees and disk usage."),
 			localize('agentsDashboard.help.close', "Use Close Manage Sessions in the tab bar to return to the Sessions window."),
 			localize('agentsDashboard.help.accessibleView', "Use Open Accessible View to read the current dashboard as text."),
@@ -138,7 +139,11 @@ export function buildAgentsDashboardAccessibleContent(
 				workingDirectories,
 				row.chatCount,
 				row.worktreeSizeBytes === undefined ? localize('agentsDashboard.accessible.sizeUnknown', "unknown") : ByteSize.formatSize(row.worktreeSizeBytes),
-				row.credits === undefined ? localize('agentsDashboard.accessible.creditsUnknownValue', "unknown") : formatCopilotCreditsLabel(row.credits),
+				row.credits === undefined
+					? localize('agentsDashboard.accessible.creditsUnknownValue', "unknown")
+					: row.creditsPartial
+						? localize('agentsDashboard.accessible.creditsPartialValue', "{0}, partial", formatCopilotCreditsLabel(row.credits))
+						: formatCopilotCreditsLabel(row.credits),
 				getAccessibleSessionStatus(row),
 			));
 		}

@@ -8,6 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -22,6 +23,7 @@ import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWor
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
@@ -196,7 +198,11 @@ class SessionCreditsColumnRenderer extends SessionMetricColumnRenderer {
 	readonly templateId = SessionCreditsColumnRenderer.TEMPLATE_ID;
 
 	renderElement(row: IAgentsDashboardSessionRow, index: number, templateData: ISessionMetricCellTemplateData): void {
-		templateData.value.textContent = row.credits === undefined ? '—' : formatCopilotCredits(row.credits);
+		templateData.value.textContent = row.credits === undefined
+			? '—'
+			: row.creditsPartial
+				? localize('agentsDashboard.partialCredits', "{0} partial", formatCopilotCredits(row.credits))
+				: formatCopilotCredits(row.credits);
 		templateData.detail.textContent = '';
 	}
 }
@@ -253,21 +259,33 @@ class SessionActionsColumnRenderer implements ITableRenderer<IAgentsDashboardSes
 		const archiveAction = row.archived ? archivePresentation.unarchive : archivePresentation.archive;
 		const archiveCommandId = row.archived ? UNARCHIVE_SESSION_COMMAND_ID : ARCHIVE_SESSION_COMMAND_ID;
 		const openLabel = localize('agentsDashboard.openSession', "Open Session");
-		const actions = [{
+		const actions: IAction[] = [{
 			id: 'agentsDashboard.openSession',
 			label: openLabel,
 			class: ThemeIcon.asClassName(Codicon.goToFile),
 			enabled: true,
 			tooltip: openLabel,
 			run: () => this.view.revealSession(row.session.resource),
-		}, {
+		}];
+		if (row.credits === undefined) {
+			const calculateCreditsLabel = localize('agentsDashboard.calculateCredits', "Calculate Credits");
+			actions.push({
+				id: 'agentsDashboard.calculateCredits',
+				label: calculateCreditsLabel,
+				class: ThemeIcon.asClassName(Codicon.graphLine),
+				enabled: true,
+				tooltip: calculateCreditsLabel,
+				run: () => this.view.calculateCredits(row.session),
+			});
+		}
+		actions.push({
 			id: archiveCommandId,
 			label: archiveAction.title.value,
 			class: ThemeIcon.asClassName(archiveAction.icon),
 			enabled: true,
 			tooltip: archiveAction.title.value,
 			run: () => this.view.toggleSessionArchived(row.session, row.archived),
-		}];
+		});
 		if (row.session.capabilities.get().supportsDelete) {
 			const deleteLabel = localize('agentsDashboard.deleteSession', "Delete Session");
 			actions.push({
@@ -413,6 +431,7 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 		@IAgentsDashboardHistoryService private readonly historyService: IAgentsDashboardHistoryService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IProgressService private readonly progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -548,7 +567,7 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 					label: localize('agentsDashboard.column.credits', "Credits"),
 					tooltip: '',
 					weight: 0.08,
-					minimumWidth: 80,
+					minimumWidth: 100,
 					templateId: SessionCreditsColumnRenderer.TEMPLATE_ID,
 					project(row: IAgentsDashboardSessionRow) { return row; },
 				},
@@ -563,9 +582,9 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 				{
 					label: '',
 					tooltip: localize('agentsDashboard.column.actions', "Actions"),
-					weight: 0.07,
-					minimumWidth: 88,
-					maximumWidth: 104,
+					weight: 0.09,
+					minimumWidth: 112,
+					maximumWidth: 128,
 					templateId: SessionActionsColumnRenderer.TEMPLATE_ID,
 					project(row: IAgentsDashboardSessionRow) { return row; },
 				},
@@ -593,7 +612,11 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 								: localize('agentsDashboard.workingDirectoryFolderAria', "{0} (folder)", directory.path)).join(', '),
 						row.chatCount,
 						row.worktreeSizeBytes === undefined ? localize('agentsDashboard.sizeUnknown', "unknown") : ByteSize.formatSize(row.worktreeSizeBytes),
-						row.credits === undefined ? localize('agentsDashboard.creditsUnknown', "unknown") : formatCopilotCredits(row.credits),
+						row.credits === undefined
+							? localize('agentsDashboard.creditsUnknown', "unknown")
+							: row.creditsPartial
+								? localize('agentsDashboard.creditsPartialAria', "{0}, partial", formatCopilotCredits(row.credits))
+								: formatCopilotCredits(row.credits),
 						getSessionStatusLabel(row),
 					),
 				},
@@ -636,7 +659,8 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 			sessionsChanged.read(reader);
 			const sessions = this.sessionsManagementService.getSessions();
 			const worktreeEntries = this.worktreeDashboardService.entries.read(reader);
-			const sessionRows = buildSessionRows(sessions, worktreeEntries);
+			const calculatedUsage = this.historyService.calculatedUsage.read(reader);
+			const sessionRows = buildSessionRows(sessions, worktreeEntries, calculatedUsage);
 			this.latestSessionRows = sessionRows;
 			const historyEvents = this.historyService.events.read(reader);
 			this.latestHistoryEvents = historyEvents;
@@ -868,6 +892,28 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 			this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('agentsDashboard.revealFailed', "Failed to open the session: {0}", toErrorMessage(err)),
+			});
+		}
+	}
+
+	async calculateCredits(session: ISession): Promise<void> {
+		const title = session.title.get() || localize('agentsDashboard.chatActivity.untitledSession', "Untitled session");
+		try {
+			const usage = await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('agentsDashboard.calculateCredits.progress', "Calculating credits for {0}...", title),
+			}, () => this.historyService.calculateSessionUsage(session));
+			if (!usage) {
+				this.notificationService.info(localize('agentsDashboard.calculateCredits.unavailable', "No recoverable credit data was found for {0}.", title));
+				return;
+			}
+			this.notificationService.info(usage.partial
+				? localize('agentsDashboard.calculateCredits.partialResult', "Calculated {0} credits for {1}. Some turns had no recoverable billing data.", formatCopilotCredits(usage.credits), title)
+				: localize('agentsDashboard.calculateCredits.result', "Calculated {0} credits for {1}.", formatCopilotCredits(usage.credits), title));
+		} catch (error) {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('agentsDashboard.calculateCredits.failed', "Failed to calculate credits for {0}: {1}", title, toErrorMessage(error)),
 			});
 		}
 	}

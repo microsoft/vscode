@@ -157,13 +157,31 @@ suite('AgentsDashboardModel', () => {
 			chatCount: row.chatCount,
 			worktreeSizeBytes: row.worktreeSizeBytes,
 			credits: row.credits,
+			creditsPartial: row.creditsPartial,
 		}, {
 			archived: false,
 			workingDirectories: [{ path: worktreePath.fsPath, isWorktree: true }],
 			chatCount: 1,
 			worktreeSizeBytes: 4096,
 			credits: 1.5,
+			creditsPartial: false,
 		});
+	});
+
+	test('buildSessionRows uses calculated credits only when provider usage is unavailable', () => {
+		const calculated = stubSession({ sessionId: 'calculated', title: 'Calculated', updatedAt: new Date(), credits: undefined });
+		const authoritative = stubSession({ sessionId: 'authoritative', title: 'Authoritative', updatedAt: new Date(), credits: 3 });
+		const usage = new Map([
+			[calculated.sessionId, { credits: 2, partial: true, updatedAt: 1 }],
+			[authoritative.sessionId, { credits: 9, partial: true, updatedAt: 1 }],
+		]);
+
+		const rows = buildSessionRows([calculated, authoritative], [], usage);
+
+		assert.deepStrictEqual(rows.map(row => ({ id: row.session.sessionId, credits: row.credits, partial: row.creditsPartial })), [
+			{ id: 'calculated', credits: 2, partial: true },
+			{ id: 'authoritative', credits: 3, partial: false },
+		]);
 	});
 
 	test('buildAgentsDashboardSummary reports done sessions, pull requests, and storage', () => {

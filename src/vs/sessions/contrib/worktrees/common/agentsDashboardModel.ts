@@ -5,6 +5,7 @@
 
 import { getGitHubPullRequestRefs, getUntitledSessionTitle, ISession, isActiveSessionStatus, SessionStatus } from '../../../services/sessions/common/session.js';
 import { fuzzyContains } from '../../../../base/common/strings.js';
+import { IAgentsDashboardCalculatedUsage } from './agentsDashboardHistory.js';
 import { IWorktreeDashboardEntry, WorktreeEntryStatus } from './worktreeDashboard.js';
 
 /** A working directory shown for a dashboard session. */
@@ -23,6 +24,7 @@ export interface IAgentsDashboardSessionRow {
 	readonly chatCount: number;
 	readonly worktreeSizeBytes: number | undefined;
 	readonly credits: number | undefined;
+	readonly creditsPartial: boolean;
 }
 
 /** Aggregate operational metrics shown above the dashboard table. */
@@ -36,7 +38,11 @@ export interface IAgentsDashboardSummary {
 }
 
 /** Builds the Sessions table rows from every known session, most recently updated first. */
-export function buildSessionRows(sessions: readonly ISession[], worktreeEntries: readonly IWorktreeDashboardEntry[] = []): IAgentsDashboardSessionRow[] {
+export function buildSessionRows(
+	sessions: readonly ISession[],
+	worktreeEntries: readonly IWorktreeDashboardEntry[] = [],
+	calculatedUsage: ReadonlyMap<string, IAgentsDashboardCalculatedUsage> = new Map(),
+): IAgentsDashboardSessionRow[] {
 	const worktreeBySession = new Map(
 		worktreeEntries
 			.filter(entry => entry.session)
@@ -45,6 +51,8 @@ export function buildSessionRows(sessions: readonly ISession[], worktreeEntries:
 	return sessions
 		.map(session => {
 			const worktree = worktreeBySession.get(session.resource.toString());
+			const providerCredits = session.usage?.get()?.credits;
+			const calculatedCredits = calculatedUsage.get(session.sessionId);
 			return {
 				session,
 				title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
@@ -56,7 +64,8 @@ export function buildSessionRows(sessions: readonly ISession[], worktreeEntries:
 				})) ?? [],
 				chatCount: session.chats.get().length,
 				worktreeSizeBytes: worktree?.sizeBytes,
-				credits: session.usage?.get()?.credits,
+				credits: providerCredits ?? calculatedCredits?.credits,
+				creditsPartial: providerCredits === undefined && calculatedCredits?.partial === true,
 			};
 		})
 		.sort((a, b) => b.session.updatedAt.get().getTime() - a.session.updatedAt.get().getTime());

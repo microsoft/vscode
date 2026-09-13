@@ -14,7 +14,7 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { ChatRequestOriginKind } from '../../../../../workbench/contrib/chat/common/chatRequestOrigin.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatChangeEvent, IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatInteractivity, ChatModelSource, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentsDashboardHistoryService } from '../../browser/agentsDashboardHistoryService.js';
@@ -165,6 +165,9 @@ suite('AgentsDashboardHistoryService', () => {
 			override readonly id = 'delegated-request';
 			override readonly timestamp = now;
 			override readonly requestTimestamp = now;
+			override readonly response = new class extends mock<IChatResponseModel>() {
+				override readonly usage = { kind: 'usage' as const, promptTokens: 0, completionTokens: 0, copilotCredits: 2.5 };
+			}();
 			override readonly origin = {
 				kind: ChatRequestOriginKind.Delegation,
 				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('test-session:///session'))),
@@ -176,6 +179,7 @@ suite('AgentsDashboardHistoryService', () => {
 			override readonly sessionResource = peerChat.resource;
 			override readonly onDidChange = modelChanged.event;
 			override readonly onDidDispose = Event.None;
+			override readonly sessionCost = 2.5;
 			override getRequests() { return [request]; }
 		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
@@ -194,6 +198,9 @@ suite('AgentsDashboardHistoryService', () => {
 			override readonly onDidCreateModel = Event.None;
 			override readonly chatModels = constObservable<Iterable<IChatModel>>([model]);
 			override getSession(resource: URI) { return resource.toString() === peerChat.resource.toString() ? model : undefined; }
+			override async acquireOrLoadSession(resource: URI) {
+				return resource.toString() === peerChat.resource.toString() ? { object: model, dispose() { } } : undefined;
+			}
 		}();
 
 		const service = disposables.add(new AgentsDashboardHistoryService(storageService, sessionsManagementService, worktreeDashboardService, chatService));
@@ -209,5 +216,13 @@ suite('AgentsDashboardHistoryService', () => {
 			sourceChatId: getAgentsDashboardChatId(mainChat.resource),
 			targetChatId: getAgentsDashboardChatId(peerChat.resource),
 		}]);
+		assert.deepStrictEqual(await service.calculateSessionUsage(session), {
+			credits: 2.5,
+			partial: true,
+			updatedAt: service.calculatedUsage.get().get(session.sessionId)?.updatedAt,
+		});
+		await timeout(250);
+		const restored = disposables.add(new AgentsDashboardHistoryService(storageService, sessionsManagementService, worktreeDashboardService, chatService));
+		assert.deepStrictEqual(restored.calculatedUsage.get().get(session.sessionId), service.calculatedUsage.get().get(session.sessionId));
 	});
 });

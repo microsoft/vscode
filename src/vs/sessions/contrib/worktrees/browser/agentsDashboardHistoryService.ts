@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { parseOpenSessionLinkChatId } from '../../../../platform/agentHost/common/openSessionLink.js';
@@ -14,7 +15,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ChatRequestOriginKind } from '../../../../workbench/contrib/chat/common/chatRequestOrigin.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { AgentsDashboardChatKind, AgentsDashboardChatStatus, AgentsDashboardHistoryEvent, AgentsDashboardHistoryEventType, getAgentsDashboardChatId, getAgentsDashboardChatKind, getAgentsDashboardChatStatus, IAgentsDashboardHistoryService } from '../common/agentsDashboardHistory.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AgentsDashboardChatKind, AgentsDashboardChatStatus, AgentsDashboardHistoryEvent, AgentsDashboardHistoryEventType, getAgentsDashboardChatId, getAgentsDashboardChatKind, getAgentsDashboardChatStatus, IAgentsDashboardCalculatedUsage, IAgentsDashboardHistoryService } from '../common/agentsDashboardHistory.js';
 import { IWorktreeDashboardEntry, IWorktreeDashboardService } from '../common/worktreeDashboard.js';
 
 const STORAGE_KEY = 'sessions.agentsDashboard.history';
@@ -42,6 +44,7 @@ interface IStoredChatSnapshot {
 interface IStoredHistory {
 	readonly events: readonly AgentsDashboardHistoryEvent[];
 	readonly sessions: Record<string, IStoredSessionSnapshot>;
+	readonly calculatedUsage: Record<string, IAgentsDashboardCalculatedUsage>;
 	readonly diskUsageBytes: number | undefined;
 	readonly medianSessionStorageBytes: number | undefined;
 	readonly largestSessionStorageBytes: number | undefined;
@@ -54,6 +57,8 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 	private readonly _events: ISettableObservable<readonly AgentsDashboardHistoryEvent[]>;
 	private readonly _eventIds = new Set<string>();
 	readonly events: IObservable<readonly AgentsDashboardHistoryEvent[]>;
+	private readonly _calculatedUsage: ISettableObservable<ReadonlyMap<string, IAgentsDashboardCalculatedUsage>>;
+	readonly calculatedUsage: IObservable<ReadonlyMap<string, IAgentsDashboardCalculatedUsage>>;
 	private readonly _sessions = new Map<string, IStoredSessionSnapshot>();
 	private _diskUsageBytes: number | undefined;
 	private _medianSessionStorageBytes: number | undefined;
@@ -76,6 +81,8 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		this._events = observableValue<readonly AgentsDashboardHistoryEvent[]>(this, stored.events);
 		this._resetEventIds(stored.events);
 		this.events = this._events;
+		this._calculatedUsage = observableValue(this, new Map(Object.entries(stored.calculatedUsage)));
+		this.calculatedUsage = this._calculatedUsage;
 		for (const [sessionId, snapshot] of Object.entries(stored.sessions)) {
 			this._sessions.set(sessionId, snapshot);
 		}
@@ -119,6 +126,58 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		this._register(sessionsManagementService.onDidSendRequest(event => {
 			this._recordChatInteraction(event.session, event.chat);
 		}));
+	}
+
+	async calculateSessionUsage(session: ISession): Promise<IAgentsDashboardCalculatedUsage | undefined> {
+		let credits = 0;
+		let hasRecoverableUsage = false;
+		let partial = false;
+		for (const chat of session.chats.get()) {
+			if (getAgentsDashboardChatKind(session, chat) === 'subagent') {
+				continue;
+			}
+			const reference = await this.chatService.acquireOrLoadSession(
+				chat.resource,
+				ChatAgentLocation.Chat,
+				CancellationToken.None,
+				'agentsDashboard.calculateCredits',
+			);
+			if (!reference) {
+				partial = true;
+				continue;
+			}
+			try {
+				const requests = reference.object.getRequests();
+				const reportedUsage = requests.filter(request => {
+					const usage = request.response?.usage;
+					return typeof usage?.copilotCredits === 'number' || typeof usage?.sessionCopilotCredits === 'number';
+				});
+				if (reportedUsage.length > 0) {
+					hasRecoverableUsage = true;
+					credits += reference.object.sessionCost;
+				}
+				if (reportedUsage.length !== requests.length) {
+					partial = true;
+				}
+			} finally {
+				reference.dispose();
+			}
+		}
+		if (!hasRecoverableUsage) {
+			return undefined;
+		}
+		const usage: IAgentsDashboardCalculatedUsage = { credits, partial, updatedAt: Date.now() };
+		const calculatedUsage = new Map(this._calculatedUsage.get());
+		calculatedUsage.set(session.sessionId, usage);
+		if (calculatedUsage.size > MAX_SESSIONS) {
+			const oldest = [...calculatedUsage].sort(([, first], [, second]) => first.updatedAt - second.updatedAt)[0]?.[0];
+			if (oldest && oldest !== session.sessionId) {
+				calculatedUsage.delete(oldest);
+			}
+		}
+		this._calculatedUsage.set(calculatedUsage, undefined);
+		this._saveScheduler.schedule();
+		return usage;
 	}
 
 	private _queueChatModel(model: IChatModel): void {
@@ -351,6 +410,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		const empty: IStoredHistory = {
 			events: [],
 			sessions: {},
+			calculatedUsage: {},
 			diskUsageBytes: undefined,
 			medianSessionStorageBytes: undefined,
 			largestSessionStorageBytes: undefined,
@@ -369,6 +429,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 			return {
 				events: Array.isArray(stored.events) ? stored.events.filter(isHistoryEvent).slice(-MAX_EVENTS) : [],
 				sessions: readStoredSessions(stored.sessions),
+				calculatedUsage: readCalculatedUsage(stored.calculatedUsage),
 				diskUsageBytes: typeof stored.diskUsageBytes === 'number' && stored.diskUsageBytes >= 0 ? stored.diskUsageBytes : undefined,
 				medianSessionStorageBytes: isNonNegativeFiniteNumber(stored.medianSessionStorageBytes) ? stored.medianSessionStorageBytes : undefined,
 				largestSessionStorageBytes: isNonNegativeFiniteNumber(stored.largestSessionStorageBytes) ? stored.largestSessionStorageBytes : undefined,
@@ -389,6 +450,7 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 		this.storageService.store(STORAGE_KEY, JSON.stringify({
 			events: this._events.get(),
 			sessions,
+			calculatedUsage: Object.fromEntries(this._calculatedUsage.get()),
 			diskUsageBytes: this._diskUsageBytes,
 			medianSessionStorageBytes: this._medianSessionStorageBytes,
 			largestSessionStorageBytes: this._largestSessionStorageBytes,
@@ -411,6 +473,17 @@ export class AgentsDashboardHistoryService extends Disposable implements IAgents
 			if ((this._sessions.get(sessionId)?.observedAt ?? 0) < snapshot.observedAt) {
 				this._sessions.set(sessionId, snapshot);
 			}
+		}
+		const calculatedUsage = new Map(this._calculatedUsage.get());
+		let calculatedUsageChanged = false;
+		for (const [sessionId, usage] of Object.entries(stored.calculatedUsage)) {
+			if ((calculatedUsage.get(sessionId)?.updatedAt ?? 0) < usage.updatedAt) {
+				calculatedUsage.set(sessionId, usage);
+				calculatedUsageChanged = true;
+			}
+		}
+		if (calculatedUsageChanged) {
+			this._calculatedUsage.set(calculatedUsage, undefined);
 		}
 		if (stored.updatedAt > this._storageUpdatedAt) {
 			this._storageUpdatedAt = stored.updatedAt;
@@ -517,6 +590,25 @@ function readStoredSessions(value: unknown): Record<string, IStoredSessionSnapsh
 		};
 	}
 	return result;
+}
+
+function readCalculatedUsage(value: unknown): Record<string, IAgentsDashboardCalculatedUsage> {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return {};
+	}
+	const result: Record<string, IAgentsDashboardCalculatedUsage> = {};
+	for (const [sessionId, candidate] of Object.entries(value as Record<string, unknown>)) {
+		if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+			continue;
+		}
+		const usage = candidate as Record<string, unknown>;
+		if (isNonNegativeFiniteNumber(usage.credits) && typeof usage.partial === 'boolean' && isNonNegativeFiniteNumber(usage.updatedAt)) {
+			result[sessionId] = { credits: usage.credits, partial: usage.partial, updatedAt: usage.updatedAt };
+		}
+	}
+	return Object.fromEntries(Object.entries(result)
+		.sort(([, first], [, second]) => second.updatedAt - first.updatedAt)
+		.slice(0, MAX_SESSIONS));
 }
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {

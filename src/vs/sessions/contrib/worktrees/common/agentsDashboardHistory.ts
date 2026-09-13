@@ -121,9 +121,17 @@ export interface IAgentsDashboardChatActivity {
 	readonly totalMultiChatSessions: number;
 }
 
+export interface IAgentsDashboardCalculatedUsage {
+	readonly credits: number;
+	readonly partial: boolean;
+	readonly updatedAt: number;
+}
+
 export interface IAgentsDashboardHistoryService {
 	readonly _serviceBrand: undefined;
 	readonly events: IObservable<readonly AgentsDashboardHistoryEvent[]>;
+	readonly calculatedUsage: IObservable<ReadonlyMap<string, IAgentsDashboardCalculatedUsage>>;
+	calculateSessionUsage(session: ISession): Promise<IAgentsDashboardCalculatedUsage | undefined>;
 }
 
 export const IAgentsDashboardHistoryService = createDecorator<IAgentsDashboardHistoryService>('agentsDashboardHistoryService');
