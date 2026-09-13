@@ -18,7 +18,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ISessionTaskRunner, ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from '../../browser/sessionTaskRunner.js';
+import { ISessionTaskRunner, ISessionTaskRunnerRegistry, ISessionTaskRunOptions, SessionTaskRunnerRegistry } from '../../browser/sessionTaskRunner.js';
 
 function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession {
 	const workspace = opts.repository ? {
@@ -100,7 +100,7 @@ suite('SessionsTasksService', () => {
 	let service: ISessionsTasksService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
-	let ranTasks: { label: string; session: ISession }[];
+	let ranTasks: { label: string; session: ISession; options: ISessionTaskRunOptions | undefined }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
 	let runnerCanRun: (session: ISession) => boolean;
@@ -151,7 +151,7 @@ suite('SessionsTasksService', () => {
 			id: 'fake',
 			priority: 0,
 			canRun: session => runnerCanRun(session),
-			runTask: async (task, session) => { ranTasks.push({ label: task.label, session }); },
+			runTask: async (task, session, options) => { ranTasks.push({ label: task.label, session, options }); },
 		};
 		store.add(registry.register(fakeRunner));
 		instantiationService.stub(ISessionTaskRunnerRegistry, registry);
@@ -629,12 +629,14 @@ suite('SessionsTasksService', () => {
 
 	test('runTask delegates to the registry runner', async () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const options: ISessionTaskRunOptions = { taskTarget: 'workspace', allowWorkspaceTaskDependencies: true };
 
-		await service.runTask(makeTask('build', 'npm run build'), session);
+		await service.runTask(makeTask('build', 'npm run build'), session, options);
 
 		assert.strictEqual(ranTasks.length, 1);
 		assert.strictEqual(ranTasks[0].label, 'build');
 		assert.strictEqual(ranTasks[0].session, session);
+		assert.strictEqual(ranTasks[0].options, options);
 	});
 
 	test('runTask is a no-op when no runner claims the session', async () => {

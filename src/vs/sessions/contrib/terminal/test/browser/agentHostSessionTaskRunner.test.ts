@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -80,6 +81,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	let disposedTerminals: ITerminalInstance[];
 	let allTasks: ISessionTaskWithTarget[];
 	let resolverCalls: string[];
+	let showPanelPromise: Promise<void> | undefined;
 	const fakeInstance = {
 		sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
 		dispose: () => { disposedTerminals.push(fakeInstance); },
@@ -91,6 +93,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		disposedTerminals = [];
 		allTasks = [];
 		resolverCalls = [];
+		showPanelPromise = undefined;
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -124,7 +127,9 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
-			override async showPanel() { /* no-op */ }
+			override async showPanel() {
+				await showPanelPromise;
+			}
 		});
 
 		instantiationService.stub(ILogService, new NullLogService());
@@ -253,6 +258,52 @@ suite('AgentHostSessionTaskRunner', () => {
 		(await runner.runTask(top, session))?.dispose();
 
 		assert.deepStrictEqual(sentText, [{ text: 'npm run transpile && npm run dev', shouldExecute: true }]);
+	});
+
+	test('does not resolve workspace dependencies for an unapproved user task', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		const workspaceDependency: ITaskEntry = { label: 'prepare', type: 'shell', command: 'workspace-command' };
+		const task: ITaskEntry = { label: 'build', type: 'shell', command: 'user-command', dependsOn: 'prepare' };
+		allTasks = [{ task: workspaceDependency, target: 'workspace' }];
+
+		(await runner.runTask(task, session, { taskTarget: 'user', allowWorkspaceTaskDependencies: false }))?.dispose();
+
+		assert.deepStrictEqual(sentText, [{ text: 'user-command', shouldExecute: true }]);
+	});
+
+	test('prefers dependencies from the approved task target', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		const workspaceDependency: ITaskEntry = { label: 'prepare', type: 'shell', command: 'workspace-command' };
+		const userDependency: ITaskEntry = { label: 'prepare', type: 'shell', command: 'user-command' };
+		const task: ITaskEntry = { label: 'build', dependsOn: 'prepare' };
+		allTasks = [
+			{ task: workspaceDependency, target: 'workspace' },
+			{ task: userDependency, target: 'user' },
+		];
+
+		(await runner.runTask(task, session, { taskTarget: 'workspace', allowWorkspaceTaskDependencies: true }))?.dispose();
+
+		assert.deepStrictEqual(sentText, [{ text: 'workspace-command', shouldExecute: true }]);
+	});
+
+	test('cancellation during launch prevents command execution', async () => {
+		let resolveShowPanel!: () => void;
+		showPanelPromise = new Promise(resolve => resolveShowPanel = resolve);
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		const cancellation = new CancellationTokenSource();
+
+		const runPromise = runner.runTask(shellTask(), session, { taskTarget: 'workspace', token: cancellation.token });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		cancellation.cancel();
+		resolveShowPanel();
+		const handle = await runPromise;
+
+		assert.deepStrictEqual({ sentText, disposedTerminals, handle }, {
+			sentText: [],
+			disposedTerminals: [fakeInstance],
+			handle: undefined,
+		});
+		cancellation.dispose();
 	});
 
 	test('local agent-host sessions apply OS-specific command overrides', async () => {
