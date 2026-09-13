@@ -382,8 +382,13 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				t('sed -i \'s/x/y/\' =node', 'outsideWorkspace', false, 1));
 			test('sed repetition glob is blocked before normalization', () =>
 				t('sed -i \'s/x/y/\' README.md#', 'outsideWorkspace', false, 1));
-			test('sed zsh numeric range glob is blocked before parsing', () =>
-				t('sed --follow-symlinks -i \'s/x/y/\' <5-5>', 'outsideWorkspace', false, 0, [cwd], '/bin/zsh'));
+			test('sed zsh numeric range glob is blocked before parsing', async () => {
+				for (const range of ['<5-5>', '<5->', '<-5>', '<->']) {
+					await t(`sed --follow-symlinks -i 's/x/y/' ${range}`, 'outsideWorkspace', false, 0, [cwd], '/bin/zsh');
+				}
+				await t(`X=$'foo\\'' sed --follow-symlinks -i 's/x/y/' <5-5>`, 'outsideWorkspace', false, 0, [cwd], '/bin/zsh');
+				await t(`echo $'<5-5>'`, 'outsideWorkspace', true, 0, [cwd], '/bin/zsh');
+			});
 			test('sed expanded backup path is blocked before normalization', () =>
 				t('sed --in-place=$HOME/../outside/* \'s/x/y/\' file.txt', 'outsideWorkspace', false, 1));
 			test('sed literal quote filename canonicalizes the runtime path', async () => {

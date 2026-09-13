@@ -70,21 +70,30 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		}
 		let inSingleQuote = false;
 		let inDoubleQuote = false;
+		let inAnsiCQuote = false;
 		for (let i = 0; i < commandLine.length; i++) {
 			const char = commandLine[i];
-			if (char === '\\' && !inSingleQuote) {
+			if (char === '\\' && (!inSingleQuote || inAnsiCQuote)) {
 				i++;
 				continue;
 			}
 			if (char === '\'' && !inDoubleQuote) {
-				inSingleQuote = !inSingleQuote;
+				if (inAnsiCQuote) {
+					inAnsiCQuote = false;
+					inSingleQuote = false;
+				} else if (!inSingleQuote && commandLine[i - 1] === '$') {
+					inAnsiCQuote = true;
+					inSingleQuote = true;
+				} else {
+					inSingleQuote = !inSingleQuote;
+				}
 				continue;
 			}
 			if (char === '"' && !inSingleQuote) {
 				inDoubleQuote = !inDoubleQuote;
 				continue;
 			}
-			if (char === '<' && !inSingleQuote && !inDoubleQuote && /^<\d+-\d+>/.test(commandLine.slice(i))) {
+			if (char === '<' && !inSingleQuote && !inDoubleQuote && /^<\d*-\d*>/.test(commandLine.slice(i))) {
 				return true;
 			}
 		}
