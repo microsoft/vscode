@@ -962,9 +962,16 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private async _resolveGeneratedReadAllowListPaths(paths: readonly string[]): Promise<string[]> {
+		const rubyReadPaths = new Set([
+			'~/.gem/ruby',
+			'~/.gem/specs',
+			'~/.rbenv/versions',
+			'~/.rbenv/shims',
+			'~/.rvm/rubies',
+		]);
 		const resolvedPaths = await Promise.all(paths.map(async path => {
 			const result = await this._resolveFileSystemPath(path);
-			if (this._os !== OperatingSystem.Linux || (path !== '~/.gem/ruby' && path !== '~/.gem/specs')) {
+			if (this._os !== OperatingSystem.Linux || !rubyReadPaths.has(path)) {
 				return result;
 			}
 			if (result.length === 1) {
