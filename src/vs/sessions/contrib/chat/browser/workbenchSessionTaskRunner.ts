@@ -63,12 +63,17 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 		if (options?.token?.isCancellationRequested) {
 			return undefined;
 		}
+		const terminatedTaskIds = new Set<string>();
 		const terminate = (task: Task) => {
+			if (terminatedTaskIds.has(task._id)) {
+				return;
+			}
+			terminatedTaskIds.add(task._id);
 			this._taskService.terminate(task);
 		};
 		if (options?.token) {
 			let cancelled = false;
-			const executionTasks = new Map<string, Task>();
+			const executionTasks = new Map<string, Task>([[resolved._id, resolved]]);
 			const launchListener = this._taskService.onDidStateChange(event => {
 				if (event.kind !== TaskEventKind.Changed && executionTaskIds?.has(event.taskId)) {
 					executionTasks.set(event.taskId, event.__task);
@@ -78,8 +83,10 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 				}
 			});
 			const cancel = () => {
+				if (cancelled) {
+					return;
+				}
 				cancelled = true;
-				terminate(resolved);
 				for (const executionTask of executionTasks.values()) {
 					terminate(executionTask);
 				}
