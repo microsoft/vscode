@@ -253,7 +253,7 @@ export class SedFileWriteParser {
 				inDoubleQuote = !inDoubleQuote;
 				continue;
 			}
-			if ((char === '~' || char === '^') && !inSingleQuote && !inDoubleQuote) {
+			if ((char === '~' || char === '^' || char === '#' || char === '=') && !inSingleQuote && !inDoubleQuote) {
 				return true;
 			}
 		}
@@ -430,13 +430,8 @@ export class SedFileWriteParser {
 			}
 
 			// Subsequent non-option arguments are files
-			// Strip surrounding quotes from file path
-			let file = token;
-			if ((file.startsWith('\'') && file.endsWith('\'')) || (file.startsWith('"') && file.endsWith('"'))) {
-				file = file.slice(1, -1);
-			}
 			files.push({
-				path: file,
+				path: token,
 				hasUnquotedPathExpansion: this._hasRuntimePathExpansion(rawTokens[i]),
 			});
 			i++;
