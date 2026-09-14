@@ -4,15 +4,15 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] “Help: Troubleshoot with Issue Wizard...” is available from the Command Palette and Help menu.
-- [ ] A “$(bug) Issue Wizard” status bar entry invokes the same command and has an explanatory tooltip and accessible name.
-- [ ] Every invocation creates a fresh issue-specific session in the editor workbench and does not redirect the user into the Agents Window.
-- [ ] The session contains a short, visible bootstrap message that invokes the bundled Issue Wizard skill.
-- [ ] A supplied symptom is preserved in the bootstrap message; without one, the first agent question is “What’s going wrong?”
-- [ ] The minimal skill behaves as a concise support agent and does not present an expertise selector.
-- [ ] The reusable floating capture bar opens after the conversation starts and contains screenshot controls only; Issue Wizard does not expose video recording.
-- [ ] The screenshot button and Cmd/Ctrl+Shift+S shortcut use the highlighted-screenshot flow and attach only to the exact Issue Wizard session that opened the bar, even after focus moves elsewhere.
-- [ ] The launcher remains provider-neutral and exposes an understandable unavailable state when agent support is disabled or unavailable.
-- [ ] High-level command tests verify session creation, focus, bootstrap visibility, optional symptom handling, screenshot-bar lifecycle and routing, and failure behavior without asserting private implementation structure.
+- [x] “Help: Troubleshoot with Issue Wizard...” is available from the Command Palette and Help menu.
+- [x] A “$(bug) Issue Wizard” status bar entry invokes the same command and has an explanatory tooltip and accessible name.
+- [x] Every invocation creates a fresh issue-specific session in the editor workbench and does not redirect the user into the Agents Window.
+- [x] The session contains a short, visible bootstrap message that invokes the bundled Issue Wizard skill.
+- [x] A supplied symptom is preserved in the bootstrap message; without one, the first agent question is “What’s going wrong?”
+- [x] The minimal skill behaves as a concise support agent and does not present an expertise selector.
+- [x] The reusable floating capture bar opens after the conversation starts and contains screenshot controls only; Issue Wizard does not expose video recording.
+- [x] The screenshot button and Cmd/Ctrl+Shift+S shortcut use the highlighted-screenshot flow and attach only to the exact Issue Wizard session that opened the bar, even after focus moves elsewhere.
+- [x] The launcher remains provider-neutral and exposes an understandable unavailable state when agent support is disabled or unavailable.
+- [x] High-level command tests verify session creation, focus, bootstrap visibility, optional symptom handling, screenshot-bar lifecycle and routing, and failure behavior without asserting private implementation structure.
