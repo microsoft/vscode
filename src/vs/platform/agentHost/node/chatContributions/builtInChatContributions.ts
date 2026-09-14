@@ -21,6 +21,7 @@ import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContributio
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
+import { SteeringTelemetryContribution } from './steeringTelemetry/steeringTelemetryContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
@@ -35,6 +36,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
+	registrations.add(contributions.registerContribution(SteeringTelemetryContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
