@@ -17,6 +17,7 @@ import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js'
 import * as perf from './vs/base/common/performance.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
+import { getV8CompatibilityFlags } from './vs/base/node/v8Flags.js';
 import { INLSConfiguration } from './vs/nls.js';
 import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 
@@ -559,6 +560,12 @@ function getJSFlags(cliArgs: NativeParsedArgs, argvConfig: IArgvConfig): string 
 	if (typeof argvConfig['js-flags'] === 'string' && argvConfig['js-flags']) {
 		jsFlags.push(argvConfig['js-flags']);
 	}
+
+	jsFlags.push(...getV8CompatibilityFlags({
+		platform: process.platform,
+		architecture: process.arch,
+		electronVersion: process.versions.electron
+	}, jsFlags));
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
