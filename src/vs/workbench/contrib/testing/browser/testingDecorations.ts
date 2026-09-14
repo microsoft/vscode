@@ -54,6 +54,7 @@ import { ITestResult, LiveTestResult, TestResultItemChangeReason } from '../comm
 import { ITestResultService } from '../common/testResultService.js';
 import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from '../common/testService.js';
 import { ITestErrorMessage, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
+import { shouldSkipTestOutputDecoration } from '../common/testResultTreeState.js';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from '../common/testingDecorations.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { isFailedState, maxPriority } from '../common/testingStates.js';
@@ -409,7 +410,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				return;
 			}
 
-			if (ev.message.type === TestMessageType.Output && !ev.message.location && ev.item) {
+			if (shouldSkipTestOutputDecoration(ev.message, ev.item)) {
 				return;
 			}
 
@@ -460,7 +461,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 						e.event.stopPropagation();
 						return;
 					}
-				}
 			}
 		}));
 		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, undefined, this._store)(evts => {
@@ -468,7 +468,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			if (!this._currentUri || !model) {
 				return;
 			}
-
 			let changed = false;
 			for (const [message, deco] of this.loggedMessageDecorations) {
 				// invalidate decorations if either the line they're on was changed,

@@ -40,6 +40,7 @@ import { ITestExplorerFilterState } from '../../common/testExplorerFilterState.j
 import { TestId } from '../../common/testId.js';
 import { ITestProfileService } from '../../common/testProfileService.js';
 import { ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChangeReason, maxCountPriority } from '../../common/testResult.js';
+import { TestResultTreeState } from '../../common/testResultTreeState.js';
 import { ITestResultService } from '../../common/testResultService.js';
 import { IRichLocation, ITestItemContext, ITestMessage, InternalTestItem, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, testResultStateToContextValues } from '../../common/testTypes.js';
 import { TestingContextKeys } from '../../common/testingContextKeys.js';
@@ -359,30 +360,24 @@ export class OutputPeekTree extends Disposable {
 		)) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		const cc = new CreationCache<TreeElement>();
-		const taskItems = new Map<TaskElement, Set<TestResultItem>>();
+		const taskItems = new Map<TaskElement, TestResultTreeState<void>>();
 		const messageChildren = new Map<TestResultItem, ICompressedTreeElement<TreeElement>[]>();
 
 		const getTaskChildren = (taskElem: TaskElement, includeMessageChildren = true, changedItems?: Set<TestResultItem>): Iterable<ICompressedTreeElement<TreeElement>> => {
 			const { results, index, itemsCache, task } = taskElem;
-			const knownItems = taskItems.get(taskElem) ?? new Set<TestResultItem>();
+			const state = taskItems.get(taskElem) ?? new TestResultTreeState<void>();
+			taskItems.set(taskElem, state);
 			if (includeMessageChildren) {
-				for (const test of results.tests) {
-					if (test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0) {
-						knownItems.add(test);
-					}
-				}
+				state.update(Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0), true);
 			} else {
-				for (const test of changedItems ?? []) {
-					knownItems.add(test);
-				}
+				state.update([], false, changedItems);
 			}
-			taskItems.set(taskElem, knownItems);
 			const testElements: ICompressedTreeElement<TreeElement>[] = [];
-			for (const test of knownItems) {
+			for (const test of state.getItems()) {
 				testElements.push({
 					element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, test, index)),
 					incompressible: true,
-					children: messageChildren.get(test) ?? [],
+					children: includeMessageChildren ? getTestChildren(results, test, index) : messageChildren.get(test) ?? [],
 				});
 			}
 			let result: Iterable<ICompressedTreeElement<TreeElement>> = testElements;
