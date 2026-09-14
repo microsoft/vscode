@@ -31,6 +31,7 @@ class TestChat extends mock<IChat>() {
 	override readonly title = observableValue('title', this.name);
 	override readonly status = observableValue<SessionStatus>('status', SessionStatus.InProgress);
 	override readonly isRead = observableValue('read', false);
+	override readonly isArchived = observableValue('archived', false);
 	override readonly interactivity = observableValue('interactivity', ChatInteractivity.Full);
 	override readonly description = observableValue('description', undefined);
 	override readonly resource = URI.parse(`test-chat:session#${this.name}`);
@@ -60,6 +61,7 @@ suite('ProjectBoardService', () => {
 			override readonly providerId = 'test';
 			override readonly title = observableValue('session-title', 'Owning session');
 			override readonly chats = observableValue<readonly IChat[]>('chats', chats);
+			override readonly isArchived = observableValue('archived', false);
 		}();
 		const state = { focusCount: 0, ownerFocusCount: 0, openCount: 0, disposeCount: 0, createdCount: 0, sessions: chats.length ? [session] : [], navigationError: undefined as Error | undefined };
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
@@ -160,7 +162,7 @@ suite('ProjectBoardService', () => {
 	test('PB-16 top-right New Session delegates creation without owner navigation', async () => {
 		const { service, container, state, opened } = createBoard(mainWindow.document.implementation.createHTMLDocument());
 		await service.open();
-		const button = container.querySelector<HTMLElement>('.project-board-header .monaco-button')!;
+		const button = container.querySelector<HTMLElement>('[data-board-control="new-session"]')!;
 		assert.strictEqual(button.textContent, 'New Session');
 		button.click();
 		assert.strictEqual(state.createdCount, 1);
@@ -282,7 +284,7 @@ suite('ProjectBoardService', () => {
 		let restoredFocus = 0;
 		store.add(addDisposableListener(container, 'focusin', () => restoredFocus++));
 
-		for (const selector of ['.project-board-card', '.project-board-header .monaco-button']) {
+		for (const selector of ['.project-board-card', '[data-board-control="new-session"]', '[data-board-control="show-archived"]']) {
 			nativeFocus.returns(true);
 			const control = container.querySelector<HTMLElement>(selector)!;
 			control.focus();
@@ -508,5 +510,56 @@ suite('ProjectBoardService', () => {
 		assert.ok(container.querySelectorAll('.project-board-card-input')[8].textContent?.includes('Open this chat'));
 		sessionsChanged.fire({ added: [], removed: [], changed: [] });
 		assert.strictEqual(notifications.length, 8);
+	});
+
+	test('PB-08 eight cards expand three at a time and include hidden Needs Input in the count', async () => {
+		const chats = Array.from({ length: 8 }, (_, i) => new TestChat(`Overflow ${i}`));
+		chats[7].status.set(SessionStatus.NeedsInput, undefined);
+		const { service, container } = createBoard(mainWindow.document, chats);
+		await service.open();
+		for (const chat of chats) {
+			const card = [...container.querySelectorAll('.project-board-card')].find(element => element.querySelector('h4')?.textContent === chat.title.get())!;
+			const dataTransfer = new mainWindow.DataTransfer();
+			card.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer }));
+			container.querySelector('[aria-label="General, P0"]')!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		}
+		const cell = () => container.querySelector('[aria-label="General, P0"]')!;
+		const snapshot = () => ({
+			cards: cell().querySelectorAll('.project-board-card').length,
+			more: cell().querySelector('.project-board-more')?.textContent ?? null,
+			attention: cell().querySelector('.project-board-attention')?.textContent,
+		});
+		assert.deepStrictEqual(snapshot(), { cards: 3, more: '+5 more', attention: '1 Needs Input' });
+		chats[6].isArchived.set(true, undefined);
+		assert.deepStrictEqual(snapshot(), { cards: 3, more: '+4 more', attention: '1 Needs Input' });
+		chats[6].isArchived.set(false, undefined);
+		const initialHeight = cell().getBoundingClientRect().height;
+		cell().querySelector<HTMLElement>('.project-board-more')!.click();
+		assert.deepStrictEqual(snapshot(), { cards: 6, more: '+2 more', attention: '1 Needs Input' });
+		assert.ok(cell().getBoundingClientRect().height > initialHeight);
+		cell().querySelector<HTMLElement>('.project-board-more')!.click();
+		assert.deepStrictEqual(snapshot(), { cards: 8, more: null, attention: '1 Needs Input' });
+		cell().querySelector<HTMLElement>('.project-board-less')!.click();
+		assert.strictEqual(cell().querySelectorAll('.project-board-card').length, 3);
+		assert.ok(chats.every(chat => !chat.isRead.get()));
+	});
+
+	test('PB-09 Show Archived restores hidden chat and owner placements without marking read', async () => {
+		const chat = new TestChat('Archived placement');
+		const { service, container, session, contextMenu } = createBoard(mainWindow.document, [chat]);
+		await service.open();
+		container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.move.general.p1')!.run();
+		for (const archived of [chat.isArchived, session.isArchived]) {
+			archived.set(true, undefined);
+			assert.strictEqual(container.querySelectorAll('.project-board-card').length, 0);
+			container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			assert.strictEqual(container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Archived placement');
+			container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			assert.strictEqual(container.querySelectorAll('.project-board-card').length, 0);
+			archived.set(false, undefined);
+			assert.strictEqual(container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Archived placement');
+		}
+		assert.strictEqual(chat.isRead.get(), false);
 	});
 });
