@@ -2269,10 +2269,10 @@ suite('ActionListWidget', () => {
 	}
 
 	for (const width of [320, 375]) {
-		test(`tabThroughPanel hover panel stays within a ${width}px mobile viewport`, () => {
+		test(`tabThroughPanel hover panel clamps its width within a ${width}px mobile viewport`, () => {
 			withWindowInnerWidth(width, () => {
 				const content = document.createElement('div');
-				content.style.cssText = 'width: 240px; height: 80px;';
+				content.style.cssText = 'width: 480px; max-width: none; height: 80px;';
 				const widget = createActionListWidget(disposables, {
 					items: [{
 						...action('active'),
@@ -2298,16 +2298,80 @@ suite('ActionListWidget', () => {
 
 				assert.deepStrictEqual({
 					shown: panel.style.display !== 'none',
+					width: panelRect.width,
 					withinLeftEdge: panelRect.left >= 0,
 					withinRightEdge: panelRect.right <= width,
 				}, {
 					shown: true,
+					width: width - 8,
 					withinLeftEdge: true,
 					withinRightEdge: true,
 				});
 			});
 		});
 	}
+
+	test('hover panel expands after its viewport grows', () => {
+		const content = document.createElement('div');
+		content.style.cssText = 'width: 480px; max-width: none; height: 80px;';
+		const item: IActionListItem<ITestActionItem> = {
+			...action('active'),
+			hover: { content, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => [], contentOwnsPadding: true },
+		};
+		const widget = createActionListWidget(disposables, {
+			items: [item],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		const popup = document.createElement('div');
+		popup.style.cssText = 'position: fixed; top: 40px; left: 8px; width: 256px;';
+		document.body.appendChild(popup);
+		disposables.add({ dispose: () => popup.remove() });
+		popup.appendChild(widget.domNode);
+		widget.layout(24, 240);
+		withWindowInnerWidth(320, () => {
+			widget.focus();
+			widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const narrowWidth = panel.getBoundingClientRect().width;
+		withWindowInnerWidth(640, () => {
+			widget.updateItems([item], undefined, { preserveHover: true });
+		});
+
+		assert.deepStrictEqual({
+			narrowWidth,
+			wideWidth: panel.getBoundingClientRect().width,
+		}, {
+			narrowWidth: 312,
+			wideWidth: 490,
+		});
+	});
+
+	test('refresh does not reopen a dismissed tab-through hover', () => {
+		const content = document.createElement('div');
+		const control = document.createElement('button');
+		content.appendChild(control);
+		const item = (): IActionListItem<ITestActionItem> => ({
+			...action('active'),
+			hover: { content, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => [control], contentOwnsPadding: true },
+		});
+		const widget = createActionListWidget(disposables, {
+			items: [item()],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+		widget.updateItems([item()], undefined, { preserveHover: true });
+
+		assert.deepStrictEqual({
+			focused: widget.getFocusedElement()?.item?.id,
+			panelVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+		}, {
+			focused: 'active',
+			panelVisible: false,
+		});
+	});
 
 	for (const zoom of [1, 1.25]) {
 		test(`refresh retains the live hover and its origin while the focused row moves at ${zoom} zoom`, async () => {

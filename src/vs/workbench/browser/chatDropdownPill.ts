@@ -122,8 +122,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			if (this._dropdownVisible) {
 				if (current.summarized) {
-					const focusedId = (this._actionWidgetService.getFocusedElement<IChatPillEntry>()?.item as { id?: string } | undefined)?.id;
-					this._actionWidgetService.updateItems(this._getDropdownItems(), focusedId, { preserveHover: true, animateItemMove: true });
+					this._actionWidgetService.updateItems(this._getDropdownItems(), undefined, { preserveHover: true, animateItemMove: true });
 				} else {
 					this._actionWidgetService.hide();
 				}

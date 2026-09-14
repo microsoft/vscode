@@ -2627,8 +2627,9 @@ export class ActionListWidget<T> extends Disposable {
 				const availableWidth = targetWindow.innerWidth - 2 * viewportMargin;
 				if (panelWidth > availableWidth) {
 					panelWidth = Math.max(availableWidth, 0);
-					this._submenuContainer.style.width = `${panelWidth}px`;
 				}
+				this._submenuContainer.style.boxSizing = 'border-box';
+				this._submenuContainer.style.width = `${panelWidth}px`;
 			}
 
 			let showRight = spaceRight >= panelWidth || spaceRight >= spaceLeft;
