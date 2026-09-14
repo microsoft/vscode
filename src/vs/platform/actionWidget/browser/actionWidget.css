@@ -585,11 +585,6 @@
 }
 
 .action-list-submenu-panel {
-	background-color: var(--vscode-menu-background);
-	color: var(--vscode-menu-foreground);
-	border: 1px solid var(--vscode-menu-border, var(--vscode-editorHoverWidget-border));
-	border-radius: 5px;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
 	width: max-content;
 	/* Hug the inner list so rows (and their hover background) fill the panel.
@@ -607,6 +602,10 @@
 	word-wrap: break-word;
 	-webkit-user-select: text;
 	user-select: text;
+}
+
+.action-list-submenu-hover-header.content-owns-padding {
+	padding: 0;
 }
 
 .action-list-submenu-hover-header a {

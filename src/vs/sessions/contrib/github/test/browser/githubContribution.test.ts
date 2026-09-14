@@ -336,13 +336,16 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
-	test('does not poll CI checks or review threads for draft pull requests', () => {
+	test('polls CI checks but not review threads for draft pull requests', () => {
 		sessionsManagementService.addSession('session', makeGitHubInfo(1));
 		store.add(createContribution());
 
 		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: true, headSha: 'sha1' });
 
-		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), { ci: {}, reviewThreads: {} });
+		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), {
+			ci: { 'owner/repo/1/sha1': { startPollingCalls: 1, refreshCalls: 1 } },
+			reviewThreads: {},
+		});
 	});
 
 	test('starts polling once an asynchronously resolved PR number appears', () => {
