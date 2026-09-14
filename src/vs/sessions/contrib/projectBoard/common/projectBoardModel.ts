@@ -58,6 +58,7 @@ export class ProjectBoardModel {
 
 	get rows(): readonly IProjectBoardAxis[] { return this._rows; }
 	get columns(): readonly IProjectBoardAxis[] { return this._columns; }
+	get isSortingDeferred(): boolean { return !!this.frozenOrder; }
 
 	updateConfiguration(configuration: IProjectBoardConfiguration): void {
 		this._rows = configuration.rows;
