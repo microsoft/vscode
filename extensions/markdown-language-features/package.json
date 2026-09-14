@@ -200,6 +200,12 @@
         "category": "Markdown"
       },
       {
+        "command": "markdown.preview.toggleTableOfContents",
+        "title": "%markdown.preview.toggleTableOfContents.title%",
+        "category": "Markdown",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "markdown.findAllFileReferences",
         "title": "%markdown.findAllFileReferences%",
         "category": "Markdown"
@@ -553,6 +559,12 @@
           "command": "markdown.preview.toggleLock",
           "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
+        },
+        {
+          "command": "markdown.preview.toggleTableOfContents",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "group": "1_markdown@4",
+          "toggled": "markdown.tocVisible"
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
