@@ -692,5 +692,17 @@ suite('ProjectBoardService', () => {
 			assert.strictEqual(h.container.querySelector('.project-board-storage-error'), null);
 			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-column-heading')].map(element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
 		});
+
+		test('PB-10 rerender preserves the auxiliary context-view host for subsequent menus', async () => {
+			const chat = new TestChat('Menu owner');
+			const h = createBoard(mainWindow.document, [chat]);
+			await h.service.open();
+			const contextHost = mainWindow.document.createElement('div');
+			contextHost.className = 'context-view-host';
+			h.container.appendChild(contextHost);
+			chat.title.set('Updated menu owner', undefined);
+			assert.strictEqual(contextHost.parentElement, h.container);
+			assert.strictEqual(h.container.querySelectorAll('.project-board').length, 1);
+		});
 	});
 });
