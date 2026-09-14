@@ -10,13 +10,13 @@ import { ILogService } from '../../log/common/log.js';
 interface FaviconDocument {
 	url: string;
 	favicon: string | undefined;
+	requestId: number;
+	readId: number;
 }
 
-/** Keeps provisional navigation icons separate from the committed document. */
+/** Keeps favicon requests with their committed document until it is replaced. */
 export class BrowserFavicon extends Disposable {
 	private _document: FaviconDocument | undefined;
-	private _navigation: FaviconDocument | undefined;
-	private _requestId = 0;
 
 	private readonly _onDidLoad = this._register(new Emitter<string | undefined>());
 	/** Fires when a fetch updates the committed document; navigation changes are published by the view. */
@@ -24,38 +24,19 @@ export class BrowserFavicon extends Disposable {
 
 	constructor(
 		url: string,
+		private readonly readFaviconUrls: () => Promise<readonly string[] | undefined>,
 		private readonly fetchFavicon: (url: string) => Promise<string>,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this._document = { url, favicon: undefined };
+		this._document = { url, favicon: undefined, requestId: 0, readId: 0 };
 	}
 
 	get favicon(): string | undefined {
 		return this._document?.favicon;
 	}
 
-	beginNavigation(url: string): void {
-		this._requestId++;
-		this._navigation = {
-			url,
-			favicon: URL.parse(url)?.host === URL.parse(this._document?.url ?? '')?.host ? this.favicon : undefined,
-		};
-	}
-
-	redirectNavigation(url: string): void {
-		if (!this._navigation) {
-			this.beginNavigation(url);
-			return;
-		}
-		if (URL.parse(url)?.host !== URL.parse(this._navigation.url)?.host) {
-			this._requestId++;
-			this._navigation.favicon = undefined;
-		}
-		this._navigation.url = url;
-	}
-
-	/** Promotes the candidate before the view records history and publishes its navigation events. */
+	/** Changes ownership before the view records history and publishes navigation events. */
 	commitNavigation(url: string, sameDocument = false): void {
 		if (sameDocument) {
 			if (this._document) {
@@ -63,30 +44,44 @@ export class BrowserFavicon extends Disposable {
 			}
 			return;
 		}
-		this.redirectNavigation(url);
-		this._document = this._navigation;
-		this._navigation = undefined;
-	}
-
-	abortNavigation(): void {
-		if (this._navigation) {
-			this._requestId++;
-			this._navigation = undefined;
-		}
+		this._document = {
+			url,
+			favicon: URL.parse(url)?.host === URL.parse(this._document?.url ?? '')?.host ? this.favicon : undefined,
+			requestId: 0,
+			readId: 0,
+		};
 	}
 
 	failNavigation(): void {
-		this._requestId++;
-		this._navigation = undefined;
 		this._document = undefined;
 	}
 
-	async load(urls: readonly string[]): Promise<void> {
-		const document = this._navigation ?? this._document;
+	/** Reacquires candidates when Electron suppresses an unchanged URL set across documents. */
+	async refresh(): Promise<void> {
+		const document = this._document;
 		if (this._store.isDisposed || !document) {
 			return;
 		}
-		const requestId = ++this._requestId;
+		const requestId = document.requestId;
+		const readId = ++document.readId;
+		let urls: readonly string[] | undefined;
+		try {
+			urls = await this.readFaviconUrls();
+		} catch (error) {
+			this.logService.trace('[BrowserFavicon] Failed to read document favicons.', error);
+			return;
+		}
+		if (urls !== undefined && readId === document.readId && this.isCurrentRequest(document, requestId)) {
+			await this.load(urls);
+		}
+	}
+
+	async load(urls: readonly string[]): Promise<void> {
+		const document = this._document;
+		if (this._store.isDisposed || !document) {
+			return;
+		}
+		const requestId = ++document.requestId;
 		let favicon: string | undefined;
 		for (const url of urls) {
 			try {
@@ -94,7 +89,7 @@ export class BrowserFavicon extends Disposable {
 			} catch (error) {
 				this.logService.trace('[BrowserFavicon] Failed to fetch favicon, trying the next candidate.', error);
 			}
-			if (this._store.isDisposed || requestId !== this._requestId) {
+			if (!this.isCurrentRequest(document, requestId)) {
 				return;
 			}
 			if (favicon !== undefined) {
@@ -103,8 +98,12 @@ export class BrowserFavicon extends Disposable {
 		}
 		const changed = document.favicon !== favicon;
 		document.favicon = favicon;
-		if (document === this._document && changed) {
+		if (changed) {
 			this._onDidLoad.fire(favicon);
 		}
+	}
+
+	private isCurrentRequest(document: FaviconDocument, requestId: number): boolean {
+		return !this._store.isDisposed && document === this._document && requestId === document.requestId;
 	}
 }

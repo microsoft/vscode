@@ -24,6 +24,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { URI } from '../../../base/common/uri.js';
 import { BrowserFavicon } from '../common/browserFavicon.js';
+import { Schemas } from '../../../base/common/network.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -39,6 +40,7 @@ export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 	private readonly _favicon: BrowserFavicon;
+	private _nativeFaviconUrls: readonly string[] = [];
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
@@ -161,7 +163,7 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
-		this._favicon = this._register(new BrowserFavicon(this._view.webContents.getURL(), url => this._fetchFavicon(url), this.logService));
+		this._favicon = this._register(new BrowserFavicon(this._view.webContents.getURL(), () => this._readFaviconUrls(), url => this._fetchFavicon(url), this.logService));
 
 		// Use a default size of 1024x768.
 		// Important: The bounds here must be on-screen, otherwise some OSes (like macOS) may not actually start rendering.
@@ -291,13 +293,13 @@ export class BrowserView extends Disposable {
 			this._onDidChangeFavicon.fire({ favicon });
 		}));
 		webContents.on('page-favicon-updated', (_event, favicons) => {
+			this._nativeFaviconUrls = favicons;
 			void this._favicon.load(favicons).catch(error => this.logService.warn('[BrowserView] Failed to update favicon.', error));
 		});
-		webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
-			if (isMainFrame && !isInPlace && !this._shouldRedirectPinnedNavigation(url)) {
-				this._favicon.beginNavigation(url);
-			}
-		});
+		const refreshFavicon = () => {
+			void this._favicon.refresh().catch(error => this.logService.warn('[BrowserView] Failed to refresh favicon.', error));
+		};
+		this._register(Event.fromNodeEventEmitter(webContents, 'dom-ready')(refreshFavicon));
 		webContents.on('will-navigate', (event) => {
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
@@ -308,9 +310,6 @@ export class BrowserView extends Disposable {
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
 				return;
-			}
-			if (event.isMainFrame && !event.isSameDocument) {
-				this._favicon.redirectNavigation(event.url);
 			}
 		});
 
@@ -332,6 +331,7 @@ export class BrowserView extends Disposable {
 			this._recordNavigation(url);
 			if (!sameDocument) {
 				this._onDidChangeFavicon.fire({ favicon: this._favicon.favicon });
+				refreshFavicon();
 			}
 		};
 
@@ -349,7 +349,6 @@ export class BrowserView extends Disposable {
 			}
 		});
 		webContents.on('did-stop-loading', () => {
-			this._favicon.abortNavigation();
 			fireLoadingEvent(false);
 		});
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -525,6 +524,28 @@ export class BrowserView extends Disposable {
 				this._consoleLogs.splice(0, this._consoleLogs.length - BrowserView.MAX_CONSOLE_LOG_ENTRIES);
 			}
 		});
+	}
+
+	private async _readFaviconUrls(): Promise<readonly string[] | undefined> {
+		const webContents = this._view.webContents;
+		const frame = webContents.mainFrame;
+		// Unlike webContents.executeJavaScript, this also runs while the outgoing page has a pending navigation.
+		const urls = await frame.executeJavaScript('globalThis.__vscode_helpers?.getFaviconUrls()');
+		if (webContents.isDestroyed() || frame.isDestroyed() || frame.detached || frame !== webContents.mainFrame || urls === undefined || urls === null) {
+			return undefined;
+		}
+		if (!Array.isArray(urls) || !urls.every(url => typeof url === 'string')) {
+			throw new Error('Invalid document favicon URLs');
+		}
+		if (!urls.length) {
+			const documentUrl = URI.parse(frame.url);
+			if (documentUrl.scheme === Schemas.http || documentUrl.scheme === Schemas.https) {
+				const defaultUrl = new URL('/favicon.ico', frame.url).href;
+				// Reuse only a default candidate already requested through Chromium's CSP-aware notification.
+				return this._nativeFaviconUrls.filter(url => url === defaultUrl && this._faviconRequestCache.has(url));
+			}
+		}
+		return urls;
 	}
 
 	private _fetchFavicon(url: string): Promise<string> {
@@ -771,7 +792,7 @@ export class BrowserView extends Disposable {
 	}
 
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this._shouldRedirectPinnedNavigation(url)) {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
 			return false;
 		}
 
@@ -781,10 +802,6 @@ export class BrowserView extends Disposable {
 			parentViewId: this.id
 		});
 		return true;
-	}
-
-	private _shouldRedirectPinnedNavigation(url: string): boolean {
-		return !!this.associatedResource && !isBrowserViewAssociatedResourceNavigation(this.associatedResource, url);
 	}
 
 	/**
