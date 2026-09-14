@@ -135,12 +135,17 @@ export class SessionComparisonEditor extends EditorPane {
 		}
 
 		const content = dom.append(this._container, dom.$('.session-comparison-content'));
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		if (comparison.verdict) {
+			this._renderRecommendation(content, comparison, attempts);
+			if (comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Synthesis)) {
+				this._renderSynthesis(content, comparison);
+			}
+			return;
+		}
 		dom.append(content, dom.$('h1.session-comparison-title')).textContent = comparison.title;
 		dom.append(content, dom.$('p.session-comparison-subtitle')).textContent =
 			localize('sessionComparisonEditor.subtitle', "Independent attempts run from the same task and remain in separate worktrees.");
-
-		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		this._renderRecommendation(content, comparison, attempts);
 		const startState = getStartingState(attempts, this.sessionsManagementService);
 		const startStateElement = dom.append(content, dom.$(`p.session-comparison-start-state ${startState === 'different' ? 'session-comparison-error' : ''}`));
 		startStateElement.textContent = startingStateLabel(startState);
@@ -150,7 +155,6 @@ export class SessionComparisonEditor extends EditorPane {
 		}
 		this._renderChangeComparison(content, attempts);
 		this._renderJudge(content, comparison);
-		this._renderSynthesis(content, comparison);
 	}
 
 	private _renderRecommendation(container: HTMLElement, comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[]): void {
@@ -165,36 +169,43 @@ export class SessionComparisonEditor extends EditorPane {
 		const verdict = comparison.verdict.attempts.find(attempt => attempt.participantId === recommended.id);
 		const panel = dom.append(container, dom.$('section.session-comparison-recommendation-panel'));
 		dom.append(panel, dom.$('span.session-comparison-recommendation-eyebrow')).textContent =
-			localize('sessionComparisonEditor.judgeRecommendation', "Judge recommendation");
-		dom.append(panel, dom.$('h2.session-comparison-recommendation-title')).textContent =
-			getSessionComparisonAttemptLabel(recommended, index);
+			localize('sessionComparisonEditor.comparisonComplete', "Comparison complete");
+		dom.append(panel, dom.$('p.session-comparison-result-task')).textContent = comparison.title;
+		dom.append(panel, dom.$('h1.session-comparison-recommendation-title')).textContent =
+			localize('sessionComparisonEditor.attemptWon', "{0} won", getSessionComparisonAttemptLabel(recommended, index));
+		dom.append(panel, dom.$('h2.session-comparison-result-heading')).textContent =
+			localize('sessionComparisonEditor.whyItWon', "Why it won");
 		dom.append(panel, dom.$('p.session-comparison-recommendation-explanation')).textContent = comparison.verdict.explanation;
 		if (verdict) {
-			dom.append(panel, dom.$('p.session-comparison-recommendation-validation')).textContent = localize(
-				'sessionComparisonEditor.recommendedValidation',
-				"Tests: {0} · Build: {1} · Lint: {2} · Diagnostics: {3}",
-				validationLabelWithSource(verdict.validation.tests, verdict.validationSource?.tests),
-				validationLabelWithSource(verdict.validation.build, verdict.validationSource?.build),
-				validationLabelWithSource(verdict.validation.lint, verdict.validationSource?.lint),
-				validationLabelWithSource(verdict.validation.diagnostics, verdict.validationSource?.diagnostics),
-			);
+			dom.append(panel, dom.$('p.session-comparison-winning-summary')).textContent = verdict.summary;
+			const evidence = dom.append(panel, dom.$('dl.session-comparison-result-evidence'));
+			appendEvidence(evidence, localize('sessionComparisonEditor.tests', "Tests"), validationLabelWithSource(verdict.validation.tests, verdict.validationSource?.tests));
+			appendEvidence(evidence, localize('sessionComparisonEditor.build', "Build"), validationLabelWithSource(verdict.validation.build, verdict.validationSource?.build));
+			appendEvidence(evidence, localize('sessionComparisonEditor.lint', "Lint"), validationLabelWithSource(verdict.validation.lint, verdict.validationSource?.lint));
+			appendEvidence(evidence, localize('sessionComparisonEditor.diagnostics', "Diagnostics"), validationLabelWithSource(verdict.validation.diagnostics, verdict.validationSource?.diagnostics));
 		}
+		this._renderOtherAttemptStrengths(panel, comparison, attempts, recommended);
 		if (comparison.verdict.conflicts.length > 0) {
 			const conflicts = dom.append(panel, dom.$('.session-comparison-recommendation-conflicts'));
-			dom.append(conflicts, dom.$('h3')).textContent = localize('sessionComparisonEditor.conflicts', "Conflicts to Resolve");
+			dom.append(conflicts, dom.$('h2.session-comparison-result-heading')).textContent = localize('sessionComparisonEditor.conflicts', "Consider during synthesis");
 			const list = dom.append(conflicts, dom.$('ul'));
 			for (const conflict of comparison.verdict.conflicts) {
 				dom.append(list, dom.$('li')).textContent = conflict;
 			}
 		}
+		const actions = dom.append(panel, dom.$('.session-comparison-actions'));
+		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
+		if (!synthesis) {
+			this._appendSynthesizeButton(actions, comparison);
+		}
 		if (recommended.sessionResource) {
-			const actions = dom.append(panel, dom.$('.session-comparison-actions'));
 			const review = this._contentStore.value?.add(new Button(actions, {
 				...defaultButtonStyles,
-				ariaLabel: localize('sessionComparisonEditor.reviewRecommendedAttemptAriaLabel', "Review recommended attempt, {0}", getSessionComparisonAttemptLabel(recommended, index)),
+				secondary: true,
+				ariaLabel: localize('sessionComparisonEditor.reviewWinningAttemptAriaLabel', "Review winning attempt, {0}", getSessionComparisonAttemptLabel(recommended, index)),
 			}));
 			if (review) {
-				review.label = localize('sessionComparisonEditor.reviewRecommendedAttempt', "Review Recommended Attempt");
+				review.label = localize('sessionComparisonEditor.reviewWinningAttempt', "Review Winning Attempt");
 				this._contentStore.value?.add(review.onDidClick(async () => {
 					review.enabled = false;
 					try {
@@ -206,6 +217,62 @@ export class SessionComparisonEditor extends EditorPane {
 				}));
 			}
 		}
+	}
+
+	private _renderOtherAttemptStrengths(container: HTMLElement, comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[], recommended: ISessionComparisonParticipant): void {
+		const otherAttempts = attempts.filter(attempt => attempt.id !== recommended.id);
+		if (otherAttempts.length === 0) {
+			return;
+		}
+		const section = dom.append(container, dom.$('.session-comparison-other-strengths'));
+		dom.append(section, dom.$('h2.session-comparison-result-heading')).textContent =
+			localize('sessionComparisonEditor.otherAttemptStrengths', "Strong points from other attempts");
+		const table = dom.append(section, dom.$('table.session-comparison-strengths-table'));
+		const header = dom.append(dom.append(table, dom.$('thead')), dom.$('tr'));
+		const attemptHeader = dom.append(header, dom.$('th'));
+		attemptHeader.setAttribute('scope', 'col');
+		attemptHeader.textContent = localize('sessionComparisonEditor.attempt', "Attempt");
+		const strongPointsHeader = dom.append(header, dom.$('th'));
+		strongPointsHeader.setAttribute('scope', 'col');
+		strongPointsHeader.textContent = localize('sessionComparisonEditor.strongPoints', "Strong points");
+		const body = dom.append(table, dom.$('tbody'));
+		for (const attempt of otherAttempts) {
+			const row = dom.append(body, dom.$('tr'));
+			const attemptLabel = dom.append(row, dom.$('th'));
+			attemptLabel.setAttribute('scope', 'row');
+			attemptLabel.textContent = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt));
+			const points = dom.append(row, dom.$('td'));
+			const attemptVerdict = comparison.verdict?.attempts.find(candidate => candidate.participantId === attempt.id);
+			const strengths = attemptVerdict?.notableDifferences.length ? attemptVerdict.notableDifferences : attemptVerdict?.summary ? [attemptVerdict.summary] : [];
+			if (strengths.length === 0) {
+				points.textContent = localize('sessionComparisonEditor.noStrongPointsReported', "No distinct strong points reported");
+				continue;
+			}
+			const list = dom.append(points, dom.$('ul'));
+			for (const strength of strengths) {
+				dom.append(list, dom.$('li')).textContent = strength;
+			}
+		}
+	}
+
+	private _appendSynthesizeButton(container: HTMLElement, comparison: ISessionComparison): void {
+		const button = this._contentStore.value?.add(new Button(container, {
+			...defaultButtonStyles,
+			ariaLabel: localize('sessionComparisonEditor.synthesizeBestAriaLabel', "Synthesize the best implementation from all attempts"),
+		}));
+		if (!button) {
+			return;
+		}
+		button.label = localize('sessionComparisonEditor.synthesizeBest', "Synthesize Best Implementation");
+		this._contentStore.value?.add(button.onDidClick(async () => {
+			button.enabled = false;
+			try {
+				await this.sessionComparisonService.synthesize(comparison.id);
+			} catch (error) {
+				this.notificationService.error(error);
+				button.enabled = true;
+			}
+		}));
 	}
 
 	private _renderAttempt(container: HTMLElement, comparison: ISessionComparison, participant: ISessionComparisonParticipant, index: number): void {
@@ -357,22 +424,7 @@ export class SessionComparisonEditor extends EditorPane {
 				localize('sessionComparisonEditor.synthesisDescription', "Create a new isolated attempt that combines the strongest parts without changing the originals.");
 			if (comparison.verdict || comparison.selectedParticipantId) {
 				const actions = dom.append(section, dom.$('.session-comparison-actions'));
-				const button = this._contentStore.value?.add(new Button(actions, {
-					...defaultButtonStyles,
-					ariaLabel: localize('sessionComparisonEditor.synthesizeAriaLabel', "Synthesize a new attempt"),
-				}));
-				if (button) {
-					button.label = localize('sessionComparisonEditor.synthesize', "Synthesize Attempts");
-					this._contentStore.value?.add(button.onDidClick(async () => {
-						button.enabled = false;
-						try {
-							await this.sessionComparisonService.synthesize(comparison.id);
-						} catch (error) {
-							this.notificationService.error(error);
-							button.enabled = true;
-						}
-					}));
-				}
+				this._appendSynthesizeButton(actions, comparison);
 			}
 			return;
 		}

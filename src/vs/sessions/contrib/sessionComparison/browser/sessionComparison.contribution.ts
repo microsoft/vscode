@@ -18,6 +18,7 @@ import { SessionComparisonEditorInput, SessionComparisonEditorSerializer } from 
 import { SessionComparisonToolContribution } from './sessionComparisonTool.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionComparisonAccessibilityHelp, SessionComparisonAccessibleView } from './sessionComparisonAccessibility.js';
+import { SessionComparisonNavigationContribution } from './sessionComparisonNavigation.js';
 import { ISessionComparisonViewService, SessionComparisonViewService } from './sessionComparisonViewService.js';
 
 registerSingleton(ISessionComparisonViewService, SessionComparisonViewService, InstantiationType.Delayed);
@@ -29,6 +30,7 @@ class SessionComparisonViewContribution {
 
 registerWorkbenchContribution2(SessionComparisonToolContribution.ID, SessionComparisonToolContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(SessionComparisonViewContribution.ID, SessionComparisonViewContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionComparisonNavigationContribution.ID, SessionComparisonNavigationContribution, WorkbenchPhase.AfterRestored);
 AccessibleViewRegistry.register(new SessionComparisonAccessibilityHelp());
 AccessibleViewRegistry.register(new SessionComparisonAccessibleView());
 

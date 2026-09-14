@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -14,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -32,6 +34,7 @@ suite('SessionComparisonService', () => {
 	function createServices(storageService = disposables.add(new InMemoryStorageService()), telemetryService = new RecordingTelemetryService()) {
 		const sessionsManagementService = disposables.add(new TestSessionsManagementService());
 		const chatService = new TestChatService();
+		const fileService = new TestJudgePromptFileService();
 		const groupsService = new class extends mock<ISessionGroupsService>() {
 			readonly groupedSessionIds: string[] = [];
 			override readonly onDidChange = Event.None;
@@ -48,8 +51,9 @@ suite('SessionComparisonService', () => {
 			new NullLogService(),
 			chatService,
 			telemetryService,
+			fileService,
 		));
-		return { service, sessionsManagementService, groupsService, storageService, chatService, telemetryService };
+		return { service, sessionsManagementService, groupsService, storageService, chatService, telemetryService, fileService };
 	}
 
 	test('persists partial concurrent launch failures', async () => {
@@ -112,7 +116,7 @@ suite('SessionComparisonService', () => {
 	});
 
 	test('starts Judge only after successful attempts are terminal', async () => {
-		const { service, sessionsManagementService } = createServices();
+		const { service, sessionsManagementService, fileService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
 		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
 		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
@@ -133,6 +137,7 @@ suite('SessionComparisonService', () => {
 			judgeResource: service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.sessionResource?.toString(),
 			judgeHarness: sessionsManagementService.createCalls[2].createOptions,
 			judgePrompt: sessionsManagementService.createCalls[2].options.query,
+			readJudgePromptResource: fileService.lastReadResource?.path.endsWith('/vs/sessions/prompts/judge.md'),
 		}, {
 			createCalls: 3,
 			judgeResource: 'test:/judge',
@@ -150,7 +155,8 @@ suite('SessionComparisonService', () => {
 					},
 				},
 			},
-			judgePrompt: `Judge implementation comparison ${comparison.id}. Call #readAttemptComparison with this ID. Review every attempt's code changes and validation evidence. Run missing targeted tests, build, lint, or diagnostics when needed to make a reliable recommendation, and record whether each validation result came from the attempt or from your own run. Do not modify any attempt. Then call #completeAttemptComparison exactly once.`,
+			judgePrompt: getTestJudgePrompt(comparison.id),
+			readJudgePromptResource: true,
 		});
 	});
 
@@ -362,7 +368,7 @@ suite('SessionComparisonService', () => {
 			providerId: 'provider-two',
 			sessionTypeId: 'type-two',
 			modelId: 'model-two',
-			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Use its manifest for changed files and worktree locations. Call get_session_context only with an exact sessionContextTarget returned by the manifest when transcript evidence is needed; do not discover sessions or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nAttempt two is stronger.`,
+			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nAttempt two is stronger.`,
 		});
 	});
 
@@ -409,6 +415,32 @@ suite('SessionComparisonService', () => {
 		});
 	});
 });
+
+const TEST_JUDGE_PROMPT_TEMPLATE = 'Follow the Judge instructions for comparison {{comparisonId}}.';
+
+function getTestJudgePrompt(comparisonId: string): string {
+	return TEST_JUDGE_PROMPT_TEMPLATE.replace('{{comparisonId}}', comparisonId);
+}
+
+class TestJudgePromptFileService extends mock<IFileService>() {
+	lastReadResource: URI | undefined;
+
+	override async readFile(resource: URI): Promise<IFileContent> {
+		this.lastReadResource = resource;
+		return {
+			resource,
+			name: 'judge.md',
+			mtime: 0,
+			ctime: 0,
+			etag: '',
+			size: TEST_JUDGE_PROMPT_TEMPLATE.length,
+			readonly: true,
+			locked: false,
+			executable: false,
+			value: VSBuffer.fromString(TEST_JUDGE_PROMPT_TEMPLATE),
+		};
+	}
+}
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly _onDidChangeSessions = new Emitter<ISessionChangeEvent>();

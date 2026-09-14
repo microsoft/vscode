@@ -48,7 +48,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.readTool.displayName', "Read Attempt Comparison"),
 			userDescription: localize('sessionComparison.readTool.userDescription', "Read the attempts and evidence for an active comparison"),
-			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed files, change summaries, worktree locations, and exact targets for get_session_context. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
+			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed-file evidence status, change summaries, authoritative worktree locations, and exact targets for get_session_context. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -100,6 +100,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 					deletions: change.deletions,
 				}));
 				const workspace = session?.workspace.get();
+				const changesSummary = session?.changesSummary?.get();
 				const sessionContextTarget = session && invokingSession && invokingSession.providerId === session.providerId
 					? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
 					: undefined;
@@ -117,11 +118,12 @@ export class ReadSessionComparisonTool implements IToolImpl {
 						? 'Transcript follow-up is unavailable from this Judge host; use the manifest and worktree evidence.'
 						: undefined,
 					worktree: workspace ? {
-						workingDirectory: workspace.folders[0]?.root.fsPath,
-						folders: workspace.folders.map(folder => folder.root.fsPath),
+						workingDirectory: workspace.folders[0]?.workingDirectory.fsPath,
+						folders: workspace.folders.map(folder => folder.workingDirectory.fsPath),
 					} : undefined,
-					changesSummary: session?.changesSummary?.get(),
+					changesSummary,
 					changedFiles,
+					changedFilesStatus: changes.length > 0 ? 'available' : changesSummary?.files === 0 ? 'noChanges' : 'unavailable',
 					changedFilesTruncated: changes.length > changedFiles.length,
 				};
 			});
@@ -130,7 +132,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			originalTask: comparison.prompt,
 			baseBranch: comparison.branch,
 			attempts,
-			next: 'Review every attempt diff in the listed worktrees. Use get_session_context with an exact attempt sessionContextTarget for validation claims or other transcript evidence. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in its authoritative worktree. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not inspect another checkout, discover sessions, guess references, or create sessions.',
 		}));
 	}
 }
@@ -166,7 +168,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 					},
 					explanation: {
 						type: 'string',
-						description: 'A concise explanation of the recommendation and important trade-offs.',
+						description: 'A concise explanation of why the winning attempt is strongest, citing specific code and validation evidence.',
 					},
 					conflicts: {
 						type: 'array',
@@ -204,7 +206,11 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 									additionalProperties: false,
 								},
 								unresolvedIssues: { type: 'array', items: { type: 'string' } },
-								notableDifferences: { type: 'array', items: { type: 'string' } },
+								notableDifferences: {
+									type: 'array',
+									description: 'The strongest reusable points from this attempt, especially when it is not recommended.',
+									items: { type: 'string' },
+								},
 							},
 							required: ['participantId', 'summary', 'validation', 'validationSource', 'unresolvedIssues', 'notableDifferences'],
 							additionalProperties: false,

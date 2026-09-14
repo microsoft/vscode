@@ -6,10 +6,12 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -23,6 +25,9 @@ import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonVerdict, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonAttemptJudged } from '../../../common/sessionsTelemetry.js';
+
+const JUDGE_PROMPT_URI = FileAccess.asFileUri('vs/sessions/prompts/judge.md');
+const JUDGE_COMPARISON_ID_PLACEHOLDER = '{{comparisonId}}';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
 	readonly sessionResource?: string;
@@ -45,6 +50,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	private readonly _synthesisStarting = new Set<string>();
 	private readonly _reportedExecutionTelemetry = new Set<string>();
 	private readonly _reportedOutcomeTelemetry = new Set<string>();
+	private _judgePromptTemplate: Promise<string> | undefined;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -53,6 +59,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		@ILogService private readonly logService: ILogService,
 		@IChatService private readonly chatService: IChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this._loadTelemetryState();
@@ -179,7 +186,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._synthesisStarting.add(comparisonId);
 		try {
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison {0} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Use its manifest for changed files and worktree locations. Call get_session_context only with an exact sessionContextTarget returned by the manifest when transcript evidence is needed; do not discover sessions or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\n{1}", comparison.id, comparison.verdict?.explanation ?? localize('sessionComparison.noJudgeExplanation', "No Judge explanation is available; use the selected attempt as the base.")),
+				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison {0} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\n{1}", comparison.id, comparison.verdict?.explanation ?? localize('sessionComparison.noJudgeExplanation', "No Judge explanation is available; use the selected attempt as the base.")),
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
 			}, {
@@ -411,8 +418,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (!harness) {
 			throw new Error('No successful comparison attempt is available to run the Judge.');
 		}
+		const query = await this._getJudgePrompt(comparison.id);
 		const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-			query: localize('sessionComparison.judgePrompt', "Judge implementation comparison {0}. Call #readAttemptComparison with this ID. Review every attempt's code changes and validation evidence. Run missing targeted tests, build, lint, or diagnostics when needed to make a reliable recommendation, and record whether each validation result came from the attempt or from your own run. Do not modify any attempt. Then call #completeAttemptComparison exactly once.", comparison.id),
+			query,
 			title: localize('sessionComparison.judgeTitle', "Judge: {0}", comparison.title),
 			background: true,
 		}, {
@@ -439,6 +447,15 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		};
 		const current = this._requireComparison(comparison.id);
 		this._replaceComparison({ ...current, participants: [...current.participants, judge] });
+	}
+
+	private async _getJudgePrompt(comparisonId: string): Promise<string> {
+		this._judgePromptTemplate ??= this.fileService.readFile(JUDGE_PROMPT_URI).then(content => content.value.toString());
+		const template = await this._judgePromptTemplate;
+		if (!template.includes(JUDGE_COMPARISON_ID_PLACEHOLDER)) {
+			throw new Error(`The Judge prompt is missing the ${JUDGE_COMPARISON_ID_PLACEHOLDER} placeholder.`);
+		}
+		return template.replaceAll(JUDGE_COMPARISON_ID_PLACEHOLDER, comparisonId);
 	}
 
 	private _getJudgeHarness(comparison: ISessionComparison): ISessionComparisonHarness | undefined {

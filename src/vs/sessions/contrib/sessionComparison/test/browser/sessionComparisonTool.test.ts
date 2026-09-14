@@ -34,7 +34,7 @@ suite('SessionComparisonTool', () => {
 			description: tool.getToolData().modelDescription,
 		}, {
 			referenceName: 'readAttemptComparison',
-			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed files, change summaries, worktree locations, and exact targets for get_session_context. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
+			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed-file evidence status, change summaries, authoritative worktree locations, and exact targets for get_session_context. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
 		});
 	});
 
@@ -79,9 +79,10 @@ suite('SessionComparisonTool', () => {
 					insertions: 3,
 					deletions: 1,
 				}],
+				changedFilesStatus: 'available',
 				changedFilesTruncated: false,
 			}],
-			next: 'Review every attempt diff in the listed worktrees. Use get_session_context with an exact attempt sessionContextTarget for validation claims or other transcript evidence. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in its authoritative worktree. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not inspect another checkout, discover sessions, guess references, or create sessions.',
 		});
 	});
 
@@ -191,7 +192,7 @@ function stubAttemptSession(): ISession {
 		mainChat: constObservable(chat),
 		workspace: constObservable(upcastPartial<ISessionWorkspace>({
 			folders: [{
-				root: URI.file('/workspace'),
+				root: URI.file('/source-workspace'),
 				workingDirectory: URI.file('/workspace'),
 				name: 'workspace',
 				description: undefined,

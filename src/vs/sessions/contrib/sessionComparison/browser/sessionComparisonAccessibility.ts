@@ -29,9 +29,9 @@ export class SessionComparisonAccessibilityHelp implements IAccessibleViewImplem
 			return undefined;
 		}
 		const content = [
-			localize('sessionComparisonAccessibilityHelp.overview', "You are in an implementation attempt comparison. It summarizes independent agent attempts, changed files, validation, the Judge recommendation, and optional synthesis."),
-			localize('sessionComparisonAccessibilityHelp.navigation', "When review is ready, use Review Recommended Attempt to open the recommended session and its changes. Use Tab and Shift+Tab to move between attempt, Judge, synthesis, and cleanup actions. Press Enter or Space to activate the focused action."),
-			localize('sessionComparisonAccessibilityHelp.view', "Use Open Accessible View to read the complete comparison evidence as plain text."),
+			localize('sessionComparisonAccessibilityHelp.overview', "You are in an implementation attempt comparison. After review, it identifies the winning attempt, explains the evidence, and lists strong points from the other attempts."),
+			localize('sessionComparisonAccessibilityHelp.navigation', "When the Judge finishes, its chat closes and this comparison opens automatically. Use Synthesize Best Implementation to combine the strongest work in a new attempt, or Review Winning Attempt to open the winner and its changes. Use Tab and Shift+Tab to move between actions. Press Enter or Space to activate the focused action."),
+			localize('sessionComparisonAccessibilityHelp.view', "Use Open Accessible View to read the comparison result as plain text."),
 		].join('\n');
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionComparison,
@@ -76,12 +76,38 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 					lines.push(
 						'',
 						localize('sessionComparisonAccessibleView.reviewReady', "Comparison review ready."),
-						localize('sessionComparisonAccessibleView.recommendation', "Recommended attempt: {0}", recommendedLabel),
+						localize('sessionComparisonAccessibleView.winner', "{0} won.", recommendedLabel),
+						localize('sessionComparisonAccessibleView.whyItWon', "Why it won:"),
 						comparison.verdict.explanation,
 					);
-					for (const conflict of comparison.verdict.conflicts) {
-						lines.push(localize('sessionComparisonAccessibleView.conflict', "Conflict: {0}", conflict));
+					const winnerVerdict = recommended
+						? comparison.verdict.attempts.find(attempt => attempt.participantId === recommended.id)
+						: undefined;
+					if (winnerVerdict) {
+						lines.push(winnerVerdict.summary);
+						lines.push(localize(
+							'sessionComparisonAccessibleView.validation',
+							"Tests: {0}. Build: {1}. Lint: {2}. Diagnostics: {3}.",
+							validationLabel(winnerVerdict.validation.tests, winnerVerdict.validationSource?.tests),
+							validationLabel(winnerVerdict.validation.build, winnerVerdict.validationSource?.build),
+							validationLabel(winnerVerdict.validation.lint, winnerVerdict.validationSource?.lint),
+							validationLabel(winnerVerdict.validation.diagnostics, winnerVerdict.validationSource?.diagnostics),
+						));
 					}
+					lines.push('', localize('sessionComparisonAccessibleView.otherStrengths', "Strong points from other attempts:"));
+					for (const attempt of attempts.filter(attempt => attempt.id !== recommended?.id)) {
+						const attemptIndex = attempts.indexOf(attempt);
+						const attemptVerdict = comparison.verdict.attempts.find(candidate => candidate.participantId === attempt.id);
+						const strengths = attemptVerdict?.notableDifferences.length ? attemptVerdict.notableDifferences : attemptVerdict?.summary ? [attemptVerdict.summary] : [];
+						lines.push(getSessionComparisonAttemptLabel(attempt, attemptIndex));
+						for (const strength of strengths) {
+							lines.push(localize('sessionComparisonAccessibleView.strongPoint', "- {0}", strength));
+						}
+					}
+					for (const conflict of comparison.verdict.conflicts) {
+						lines.push(localize('sessionComparisonAccessibleView.synthesisConsideration', "Consider during synthesis: {0}", conflict));
+					}
+					return lines.join('\n');
 				}
 				for (const participant of comparison.participants) {
 					const role = participant.role === SessionComparisonParticipantRole.Attempt
@@ -126,24 +152,6 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 					const summary = session?.changesSummary?.get();
 					if (summary) {
 						lines.push(localize('sessionComparisonAccessibleView.changes', "Changed files: {0}, additions: {1}, deletions: {2}", summary.files, summary.additions, summary.deletions));
-					}
-					const attemptVerdict = comparison.verdict?.attempts.find(candidate => candidate.participantId === participant.id);
-					if (attemptVerdict) {
-						lines.push(localize(
-							'sessionComparisonAccessibleView.validation',
-							"Tests: {0}. Build: {1}. Lint: {2}. Diagnostics: {3}.",
-							validationLabel(attemptVerdict.validation.tests, attemptVerdict.validationSource?.tests),
-							validationLabel(attemptVerdict.validation.build, attemptVerdict.validationSource?.build),
-							validationLabel(attemptVerdict.validation.lint, attemptVerdict.validationSource?.lint),
-							validationLabel(attemptVerdict.validation.diagnostics, attemptVerdict.validationSource?.diagnostics),
-						));
-						lines.push(attemptVerdict.summary);
-						for (const issue of attemptVerdict.unresolvedIssues) {
-							lines.push(localize('sessionComparisonAccessibleView.unresolvedIssue', "Unresolved issue: {0}", issue));
-						}
-						for (const difference of attemptVerdict.notableDifferences) {
-							lines.push(localize('sessionComparisonAccessibleView.notableDifference', "Notable difference: {0}", difference));
-						}
 					}
 				}
 				const fileCounts = new Map<string, number>();

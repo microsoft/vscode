@@ -74,7 +74,7 @@ const desktopResourcePatterns = [
 	'vs/workbench/contrib/debug/browser/media/*.png',
 
 	// Sessions - built-in prompts and skills
-	'vs/sessions/prompts/*.prompt.md',
+	'vs/sessions/prompts/*.md',
 	'vs/sessions/skills/**/SKILL.md',
 ];
 
