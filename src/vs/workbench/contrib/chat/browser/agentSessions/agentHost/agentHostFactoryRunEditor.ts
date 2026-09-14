@@ -8,13 +8,15 @@ import './media/agentHostFactoryRun.css';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../../base/common/date.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ISessionFactoryRun, ISessionFactoryRunAgent, ISessionFactoryRunPhase, readSessionFactoryRuns, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { buildSubagentChatUri, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -99,13 +101,14 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 				&& first.progress.length === second.progress.length
 				&& first.agents.length === second.agents.length),
 		}, reader => readSessionFactoryRuns(sessionState.read(reader).read(reader)?._meta).find(candidate => candidate.runId === input.runId));
-		// Factory agents run as background subagents, so the host materializes a
-		// chat for each one. Only chats the session actually lists are openable.
+		// Factory agents run as background subagents, so the host owns a chat for
+		// each one at the address a `Task` subagent's would use. Opening one that the
+		// session does not list yet (after a host restart) makes the host restore
+		// it from the event log, so every agent with a tool-call id is openable.
 		const agentChats = derivedOpts<ReadonlyMap<string, string>>({ owner: this, equalsFn: mapsEqual }, reader => {
 			const current = resolution.read(reader);
-			const state = sessionState.read(reader).read(reader);
 			const currentRun = run.read(reader);
-			return current && state && currentRun ? resolveFactoryRunAgentChats(currentRun, current.backendSession, state.chats) : new Map();
+			return current && currentRun ? resolveFactoryRunAgentChats(currentRun, current.backendSession) : new Map();
 		});
 
 		const container = this.container;
@@ -113,12 +116,13 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 			const current = run.read(reader);
 			const selected = this.selectedPhaseId.read(reader);
 			const chats = agentChats.read(reader);
+			const currentResolution = resolution.read(reader);
 			DOM.clearNode(container);
 			if (!current) {
 				this.renderUnavailable(container, input);
 				return;
 			}
-			this.renderRun(container, current, selected, { sessionResource: input.sessionResource, agentChats: chats });
+			this.renderRun(container, current, selected, { sessionResource: input.sessionResource, resolution: currentResolution, agentChats: chats });
 		}));
 	}
 
@@ -301,7 +305,7 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 				DOM.append(name, renderIcon(Codicon.linkExternal));
 				this.inputDisposables.value?.add(DOM.addDisposableListener(name, DOM.EventType.CLICK, event => {
 					event.preventDefault();
-					this.openAgentChat(chatResource, context.sessionResource, agent);
+					void this.openAgentChat(chatResource, context, agent);
 				}));
 			}
 			const meta = DOM.append(row, $('.agent-host-factory-run-agent-meta'));
@@ -333,11 +337,18 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 	 * Opens the agent's subagent chat through the same command the chat
 	 * transcript uses for `Task` subagents, so the Agents window opens it to
 	 * the side and the editor window opens a chat editor.
+	 *
+	 * The chat is primed first: subscribing to its channel makes the host
+	 * restore it from the parent's event log when it is not live, which also
+	 * lists it on the session so the Agents window can find it.
 	 */
-	private openAgentChat(chatResource: string, sessionResource: URI, agent: ISessionFactoryRunAgent): void {
-		const context: IOpenSubagentChatContext = {
+	private async openAgentChat(chatResource: string, context: IFactoryRunRenderContext, agent: ISessionFactoryRunAgent): Promise<void> {
+		if (context.resolution) {
+			await primeSubagentChat(context.resolution, chatResource);
+		}
+		const openContext: IOpenSubagentChatContext = {
 			chatResource,
-			parentSessionResource: sessionResource.toString(),
+			parentSessionResource: context.sessionResource.toString(),
 			title: agent.label,
 			agentType: agent.agentType,
 			modelId: agent.model,
@@ -345,33 +356,47 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 			duration: agent.completedAt !== undefined && agent.startedAt !== undefined ? agent.completedAt - agent.startedAt : undefined,
 			isActive: agent.completedAt === undefined,
 		};
-		void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, context);
+		await this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, openContext);
 	}
 }
 
 interface IFactoryRunRenderContext {
 	readonly sessionResource: URI;
-	/** Subagent chat resource per factory `agentId`, present only for chats the session lists. */
+	readonly resolution: IAgentHostSessionResolution | undefined;
+	/** Subagent chat resource per factory `agentId`, for every agent the runtime launched under a tool-call id. */
 	readonly agentChats: ReadonlyMap<string, string>;
 }
 
+/** How long to wait for the host to restore a subagent chat before opening it regardless. */
+const PRIME_SUBAGENT_CHAT_TIMEOUT_MS = 5_000;
+
 /**
- * Maps each factory agent to the subagent chat the host created for it, keyed
- * by `agentId`. Factory agents launch as background subagents under a tool-call
- * id, so the chat lives at the same address a `Task` subagent's would. Agents
- * whose chat the session does not list (for example after a host restart) are
- * omitted rather than pointed at a chat that cannot open.
+ * Subscribes to a subagent chat channel until its first snapshot arrives. The
+ * host restores an unlisted subagent chat from the parent's event log on
+ * subscribe, so this turns a stale reference into an openable chat.
  */
-export function resolveFactoryRunAgentChats(run: ISessionFactoryRun, backendSession: URI, chats: readonly { readonly resource: string }[]): ReadonlyMap<string, string> {
-	const known = new Set(chats.map(chat => chat.resource));
+async function primeSubagentChat(resolution: IAgentHostSessionResolution, chatResource: string): Promise<void> {
+	const subscription = resolution.connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'AgentHostFactoryRunEditor.openAgent');
+	try {
+		if (subscription.object.value !== undefined) {
+			return;
+		}
+		await raceTimeout(Event.toPromise(Event.once(subscription.object.onDidChange)), PRIME_SUBAGENT_CHAT_TIMEOUT_MS);
+	} finally {
+		subscription.dispose();
+	}
+}
+
+/**
+ * Maps each factory agent to the subagent chat the host owns for it, keyed by
+ * `agentId`. Factory agents launch as background subagents under a tool-call
+ * id, so the chat lives at the same address a `Task` subagent's would.
+ */
+export function resolveFactoryRunAgentChats(run: ISessionFactoryRun, backendSession: URI): ReadonlyMap<string, string> {
 	const result = new Map<string, string>();
 	for (const agent of run.agents) {
-		if (!agent.toolCallId) {
-			continue;
-		}
-		const chatResource = buildSubagentChatUri(backendSession, agent.toolCallId);
-		if (known.has(chatResource)) {
-			result.set(agent.agentId, chatResource);
+		if (agent.toolCallId) {
+			result.set(agent.agentId, buildSubagentChatUri(backendSession, agent.toolCallId));
 		}
 	}
 	return result;

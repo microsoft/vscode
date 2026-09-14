@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ISessionFactoryRun, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
-import { buildDefaultChatUri, buildSubagentChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { resolveFactoryRunAgentChats } from '../../../browser/agentSessions/agentHost/agentHostFactoryRunEditor.js';
 import { AgentHostFactoryRunEditorInput, AgentHostFactoryRunEditorInputSerializer } from '../../../browser/agentSessions/agentHost/agentHostFactoryRunEditorInput.js';
 
@@ -36,15 +36,10 @@ suite('AgentHostFactoryRunEditor', () => {
 		progress: [],
 	};
 
-	test('maps only agents whose subagent chat the session lists', () => {
-		const chats = [
-			{ resource: buildDefaultChatUri(backendSession) },
-			{ resource: buildSubagentChatUri(backendSession, 'with-chat') },
-			{ resource: buildSubagentChatUri(URI.parse('copilot:/other'), 'without-chat') },
-		];
-
-		assert.deepStrictEqual([...resolveFactoryRunAgentChats(run, backendSession, chats)], [
+	test('maps every agent launched under a tool-call id to its subagent chat', () => {
+		assert.deepStrictEqual([...resolveFactoryRunAgentChats(run, backendSession)], [
 			['with-chat', buildSubagentChatUri(backendSession, 'with-chat')],
+			['without-chat', buildSubagentChatUri(backendSession, 'without-chat')],
 		]);
 	});
 
