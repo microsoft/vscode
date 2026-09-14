@@ -5,17 +5,21 @@
 
 import { Code } from './code';
 import { acceptToolConfirmationIfPresent } from './chat';
+import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"])';
+const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
-const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-newline`;
+const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
@@ -108,6 +112,52 @@ export class AgentsWindow {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE, undefined, retryCount);
 	}
 
+	async waitForActiveSessionView(timeoutMs: number = 30_000): Promise<void> {
+		const retryCount = Math.ceil(timeoutMs / 100);
+		await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, retryCount);
+		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+	}
+
+	async selectDevContainer(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const picker = page.locator(WORKSPACE_PICKER).first();
+		const workspaceRow = page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
+		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
+		const deadline = Date.now() + 120_000;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			if (await picker.getAttribute('aria-expanded') === 'true') {
+				await page.keyboard.press('Escape');
+			}
+			try {
+				await picker.click();
+				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await devContainerRow.click();
+				await page.waitForFunction(
+					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
+					WORKSPACE_PICKER,
+					{ timeout: 15_000 },
+				);
+				return;
+			} catch (error) {
+				lastError = error;
+				if (await picker.getAttribute('aria-expanded') === 'true') {
+					await page.keyboard.press('Escape');
+				}
+				await new Promise(resolve => setTimeout(resolve, 500));
+			}
+		}
+		throw new Error(`Timed out selecting Use Dev Container from the workspace picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	private async isSessionTypeSelected(label: string): Promise<boolean> {
+		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
+		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();
+	}
+
 	/**
 	 * Returns whether the given session type appears in the new-session picker.
 	 *
@@ -125,11 +175,24 @@ export class AgentsWindow {
 	async isSessionTypeAvailable(label: string, timeoutMs: number = 30_000): Promise<boolean> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
+		if (await this.isSessionTypeSelected(label)) {
+			return true;
+		}
+
 		const itemSel = `.action-widget .monaco-list-row`;
 		const needle = label.toLowerCase();
+		const isEnabledAction = (el: { className: string }) => el.className.includes('action') && !el.className.includes('option-disabled');
+		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
+			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
+			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && (el.textContent ?? '').trim().toLowerCase() === needle);
+		};
 		const deadline = Date.now() + timeoutMs;
 
 		while (Date.now() < deadline) {
+			if (await this.isSessionTypeSelected(label)) {
+				return true;
+			}
+
 			// (Re-)open the dropdown so its rows reflect the current provider set.
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 
@@ -137,8 +200,7 @@ export class AgentsWindow {
 			const openDeadline = Math.min(deadline, Date.now() + 2_000);
 			while (Date.now() < openDeadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
-				const labels = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if (labels.some(t => t.toLowerCase().includes(needle))) {
+				if ((items ?? []).some(item => isEnabledAction(item) && actionLabelMatches(item))) {
 					found = true;
 					break;
 				}
@@ -172,9 +234,20 @@ export class AgentsWindow {
 	async selectSessionType(label: string): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
+		if (await this.isSessionTypeSelected(label)) {
+			return;
+		}
+
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
 		const needle = label.toLowerCase();
+		const isActionRow = (el: { className: string }) => el.className.includes('action');
+		const isEnabledActionRow = (el: { className: string }) => isActionRow(el) && !el.className.includes('option-disabled');
+		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
+		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
+			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
+			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && rowText(el) === needle);
+		};
 
 		// The picker click can silently do nothing if the active session
 		// isn't fully initialized yet, and the dropdown is async-populated:
@@ -184,12 +257,19 @@ export class AgentsWindow {
 		// appears, instead of just waiting for "any item".
 		let lastSeen: string[] = [];
 		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			if (await this.isSessionTypeSelected(label)) {
+				return;
+			}
+
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 			const deadline = Date.now() + 10_000;
 			while (Date.now() < deadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
 				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if (lastSeen.some(t => t.toLowerCase().includes(needle))) {
+				if ((items ?? []).some(item =>
+					(isEnabledActionRow(item) && actionLabelMatches(item)) ||
+					(!isActionRow(item) && rowText(item) === needle)
+				)) {
 					break outer;
 				}
 				await new Promise(r => setTimeout(r, 250));
@@ -201,19 +281,17 @@ export class AgentsWindow {
 		}
 
 		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
-		const isActionRow = (el: { className: string }) => el.className.includes('action');
-		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
 
-		// Prefer an actionable row whose label matches directly (e.g. a
+		// Prefer an enabled actionable row whose label matches exactly (e.g. a
 		// session type label like "Claude" or "Copilot CLI").
-		let matchIndex = items.findIndex(el => isActionRow(el) && rowText(el).includes(needle));
+		let matchIndex = items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
 		// Otherwise treat the label as a provider section header (e.g. "Local
 		// Agent Host"): headers are non-clickable rows rendered above their
 		// session types, so select the first actionable row beneath the header.
 		if (matchIndex < 0) {
-			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el).includes(needle));
+			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === needle);
 			if (headerIndex >= 0) {
-				matchIndex = items.findIndex((el, index) => index > headerIndex && isActionRow(el));
+				matchIndex = items.findIndex((el, index) => index > headerIndex && isEnabledActionRow(el));
 			}
 		}
 		if (matchIndex < 0) {
@@ -383,23 +461,45 @@ export class AgentsWindow {
 		let lastActiveTexts: string[] = [];
 		while (Date.now() < deadline) {
 			const rows = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
-			lastTexts = (rows ?? []).map(r => (r.textContent ?? '').trim());
-			const matchIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
-			if (matchIndex < 0) {
+			const renderedRows = rows ?? [];
+			lastTexts = renderedRows.map(r => (r.textContent ?? '').trim());
+			const renderedIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
+			if (renderedIndex < 0) {
 				await new Promise(r => setTimeout(r, 250));
 				continue;
 			}
 
+			// The list is virtualized, so a row's position among rendered DOM
+			// elements may differ from its absolute tree index.
+			const dataIndex = renderedRows[renderedIndex].attributes['data-index'];
+			if (dataIndex === undefined) {
+				throw new Error(`Matched session list row at rendered index ${renderedIndex} has no data-index attribute.`);
+			}
 			const summary = lastTexts.map((t, i) => `[${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking index ${matchIndex}; all rows:\n${summary}`);
-			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${matchIndex}"]`);
-			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+			const rowSelector = `${SESSION_LIST_ROW}[data-index="${dataIndex}"]`;
+			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking data-index ${dataIndex} (rendered index ${renderedIndex}); all rows:\n${summary}`);
+			try {
+				// data-index is assigned by the virtualized list and can change as
+				// sessions are inserted or retitled. Do not poll a stale selector:
+				// if the row moves before this short click completes, re-read the
+				// list and resolve its current index on the next outer iteration.
+				const rowText = await this.code.waitForTextContent(rowSelector, undefined, text => rowNeedles.some(n => text.toLowerCase().includes(n)), 20);
+				if (rowText.includes(workingStatus)) {
+					continue;
+				}
+				await this.code.driver.robustClick(`${rowSelector} .session-main`);
+				await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, 20);
+			} catch {
+				await new Promise(r => setTimeout(r, 250));
+				continue;
+			}
 
 			// Wait until the active session view's chat widget actually shows a
 			// response matching `responseLabel`. A bare `is-active` check is not
 			// enough because the workbench may auto-create a fresh untitled
 			// session and route it into the active slot between row-render and click.
-			while (Date.now() < deadline) {
+			const activationDeadline = Math.min(deadline, Date.now() + 2_000);
+			while (Date.now() < activationDeadline) {
 				const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
 				lastActiveTexts = (responses ?? []).map(el => (el.textContent ?? '').trim());
 				if (lastActiveTexts.some(t => t.toLowerCase().includes(responseNeedle))) {
@@ -407,13 +507,15 @@ export class AgentsWindow {
 				}
 				await new Promise(r => setTimeout(r, 250));
 			}
-			const activeSummary = lastActiveTexts.length
-				? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
-				: '  (no response bubbles in active session view)';
-			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${responseLabel ?? rowMatches[0]}". Active view responses:\n${activeSummary}`);
+			// The index may have been recycled for another row while the click was
+			// dispatched. Re-resolve the desired row instead of failing immediately.
+			await new Promise(r => setTimeout(r, 250));
 		}
 		const summary = lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-		throw new Error(`Timed out waiting for a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}`);
+		const activeSummary = lastActiveTexts.length
+			? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
+			: '  (no response bubbles in active session view)';
+		throw new Error(`Timed out activating a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}\nActive view responses:\n${activeSummary}`);
 	}
 
 	/**
@@ -574,19 +676,8 @@ export class AgentsWindow {
 				// to narrow the list.
 				await page.keyboard.type(modelName);
 				await row.waitFor({ state: 'visible', timeout: 5_000 });
-				// `force` bypasses the transient `context-view-pointerBlock` overlay
-				// that intercepts pointer events while the action widget animates open.
-				await row.click({ force: true });
-				// Confirm the selection actually committed: the picker name button
-				// must now reflect the chosen model. A non-committing click (e.g.
-				// absorbed by the animating pointer-block overlay) silently leaves the
-				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it. Match on the button's accessible
-				// name (aria-label, e.g. "Models, <modelName>") rather than the visible
-				// text: when the input is narrow the picker collapses to an icon-only
-				// button and no longer renders the model name as visible text. Scope to
-				// `:visible` so a hidden overflow duplicate of the name button can't
-				// produce a false positive.
+				await row.click();
+				// Match the accessible name because narrow inputs collapse the picker to an icon-only button.
 				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 15_000 });
@@ -706,6 +797,41 @@ export class AgentsWindow {
 		await page.locator(`${ACTION_WIDGET_ROW}:visible`).first()
 			.waitFor({ state: 'hidden', timeout: 5_000 })
 			.catch(() => { /* already detached */ });
+	}
+
+	/**
+	 * Return the active session's model-configuration button label (the combined
+	 * "Effort Context" summary, e.g. "High 1M").
+	 *
+	 * The label is (re-)rendered when the selected model and its configuration
+	 * resolve, so this polls until it carries text rather than returning an empty
+	 * intermediate state.
+	 *
+	 * Mirrors {@link Chat.getModelConfigLabel} but scoped to the Agents Window's
+	 * active session view rather than the panel chat.
+	 */
+	async getModelConfigLabel(timeoutMs: number = 15_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const button = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
+		await button.waitFor({ state: 'visible', timeout: timeoutMs });
+		const deadline = Date.now() + timeoutMs;
+		let label = '';
+		while (Date.now() < deadline) {
+			label = ((await button.textContent()) ?? '').trim();
+			if (label) {
+				break;
+			}
+			await new Promise(r => setTimeout(r, 100));
+		}
+		return label;
+	}
+
+	/**
+	 * Return the section headers and option rows of the open model configuration
+	 * dropdown. Call after {@link openModelConfig}.
+	 */
+	async getModelConfigSections(): Promise<IModelConfigSection[]> {
+		return readModelConfigSections(this.code.driver.currentPage);
 	}
 
 	/**

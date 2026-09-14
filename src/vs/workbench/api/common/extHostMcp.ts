@@ -341,6 +341,15 @@ const ALLOWED_REDIRECT_PROTOCOLS = new Set(['http:', 'https:']);
 // after a redirect (matches browser fetch / curl behavior). Compared case-insensitively.
 const CROSS_ORIGIN_STRIPPED_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization', 'mcp-session-id']);
 
+function setHostHeader(headers: Record<string, string>, name: string, value: string): void {
+	for (const configuredName of Object.keys(headers)) {
+		if (configuredName.toLowerCase() === name.toLowerCase()) {
+			delete headers[configuredName];
+		}
+	}
+	headers[name] = value;
+}
+
 /**
  * Implementation of both MCP HTTP Streaming as well as legacy SSE.
  *
@@ -735,7 +744,7 @@ export class McpHTTPHandle extends Disposable {
 						forceNewRegistration: options?.forceNewRegistration
 					});
 				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
+					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
 				}
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
@@ -759,7 +768,7 @@ export class McpHTTPHandle extends Disposable {
 					}
 				);
 				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
+					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
 					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
 				}
 			} catch (e) {
@@ -837,7 +846,7 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
-		init.headers['user-agent'] = `${product.nameLong}/${product.version}`;
+		setHostHeader(init.headers, 'user-agent', `${product.nameLong}/${product.version}`);
 
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };

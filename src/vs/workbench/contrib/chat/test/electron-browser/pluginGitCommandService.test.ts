@@ -19,6 +19,7 @@ suite('NativePluginGitCommandService', () => {
 			clone: async () => { },
 			pull: async () => false,
 			checkout: async () => { },
+			checkoutCommit: async () => { },
 			revParse: async () => '',
 			fetch: async () => { },
 			revListCount: async () => 0,
@@ -60,6 +61,20 @@ suite('NativePluginGitCommandService', () => {
 
 		await service.checkout(URI.file('/tmp/repo'), 'abc123', true);
 		assert.deepStrictEqual(calls, ['checkout:abc123:true']);
+	});
+
+	test('checkoutCommit delegates to ILocalGitService', async () => {
+		const calls: string[] = [];
+		const service = new NativePluginGitCommandService(createLocalGitStub({
+			checkoutCommit: async (_operationId, path, commit) => {
+				calls.push(`checkoutCommit:${path}:${commit}`);
+			},
+		}));
+
+		const repoDir = URI.file('/tmp/repo');
+		await service.checkoutCommit(repoDir, 'aabbccddeeff00112233445566778899aabbccdd');
+
+		assert.deepStrictEqual(calls, [`checkoutCommit:${repoDir.fsPath}:aabbccddeeff00112233445566778899aabbccdd`]);
 	});
 
 	test('revParse delegates to ILocalGitService', async () => {

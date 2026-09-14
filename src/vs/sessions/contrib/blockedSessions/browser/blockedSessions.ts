@@ -6,10 +6,13 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { computePullRequestIconStatus } from '../../github/browser/pullRequestIconStatus.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState } from '../../github/common/types.js';
+
+const LOG_PREFIX = '[BlockedSessions]';
 
 /**
  * Why a session is surfaced as "blocked" (i.e. needs the user's attention).
@@ -19,14 +22,14 @@ export const enum BlockedSessionReason {
 	NeedsInput = 'needsInput',
 	/** The session's pull request has failing CI checks. */
 	FailingCI = 'failingCI',
-	/** The session's pull request has unresolved review comments. */
-	UnresolvedComments = 'unresolvedComments',
 }
 
 /** A blocked session paired with the reason it needs attention. */
 export interface IBlockedSession {
 	readonly session: ISession;
 	readonly reason: BlockedSessionReason;
+	/** Identifies this occurrence so a later block can be surfaced again. */
+	readonly occurrenceId: string;
 }
 
 /**
@@ -34,8 +37,7 @@ export interface IBlockedSession {
  * attention. A session is considered blocked when it:
  *
  * - needs input (`SessionStatus.NeedsInput`), or
- * - has failing CI checks while not in progress, or
- * - has unresolved pull request comments while not in progress.
+ * - has failing CI checks while not in progress.
  *
  * Archived (done) sessions are never reported as blocked.
  */
@@ -52,6 +54,7 @@ export class BlockedSessions extends Disposable {
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -66,17 +69,27 @@ export class BlockedSessions extends Disposable {
 		// yields the same result, so downstream autoruns/renders don't churn.
 		this.blockedSessionsWithReasons = derivedOpts({
 			owner: this,
-			equalsFn: (a, b) => equals(a, b, (x, y) => x.session.sessionId === y.session.sessionId && x.reason === y.reason),
+			equalsFn: (a, b) => equals(a, b, (x, y) => x.session.sessionId === y.session.sessionId && x.reason === y.reason && x.occurrenceId === y.occurrenceId),
 		}, reader => {
+			const sessions = this._allSessions.read(reader);
 			const blocked: IBlockedSession[] = [];
-			for (const session of this._allSessions.read(reader)) {
+			for (const session of sessions) {
 				// `derivedOpts` under-types the store-backed reader as `IReader`; it is an `IDerivedReader` at runtime.
-				const reason = this._getBlockedReason(reader as IReaderWithStore, session);
-				if (reason !== undefined) {
-					blocked.push({ session, reason });
+				const blockedSession = this._getBlockedSession(reader as IReaderWithStore, session);
+				if (blockedSession !== undefined) {
+					blocked.push(blockedSession);
 				}
 			}
-			return blocked.sort((a, b) => b.session.updatedAt.read(reader).getTime() - a.session.updatedAt.read(reader).getTime());
+			blocked.sort((a, b) => b.session.updatedAt.read(reader).getTime() - a.session.updatedAt.read(reader).getTime());
+			// Traced on every recompute (not only when the result changes) so a
+			// session that briefly drops out — e.g. while its pull request or CI data
+			// is (re)loading — is visible in the log; such a gap is what makes an
+			// acknowledged block look like it came back on its own. The recompute runs
+			// on every session change, hence the explicit level check.
+			if (this._logService.getLevel() === LogLevel.Trace) {
+				this._logService.trace(`${LOG_PREFIX} computed blocked sessions (${blocked.length} of ${sessions.length}): ${describeBlockedSessions(blocked)}`);
+			}
+			return blocked;
 		});
 
 		this.blockedSessions = derivedOpts({
@@ -85,18 +98,21 @@ export class BlockedSessions extends Disposable {
 		}, reader => this.blockedSessionsWithReasons.read(reader).map(blocked => blocked.session));
 	}
 
-	private _getBlockedReason(reader: IReaderWithStore, session: ISession): BlockedSessionReason | undefined {
+	private _getBlockedSession(reader: IReaderWithStore, session: ISession): IBlockedSession | undefined {
 		if (session.isArchived.read(reader)) {
 			return undefined;
 		}
 
 		const status = session.status.read(reader);
 		if (status === SessionStatus.NeedsInput) {
-			return BlockedSessionReason.NeedsInput;
+			return {
+				session,
+				reason: BlockedSessionReason.NeedsInput,
+				occurrenceId: BlockedSessionReason.NeedsInput,
+			};
 		}
 
-		// CI failures and pull request comments only count while the session is
-		// not actively in progress.
+		// CI failures only count while the session is not actively in progress.
 		if (status === SessionStatus.InProgress) {
 			return undefined;
 		}
@@ -106,19 +122,35 @@ export class BlockedSessions extends Disposable {
 			return undefined;
 		}
 
-		const prRef = reader.store.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
+		// `delayedStore` (released *after* the recompute) rather than `store`
+		// (released *before* it): these are ref-counted, shared models that are
+		// disposed once the last reference goes away. Releasing first would drop the
+		// last reference on every recompute, so each recompute would tear the loaded
+		// models down and re-create empty ones — reporting the session as unblocked
+		// until the data is fetched again.
+		const prRef = reader.delayedStore.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
 		const livePR = prRef.object.pullRequest.read(reader);
 		if (!livePR) {
 			return undefined;
 		}
 
-		const prStatus = computePullRequestIconStatus(reader, this._gitHubService, gitHubInfo.owner, gitHubInfo.repo, livePR);
-		if (prStatus.hasFailingChecks) {
-			return BlockedSessionReason.FailingCI;
+		if (livePR.isDraft || livePR.state !== GitHubPullRequestState.Open) {
+			return undefined;
 		}
-		if (prStatus.hasUnresolvedComments) {
-			return BlockedSessionReason.UnresolvedComments;
+
+		const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
+		if (ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure) {
+			return {
+				session,
+				reason: BlockedSessionReason.FailingCI,
+				occurrenceId: `${BlockedSessionReason.FailingCI}:${livePR.headSha}`,
+			};
 		}
 		return undefined;
 	}
+}
+
+/** Compact, log-friendly rendering of blocked sessions: `sessionId=occurrenceId`. */
+export function describeBlockedSessions(blocked: readonly IBlockedSession[]): string {
+	return `[${blocked.map(entry => `${entry.session.sessionId}=${entry.occurrenceId}`).join(', ')}]`;
 }

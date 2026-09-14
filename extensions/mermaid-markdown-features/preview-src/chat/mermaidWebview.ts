@@ -27,6 +27,7 @@ export class PanZoomHandler {
 	private fitScale = 1;
 	private translateX = 0;
 	private translateY = 0;
+	private readonly resizeObserver: ResizeObserver;
 
 	private isPanning = false;
 	private hasDragged = false;
@@ -52,6 +53,11 @@ export class PanZoomHandler {
 		this.container.style.overflow = 'hidden';
 		this.container.style.cursor = 'default';
 		this.setupEventListeners();
+
+		// Chat output containers can resize without triggering a window resize event.
+		this.resizeObserver = new ResizeObserver(() => this.handleResize());
+		this.resizeObserver.observe(this.container);
+		window.addEventListener('pagehide', () => this.resizeObserver.disconnect(), { once: true });
 	}
 
 	/**
@@ -83,9 +89,6 @@ export class PanZoomHandler {
 		this.container.addEventListener('mouseenter', e => this.updateCursorFromModifier(e));
 		window.addEventListener('keydown', e => this.handleKeyChange(e));
 		window.addEventListener('keyup', e => this.handleKeyChange(e));
-
-		// Reset the view on resize if user hasn't interacted yet
-		window.addEventListener('resize', () => this.handleResize());
 	}
 
 	private handleKeyChange(e: KeyboardEvent): void {

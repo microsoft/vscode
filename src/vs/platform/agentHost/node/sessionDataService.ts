@@ -6,9 +6,10 @@
 import { IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentSession } from '../common/agentService.js';
+import { AgentSession } from '../common/agent.js';
+import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { ISessionDatabase, ISessionDataService, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
 import { SessionDatabase } from './sessionDatabase.js';
 
@@ -104,13 +105,18 @@ export class SessionDataService implements ISessionDataService {
 	async tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> {
 		const key = this._sanitizedSessionKey(session);
 		const dbPath = URI.joinPath(this._basePath, key, SESSION_DB_FILENAME);
-		if (!await this._fileService.exists(dbPath)) {
-			return undefined;
+		try {
+			await this._fileService.stat(dbPath);
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
 		}
 		return this._databases.acquire(key);
 	}
 
-	async deleteSessionData(session: URI): Promise<void> {
+	async deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void> {
 		const dir = this.getSessionDataDir(session);
 		// Fire the will-delete event first so subscribers (notably the
 		// checkpoint service) can perform async cleanup that needs the
@@ -120,6 +126,7 @@ export class SessionDataService implements ISessionDataService {
 		try {
 			this._onWillDeleteSessionData.fire({
 				session,
+				workingDirectories,
 				waitUntil: p => { pending.push(p); },
 			});
 		} catch (err) {
@@ -161,7 +168,7 @@ export class SessionDataService implements ISessionDataService {
 					continue;
 				}
 				const name = child.name;
-				if (!knownSessionIds.has(name)) {
+				if (!knownSessionIds.has(name) && !name.startsWith(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX)) {
 					this._logService.trace(`[SessionDataService] Cleaning up orphaned session data: ${name}`);
 					deletions.push(
 						this._fileService.del(child.resource, { recursive: true }).catch(err => {
@@ -175,6 +182,14 @@ export class SessionDataService implements ISessionDataService {
 		} catch (err) {
 			this._logService.warn('[SessionDataService] Failed to run orphan cleanup', err);
 		}
+	}
+
+	async listSessionDataIds(prefix: string): Promise<readonly string[]> {
+		if (!await this._fileService.exists(this._basePath)) {
+			return [];
+		}
+		const stat = await this._fileService.resolve(this._basePath);
+		return stat.children?.filter(child => child.isDirectory && child.name.startsWith(prefix)).map(child => child.name) ?? [];
 	}
 
 	async whenIdle(): Promise<void> {

@@ -1,0 +1,40 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: '!echo BANG_OUTPUT_42'
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: '!echo BANG_OUTPUT_42'
+            origin:
+              kind: user
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: terminal
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}

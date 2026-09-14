@@ -357,6 +357,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('workbench.experimental.modernUI', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
+			case LayoutSettings.MODERN_UI_DENSITY:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'mrleemurray';
+					comment: 'This is used to know which Modern UI Update spacing density the user has selected.';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.density.layout', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
 			case AutoUpdateConfigurationKey:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
@@ -454,7 +463,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('terminal.integrated.suggest.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 			case TerminalContribSettingId.AgentSandboxEnabled:
-			case TerminalContribSettingId.DeprecatedAgentSandboxEnabled:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'isidorn';
 					comment: 'This is used to know if agent sandbox is enabled or not';

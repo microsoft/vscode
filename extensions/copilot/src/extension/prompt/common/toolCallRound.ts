@@ -33,6 +33,7 @@ export class ToolCallRound implements IToolCallRound {
 			params.thinking,
 			params.timestamp,
 			params.compaction,
+			params.statefulMarkerSummarizedAtRoundId,
 		);
 		round.summary = params.summary;
 		round.phase = params.phase;
@@ -58,6 +59,7 @@ export class ToolCallRound implements IToolCallRound {
 		public readonly thinking?: ThinkingData,
 		public readonly timestamp: number = Date.now(),
 		public readonly compaction?: OpenAIContextManagementResponse,
+		public readonly statefulMarkerSummarizedAtRoundId?: string,
 	) { }
 
 	private static generateID(): string {

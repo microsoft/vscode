@@ -80,6 +80,7 @@ export interface IJSONSchema {
 	patternErrorMessage?: string;
 	deprecationMessage?: string;
 	markdownDeprecationMessage?: string;
+	deprecationMessageSeverity?: 'warning' | 'info';
 	enumDescriptions?: string[];
 	markdownEnumDescriptions?: string[];
 	markdownDescription?: string;
@@ -327,4 +328,3 @@ function traverseNodes(root: IJSONSchema, visit: (schema: IJSONSchema) => boolea
 		next = toWalk.pop();
 	}
 }
-

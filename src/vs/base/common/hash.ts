@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeHex, VSBuffer } from './buffer.js';
+import { assert } from './assert.js';
 import * as strings from './strings.js';
 
 type NotSyncHashable = ArrayBufferLike | ArrayBufferView;
@@ -54,6 +55,14 @@ export function stringHash(s: string, hashVal: number) {
 		hashVal = numberHash(s.charCodeAt(i), hashVal);
 	}
 	return hashVal;
+}
+
+/**
+ * Returns whether a string belongs to a stable percentage sample.
+ */
+export function isStringInSample(value: string, samplePercentage: number): boolean {
+	assert(Number.isInteger(samplePercentage) && samplePercentage >= 0 && samplePercentage <= 100, 'samplePercentage must be an integer between 0 and 100');
+	return (stringHash(value, 0) >>> 0) % 100 < samplePercentage;
 }
 
 function arrayHash(arr: unknown[], initialHashVal: number): number {

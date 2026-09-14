@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -31,43 +32,84 @@ export interface IAutomationSchedule {
 	readonly scheduleDay: number;
 }
 
+/** Repository isolation for a workspace-backed Automation target. */
+export type AutomationWorkspaceIsolation =
+	| { readonly kind: 'default' }
+	| { readonly kind: 'folder' }
+	| { readonly kind: 'worktree'; readonly branch: string };
+
+/** The mutually exclusive execution targets an Automation can use. */
+export type AutomationTarget =
+	| {
+		readonly kind: 'workspace';
+		readonly folderUri: URI;
+		readonly providerId?: string;
+		readonly sessionTypeId?: string;
+		readonly isolation: AutomationWorkspaceIsolation;
+	}
+	| {
+		readonly kind: 'quickChat';
+		readonly providerId: string;
+		readonly sessionTypeId: string;
+	};
+
+/** Provider-owned values used to create each Automation run session. */
+export interface IAutomationSessionTemplate {
+	/** Optional language model identifier. */
+	readonly modelId?: string;
+	/** Model-specific preferences, independent of provider session configuration. */
+	readonly modelConfiguration?: Readonly<Record<string, JsonPrimitive>>;
+	/** Optional custom agent selection. */
+	readonly agent?: { readonly uri: string };
+	/** Provider-owned session configuration values. */
+	readonly config?: Readonly<Record<string, unknown>>;
+}
+
+export function isAutomationModelConfiguration(value: unknown): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']> {
+	return !!value && typeof value === 'object' && !Array.isArray(value)
+		&& (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+		&& Object.values(value).every(entry => entry === null
+			|| typeof entry === 'string'
+			|| typeof entry === 'boolean'
+			|| (typeof entry === 'number' && Number.isFinite(entry)));
+}
+
+export function assertAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined): void {
+	if (template?.modelConfiguration === undefined) {
+		return;
+	}
+	if (typeof template.modelId !== 'string' || !template.modelId.trim()) {
+		throw new Error('Automation model configuration requires a model identifier.');
+	}
+	if (!isAutomationModelConfiguration(template.modelConfiguration)) {
+		throw new Error('Automation model configuration must contain only JSON primitive values.');
+	}
+}
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
  */
-export interface IAutomation {
+export interface IAutomationDescriptor {
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 
-	/** Workspace folder for the spawned session. Required. */
-	readonly folderUri: URI;
+	/** Explicit workspace-backed or workspace-less execution target. */
+	readonly target: AutomationTarget;
 
-	/**
-	 * Sessions provider for the scheduled run (e.g. `local-agent-host`). Omitted
-	 * on automations predating the picker; the runner then falls back to the
-	 * workspace default provider.
-	 */
-	readonly providerId?: string;
+	/** Complete provider-owned session template. */
+	readonly sessionTemplate?: IAutomationSessionTemplate;
 
-	/** Session type to create within {@link providerId}, captured alongside it. */
-	readonly sessionTypeId?: string;
-
-	/** Optional language model identifier to seed the new session with. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly modelId?: string;
 
-	/** Optional chat mode (`agent`/`ask`/`edit`). Defaults to provider's default; custom modes unsupported. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly mode?: string;
 
-	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
-
-	/** Optional worktree isolation mode (`worktree` or `workspace`). */
-	readonly isolationMode?: string;
-
-	/** Optional git branch for isolated runs. */
-	readonly branch?: string;
 
 	readonly enabled: boolean;
 
@@ -80,6 +122,11 @@ export interface IAutomation {
 	readonly nextRunAt?: string;
 }
 
+/**
+ * Lifecycle of an automation run. A run stays `running` while its agent session
+ * is active or needs input, and becomes terminal when that session completes or
+ * fails, or when tracking is cancelled or times out while the session may remain active.
+ */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /**
@@ -94,8 +141,8 @@ export interface IAutomationRun {
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 
-	/** Session resource URI (stringified) assigned by ISessionsManagementService, if any. */
-	readonly sessionResource?: string;
+	/** Session resource URI, recorded as soon as the committed session is available. */
+	readonly sessionResource?: URI;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

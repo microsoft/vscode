@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IByokLmChatRequest, IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 
 /**
  * Exercises the inference path end-to-end without the Copilot SDK runtime:
- * the test plays the runtime's role by POSTing OpenAI Chat Completions
+ * the test plays the runtime's role by POSTing OpenAI Responses
  * requests at the loopback proxy, and plays the renderer's role with a fake
  * {@link IByokLmChatRequest} -> {@link IByokLmChatResult} bridge function. The
  * only contract under test is the OpenAI wire format in, the bridge DTO out,
@@ -20,16 +21,27 @@ import { ByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/
  */
 suite('ByokLmProxyService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionId = 'sess-1';
+
+	/**
+	 * A serving bridge connection: it pushes its model snapshot (default empty)
+	 * synchronously when the registry subscribes, so it is a valid routing target.
+	 */
+	function servingConnection(chat: IByokLmBridgeConnection['chat'], models: IByokLmModelInfo[] = []): IByokLmBridgeConnection {
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
+			onDidAddFirstListener: () => emitter.fire(models),
+		}));
+		return { chat, onDidChangeModels: emitter.event };
+	}
 
 	async function withProxy(
 		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
 		run: (handle: IByokLmProxyHandle) => Promise<void>,
 	): Promise<void> {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', { chat, listModels: async () => [] });
+		const registration = registry.register('client-1', servingConnection(chat));
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await service.start();
 		try {
@@ -41,8 +53,8 @@ suite('ByokLmProxyService', () => {
 		}
 	}
 
-	function chatUrl(handle: IByokLmProxyHandle, vendor: string): string {
-		return `${handle.providerBaseUrl(vendor)}/chat/completions`;
+	function responsesUrl(handle: IByokLmProxyHandle, vendor: string): string {
+		return `${handle.providerBaseUrl(vendor)}/responses`;
 	}
 
 	function authHeaders(handle: IByokLmProxyHandle): Record<string, string> {
@@ -51,7 +63,7 @@ suite('ByokLmProxyService', () => {
 
 	test('serves the unauthenticated health check', async () => {
 		await withProxy(
-			async () => ({ content: 'unused' }),
+			async () => ({ output: [] }),
 			async (handle) => {
 				const response = await fetch(`${handle.baseUrl}/`);
 				assert.strictEqual(response.status, 200);
@@ -62,12 +74,12 @@ suite('ByokLmProxyService', () => {
 
 	test('rejects requests without a valid bearer token', async () => {
 		await withProxy(
-			async () => ({ content: 'unused' }),
+			async () => ({ output: [] }),
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme'), {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ model: 'm', messages: [] }),
+					body: JSON.stringify({ model: 'm', input: [] }),
 				});
 				assert.strictEqual(response.status, 401);
 			},
@@ -76,12 +88,12 @@ suite('ByokLmProxyService', () => {
 
 	test('rejects a nonce-only bearer token (no session id)', async () => {
 		await withProxy(
-			async () => ({ content: 'unused' }),
+			async () => ({ output: [] }),
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme'), {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}` },
-					body: JSON.stringify({ model: 'm', messages: [] }),
+					body: JSON.stringify({ model: 'm', input: [] }),
 				});
 				assert.strictEqual(response.status, 401);
 			},
@@ -90,9 +102,9 @@ suite('ByokLmProxyService', () => {
 
 	test('returns 404 for an authenticated but unknown route', async () => {
 		await withProxy(
-			async () => ({ content: 'unused' }),
+			async () => ({ output: [] }),
 			async (handle) => {
-				const response = await fetch(`${handle.baseUrl}/v/acme/responses`, {
+				const response = await fetch(`${handle.baseUrl}/v/acme/chat/completions`, {
 					method: 'POST',
 					headers: authHeaders(handle),
 					body: '{}',
@@ -102,40 +114,199 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
-	test('forwards a chat request to the bridge and streams an SSE completion', async () => {
+	test('forwards a Responses request to the bridge and returns JSON by default', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(
 			async (request) => {
 				captured = request;
-				return { content: 'hello from byok' };
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'hello from byok' }] }] };
 			},
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme'), {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'claude', messages: [{ role: 'user', content: 'hi' }] }),
+					body: JSON.stringify({ model: 'claude', input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }] }),
 				});
 				assert.strictEqual(response.status, 200);
-				assert.strictEqual(response.headers.get('content-type'), 'text/event-stream');
-				const text = await response.text();
-				assert.ok(text.includes('hello from byok'), `expected content in SSE: ${text}`);
-				assert.ok(text.trimEnd().endsWith('data: [DONE]'));
+				assert.strictEqual(response.headers.get('content-type'), 'application/json');
+				const body = await response.json() as { output: Array<{ content: Array<{ text: string }> }> };
+				assert.strictEqual(body.output[0].content[0].text, 'hello from byok');
 			},
 		);
 		assert.strictEqual(captured?.vendor, 'acme');
 		assert.strictEqual(captured?.modelId, 'claude');
-		assert.deepStrictEqual(captured?.messages, [{ role: 'user', content: 'hi', toolCalls: undefined, toolCallId: undefined }]);
+		assert.deepStrictEqual(captured?.input, [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }]);
+	});
+
+	test('forwards image input on the initial and subsequent turns', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const statuses: number[] = [];
+		const imageMessage = {
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'What is in this image?' },
+				{ type: 'input_image', image_url: 'data:image/png;base64,iVBORw0KGgo=' },
+			],
+		};
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return { output: [] };
+			},
+			async handle => {
+				for (const input of [
+					[imageMessage],
+					[imageMessage, { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Try again without a new image.' }] }],
+				]) {
+					const response = await fetch(responsesUrl(handle, 'gemini'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'gemini-3.6-flash', input }),
+					});
+					statuses.push(response.status);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({ statuses, input: captured.map(request => request.input) }, {
+			statuses: [200, 200],
+			input: [
+				[
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'What is in this image?' },
+							{ type: 'image', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+						],
+					},
+				],
+				[
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'What is in this image?' },
+							{ type: 'image', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+						],
+					},
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'Try again without a new image.' },
+						],
+					},
+				],
+			],
+		});
+	});
+
+	test('rejects image URLs that cannot be forwarded as inline data', async () => {
+		await withProxy(
+			async () => ({ output: [] }),
+			async handle => {
+				const responses: Array<{ status: number; body: unknown }> = [];
+				for (const imageUrl of ['https://example.com/image.png', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,not valid']) {
+					const response = await fetch(responsesUrl(handle, 'gemini'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({
+							model: 'gemini-3.6-flash',
+							input: [{
+								type: 'message',
+								role: 'user',
+								content: [{ type: 'input_image', image_url: imageUrl }],
+							}],
+						}),
+					});
+					responses.push({ status: response.status, body: await response.json() });
+				}
+
+				assert.deepStrictEqual(responses, [
+					{
+						status: 400,
+						body: {
+							error: {
+								message: 'Unsupported input[0].content[0].image_url',
+								type: 'invalid_request_error',
+							},
+						},
+					},
+					{
+						status: 400,
+						body: {
+							error: {
+								message: 'Unsupported input[0].content[0].image_url MIME type \'image/svg+xml\'',
+								type: 'invalid_request_error',
+							},
+						},
+					},
+					{
+						status: 400,
+						body: {
+							error: {
+								message: 'Invalid input[0].content[0].image_url',
+								type: 'invalid_request_error',
+							},
+						},
+					},
+				]);
+			},
+		);
+	});
+
+	test('forwards custom tool call history with freeform input', async () => {
+		let captured: IByokLmChatRequest | undefined;
+		await withProxy(
+			async (request) => {
+				captured = request;
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async (handle) => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({
+						model: 'm',
+						input: [
+							{
+								type: 'custom_tool_call',
+								call_id: 'call_1',
+								name: 'apply_patch',
+								input: '*** Begin Patch\n*** End Patch',
+							},
+							{ type: 'custom_tool_call_output', call_id: 'call_1', output: 'Done!' },
+						],
+					}),
+				});
+				assert.strictEqual(response.status, 200);
+				await response.text();
+			},
+		);
+		assert.deepStrictEqual(captured?.input, [
+			{
+				type: 'custom_tool_call',
+				callId: 'call_1',
+				name: 'apply_patch',
+				input: '*** Begin Patch\n*** End Patch',
+			},
+			{ type: 'custom_tool_call_output', callId: 'call_1', output: 'Done!' },
+		]);
 	});
 
 	test('decodes a url-encoded vendor path segment', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(
-			async (request) => { captured = request; return { content: 'ok' }; },
+			async (request) => { captured = request; return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] }; },
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme corp'), {
+				const response = await fetch(responsesUrl(handle, 'acme corp'), {
 					method: 'POST',
 					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'm', messages: [] }),
+					body: JSON.stringify({ model: 'm', input: [] }),
 				});
 				assert.strictEqual(response.status, 200);
 				await response.text();
@@ -146,14 +317,14 @@ suite('ByokLmProxyService', () => {
 
 	test('rejects a vendor that decodes to a multi-segment path (%2F)', async () => {
 		await withProxy(
-			async () => ({ content: 'unused' }),
+			async () => ({ output: [] }),
 			async (handle) => {
 				// `encodeURIComponent('a/b')` → `a%2Fb`, which survives the
 				// pre-decode segment check but decodes back into `a/b`.
-				const response = await fetch(chatUrl(handle, 'a/b'), {
+				const response = await fetch(responsesUrl(handle, 'a/b'), {
 					method: 'POST',
 					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'm', messages: [] }),
+					body: JSON.stringify({ model: 'm', input: [] }),
 				});
 				assert.strictEqual(response.status, 404);
 			},
@@ -162,16 +333,16 @@ suite('ByokLmProxyService', () => {
 
 	test('streams assistant tool calls as OpenAI tool_call deltas', async () => {
 		await withProxy(
-			async () => ({ content: '', toolCalls: [{ id: 'call_1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' }] }),
+			async () => ({ output: [{ type: 'function_call', callId: 'call_1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' }] }),
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme'), {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'm', messages: [{ role: 'user', content: 'weather?' }] }),
+					body: JSON.stringify({ model: 'm', input: 'weather?', stream: true }),
 				});
 				const text = await response.text();
-				assert.ok(text.includes('"tool_calls"'), `expected tool_calls in SSE: ${text}`);
-				assert.ok(text.includes('"finish_reason":"tool_calls"'), `expected tool_calls finish reason: ${text}`);
+				assert.ok(text.includes('"type":"function_call"'), `expected function_call in SSE: ${text}`);
+				assert.ok(text.includes('event: response.completed'), `expected completed response: ${text}`);
 				assert.ok(text.includes('getWeather'));
 			},
 		);
@@ -179,12 +350,12 @@ suite('ByokLmProxyService', () => {
 
 	test('returns a 502 when the bridge reports an error', async () => {
 		await withProxy(
-			async () => ({ content: '', error: 'model unavailable' }),
+			async () => ({ output: [], error: 'model unavailable' }),
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme'), {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'm', messages: [] }),
+					body: JSON.stringify({ model: 'm', input: [] }),
 				});
 				assert.strictEqual(response.status, 502);
 				const body = await response.json() as { error?: { message?: string } };
@@ -197,10 +368,10 @@ suite('ByokLmProxyService', () => {
 		await withProxy(
 			async () => { throw new Error('bridge exploded'); },
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme'), {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'm', messages: [] }),
+					body: JSON.stringify({ model: 'm', input: [] }),
 				});
 				assert.strictEqual(response.status, 502);
 				const body = await response.json() as { error?: { message?: string } };
@@ -211,9 +382,9 @@ suite('ByokLmProxyService', () => {
 
 	test('rejects a malformed JSON body with 400', async () => {
 		await withProxy(
-			async () => ({ content: 'unused' }),
+			async () => ({ output: [] }),
 			async (handle) => {
-				const response = await fetch(chatUrl(handle, 'acme'), {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: authHeaders(handle),
 					body: 'not json',
@@ -228,10 +399,10 @@ suite('ByokLmProxyService', () => {
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await service.start();
 		try {
-			const response = await fetch(chatUrl(handle, 'acme'), {
+			const response = await fetch(responsesUrl(handle, 'acme'), {
 				method: 'POST',
 				headers: authHeaders(handle),
-				body: JSON.stringify({ model: 'm', messages: [] }),
+				body: JSON.stringify({ model: 'm', input: [] }),
 			});
 			assert.strictEqual(response.status, 503);
 		} finally {
@@ -243,25 +414,23 @@ suite('ByokLmProxyService', () => {
 	test('routes requests to a serving window and excludes a non-serving one', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const calls: string[] = [];
-		// The serving window (editor): enumerates models and answers chat.
-		const regServing = registry.register('editor', {
-			chat: async () => { calls.push('serving'); return { content: 'from serving' }; },
-			listModels: async () => [{ vendor: 'acme', id: 'claude' }],
-		});
-		// A non-serving window (connected without a BYOK handler): its bridge
-		// rejects, so it must never be picked for routing even though it is connected.
+		// The serving window (editor): pushes models and answers chat.
+		const regServing = registry.register('editor', servingConnection(
+			async () => { calls.push('serving'); return { output: [{ type: 'message', content: [{ type: 'text', text: 'from serving' }] }] }; },
+			[{ vendor: 'acme', id: 'claude' }],
+		));
+		// A non-serving window (connected without a BYOK handler): it never pushes
+		// a snapshot, so it must never be picked for routing even though connected.
 		const regNonServing = registry.register('no-handler', {
-			chat: async () => { calls.push('no-handler'); return { content: 'from non-serving' }; },
-			listModels: async () => { throw new Error('no BYOK handler'); },
+			chat: async () => { calls.push('no-handler'); return { output: [{ type: 'message', content: [{ type: 'text', text: 'from non-serving' }] }] }; },
+			onDidChangeModels: Event.None,
 		});
 		const service = new ByokLmProxyService(new NullLogService(), registry);
-		// Warm the cache so the serving window is known before routing.
-		await registry.listModels();
 		const handle = await service.start();
 		try {
-			const res = await fetch(chatUrl(handle, 'acme'), {
+			const res = await fetch(responsesUrl(handle, 'acme'), {
 				method: 'POST', headers: authHeaders(handle),
-				body: JSON.stringify({ model: 'claude', messages: [] }),
+				body: JSON.stringify({ model: 'claude', input: [] }),
 			});
 			assert.deepStrictEqual({
 				routedToServing: (await res.text()).includes('from serving'),
@@ -277,7 +446,7 @@ suite('ByokLmProxyService', () => {
 
 	test('rebinds with a fresh nonce after every handle is disposed', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', { chat: async () => ({ content: 'ok' }), listModels: async () => [] });
+		const registration = registry.register('client-1', servingConnection(async () => ({ output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] })));
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const first = await service.start();
 		const firstNonce = first.nonce;

@@ -10,7 +10,7 @@ import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner } from '../../../../base/common/actions.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { basename, dirname, extUriBiasedIgnorePathCase, relativePath } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -32,13 +32,21 @@ import { IChangesViewService } from '../common/changesViewService.js';
 
 const $ = dom.$;
 
+function getChangesFileUri(change: ISessionFileChange): URI {
+	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
+}
+
+export function isChangesFileResource(change: ISessionFileChange, resource: URI): boolean {
+	return isEqual(change.originalUri, resource)
+		|| isEqual(change.modifiedUri, resource)
+		|| isEqual(getChangesFileUri(change), resource);
+}
+
 export function toIChangesFileItem(changes: readonly ISessionFileChange[]): IChangesFileItem[] {
 	return changes.map(change => {
 		const isAddition = change.originalUri === undefined;
 		const isDeletion = change.modifiedUri === undefined;
-		const uri = isIChatSessionFileChange2(change)
-			? change.uri
-			: change.modifiedUri;
+		const uri = getChangesFileUri(change);
 
 		return {
 			type: 'file',

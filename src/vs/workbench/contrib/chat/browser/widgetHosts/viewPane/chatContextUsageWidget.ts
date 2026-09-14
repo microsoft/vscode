@@ -161,7 +161,6 @@ export class ChatContextUsageWidget extends Disposable {
 	 * request is sent. The usage numerator still comes from the last response.
 	 */
 	private _selectedModelId: string | undefined;
-	private _sessionCost: number = 0;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
 	private _chatWidget: IChatWidget | undefined;
@@ -307,13 +306,11 @@ export class ChatContextUsageWidget extends Disposable {
 	 * Updates the widget with the latest request/response data.
 	 * The model is retrieved from the request's modelId.
 	 * @param lastRequest The last request in the session
-	 * @param sessionCost Total copilot credits consumed across all turns
 	 */
-	update(lastRequest: IChatRequestModel | undefined, sessionCost: number = 0): void {
+	update(lastRequest: IChatRequestModel | undefined): void {
 		this._lastRequestDisposable.clear();
 		this._currentResponse = undefined;
 		this._currentModelId = undefined;
-		this._sessionCost = sessionCost;
 
 		if (!lastRequest) {
 			// New/empty chat session clear everything
@@ -342,6 +339,13 @@ export class ChatContextUsageWidget extends Disposable {
 		this._lastRequestDisposable.value = response.onDidChange(() => {
 			this.updateFromResponse(response, modelId);
 		});
+	}
+
+	updateSessionCost(sessionCost: number): void {
+		const data = this._currentData.get();
+		if (data && data.sessionCost !== sessionCost) {
+			this.render({ ...data, sessionCost });
+		}
 	}
 
 	/**
@@ -449,7 +453,7 @@ export class ChatContextUsageWidget extends Disposable {
 		this.render({
 			usedTokens, completionTokens, totalContextWindow,
 			percentage, outputBufferPercentage,
-			promptTokenDetails, sessionCost: this._sessionCost,
+			promptTokenDetails, sessionCost: response.session.sessionCost,
 		});
 		this.show();
 	}

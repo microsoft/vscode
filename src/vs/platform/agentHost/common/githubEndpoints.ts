@@ -25,6 +25,13 @@ export interface IGitHubEndpoints {
 	readonly enterpriseHost: string | undefined;
 }
 
+/**
+ * The github.com Copilot API host. Distinct from {@link IGitHubEndpoints.apiBaseUri}
+ * (`api.github.com`): enterprise installs override this per user via the Copilot token's
+ * `endpoints.api`, which is not derivable from the enterprise URI.
+ */
+export const GITHUB_DOT_COM_COPILOT_API_BASE_URI = 'https://api.githubcopilot.com';
+
 /** Canonical github.com endpoints, used when no enterprise URI is configured. */
 const GITHUB_DOT_COM_ENDPOINTS: IGitHubEndpoints = {
 	apiBaseUri: 'https://api.github.com',
@@ -79,6 +86,22 @@ export function deriveGitHubEndpoints(enterpriseUri: string | undefined): IGitHu
 		oauthServer: `${scheme}://${authority}/login/oauth`,
 		enterpriseHost: authority,
 	};
+}
+
+/**
+ * Derives the official GitHub MCP server URL from the per-user Copilot API
+ * endpoint returned by `/copilot_internal/user`.
+ */
+export function gitHubMcpServerUrl(copilotApiBaseUri: string | undefined): string | undefined {
+	try {
+		const uri = URI.parse(copilotApiBaseUri ?? GITHUB_DOT_COM_COPILOT_API_BASE_URI, true);
+		if (!uri.authority) {
+			return undefined;
+		}
+		return uri.with({ path: '/mcp', query: null, fragment: null }).toString(true);
+	} catch {
+		return undefined;
+	}
 }
 
 /**

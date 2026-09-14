@@ -16,9 +16,10 @@ import { AuxiliaryBarPart } from './auxiliaryBarPart.js';
  */
 export class SinglePaneAuxiliaryBarPart extends AuxiliaryBarPart {
 
-	protected override createTitleArea(): HTMLElement | undefined {
-		// No title strip; the single tab bar lives on the editor part.
-		return undefined;
+	override create(parent: HTMLElement): void {
+		// Clear `hasTitle` so PartLayout does not reserve title height (there is no title strip).
+		this.options = { ...this.options, hasTitle: false };
+		super.create(parent);
 	}
 
 	protected override shouldShowCompositeBar(): boolean {

@@ -7,9 +7,11 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { DiffHistoryOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { IXtabHistoryEditEntry, IXtabHistoryEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryDiffHunk, IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { groupAdjacentBy, pushMany } from '../../../util/vs/base/common/arrays';
 import { toUniquePath } from './promptCraftingUtils';
+
+export const REJECTED_EDIT_TAG = '<|rejected/|>';
 
 export interface EditDiffHistoryResult {
 	readonly promptPiece: string;
@@ -23,10 +25,11 @@ export function getEditDiffHistory(
 	docsInPrompt: Set<DocumentId>,
 	computeTokens: (s: string) => number,
 	{ onlyForDocsInPrompt, maxTokens, nEntries, useRelativePaths }: DiffHistoryOptions,
+	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 ): EditDiffHistoryResult {
 	const workspacePath = useRelativePaths ? activeDoc.workspaceRoot?.path : undefined;
 
-	const reversedHistory = xtabHistory.slice().reverse();
+	const reversedHistory = [...xtabHistory, ...rejectedEditHistory].sort((left, right) => right.ordinal - left.ordinal);
 
 	let tokenBudget = maxTokens;
 	let totalTokensConsumed = 0;
@@ -54,6 +57,12 @@ export function getEditDiffHistory(
 
 		const tokenCount = computeTokens(docDiff);
 
+		// Skip large rejection diffs rather than starving the diff history.
+		// TODO experiment: truncate the diff to fit within the token budget.
+		if (tokenCount > tokenBudget && entry.kind === 'rejectedEdit') {
+			continue;
+		}
+
 		tokenBudget -= tokenCount;
 
 		if (tokenBudget < 0) {
@@ -76,11 +85,10 @@ export function getEditDiffHistory(
 	return { promptPiece, nDiffs: allDiffs.length, totalTokens: totalTokensConsumed };
 }
 
-function generateDocDiff(entry: IXtabHistoryEditEntry, workspacePath: string | undefined): string | null {
-	const docDiffLines: string[] = [];
-
+function getEditDiffHunks(entry: IXtabHistoryEditEntry): IXtabHistoryDiffHunk[] {
 	const lineEdit = RootedEdit.toLineEdit(entry.edit);
 	const baseLines = entry.edit.base.getLines();
+	const hunks: IXtabHistoryDiffHunk[] = [];
 
 	// group edits into hunks of adjacent edits (eg if line 3 and line 4 are both edited, they should be in the same hunk, but if line 3 and line 5 are edited, they should be in different hunks)
 	for (const lineEditGroup of groupAdjacentBy(lineEdit.replacements, (left, right) => left.lineRange.endLineNumberExclusive >= right.lineRange.startLineNumber)) {
@@ -113,28 +121,32 @@ function generateDocDiff(entry: IXtabHistoryEditEntry, workspacePath: string | u
 			continue;
 		}
 
-		const startLineNumber = lineEditGroup[0].lineRange.startLineNumber - 1;
-
-		docDiffLines.push(`@@ -${startLineNumber},${oldLines.length} +${startLineNumber},${newLines.length} @@`);
-		pushMany(docDiffLines, oldLines.map(x => `-${x}`));
-		pushMany(docDiffLines, newLines.map(x => `+${x}`));
+		hunks.push({
+			startLineNumber: lineEditGroup[0].lineRange.startLineNumber - 1,
+			oldLines,
+			newLines,
+		});
 	}
 
-	if (docDiffLines.length === 0) {
+	return hunks;
+}
+
+function generateDocDiff(entry: IXtabHistoryEditEntry | IXtabHistoryRejectedEditEntry, workspacePath: string | undefined): string | null {
+	const hunks = entry.kind === 'rejectedEdit' ? entry.hunks : getEditDiffHunks(entry);
+	if (hunks.length === 0) {
 		return null;
 	}
 
 	const uniquePath = toUniquePath(entry.docId, workspacePath);
-
-	const docDiffArr = [
+	const docDiffLines = [
 		`--- ${uniquePath}`,
 		`+++ ${uniquePath}`,
 	];
-
-	pushMany(docDiffArr, docDiffLines);
-
-	const docDiff = docDiffArr.join('\n');
-
-	return docDiff;
+	const hunkAnnotation = entry.kind === 'rejectedEdit' ? ` ${REJECTED_EDIT_TAG}` : '';
+	for (const hunk of hunks) {
+		docDiffLines.push(`@@ -${hunk.startLineNumber},${hunk.oldLines.length} +${hunk.startLineNumber},${hunk.newLines.length} @@${hunkAnnotation}`);
+		pushMany(docDiffLines, hunk.oldLines.map(line => `-${line}`));
+		pushMany(docDiffLines, hunk.newLines.map(line => `+${line}`));
+	}
+	return docDiffLines.join('\n');
 }
-

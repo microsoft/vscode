@@ -5,11 +5,17 @@
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { Buffer } from 'node:buffer';
 import { createRequire } from 'node:module';
 import type { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
 const isWindows = process.platform === 'win32';
+
+// Avoid 64 KiB pooled backing stores crossing Mojo's shared-memory threshold.
+if (process.platform === 'linux') {
+	Buffer.poolSize = 8 * 1024;
+}
 
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 Error.stackTraceLimit = 100;

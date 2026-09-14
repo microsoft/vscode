@@ -19,7 +19,7 @@ const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const STATUS_ACTIVE_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY = 'github.copilot.otel.enabledExplicitly';
 const CHAT_STATUS_ITEM_ID = 'copilot.otelStatus';
-const DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
+const DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 
 /**
  * Lifecycle contribution that logs OTel status, wires the SQLite store,

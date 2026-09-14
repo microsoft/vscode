@@ -42,13 +42,15 @@ suite('ReadFile', () => {
 		const longLine = 'x'.repeat(2500);
 		const longLinesContent = `normal line\n${longLine}\nanother normal line\n${longLine}`;
 		const longLinesDoc = createTextDocumentData(URI.file('/workspace/longlines.ts'), longLinesContent, 'ts').document;
+		const surrogateBoundaryLine = 'x'.repeat(1999) + '\u{1F6E1}' + 'tail';
+		const surrogateBoundaryDoc = createTextDocumentData(URI.file('/workspace/surrogate-boundary.ts'), surrogateBoundaryLine, 'ts').document;
 
 		const services = createExtensionUnitTestingServices();
 		services.define(IWorkspaceService, new SyncDescriptor(
 			TestWorkspaceService,
 			[
 				[URI.file('/workspace')],
-				[testDoc, emptyDoc, whitespaceDoc, singleLineDoc, largeDoc, longLinesDoc],
+				[testDoc, emptyDoc, whitespaceDoc, singleLineDoc, largeDoc, longLinesDoc, surrogateBoundaryDoc],
 			]
 		));
 		accessor = services.createTestingAccessor();
@@ -206,6 +208,18 @@ suite('ReadFile', () => {
 			for (const l of longLines) {
 				expect(l.length).toBeLessThan(2500);
 			}
+		});
+
+		test('long line truncation does not split surrogate pairs', async () => {
+			const toolsService = accessor.get(IToolsService);
+			const input: IReadFileParamsV2 = {
+				filePath: '/workspace/surrogate-boundary.ts'
+			};
+			const result = await toolsService.invokeTool(ToolName.ReadFile, { input, toolInvocationToken: null as never }, CancellationToken.None);
+			const resultString = await toolResultToString(accessor, result);
+			const truncatedLine = resultString.split('\n').find(line => line.endsWith(' [truncated]'));
+
+			expect(truncatedLine).toBe('x'.repeat(1999) + ' [truncated]');
 		});
 
 		test('read file with offset beyond file line count should throw error', async () => {

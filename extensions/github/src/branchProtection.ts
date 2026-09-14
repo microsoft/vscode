@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
+import { Disposable, EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
 import { AuthenticationError, OctokitService } from './auth.js';
 import type { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.d.ts';
@@ -51,7 +51,12 @@ const REPOSITORY_RULESETS_QUERY = `
 export class GitHubBranchProtectionProviderManager {
 
 	private readonly disposables = new DisposableStore();
-	private readonly providerDisposables = new DisposableStore();
+
+	/**
+	 * Branch protection providers, keyed by repository root. Entries are disposed
+	 * when the repository is closed so that closed repositories are not retained.
+	 */
+	private readonly providers = new Map<string, Disposable>();
 
 	private _enabled = false;
 	private set enabled(enabled: boolean) {
@@ -61,10 +66,10 @@ export class GitHubBranchProtectionProviderManager {
 
 		if (enabled) {
 			for (const repository of this.gitAPI.repositories) {
-				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger, this.telemetryReporter)));
+				this.registerProvider(repository);
 			}
 		} else {
-			this.providerDisposables.dispose();
+			this.disposeProviders();
 		}
 
 		this._enabled = enabled;
@@ -78,9 +83,12 @@ export class GitHubBranchProtectionProviderManager {
 		private readonly telemetryReporter: TelemetryReporter) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
-				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri,
-					new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger, this.telemetryReporter)));
+				this.registerProvider(repository);
 			}
+		}));
+
+		this.disposables.add(this.gitAPI.onDidCloseRepository(repository => {
+			this.disposeProvider(repository.rootUri.toString());
 		}));
 
 		this.disposables.add(workspace.onDidChangeConfiguration(e => {
@@ -90,6 +98,32 @@ export class GitHubBranchProtectionProviderManager {
 		}));
 
 		this.updateEnablement();
+	}
+
+	private registerProvider(repository: Repository): void {
+		const key = repository.rootUri.toString();
+		this.disposeProvider(key);
+
+		const provider = new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger, this.telemetryReporter);
+		const registration = this.gitAPI.registerBranchProtectionProvider(repository.rootUri, provider);
+
+		this.providers.set(key, new Disposable(() => {
+			registration.dispose();
+			provider.dispose();
+		}));
+	}
+
+	private disposeProvider(key: string): void {
+		this.providers.get(key)?.dispose();
+		this.providers.delete(key);
+	}
+
+	private disposeProviders(): void {
+		for (const provider of this.providers.values()) {
+			provider.dispose();
+		}
+
+		this.providers.clear();
 	}
 
 	private updateEnablement(): void {

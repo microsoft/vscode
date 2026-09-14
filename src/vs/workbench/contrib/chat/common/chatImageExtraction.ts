@@ -189,17 +189,31 @@ async function extractImageFromInlineReference(
 }
 
 export function coerceImageBuffer(value: unknown): Uint8Array | undefined {
-	return value instanceof Uint8Array
-		? value
-		: value instanceof ArrayBuffer
-			? new Uint8Array(value)
-			: (value && typeof value === 'object' && !Array.isArray(value))
-				? new Uint8Array(
-					Object.keys(value as Record<string, number>)
-						.sort((a, b) => Number(a) - Number(b))
-						.map(key => (value as Record<string, number>)[key])
-				)
-				: undefined;
+	if (value instanceof Uint8Array) {
+		return value;
+	}
+	if (value instanceof ArrayBuffer) {
+		return new Uint8Array(value);
+	}
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+
+	const record = value as Record<string, unknown>;
+	const keys = Object.keys(record).sort((a, b) => Number(a) - Number(b));
+	if (keys.length === 0) {
+		return undefined;
+	}
+
+	const result = new Uint8Array(keys.length);
+	for (let index = 0; index < keys.length; index++) {
+		const byte = record[keys[index]];
+		if (keys[index] !== String(index) || typeof byte !== 'number' || !Number.isInteger(byte) || byte < 0 || byte > 255) {
+			return undefined;
+		}
+		result[index] = byte;
+	}
+	return result;
 }
 
 /**

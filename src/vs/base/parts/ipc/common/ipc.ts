@@ -640,7 +640,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
 					doRequest();
-				});
+				}, () => { });
 			}
 
 			const cancel = () => {
@@ -693,7 +693,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					uninitializedPromise.then(() => {
 						uninitializedPromise = null;
 						doRequest();
-					});
+					}, () => { });
 				}
 			},
 			onDidRemoveLastListener: () => {
@@ -1053,7 +1053,10 @@ export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 
 		listen<T>(event: string, arg?: any): Event<T> {
 			const relay = new Relay<any>();
-			promise.then(c => relay.input = c.listen(event, arg));
+			void promise.then(
+				c => relay.input = c.listen(event, arg),
+				() => relay.dispose(),
+			);
 			return relay.event;
 		}
 	} as T;
@@ -1146,11 +1149,17 @@ export namespace ProxyChannel {
 		 * retained indefinitely on a channel that is never listened to.
 		 */
 		disableEventBuffering?: boolean;
+
+		/**
+		 * Events that should subscribe lazily and not replay emissions before the first IPC listener.
+		 */
+		unbufferedEvents?: readonly string[];
 	}
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options?.disableMarshalling;
+		const unbufferedEvents = options?.unbufferedEvents ? new Set(options.unbufferedEvents) : undefined;
 
 		const createServiceEvent = (key: string): Event<unknown> => {
 			const serviceEvent = handler[key] as Event<unknown>;
@@ -1164,7 +1173,7 @@ export namespace ProxyChannel {
 		// still need to check later (see below).
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
-			if (propertyIsEvent(key)) {
+			if (propertyIsEvent(key) && !unbufferedEvents?.has(key)) {
 				mapEventNameToEvent.set(key, createServiceEvent(key));
 			}
 		}
@@ -1184,6 +1193,10 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
+						if (unbufferedEvents?.has(event)) {
+							return handler[event] as Event<T>;
+						}
+
 						mapEventNameToEvent.set(event, createServiceEvent(event));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
@@ -1241,6 +1254,11 @@ export namespace ProxyChannel {
 					// Check for predefined values
 					if (options?.properties?.has(propKey)) {
 						return options.properties.get(propKey);
+					}
+
+					// Answering `then` makes this proxy a thenable, so `await` would forward it and never settle.
+					if (propKey === 'then') {
+						return undefined;
 					}
 
 					// Dynamic Event

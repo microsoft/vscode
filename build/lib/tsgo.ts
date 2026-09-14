@@ -7,12 +7,22 @@ import ansiColors from 'ansi-colors';
 import * as cp from 'child_process';
 import es from 'event-stream';
 import fancyLog from 'fancy-log';
+import { createRequire } from 'module';
 import * as path from 'path';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 const timestampRegex = /^\[\d{2}:\d{2}:\d{2}\]\s*/;
+
+/**
+ * Absolute path to the TypeScript 7 (native) compiler entrypoint. TS7 is
+ * installed under the `@typescript/native` alias, a package name that only
+ * exists at the repository root and never collides with the `typescript`
+ * (<= 6.x) that individual extensions install locally. Resolving it explicitly
+ * and invoking it via `node` guarantees we always run TS7, regardless of the
+ * node_modules layout of the project being compiled.
+ */
+const ts7TscPath = path.join(path.dirname(createRequire(import.meta.url).resolve('@typescript/native/package.json')), 'bin', 'tsc');
 
 export function spawnTsgo(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): Promise<void> {
 	function runReporter(output: string) {
@@ -24,16 +34,15 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 		}
 	}
 
-	const args = ['tsgo', '--project', projectPath, '--pretty', 'false', '--incremental'];
+	const args = [ts7TscPath, '--project', projectPath, '--pretty', 'false', '--incremental'];
 	if (config.noEmit) {
 		args.push('--noEmit');
 	} else {
 		args.push('--sourceMap', '--inlineSources');
 	}
-	const child = cp.spawn(npx, args, {
+	const child = cp.spawn(process.execPath, args, {
 		cwd: root,
-		stdio: ['ignore', 'pipe', 'pipe'],
-		shell: true
+		stdio: ['ignore', 'pipe', 'pipe']
 	});
 
 	let stdoutData = '';

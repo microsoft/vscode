@@ -8,17 +8,23 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	color: var(--vscode-agentsPanel-foreground);
 	background: var(--vscode-editor-background);
-	cursor: pointer;
-	touch-action: manipulation;
+	user-select: none;
 }
 
-.empty-file-editor:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.empty-file-editor-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: var(--vscode-spacing-size160);
+	padding: 20px;
+	max-width: 280px;
 }
 
-.empty-file-editor-placeholder {
-	color: var(--vscode-descriptionForeground);
+.empty-file-editor-actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-top: 2px;
 }

@@ -23,7 +23,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
+import { IRenderFileWidgetsOptions, renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from './chatMarkdownContentPart.js';
@@ -310,6 +310,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	footerBanner?: HTMLElement;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: unknown; partType: string; partSource?: string };
+	fileWidgetOptions?: IRenderFileWidgetsOptions;
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
@@ -322,6 +323,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private _buttonsDomNode: HTMLElement;
+	private _buttons: { readonly label: string; readonly widget: IButton }[] = [];
 
 	setShowButtons(showButton: boolean): void {
 		this.domNode.classList.toggle('hideButtons', !showButton);
@@ -331,6 +333,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	private readonly messageScrollable: DomScrollableElement;
 	private readonly messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly markdownContentPart = this._register(new MutableDisposable<ChatMarkdownContentPart>());
+	private readonly fileWidgetOptions: IRenderFileWidgetsOptions | undefined;
 
 	public get codeblocksPartId() {
 		return this.markdownContentPart.value?.codeblocksPartId;
@@ -352,6 +355,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		super();
 
 		const { title, subtitle, message, buttons, icon, footerBanner } = options;
+		this.fileWidgetOptions = options.fileWidgetOptions;
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget2@root', [
@@ -424,9 +428,14 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	updateButtons(buttons: IChatConfirmationButton<T>[]) {
+		const focusedButton = this._buttons.find(button => button.widget.hasFocus());
+		const focusedDropdown = focusedButton?.widget instanceof ButtonWithDropdown && focusedButton.widget.dropdownButton.hasFocus();
+		this._buttons = [];
+
 		while (this._buttonsDomNode.children.length > 0) {
 			this._buttonsDomNode.children[0].remove();
 		}
+
 		for (const buttonData of buttons) {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
@@ -457,11 +466,19 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			}
 
 			this._register(button);
+			this._buttons.push({ label: buttonData.label, widget: button });
 			button.label = buttonData.label;
 			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
 				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
 			}
+		}
+
+		const buttonToFocus = focusedButton && this._buttons.find(button => button.label === focusedButton.label)?.widget;
+		if (focusedDropdown && buttonToFocus instanceof ButtonWithDropdown) {
+			buttonToFocus.dropdownButton.focus();
+		} else {
+			buttonToFocus?.focus();
 		}
 	}
 
@@ -486,7 +503,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 					horizontalPadding: 6,
 				} satisfies IChatMarkdownContentPartOptions,
 			));
-			renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store, this.fileWidgetOptions);
 
 			this.markdownContentPart.value = part;
 			element = part.domNode;

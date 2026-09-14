@@ -15,7 +15,7 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
-	padding: 0 0 0 20px;
+	padding: 0 0 0 var(--vscode-spacing-size160);
 	overflow: hidden;
 	display: flex;
 }
@@ -72,7 +72,7 @@
 }
 
 .extension-list-item > .details > .header-container > .header > .name {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -202,7 +202,7 @@
 .extension-list-item > .details > .footer .publisher > .publisher-name {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .monaco-list-row.selected .extension-list-item > .details > .footer .publisher > .publisher-name{

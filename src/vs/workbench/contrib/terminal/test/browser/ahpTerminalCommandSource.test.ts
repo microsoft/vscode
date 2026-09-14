@@ -308,6 +308,24 @@ suite('AhpTerminalCommandSource', () => {
 		assert.strictEqual(executing.getRawOutput(), 'hello world');
 	});
 
+	test('streaming data arriving between executed and finished is kept as the command output', () => {
+		const source = createSource();
+
+		// The server dispatches data in stream order relative to command
+		// events, so a command's output arrives while the command is still
+		// executing and must survive as its output after it finishes.
+		simulateMark('cmd-1', AhpCommandMarkKind.Executed);
+		onCommandExecuted.fire({ commandId: 'cmd-1', commandLine: 'echo hi', timestamp: 1000 });
+
+		onWillData.fire('hi\r\n');
+
+		simulateMark('cmd-1', AhpCommandMarkKind.End);
+		onCommandFinished.fire({ commandId: 'cmd-1', exitCode: 0, durationMs: 5 });
+
+		const completed = source.commands[0] as AhpTerminalCommand;
+		assert.strictEqual(completed.getOutput(), 'hi\r\n');
+	});
+
 	test('streaming data is NOT appended to replayed commands', () => {
 		const source = createSource();
 

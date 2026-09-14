@@ -146,7 +146,7 @@ export function getTelemetryLevel(configurationService: IConfigurationService): 
 	}
 
 	// Maps new telemetry setting to a telemetry level
-	switch (newConfig ?? TelemetryConfiguration.ON) {
+	switch (newConfig === undefined ? TelemetryConfiguration.ON : newConfig) {
 		case TelemetryConfiguration.ON:
 			return TelemetryLevel.USAGE;
 		case TelemetryConfiguration.ERROR:
@@ -154,6 +154,8 @@ export function getTelemetryLevel(configurationService: IConfigurationService): 
 		case TelemetryConfiguration.CRASH:
 			return TelemetryLevel.CRASH;
 		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
+		default:
 			return TelemetryLevel.NONE;
 	}
 }

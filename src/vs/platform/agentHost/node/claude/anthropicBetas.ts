@@ -4,13 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Mirror of {@link
- * file://./../../../../../extensions/copilot/src/extension/chatSessions/claude/node/claudeLanguageModelServer.ts
- * `extensions/copilot/.../claudeLanguageModelServer.ts`}'s `filterSupportedBetas`
- * + `SUPPORTED_ANTHROPIC_BETAS` allowlist.
- *
- * **Keep in sync with the extension copy.** When CAPI gains support for
- * a new Anthropic beta, add it here. The filter is applied at the
+ * When CAPI gains support for a new Anthropic beta, add it here. The filter is applied at the
  * inbound `POST /v1/messages` boundary on the `anthropic-beta` header
  * before forwarding to {@link ICopilotApiService.messages}.
  */

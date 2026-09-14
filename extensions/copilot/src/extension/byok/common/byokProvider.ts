@@ -64,6 +64,8 @@ export interface BYOKModelCapabilities {
 	vision: boolean;
 	thinking?: boolean;
 	adaptiveThinking?: boolean;
+	minThinkingBudget?: number;
+	maxThinkingBudget?: number;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
@@ -71,13 +73,15 @@ export interface BYOKModelCapabilities {
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
+	defaultReasoningEffort?: string;
 	/**
 	 * Override the body shape used to forward the reasoning effort to the model.
 	 * - `'chat-completions'`: top-level `reasoning_effort` (default for `/chat/completions`).
 	 * - `'responses'`: nested `reasoning.effort` (default for `/responses`).
-	 * If unset the format is inferred from whether the endpoint uses the Responses API.
+	 * - `'messages'`: `output_config.effort` (default for `/messages`).
+	 * If unset the format is inferred from the API path the endpoint uses.
 	 */
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
 export interface BYOKModelRegistry {
@@ -155,6 +159,8 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				vision: !!knownModelInfo?.vision,
 				thinking: !!knownModelInfo?.thinking,
 				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
+				min_thinking_budget: knownModelInfo?.minThinkingBudget,
+				max_thinking_budget: knownModelInfo?.maxThinkingBudget,
 				reasoning_effort: knownModelInfo?.supportsReasoningEffort
 			},
 			tokenizer: TokenizerType.O200K,

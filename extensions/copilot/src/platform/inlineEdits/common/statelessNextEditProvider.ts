@@ -25,7 +25,7 @@ import { PromptSectionTokenCounts } from './dataTypes/promptSectionTokens';
 import { DebugRecorderBookmark } from './debugRecorderBookmark';
 import { InlineEditRequestLogContext } from './inlineEditLogContext';
 import { stringifyChatMessages } from './utils/stringifyChatMessages';
-import { IXtabHistoryEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
 
 export type EditStreaming = AsyncGenerator<StreamedEdit, NoNextEditReason, void>;
 
@@ -121,6 +121,7 @@ export class StatelessNextEditRequest<TFirstEdit = any> {
 		public readonly recordingBookmark: DebugRecorderBookmark | undefined,
 		public readonly recording: LogEntry[] | undefined,
 		public readonly providerRequestStartDateTime: number | undefined,
+		public readonly xtabRejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 	) {
 		assert(documents.length > 0);
 		assert(activeDocumentIdx >= 0 && activeDocumentIdx < documents.length);
@@ -350,7 +351,14 @@ export class StatelessNextEditResult {
 	}
 }
 
-export interface IStatelessNextEditTelemetry {
+export interface IStatelessNextEditModelTelemetry {
+	/** Name of the model that handled the request. */
+	readonly modelName: string | undefined;
+	/** JSON-encoded model configuration from the model service. */
+	readonly modelConfig: string | undefined;
+}
+
+export interface IStatelessNextEditTelemetry extends IStatelessNextEditModelTelemetry {
 
 	readonly hadStatelessNextEditProviderCall: boolean;
 
@@ -359,7 +367,6 @@ export interface IStatelessNextEditTelemetry {
 	readonly isCursorAtEndOfLine: boolean | undefined;
 	readonly isInlineSuggestion: boolean | undefined;
 	readonly nLinesOfCurrentFileInPrompt: number | undefined;
-	readonly modelName: string | undefined;
 
 	/* options info */
 	readonly logProbThreshold: number | undefined;
@@ -440,8 +447,6 @@ export interface IStatelessNextEditTelemetry {
 	/* similar files context for telemetry (GhostText-style neighbor code snippets) */
 	readonly similarFilesContext: Promise<string | undefined> | undefined;
 
-	/* JSON-encoded model configuration from the model service */
-	readonly modelConfig: string | undefined;
 }
 
 export type FetchResultWithStats = {

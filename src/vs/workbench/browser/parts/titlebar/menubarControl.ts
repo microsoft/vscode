@@ -42,6 +42,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActivityBarPosition } from '../../../services/layout/browser/layoutService.js';
+import { truncateMiddle } from '../../../../base/common/strings.js';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -69,6 +70,7 @@ export abstract class MenubarControl extends Disposable {
 	protected menuUpdater: RunOnceScheduler;
 
 	protected static readonly MAX_MENU_RECENT_ENTRIES = 10;
+	protected static readonly MAX_MENU_RECENT_LABEL_LENGTH = 120;
 
 	constructor(
 		protected readonly menuService: IMenuService,
@@ -252,7 +254,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const ret = toAction({
-			id: commandId, label: unmnemonicLabel(label), run: (browserEvent: KeyboardEvent) => {
+			id: commandId, label: unmnemonicLabel(truncateMiddle(label, MenubarControl.MAX_MENU_RECENT_LABEL_LENGTH)), run: (browserEvent: KeyboardEvent) => {
 				const openInNewWindow = browserEvent && ((!isMacintosh && (browserEvent.ctrlKey || browserEvent.shiftKey)) || (isMacintosh && (browserEvent.metaKey || browserEvent.altKey)));
 
 				return this.hostService.openWindow([openable], {

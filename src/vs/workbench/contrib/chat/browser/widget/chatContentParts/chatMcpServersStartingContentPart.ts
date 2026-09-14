@@ -5,11 +5,10 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
+import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatMcpServersStartingSlow, IChatMcpStartingServer } from '../../../common/chatService/chatService.js';
@@ -29,9 +28,16 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	public readonly domNode: HTMLElement;
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
+	private hadStartingServers = false;
+	private didNotifyFinished = false;
 
 	constructor(
 		private readonly data: IChatMcpServersStartingSlow,
+		private readonly options: {
+			readonly createSpinner?: typeof createPixelSpinner;
+			readonly onDidFinishStarting?: () => void;
+		} | undefined,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
@@ -44,27 +50,32 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	private render(servers: readonly IChatMcpStartingServer[]): void {
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
+		this.spinner.clear();
 
 		if (!servers.length) {
 			this.domNode.style.display = 'none';
+			if (this.hadStartingServers && !this.didNotifyFinished) {
+				this.didNotifyFinished = true;
+				this.options?.onDidFinishStarting?.();
+			}
 			return;
 		}
+		this.hadStartingServers = true;
 		this.domNode.style.display = '';
 
 		const links = servers
 			.map(server => '`' + escapeMarkdownSyntaxTokens(server.name) + '`')
 			.join(', ');
 		this._renderMessage(
-			ThemeIcon.modify(Codicon.loading, 'spin'),
 			localize('mcp.starting.servers', 'Starting MCP servers {0}...', links),
 		);
 	}
 
-	private _renderMessage(icon: ThemeIcon, content: string): void {
+	private _renderMessage(content: string): void {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		this.spinner.value = (this.options?.createSpinner ?? createPixelSpinner)(iconElement);
 
 		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content));
 		messageContainer.appendChild(iconElement);

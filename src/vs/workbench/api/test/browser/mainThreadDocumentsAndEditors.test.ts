@@ -40,6 +40,7 @@ import { IQuickDiffModelService } from '../../../contrib/scm/browser/quickDiffMo
 import { ITextEditorDiffInformation } from '../../../../platform/editor/common/editor.js';
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
+import { URI } from '../../../../base/common/uri.js';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -48,6 +49,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
+	let mainThreadDocumentsAndEditors: MainThreadDocumentsAndEditors;
+	let propertyChanges: number;
 	const deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
@@ -63,6 +66,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables = new DisposableStore();
 
 		deltas.length = 0;
+		propertyChanges = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
@@ -105,10 +109,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 			override onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
-		new MainThreadDocumentsAndEditors(
+		mainThreadDocumentsAndEditors = disposables.add(new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol({
 				$acceptDocumentsAndEditorsDelta: (delta: IDocumentsAndEditorsDelta) => { deltas.push(delta); },
-				$acceptEditorDiffInformation: (id: string, diffInformation: ITextEditorDiffInformation | undefined) => { }
+				$acceptEditorDiffInformation: (id: string, diffInformation: ITextEditorDiffInformation | undefined) => { },
+				$acceptEditorPropertiesChanged: () => { propertyChanges++; }
 			}),
 			modelService,
 			textFileService,
@@ -139,7 +144,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 					return undefined;
 				}
 			}
-		);
+		));
 	});
 
 	teardown(() => {
@@ -261,6 +266,58 @@ suite('MainThreadDocumentsAndEditors', () => {
 		model.dispose();
 	});
 
+	test('fires expected add/remove events on editor lifecycle', () => {
+		deltas.length = 0;
+
+		const removedEditorEventsFromService: string[] = [];
+		const removedViaEditorDispose: string[] = [];
+
+		const model = modelService.createModel('farboo', null);
+		const editor = myCreateTestCodeEditor(model);
+		const editorId = `${editor.getId()},${model.id}`;
+
+		disposables.add(codeEditorService.onCodeEditorRemove((editorToRemove) => {
+			removedEditorEventsFromService.push(editorToRemove.getId());
+		}));
+		disposables.add(editor.onDidDispose(() => {
+			removedViaEditorDispose.push(editor.getId());
+		}));
+
+		assert.strictEqual(deltas.length, 2);
+
+		const addedDocumentDelta = deltas.find((delta) => delta.addedDocuments?.length === 1);
+		assert.ok(addedDocumentDelta);
+		assert.strictEqual(URI.revive(addedDocumentDelta.addedDocuments![0].uri).toString(), model.uri.toString());
+		assert.strictEqual(addedDocumentDelta.addedEditors, undefined);
+		assert.strictEqual(addedDocumentDelta.removedEditors, undefined);
+		assert.strictEqual(addedDocumentDelta.removedDocuments, undefined);
+
+		const addedEditorDelta = deltas.find((delta) => delta.addedEditors?.some((editorDto) => editorDto.id === editorId));
+		assert.ok(addedEditorDelta);
+		assert.strictEqual(mainThreadDocumentsAndEditors.getIdOfCodeEditor(editor), editorId);
+		assert.strictEqual(addedEditorDelta.addedEditors?.length, 1);
+		assert.strictEqual(addedEditorDelta.addedEditors![0].id, editorId);
+		assert.strictEqual(URI.revive(addedEditorDelta.addedEditors![0].documentUri).toString(), model.uri.toString());
+
+		editor.dispose();
+
+		assert.deepStrictEqual(removedViaEditorDispose, [editor.getId()]);
+		assert.deepStrictEqual(removedEditorEventsFromService, [editor.getId()]);
+		const removedEditorDelta = deltas.find((delta) => delta.removedEditors?.includes(editorId));
+		assert.ok(removedEditorDelta);
+		assert.deepStrictEqual(removedEditorDelta.removedEditors, [editorId]);
+		assert.strictEqual(removedEditorDelta.removedDocuments, undefined);
+
+		assert.strictEqual(mainThreadDocumentsAndEditors.getIdOfCodeEditor(editor), undefined);
+		assert.strictEqual(mainThreadDocumentsAndEditors.getEditor(editorId), undefined);
+
+		model.dispose();
+
+		const removedDocumentDelta = deltas.find((delta) => delta.removedDocuments?.some((uri) => URI.revive(uri).toString() === model.uri.toString()));
+		assert.ok(removedDocumentDelta);
+		assert.deepStrictEqual(removedDocumentDelta.removedDocuments?.map((uri) => URI.revive(uri).toString()), [model.uri.toString()]);
+	});
+
 	test('editor with dispos-ed/-ing model', () => {
 		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
@@ -277,6 +334,31 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(first.removedDocuments!.length, 1);
 		assert.strictEqual(first.addedDocuments, undefined);
 		assert.strictEqual(first.addedEditors, undefined);
+
+		editor.dispose();
+		model.dispose();
+	});
+
+	test('dispose removes editor listeners', () => {
+		const model = modelService.createModel('farboo', null);
+		const editor = myCreateTestCodeEditor(model);
+		const mainThreadTextEditor = mainThreadDocumentsAndEditors.getEditor(`${editor.getId()},${model.id}`);
+		assert.ok(mainThreadTextEditor);
+
+		let directPropertyChanges = 0;
+		disposables.add(mainThreadTextEditor.onPropertiesChanged(() => directPropertyChanges++));
+		const propertyChangesBeforeUpdate = propertyChanges;
+		const directPropertyChangesBeforeUpdate = directPropertyChanges;
+		editor.updateOptions({ lineNumbers: 'off' });
+		assert.ok(propertyChanges > propertyChangesBeforeUpdate);
+		assert.ok(directPropertyChanges > directPropertyChangesBeforeUpdate);
+		const propertyChangesAfterUpdate = propertyChanges;
+		const directPropertyChangesAfterUpdate = directPropertyChanges;
+
+		mainThreadDocumentsAndEditors.dispose();
+		editor.updateOptions({ lineNumbers: 'on' });
+		assert.strictEqual(propertyChanges, propertyChangesAfterUpdate);
+		assert.strictEqual(directPropertyChanges, directPropertyChangesAfterUpdate);
 
 		editor.dispose();
 		model.dispose();

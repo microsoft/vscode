@@ -399,10 +399,10 @@
     "watch": "npx gulp watch-extension:references-view",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
-    "typecheck-web": "tsgo --project ./tsconfig.json --noEmit",
+    "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.json --noEmit",
     "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
     "watch-bundle-web": "node ./esbuild.browser.mts --watch",
-    "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
+    "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.json --noEmit --watch"
   },
   "devDependencies": {
     "@types/node": "24.x"
