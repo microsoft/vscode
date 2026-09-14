@@ -145,8 +145,7 @@ export interface IChatWidgetFixtureOptions {
 	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
 	readonly stickyScroll?: boolean;
 	/** Enables the response-level persistent progress indicator. */
-	readonly persistentProgress?: boolean;
-	readonly progressAnimation?: ChatProgressAnimation;
+	readonly persistentProgress?: ChatProgressAnimation;
 	/** Product quality used to select Stable or Insiders product branding. */
 	readonly productQuality?: 'stable' | 'insider';
 	readonly thinkingStyle?: ThinkingDisplayMode;
@@ -343,9 +342,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
 	if (options.persistentProgress !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.PersistentProgress, options.persistentProgress);
-	}
-	if (options.progressAnimation !== undefined) {
-		configService.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, options.progressAnimation);
 	}
 	if (options.thinkingStyle !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle);
@@ -1065,8 +1061,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	const { expectedText, progressAnimation = ChatProgressAnimation.Weave, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed, progressInThinking = false } = options;
 	await renderChatWidget(context, {
 		messages,
-		persistentProgress: true,
-		progressAnimation,
+		persistentProgress: progressAnimation,
 		productQuality,
 		thinkingStyle,
 		richSubagents: options.richSubagents,
@@ -1124,6 +1119,22 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
 	const value = response?.querySelector<HTMLElement>(':scope > .value');
 	const footer = value?.querySelector<HTMLElement>(':scope > .chat-working-progress');
+	if (progressAnimation === ChatProgressAnimation.Off) {
+		if (!response || !value || response.textContent?.includes('Failed to render content')) {
+			throw new Error('Legacy progress scenario failed to render');
+		}
+		if (response.classList.contains('chat-persistent-progress') || response.querySelector('.chat-working-progress, .chat-working-logo')) {
+			throw new Error('Off must not render a persistent progress indicator or logo');
+		}
+		if (options.expandThinking) {
+			const button = response.querySelector<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button');
+			if (!button) {
+				throw new Error('Legacy thinking scenario has no expand button');
+			}
+			button.click();
+		}
+		return;
+	}
 	if (!response || !value || !footer) {
 		throw new Error('Persistent progress indicator was not rendered in the active response');
 	}
@@ -1215,10 +1226,13 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		throw new Error('Persistent progress must preserve the terminal activity spinner');
 	}
 	const terminalMotionEnabled = !context.container.classList.contains('disable-animations') && !targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
-	if (terminalSpinners.some(spinner => spinner.getAnimations({ subtree: true }).length !== (terminalMotionEnabled ? 6 : 0))) {
+	if (terminalSpinners.some(spinner => spinner.getAnimations({ subtree: true }).filter(animation => {
+		const duration = animation.effect?.getComputedTiming().activeDuration;
+		return animation instanceof CSSAnimation && animation.animationName.startsWith('monaco-pixel-spinner-') && typeof duration === 'number' && duration > 0;
+	}).length !== (terminalMotionEnabled ? 6 : 0))) {
 		throw new Error('The terminal activity animation did not retain its original motion behavior');
 	}
-	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate && progressAnimation !== ChatProgressAnimation.Off ? 3 : 0)) {
+	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate ? 3 : 0)) {
 		throw new Error(`${progressAnimation} progress animation did not match reducedMotion=${reducedMotion}`);
 	}
 	if ((targetWindow.getComputedStyle(textElement).animationName !== 'none') !== shouldAnimate) {
@@ -1546,8 +1560,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			render: async context => {
 				await renderChatWidget(context, {
 					messages: [{ user: 'Wait for the next response', responseComplete: false }],
-					persistentProgress: false,
-					progressAnimation: ChatProgressAnimation.Weave,
+					persistentProgress: ChatProgressAnimation.Off,
 				});
 				if (context.container.querySelector('.chat-working-logo, .chat-working-progress')) {
 					throw new Error('Disabled persistent progress must not render its indicator or logo');
@@ -1622,7 +1635,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			labels: { kind: 'animated' },
 			render: context => renderChatWidget(context, {
 				messages: PERSISTENT_PROGRESS_THINKING_AND_TOOL,
-				persistentProgress: false,
+				persistentProgress: ChatProgressAnimation.Off,
 				productQuality: 'stable',
 				thinkingStyle: ThinkingDisplayMode.Collapsed,
 				height: 560,

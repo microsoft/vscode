@@ -113,7 +113,7 @@ export class ChatWorkingProgressLogo extends ChatWorkingLogo {
 		super(animation === ChatProgressAnimation.Off ? ChatProgressAnimation.Weave : animation, quality);
 		this.updateAnimation(animation);
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.PersistentProgressAnimation)) {
+			if (event.affectsConfiguration(ChatConfiguration.PersistentProgress)) {
 				this.updateAnimation(getConfiguredProgressAnimation(configurationService, logService));
 			}
 		}));
@@ -126,8 +126,8 @@ export class ChatWorkingProgressLogo extends ChatWorkingLogo {
 	}
 }
 
-function getConfiguredProgressAnimation(configurationService: IConfigurationService, logService: ILogService): ChatProgressAnimation {
-	const animation = configurationService.getValue<ChatProgressAnimation | undefined>(ChatConfiguration.PersistentProgressAnimation);
+export function getConfiguredProgressAnimation(configurationService: IConfigurationService, logService: ILogService): ChatProgressAnimation {
+	const animation = configurationService.getValue<ChatProgressAnimation | undefined>(ChatConfiguration.PersistentProgress);
 	switch (animation) {
 		case undefined:
 			return ChatProgressAnimation.Off;

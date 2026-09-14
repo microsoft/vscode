@@ -71,7 +71,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.showSpinner && !(isWorkingProgress && context.suppressProgressShimmer) && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+		if (this.showSpinner && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			// this step is in progress, communicate it to SR users
 			alert(stripIcons(renderAsPlaintext(progress.content)));
 		}

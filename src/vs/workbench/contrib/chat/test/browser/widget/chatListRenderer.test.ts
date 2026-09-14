@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -49,6 +50,9 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
+import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
+import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
@@ -1292,8 +1296,7 @@ suite('ChatListRenderer', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, true);
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, ChatProgressAnimation.Weave);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle ?? ThinkingDisplayMode.Collapsed);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', options.collapsedTools ?? CollapsedToolsDisplayMode.Off);
@@ -1303,9 +1306,8 @@ suite('ChatListRenderer', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
-		instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
-			override readonly onDidPrepareToolCallBecomeUnresponsive = Event.None;
-		}());
+		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
+		instantiationService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
 		const commentsBridge = disposables.add(new AgentEditorCommentsBridge());
 		instantiationService.stub(IAgentEditorCommentsBridge, commentsBridge);
 		instantiationService.stub(IPlanReviewFeedbackService, disposables.add(new PlanReviewFeedbackService(commentsBridge)));
@@ -1416,12 +1418,11 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('persistent progress off restores the legacy row even when an animation is selected', () => {
+	test('persistent progress off restores the legacy row after an animation is selected', () => {
 		const { configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const snapshots = [];
 		for (const enabled of [false, true, false]) {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled);
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, enabled ? ChatProgressAnimation.Off : ChatProgressAnimation.Weave);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
 			renderer.renderElement(node, 0, template);
 			snapshots.push({
 				persistentRows: template.value.querySelectorAll('.chat-working-progress').length,
@@ -1432,7 +1433,7 @@ suite('ChatListRenderer', () => {
 		}
 		assert.deepStrictEqual(snapshots, [
 			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
-			{ persistentRows: 1, logos: 1, staticLogos: 1, hasLegacyWorking: false },
+			{ persistentRows: 1, logos: 1, staticLogos: 0, hasLegacyWorking: false },
 			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
 		]);
 		request.response?.complete();
@@ -1441,7 +1442,7 @@ suite('ChatListRenderer', () => {
 
 	test('disabled working progress keeps legacy visibility and message update rendering', () => {
 		const { disposables, instantiationService, configurationService, response, request } = createPersistentProgressRenderer();
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, false);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 		const working = { kind: 'working' as const, content: new MarkdownString('Initial state') };
 		const createPart = (following: IChatRendererContent[]) => {
 			const context = new class extends mock<IChatContentPartRenderContext>() {
@@ -1621,12 +1622,145 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	test('answering a question does not reveal and then retract buffered markdown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
+		try {
+			const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction', defaultValue: 'Weave' }], true);
+			model.acceptResponseProgress(request, question);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 80 }, (_, i) => `word${i}`).join(' ')) });
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			const snapshot = () => {
+				const text = template.renderedParts?.filter(part => part instanceof ChatMarkdownContentPart).map(part => part.domNode.textContent).join(' ').trim() ?? '';
+				return { words: text.split(/\s+/).length, budget: response.renderData?.renderedWordCount };
+			};
+			const before = snapshot();
+			const footer = template.value.querySelector('.chat-working-progress');
+			const button = template.value.querySelector<HTMLElement>('.chat-question-submit-button');
+			assert.ok(button && footer);
+			button.click();
+			await timeout(0);
+			const after = snapshot();
+			await timeout(50);
+			const nextTick = snapshot();
+			assert.deepStrictEqual({
+				before,
+				after,
+				nextTickMatchesBudget: nextTick.words === nextTick.budget,
+				noRetraction: nextTick.words >= after.words,
+				stillBuffered: nextTick.words < 80,
+				sameFooter: template.value.querySelector('.chat-working-progress') === footer,
+				progress: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
+			}, {
+				before: { words: 20, budget: 20 },
+				after: { words: 20, budget: 20 },
+				nextTickMatchesBudget: true,
+				noRetraction: true,
+				stillBuffered: true,
+				sameFooter: true,
+				progress: 'Working',
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
+	for (const thinkingStyle of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.FixedScrolling]) {
+		for (const approval of ['pre', 'post'] as const) {
+			for (const source of [ToolDataSource.Internal, { type: 'mcp', label: 'MCP', collectionId: 'collection', definitionId: 'server', instructions: '', serverLabel: 'MCP' }] satisfies ToolDataSource[]) {
+				test(`persistent ${thinkingStyle} progress stays below ${source.type === 'mcp' ? 'inline' : 'promoted'} ${source.type} ${approval}-approval`, async () => {
+					const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+						thinkingStyle, chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always,
+					});
+					configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, false);
+					model.acceptResponseProgress(request, { kind: 'thinking', id: 'reasoning', value: 'Inspecting workspace' });
+					const toolData = { id: 'inspect_workspace', displayName: 'Inspect workspace', modelDescription: 'Inspect workspace', source };
+					const tool = ChatToolInvocation.createStreaming({ toolId: toolData.id, toolData, toolCallId: 'inspection', chatRequestId: request.id });
+					tool.updateStreamingMessage('Inspecting workspace');
+					model.acceptResponseProgress(request, tool);
+					renderer.renderElement(node, 0, template);
+					const footer = template.value.querySelector('.chat-working-progress');
+					const thinking = template.value.querySelector('.chat-thinking-box');
+					assert.ok(footer && thinking);
+					const materialized = !!thinking.querySelector('.chat-thinking-tool-wrapper');
+					const prepared = { invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Approve inspection', message: new MarkdownString('Inspect the workspace?'), confirmResults: approval === 'post' } };
+					if (approval === 'pre') {
+						tool.requestConfirmation(prepared);
+					} else {
+						tool.transitionFromStreaming(prepared, {}, { type: ToolConfirmKind.ConfirmationNotNeeded });
+						await tool.didExecuteTool({ content: [] });
+					}
+					await timeout(0);
+					const snapshot = () => ({
+						footerLast: template.value.lastElementChild === footer,
+						inlineApproval: !!footer.previousElementSibling?.querySelector('.chat-confirmation-widget2 .monaco-button'),
+						status: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
+						failed: template.value.textContent?.includes('Failed to render content'),
+					});
+					const promoted = snapshot();
+					renderer.renderElement(node, 0, template);
+					const reconciled = snapshot();
+					const state = tool.state.get();
+					assert.ok(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval);
+					state.confirm({ type: ToolConfirmKind.UserAction });
+					await timeout(0);
+					renderer.renderElement(node, 0, template);
+					assert.deepStrictEqual({
+						materialized, promoted, reconciled,
+						resumed: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
+					}, {
+						materialized: source.type !== 'mcp' && thinkingStyle === ThinkingDisplayMode.FixedScrolling,
+						promoted: { footerLast: true, inlineApproval: true, status: '1 confirmation pending', failed: false },
+						reconciled: { footerLast: true, inlineApproval: true, status: '1 confirmation pending', failed: false },
+						resumed: 'Working',
+					});
+					request.response?.complete();
+					renderer.renderElement(node, 0, template);
+				});
+			}
+		}
+	}
+
+	test('working progress announces once when verbose updates are enabled in both modes', () => {
+		const { disposables, instantiationService, configurationService, response } = createPersistentProgressRenderer();
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		const snapshots = [];
+		for (const suppressProgressShimmer of [false, true]) {
+			for (const verbose of [false, true]) {
+				for (const alert of host.querySelectorAll('.monaco-alert')) {
+					alert.textContent = '';
+				}
+				configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', verbose);
+				const working = { kind: 'working' as const, content: new MarkdownString('Working'), isActive: true };
+				const context = new class extends mock<IChatContentPartRenderContext>() {
+					override readonly element = response;
+					override readonly content = [working];
+					override readonly contentIndex = 0;
+					override readonly suppressProgressShimmer = suppressProgressShimmer;
+				}();
+				const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+				const before = [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+				part.updateWorkingContent(new MarkdownString('Still working'), true);
+				snapshots.push({ before, after: [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent) });
+			}
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ before: ['', ''], after: ['', ''] },
+			{ before: ['Working', ''], after: ['Working', ''] },
+			{ before: ['', ''], after: ['', ''] },
+			{ before: ['Working', ''], after: ['Working', ''] },
+		]);
+	});
+
 	test('docked plan review has one pending message and keeps its approved summary', async () => {
 		const { configurationService, model, request, response, container, renderer, template, node } = createPersistentProgressRenderer({ dockPlanReview: true });
 		const review = new ChatPlanReviewData('Review plan', 'Use one progress indicator.', [{ label: 'Implement' }], false);
 		model.acceptResponseProgress(request, review);
 		const snapshots = [false, true, false, true].map(enabled => {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
 			renderer.renderElement(node, 0, template);
 			return {
 				pendingMessages: [...template.value.querySelectorAll('p')].filter(element => element.textContent?.replace(/\u00a0/g, ' ').trim() === 'Plan review required').length,
@@ -1683,14 +1817,19 @@ suite('ChatListRenderer', () => {
 				)
 				: { kind: 'mcpServersStartingSlow', sessionResource: response.sessionResource, servers: observableValue('servers', [{ id: 'a', name: 'alpha' }]) };
 			model.acceptResponseProgress(request, content);
+			const countTerminalAnimations = () => template.value.querySelector('.chat-terminal-content-part .monaco-pixel-spinner')?.getAnimations({ subtree: true }).filter(animation => {
+				// Reduced motion can leave a paused, zero-duration dot animation in Chromium.
+				const duration = animation.effect?.getComputedTiming().activeDuration;
+				return animation instanceof CSSAnimation && animation.animationName.startsWith('monaco-pixel-spinner-') && typeof duration === 'number' && duration > 0;
+			}).length ?? 0;
 			const snapshots = [];
 			for (const enabled of [false, true, false]) {
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
 				await timeout(0);
 				snapshots.push({
 					pixelSpinners: template.value.querySelectorAll('.monaco-pixel-spinner').length,
-					terminalAnimations: template.value.querySelector('.chat-terminal-content-part .monaco-pixel-spinner')?.getAnimations({ subtree: true }).length ?? 0,
+					terminalAnimations: countTerminalAnimations(),
 					workingLogos: template.value.querySelectorAll('.chat-working-logo').length,
 					contentParts: template.value.querySelectorAll(type === 'terminal' ? '.chat-terminal-content-part' : '.chat-mcp-servers-interaction').length,
 					details: template.value.querySelector(type === 'terminal' ? '.chat-terminal-command-block' : '.chat-mcp-servers-message')?.textContent?.replace(/\u00a0/g, ' ').trim(),
@@ -1706,12 +1845,12 @@ suite('ChatListRenderer', () => {
 				failed: false,
 			})));
 			if (content.kind === 'toolInvocation') {
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, true);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
 				renderer.renderElement(node, 0, template);
 				await content.didExecuteTool(undefined);
 				renderer.renderElement(node, 0, template);
 				assert.deepStrictEqual({
-					terminalAnimations: template.value.querySelector('.chat-terminal-content-part .monaco-pixel-spinner')?.getAnimations({ subtree: true }).length ?? 0,
+					terminalAnimations: countTerminalAnimations(),
 					runningDecoration: !!template.value.querySelector('.chat-terminal-running-spinner'),
 					stillWorking: !!template.value.querySelector('.chat-working-progress'),
 				}, { terminalAnimations: 0, runningDecoration: false, stillWorking: true });
@@ -1756,6 +1895,31 @@ suite('ChatListRenderer', () => {
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
+
+	for (const mountBeforeCompletion of [false, true]) {
+		test(`authentication completion stays cleared ${mountBeforeCompletion ? 'between disposal and remount' : 'before first mount'}`, () => {
+			const { model, request, response, renderer, template, node } = createPersistentProgressRenderer();
+			const servers = observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]);
+			const authentication: IChatMcpAuthenticationRequired = {
+				kind: 'mcpAuthenticationRequired', sessionResource: response.sessionResource, servers, isUsed: false,
+			};
+			model.acceptResponseProgress(request, authentication);
+			if (mountBeforeCompletion) {
+				renderer.renderElement(node, 0, template);
+				renderer.disposeElement(node, 0, template);
+			}
+			authentication.isUsed = true;
+			servers.set([], undefined);
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				progress: template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim(),
+				pendingState: getPersistentProgressState([authentication], 0, false),
+				isUsed: authentication.isUsed,
+			}, { progress: 'Working', pendingState: 'active', isUsed: true });
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+		});
+	}
 
 	test('new activity shares one working phrase without replacing the footer logo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always });
@@ -1812,7 +1976,7 @@ suite('ChatListRenderer', () => {
 	test('persistent progress preserves thinking header content and interaction', () => {
 		const snapshots = [false, true].map(persistentProgress => {
 			const { disposables, configurationService, model, request, renderer, template, node, container } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always });
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, persistentProgress);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, persistentProgress ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Custom working phrase'] });
 			const snapshot = () => {
 				const button = template.value.querySelector<HTMLElement>('.chat-thinking-box.chat-thinking-active > .chat-used-context-label .monaco-button');
@@ -1870,13 +2034,13 @@ suite('ChatListRenderer', () => {
 			const header = template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel');
 			const headerContent = header?.innerHTML;
 			const snapshots = [];
-			for (const animation of Object.values(ChatProgressAnimation)) {
-				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, animation);
+			for (const animation of Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off)) {
+				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
 				configurationService.onDidChangeConfigurationEmitter.fire({
 					source: ConfigurationTarget.USER,
-					affectedKeys: new Set([ChatConfiguration.PersistentProgressAnimation]),
-					change: { keys: [ChatConfiguration.PersistentProgressAnimation], overrides: [] },
-					affectsConfiguration: section => section === ChatConfiguration.PersistentProgressAnimation,
+					affectedKeys: new Set([ChatConfiguration.PersistentProgress]),
+					change: { keys: [ChatConfiguration.PersistentProgress], overrides: [] },
+					affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
 				});
 				snapshots.push({
 					motions: logos.map(logo => logo.dataset.animation),
@@ -1889,7 +2053,7 @@ suite('ChatListRenderer', () => {
 				sameParts: template.renderedParts === renderedParts,
 				sameHeader: header?.innerHTML === headerContent,
 			}, {
-				snapshots: Object.values(ChatProgressAnimation).map(animation => ({
+				snapshots: Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off).map(animation => ({
 					motions: Array(thinkingStyle === ThinkingDisplayMode.Collapsed ? 2 : 1).fill(animation),
 					shimmers: 1,
 				})),
@@ -1993,10 +2157,10 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				const working = snapshot();
 
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, false);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
 				const disabled = snapshot();
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, true);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
 				renderer.renderElement(node, 0, template);
 				const reenabled = snapshot();
 

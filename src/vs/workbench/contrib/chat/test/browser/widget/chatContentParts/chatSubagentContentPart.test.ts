@@ -44,7 +44,7 @@ import { IActionViewItemFactory, IActionViewItemService } from '../../../../../.
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration, ChatProgressAnimation } from '../../../../common/constants.js';
 import { formatCompactSubagentDuration, getSubagentEditorResource, IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 
 class TestOpenChatActionViewItem extends ActionViewItem {
@@ -732,7 +732,7 @@ suite('ChatSubagentContentPart', () => {
 				isActive: true,
 			};
 			const snapshots = [false, true].map(enabled => {
-				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.PersistentProgress, enabled);
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
 				const action = store.add(new Action('openSubagent', 'Open Subagent'));
 				const viewItem = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, false));
 				const container = mainWindow.document.createElement('div');

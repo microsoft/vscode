@@ -33,7 +33,7 @@ import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSes
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -712,6 +712,29 @@ suite('ChatModel', () => {
 
 suite('Response', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('notifies authentication completion without a mounted content part', () => {
+		const response = store.add(new Response([]));
+		const servers = observableValue<readonly IChatMcpAuthenticationRequiredServer[]>('servers', []);
+		const authentication: IChatMcpAuthenticationRequired = {
+			kind: 'mcpAuthenticationRequired',
+			sessionResource: URI.parse('chat-session://test/authentication'),
+			servers,
+			isUsed: false,
+		};
+		const updates: { isUsed: boolean; servers: number }[] = [];
+		store.add(response.onDidChangeValue(() => updates.push({ isUsed: authentication.isUsed, servers: servers.get().length })));
+		response.updateContent(authentication);
+		servers.set([{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }], undefined);
+		authentication.isUsed = true;
+		servers.set([], undefined);
+		servers.set([], undefined);
+		assert.deepStrictEqual(updates, [
+			{ isUsed: false, servers: 0 },
+			{ isUsed: false, servers: 1 },
+			{ isUsed: true, servers: 0 },
+		]);
+	});
 
 	test('mergeable markdown', async () => {
 		const response = store.add(new Response([]));

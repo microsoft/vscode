@@ -36,21 +36,23 @@ suite('Chat configuration', () => {
 			default: persistentProgressSetting.default,
 			tags: persistentProgressSetting.tags,
 		}, {
-			type: 'boolean',
-			default: false,
+			type: 'string',
+			default: 'off',
 			tags: ['experimental'],
 		});
 	});
 
-	test('defaults animation to Off and offers four opt-in animations', () => {
-		const setting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgressAnimation];
+	test('defines exactly one persistent progress setting, defaulting to Off', () => {
+		const setting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
 		assert.deepStrictEqual({
+			settings: Object.keys(chatProgressConfigurationProperties),
 			type: setting.type,
 			default: setting.default,
 			values: setting.enum,
 			labels: setting.enumItemLabels,
 			descriptions: setting.enumDescriptions.length,
 		}, {
+			settings: ['chat.experimental.persistentProgress'],
 			type: 'string',
 			default: 'off',
 			values: ['off', 'weave', 'orbit', 'accordion', 'dial'],

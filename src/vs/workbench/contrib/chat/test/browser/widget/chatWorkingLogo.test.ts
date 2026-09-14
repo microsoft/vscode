@@ -57,7 +57,7 @@ suite('ChatWorkingLogo', () => {
 	function createConfiguration() {
 		const configuration = new TestConfigurationService();
 		store.add(toDisposable(() => configuration.onDidChangeConfigurationEmitter.dispose()));
-		const fireChange = (key = ChatConfiguration.PersistentProgressAnimation) => configuration.onDidChangeConfigurationEmitter.fire({
+		const fireChange = (key = ChatConfiguration.PersistentProgress) => configuration.onDidChangeConfigurationEmitter.fire({
 			source: ConfigurationTarget.USER,
 			affectedKeys: new Set([key]),
 			change: { keys: [key], overrides: [] },
@@ -74,7 +74,7 @@ suite('ChatWorkingLogo', () => {
 		const initial = { animation: logo.domNode.dataset.animation, animations: logo.domNode.getAnimations({ subtree: true }).length };
 		const snapshots = [];
 		for (const motion of Object.values(ChatProgressAnimation)) {
-			await configuration.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, motion);
+			await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, motion);
 			fireChange();
 			snapshots.push({
 				animation: logo.domNode.dataset.animation,
@@ -86,7 +86,7 @@ suite('ChatWorkingLogo', () => {
 		fireChange(ChatConfiguration.ThinkingPhrases);
 		const sameAnimations = logo.domNode.getAnimations({ subtree: true }).every((animation, index) => animation === animations[index]);
 		logo.dispose();
-		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, ChatProgressAnimation.Weave);
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
 		fireChange();
 		assert.deepStrictEqual({
 			initial, snapshots,
@@ -113,7 +113,7 @@ suite('ChatWorkingLogo', () => {
 		const logo = store.add(new ChatWorkingProgressLogo('insider', configuration, store.add(new NullLogService())));
 		mainWindow.document.body.appendChild(logo.domNode);
 		logo.setActive(false);
-		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, ChatProgressAnimation.Orbit);
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Orbit);
 		fireChange();
 		assert.deepStrictEqual({
 			motion: logo.domNode.dataset.motion,
@@ -130,7 +130,7 @@ suite('ChatWorkingLogo', () => {
 
 	test('unsupported animation settings are logged and leave the logo static', async () => {
 		const { configuration } = createConfiguration();
-		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgressAnimation, 'weave-v');
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, 'weave-v');
 		const warnings: string[] = [];
 		const logger = store.add(new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
