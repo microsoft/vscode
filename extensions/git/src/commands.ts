@@ -5517,6 +5517,7 @@ export class CommandCenter {
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
+			let commandRepository: Repository | undefined;
 
 			if (!options.repository) {
 				result = Promise.resolve(method.apply(this, args));
@@ -5536,6 +5537,7 @@ export class CommandCenter {
 						return Promise.resolve();
 					}
 
+					commandRepository = repository;
 					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
 				});
 			}
@@ -5642,6 +5644,24 @@ export class CommandCenter {
 						type = 'warning';
 						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
+						break;
+					case GitErrorCodes.IndexCorrupted:
+						message = l10n.t('The Git index file (.git/index) is corrupted. Would you like to rebuild it?');
+						type = 'warning';
+						options.modal = false;
+						choices.clear();
+						choices.set(l10n.t('Rebuild Index'), async () => {
+							const targetRepository = err?.repository ?? commandRepository ?? (args.length > 0 ? this.model.getRepository(args[0]) : undefined) ?? (this.model.repositories.length === 1 ? this.model.repositories[0] : undefined) ?? await this.model.pickRepository();
+							if (targetRepository) {
+								try {
+									await targetRepository.rebuildIndex();
+								} catch (err) {
+									const errorMessage = err instanceof Error ? err.message : String(err);
+									window.showErrorMessage(l10n.t('Failed to rebuild Git index: {0}', errorMessage));
+								}
+							}
+						});
+						choices.set(openOutputChannelChoice, () => outputChannelLogger.show());
 						break;
 					default: {
 						const hintLines = (err.stderr || err.stdout || err.message || String(err))
