@@ -101,6 +101,8 @@ export interface IOpenAgentsWindowOptions {
 	readonly source?: AgentsWindowOpenSource;
 	/** Copy a draft only when explicitly revealing the new-session composer. */
 	readonly draft?: IAgentsWindowDraft;
+	/** Open the profile's Project Board without changing the Agents window's selected chat or workspace. */
+	readonly openProjectBoard?: boolean;
 }
 
 export interface ICPUProperties {
