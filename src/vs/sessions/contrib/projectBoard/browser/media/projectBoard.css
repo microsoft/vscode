@@ -1,0 +1,240 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.project-board-window {
+	overflow: auto;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+.project-board {
+	box-sizing: border-box;
+	min-width: 880px;
+	padding: 20px;
+	font-family: inherit;
+}
+
+.project-board-header h1 {
+	margin: 0;
+	font-size: 22px;
+}
+
+.project-board-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.project-board-header > .monaco-button {
+	width: auto;
+	flex-shrink: 0;
+}
+
+.project-board-header p {
+	margin: 6px 0 18px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.project-board-unassigned {
+	margin-bottom: 18px;
+}
+
+.project-board-grid {
+	display: grid;
+	grid-template-columns: minmax(90px, auto) repeat(4, minmax(180px, 1fr));
+	align-items: stretch;
+	gap: 8px;
+}
+
+.project-board-axis-corner,
+.project-board-column-heading,
+.project-board-row-heading {
+	margin: 0;
+	padding: 8px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.project-board-column-heading {
+	text-align: center;
+}
+
+.project-board-card-group {
+	min-height: 110px;
+	padding: 8px;
+	border: 1px solid var(--vscode-panel-border);
+	background: var(--vscode-sideBar-background);
+}
+
+.project-board-card-group:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.project-board-card-group > h3 {
+	margin: 0 0 8px;
+	font-size: 13px;
+}
+
+.project-board-card-list {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.project-board-grid .project-board-card-list {
+	flex-direction: column;
+}
+
+.project-board-empty {
+	padding: 8px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.project-board-card {
+	box-sizing: border-box;
+	width: min(260px, 100%);
+	padding: 9px;
+	border: 1px solid var(--vscode-panel-border);
+	border-left-width: 3px;
+	background: var(--vscode-editorWidget-background);
+}
+
+.project-board-grid .project-board-card {
+	width: 100%;
+}
+
+.project-board-card:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.project-board-card-busy {
+	border-left-color: var(--vscode-progressBar-background);
+}
+
+.project-board-card-needs-input {
+	border-left-color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.project-board-card-error {
+	border-left-color: var(--vscode-notificationsErrorIcon-foreground);
+}
+
+.project-board-card-idle {
+	border-left-color: var(--vscode-descriptionForeground);
+}
+
+.project-board-card-unvisited {
+	border-left-color: var(--vscode-list-highlightForeground);
+}
+
+.project-board-card-draft {
+	border-left-color: var(--vscode-descriptionForeground);
+	border-style: dashed;
+}
+
+.project-board-card .project-board-card-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40, 4px);
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+}
+
+.project-board-card-busy .project-board-card-status {
+	color: var(--vscode-progressBar-background);
+}
+
+.project-board-card-needs-input .project-board-card-status {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.project-board-card-error .project-board-card-status {
+	color: var(--vscode-notificationsErrorIcon-foreground);
+}
+
+.project-board-card-unvisited .project-board-card-status {
+	color: var(--vscode-list-highlightForeground);
+}
+
+.project-board-card-status-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-fontSize-body1, 13px);
+}
+
+.project-board-card-status-running {
+	font-size: 0;
+}
+
+.project-board-card-status-running::before {
+	content: '';
+	display: block;
+	width: var(--vscode-spacing-size200, 20px);
+	height: var(--vscode-spacing-size200, 20px);
+	background: url('./running-person.gif') center / contain no-repeat;
+}
+
+.monaco-reduce-motion .project-board-card-status-running {
+	font-size: var(--vscode-fontSize-body1, 13px);
+}
+
+.monaco-reduce-motion .project-board-card-status-running::before {
+	display: none;
+	background-image: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.project-board-card-status-running {
+		font-size: var(--vscode-fontSize-body1, 13px);
+	}
+
+	.project-board-card-status-running::before {
+		display: none;
+		background-image: none;
+	}
+}
+
+.project-board-card h4 {
+	margin: 0 0 6px;
+	font-size: 13px;
+}
+
+.project-board-card-session,
+.project-board-card-status,
+.project-board-card-description {
+	margin-top: 4px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.project-board-card-description {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.project-board-card-input {
+	border-top: 1px solid var(--vscode-panel-border);
+	margin-top: 8px;
+	padding-top: 4px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	overflow-wrap: anywhere;
+}
+
+.project-board-card-input p,
+.project-board-card-input h5 {
+	margin: 6px 0;
+	font-size: inherit;
+}
+
+.project-board-card-input ul {
+	margin: 6px 0;
+	padding-left: var(--vscode-spacing-size200, 20px);
+}
