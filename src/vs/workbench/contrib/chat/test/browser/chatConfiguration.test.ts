@@ -9,6 +9,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -19,6 +20,7 @@ const registeredAgentSessionsSettings = [
 ].map(key => configurationProperties[key] !== undefined);
 const legacyAutoArchiveMigration = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations
 	.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
+const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
 
 suite('Chat configuration', () => {
 
@@ -26,6 +28,35 @@ suite('Chat configuration', () => {
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
+	});
+
+	test('defines persistent progress as an opt-in experimental setting', () => {
+		assert.deepStrictEqual({
+			type: persistentProgressSetting.type,
+			default: persistentProgressSetting.default,
+			tags: persistentProgressSetting.tags,
+		}, {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+		});
+	});
+
+	test('defaults animation to Off and offers four opt-in animations', () => {
+		const setting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgressAnimation];
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			values: setting.enum,
+			labels: setting.enumItemLabels,
+			descriptions: setting.enumDescriptions.length,
+		}, {
+			type: 'string',
+			default: 'off',
+			values: ['off', 'weave', 'orbit', 'accordion', 'dial'],
+			labels: ['Off', 'Weave', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
+			descriptions: 5,
+		});
 	});
 
 	test('migrates the auto archive setting to auto mark as done', async () => {

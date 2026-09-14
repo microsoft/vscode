@@ -90,6 +90,8 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
+	PersistentProgress = 'chat.experimental.persistentProgress.enabled',
+	PersistentProgressAnimation = 'chat.experimental.persistentProgress.animation',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -235,6 +237,14 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+}
+
+export enum ChatProgressAnimation {
+	Off = 'off',
+	Weave = 'weave',
+	Orbit = 'orbit',
+	Accordion = 'accordion',
+	Dial = 'dial',
 }
 
 export enum CollapsedToolsDisplayMode {
