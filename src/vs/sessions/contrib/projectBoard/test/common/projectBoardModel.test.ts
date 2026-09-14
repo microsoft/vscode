@@ -81,10 +81,31 @@ suite('ProjectBoardModel', () => {
 			},
 		]);
 	});
+
+	test('PB-09 archived chats and archived owners hide without losing placements', () => {
+		const chat = createChat('archivable', ChatInteractivity.Full);
+		const session = createSession(chat);
+		const model = new ProjectBoardModel();
+		model.updateSessions([session]);
+		const id = model.cards[0].id;
+		model.moveCard(id, { rowId: 'general', columnId: 'p0' });
+		for (const archived of [chat.isArchived, session.isArchived]) {
+			archived.set(true, undefined);
+			model.updateSessions([session]);
+			assert.deepStrictEqual({
+				visible: model.getCards('general', 'p0').length,
+				placement: model.getPlacement(id),
+			}, { visible: 0, placement: { rowId: 'general', columnId: 'p0' } });
+			archived.set(false, undefined);
+			model.updateSessions([session]);
+			assert.strictEqual(model.getCards('general', 'p0')[0].id, id);
+		}
+	});
 });
 
 interface ITestChat extends IChat {
 	readonly status: ISettableObservable<SessionStatus>;
+	readonly isArchived: ISettableObservable<boolean>;
 }
 
 function createChat(id: string, interactivity: ChatInteractivity): ITestChat {
@@ -93,16 +114,18 @@ function createChat(id: string, interactivity: ChatInteractivity): ITestChat {
 		override readonly title = observableValue(`title-${id}`, id);
 		override readonly status = observableValue<SessionStatus>(`status-${id}`, SessionStatus.Completed);
 		override readonly isRead = observableValue(`read-${id}`, false);
+		override readonly isArchived = observableValue(`archived-${id}`, false);
 		override readonly interactivity = observableValue(`interactivity-${id}`, interactivity);
 		override readonly description = observableValue(`description-${id}`, undefined);
 	}();
 }
 
-function createSession(...chats: IChat[]): ISession {
+function createSession(...chats: IChat[]) {
 	return new class extends mock<ISession>() {
 		override readonly providerId = 'test-provider';
 		override readonly resource = URI.parse('test-session:shared');
 		override readonly title = observableValue('session-title', 'Shared session');
 		override readonly chats = observableValue<readonly IChat[]>('session-chats', chats);
+		override readonly isArchived = observableValue('archived', false);
 	}();
 }
