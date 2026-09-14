@@ -11,7 +11,7 @@ import assert from 'assert';
 import { existsSync } from 'fs';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -29,6 +29,7 @@ const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 };
 
 const DETACHED_SHELL_SCENARIO_ID = 'detached-shell-idle-release';
+const ATTACHED_SHELL_SCENARIO_ID = 'attached-shell-foreground-completion';
 const DETACHED_SHELL_DELAY_MS = 6000;
 
 function quoteShellArgument(value: string): string {
@@ -122,6 +123,9 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 	let client: TestProtocolClient;
 	let suiteHome: string;
 	let detachedCompletionMarker: string;
+	let attachedStartedMarker: string;
+	let attachedReleaseMarker: string;
+	let attachedCompletionMarker: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
@@ -132,6 +136,20 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		const detachedScript = join(suiteHome, 'detached-shell.js');
 		await writeFile(detachedScript, `setTimeout(() => require('fs').writeFileSync(${JSON.stringify(detachedCompletionMarker)}, 'done'), ${DETACHED_SHELL_DELAY_MS});`);
 		const command = `node ${quoteShellArgument(detachedScript)}`;
+		attachedStartedMarker = join(suiteHome, 'attached-shell-started');
+		attachedReleaseMarker = join(suiteHome, 'attached-shell-release');
+		attachedCompletionMarker = join(suiteHome, 'attached-shell-complete');
+		const attachedScript = join(suiteHome, 'attached-shell.js');
+		await writeFile(attachedScript, `
+			const fs = require('fs');
+			fs.writeFileSync(${JSON.stringify(attachedStartedMarker)}, 'ready');
+			const timer = setInterval(() => {
+				if (fs.existsSync(${JSON.stringify(attachedReleaseMarker)})) {
+					clearInterval(timer);
+					fs.writeFileSync(${JSON.stringify(attachedCompletionMarker)}, 'done');
+				}
+			}, 50);
+		`);
 		server = await startRealServer({
 			mockLlm: true,
 			homeDir: suiteHome,
@@ -159,6 +177,26 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 							}],
 						},
 						{ kind: 'content', chunks: [{ content: 'Waiting for detached shell completion.', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: ATTACHED_SHELL_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^(bash|powershell)$/,
+								arguments: {
+									command: `node ${quoteShellArgument(attachedScript)}`,
+									description: 'Run attached shell completion probe',
+									mode: 'async',
+									initial_wait: 30,
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'The background shell is ready.', delayMs: 0 }] },
 					],
 				},
 			}],
@@ -193,58 +231,70 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		tempDirs.length = 0;
 	});
 
-	test('keeps a detached shell running after an idle session loses all subscribers (mock LLM)', async function () {
-		this.timeout(180_000);
+	for (const attachmentMode of ['attached', 'detached'] as const) {
+		test(`keeps ${attachmentMode === 'attached' ? 'an attached' : 'a detached'} shell running after an idle session loses all subscribers (mock LLM)`, async function () {
+			this.timeout(180_000);
 
-		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-detached-release`);
-		tempDirs.push(workspaceDir);
-		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-detached-release', createdSessions, URI.file(workspaceDir));
-		const turnId = 'turn-detached-release';
+			const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-${attachmentMode}-release`);
+			tempDirs.push(workspaceDir);
+			const sessionUri = await createProviderSession(client, COPILOT_CONFIG, `real-sdk-mock-${attachmentMode}-release`, createdSessions, URI.file(workspaceDir));
+			const turnId = `turn-${attachmentMode}-release`;
+			const scenarioId = attachmentMode === 'attached' ? ATTACHED_SHELL_SCENARIO_ID : DETACHED_SHELL_SCENARIO_ID;
 
-		dispatchTurn(client, sessionUri, turnId, `[scenario:${DETACHED_SHELL_SCENARIO_ID}] Start the detached shell.`, 1);
-		const readyNotification = await client.waitForNotification(n => {
-			if (!isActionNotification(n, 'chat/toolCallReady')) {
-				return false;
+			try {
+				dispatchTurn(client, sessionUri, turnId, `[scenario:${scenarioId}] Start the ${attachmentMode} shell.`, 1);
+				const readyNotification = await client.waitForNotification(n => {
+					if (!isActionNotification(n, 'chat/toolCallReady')) {
+						return false;
+					}
+					return !(getActionEnvelope(n).action as ChatToolCallReadyAction).confirmed;
+				}, 90_000);
+				const readyEnvelope = getActionEnvelope(readyNotification);
+				const readyAction = readyEnvelope.action as ChatToolCallReadyAction;
+				client.dispatch({
+					channel: readyEnvelope.channel,
+					clientSeq: 2,
+					action: {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: readyAction.turnId,
+						toolCallId: readyAction.toolCallId,
+						approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
+					},
+				});
+				const completeNotification = await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'), 90_000);
+				const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+				assert.strictEqual(completeAction.result.success, true, JSON.stringify(completeAction.result));
+				assert.match(JSON.stringify(completeAction.result), attachmentMode === 'detached' ? /detached background/ : /background/);
+				await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+
+				if (attachmentMode === 'attached') {
+					assert.strictEqual(await retry(() => readFile(attachedStartedMarker, 'utf8'), 100, 150), 'ready');
+					assert.strictEqual(existsSync(attachedCompletionMarker), false, 'The foreground must complete before the attached shell exits');
+				}
+				const idle = await fetchSessionWithChat(client, sessionUri);
+				assert.deepStrictEqual({
+					activeTurn: idle.activeTurn,
+					inProgress: (idle.status & SessionStatus.InProgress) !== 0,
+				}, {
+					activeTurn: undefined,
+					inProgress: false,
+				});
+
+				for (const channel of [buildDefaultChatUri(sessionUri), sessionUri]) {
+					client.notify('unsubscribe', { channel });
+				}
+				await timeout(RELEASE_RETRY_MS + 1000);
+			} finally {
+				if (attachmentMode === 'attached') {
+					await writeFile(attachedReleaseMarker, 'release');
+				}
 			}
-			return !(getActionEnvelope(n).action as ChatToolCallReadyAction).confirmed;
-		}, 90_000);
-		const readyEnvelope = getActionEnvelope(readyNotification);
-		const readyAction = readyEnvelope.action as ChatToolCallReadyAction;
-		client.dispatch({
-			channel: readyEnvelope.channel,
-			clientSeq: 2,
-			action: {
-				type: ActionType.ChatToolCallConfirmed,
-				turnId: readyAction.turnId,
-				toolCallId: readyAction.toolCallId,
-				approved: true,
-				confirmed: ToolCallConfirmationReason.UserAction,
-			},
+
+			const completionMarker = attachmentMode === 'attached' ? attachedCompletionMarker : detachedCompletionMarker;
+			assert.strictEqual(await retry(() => readFile(completionMarker, 'utf8'), 100, 150), 'done');
 		});
-		const completeNotification = await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'), 90_000);
-		const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
-		assert.match(JSON.stringify(completeAction.result), /detached background/);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
-
-		const idle = await fetchSessionWithChat(client, sessionUri);
-		assert.deepStrictEqual({
-			activeTurn: idle.activeTurn,
-			inProgress: (idle.status & SessionStatus.InProgress) !== 0,
-		}, {
-			activeTurn: undefined,
-			inProgress: false,
-		});
-
-		for (const channel of [buildDefaultChatUri(sessionUri), sessionUri]) {
-			client.notify('unsubscribe', { channel });
-		}
-		await timeout(RELEASE_RETRY_MS + 1000);
-
-		for (let attempt = 0; attempt < 150 && !existsSync(detachedCompletionMarker); attempt++) {
-			await timeout(100);
-		}
-		assert.strictEqual(await readFile(detachedCompletionMarker, 'utf8'), 'done');
-	});
+	}
 
 	test('releases an idle session and resumes it losslessly on re-subscribe (mock LLM)', async function () {
 		this.timeout(180_000);

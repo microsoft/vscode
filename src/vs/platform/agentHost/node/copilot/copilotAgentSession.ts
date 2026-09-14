@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -98,7 +98,7 @@ import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportC
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 
-type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
+type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number] & NonNullable<Parameters<CopilotSession['rpc']['send']>[0]['attachments']>[number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
 type RuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['commands']['list']>>['commands'][number];
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
@@ -497,6 +497,8 @@ export interface ICopilotAgentSessionOptions {
 	 * this session off the current stack.
 	 */
 	readonly onTurnEnded?: () => void;
+	/** Notifies the owner when background work has also settled and SDK idle is reached. */
+	readonly onSessionIdle?: () => void;
 
 	/**
 	 * Platform used to compute the SDK sandbox policy. Defaults to
@@ -613,6 +615,8 @@ class CopilotTurn extends Disposable {
 	private _providerTurnStarted = false;
 	private readonly _stopWatch = StopWatch.create(false);
 	private readonly _pendingToolCompletions = new Set<Promise<void>>();
+	/** Identifies the foreground SDK request shared by this turn and its steering replacements. */
+	foregroundRequest: symbol | undefined;
 
 	/**
 	 * This turn's own Copilot cost in nano-AIU, summed from the `copilotUsage`
@@ -688,15 +692,10 @@ class CopilotTurn extends Disposable {
 	 */
 	parentContextUsage: UsageContext | undefined;
 
-	/**
-	 * Current markdown response part IDs for this turn, keyed by
-	 * `parentToolCallId ?? ''`. Parent and subagent text stream through the
-	 * same SDK session but land in different AHP sessions, so their markdown
-	 * part state must not mask or append to each other.
-	 */
+	/** Current root response parts; background children retain their parts at session scope. */
 	readonly markdownPartIds = new Map<string, string>();
 
-	/** Current reasoning response part IDs for this turn, keyed by `parentToolCallId ?? ''`. */
+	/** Current root reasoning response parts. */
 	readonly reasoningPartIds = new Map<string, string>();
 
 	/**
@@ -822,6 +821,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
+	private readonly _subagentMarkdownPartIds = new Map<string, string>();
+	private readonly _subagentReasoningPartIds = new Map<string, string>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	/**
 	 * Maps a subagent's stable `agentId` to its parent tool call id. Completion
@@ -1135,6 +1136,7 @@ export class CopilotAgentSession extends Disposable {
 	private _detectInterruptedTurnOnRestore: boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
+	private readonly _onSessionIdle: () => void;
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
@@ -1212,6 +1214,8 @@ export class CopilotAgentSession extends Disposable {
 			this._completedTokenUsage.clear();
 			this._subagentObservedTokenUsage.clear();
 			this._observedUsageEventIds.clear();
+			this._subagentMarkdownPartIds.clear();
+			this._subagentReasoningPartIds.clear();
 		}));
 		this._abortCts.value = new CancellationTokenSource();
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
@@ -1227,6 +1231,7 @@ export class CopilotAgentSession extends Disposable {
 		this._launchPlan = options.launchPlan;
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
+		this._onSessionIdle = options.onSessionIdle ?? (() => { });
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
@@ -1409,7 +1414,8 @@ export class CopilotAgentSession extends Disposable {
 	 * handler) can associate the SDK event id with the steering turn for
 	 * history.truncate / sessions.fork mapping.
 	 */
-	private _beginSteeringTurn(steering: PendingMessage): string {
+	private _beginSteeringTurn(steering: PendingMessage, delivery?: SessionEventPayload<'user.message'>['data']['delivery']): string {
+		const foregroundRequest = delivery === undefined || delivery === 'steering' ? this._currentTurn.value?.foregroundRequest : undefined;
 		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
@@ -1429,6 +1435,10 @@ export class CopilotAgentSession extends Disposable {
 		this.resetTurnState(newTurnId);
 		const turn = this._currentTurn.value;
 		if (turn) {
+			turn.foregroundRequest = foregroundRequest;
+			if (foregroundRequest) {
+				turn.markProviderCallPending();
+			}
 			turn.messageCharLen = steering.message.text.length;
 			turn.markRunning();
 		}
@@ -1532,6 +1542,9 @@ export class CopilotAgentSession extends Disposable {
 		if (!parentToolCallId) {
 			return;
 		}
+		this._subagentMarkdownPartIds.delete(parentToolCallId);
+		this._subagentReasoningPartIds.delete(parentToolCallId);
+		this._clearStreamingToolCalls(parentToolCallId);
 		if (this._dropLateRootTurnEvents) {
 			this._rootTurnIdBySubagentToolCallId.delete(parentToolCallId);
 			this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
@@ -1731,8 +1744,25 @@ export class CopilotAgentSession extends Disposable {
 
 	private _beginToolCallRound(parentToolCallId: string | undefined): void {
 		const scope = parentToolCallId ?? '';
-		this._currentTurn.value?.markdownPartIds.delete(scope);
-		this._currentTurn.value?.reasoningPartIds.delete(scope);
+		this._getMarkdownPartIds(parentToolCallId)?.delete(scope);
+		this._getReasoningPartIds(parentToolCallId)?.delete(scope);
+	}
+
+	private _getMarkdownPartIds(parentToolCallId: string | undefined): Map<string, string> | undefined {
+		return parentToolCallId ? this._subagentMarkdownPartIds : this._currentTurn.value?.markdownPartIds;
+	}
+
+	private _getReasoningPartIds(parentToolCallId: string | undefined): Map<string, string> | undefined {
+		return parentToolCallId ? this._subagentReasoningPartIds : this._currentTurn.value?.reasoningPartIds;
+	}
+
+	private _clearStreamingToolCalls(parentToolCallId?: string): void {
+		for (const [toolCallId, tool] of this._streamingToolCalls) {
+			if (tool.parentToolCallId === parentToolCallId) {
+				this._streamingToolCalls.delete(toolCallId);
+				this._streamingToolDisplaySchedulers.deleteAndDispose(toolCallId);
+			}
+		}
 	}
 
 	/**
@@ -1742,20 +1772,20 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): void {
 		this._detectInterruptedTurnOnRestore = false;
-		this._streamingToolCalls.clear();
-		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
+		this._clearStreamingToolCalls();
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext);
 	}
 
-	async hasRunningDetachedShells(): Promise<boolean> {
+	async hasRunningBackgroundWork(): Promise<boolean> {
 		try {
 			await this._wrapper.session.rpc.tasks.refresh();
 			const tasks = await this._wrapper.session.rpc.tasks.list();
-			return tasks.tasks.some(task => task.type === 'shell'
-				&& task.attachmentMode === 'detached'
-				&& (task.status === 'running' || task.status === 'idle'));
+			return tasks.tasks.some(task => task.status !== 'completed'
+				&& task.status !== 'failed'
+				&& task.status !== 'cancelled'
+				&& !(task.type === 'agent' && task.status === 'idle'));
 		} catch (err) {
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read detached shell state; deferring release: ${getErrorMessage(err)}`);
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read background task state; deferring release: ${getErrorMessage(err)}`);
 			return true;
 		}
 	}
@@ -1836,6 +1866,54 @@ export class CopilotAgentSession extends Disposable {
 		this._clearActiveTurn();
 	}
 
+	private async _completeTurnAfterTools(turn: CopilotTurn, abortToken: CancellationToken): Promise<void> {
+		if (turn.hasPendingToolCompletions) {
+			await turn.drainToolCompletions();
+		}
+		if (this._store.isDisposed || this._currentTurn.value !== turn) {
+			return;
+		}
+		if (this._hasActivity) {
+			this._hasActivity = false;
+			this._emitAction({ type: ActionType.SessionActivityChanged, activity: undefined });
+		}
+		if (abortToken.isCancellationRequested) {
+			this._cancelActiveRepoInfoTelemetry();
+			this._dropLateRootTurnEvents = true;
+			turn.markAborted();
+			this._clearActiveTurn();
+			return;
+		}
+		this._completeActiveRepoInfoTelemetry();
+		this._completeActiveTurn();
+	}
+
+	private async _completeForegroundRequest(request: symbol, abortToken: CancellationToken): Promise<void> {
+		const turn = this._currentTurn.value;
+		if (turn?.foregroundRequest === request) {
+			turn.markProviderCallResolved();
+			await this._completeTurnAfterTools(turn, abortToken);
+		}
+	}
+
+	private _rejectForegroundRequest(request: symbol, originalTurn: CopilotTurn | undefined, abortToken: CancellationToken, error: unknown): void {
+		const turn = this._currentTurn.value;
+		if (!turn || turn !== originalTurn && turn.foregroundRequest !== request) {
+			return;
+		}
+		turn.markProviderCallRejected();
+		// The caller reports the original request's failure; a steering replacement needs its own terminal error.
+		if (turn !== originalTurn && !abortToken.isCancellationRequested) {
+			this.failActiveTurn({
+				errorType: 'sdkRequestFailed',
+				message: getErrorMessage(error),
+				stack: error instanceof Error ? error.stack : undefined,
+			});
+		} else {
+			this._clearActiveTurn();
+		}
+	}
+
 	failActiveTurn(error: ErrorInfo): string | undefined {
 		const turn = this._currentTurn.value;
 		if (!turn) {
@@ -1874,8 +1952,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._currentTurn.clear();
 		this._agentMergeTurn = false;
-		this._streamingToolCalls.clear();
-		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
+		this._clearStreamingToolCalls();
 		try {
 			this._onTurnEnded();
 		} catch (err) {
@@ -1980,8 +2057,8 @@ export class CopilotAgentSession extends Disposable {
 		if (parentToolCallId === undefined && !trustedRootTurn && this._shouldDropLateRootTurnEvent('assistant.message_delta')) {
 			return;
 		}
-		const turn = this._currentTurn.value;
-		if (!turn) {
+		const partIds = this._getMarkdownPartIds(parentToolCallId);
+		if (!partIds) {
 			// A markdown delta should only ever arrive while a turn is active.
 			// Without a turn we can't persist the part id (so every delta would
 			// allocate a fresh part) and the action would carry an empty turnId.
@@ -1990,20 +2067,21 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const markdownScope = parentToolCallId ?? '';
-		let partId = turn.markdownPartIds.get(markdownScope);
+		const turnId = parentToolCallId ? this._rootTurnIdBySubagentToolCallId.get(parentToolCallId) ?? this._turnId : this._turnId;
+		let partId = partIds.get(markdownScope);
 		if (!partId) {
 			partId = generateUuid();
-			turn.markdownPartIds.set(markdownScope, partId);
+			partIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
-				turnId: turn.id,
+				turnId,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content },
 			}, parentToolCallId, trustedRootTurn);
 			return;
 		}
 		this._emitAction({
 			type: ActionType.ChatDelta,
-			turnId: turn.id,
+			turnId,
 			partId,
 			content,
 		}, parentToolCallId, trustedRootTurn);
@@ -2014,26 +2092,27 @@ export class CopilotAgentSession extends Disposable {
 		if (parentToolCallId === undefined && this._shouldDropLateRootTurnEvent('assistant.reasoning_delta')) {
 			return;
 		}
-		const turn = this._currentTurn.value;
-		if (!turn) {
+		const partIds = this._getReasoningPartIds(parentToolCallId);
+		if (!partIds) {
 			this._logService.error(`[Copilot:${this.sessionId}] Reasoning delta emitted with no active turn; dropping`);
 			return;
 		}
 		const reasoningScope = parentToolCallId ?? '';
-		let partId = turn.reasoningPartIds.get(reasoningScope);
+		const turnId = parentToolCallId ? this._rootTurnIdBySubagentToolCallId.get(parentToolCallId) ?? this._turnId : this._turnId;
+		let partId = partIds.get(reasoningScope);
 		if (!partId) {
 			partId = generateUuid();
-			turn.reasoningPartIds.set(reasoningScope, partId);
+			partIds.set(reasoningScope, partId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
-				turnId: turn.id,
+				turnId,
 				part: { kind: ResponsePartKind.Reasoning, id: partId, content },
 			}, parentToolCallId);
 			return;
 		}
 		this._emitAction({
 			type: ActionType.ChatReasoning,
-			turnId: turn.id,
+			turnId,
 			partId,
 			content,
 		}, parentToolCallId);
@@ -2740,18 +2819,16 @@ export class CopilotAgentSession extends Disposable {
 		if (this._tryStartDevelopmentRecoverableError(prompt)) {
 			return;
 		}
+		const foregroundRequest = Symbol('copilotForegroundRequest');
+		const abortToken = this._abortToken;
+		if (turn) {
+			turn.foregroundRequest = foregroundRequest;
+		}
 		try {
 			await this._send(prompt, attachments, mode);
+			await this._completeForegroundRequest(foregroundRequest, abortToken);
 		} catch (err) {
-			// A rejected send never reaches the SDK's agentic loop, so no
-			// `session.idle` will ever arrive to close this turn. The host turns
-			// the rejection into a `ChatError` that finalizes the protocol turn,
-			// so drop our handle to match: leaving it set makes the chat look
-			// busy forever, which blocks idle eviction and parks any deferred
-			// client restart for the rest of the process's life.
-			if (turn && this._currentTurn.value === turn) {
-				this._clearActiveTurn();
-			}
+			this._rejectForegroundRequest(foregroundRequest, turn, abortToken, err);
 			this._hostInstructions = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
@@ -2948,14 +3025,22 @@ export class CopilotAgentSession extends Disposable {
 		const sendingTurn = this._currentTurn.value;
 		sendingTurn?.markProviderCallPending();
 		try {
+			// Full session idle also waits for background agents and shells; this wait is scoped to the foreground request.
 			await this._otelService.withTraceContext(traceContext, () => {
 				if (!this._environmentService.isBuilt && prompt === '$error') {
 					return this._wrapper.session.rpc.sendMessages({
 						messages: [{ prompt }],
+						wait: true,
 						requestHeaders: { Authorization: '******' },
+						...(traceContext ? { traceparent: traceContext.traceparent, tracestate: traceContext.tracestate } : {}),
 					});
 				}
-				return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+				return this._wrapper.session.rpc.send({
+					prompt,
+					attachments: sdkAttachments?.length ? sdkAttachments : undefined,
+					wait: true,
+					...(traceContext ? { traceparent: traceContext.traceparent, tracestate: traceContext.tracestate } : {}),
+				});
 			});
 			sendingTurn?.markProviderCallResolved();
 		} catch (error) {
@@ -2974,21 +3059,28 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turn = this._currentTurn.value;
 		this._resumingTurnAwaitingProviderStart = turn;
+		const foregroundRequest = Symbol('copilotForegroundRequest');
+		const abortToken = this._abortToken;
+		if (turn) {
+			turn.foregroundRequest = foregroundRequest;
+		}
 		turn?.markProviderCallPending();
 		try {
 			await this._prepareSdkTurn(mode);
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
+			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({
+				messages: [],
+				wait: true,
+				...(traceContext ? { traceparent: traceContext.traceparent, tracestate: traceContext.tracestate } : {}),
+			}));
 			turn?.markProviderCallResolved();
 			this._logService.info(`[Copilot:${this.sessionId}] zero-message continuation returned`);
+			await this._completeForegroundRequest(foregroundRequest, abortToken);
 		} catch (error) {
 			if (this._resumingTurnAwaitingProviderStart === turn) {
 				this._resumingTurnAwaitingProviderStart = undefined;
 			}
-			if (turn && this._currentTurn.value === turn) {
-				turn.markProviderCallRejected();
-				this._clearActiveTurn();
-			}
+			this._rejectForegroundRequest(foregroundRequest, turn, abortToken, error);
 			throw error;
 		}
 	}
@@ -3104,6 +3196,10 @@ export class CopilotAgentSession extends Disposable {
 			throw new Error(localize('copilotAgent.fleet.attachmentsUnsupported', "Attachments are not supported with the /fleet command."));
 		}
 		const startingTurn = this._currentTurn.value;
+		if (startingTurn) {
+			// Fleet owns an SDK-initiated loop rather than an awaitable send request.
+			startingTurn.foregroundRequest = undefined;
+		}
 		// `abortToken` is captured by the caller before the dispatch await (slash-command
 		// resolution), so it reliably reflects an abort that raced that await: an aborted
 		// `session.idle` resets the live token, so reading `this._abortToken` here could
@@ -3164,7 +3260,7 @@ export class CopilotAgentSession extends Disposable {
 			// Promote the turn to `running` now so an abort before the first SDK event
 			// tears it down instead of stranding a `pending` turn.
 			startingTurn.markRunning();
-			this._logService.info(`[Copilot:${this.sessionId}] rpc.fleet.start succeeded; retaining turn until session idle`);
+			this._logService.info(`[Copilot:${this.sessionId}] rpc.fleet.start succeeded; retaining turn until foreground idle`);
 			return;
 		}
 		throw new Error(localize('copilotAgent.fleet.notStarted', "Fleet could not be started."));
@@ -5008,7 +5104,7 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
-				const turnId = this._beginSteeringTurn(steering);
+				const turnId = this._beginSteeringTurn(steering, e.data.delivery);
 				if (e.data.interactionId) {
 					this._hostTurnIdsByInteractionId.set(e.data.interactionId, turnId);
 				}
@@ -5093,9 +5189,10 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const markdownScope = parentToolCallId ?? '';
-			if (e.data.content && !this._currentTurn.value?.markdownPartIds.has(markdownScope)) {
+			const partIds = this._getMarkdownPartIds(parentToolCallId);
+			if (e.data.content && !partIds?.has(markdownScope)) {
 				const partId = generateUuid();
-				this._currentTurn.value?.markdownPartIds.set(markdownScope, partId);
+				partIds?.set(markdownScope, partId);
 				this._emitAction({
 					type: ActionType.ChatResponsePart,
 					turnId: this._turnId,
@@ -5526,6 +5623,11 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
+			const turn = this._currentTurn.value;
+			// Session idle includes background work and can belong to an earlier foreground request.
+			if (turn?.foregroundRequest && (!e.data.aborted || !!abortingTurn && turn !== abortingTurn)) {
+				return;
+			}
 			if (e.data.aborted) {
 				this._resetAbortToken();
 			}
@@ -5536,8 +5638,12 @@ export class CopilotAgentSession extends Disposable {
 					activity: undefined,
 				});
 			}
-			const turn = this._currentTurn.value;
 			if (!turn) {
+				try {
+					this._onSessionIdle();
+				} catch (error) {
+					this._logService.error(error, `[Copilot:${sessionId}] Session idle callback failed`);
+				}
 				return;
 			}
 			// An abort drives the loop to idle. That terminal idle must never
@@ -5579,15 +5685,18 @@ export class CopilotAgentSession extends Disposable {
 			// turn here means the SDK went idle before emitting any event for it
 			// (a degenerate no-op send); complete it defensively so the session
 			// does not hang.
-			if (turn.hasPendingToolCompletions) {
-				const abortToken = this._abortToken;
-				await turn.drainToolCompletions();
-				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
-					return;
-				}
+			await this._completeTurnAfterTools(turn, this._abortToken);
+		}));
+
+		this._register(wrapper.onAssistantIdle(e => {
+			const turn = this._currentTurn.value;
+			if (e.agentId || e.data.aborted || !turn?.isRunning || turn.foregroundRequest) {
+				return;
 			}
-			this._completeActiveRepoInfoTelemetry();
-			this._completeActiveTurn();
+			// SDK-initiated turns have no host send promise to report their foreground completion.
+			void this._completeTurnAfterTools(turn, this._abortToken).catch(error => {
+				this._logService.error(`[Copilot:${sessionId}] Failed to finalize SDK-initiated foreground turn`, error);
+			});
 		}));
 
 		// The SDK emits a `skill` tool call (which we hide) and a richer

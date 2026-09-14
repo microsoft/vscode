@@ -6,6 +6,8 @@ These are distinct from `../e2e/`, whose prioritized cross-provider suites repla
 
 Every real provider process must use a temporary home through `createIsolatedProviderEnvironment` or the required `homeDir` option of `startRealServer`. This keeps provider configuration, logs, and sessions out of the developer's real home directory.
 
+The Copilot mock-LLM suite verifies that foreground completion and idle-session release do not stop attached or detached background shells. Its attached shell waits for a test-controlled release file, so the test must observe a completed parent turn before allowing that shell to exit.
+
 Run one suite with:
 
 ```bash
