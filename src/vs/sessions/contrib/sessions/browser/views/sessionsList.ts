@@ -2954,15 +2954,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore>): void => {
-				if (node.element && (isSessionItem(node.element) || isSessionChatItem(node.element))) {
-					this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
-				}
-				for (const child of node.children) {
-					updateNodeHeights(child);
-				}
-			};
-			updateNodeHeights(this.tree.getNode());
+			this.setCompact();
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
