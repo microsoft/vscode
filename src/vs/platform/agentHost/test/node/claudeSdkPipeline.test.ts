@@ -6,7 +6,7 @@
 import type { Query, SDKControlGetContextUsageResponse, SDKControlInterruptResponse, SDKMessage, SDKResultSuccess, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -746,6 +746,46 @@ suite('ClaudeSdkPipeline', () => {
 			assert.deepStrictEqual(
 				{ observedLimits, contextUsageCalls: warm.queries[0].contextUsageCalls.length },
 				{ observedLimits: [{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 }], contextUsageCalls: 0 },
+			);
+		});
+
+		test('a getContextUsage that answers without a usable total falls back to the base ChatUsage', async () => {
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => makeContextUsageResponse({ totalTokens: 0 }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }] },
+			);
+		});
+
+		test('a breakdown that arrives after the pipeline was aborted is discarded and the base ChatUsage still lands', async () => {
+			// Only the attribution can be stale after an abort or rebind; the base
+			// report is the result's own data, so it is emitted regardless.
+			const abortHook: { run?: () => void } = {};
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => {
+				abortHook.run?.();
+				return makeContextUsageResponse({ totalTokens: 5_000 });
+			});
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			abortHook.run = () => pipeline.abort();
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			// `send` rejects the moment `abort` fails the queue, before the loop
+			// iteration that awaited the breakdown resumes and emits the report.
+			await pipeline.send(makePrompt('p1'), 'turn-1').catch(() => { /* aborted mid-turn */ });
+			for (let i = 0; i < 50 && usageActionsOf(signals).length === 0; i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual(
+				usageActionsOf(signals).map(a => a.usage),
+				[{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }],
 			);
 		});
 

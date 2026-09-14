@@ -400,7 +400,10 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
 		// `_abortController` so a swap aborts the live subprocess.
-		this._register(toDisposable(() => this._abortController.abort()));
+		this._register(toDisposable(() => {
+			this._abortController.abort();
+			this._pendingContextUsage = undefined;
+		}));
 		this._register(toDisposable(() => {
 			void Promise.resolve(this._warm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline] WarmQuery dispose failed: ${err}`));
@@ -817,7 +820,9 @@ export class ClaudeSdkPipeline extends Disposable {
 					if (message.subtype === 'success' && turnId !== undefined) {
 						// The turn's only usage report. Must land before
 						// `ChatTurnComplete`: the chat reducer only applies
-						// `ChatUsage` to the active turn.
+						// `ChatUsage` to the active turn. The await stalls this
+						// loop, and so the delivery of any message queued behind
+						// the result, for at most `_contextUsageTimeoutMs`.
 						await this._emitTurnUsage(query, message, turnId);
 					}
 					const completed = this._queue.settleHead();

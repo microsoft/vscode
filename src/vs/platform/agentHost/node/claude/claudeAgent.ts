@@ -593,8 +593,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._observedModelLimits.set(key, { contextWindow: limits.contextWindow, maxOutputTokens: limits.maxOutputTokens });
-		const published = applyObservedNativeModelLimits(this._models.get(), this._observedModelLimits, this._nativeModelAliases);
-		const applied = published.filter(m => m.maxContextWindow === limits.contextWindow).map(m => m.id);
+		const before = this._models.get();
+		const published = applyObservedNativeModelLimits(before, this._observedModelLimits, this._nativeModelAliases);
+		const applied = published
+			.filter((m, i) => m.maxContextWindow !== before[i].maxContextWindow || m.maxPromptTokens !== before[i].maxPromptTokens || m.maxOutputTokens !== before[i].maxOutputTokens)
+			.map(m => m.id);
 		this._logService.info(`[Claude] Observed limits for model ${limits.model}: contextWindow=${limits.contextWindow}, maxOutputTokens=${limits.maxOutputTokens}; applied to ${applied.length ? applied.join(', ') : 'no catalog rows'}`);
 		this._models.set(published, undefined);
 	}

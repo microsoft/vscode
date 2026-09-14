@@ -56,7 +56,7 @@ suite('claudeContextUsage', () => {
 				{ kind: 'system', id: 'slash-commands', label: 'Slash Commands', tokens: 200 },
 				{ kind: 'toolDefinition', id: 'tool:Read', label: 'Read', tokens: 400 },
 				{ kind: 'toolDefinition', id: 'tool:Edit', label: 'Edit', tokens: 600 },
-				{ kind: 'toolDefinition', id: 'tool:NotebookEdit', label: 'NotebookEdit', tokens: 250 },
+				{ kind: 'toolDefinition', id: 'tool:deferred:NotebookEdit', label: 'NotebookEdit', tokens: 250 },
 				{ kind: 'mcpServer', id: 'mcp:linear:mcp__linear__create_issue', label: 'mcp__linear__create_issue', tokens: 150, attributes: { serverName: 'linear' } },
 				{ kind: 'subagent', id: 'agent:projectSettings:reviewer', label: 'reviewer', tokens: 120, attributes: { source: 'projectSettings' } },
 				{ kind: 'skill', id: 'skills', label: 'Skills', tokens: 350 },

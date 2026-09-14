@@ -68,9 +68,11 @@ export function toClaudeContextAttribution(usage: SDKControlGetContextUsageRespo
 			entries.push({ kind: 'toolDefinition', id: `tool:${tool.name}`, label: tool.name, tokens: tool.tokens });
 		}
 	}
+	// Namespaced apart from `systemTools`: the SDK does not promise the two
+	// lists are disjoint by name, and entry ids are expected to be unique.
 	for (const tool of usage.deferredBuiltinTools ?? []) {
 		if (tool.isLoaded && tool.tokens > 0) {
-			entries.push({ kind: 'toolDefinition', id: `tool:${tool.name}`, label: tool.name, tokens: tool.tokens });
+			entries.push({ kind: 'toolDefinition', id: `tool:deferred:${tool.name}`, label: tool.name, tokens: tool.tokens });
 		}
 	}
 
