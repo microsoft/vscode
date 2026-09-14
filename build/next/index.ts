@@ -24,6 +24,7 @@ import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 import { copyResources, type BuildTarget } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
+import { getBundleOptions } from './bundle.ts';
 
 const globAsync = promisify(glob);
 
@@ -539,27 +540,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
 
-	// Read TSLib for banner
-	const tslibPath = path.join(REPO_ROOT, 'node_modules/tslib/tslib.es6.js');
-	const tslib = await fs.promises.readFile(tslibPath, 'utf-8');
-	const banner = {
-		js: `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-${tslib}`,
-		css: `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/`,
-	};
-
-	// Shared TypeScript options for bundling directly from source
-	const tsconfigRaw = JSON.stringify({
-		compilerOptions: {
-			experimentalDecorators: true,
-			useDefineForClassFields: false
-		}
-	});
-
 	// Create shared NLS collector (only used if doNls is true)
 	const nlsCollector = createNLSCollector();
 	const preserveEnglish = false; // Production mode: replace messages with null
@@ -596,22 +576,13 @@ ${tslib}`,
 		const needsCssBundling = bundleCssEntryPoints.has(entryPoint);
 
 		const buildOptions: esbuild.BuildOptions = {
+			...getBundleOptions(doMinify, 'neutral'),
 			entryPoints: needsCssBundling
 				? [{ in: entryPath, out: entryPoint }]
 				: [entryPath],
 			...(needsCssBundling
 				? { outdir: path.join(REPO_ROOT, outDir) }
 				: { outfile: outPath }),
-			bundle: true,
-			format: 'esm',
-			platform: 'neutral',
-			target: ['es2024'],
-			packages: 'external',
-			sourcemap: 'linked',
-			sourcesContent: true,
-			minify: doMinify,
-			treeShaking: true,
-			banner,
 			loader: {
 				'.ttf': 'file',
 				'.svg': 'file',
@@ -620,12 +591,6 @@ ${tslib}`,
 			},
 			assetNames: 'media/[name]',
 			plugins,
-			write: false, // Don't write yet, we need to post-process
-			logLevel: 'warning',
-			logOverride: {
-				'unsupported-require-call': 'silent',
-			},
-			tsconfigRaw,
 		};
 
 		const result = await esbuild.build(buildOptions);
@@ -652,25 +617,10 @@ ${tslib}`,
 		}
 
 		const result = await esbuild.build({
+			...getBundleOptions(doMinify, 'node'),
 			entryPoints: [entryPath],
 			outfile: outPath,
-			bundle: true,
-			format: 'esm',
-			platform: 'node',
-			target: ['es2024'],
-			packages: 'external',
-			sourcemap: 'linked',
-			sourcesContent: true,
-			minify: doMinify,
-			treeShaking: true,
-			banner,
 			plugins: bootstrapPlugins,
-			write: false, // Don't write yet, we need to post-process
-			logLevel: 'warning',
-			logOverride: {
-				'unsupported-require-call': 'silent',
-			},
-			tsconfigRaw,
 		});
 
 		buildResults.push({ outPath, result });
