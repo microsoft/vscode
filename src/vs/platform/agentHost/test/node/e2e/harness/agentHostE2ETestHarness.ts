@@ -9,9 +9,11 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync } from 'fs';
+import { rm } from 'fs/promises';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
+import { inspect } from 'util';
 import { timeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
@@ -72,7 +74,7 @@ export type AgentHostE2EModelTraffic = 'recorded' | 'none';
  * Clears read-only attributes across a directory tree.
  *
  * Git marks the files under `.git/objects` read-only, and on Windows a
- * read-only file cannot be deleted — `rmSync`'s `force` option only suppresses
+ * read-only file cannot be deleted — `rm`'s `force` option only suppresses
  * `ENOENT`, it does not override the attribute. Without this, any test that
  * creates a git repository in a temp directory fails teardown on Windows after
  * burning the full cleanup timeout, even though the test itself passed.
@@ -119,15 +121,15 @@ export function initTestGitRepo(cwd: string): void {
 	execSync('git config gc.auto 0', { cwd });
 }
 
-export async function removeTempDirs(tempDirs: string[]): Promise<void> {
+export async function removeTempDirs(tempDirs: string[], timeoutMs = TEMP_DIR_CLEANUP_TIMEOUT_MS): Promise<void> {
 	const pendingDirs = tempDirs.splice(0);
 	const errors = new Map<string, Error>();
-	const deadline = Date.now() + TEMP_DIR_CLEANUP_TIMEOUT_MS;
+	const deadline = Date.now() + timeoutMs;
 	while (pendingDirs.length > 0) {
 		for (let index = pendingDirs.length - 1; index >= 0; index--) {
 			const dir = pendingDirs[index];
 			try {
-				rmSync(dir, { recursive: true, force: true });
+				await rm(dir, { recursive: true, force: true });
 				pendingDirs.splice(index, 1);
 				errors.delete(dir);
 			} catch (error) {
@@ -144,7 +146,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		if (Date.now() >= deadline) {
 			throw new AggregateError(
 				Array.from(errors.values()),
-				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
+				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}\n${Array.from(errors.values(), error => inspect(error, { depth: 5 })).join('\n')}`,
 			);
 		}
 		await timeout(500);
@@ -872,6 +874,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
  * without stopping the server so the next test can reuse it.
  */
 export class AgentHostE2EServerLease {
+	private _disposePromise: Promise<void> | undefined;
 	private _server: IServerHandle | undefined;
 	private _client: TestProtocolClient | undefined;
 	private readonly _shared: boolean;
@@ -1222,22 +1225,36 @@ export class AgentHostE2EServerLease {
 	}
 
 	/** Tear down a shared server at the end of the suite (no-op for per-test). */
-	async dispose(): Promise<void> {
+	dispose(): Promise<void> {
+		this._disposePromise ??= this._dispose();
+		return this._disposePromise;
+	}
+
+	private async _dispose(): Promise<void> {
 		const dataDir = this._dataDir;
 		this._dataDir = undefined;
+		const server = this._server;
+		this._server = undefined;
+		const errors: Error[] = [];
 		try {
-			if (this._server) {
-				try {
-					await this._server.capiReplay?.close();
-				} finally {
-					await stopServer(this._server);
-					this._server = undefined;
-				}
-			}
-		} finally {
+			await server?.capiReplay?.close();
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		try {
+			await stopServer(server);
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		try {
 			if (dataDir) {
 				await removeTempDirs([dataDir]);
 			}
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, `Failed to dispose Agent Host E2E server lease:\n${errors.map(error => inspect(error, { depth: 5 })).join('\n')}`);
 		}
 	}
 }

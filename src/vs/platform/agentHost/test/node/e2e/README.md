@@ -219,6 +219,10 @@ Each test needs an agent host server (a forked subprocess) fronted by a `CapiRep
 
 The lease also owns a fresh suite data directory. Every server it starts uses that directory as its home and VS Code user-data directory and prevents provider-specific config overrides from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
 
+Directory removal follows awaited provider shutdown, not just the host's exit notification. Codex sends EOF and waits for its process and stdio to close; after its grace period, cleanup uses the owned process tree rather than killing only the direct child. On Windows, descendants are recorded before EOF and reaped even if the parent exits cleanly. The server lease applies the same ownership boundary before removing the suite home. Forced cleanup is bounded, and a failed shutdown or directory removal remains a teardown failure with nested process/errno/path diagnostics.
+
+The test-server grace period covers all three standalone shutdown phases (protocol drain, provider shutdown, and persistence flush) plus a two-second cleanup margin: 15.5 seconds locally, with a 30-second minimum on CI, Windows, and coverage runs. Its budget is derived from the same per-phase timeout used by the server.
+
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
 - **Shared** (the default in replay, for every provider) — reuse a server + proxy across tests, swapping the per-test fixture and reconnecting a fresh client. The lease recycles after 25 model-backed tests or 40 total tests, whichever comes first. The model cap bounds provider-process load; the total cap bounds host-owned terminals, watchers, subscriptions, and other resource accumulation in host-only suites.
@@ -512,6 +516,10 @@ The Responses (`/responses`) regenerator announces each output item before strea
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
+
+### Suite teardown cannot remove an isolated home on Windows
+
+The last test named by an `after all` hook is context, not necessarily the cause. Check the nested removal error's errno and path, and any owned-process shutdown diagnostics. A descendant holding a file without delete sharing can outlive a clean host exit. Preserve the failure and investigate the owned process lifetime; do not gate the last test or extend directory-removal retries. The focused `codexAppServerProcess.test.ts` tests cover delayed EOF, ignored EOF, detached descendants, startup failure, repeated shutdown, and held-file diagnostics without model traffic.
 
 ### Fixture leaks a username / absolute path / token
 

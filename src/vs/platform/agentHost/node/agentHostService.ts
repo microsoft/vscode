@@ -15,7 +15,7 @@ import { AgentHostIpcChannels } from '../common/agentService.js';
 
 enum Constants {
 	MaxRestarts = 5,
-	ShutdownTimeoutMs = 6000,
+	ShutdownTimeoutMs = 10000,
 }
 
 const WINDOWS_EXPECTED_SHUTDOWN_EXIT_CODES = new Set([

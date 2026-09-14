@@ -14,6 +14,9 @@ import * as Types from '../common/types.js';
 import * as pfs from './pfs.js';
 import { FileAccess } from '../common/network.js';
 import Stream from 'stream';
+import { inspect } from 'util';
+import { DeferredPromise, raceTimeout, timeout } from '../common/async.js';
+import { getErrorCode } from '../common/errors.js';
 export { Source, TerminateResponseCode, type CommandOptions, type ForkOptions, type SuccessData, type TerminateResponse };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;
@@ -147,7 +150,7 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
  * that on Windows, terminal processes can _only_ be killed forcefully and this
  * will throw when not forceful.
  */
-export async function killTree(pid: number, forceful = false) {
+export async function killTree(pid: number, forceful = false, timeoutMs?: number) {
 	let child: cp.ChildProcessByStdio<null, Stream.Readable, Stream.Readable>;
 	if (Platform.isWindows) {
 		const windir = process.env['WINDIR'] || 'C:\\Windows';
@@ -158,10 +161,10 @@ export async function killTree(pid: number, forceful = false) {
 			args.push('/F');
 		}
 		args.push('/PID', String(pid));
-		child = cp.spawn(taskKill, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+		child = cp.spawn(taskKill, args, { stdio: ['ignore', 'pipe', 'pipe'], timeout: timeoutMs });
 	} else {
 		const killScript = FileAccess.asFileUri('vs/base/node/terminateProcess.sh').fsPath;
-		child = cp.spawn('/bin/sh', [killScript, String(pid), forceful ? '9' : '15'], { stdio: ['ignore', 'pipe', 'pipe'] });
+		child = cp.spawn('/bin/sh', [killScript, String(pid), forceful ? '9' : '15'], { stdio: ['ignore', 'pipe', 'pipe'], timeout: timeoutMs });
 	}
 
 	return new Promise<void>((resolve, reject) => {
@@ -169,12 +172,132 @@ export async function killTree(pid: number, forceful = false) {
 		child.stdout.on('data', (data) => stdout.push(data));
 		child.stderr.on('data', (data) => stdout.push(data));
 		child.on('error', reject);
-		child.on('exit', (code) => {
+		child.on('close', (code, signal) => {
 			if (code === 0) {
 				resolve();
 			} else {
-				reject(new Error(`taskkill exited with code ${code}: ${Buffer.concat(stdout).toString()}`));
+				reject(new Error(`Failed to kill process tree ${pid} (code=${code}, signal=${signal}): ${Buffer.concat(stdout).toString()}`));
 			}
 		});
 	});
+}
+
+function isProcessRunning(pid: number, probeProcess: (pid: number) => void): boolean {
+	try {
+		probeProcess(pid);
+		return true;
+	} catch (error) {
+		const code = getErrorCode(error);
+		if (code === 'ESRCH') {
+			return false;
+		}
+		if (code === 'EPERM') {
+			return true;
+		}
+		throw error;
+	}
+}
+
+/** Sends EOF, waits for process exit, and reaps owned Windows descendants before returning. */
+export async function shutdownProcessTree(
+	child: cp.ChildProcess,
+	graceTimeMs: number,
+	killTimeMs = 2_000,
+	probeProcess: (pid: number) => void = pid => { process.kill(pid, 0); },
+): Promise<void> {
+	if ((child.exitCode !== null || child.signalCode !== null) && child.stdout?.closed !== false && child.stderr?.closed !== false) {
+		return;
+	}
+
+	const pid = child.pid;
+	const isRunning = (pid: number) => isProcessRunning(pid, probeProcess);
+	const descendants: number[] = [];
+	const errors: unknown[] = [];
+	const stdinErrors: unknown[] = [];
+	let closed = false;
+	const processClosed = new DeferredPromise<void>();
+	const whenClosed = processClosed.p;
+	const onClose = () => {
+		closed = true;
+		void processClosed.complete();
+	};
+	child.once('close', onClose);
+	const onError = (error: Error) => errors.push(error);
+	const onStdinError = (error: Error) => stdinErrors.push(error);
+	child.on('error', onError);
+	child.stdin?.on('error', onStdinError);
+	const graceDeadline = Date.now() + graceTimeMs;
+
+	try {
+		if (pid !== undefined && graceTimeMs > 0) {
+			if (Platform.isWindows) {
+				try {
+					const snapshot = await raceTimeout((async () => {
+						const { getProcessList } = await import('@vscode/windows-process-tree');
+						return new Promise<number[]>((resolve, reject) => getProcessList(pid, processes => {
+							if (!processes && child.exitCode === null && child.signalCode === null) {
+								reject(new Error(`Could not record descendants of running process ${pid}`));
+								return;
+							}
+							resolve(processes ? processes.filter(process => process.pid !== pid).map(process => process.pid) : []);
+						}));
+					})(), graceTimeMs);
+					if (snapshot === undefined) {
+						throw new Error(`Timed out recording descendants of process ${pid}`);
+					}
+					descendants.push(...snapshot);
+				} catch (error) {
+					errors.push(error);
+				}
+			}
+			try {
+				child.stdin?.end();
+			} catch (error) {
+				stdinErrors.push(error);
+			}
+			await raceTimeout(whenClosed, Math.max(0, graceDeadline - Date.now()));
+		}
+
+		const killDeadline = Date.now() + killTimeMs;
+		const killOwned = async (ownedPid: number): Promise<void> => {
+			if (!isRunning(ownedPid)) {
+				return;
+			}
+			try {
+				await killTree(ownedPid, true, Math.max(1, killDeadline - Date.now()));
+			} catch (error) {
+				// A process can exit between the liveness check and taskkill.
+				if (isRunning(ownedPid)) {
+					errors.push(error);
+				}
+			}
+		};
+		if (!closed && pid !== undefined) {
+			await killOwned(pid);
+		}
+		await Promise.all(descendants.map(killOwned));
+		if (!closed && !await raceTimeout(whenClosed.then(() => true), Math.max(0, killDeadline - Date.now()))) {
+			errors.push(new Error(`Process ${pid} did not close within ${killTimeMs}ms of forced shutdown`));
+		}
+		let remaining = descendants.filter(isRunning);
+		while (remaining.length > 0 && Date.now() < killDeadline) {
+			await timeout(Math.min(20, killDeadline - Date.now()));
+			remaining = remaining.filter(isRunning);
+		}
+		if (remaining.length > 0) {
+			errors.push(new Error(`Owned descendants still running: ${remaining.join(', ')}`));
+		}
+		// EOF can race process exit; a closed pipe is benign only once the process has closed.
+		errors.push(...stdinErrors.filter(error => {
+			const code = getErrorCode(error);
+			return !closed || (code !== 'EPIPE' && code !== 'ERR_STREAM_DESTROYED');
+		}));
+		if (errors.length > 0) {
+			throw new AggregateError(errors, `Failed to shut down process tree (pid=${pid}, code=${child.exitCode}, signal=${child.signalCode}, descendants=${descendants.join(', ')}):\n${errors.map(error => inspect(error, { depth: 5 })).join('\n')}`);
+		}
+	} finally {
+		child.removeListener('close', onClose);
+		child.removeListener('error', onError);
+		child.stdin?.removeListener('error', onStdinError);
+	}
 }
