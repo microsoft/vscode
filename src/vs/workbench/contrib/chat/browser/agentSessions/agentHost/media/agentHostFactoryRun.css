@@ -259,6 +259,33 @@
 	min-width: 0;
 }
 
+/* Agents with a chat render as a button that opens it; keep the row's typography. */
+button.agent-host-factory-run-agent-name {
+	padding: 2px 6px;
+	margin-left: -6px;
+	border: none;
+	border-radius: 3px;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+button.agent-host-factory-run-agent-name:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	text-decoration: underline;
+}
+
+button.agent-host-factory-run-agent-name:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+button.agent-host-factory-run-agent-name > .codicon-link-external {
+	font-size: 12px;
+	opacity: 0.7;
+}
+
 .agent-host-factory-run-agent-name > span:first-of-type {
 	overflow: hidden;
 	text-overflow: ellipsis;

@@ -76,8 +76,8 @@ suite('copilotFactoryRuns', () => {
 				{ id: 'verify', title: 'Verify', detail: 'Check findings', status: SessionFactoryRunPhaseStatus.Pending, activeMs: 0, totalAgentCount: 0, liveAgentCount: 0 },
 			],
 			agents: [
-				{ agentId: 'a1', phaseId: 'review', label: 'Review a.ts', agentType: 'task', status: 'running', model: 'claude', startedAt: 1300, activeMs: 900, activity: 'Reading a.ts' },
-				{ agentId: 'a2', label: 'planner', agentType: 'task', status: 'completed', startedAt: 1250, completedAt: 1900, activeMs: 650 },
+				{ agentId: 'a1', toolCallId: 't1', phaseId: 'review', label: 'Review a.ts', agentType: 'task', status: 'running', model: 'claude', startedAt: 1300, activeMs: 900, activity: 'Reading a.ts' },
+				{ agentId: 'a2', toolCallId: 't2', label: 'planner', agentType: 'task', status: 'completed', startedAt: 1250, completedAt: 1900, activeMs: 650 },
 			],
 			progress: [
 				{ seq: 1, phaseId: 'review', recordedAt: 1200, kind: 'phase', text: 'Review' },

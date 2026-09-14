@@ -28,7 +28,7 @@ function run(overrides: Partial<ISessionFactoryRun> = {}): ISessionFactoryRun {
 			{ id: 'verify', ordinal: 1, title: 'Verify', detail: 'Confirm findings', status: SessionFactoryRunPhaseStatus.Pending, activeMs: 0, totalAgentCount: 0, liveAgentCount: 0 },
 		],
 		agents: [
-			{ agentId: 'a1', phaseId: 'review', label: 'Review a.ts', agentType: 'task', status: 'running', model: 'claude', startedAt: 1600, activeMs: 400, activity: 'Reading a.ts' },
+			{ agentId: 'a1', toolCallId: 'a1', phaseId: 'review', label: 'Review a.ts', agentType: 'task', status: 'running', model: 'claude', startedAt: 1600, activeMs: 400, activity: 'Reading a.ts' },
 		],
 		progress: [
 			{ seq: 1, phaseId: 'review', recordedAt: 1500, kind: 'phase', text: 'Review' },

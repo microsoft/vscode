@@ -65,6 +65,7 @@ function toAgent(agent: FactoryRunDetail['agents'][number]): ISessionFactoryRunA
 	const model = agent.resolvedModel ?? agent.requestedModel;
 	return {
 		agentId: agent.agentId,
+		toolCallId: agent.toolCallId,
 		...(agent.phaseId !== null ? { phaseId: agent.phaseId } : {}),
 		label: agent.displayName ?? agent.label,
 		agentType: agent.agentType,

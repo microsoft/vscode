@@ -12,11 +12,13 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../../base/common/date.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { ISessionFactoryRun, ISessionFactoryRunPhase, readSessionFactoryRuns, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
+import { ISessionFactoryRun, ISessionFactoryRunAgent, ISessionFactoryRunPhase, readSessionFactoryRuns, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -25,6 +27,8 @@ import { EditorPane } from '../../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../../../services/editor/common/editorGroupsService.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../common/constants.js';
+import type { IOpenSubagentChatContext } from '../../widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostFactoryRunEditorInput } from './agentHostFactoryRunEditorInput.js';
 import { describeFactoryRun, formatFactoryCredits, formatFactoryDuration, getFactoryRunPhaseStatusLabel, getFactoryRunStatusIcon, getFactoryRunStatusLabel, selectDefaultFactoryRunPhase } from './agentHostFactoryRunPresentation.js';
 
@@ -51,6 +55,7 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IAgentHostConnectionsService private readonly connectionsService: IAgentHostConnectionsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(AgentHostFactoryRunEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -70,13 +75,16 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		this.selectedPhaseId.set(undefined, undefined);
 
 		const resolutionChanged = observableSignalFromEvent(this, this.connectionsService.onDidChangeSessionResolution);
-		const sessionState = derived(this, reader => {
+		const resolution = derived(this, reader => {
 			resolutionChanged.read(reader);
-			const resolution = this.connectionsService.resolveSessionResource(input.sessionResource);
-			if (!resolution) {
+			return this.connectionsService.resolveSessionResource(input.sessionResource);
+		});
+		const sessionState = derived(this, reader => {
+			const current = resolution.read(reader);
+			if (!current) {
 				return constObservable<SessionState | undefined>(undefined);
 			}
-			const subscription = reader.store.add(resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostFactoryRunEditor'));
+			const subscription = reader.store.add(current.connection.getSubscription(StateComponents.Session, current.backendSession, 'AgentHostFactoryRunEditor'));
 			return observableFromSubscription(this, subscription.object);
 		});
 		// Re-render only when the run itself changed; other session activity is noise here.
@@ -91,17 +99,26 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 				&& first.progress.length === second.progress.length
 				&& first.agents.length === second.agents.length),
 		}, reader => readSessionFactoryRuns(sessionState.read(reader).read(reader)?._meta).find(candidate => candidate.runId === input.runId));
+		// Factory agents run as background subagents, so the host materializes a
+		// chat for each one. Only chats the session actually lists are openable.
+		const agentChats = derivedOpts<ReadonlyMap<string, string>>({ owner: this, equalsFn: mapsEqual }, reader => {
+			const current = resolution.read(reader);
+			const state = sessionState.read(reader).read(reader);
+			const currentRun = run.read(reader);
+			return current && state && currentRun ? resolveFactoryRunAgentChats(currentRun, current.backendSession, state.chats) : new Map();
+		});
 
 		const container = this.container;
 		disposables.add(autorun(reader => {
 			const current = run.read(reader);
 			const selected = this.selectedPhaseId.read(reader);
+			const chats = agentChats.read(reader);
 			DOM.clearNode(container);
 			if (!current) {
 				this.renderUnavailable(container, input);
 				return;
 			}
-			this.renderRun(container, current, selected);
+			this.renderRun(container, current, selected, { sessionResource: input.sessionResource, agentChats: chats });
 		}));
 	}
 
@@ -128,11 +145,11 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		DOM.append(empty, $('p', undefined, localize('agentHostFactoryRun.unavailable', "This factory run is not available. The session may not be connected, or the run may have been removed.")));
 	}
 
-	private renderRun(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | undefined): void {
+	private renderRun(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | undefined, context: IFactoryRunRenderContext): void {
 		this.renderHeader(container, run);
 		this.renderOutcome(container, run);
 		this.renderUsage(container, run);
-		this.renderPhases(container, run, selectedPhaseId);
+		this.renderPhases(container, run, selectedPhaseId, context);
 	}
 
 	private renderHeader(container: HTMLElement, run: ISessionFactoryRun): void {
@@ -211,7 +228,7 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		}
 	}
 
-	private renderPhases(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | undefined): void {
+	private renderPhases(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | undefined, context: IFactoryRunRenderContext): void {
 		const section = this.renderSection(container, localize('agentHostFactoryRun.phases', "Phases"));
 		const layout = DOM.append(section, $('.agent-host-factory-run-phases'));
 		const list = DOM.append(layout, $('.agent-host-factory-run-phase-list'));
@@ -247,10 +264,10 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		});
 
 		const detailPane = DOM.append(layout, $('.agent-host-factory-run-phase-detail'));
-		this.renderPhaseDetail(detailPane, run, selected);
+		this.renderPhaseDetail(detailPane, run, selected, context);
 	}
 
-	private renderPhaseDetail(container: HTMLElement, run: ISessionFactoryRun, phase: ISessionFactoryRunPhase | undefined): void {
+	private renderPhaseDetail(container: HTMLElement, run: ISessionFactoryRun, phase: ISessionFactoryRunPhase | undefined, context: IFactoryRunRenderContext): void {
 		const heading = DOM.append(container, $('.agent-host-factory-run-detail-heading'));
 		if (phase) {
 			DOM.append(heading, $('h3', undefined, phase.title));
@@ -270,12 +287,22 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 				: localize('agentHostFactoryRun.noAgents', "No agents ran in this phase.")));
 		}
 		for (const agent of agents) {
+			const chatResource = context.agentChats.get(agent.agentId);
 			const row = DOM.append(container, $('.agent-host-factory-run-agent'));
-			const name = DOM.append(row, $('.agent-host-factory-run-agent-name'));
+			const name = DOM.append(row, chatResource ? $('button.agent-host-factory-run-agent-name.is-openable') : $('.agent-host-factory-run-agent-name'));
 			DOM.append(name, renderIcon(Codicon.agent));
 			DOM.append(name, $('span', undefined, agent.label));
 			if (agent.model) {
 				DOM.append(name, $('span.agent-host-factory-run-muted', undefined, agent.model));
+			}
+			if (chatResource) {
+				name.setAttribute('aria-label', localize('agentHostFactoryRun.openAgent', "Open {0} chat", agent.label));
+				name.title = localize('agentHostFactoryRun.openAgentTooltip', "Open the chat for this agent");
+				DOM.append(name, renderIcon(Codicon.linkExternal));
+				this.inputDisposables.value?.add(DOM.addDisposableListener(name, DOM.EventType.CLICK, event => {
+					event.preventDefault();
+					this.openAgentChat(chatResource, context.sessionResource, agent);
+				}));
 			}
 			const meta = DOM.append(row, $('.agent-host-factory-run-agent-meta'));
 			if (agent.activity && run.status === SessionFactoryRunStatus.Running) {
@@ -301,4 +328,66 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		DOM.append(section, $('h2.agent-host-factory-run-section-title', undefined, title));
 		return section;
 	}
+
+	/**
+	 * Opens the agent's subagent chat through the same command the chat
+	 * transcript uses for `Task` subagents, so the Agents window opens it to
+	 * the side and the editor window opens a chat editor.
+	 */
+	private openAgentChat(chatResource: string, sessionResource: URI, agent: ISessionFactoryRunAgent): void {
+		const context: IOpenSubagentChatContext = {
+			chatResource,
+			parentSessionResource: sessionResource.toString(),
+			title: agent.label,
+			agentType: agent.agentType,
+			modelId: agent.model,
+			startedAt: agent.startedAt,
+			duration: agent.completedAt !== undefined && agent.startedAt !== undefined ? agent.completedAt - agent.startedAt : undefined,
+			isActive: agent.completedAt === undefined,
+		};
+		void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, context);
+	}
+}
+
+interface IFactoryRunRenderContext {
+	readonly sessionResource: URI;
+	/** Subagent chat resource per factory `agentId`, present only for chats the session lists. */
+	readonly agentChats: ReadonlyMap<string, string>;
+}
+
+/**
+ * Maps each factory agent to the subagent chat the host created for it, keyed
+ * by `agentId`. Factory agents launch as background subagents under a tool-call
+ * id, so the chat lives at the same address a `Task` subagent's would. Agents
+ * whose chat the session does not list (for example after a host restart) are
+ * omitted rather than pointed at a chat that cannot open.
+ */
+export function resolveFactoryRunAgentChats(run: ISessionFactoryRun, backendSession: URI, chats: readonly { readonly resource: string }[]): ReadonlyMap<string, string> {
+	const known = new Set(chats.map(chat => chat.resource));
+	const result = new Map<string, string>();
+	for (const agent of run.agents) {
+		if (!agent.toolCallId) {
+			continue;
+		}
+		const chatResource = buildSubagentChatUri(backendSession, agent.toolCallId);
+		if (known.has(chatResource)) {
+			result.set(agent.agentId, chatResource);
+		}
+	}
+	return result;
+}
+
+function mapsEqual(first: ReadonlyMap<string, string>, second: ReadonlyMap<string, string>): boolean {
+	if (first === second) {
+		return true;
+	}
+	if (first.size !== second.size) {
+		return false;
+	}
+	for (const [key, value] of first) {
+		if (second.get(key) !== value) {
+			return false;
+		}
+	}
+	return true;
 }

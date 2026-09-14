@@ -96,6 +96,12 @@ export interface ISessionFactoryRunPhase {
 
 export interface ISessionFactoryRunAgent {
 	readonly agentId: string;
+	/**
+	 * Tool-call identifier the runtime spawned the agent under. Factory agents
+	 * are launched as background subagents, so this also keys the subagent chat
+	 * the host creates for them.
+	 */
+	readonly toolCallId?: string;
 	/** Phase active when the agent launched, if any. */
 	readonly phaseId?: string;
 	readonly label: string;
@@ -244,11 +250,13 @@ function parseAgent(value: unknown): ISessionFactoryRunAgent | undefined {
 		status: optionalString(value.status) ?? '',
 		activeMs: optionalNumber(value.activeMs) ?? 0,
 	};
+	const toolCallId = optionalString(value.toolCallId);
 	const phaseId = optionalString(value.phaseId);
 	const model = optionalString(value.model);
 	const startedAt = optionalNumber(value.startedAt);
 	const completedAt = optionalNumber(value.completedAt);
 	const activity = optionalString(value.activity);
+	if (toolCallId !== undefined) { agent.toolCallId = toolCallId; }
 	if (phaseId !== undefined) { agent.phaseId = phaseId; }
 	if (model !== undefined) { agent.model = model; }
 	if (startedAt !== undefined) { agent.startedAt = startedAt; }
