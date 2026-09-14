@@ -78,6 +78,7 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 
 	private _cached: ICachedTunnel[] = [];
 	private _listed: ITunnelInfo[] | undefined;
+	private _listError: Error | undefined;
 	private readonly _dismissed = new Set<string>();
 	private readonly _suppressed = new Set<string>();
 	autoConnectMode: TunnelAutoConnectMode = 'background';
@@ -92,8 +93,17 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 	}
 
 	getCachedTunnels(): ICachedTunnel[] { return this._cached; }
-	setListed(tunnels: ITunnelInfo[] | undefined): void { this._listed = tunnels; }
-	async listTunnels(_options?: { silent?: boolean }): Promise<ITunnelInfo[]> { return this._listed ?? []; }
+	setListed(tunnels: ITunnelInfo[] | undefined): void {
+		this._listed = tunnels;
+		this._listError = undefined;
+	}
+	setListError(error: Error): void { this._listError = error; }
+	async listTunnels(_options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+		if (this._listError) {
+			throw this._listError;
+		}
+		return this._listed ?? [];
+	}
 	getAutoConnectMode(_tunnel: ITunnelInfo): TunnelAutoConnectMode { return this.autoConnectMode; }
 	readonly canDeleteTunnels = true;
 	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> { this.removeCachedTunnel(tunnel.tunnelId); }
@@ -349,6 +359,40 @@ suite('TunnelAgentHostContribution', () => {
 			dismissed: false,
 			connectCalls: [true],
 			providers: [`agenthost-${address}`],
+		});
+
+		test('failed discovery preserves cached tunnels and providers', async () => {
+			const tunnelService = store.add(new StubTunnelService());
+			const remoteService = store.add(new StubRemoteAgentHostService());
+			const providersService = store.add(new StubSessionsProvidersService());
+			const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ITunnelAgentHostService, tunnelService);
+			instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+			instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+			instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+			instantiationService.stub(IHostService, new StubHostService());
+			instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+			instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+
+			const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+			const cachedTunnel = { tunnelId: 'tunnel-preserved', clusterId: 'use', name: 'Preserved Tunnel' };
+			tunnelService.setCached([cachedTunnel]);
+			tunnelService.setListError(new Error('temporarily unavailable'));
+
+			await (contribution as unknown as { _silentStatusCheck(): Promise<void> })._silentStatusCheck();
+
+			assert.deepStrictEqual({
+				cached: tunnelService.getCachedTunnels(),
+				providers: providersService.getProviders().map(provider => provider.id),
+			}, {
+				cached: [cachedTunnel],
+				providers: [`agenthost-${TUNNEL_ADDRESS_PREFIX}${cachedTunnel.tunnelId}`],
+			});
 		});
 	});
 

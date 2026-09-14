@@ -263,7 +263,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 
 		const auth = await this._getToken(options?.silent ?? false);
 		if (!auth) {
-			return [];
+			throw new Error('No authentication is available to enumerate tunnels.');
 		}
 
 		try {
@@ -279,7 +279,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 			return results;
 		} catch (error) {
 			this._logService.error(`${LOG_PREFIX} Failed to enumerate tunnels`, error);
-			return [];
+			throw error;
 		}
 	}
 
