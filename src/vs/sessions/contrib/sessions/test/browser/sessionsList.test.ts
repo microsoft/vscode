@@ -2075,6 +2075,7 @@ suite('Sessions - SessionsList', () => {
 				order: participants.map(participant => participant.querySelector('.session-title')?.textContent),
 				attempts: attempts.map(attempt => ({
 					title: attempt.querySelector('.session-title')?.textContent,
+					ariaLabel: attempt.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					status: attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent,
 					hasSpinner: attempt.querySelector('.session-comparison-attempt-status-icon')?.classList.contains('codicon-modifier-spin'),
 					details: attempt.querySelector('.session-details-row')?.textContent,
@@ -2097,8 +2098,8 @@ suite('Sessions - SessionsList', () => {
 				},
 				order: ['Judge', 'Synthesis', 'Attempt 1: Copilot · Claude Opus 5', 'Attempt 2: Codex · GPT-5'],
 				attempts: [
-					{ title: 'Attempt 1: Copilot · Claude Opus 5', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
-					{ title: 'Attempt 2: Codex · GPT-5', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Attempt 1: Copilot · Claude Opus 5', ariaLabel: 'Attempt 1: Copilot · Claude Opus 5, updated now, State: In Progress', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Attempt 2: Codex · GPT-5', ariaLabel: 'Attempt 2: Codex · GPT-5, updated now, State: In Progress', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
 				],
 				judge: { title: 'Judge', inProgress: true, hasProgressIndicator: true, connector: null },
 				independentParticipantConnectors: [null, null],

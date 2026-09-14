@@ -10,6 +10,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -21,6 +22,7 @@ export class SessionComparisonResult extends Disposable {
 
 	readonly domNode = dom.$('.session-comparison-result');
 	private readonly renderStore = this._register(new DisposableStore());
+	private readonly titleId = `session-comparison-result-title-${generateUuid()}`;
 	private announcedComparisonId: string | undefined;
 
 	constructor(
@@ -33,7 +35,7 @@ export class SessionComparisonResult extends Disposable {
 		super();
 		this.domNode.hidden = true;
 		this.domNode.setAttribute('role', 'region');
-		this.domNode.setAttribute('aria-label', localize('sessionComparisonResult.ariaLabel', "Attempt comparison result"));
+		this.domNode.setAttribute('aria-labelledby', this.titleId);
 
 		this._register(autorun(reader => {
 			const session = currentSession.read(reader);
@@ -63,7 +65,9 @@ export class SessionComparisonResult extends Disposable {
 			return;
 		}
 		const winnerLabel = getSessionComparisonAttemptLabel(winner, attempts.indexOf(winner));
-		dom.append(this.domNode, dom.$('h2.session-comparison-result-title')).textContent =
+		const title = dom.append(this.domNode, dom.$('h2.session-comparison-result-title'));
+		title.id = this.titleId;
+		title.textContent =
 			localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
 		dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle')).textContent =
 			localize('sessionComparisonResult.whyWinner', "Why it won");
@@ -71,9 +75,12 @@ export class SessionComparisonResult extends Disposable {
 
 		const otherAttempts = attempts.filter(attempt => attempt.id !== winner.id);
 		if (otherAttempts.length > 0) {
-			dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle')).textContent =
+			const strengthsTitle = dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle'));
+			strengthsTitle.id = `session-comparison-strengths-${generateUuid()}`;
+			strengthsTitle.textContent =
 				localize('sessionComparisonResult.otherStrengths', "Strong points from other attempts");
 			const table = dom.append(this.domNode, dom.$('table.session-comparison-result-strengths'));
+			table.setAttribute('aria-labelledby', strengthsTitle.id);
 			const head = dom.append(table, dom.$('thead'));
 			const headerRow = dom.append(head, dom.$('tr'));
 			const attemptHeader = dom.append(headerRow, dom.$('th'));
@@ -98,6 +105,8 @@ export class SessionComparisonResult extends Disposable {
 		}
 
 		const actions = dom.append(this.domNode, dom.$('.session-comparison-result-actions'));
+		actions.setAttribute('role', 'group');
+		actions.setAttribute('aria-label', localize('sessionComparisonResult.actionsAriaLabel', "Comparison result actions"));
 		if (winner.sessionResource) {
 			const focusWinner = this.renderStore.add(new Button(actions, {
 				...defaultButtonStyles,
@@ -111,7 +120,9 @@ export class SessionComparisonResult extends Disposable {
 		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
 		const synthesize = this.renderStore.add(new Button(actions, {
 			...defaultButtonStyles,
-			ariaLabel: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize the best concepts from all attempts"),
+			ariaLabel: synthesis
+				? localize('sessionComparisonResult.synthesisStartedAriaLabel', "Synthesis has started")
+				: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize the best concepts from all attempts"),
 		}));
 		synthesize.label = synthesis
 			? localize('sessionComparisonResult.synthesisStarted', "Synthesis Started")

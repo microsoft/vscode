@@ -67,6 +67,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 		let prompt = context.prompt;
 		let judgeHarness = initialJudgeHarness;
 		let evaluationExpanded = false;
+		let renderedEvaluation: HTMLDetailsElement | undefined;
 
 		const getHarnesses = (): readonly ISessionComparisonHarness[] => this.sessionsManagementService.getSessionTypesForFolder(context.workspace)
 			.filter(({ sessionType }) => sessionType.supportsWorktreeConfiguration)
@@ -101,13 +102,18 @@ export class SessionComparisonSetupDialog extends Disposable {
 			if (!body) {
 				return;
 			}
-			evaluationExpanded = body.querySelector<HTMLDetailsElement>('.session-comparison-setup-evaluation')?.open ?? evaluationExpanded;
+			evaluationExpanded = renderedEvaluation?.open ?? evaluationExpanded;
+			renderedEvaluation = undefined;
 			rowsDisposables.clear();
 			dom.clearNode(body);
 			validationElement = undefined;
 
 			const promptSection = dom.append(body, dom.$('.session-comparison-setup-prompt'));
-			dom.append(promptSection, dom.$('h3.session-comparison-setup-section-title')).textContent = localize('sessionComparisonSetup.prompt', "Prompt");
+			const promptHeading = dom.append(promptSection, dom.$('h3.session-comparison-setup-section-title'));
+			promptHeading.id = `session-comparison-prompt-${generateUuid()}`;
+			promptHeading.textContent = localize('sessionComparisonSetup.prompt', "Prompt");
+			promptSection.setAttribute('role', 'group');
+			promptSection.setAttribute('aria-labelledby', promptHeading.id);
 			const promptInput = rowsDisposables.add(new InputBox(promptSection, this.contextViewService, {
 				ariaLabel: localize('sessionComparisonSetup.promptAriaLabel', "Prompt shared by every comparison attempt"),
 				placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
@@ -125,11 +131,15 @@ export class SessionComparisonSetupDialog extends Disposable {
 			dom.append(contextSummary, dom.$('span')).textContent = localize('sessionComparisonSetup.startingFrom', "Starting from");
 			dom.append(contextSummary, dom.$('span.session-comparison-setup-context-value')).textContent = context.workspaceLabel;
 			if (context.branch !== undefined) {
-				dom.append(contextSummary, dom.$('span.session-comparison-setup-context-separator')).textContent = '·';
+				const separator = dom.append(contextSummary, dom.$('span.session-comparison-setup-context-separator'));
+				separator.setAttribute('aria-hidden', 'true');
+				separator.textContent = '·';
 				dom.append(contextSummary, dom.$('span.session-comparison-setup-context-value')).textContent = context.branch;
 			}
 			if (context.attachedContextCount > 0) {
-				dom.append(contextSummary, dom.$('span.session-comparison-setup-context-separator')).textContent = '·';
+				const separator = dom.append(contextSummary, dom.$('span.session-comparison-setup-context-separator'));
+				separator.setAttribute('aria-hidden', 'true');
+				separator.textContent = '·';
 				dom.append(contextSummary, dom.$('span')).textContent =
 					localize('sessionComparisonSetup.attachedContextCount', "{0} context items", context.attachedContextCount);
 			}
@@ -138,8 +148,12 @@ export class SessionComparisonSetupDialog extends Disposable {
 			usage.textContent = localize('sessionComparisonSetup.usage', "Each attempt runs in an isolated worktree. Nothing is applied automatically.");
 
 			const attemptsSection = dom.append(body, dom.$('.session-comparison-setup-attempts'));
-			dom.append(attemptsSection, dom.$('h3.session-comparison-setup-section-title')).textContent =
+			const attemptsHeading = dom.append(attemptsSection, dom.$('h3.session-comparison-setup-section-title'));
+			attemptsHeading.id = `session-comparison-attempts-${generateUuid()}`;
+			attemptsHeading.textContent =
 				localize('sessionComparisonSetup.attempts', "Attempts");
+			attemptsSection.setAttribute('role', 'group');
+			attemptsSection.setAttribute('aria-labelledby', attemptsHeading.id);
 			const rows = dom.$('.session-comparison-setup-rows');
 			const rowsScrollable = rowsDisposables.add(new DomScrollableElement(rows, {
 				horizontal: ScrollbarVisibility.Hidden,
@@ -254,8 +268,12 @@ export class SessionComparisonSetupDialog extends Disposable {
 				const row = dom.append(rows, dom.$('.session-comparison-setup-row'));
 				row.dataset.attemptId = attempt.id;
 				const header = dom.append(row, dom.$('.session-comparison-setup-row-header'));
-				dom.append(header, dom.$('.session-comparison-setup-label')).textContent =
+				const attemptLabel = dom.append(header, dom.$('.session-comparison-setup-label'));
+				attemptLabel.id = `session-comparison-attempt-${attempt.id}`;
+				attemptLabel.textContent =
 					localize('sessionComparisonSetup.attempt', "Attempt {0}", index + 1);
+				row.setAttribute('role', 'group');
+				row.setAttribute('aria-labelledby', attemptLabel.id);
 				if (attempts.length > 2) {
 					const removeButton = rowsDisposables.add(new Button(header, {
 						...defaultButtonStyles,
@@ -307,6 +325,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			}));
 
 			const evaluation = dom.append(body, dom.$('details.session-comparison-setup-evaluation')) as HTMLDetailsElement;
+			renderedEvaluation = evaluation;
 			evaluation.open = evaluationExpanded;
 			const evaluationSummary = dom.append(evaluation, dom.$('summary.session-comparison-setup-evaluation-summary'));
 			dom.append(evaluationSummary, dom.$('span.session-comparison-setup-label')).textContent =
@@ -316,6 +335,8 @@ export class SessionComparisonSetupDialog extends Disposable {
 				: localize('sessionComparisonSetup.judgeHarnessAuto', "{0} · Auto", judgeHarness.label);
 			dom.append(evaluationSummary, dom.$('span.session-comparison-setup-evaluation-value')).textContent = judgeLabel;
 			const judgeRow = dom.append(evaluation, dom.$('.session-comparison-setup-judge'));
+			judgeRow.setAttribute('role', 'group');
+			judgeRow.setAttribute('aria-label', localize('sessionComparisonSetup.judgeConfiguration', "Judge configuration"));
 			dom.append(judgeRow, dom.$('.session-comparison-setup-judge-description')).textContent =
 				localize('sessionComparisonSetup.judgeDescription', "Reviews the finished attempts and recommends a result.");
 			renderHarnessControls(
@@ -332,6 +353,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			}));
 
 			validationElement = dom.append(body, dom.$('.session-comparison-setup-validation'));
+			validationElement.setAttribute('role', 'status');
 			validationElement.setAttribute('aria-live', 'polite');
 			updateValidation();
 		};

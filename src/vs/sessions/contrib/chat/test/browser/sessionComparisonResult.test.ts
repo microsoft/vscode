@@ -91,6 +91,20 @@ suite('Sessions - Comparison Result', () => {
 
 		const initialText = result.domNode.textContent;
 		const buttons = result.domNode.querySelectorAll<HTMLElement>('.monaco-button');
+		const title = result.domNode.querySelector<HTMLElement>('.session-comparison-result-title');
+		const strengthsTitle = result.domNode.querySelector<HTMLElement>('.session-comparison-result-subtitle:last-of-type');
+		const table = result.domNode.querySelector<HTMLElement>('.session-comparison-result-strengths');
+		const actions = result.domNode.querySelector<HTMLElement>('.session-comparison-result-actions');
+		const accessibility = {
+			regionRole: result.domNode.getAttribute('role'),
+			regionLabelledBy: result.domNode.getAttribute('aria-labelledby'),
+			titleId: title?.id,
+			tableLabelledBy: table?.getAttribute('aria-labelledby'),
+			strengthsTitleId: strengthsTitle?.id,
+			actionsRole: actions?.getAttribute('role'),
+			actionsLabel: actions?.getAttribute('aria-label'),
+			buttonLabels: [...buttons].map(button => button.getAttribute('aria-label')),
+		};
 		buttons[0].click();
 		buttons[1].click();
 		await timeout(0);
@@ -103,6 +117,7 @@ suite('Sessions - Comparison Result', () => {
 			synthesized,
 			hiddenOutsideJudge: result.domNode.hidden,
 			layouts,
+			accessibility,
 		}, {
 			initialText: 'Attempt 2: Codex wonWhy it wonCodex handled the edge case and passed the focused test.Strong points from other attemptsAttemptStrong pointsAttempt 1: ClaudeClearer namingFocus Winning SessionSynthesize Best Concepts',
 			selected: 'attempt-2',
@@ -110,6 +125,16 @@ suite('Sessions - Comparison Result', () => {
 			synthesized: true,
 			hiddenOutsideJudge: true,
 			layouts: 2,
+			accessibility: {
+				regionRole: 'region',
+				regionLabelledBy: title?.id,
+				titleId: title?.id,
+				tableLabelledBy: strengthsTitle?.id,
+				strengthsTitleId: strengthsTitle?.id,
+				actionsRole: 'group',
+				actionsLabel: 'Comparison result actions',
+				buttonLabels: ['Focus winning session, Attempt 2: Codex', 'Synthesize the best concepts from all attempts'],
+			},
 		});
 	});
 });

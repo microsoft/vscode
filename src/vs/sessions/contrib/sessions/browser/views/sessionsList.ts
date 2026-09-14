@@ -1933,6 +1933,7 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
+	readonly getComparisonAttemptLabel?: (session: ISession) => string | undefined;
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
@@ -2006,7 +2007,7 @@ class SessionsAccessibilityProvider {
 				: element.label;
 		}
 		return derived(this, reader => {
-			const title = element.title.read(reader);
+			const title = this.options?.getComparisonAttemptLabel?.(element) ?? element.title.read(reader);
 			const updated = fromNow(element.updatedAt.read(reader), true);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
@@ -2884,6 +2885,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					grouping: this.options.grouping,
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
+					getComparisonAttemptLabel: session => this.renderedComparisonAttemptLabels.get(session.sessionId),
 					deriveStatusFromMainChat: true,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 					showUnreadInCollapsedSections,
