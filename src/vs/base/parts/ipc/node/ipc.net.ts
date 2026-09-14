@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
+import { accessSync, constants, statSync } from 'fs';
 import type * as http from 'http';
 import { Server as NetServer, Socket, createConnection, createServer } from 'net';
 import { tmpdir } from 'os';
@@ -741,7 +742,7 @@ const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Mac]: 103
 };
 
-export function createRandomIPCHandle(): string {
+export function createRandomIPCHandle(runtimeDir: string | undefined = XDG_RUNTIME_DIR): string {
 	const randomSuffix = generateUuid();
 
 	// Windows: use named pipe
@@ -750,8 +751,19 @@ export function createRandomIPCHandle(): string {
 	}
 
 	// Mac & Unix: Use socket file
-	// Unix: Prefer XDG_RUNTIME_DIR over user data path
-	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : tmpdir();
+	// Unix: Prefer XDG_RUNTIME_DIR when it is usable. WSL can preserve the variable
+	// across a restart without starting the user runtime directory first.
+	let basePath = tmpdir();
+	if (process.platform !== 'darwin' && runtimeDir) {
+		try {
+			if (statSync(runtimeDir).isDirectory()) {
+				accessSync(runtimeDir, constants.W_OK | constants.X_OK);
+				basePath = runtimeDir;
+			}
+		} catch {
+			// Fall back to the same temporary directory used when XDG_RUNTIME_DIR is unset.
+		}
+	}
 
 	// As of Node.js 24, socket paths that exceed the
 	// platform limit cause an `EINVAL` error at bind time instead of being silently
