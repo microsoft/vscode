@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
@@ -13,6 +15,7 @@ import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../com
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
+import '../../../../../../browser/media/style.css';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
 	return {
@@ -33,7 +36,7 @@ suite('ChatQuestionCarouselPart', () => {
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
 
-	function createWidget(carousel: IChatQuestionCarousel, onSubmit?: () => void): ChatQuestionCarouselPart {
+	function createWidget(carousel: IChatQuestionCarousel, onSubmit?: () => void, container: HTMLElement = mainWindow.document.body): ChatQuestionCarouselPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const options: IChatQuestionCarouselOptions = {
 			onSubmit: (answers) => {
@@ -42,7 +45,7 @@ suite('ChatQuestionCarouselPart', () => {
 			}
 		};
 		widget = store.add(instantiationService.createInstance(ChatQuestionCarouselPart, carousel, createMockContext(), options));
-		mainWindow.document.body.appendChild(widget.domNode);
+		container.appendChild(widget.domNode);
 		return widget;
 	}
 
@@ -105,6 +108,56 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
 		});
 
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			for (const underlineLinks of [false, true]) {
+				test(`preserves carousel markdown link underlines in ${theme} with underline links ${underlineLinks}`, () => {
+					const root = mainWindow.document.createElement('div');
+					store.add(toDisposable(() => root.remove()));
+					root.className = `monaco-workbench ${theme}${underlineLinks ? ' underline-links' : ''}`;
+					const container = mainWindow.document.createElement('div');
+					container.className = 'interactive-session';
+					root.appendChild(container);
+					mainWindow.document.body.appendChild(root);
+
+					const markdown = new MarkdownString([
+						'[Plain](https://example.com/plain)',
+						'',
+						'**[Bold](https://example.com/bold)** and *[Italic](https://example.com/italic)*',
+						'',
+						'## [Heading](https://example.com/heading)',
+						'',
+						'- [List](https://example.com/list)',
+					].join('\n'));
+					const carousel = createMockCarousel([{
+						id: 'q1',
+						type: 'text',
+						title: 'Question',
+						message: markdown,
+						detailedMessage: markdown,
+					}]);
+					carousel.message = markdown;
+					createWidget(carousel, undefined, container);
+
+					const linkDecorations = (selector: string) => [...widget.domNode.querySelectorAll(`${selector} a`)]
+						.map(link => getWindow(link).getComputedStyle(link).textDecorationLine);
+					const highContrast = theme === 'hc-black' || theme === 'hc-light';
+					const expected = [
+						highContrast || underlineLinks ? 'underline' : 'none',
+						...Array<string>(4).fill(highContrast ? 'underline' : 'none'),
+					];
+					assert.deepStrictEqual({
+						message: linkDecorations('.chat-question-carousel-message'),
+						title: linkDecorations('.chat-question-title'),
+						details: linkDecorations('.chat-question-detailed-message'),
+					}, {
+						message: expected,
+						title: expected,
+						details: expected,
+					});
+				});
+			}
+		}
+
 		test('sanitizes agent-provided markdown', () => {
 			const carousel = createMockCarousel([
 				{
@@ -143,6 +196,56 @@ suite('ChatQuestionCarouselPart', () => {
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title, 'title element should exist');
 			assert.ok(title?.textContent?.includes('details'), 'content should be rendered');
+		});
+
+		test('option labels inherit the selected row foreground', () => {
+			const root = mainWindow.document.createElement('div');
+			store.add(toDisposable(() => root.remove()));
+			root.className = 'monaco-workbench vs';
+			root.style.setProperty('--vscode-foreground', '#3B3B3B');
+			root.style.setProperty('--vscode-list-activeSelectionForeground', '#FFFFFF');
+			root.style.setProperty('--vscode-list-inactiveSelectionBackground', '#E4E6F1');
+			root.style.setProperty('--vscode-list-hoverBackground', '#F2F2F2');
+
+			const container = mainWindow.document.createElement('div');
+			container.className = 'interactive-session';
+			root.appendChild(container);
+			mainWindow.document.body.appendChild(root);
+
+			const carousel = createMockCarousel([{
+				id: 'q1',
+				type: 'singleSelect',
+				title: 'Choose one',
+				defaultValue: 'a',
+				options: [{ id: 'a', label: 'Option A - Recommended', value: 'a' }]
+			}]);
+			createWidget(carousel, undefined, container);
+
+			const item = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
+			const label = item.querySelector('.chat-question-list-label') as HTMLElement;
+			const title = item.querySelector('.chat-question-list-label-title') as HTMLElement;
+			const getForegrounds = () => ({
+				item: getWindow(item).getComputedStyle(item).color,
+				label: getWindow(label).getComputedStyle(label).color,
+				title: getWindow(title).getComputedStyle(title).color,
+			});
+
+			const inactive = getForegrounds();
+			item.style.color = 'var(--vscode-list-activeSelectionForeground)';
+			const active = getForegrounds();
+
+			assert.deepStrictEqual({ inactive, active }, {
+				inactive: {
+					item: 'rgb(59, 59, 59)',
+					label: 'rgb(59, 59, 59)',
+					title: 'rgb(59, 59, 59)',
+				},
+				active: {
+					item: 'rgb(255, 255, 255)',
+					label: 'rgb(255, 255, 255)',
+					title: 'rgb(255, 255, 255)',
+				},
+			});
 		});
 
 		test('renders progress indicator correctly', () => {

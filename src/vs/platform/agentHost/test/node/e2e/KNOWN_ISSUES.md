@@ -830,40 +830,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
 
-### Copilot custom subagent without a display name
-
-A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
-
-- Test: `custom agent without a display name completes as a subagent`.
-- Scope: Copilot.
-- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` and completes.
-- Observed: `subagent.started` is followed by `subagent.failed` before the child makes a model request.
-- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the runtime fix is included in the bundled SDK.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "custom agent without a display name completes as a subagent"
-  ```
-
-### Copilot restored-parent replay differs between OSS and product runtimes
-
-A parent session should remain usable after restoration when a custom subagent has no available transcript. The public runtime used by OSS CI creates that state by rejecting a custom agent without `displayName`, while the product runtime override fixes that validation error and makes an additional child-model request. One sequence-based model fixture cannot replay both request paths, so enabling the test makes either OSS CI or product-build CI fail despite the restored parent accepting another turn in live recording.
-
-- Test: `restored parent accepts a new turn after a custom subagent has no transcript`.
-- Scope: Copilot deterministic replay while OSS and product builds use different runtime versions.
-- Expected: the parent is reconstructed and accepts a new turn under both runtimes.
-- Observed: the OSS fixture records the failed child launch, while the product runtime launches the child successfully and consumes the fixture's next response.
-- Gate: the scenario is disabled until OSS and product builds use the same fixed runtime.
-- Reproduce after locally installing the product runtime:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "restored parent accepts a new turn after a custom subagent has no transcript"
-  ```
-
 ### Mid-turn abort is record-only
 
 - Tests:
@@ -872,6 +838,7 @@ A parent session should remain usable after restoration when a custom subagent h
 - Scope: deterministic replay for every provider; the second test is Copilot-specific.
 - Reason: replay serves the intentionally truncated response immediately, leaving no real streaming window in which to abort.
 - Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
+- Latest live check (`1.0.84-1`): the Copilot steering variant timed out before reaching cancellation. The steering message started a separate turn, but the expected `chat/pendingMessageRemoved` notification never arrived. This scenario does not currently verify the deferred-idle abort fix.
 - Run:
 
   ```bash
@@ -884,25 +851,18 @@ A parent session should remain usable after restoration when a custom subagent h
     --grep "accepted steering followed by abort"
   ```
 
-### Retryable Copilot errors are temporarily disabled
+### Mid-turn host shutdown recovery is record-only
 
-Copilot errors currently end a turn without offering an in-place retry. The retry protocol remains implemented, but the host intentionally omits the `resumable` marker from live, restored, and repeated errors until the feature is re-enabled.
+A user can lose the Agent Host process while a model response is still streaming. Reopening the session should restore the unfinished request as a resumable error, and retrying should continue that same turn without adding another user message.
 
-- Tests:
-  - `resumes a failed turn in place`
-  - `resumes the same turn after repeated failures`
-  - `restores and resumes a turn interrupted by host shutdown`
-- Scope: Copilot on all platforms and execution modes.
-- Expected when enabled: a failed turn is marked resumable, and retrying continues the same turn without adding another user message. An unfinished request restored after host shutdown has the same behavior.
-- Observed: Copilot errors intentionally omit the `resumable` marker, so clients cannot request an in-place retry.
-- Gate: all three scenarios are unconditionally skipped. The host-shutdown scenario additionally requires direct `AGENT_HOST_REPLAY_RECORD=1` mode because replay has no active streaming window to terminate.
-- Run after removing the temporary gate:
+- Test: `restores and resumes a turn interrupted by host shutdown`.
+- Scope: deterministic replay for Copilot.
+- Expected: the host dies after streaming starts but before any final turn action; restoration synthesizes a resumable `executionInterrupted` error, and a continuation completes the same turn.
+- Observed: replay serves the full recorded response immediately, leaving no active streaming window in which to kill the host before turn completion.
+- Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
+- Run:
 
   ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "resumes a failed turn in place|resumes the same turn after repeated failures"
-
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "restores and resumes a turn interrupted by host shutdown"

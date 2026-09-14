@@ -11,7 +11,9 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
+import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 function isTelemetryData(data: unknown): data is Record<string, unknown> {
 	return typeof data === 'object' && data !== null;
@@ -47,10 +49,19 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const telemetryService = new TestTelemetryService();
 			let workspacePreselected = true;
 			let workspacePreselectionSource = 'existingSessions';
+			const selection = {
+				folderUri: URI.file('/private/project'),
+				origin: WorkspaceSelectionOrigin.ExistingSessions,
+				state: 'selected',
+				historyState: 'loaded',
+				sessionFallbackState: 'completed',
+				registeredProviderCount: 2,
+			} satisfies IWorkspaceSelectionSnapshot;
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.TitleBar,
+				{ workspaceArgumentKind: 'none', hasSessionArgument: false },
 				() => true,
-				() => ({ workspacePreselected, workspacePreselectionSource }),
+				() => ({ workspacePreselected, workspacePreselectionSource, viewKind: 'newSession', workspaceSelection: selection }),
 				telemetryService,
 				lifecycleService,
 			));
@@ -58,6 +69,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			tracker.captureInitialViewState();
 			workspacePreselected = false;
 			workspacePreselectionSource = 'none';
+			selection.registeredProviderCount = 3;
 			await timeout(4_000);
 			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
 
@@ -68,6 +80,24 @@ suite('SessionsWindowOpenTelemetry', () => {
 					signInDialogShown: true,
 					workspacePreselected: true,
 					workspacePreselectionSource: 'existingSessions',
+					workspaceArgumentKind: 'none',
+					hasSessionArgument: false,
+					workspaceArgumentIsDefault: false,
+					initialViewKind: 'newSession',
+					initialStateCaptureReason: 'initialization',
+					initialStateCaptureDurationMs: 0,
+					workspaceSelectionOrigin: 'existingSessions',
+					workspaceSelectionState: 'selected',
+					workspaceHistoryState: 'loaded',
+					workspaceSessionFallbackState: 'completed',
+					workspaceProviderCount: 2,
+					workspaceHandoffState: 'notRequested',
+					workspaceHandoffStateAtEmission: 'notRequested',
+					workspaceHandoffDurationMs: undefined,
+					viewKindAtEmission: 'newSession',
+					workspacePreselectedAtEmission: false,
+					workspaceSelectionOriginAtEmission: 'existingSessions',
+					workspaceSelectionStateAtEmission: 'selected',
 					windowCloseDurationMs: 4_000,
 					emissionReason: 'close',
 				},
@@ -83,8 +113,9 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const telemetryService = new TestTelemetryService();
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.CommandPalette,
+				{ workspaceArgumentKind: 'local', hasSessionArgument: true },
 				() => false,
-				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined }),
+				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined, viewKind: 'createdSession' }),
 				telemetryService,
 				lifecycleService,
 			));
@@ -99,6 +130,24 @@ suite('SessionsWindowOpenTelemetry', () => {
 					signInDialogShown: false,
 					workspacePreselected: undefined,
 					workspacePreselectionSource: undefined,
+					workspaceArgumentKind: 'local',
+					hasSessionArgument: true,
+					workspaceArgumentIsDefault: false,
+					initialViewKind: 'createdSession',
+					initialStateCaptureReason: 'timer',
+					initialStateCaptureDurationMs: FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS,
+					workspaceSelectionOrigin: undefined,
+					workspaceSelectionState: undefined,
+					workspaceHistoryState: undefined,
+					workspaceSessionFallbackState: undefined,
+					workspaceProviderCount: undefined,
+					workspaceHandoffState: 'notApplicable',
+					workspaceHandoffStateAtEmission: 'notApplicable',
+					workspaceHandoffDurationMs: undefined,
+					viewKindAtEmission: 'createdSession',
+					workspacePreselectedAtEmission: undefined,
+					workspaceSelectionOriginAtEmission: undefined,
+					workspaceSelectionStateAtEmission: undefined,
 					windowCloseDurationMs: undefined,
 					emissionReason: 'timer',
 				},
@@ -120,8 +169,9 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const telemetryService = new TestTelemetryService();
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.CommandPalette,
+				{ workspaceArgumentKind: 'none', hasSessionArgument: false },
 				() => false,
-				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined }),
+				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined, viewKind: 'createdSession' }),
 				telemetryService,
 				lifecycleService,
 			));
@@ -138,6 +188,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				workspacePreselected: Reflect.get(event.data, 'workspacePreselected'),
 				workspacePreselectionSource: Reflect.get(event.data, 'workspacePreselectionSource'),
 				emissionReason: Reflect.get(event.data, 'emissionReason'),
+				captureReason: event.data.initialStateCaptureReason,
 			}, {
 				name: 'agents/firstTimeWindowOpen',
 				source: 'commandPalette',
@@ -145,6 +196,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				workspacePreselected: undefined,
 				workspacePreselectionSource: undefined,
 				emissionReason,
+				captureReason: emissionReason,
 			});
 			assert.strictEqual(
 				typeof Reflect.get(event.data, 'windowCloseDurationMs'),
@@ -153,5 +205,145 @@ suite('SessionsWindowOpenTelemetry', () => {
 			tracker.dispose();
 			lifecycleService.dispose();
 		}
+	});
+
+	test('distinguishes an early close while setup is pending from no eligible workspace', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const lifecycleService = disposables.add(new TestLifecycleService());
+			const telemetryService = new TestTelemetryService();
+			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
+				AgentsWindowOpenSource.Banner,
+				{ workspaceArgumentKind: 'local', hasSessionArgument: false },
+				() => true,
+				() => ({ workspacePreselected: false, workspacePreselectionSource: 'none', viewKind: 'noComposer' }),
+				telemetryService,
+				lifecycleService,
+			));
+			tracker.recordWorkspaceHandoffState('waitingForSetup');
+			await timeout(1_000);
+			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
+
+			const data = telemetryService.events[0].data;
+			assert.deepStrictEqual({
+				captureReason: data.initialStateCaptureReason,
+				captureDurationMs: data.initialStateCaptureDurationMs,
+				viewKind: data.initialViewKind,
+				handoff: data.workspaceHandoffState,
+				selected: data.workspacePreselected,
+				selectionState: data.workspaceSelectionState,
+			}, {
+				captureReason: 'close',
+				captureDurationMs: 1_000,
+				viewKind: 'noComposer',
+				handoff: 'waitingForSetup',
+				selected: false,
+				selectionState: undefined,
+			});
+			tracker.dispose();
+		});
+	});
+
+	test('keeps the initial pending snapshot when a workspace is selected before emission', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const lifecycleService = disposables.add(new TestLifecycleService());
+			const telemetryService = new TestTelemetryService();
+			let selection: IWorkspaceSelectionSnapshot = {
+				folderUri: undefined,
+				origin: WorkspaceSelectionOrigin.None,
+				state: 'none',
+				historyState: 'loading',
+				sessionFallbackState: 'pending',
+				registeredProviderCount: 0,
+			};
+			const getViewState = (): ISessionsWindowOpenViewState => ({
+				workspacePreselected: selection.state === 'selected',
+				workspacePreselectionSource: selection.state === 'selected' ? 'providedWorkspace' : 'none',
+				viewKind: 'newSession',
+				workspaceSelection: selection,
+			});
+			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
+				AgentsWindowOpenSource.TitleBar,
+				{ workspaceArgumentKind: 'local', hasSessionArgument: false },
+				() => false,
+				getViewState,
+				telemetryService,
+				lifecycleService,
+			));
+			tracker.recordWorkspaceHandoffState('waitingForProvider');
+			await timeout(100);
+			tracker.captureInitialViewState();
+			await timeout(1_000);
+			selection = {
+				folderUri: URI.file('/private/handed-off-project'),
+				origin: WorkspaceSelectionOrigin.WindowOpen,
+				state: 'selected',
+				historyState: 'loaded',
+				sessionFallbackState: 'idle',
+				registeredProviderCount: 1,
+			};
+			tracker.recordWorkspaceHandoffState('applied');
+			tracker.captureInitialViewState();
+			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
+
+			const data = telemetryService.events[0].data;
+			assert.deepStrictEqual({
+				captureReason: data.initialStateCaptureReason,
+				captureDurationMs: data.initialStateCaptureDurationMs,
+				initial: [data.workspacePreselected, data.workspaceSelectionOrigin, data.workspaceHistoryState, data.workspaceSessionFallbackState, data.workspaceProviderCount, data.workspaceHandoffState],
+				atEmission: [data.workspacePreselectedAtEmission, data.workspaceSelectionOriginAtEmission, data.workspaceSelectionStateAtEmission, data.workspaceHandoffStateAtEmission],
+				handoffDurationMs: data.workspaceHandoffDurationMs,
+			}, {
+				captureReason: 'initialization',
+				captureDurationMs: 100,
+				initial: [false, 'none', 'loading', 'pending', 0, 'waitingForProvider'],
+				atEmission: [true, 'windowOpen', 'selected', 'applied'],
+				handoffDurationMs: 1_100,
+			});
+			tracker.dispose();
+		});
+	});
+
+	test('records unsupported arguments separately from history selection and caps provider counts', () => {
+		const lifecycleService = disposables.add(new TestLifecycleService());
+		const telemetryService = new TestTelemetryService();
+		const tracker = disposables.add(new SessionsWindowOpenTelemetry(
+			AgentsWindowOpenSource.CommandPalette,
+			{ workspaceArgumentKind: 'remote', hasSessionArgument: false },
+			() => false,
+			() => ({
+				workspacePreselected: true,
+				workspacePreselectionSource: 'recentWorkspace',
+				viewKind: 'newSession',
+				workspaceSelection: {
+					folderUri: URI.file('/private/fallback'),
+					origin: WorkspaceSelectionOrigin.VSCodeRecent,
+					state: 'selected',
+					historyState: 'loaded',
+					sessionFallbackState: 'idle',
+					registeredProviderCount: 120,
+				},
+			}),
+			telemetryService,
+			lifecycleService,
+		));
+		lifecycleService.fireShutdown(ShutdownReason.CLOSE);
+
+		const data = telemetryService.events[0].data;
+		assert.deepStrictEqual({
+			argument: data.workspaceArgumentKind,
+			handoff: data.workspaceHandoffState,
+			selected: data.workspacePreselected,
+			origin: data.workspaceSelectionOrigin,
+			providers: data.workspaceProviderCount,
+			containsPath: JSON.stringify(data).includes('/private/'),
+		}, {
+			argument: 'remote',
+			handoff: 'unsupportedWorkspace',
+			selected: true,
+			origin: 'vscodeRecent',
+			providers: 100,
+			containsPath: false,
+		});
+		tracker.dispose();
 	});
 });

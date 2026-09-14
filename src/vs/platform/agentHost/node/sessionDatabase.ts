@@ -285,13 +285,17 @@ export class SessionDatabase implements ISessionDatabase {
 	 */
 	private readonly _turnUsageSequencer = new Sequencer();
 
+	private _queueOperation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+		return this._mutationSequencer.queue(async () => operation(await this._ensureDb()));
+	}
+
 	/**
 	 * Queues a mutation on the shared connection. Transaction bodies call
 	 * their statements directly after acquiring this sequencer to avoid
 	 * reentrant acquisition.
 	 */
 	protected _queueMutation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
-		return this._mutationSequencer.queue(async () => operation(await this._ensureDb()));
+		return this._queueOperation(operation);
 	}
 
 	private _mutate<T>(operation: (db: Database) => Promise<T>): Promise<T> {
@@ -436,36 +440,39 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
-	async getTurnEventId(turnId: string): Promise<string | undefined> {
-		const db = await this._ensureDb();
-		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
-		return row?.event_id as string | undefined ?? undefined;
+	getTurnEventId(turnId: string): Promise<string | undefined> {
+		return this._queueOperation(async db => {
+			const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
+			return row?.event_id as string | undefined ?? undefined;
+		});
 	}
 
-	async getNextTurnEventId(turnId: string): Promise<string | undefined> {
-		const db = await this._ensureDb();
-		// `turns.id` is the canonical turn key — either a live `request_xxx`
-		// dispatched by the client or, for sessions restored from disk, the
-		// SDK envelope id surfaced by `mapSessionEvents`. The `event_id`
-		// fallback covers the case where the caller asks about a turn that
-		// was set up live (id=`request_xxx`) but is now being referenced
-		// via the SDK event id, or vice versa.
-		const row = await dbGet(
-			db,
-			`SELECT event_id FROM turns
-				WHERE rowid > (
-					SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1
-				)
-				ORDER BY rowid LIMIT 1`,
-			[turnId],
-		);
-		return row?.event_id as string | undefined ?? undefined;
+	getNextTurnEventId(turnId: string): Promise<string | undefined> {
+		return this._queueOperation(async db => {
+			// `turns.id` is the canonical turn key — either a live `request_xxx`
+			// dispatched by the client or, for sessions restored from disk, the
+			// SDK envelope id surfaced by `mapSessionEvents`. The `event_id`
+			// fallback covers the case where the caller asks about a turn that
+			// was set up live (id=`request_xxx`) but is now being referenced
+			// via the SDK event id, or vice versa.
+			const row = await dbGet(
+				db,
+				`SELECT event_id FROM turns
+					WHERE rowid > (
+						SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1
+					)
+					ORDER BY rowid LIMIT 1`,
+				[turnId],
+			);
+			return row?.event_id as string | undefined ?? undefined;
+		});
 	}
 
-	async getFirstTurnEventId(): Promise<string | undefined> {
-		const db = await this._ensureDb();
-		const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
-		return row?.event_id as string | undefined ?? undefined;
+	getFirstTurnEventId(): Promise<string | undefined> {
+		return this._queueOperation(async db => {
+			const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
+			return row?.event_id as string | undefined ?? undefined;
+		});
 	}
 
 	setTurnUsage(turnId: string, usage: string): Promise<void> {

@@ -11,6 +11,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
@@ -176,7 +177,13 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
 				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
 			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
-				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
+				.find((content): content is ToolResultFileEditContent =>
+					content.type === ToolResultContentType.FileEdit
+					&& !!content.before?.content.uri
+					&& !!content.after?.content.uri
+					&& !!parseSessionDbUri(content.before.content.uri)
+					&& !!parseSessionDbUri(content.after.content.uri)
+				);
 			assert.ok(edit?.before?.content.uri);
 			assert.ok(edit.after?.content.uri);
 

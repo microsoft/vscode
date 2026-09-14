@@ -5,10 +5,9 @@
 
 import { localize } from '../../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from './sessionsApplicationBadge.js';
+import { SESSIONS_APPLICATION_BADGE_DEFAULT, SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from './sessionsApplicationBadge.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -17,7 +16,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			tags: ['preview'],
 			description: localize('sessions.showApplicationBadge', "Controls whether the application icon shows a badge with the number of unarchived sessions that are unread and no longer in progress, need input, or are no longer in progress and have failing CI checks on an open, non-draft pull request. The badge appears on the dock icon on macOS, on the launcher icon on Linux and over the taskbar icon on Windows."),
-			default: product.quality !== 'stable',
+			default: SESSIONS_APPLICATION_BADGE_DEFAULT,
 			experiment: { mode: 'auto' }
 		},
 	},

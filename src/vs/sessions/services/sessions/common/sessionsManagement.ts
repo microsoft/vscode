@@ -569,6 +569,9 @@ export interface ISessionsManagementService {
 
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
+
+	/** Remove a recorded artifact through its owning provider. */
+	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

@@ -17,7 +17,6 @@ import { createPngBytes } from '../../../image/common/test/testImageData';
 import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
-import { IExperimentationService, NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { defaultAutoModeTier } from '../../common/autoModeTiers';
 import { ICAPIClientService } from '../../common/capiClient';
@@ -37,7 +36,6 @@ describe('AutomodeService', () => {
 	let mockAuthService: IAuthenticationService;
 	let mockLogService: ILogService;
 	let mockInstantiationService: IInstantiationService;
-	let mockExpService: IExperimentationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let configurationService: IConfigurationService;
 	let onDidAuthenticationChangeEmitter: Emitter<void>;
@@ -66,7 +64,6 @@ describe('AutomodeService', () => {
 			mockAuthService,
 			mockLogService,
 			mockInstantiationService,
-			mockExpService,
 			mockTelemetryService,
 			new NullRequestLogger(),
 			configurationService
@@ -79,11 +76,11 @@ describe('AutomodeService', () => {
 
 	/** Tiers are experiment-gated and off by default, so tier tests opt in. */
 	function enableTiers(): void {
-		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Advanced.AutoModeTiersEnabled, true]]));
+		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Shared.AutoModeTiersEnabled, true]]));
 	}
 
 	function setTierOverride(override: string): void {
-		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Advanced.AutoModeTierOverride, override]]));
+		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Shared.AutoModeTierOverride, override]]));
 	}
 
 	function makeAutoResponse(body: unknown, status = 200) {
@@ -158,7 +155,6 @@ describe('AutomodeService', () => {
 			)
 		} as unknown as IInstantiationService;
 
-		mockExpService = new NullExperimentationService();
 		configure();
 		mockTelemetryService = {
 			sendTelemetryEvent: vi.fn(),
@@ -733,8 +729,8 @@ describe('AutomodeService', () => {
 			mockAuto(autoResponse('gpt-4o'));
 
 			configure(new Map<BaseConfig<unknown>, unknown>([
-				[ConfigKey.Advanced.AutoModeTiersEnabled, true],
-				[ConfigKey.Advanced.AutoModeTierOverride, 'turbo'],
+				[ConfigKey.Shared.AutoModeTiersEnabled, true],
+				[ConfigKey.Shared.AutoModeTierOverride, 'turbo'],
 			]));
 			automodeService = createService();
 			await automodeService.resolveAutoModeEndpoint({
@@ -747,18 +743,24 @@ describe('AutomodeService', () => {
 			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence' }]);
 		});
 
-		it('announces tier support when the setting changes', async () => {
+		it('announces tier support from the effective setting, not a separate experiment lookup', async () => {
+			const getExperimentBasedConfig = vi.spyOn(configurationService, 'getExperimentBasedConfig');
 			automodeService = createService();
 			expect(automodeService.areAutoModeTiersSupported()).toBe(false);
 
 			let announced = 0;
 			const listener = automodeService.onDidChangeAutoModeTierSupport(() => announced++);
-			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTiersEnabled, true);
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTiersEnabled, true);
 			// An unrelated change must not re-announce.
-			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTierOverride, 'intelligence');
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'intelligence');
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTiersEnabled, false);
 			listener.dispose();
 
-			expect({ announced, supported: automodeService.areAutoModeTiersSupported() }).toEqual({ announced: 1, supported: true });
+			expect({
+				announced,
+				supported: automodeService.areAutoModeTiersSupported(),
+				experimentLookups: getExperimentBasedConfig.mock.calls.length,
+			}).toEqual({ announced: 2, supported: false, experimentLookups: 0 });
 		});
 
 		it('does not reuse a cached endpoint from a different tier when /auto fails', async () => {

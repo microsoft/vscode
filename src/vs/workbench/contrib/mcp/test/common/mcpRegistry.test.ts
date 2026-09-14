@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcast } from '../../../../../base/common/types.js';
@@ -27,10 +27,11 @@ import { TestSecretStorageService } from '../../../../../platform/secrets/test/c
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, Replacement } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestLoggerService, TestStorageService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
 import { ContributionEnablementState, EnablementModel, isContributionEnabled } from '../../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from '../../common/mcpConfiguration.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
@@ -39,7 +40,7 @@ import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollisionEnablementModel } from '../../common/mcpService.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
-import { IMcpPotentialSandboxBlock, LazyCollectionState, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
+import { IMcpPotentialSandboxBlock, LazyCollectionState, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 
@@ -192,6 +193,8 @@ suite('Workbench - MCP - Registry', () => {
 	let trustNonceBearer: { trustedAtNonce: string | undefined };
 	let taskManager: McpTaskManager;
 	let testMcpSandboxService: TestMcpSandboxService;
+	let workspaceTrustManagementService: TestWorkspaceTrustManagementService;
+	let workspaceTrustRequestService: TestWorkspaceTrustRequestService;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
@@ -200,6 +203,8 @@ suite('Workbench - MCP - Registry', () => {
 		configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All });
 		trustNonceBearer = { trustedAtNonce: undefined };
 		testMcpSandboxService = new TestMcpSandboxService();
+		workspaceTrustManagementService = store.add(new TestWorkspaceTrustManagementService());
+		workspaceTrustRequestService = store.add(new TestWorkspaceTrustRequestService(false));
 
 		const services = new ServiceCollection(
 			[IConfigurationService, configurationService],
@@ -212,6 +217,8 @@ suite('Workbench - MCP - Registry', () => {
 			[IOutputService, upcast({ showChannel: () => { } })],
 			[IDialogService, testDialogService],
 			[IMcpSandboxService, testMcpSandboxService],
+			[IWorkspaceTrustManagementService, workspaceTrustManagementService],
+			[IWorkspaceTrustRequestService, workspaceTrustRequestService],
 			[IProductService, {}],
 		);
 
@@ -1059,15 +1066,15 @@ suite('Workbench - MCP - Registry', () => {
 		/**
 		 * Helper to create a test MCP collection with a specific trust behavior
 		 */
-		function createTestCollection(trustBehavior: McpServerTrust.Kind.Trusted | McpServerTrust.Kind.TrustedOnNonce, id = 'test-collection'): McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } {
+		function createTestCollection(trustBehavior: McpServerTrust.Kind.Trusted | McpServerTrust.Kind.TrustedOnNonce, scope = StorageScope.APPLICATION): McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } {
 			return {
-				id,
+				id: 'test-collection',
 				label: 'Test Collection',
 				remoteAuthority: null,
 				serverDefinitions: observableValue('serverDefs', []),
 				trustBehavior,
-				scope: StorageScope.APPLICATION,
-				configTarget: ConfigurationTarget.USER,
+				scope,
+				configTarget: scope === StorageScope.WORKSPACE ? ConfigurationTarget.WORKSPACE_FOLDER : ConfigurationTarget.USER,
 				order: 0,
 			};
 		}
@@ -1095,11 +1102,11 @@ suite('Workbench - MCP - Registry', () => {
 		/**
 		 * Helper to set up a basic registry with delegate and collection
 		 */
-		function setupRegistry(trustBehavior: McpServerTrust.Kind.Trusted | McpServerTrust.Kind.TrustedOnNonce = McpServerTrust.Kind.TrustedOnNonce, cacheNonce = 'nonce-a') {
+		function setupRegistry(trustBehavior: McpServerTrust.Kind.Trusted | McpServerTrust.Kind.TrustedOnNonce = McpServerTrust.Kind.TrustedOnNonce, cacheNonce = 'nonce-a', scope = StorageScope.APPLICATION) {
 			const delegate = new TestMcpHostDelegate();
 			store.add(registry.registerDelegate(delegate));
 
-			const collection = createTestCollection(trustBehavior);
+			const collection = createTestCollection(trustBehavior, scope);
 			const definition = createTestDefinition('test-server', cacheNonce);
 			collection.serverDefinitions.set([definition], undefined);
 			store.add(registry.registerCollection(collection));
@@ -1122,6 +1129,82 @@ suite('Workbench - MCP - Registry', () => {
 			assert.strictEqual(registry.nextDefinitionIdsToTrust, undefined, 'Trust dialog should not have been called');
 			connection!.dispose();
 		});
+
+		for (const { name, trustedAtNonce } of [
+			{ name: 'new', trustedAtNonce: undefined },
+			{ name: 'changed', trustedAtNonce: 'nonce-a' },
+			{ name: 'previously rejected', trustedAtNonce: '__vscode_not_trusted' },
+		]) {
+			test(`trusted workspace collection resolves a ${name} server without interaction`, async () => {
+				const { collection, definition } = setupRegistry(McpServerTrust.Kind.Trusted, 'nonce-b', StorageScope.WORKSPACE);
+				trustNonceBearer.trustedAtNonce = trustedAtNonce;
+
+				const connection = await registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition,
+					logger,
+					trustNonceBearer,
+					taskManager,
+					errorOnUserInteraction: true,
+				});
+				if (connection) {
+					store.add(connection);
+				}
+
+				assert.deepStrictEqual({
+					hasConnection: !!connection,
+					trustedAtNonce: trustNonceBearer.trustedAtNonce,
+				}, {
+					hasConnection: true,
+					trustedAtNonce,
+				});
+			});
+		}
+
+		test('trusted workspace collection cannot resolve quietly in an untrusted workspace', async () => {
+			await workspaceTrustManagementService.setWorkspaceTrust(false);
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.Trusted, 'nonce-a', StorageScope.WORKSPACE);
+			const requestSpy = sinon.spy(workspaceTrustRequestService, 'requestWorkspaceTrust');
+			store.add(toDisposable(() => requestSpy.restore()));
+
+			await assert.rejects(registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+				taskManager,
+				errorOnUserInteraction: true,
+			}), new UserInteractionRequiredError('workspaceTrust'));
+			assert.strictEqual(requestSpy.callCount, 0);
+		});
+
+		for (const accepted of [false, true]) {
+			test(`trusted workspace collection honors ${accepted ? 'accepted' : 'rejected'} workspace trust requests`, async () => {
+				await workspaceTrustManagementService.setWorkspaceTrust(false);
+				const { collection, definition } = setupRegistry(McpServerTrust.Kind.Trusted, 'nonce-a', StorageScope.WORKSPACE);
+				const requestStub = sinon.stub(workspaceTrustRequestService, 'requestWorkspaceTrust').resolves(accepted);
+				store.add(toDisposable(() => requestStub.restore()));
+
+				const connection = await registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition,
+					logger,
+					trustNonceBearer,
+					taskManager,
+				});
+				if (connection) {
+					store.add(connection);
+				}
+
+				assert.deepStrictEqual({
+					hasConnection: !!connection,
+					workspaceTrustRequests: requestStub.callCount,
+				}, {
+					hasConnection: accepted,
+					workspaceTrustRequests: 1,
+				});
+			});
+		}
 
 		test('nonce-based trust allows connection when nonce matches', async () => {
 			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-a');

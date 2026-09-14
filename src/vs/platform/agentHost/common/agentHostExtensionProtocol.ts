@@ -6,6 +6,9 @@
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
+import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+
+export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
@@ -16,6 +19,7 @@ export const ReconcileAgentHostDetachedWorktreesExtensionMethod = 'vscode/reconc
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
+export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -23,16 +27,18 @@ const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
+	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 }
 
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
 	};
 }
 
@@ -54,7 +60,16 @@ export const collectAgentHostDebugLogsParamsValidator = vObj({
 
 export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentHostDebugLogsParamsValidator>;
 
+export const removeSessionArtifactParamsValidator = vObj({
+	session: vString(),
+	artifactId: vString(),
+});
+
 export interface IAgentHostExtensionCommandMap {
+	[RemoveSessionArtifactExtensionMethod]: {
+		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
+		result: void;
+	};
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };

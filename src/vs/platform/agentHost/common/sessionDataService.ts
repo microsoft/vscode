@@ -135,18 +135,21 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Retrieves the SDK event ID previously stored for a turn.
 	 * Returns `undefined` if no event ID has been set.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the turn inserted immediately after the
 	 * given turn, or `undefined` if the given turn is the last one.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getNextTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the earliest turn in insertion order,
 	 * or `undefined` if there are no turns.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
 

@@ -24,6 +24,7 @@ import { ISessionsListModelService, SessionSortMode } from '../../../../services
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -93,6 +94,7 @@ export interface ITestSession {
 	readonly capabilities: ISettableObservable<ISessionCapabilities, void>;
 	readonly status: ISettableObservable<SessionStatus, void>;
 	readonly isArchived: ISettableObservable<boolean, void>;
+	readonly isRead: ISettableObservable<boolean, void>;
 }
 
 export interface ITestSessionOptions {
@@ -100,6 +102,7 @@ export interface ITestSessionOptions {
 	readonly workspaceLabel?: string;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
+	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
 	readonly changesSummary?: ISessionChangesSummary;
 }
@@ -115,6 +118,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		override readonly status = status;
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
+	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
@@ -143,14 +147,14 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		mode: constObservable(undefined),
 		loading: constObservable(false),
 		isArchived,
-		isRead: constObservable(true),
+		isRead,
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
 		mainChat: constObservable(mainChat),
 		capabilities,
 	};
-	return { session, capabilities, status, isArchived };
+	return { session, capabilities, status, isArchived, isRead };
 }
 
 export function createSession(title: string, resourceId: string = title): ITestSession {
@@ -244,6 +248,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
+	});
+	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
+		override readonly hadPriorWindowOpen = true;
+		override readonly windowOpenCount = 2;
 	});
 	instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 		override readonly pendingResponseVersion = constObservable(0);

@@ -19,7 +19,7 @@ export const enum AgentSystemNotificationKind {
 	AgentMergeConfigurationChanged = 'agentMergeConfigurationChanged',
 	/** Agent Merge stopped monitoring the session, usually on its own. */
 	AgentMergeDisabled = 'agentMergeDisabled',
-	/** Agent Merge merged the pull request it was monitoring. */
+	/** The pull request Agent Merge was monitoring was merged. */
 	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
 }
 

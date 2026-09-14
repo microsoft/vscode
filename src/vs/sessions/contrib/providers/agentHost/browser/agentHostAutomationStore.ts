@@ -22,10 +22,8 @@ import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, 
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, ROOT_STATE_URI, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { assertAutomationSessionTemplate, type AutomationRunTrigger, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationActiveRunError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, combineAutomationCatalogueStates, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
 
@@ -85,7 +83,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _archiveKey: string;
 	private readonly _archivedRuns;
 	private _migrationPromise: Promise<void> | undefined;
-	private _lastPreflightDeferralKey: string | undefined;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -98,7 +95,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		private readonly _boundaryMapper: IAgentHostAutomationBoundaryMapper | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAutomationStorageService private readonly _automationStorageService: IAutomationStorageService,
 	) {
 		super();
@@ -441,29 +437,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			? discovered.flatMap(automation => source.runsFor(automation.id).get().filter(isNonTerminalRun))
 			: [];
 		if (activeRuns.length > 0) {
-			const deferralKey = activeRuns.map(run => run.id).sort().join(',');
-			if (this._lastPreflightDeferralKey !== deferralKey) {
-				this._lastPreflightDeferralKey = deferralKey;
-				publishAutomationMigration(this._telemetryService, {
-					outcome: 'deferred',
-					discoveredCount: discovered.length,
-					migratedCount: 0,
-					failedCount: 0,
-					durationMs: Date.now() - startedAt,
-				});
-			}
 			this._logService.info(`[AgentHostAutomationStore] Automation migration deferred: activeRuns=${activeRuns.length}.`);
 			throw new AutomationActiveRunError(activeRuns[0].automationId, activeRuns[0].id);
 		}
-		this._lastPreflightDeferralKey = undefined;
 		this._logService.info(`[AgentHostAutomationStore] Automation migration started: discovered=${discovered.length}.`);
-		publishAutomationMigration(this._telemetryService, {
-			outcome: 'started',
-			discoveredCount: discovered.length,
-			migratedCount: 0,
-			failedCount: 0,
-			durationMs: 0,
-		});
 		let migratedCount = 0;
 		let failedCount = 0;
 		try {
@@ -515,13 +492,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			this._ready.set(true, undefined);
 			const durationMs = Date.now() - startedAt;
 			this._logService.info(`[AgentHostAutomationStore] Automation migration completed: discovered=${discovered.length}, migrated=${resources.length}, failed=0, durationMs=${durationMs}.`);
-			publishAutomationMigration(this._telemetryService, {
-				outcome: 'completed',
-				discoveredCount: discovered.length,
-				migratedCount: resources.length,
-				failedCount: 0,
-				durationMs,
-			});
 		} catch (error) {
 			if (isCancellationError(error)) {
 				throw error;
@@ -529,26 +499,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			const durationMs = Date.now() - startedAt;
 			if (isAutomationActiveRunError(error)) {
 				this._logService.info(`[AgentHostAutomationStore] Automation migration deferred after ${migratedCount} item(s) while a run became active.`);
-				publishAutomationMigration(this._telemetryService, {
-					outcome: 'deferred',
-					discoveredCount: discovered.length,
-					migratedCount,
-					failedCount: 0,
-					durationMs,
-				});
 				throw error;
 			}
 			if (error instanceof AggregateError) {
 				failedCount = Math.max(failedCount, error.errors.length);
 			}
 			this._logService.error(`[AgentHostAutomationStore] Automation migration failed: discovered=${discovered.length}, migrated=${migratedCount}, failed=${failedCount}, durationMs=${durationMs}, error=${error instanceof Error ? error.message : String(error)}.`);
-			publishAutomationMigration(this._telemetryService, {
-				outcome: 'failed',
-				discoveredCount: discovered.length,
-				migratedCount,
-				failedCount,
-				durationMs,
-			});
 			throw error;
 		}
 	}

@@ -39,6 +39,8 @@ export interface IPreparedNewSession {
 export interface ISendRequestOptions {
 	/** The query text to send. */
 	readonly query: string;
+	/** Provider-specific request metadata, separate from the prompt. */
+	readonly metadata?: Record<string, unknown>;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	/** Optional display title for the new session. */
@@ -222,6 +224,11 @@ export interface ISessionsProvider {
 	 */
 	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
+	 * Optional. Prepares a known session before it is opened or restored.
+	 * Startup restoration invokes this only for the active session.
+	 */
+	prepareSessionForOpen?(session: ISession, reason: SessionResourceResolveReason): Promise<void>;
+	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
 	 *
@@ -349,6 +356,9 @@ export interface ISessionsProvider {
 	 * @param title The new title for the session.
 	 */
 	renameSession(sessionId: string, title: string): Promise<void>;
+
+	/** Remove a recorded artifact without changing independent session associations. */
+	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
 
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.

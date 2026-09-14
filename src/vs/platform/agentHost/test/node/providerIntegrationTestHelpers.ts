@@ -15,6 +15,7 @@ export interface IAgentHostProviderTestConfig {
 	readonly provider: string;
 	readonly scheme: string;
 	readonly githubToken: string;
+	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 }
 
 export async function createProviderSession(
@@ -35,7 +36,7 @@ export async function createProviderSession(
 		channel: sessionUri,
 		provider: config.provider,
 		workingDirectories: [workingDirectory.toString()],
-		config: { isolation: 'folder' },
+		config: { isolation: 'folder', ...config.sessionConfig },
 	}, 30_000);
 	trackingList.push(sessionUri);
 

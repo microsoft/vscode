@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSessionArtifactInput, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
+import { parseSessionArtifactInput, parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { isGitHubArtifactLink, parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 
 suite('Session Artifacts', () => {
@@ -28,6 +28,35 @@ suite('Session Artifacts', () => {
 			{ id: 'id-2', type: SessionArtifactType.Issue, label: 'Crash', isArtifact: false, link: 'https://example.com/issues/2', isGitHub: false },
 			{ id: 'id-3', type: SessionArtifactType.Commit, label: 'Refactor', isArtifact: false, link: 'https://github.com/microsoft/vscode/commit/abc', commitHash: 'abc123' },
 		]);
+	});
+
+	test('parses batched and legacy single-entry inputs', () => {
+		assert.deepStrictEqual({
+			batch: parseSessionArtifactInputs({
+				items: [
+					{ type: 'website', label: 'Docs', link: 'https://example.com', isArtifact: false },
+					{ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true },
+				],
+			}, TOOL),
+			legacy: parseSessionArtifactInputs({ type: 'website', label: 'Docs', link: 'https://example.com', isArtifact: false }, TOOL),
+		}, {
+			batch: [
+				{ type: SessionArtifactType.Website, label: 'Docs', link: 'https://example.com', isArtifact: false },
+				{ type: SessionArtifactType.File, label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true },
+			],
+			legacy: [
+				{ type: SessionArtifactType.Website, label: 'Docs', link: 'https://example.com', isArtifact: false },
+			],
+		});
+	});
+
+	test('identifies invalid entries within a batch', () => {
+		assert.throws(() => parseSessionArtifactInputs({
+			items: [
+				{ type: 'website', label: 'Docs', link: 'https://example.com', isArtifact: false },
+				{ type: 'file', label: 'Plan', uri: 'plan.md', isArtifact: true },
+			],
+		}, TOOL), /items\[1\]\.uri/);
 	});
 
 	test('rejects a duplicate value and returns the existing artifact', () => {

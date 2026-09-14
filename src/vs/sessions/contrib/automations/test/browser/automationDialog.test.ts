@@ -6,13 +6,16 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
+import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -22,60 +25,157 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
+import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextViewHandler } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { Menus } from '../../../../browser/menus.js';
+import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
+import { ModelPicker } from '../../../chat/browser/modelPicker.js';
+import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationTargetHint, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
 
-suite('Automation target guidance', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+suite('Automation dialog layout', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const cloud: IProviderSessionType = {
-		providerId: 'cloud-provider',
-		sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.GitHub },
-	};
-	const local: IProviderSessionType = {
-		providerId: 'local-provider',
-		sessionType: { id: 'local-agent', label: 'Local', icon: Codicon.terminal, authRequirement: SessionTypeAuthRequirement.GitHub },
-	};
+	test('renders a single workspace picker before the prompt in DOM and keyboard order', () => {
+		const configurationService = new TestConfigurationService();
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+			contextKeyService: () => contextKeyService,
+		}, disposables);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IActionWidgetService, new RecordingActionWidgetService());
+		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => undefined }));
+		const sessionsManagementService = instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			automationSession: constObservable(undefined),
+			onDidChangeSessionTypes: Event.None,
+			getSessionTypesForFolder: () => [],
+			getQuickChatSessionTypes: () => [],
+		}));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 
-	test('explains missing targets and the workspace dependency of a single available agent', () => {
-		const cloudTarget = { ...createFormState(), providerId: cloud.providerId, sessionTypeId: cloud.sessionType.id };
-		const localTarget = { ...createFormState(), providerId: local.providerId, sessionTypeId: local.sessionType.id };
+		const workspaceButton = DOM.$('button', { type: 'button' }, 'Select workspace');
+		let targetModel: AutomationIsolationModel | undefined;
+		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
+			setTargetModel: model => { targetModel = model; },
+			setLayoutService: () => { },
+			onDidSelectWorkspace: Event.None,
+			render: container => container.appendChild(workspaceButton),
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(MobileSessionTypePicker, {
+			setQuickChatSource: () => { },
+			setFolderSource: () => { },
+			modelTargetChatSessionType: constObservable(undefined),
+			onDidChangeSelectedPick: Event.None,
+			selectedPick: undefined,
+			render: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
+		instantiationService.stubInstance(ModelPicker, { render: () => { }, dispose: () => { } });
+		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
+		const promptInput = document.createElement('textarea');
+		promptInput.setAttribute('aria-label', 'Prompt');
+		instantiationService.stubInstance(ChatInputPart, {
+			render: (container, value) => {
+				promptInput.value = value ?? '';
+				container.appendChild(promptInput);
+			},
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				updateOptions: () => { },
+				onDidChangeModelContent: Event.None,
+				getValue: () => promptInput.value,
+			}),
+			layout: () => { },
+			dispose: () => { },
+		});
+
+		const form = DOM.append(document.body, DOM.$('.automation-form'));
+		disposables.add(toDisposable(() => form.remove()));
+		const formDisposables = disposables.add(new DisposableStore());
+		const state = { ...createFormState(), folderUri: undefined, providerId: undefined, sessionTypeId: undefined };
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		const handle = renderForm(
+			form, state, formDisposables, validation, () => { }, instantiationService, contextKeyService,
+			instantiationService.get(IContextViewService), configurationService, instantiationService.get(IWorkbenchLayoutService),
+			new NullLogService(), sessionsManagementService, instantiationService.get(IWorkspaceTrustRequestService),
+			'Review the workspace', undefined, undefined,
+		);
+		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
+		workspaceButton.focus();
+		dispatchKey(workspaceButton, 'keydown', 'Tab');
+
+		const targetRow = form.querySelector('.automation-target-row')!;
+		const promptSection = form.querySelector('.automation-prompt-section')!;
 		assert.deepStrictEqual({
-			unselected: getAutomationTargetHint({ ...localTarget, folderUri: undefined }, []),
-			cloud: getAutomationTargetHint(cloudTarget, [cloud]),
-			local: getAutomationTargetHint(localTarget, [local]),
-			quickChat: getAutomationTargetHint({ ...localTarget, isQuickChat: true, folderUri: undefined }, [local]),
-			unavailable: getAutomationTargetHint(localTarget, []),
-			multiple: getAutomationTargetHint(localTarget, [cloud, local]),
-			retainedUnavailableAgent: getAutomationTargetHint(cloudTarget, [local]),
-			retainedUnavailableProvider: getAutomationTargetHint({ ...localTarget, providerId: 'unavailable' }, [local]),
+			targetLabel: targetRow.querySelector('.automation-form-label')?.textContent,
+			targetContainsWorkspace: targetRow.contains(workspaceButton),
+			targetBeforePrompt: !!(targetRow.compareDocumentPosition(promptSection) & Node.DOCUMENT_POSITION_FOLLOWING),
+			targetControls: Array.from(targetRow.querySelectorAll('button, a[href]'), element => element.textContent),
+			hintInTarget: !!targetRow.querySelector('.automation-target-hint'),
+			promptFocused: document.activeElement === promptInput,
+			prompt: handle.getPrompt(),
+			targetUnselected: !state.isQuickChat && state.folderUri === undefined && state.sessionTypeId === undefined,
 		}, {
-			unselected: 'Choose a workspace or No workspace to see which agents can run this automation.',
-			cloud: 'Only Cloud is available for this workspace. Change the workspace to use a different agent.',
-			local: 'Only Local is available for this workspace. Change the workspace to use a different agent.',
-			quickChat: 'Only Local is available without a workspace. Choose a workspace to use a different agent.',
-			unavailable: 'No agents are currently available for this target.',
-			multiple: undefined,
-			retainedUnavailableAgent: undefined,
-			retainedUnavailableProvider: undefined,
+			targetLabel: 'Target',
+			targetContainsWorkspace: true,
+			targetBeforePrompt: true,
+			targetControls: ['Select workspace'],
+			hintInTarget: false,
+			promptFocused: true,
+			prompt: 'Review the workspace',
+			targetUnselected: true,
+		});
+
+		assert.ok(targetModel);
+		targetModel.setQuickChat(true);
+		assert.strictEqual(form.querySelector('.automation-session-configuration-unavailable')?.textContent, 'Session configuration unavailable');
+	});
+
+	test('keeps target actions out of the prompt toolbar', () => {
+		const targetActions = MenuRegistry.getMenuItems(Menus.AutomationsDialogTargetToolbar).filter(isIMenuItem);
+		const promptActions = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem);
+		assert.deepStrictEqual({
+			target: targetActions.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => item.command.id),
+			duplicatedInPrompt: promptActions.some(item => targetActions.some(target => target.command.id === item.command.id)),
+		}, {
+			target: [
+				'workbench.action.chat.renderAutomationsWorkspacePicker',
+				'workbench.action.chat.renderAutomationsHarnessChip',
+				'workbench.action.chat.renderAutomationsIsolationGroup',
+			],
+			duplicatedInPrompt: false,
 		});
 	});
 });
@@ -1242,6 +1342,213 @@ suite('Automation branch picker', () => {
 
 suite('Automation dialog keyboard navigation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const escapeScenarios = [
+		{ name: 'a normal Escape press', interveningEvents: [] },
+		{ name: 'repeated Escape keydowns', interveningEvents: [{ type: 'keydown', repeat: true }, { type: 'keydown', repeat: true }] },
+		{ name: 'another keydown before Escape is released', interveningEvents: [{ type: 'keydown', key: 'a', keyCode: 65 }] },
+		{ name: 'another keyup before Escape is released', interveningEvents: [{ type: 'keyup', key: 'a', keyCode: 65 }] },
+	];
+
+	for (const { name, interveningEvents } of escapeScenarios) {
+		test(`keeps the dialog open when the Schedule popup handles ${name}`, async () => {
+			const container = DOM.append(document.body, DOM.$('div'));
+			disposables.add({ dispose: () => container.remove() });
+			const contextView = disposables.add(new ContextViewHandler(upcastPartial<ILayoutService>({
+				mainContainer: container,
+				activeContainer: container,
+				onDidLayoutContainer: Event.None,
+			})));
+			let select!: HTMLSelectElement;
+			let promptCancellationAttempts = 0;
+			const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
+				cancelId: 0,
+				isExternalFocusAllowed: isAutomationDialogPopupTarget,
+				renderBody: body => {
+					const selectBox = disposables.add(new SelectBox(
+						[{ text: 'Manual' }, { text: 'Daily' }, { text: 'Weekly' }],
+						1,
+						contextView,
+						defaultSelectBoxStyles,
+						{ ariaLabel: 'Schedule', useCustomDrawn: true },
+					));
+					selectBox.render(body);
+					select = body.querySelector('select')!;
+					disposables.add(registerAutomationDialogKeyboardNavigation(
+						DOM.getWindow(body),
+						() => [select],
+						isAutomationDialogPopupTarget,
+						undefined,
+						() => {
+							promptCancellationAttempts++;
+							return false;
+						},
+					));
+				},
+				buttonStyles: defaultButtonStyles,
+				checkboxStyles: defaultCheckboxStyles,
+				inputBoxStyles: defaultInputBoxStyles,
+				dialogStyles: defaultDialogStyles,
+			}));
+			let closed = false;
+			const result = dialog.show().then(() => { closed = true; });
+			const dispatch = (type: string, options: KeyboardEventInit = {}) => {
+				document.activeElement!.dispatchEvent(new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, ...options,
+				}));
+			};
+
+			select.click();
+			const popupTarget = document.activeElement;
+			assert.ok(DOM.isHTMLElement(popupTarget) && isAutomationDialogPopupTarget(popupTarget));
+			dispatch('keydown');
+			for (const { type, ...options } of interveningEvents) {
+				dispatch(type, options);
+			}
+			dispatch('keyup');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closed,
+				expanded: select.getAttribute('aria-expanded'),
+				focusRestored: document.activeElement === select,
+				value: select.value,
+				promptCancellationAttempts,
+			}, {
+				closed: false,
+				expanded: 'false',
+				focusRestored: true,
+				value: 'Daily',
+				promptCancellationAttempts: 0,
+			});
+
+			dispatch('keydown');
+			dispatch('keyup');
+			await timeout(0);
+			assert.strictEqual(closed, true, 'A separate Escape press still closes the dialog');
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	function createPromptDialog(cancelPromptSuggestion: () => boolean) {
+		const container = DOM.append(document.body, DOM.$('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const prompt = DOM.$<HTMLTextAreaElement>('textarea');
+		prompt.value = 'Unsaved automation prompt';
+		const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
+			cancelId: 0,
+			isExternalFocusAllowed: isAutomationDialogPopupTarget,
+			renderBody: body => {
+				body.appendChild(prompt);
+				disposables.add(registerAutomationDialogKeyboardNavigation(
+					DOM.getWindow(body),
+					() => [prompt],
+					isAutomationDialogPopupTarget,
+					undefined,
+					cancelPromptSuggestion,
+				));
+			},
+			buttonStyles: defaultButtonStyles,
+			checkboxStyles: defaultCheckboxStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+			dialogStyles: defaultDialogStyles,
+		}));
+		let closed = false;
+		const result = dialog.show().then(() => { closed = true; });
+		prompt.focus();
+		return {
+			dialog,
+			prompt,
+			result,
+			isClosed: () => closed,
+			dispatch: (type: string, options: KeyboardEventInit = {}) => {
+				const event = new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, ...options,
+				});
+				document.activeElement!.dispatchEvent(event);
+				return event;
+			},
+		};
+	}
+
+	for (const { name, interveningEvents, shiftKey } of [
+		...escapeScenarios.map(scenario => ({ ...scenario, shiftKey: false })),
+		{ name: 'Shift+Escape', interveningEvents: [], shiftKey: true },
+	]) {
+		test(`keeps the dialog open when prompt suggestions handle ${name}`, async () => {
+			let suggestionsActive = true;
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				const cancelled = suggestionsActive;
+				suggestionsActive = false;
+				return cancelled;
+			});
+			const keydown = dispatch('keydown', { shiftKey });
+			for (const { type, ...options } of interveningEvents) {
+				dispatch(type, options);
+			}
+			dispatch('keyup', { shiftKey });
+			await timeout(0);
+
+			const afterSuggestionEscape = {
+				closed: isClosed(),
+				suggestionsActive,
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				value: prompt.value,
+				keydownPrevented: keydown.defaultPrevented,
+			};
+			dispatch('keydown');
+			dispatch('keyup');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterSuggestionEscape,
+				closedAfterNextEscape: isClosed(),
+			}, {
+				afterSuggestionEscape: {
+					closed: false,
+					suggestionsActive: false,
+					cancellationAttempts: 1,
+					promptFocused: true,
+					value: 'Unsaved automation prompt',
+					keydownPrevented: true,
+				},
+				closedAfterNextEscape: true,
+			});
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+		test(`does not cancel prompt suggestions for Escape with ${modifier}`, async () => {
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				return true;
+			});
+			const keydown = dispatch('keydown', { [modifier]: true });
+			dispatch('keyup', { [modifier]: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closed: isClosed(),
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				keydownPrevented: keydown.defaultPrevented,
+			}, {
+				closed: false,
+				cancellationAttempts: 0,
+				promptFocused: true,
+				keydownPrevented: false,
+			});
+			dialog.dispose();
+			await result;
+		});
+	}
 
 	test('passes editor commands through the dialog command filter', () => {
 		const prompt = document.createElement('textarea');

@@ -141,6 +141,18 @@ export function computeScrollDownState(isScrolledToBottom: boolean, scrollLock: 
 	};
 }
 
+export function isChatBackgroundContextMenuTarget(target: Element | undefined): boolean {
+	return !!target && !target.closest('.interactive-item-container, .scrollbar');
+}
+
+export function getChatContextMenuTargetContext(target: EventTarget | null): { isKatexElement: boolean; isBackground: boolean } {
+	const element = target instanceof Element ? target : undefined;
+	return {
+		isKatexElement: !!element?.closest(`.${katexContainerClassName}`),
+		isBackground: isChatBackgroundContextMenuTarget(element),
+	};
+}
+
 class UserToggleResizeTracker extends Disposable {
 
 	private readonly state = new UserToggleResizeState(2);
@@ -283,6 +295,9 @@ export interface IChatListWidgetOptions {
 
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
+
+	/** Tab index applied to the transcript tree root. */
+	readonly tabIndex?: 0 | -1;
 }
 
 /**
@@ -373,6 +388,14 @@ export class ChatListWidget extends Disposable {
 
 	get domNode(): HTMLElement {
 		return this._container;
+	}
+
+	get stickyScrollDomNode(): HTMLElement | undefined {
+		return this._tree.stickyScrollDomNode;
+	}
+
+	get onDidChangeStickyScrollDomNode(): Event<HTMLElement | undefined> {
+		return this._tree.onDidChangeStickyScrollDomNode;
 	}
 
 	get scrollTop(): number {
@@ -603,6 +626,9 @@ export class ChatListWidget extends Disposable {
 				}
 			}
 		));
+		if (options.tabIndex !== undefined) {
+			this._tree.getHTMLElement().tabIndex = options.tabIndex;
+		}
 
 		// Create scroll-down button
 		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
@@ -813,14 +839,13 @@ export class ChatListWidget extends Disposable {
 
 		const selected = e.element;
 
-		// Check if the context menu was opened on a KaTeX element
-		const target = e.browserEvent.target as HTMLElement;
-		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
+		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
-			[ChatContextKeys.isKatexMathElement.key, isKatexElement]
+			[ChatContextKeys.isKatexMathElement.key, targetContext.isKatexElement],
+			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground]
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,

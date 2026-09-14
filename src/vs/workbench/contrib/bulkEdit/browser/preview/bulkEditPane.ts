@@ -181,7 +181,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _setState(state: State): void {
-		this.element.dataset['state'] = state;
+		this.element.dataset.state = state;
 	}
 
 	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {

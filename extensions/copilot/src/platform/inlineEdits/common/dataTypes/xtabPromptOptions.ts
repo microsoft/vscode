@@ -547,6 +547,8 @@ export enum PromptingStrategy {
 	 * completions itself: it bakes in the client and latency knobs that treatment was tuned for.
 	 */
 	PatchBased02Unified = 'patchBased02Unified',
+	/** PatchBased02 unified variant trained for eagerness prompting. */
+	PatchBased02UnifiedEagerness = 'patchBased02UnifiedEagerness',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
@@ -575,6 +577,7 @@ export function isEagernessPrompt(options: PromptOptions): boolean {
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
 		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagerness,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
 		|| [PromptingStrategy.XtabAggressiveness,
@@ -615,6 +618,7 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 			case PromptingStrategy.PatchBased02Unified:
+			case PromptingStrategy.PatchBased02UnifiedEagerness:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
@@ -804,6 +808,19 @@ const PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG: Partial<ModelConfiguration
 	allowImportChanges: ImportChanges.All,
 };
 
+const PATCH_BASED_02_UNIFIED_CONFIG: Partial<ModelConfiguration> = {
+	...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+	patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+	splitPatchOnDiff: true,
+	patchFastYieldLineWithCursor: true,
+	extraDebounceEndOfLine: 0,
+	nesMimicGhostTextBehavior: true,
+	cacheDelay: 200,
+	rebasedCacheDelay: 0,
+	debounce: 0,
+	supportsUnifiedCompletions: true,
+};
+
 const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
 	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
 	[PromptingStrategy.CopilotNesXtab]: {
@@ -812,18 +829,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
 	// Inherits everything from PatchBased02WithRecentLineNumbers and additionally bakes in the
 	// client/latency knobs that this unified model was tuned to run with.
-	[PromptingStrategy.PatchBased02Unified]: {
-		...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
-		patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
-		splitPatchOnDiff: true,
-		patchFastYieldLineWithCursor: true,
-		extraDebounceEndOfLine: 0,
-		nesMimicGhostTextBehavior: true,
-		cacheDelay: 200,
-		rebasedCacheDelay: 0,
-		debounce: 0,
-		supportsUnifiedCompletions: true,
-	},
+	[PromptingStrategy.PatchBased02Unified]: PATCH_BASED_02_UNIFIED_CONFIG,
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
 		includePostScript: true,
@@ -831,6 +837,10 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
 		allowImportChanges: ImportChanges.All,
+	},
+	[PromptingStrategy.PatchBased02UnifiedEagerness]: {
+		...PATCH_BASED_02_UNIFIED_CONFIG,
+		eagernessPrompt: 'aggressionHighLow',
 	},
 };
 

@@ -45,6 +45,8 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -58,6 +60,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 		});
 	}
 	override async run(accessor: ServicesAccessor) {
+		accessor.get(INewSessionComposerService).notifyUserNavigation();
 		const sessionsService = accessor.get(ISessionsService);
 		sessionsService.openNewSession();
 	}
@@ -483,7 +486,8 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
 
-		sessionsService.openNewSession();
+		accessor.get(INewSessionComposerService).notifyUserWorkspaceSelection();
+		await sessionsService.openNewSession();
 
 		const session = context.sessions[0];
 		const workspace = session.workspace.get();
@@ -492,7 +496,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 
 		const newSession = sessionsService.activeSession.get();
 		if (folderUri) {
-			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, { providerId });
+			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, { providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
 		}
 
 		// On mobile web, the sidebar drawer covers the viewport; close it so
@@ -545,6 +549,8 @@ registerAction2(class NewQuickChatAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
+		const composerService = accessor.get(INewSessionComposerService);
+		composerService.notifyUserNavigation();
 		let activeSession;
 		if (accessor.get(IConfigurationService).getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 			if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
@@ -553,6 +559,7 @@ registerAction2(class NewQuickChatAction extends Action2 {
 			}
 			activeSession = sessionsService.activeSession.get();
 		} else {
+			composerService.notifyUserWorkspaceSelection();
 			activeSession = sessionsService.openQuickChat();
 		}
 
@@ -686,7 +693,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			menu: [{
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: SessionGroupHasVisibleSessionsContext,
 			}]
 		});
@@ -749,7 +756,7 @@ registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
 			menu: [{
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: SessionGroupIsEmptyContext,
 			}]
 		});
@@ -787,6 +794,7 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 		const sessionGroupsService = accessor.get(ISessionGroupsService);
 		const commandService = accessor.get(ICommandService);
 
+		accessor.get(INewSessionComposerService).notifyUserNavigation();
 		sessionsService.openNewSession();
 		sessionGroupsService.setPendingNewSessionGroup(context.group.id);
 

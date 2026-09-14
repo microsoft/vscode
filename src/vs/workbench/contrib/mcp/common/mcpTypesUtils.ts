@@ -21,7 +21,11 @@ import { MCP } from './modelContextProtocol.js';
 export function startServerByFilter(mcpService: IMcpService, filter: (s: IMcpServer) => boolean, timeout = 5000) {
 	return new Promise<void>((resolve, reject) => {
 		const store = new DisposableStore();
-		store.add(autorun(reader => {
+		store.add(disposableTimeout(() => {
+			store.dispose();
+			reject(new CancellationError());
+		}, timeout));
+		const observer = autorunSelfDisposable(reader => {
 			const servers = mcpService.servers.read(reader);
 			const server = servers.find(filter);
 
@@ -33,14 +37,13 @@ export function startServerByFilter(mcpService: IMcpService, filter: (s: IMcpSer
 				});
 
 				resolve();
+				reader.dispose();
 				store.dispose();
 			}
-		}));
-
-		store.add(disposableTimeout(() => {
-			store.dispose();
-			reject(new CancellationError());
-		}, timeout));
+		});
+		if (!store.isDisposed) {
+			store.add(observer);
+		}
 	});
 }
 

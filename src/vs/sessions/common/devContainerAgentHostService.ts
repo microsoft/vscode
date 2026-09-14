@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../base/common/cancellation.js';
+import { Event } from '../../base/common/event.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
@@ -46,10 +47,11 @@ export interface IDevContainerAgentHostTarget {
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
-/** Coordinates Dev Container connectors with dynamic remote Sessions providers. */
+/** Coordinates Dev Container connectors with persistent remote Sessions providers. */
 export interface IDevContainerAgentHostService {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidChangeAvailability: Event<void>;
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;

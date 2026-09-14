@@ -18,6 +18,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
+import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -52,6 +53,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const createAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
 		const createDraftAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
+		store.add(registry.registerChangesetOperationHandler(PREPARE_PULL_REQUEST_OPERATION_ID, { invoke: (params, token) => createPrHandler.prepare(params, token) }));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR, createDraftPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_MERGE, createAutoMergePrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_SQUASH, createAutoSquashPrHandler));
@@ -121,9 +123,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		const agentMergeEnabled = this._isAgentMergeEnabled();
 		return [{
-			id: 'create-pr',
+			id: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR,
 			label: localize('agentHost.changeset.createPR', "Create PR"),
 			icon: 'git-pull-request-create',
 			group: 'pull-request',
@@ -131,53 +132,14 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			status: ChangesetOperationStatus.Idle,
 		},
 		{
-			id: 'create-pr-auto-merge',
-			label: localize('agentHost.changeset.createPRAutoMerge', "Create PR (Auto-Merge)"),
-			icon: 'git-merge',
+			id: PREPARE_PULL_REQUEST_OPERATION_ID,
+			label: localize('agentHost.changeset.preparePR', "Prepare PR"),
+			description: localize('agentHost.changeset.preparePR.description', "Generate a pull request title and description and read repository merge options without changing the repository."),
+			icon: 'git-pull-request-create',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		},
-		{
-			id: 'create-pr-auto-squash',
-			label: localize('agentHost.changeset.createPRAutoSquash', "Create PR (Auto-Squash)"),
-			icon: 'git-merge',
-			group: 'pull-request',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		},
-		{
-			id: 'create-pr-auto-rebase',
-			label: localize('agentHost.changeset.createPRAutoRebase', "Create PR (Auto-Rebase)"),
-			icon: 'git-merge',
-			group: 'pull-request',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		},
-		...(agentMergeEnabled ? [{
-			id: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AGENT_MERGE,
-			label: localize('agentHost.changeset.createPRAgentMerge', "Create PR & Agent Merge"),
-			icon: 'git-merge',
-			group: 'pull-request',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		}] : []),
-		{
-			id: 'create-draft-pr',
-			label: localize('agentHost.changeset.createDraftPR', "Create Draft PR"),
-			icon: 'git-pull-request-draft',
-			group: 'pull-request_draft',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		},
-		...(agentMergeEnabled ? [{
-			id: AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR_AGENT_MERGE,
-			label: localize('agentHost.changeset.createDraftPRAgentMerge', "Create Draft PR & Agent Merge"),
-			icon: 'git-merge',
-			group: 'pull-request_draft',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		}] : []),
 		] satisfies ChangesetOperation[];
 	}
 

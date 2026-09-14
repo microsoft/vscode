@@ -18,6 +18,7 @@ import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workb
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { INewSessionComposerService } from './newSessionComposerService.js';
 
 export async function prepareNewVoiceSession(
 	text: string,
@@ -91,6 +92,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -149,8 +151,9 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			return this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource?.toString();
 		}));
 
-		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', (_accessor, text: string) =>
-			prepareNewVoiceSession(
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', (_accessor, text: string) => {
+			this.newSessionComposerService.notifyUserNavigation();
+			return prepareNewVoiceSession(
 				text,
 				this.sessionsService,
 				this.sessionsManagementService,
@@ -158,8 +161,8 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 				() => !!this._activeComposerTarget(),
 				() => this.newChatVoiceTargetService.beginVoiceTransition(),
 				this.logService,
-			)
-		));
+			);
+		}));
 
 		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
 			const composer = this._activeComposerTarget();

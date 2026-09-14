@@ -74,15 +74,15 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		if (userDataDir) {
 			const remoteDataDir = `${userDataDir}-server`;
 			fs.mkdirSync(remoteDataDir, { recursive: true });
-			env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+			env.TESTRESOLVER_DATA_FOLDER = remoteDataDir;
 		}
-		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
+		env.TESTRESOLVER_LOGS_FOLDER = join(logsPath, 'server');
 		// Exercise the remote server's exit diagnostics (see `installServerProcessExitDiagnostics`
 		// in server-main.ts) so unexpected server exits are explained in the captured logs,
 		// even when running smoke tests locally (where `isCI` is false).
-		env['VSCODE_SERVER_EXIT_DIAGNOSTICS'] = '1';
+		env.VSCODE_SERVER_EXIT_DIAGNOSTICS = '1';
 		if (options.verbose) {
-			env['TESTRESOLVER_LOG_LEVEL'] = 'trace';
+			env.TESTRESOLVER_LOG_LEVEL = 'trace';
 		}
 	}
 
@@ -190,6 +190,20 @@ export function getBuildElectronPath(root: string): string {
 		}
 		default:
 			throw new Error('Unsupported platform.');
+	}
+}
+
+export function getBuildProductPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return join(root, 'Contents', 'Resources', 'app', 'product.json');
+		case 'win32':
+			// On Windows the built app may nest the payload inside a subdirectory
+			// (e.g. VSCode-win32-x64), so search for product.json rather than
+			// assuming it lives directly under the root.
+			return findFilePath(root, join('resources', 'app', 'product.json'));
+		default:
+			return join(root, 'resources', 'app', 'product.json');
 	}
 }
 

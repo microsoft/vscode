@@ -6,16 +6,73 @@
 import assert from 'assert';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir, userInfo } from 'os';
-import { join } from '../../../../base/common/path.js';
+import { join, posix, win32 } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CapiReplayProxy } from './e2e/harness/capiReplayProxy.js';
-import { anthropicMessageToSse } from './e2e/harness/capiWireCodec.js';
+import { aggregateAnthropicSse, anthropicMessageToSse } from './e2e/harness/capiWireCodec.js';
 import { scrubUserName } from './e2e/harness/userNameScrub.js';
 
 suite('CapiReplayProxy path normalization', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function assertCopiedPluginPathReplay(pathStyle: typeof posix): Promise<void> {
+		const testDirectory = mkdtempSync(join(tmpdir(), 'capi-replay-plugin-normalization-'));
+		const fixturePath = join(testDirectory, 'capture.yaml');
+		const homeDir = pathStyle.join(testDirectory, 'home');
+		const pluginFile = (directory: string) => pathStyle.join(homeDir, 'user-data', 'agentPlugins', directory, '1', 'reference.txt');
+		const request = (path: string) => JSON.stringify({
+			model: 'claude-opus-5',
+			system: 'system',
+			messages: [{ role: 'user', content: `Read ${path}` }],
+		});
+		const recorder = new CapiReplayProxy({
+			fixturePath,
+			mode: 'record',
+			homeDir,
+			recordingModelResponse: {
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({
+					content: [{ type: 'tool_use', id: 'toolu_1', name: 'view', input: { path: pluginFile('recorded-copy') } }],
+					stopReason: 'tool_use',
+				}),
+			},
+		});
+		try {
+			const response = await fetch(`${await recorder.start()}/v1/messages`, { method: 'POST', body: request(pluginFile('recorded-copy')) });
+			await response.text();
+			await recorder.stop();
+			const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', homeDir });
+			try {
+				const url = await replay.start();
+				const paths: string[] = [];
+				for (const directory of ['first-copy', 'second-copy']) {
+					replay.resetForReplay(fixturePath);
+					const response = await fetch(`${url}/v1/messages`, { method: 'POST', body: request(pluginFile(directory)) });
+					const message = aggregateAnthropicSse(await response.text());
+					const block = message?.content[0];
+					assert.ok(block?.type === 'tool_use' && typeof block.input === 'object' && block.input !== null);
+					const path: unknown = Reflect.get(block.input, 'path');
+					assert.ok(typeof path === 'string');
+					paths.push(pathStyle.normalize(path));
+					replay.assertNoReplayMismatches();
+				}
+				assert.deepStrictEqual(paths, [pluginFile('first-copy'), pluginFile('second-copy')]);
+			} finally {
+				await replay.stop();
+			}
+		} finally {
+			await recorder.stop();
+			rmSync(testDirectory, { recursive: true, force: true });
+		}
+	}
+
+	test('binds copied plugin paths from live requests and resets bindings between fixtures', async () => {
+		await assertCopiedPluginPathReplay(posix);
+		await assertCopiedPluginPathReplay(win32);
+	});
 
 	test('normalizes truncated harness workspaces from session titles', async () => {
 		const testDirectory = mkdtempSync(join(tmpdir(), 'capi-replay-path-normalization-'));

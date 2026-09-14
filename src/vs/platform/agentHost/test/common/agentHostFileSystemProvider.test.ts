@@ -166,10 +166,19 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		});
 	});
 
-	test('local authority returns original URI unchanged', () => {
-		const original = URI.file('/workspace/test.ts');
-		const result = toAgentHostUri(original, 'local');
-		assert.strictEqual(result.toString(), original.toString());
+	test('local authority preserves directly resolvable filesystem URIs', () => {
+		const file = URI.file('/workspace/test.ts');
+		const remote = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/test.ts' });
+
+		assert.deepStrictEqual({
+			localFile: toAgentHostUri(file, 'local').toString(),
+			localRemote: toAgentHostUri(remote, 'local').toString(),
+			remoteRemote: toAgentHostUri(remote, 'remote-host').scheme,
+		}, {
+			localFile: file.toString(),
+			localRemote: remote.toString(),
+			remoteRemote: AGENT_HOST_SCHEME,
+		});
 	});
 
 	test('a content ref is marked as one and still round-trips', () => {
@@ -191,9 +200,17 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		});
 	});
 
-	test('a content ref that is a plain file on the local connection stays unwrapped', () => {
-		const original = URI.file('/workspace/test.ts');
-		assert.strictEqual(toAgentHostContentUri(original, 'local').toString(), original.toString());
+	test('a content ref that is directly resolvable on the local connection stays unwrapped', () => {
+		const file = URI.file('/workspace/test.ts');
+		const remote = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/test.ts' });
+
+		assert.deepStrictEqual({
+			file: toAgentHostContentUri(file, 'local').toString(),
+			remote: toAgentHostContentUri(remote, 'local').toString(),
+		}, {
+			file: file.toString(),
+			remote: remote.toString(),
+		});
 	});
 
 	test('resource URI mappers translate remote resources and preserve local resources', () => {

@@ -13,6 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -29,7 +30,12 @@ export interface IChatViewOptions {
 export interface ISelectWorkspaceOptions {
 	readonly providerId?: string;
 	readonly preferDevContainer?: boolean;
+	readonly selectionOrigin?: WorkspaceSelectionOrigin;
+	/** Only replace an automatic default in a fresh, empty composer. */
+	readonly isDefault?: boolean;
 }
+
+export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 
 /**
  * Base class for a view that lives inside the {@link SessionsPart} internal grid.
@@ -90,12 +96,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Select a workspace folder in this view's workspace picker. The default
-	 * implementation is a no-op; subclasses that host a workspace picker
-	 * (e.g. `NewChatView`) override this to forward the selection.
+	 * Select a workspace folder, acknowledging application or preservation of an existing choice.
+	 * Views without a ready workspace picker return notReady.
 	 */
-	selectWorkspace(_folderUri: URI, _options?: ISelectWorkspaceOptions): void {
-		// no-op by default
+	selectWorkspace(_folderUri: URI, _options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		return 'notReady';
 	}
 
 	selectNoWorkspace(): void {

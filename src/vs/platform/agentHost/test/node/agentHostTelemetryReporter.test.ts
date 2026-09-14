@@ -8,6 +8,7 @@ import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -78,6 +79,68 @@ suite('AgentHostTelemetryReporter', () => {
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
+
+	test('requestTokenUsage preserves unknowns and redacts untrusted models independently of the selected model', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		for (const modelTelemetryKind of ['unknown', 'byok'] as const) {
+			reporter.requestTokenUsage({
+				clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow),
+				provider: 'copilot', session, requestId: 'root-turn', result: 'cancelled',
+				selectedModel: 'gpt-5.5', selectedModelTelemetryKind: 'trusted',
+				modelTelemetryKind,
+				summary: {
+					model: 'private-model-name', usageScope: 'compaction', usageStatus: 'notReported',
+					usageRecordCount: 1, inputKnownRecordCount: 0, outputKnownRecordCount: 0, cacheKnownRecordCount: 0,
+				},
+			});
+		}
+		assert.deepStrictEqual(service.standardEvents.map(event => {
+			assert.strictEqual(Object.hasOwn(event.data!, 'knownInputTokens'), false);
+			return [event.eventName, event.data?.model, event.data?.requestId, event.data?.usageScope, event.data?.usageAccountingVersion];
+		}), [
+			['agentHost.requestTokenUsage', 'unknown', 'root-turn', 'compaction', 1],
+			['agentHost.requestTokenUsage', 'byokModel', 'root-turn', 'compaction', 1],
+		]);
+	});
+
+	test('requestTokenUsage declares SDK provenance and never assigns a selected Auto model to missing actual usage', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		for (const model of [undefined, 'auto']) {
+			reporter.requestTokenUsage({
+				clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow),
+				provider: 'copilot', session, requestId: 'auto-turn', result: 'error',
+				selectedModel: 'auto', selectedModelTelemetryKind: 'trusted', modelTelemetryKind: 'trusted',
+				summary: {
+					usageScope: 'direct-model', usageStatus: 'partial', model,
+					usageRecordCount: 1, inputKnownRecordCount: 1, outputKnownRecordCount: 0, cacheKnownRecordCount: 1,
+					knownInputTokens: 10, knownCacheReadTokens: 7,
+				},
+			});
+		}
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			model: event.data?.model,
+			selectedModel: event.data?.selectedModel,
+			inputTokenSemantics: event.data?.inputTokenSemantics,
+			usageRecordSource: event.data?.usageRecordSource,
+			reasoningEffortSource: event.data?.reasoningEffortSource,
+			result: event.data?.result,
+			knownInputTokens: event.data?.knownInputTokens,
+			knownCacheReadTokens: event.data?.knownCacheReadTokens,
+			hasKnownOutputTokens: Object.hasOwn(event.data!, 'knownOutputTokens'),
+		})), [undefined, 'auto'].map(() => ({
+			model: 'unknown',
+			selectedModel: new TelemetryTrustedValue('auto'),
+			inputTokenSemantics: 'sdkReported',
+			usageRecordSource: 'sdkUsageEvent',
+			reasoningEffortSource: 'sdkReported',
+			result: 'error',
+			knownInputTokens: 10,
+			knownCacheReadTokens: 7,
+			hasKnownOutputTokens: false,
+		})));
+	});
 
 	test('userMessageSent normalizes the chat URI to its session in standard GH telemetry', () => {
 		const service = new TestRestrictedTelemetryService();

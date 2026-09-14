@@ -73,13 +73,22 @@ export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
 ): string | undefined {
-	const parts: string[] = [];
+	const parts = getChangedModelConfigProperties(model, configurationAccess).map(property => getModelConfigValueLabel(property.schema, property.value));
+	return parts.length ? parts.join(' \u00b7 ') : undefined;
+}
+
+/** The effort and context properties whose effective values differ from their defaults. */
+export function getChangedModelConfigProperties(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	configurationAccess: IModelConfigurationAccess,
+): IModelConfigProperty[] {
+	const properties: IModelConfigProperty[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
 		const property = getModelConfigProperty(model, configurationAccess, group);
 		if (!property || property.value === undefined || property.value === property.schema.default) {
 			continue;
 		}
-		parts.push(getModelConfigValueLabel(property.schema, property.value));
+		properties.push(property);
 	}
-	return parts.length ? parts.join(' \u00b7 ') : undefined;
+	return properties;
 }

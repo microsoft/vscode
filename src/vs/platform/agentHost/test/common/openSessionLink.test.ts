@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, buildAgentSessionLinkPresentation, buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, buildAgentSessionLinkPresentation, buildExternalOpenSessionLinkUri, buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
@@ -39,6 +39,55 @@ suite('openSessionLink', () => {
 		const backend = 'copilotcli:/abc-123';
 		const parsed = parseOpenSessionLinkUri(buildOpenSessionLinkUri(backend));
 		assert.strictEqual(parsed?.toString(), URI.parse(backend).toString());
+	});
+
+	test('builds and parses an external Agents window session link', () => {
+		const external = buildExternalOpenSessionLinkUri('vscode-insiders', 'copilotcli:/abc-123', 'chat-9', 'turn-7');
+		assert.deepStrictEqual({
+			external,
+			internal: parseExternalOpenSessionLinkUri(external, 'vscode-insiders')?.toString(true),
+		}, {
+			external: 'vscode-insiders://agents/agent-host-session/copilotcli/abc-123/chat/chat-9?turn=turn-7',
+			internal: 'agent-host-session://copilotcli/abc-123?chat=chat-9&turn=turn-7',
+		});
+	});
+
+	test('encodes chat ids as path segments in external links', () => {
+		const external = buildExternalOpenSessionLinkUri('vscode-insiders', 'copilotcli:/abc-123', 'chat/9');
+		const internal = parseExternalOpenSessionLinkUri(external, 'vscode-insiders');
+
+		assert.deepStrictEqual({
+			external,
+			chatId: internal && parseOpenSessionLinkChatId(internal),
+		}, {
+			external: 'vscode-insiders://agents/agent-host-session/copilotcli/abc-123/chat/chat%252F9',
+			chatId: 'chat/9',
+		});
+	});
+
+	test('preserves percent escapes in opaque session ids', () => {
+		const backend = URI.from({ scheme: 'copilotcli', path: '/abc%2Fdef' });
+		const external = buildExternalOpenSessionLinkUri('vscode-insiders', backend);
+		const internal = parseExternalOpenSessionLinkUri(external, 'vscode-insiders');
+
+		assert.deepStrictEqual({
+			external,
+			backend: internal && parseOpenSessionLinkUri(internal)?.toString(),
+		}, {
+			external: 'vscode-insiders://agents/agent-host-session/copilotcli/abc%252Fdef',
+			backend: 'copilotcli:/abc%252Fdef',
+		});
+	});
+
+	test('rejects invalid external Agents window session links', () => {
+		assert.deepStrictEqual([
+			parseExternalOpenSessionLinkUri('vscode://agents/agent-host-session/copilotcli/abc-123', 'vscode-insiders'),
+			parseExternalOpenSessionLinkUri('vscode-insiders://extensions/agent-host-session/copilotcli/abc-123', 'vscode-insiders'),
+			parseExternalOpenSessionLinkUri('vscode-insiders://agents/session/copilotcli/abc-123', 'vscode-insiders'),
+			parseExternalOpenSessionLinkUri('vscode-insiders://agents/agent-host-session/copilotcli', 'vscode-insiders'),
+			parseExternalOpenSessionLinkUri('vscode-insiders://agents/agent-host-session//abc-123', 'vscode-insiders'),
+			parseExternalOpenSessionLinkUri('vscode-insiders://agents/agent-host-session/copilotcli/abc-123/chat/', 'vscode-insiders'),
+		], [undefined, undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	test('carries an optional chat id', () => {

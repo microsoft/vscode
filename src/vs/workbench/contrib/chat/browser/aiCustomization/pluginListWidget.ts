@@ -47,7 +47,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
@@ -1464,11 +1464,9 @@ export class PluginListWidget extends Disposable {
 
 	private renderInstalledListActions(item: IInstalledPluginItem, row: HTMLElement, actions: HTMLElement, disposables: DisposableStore): void {
 		let renderedState = item.plugin.enablement.get();
-		const switchElement = DOM.append(actions, $('button.plugin-enable-switch')) as HTMLButtonElement;
-		switchElement.type = 'button';
-		switchElement.setAttribute('role', 'switch');
-		DOM.append(switchElement, $('.plugin-enable-switch-thumb'));
-		disposables.add(DOM.addDisposableGenericMouseDownListener(switchElement, event => DOM.EventHelper.stop(event, true)));
+		const toggle = disposables.add(new Switch({ ariaLabel: item.name, checked: isContributionEnabled(renderedState) }));
+		DOM.append(actions, toggle.domNode);
+		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
 		const update = (state: ContributionEnablementState, blocked: boolean) => {
 			renderedState = state;
 			const checked = isContributionEnabled(state);
@@ -1476,16 +1474,16 @@ export class PluginListWidget extends Disposable {
 			const toggleLabel = checked
 				? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
 				: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
-			switchElement.disabled = blocked;
-			switchElement.setAttribute('aria-checked', String(checked));
-			switchElement.setAttribute('aria-label', blocked ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel);
-			switchElement.classList.toggle('checked', checked);
-			switchElement.title = blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel;
+			toggle.disabled = blocked;
+			toggle.checked = checked;
+			toggle.setAriaLabel(
+				blocked ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel,
+				blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel,
+			);
 			row.classList.toggle('disabled', !checked || blocked);
 		};
 		disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), item.plugin.policyBlocked?.read(reader) === true)));
-		disposables.add(DOM.addDisposableListener(switchElement, 'click', event => {
-			DOM.EventHelper.stop(event, true);
+		disposables.add(toggle.onChange(() => {
 			const nextState = getToggledPluginEnablementState(renderedState);
 			update(nextState, isPluginPolicyBlocked(item.plugin));
 			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);
@@ -1537,7 +1535,7 @@ export class PluginListWidget extends Disposable {
 		const heights = layoutVirtualizedSections(content, this.sectionLists.map(section => ({
 			container: section.container,
 			contentHeight: section.entries.reduce((height, entry) => height + delegate.getHeight(entry), 0),
-			minimumHeight: section.entries.length > 0 ? delegate.getHeight(section.entries[0]) : 0,
+			minimumHeight: getVirtualizedSectionMinimumHeight(section.entries, entry => delegate.getHeight(entry)),
 		})));
 		for (let index = 0; index < this.sectionLists.length; index++) {
 			const section = this.sectionLists[index];
@@ -1573,7 +1571,6 @@ export class PluginListWidget extends Disposable {
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
 			void this.queryMarketplaceSnapshot();
 		}
-		this.renderDiscoverySnapshot(content);
 
 		const installedList = this.renderCardSection(
 			content,
@@ -1827,48 +1824,6 @@ export class PluginListWidget extends Disposable {
 
 	private rememberCardFocusElement(element: HTMLElement): void {
 		this.firstCardFocusElement ??= element;
-	}
-
-	private renderDiscoverySnapshot(parent: HTMLElement): void {
-		const marketplaceItems = this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
-		if (marketplaceItems.length === 0) {
-			if (this.marketplaceSnapshot.state === 'failed') {
-				this.renderDiscoveryError(parent);
-			}
-			return;
-		}
-		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
-		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
-		const snapshotItems = [
-			...recommended,
-			...marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item))),
-		].slice(0, 3);
-		const grid = this.renderCardSection(
-			parent,
-			localize('featuredPlugins', "Featured"),
-			localize('discoverMorePluginsDescription', "Curated plugins that add tools and expertise."),
-			'plugin-discovery-section',
-		);
-		grid.classList.add('plugin-inventory-list');
-		this.createPluginSectionList(grid, localize('featuredPlugins', "Featured"), snapshotItems.map(item => ({ type: 'marketplace-item', item })), false);
-	}
-
-	private renderDiscoveryError(parent: HTMLElement): void {
-		this.renderCardSection(
-			parent,
-			localize('pluginDiscoveryUnavailable', "Available plugins could not be loaded"),
-			localize('pluginDiscoveryUnavailableDescription', "Check your connection, then try loading results from the configured marketplaces again."),
-			'plugin-discovery-section',
-			undefined,
-			header => {
-				const retry = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryPluginDiscovery', "Retry Loading Plugins") }));
-				retry.label = localize('retry', "Retry");
-				this.cardDisposables.add(retry.onDidClick(() => {
-					this.marketplaceSnapshot.reset();
-					void this.queryMarketplaceSnapshot();
-				}));
-			},
-		);
 	}
 
 	private renderBrowseMarketplaceCards(): void {
