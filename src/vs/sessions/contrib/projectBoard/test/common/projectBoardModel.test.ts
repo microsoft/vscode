@@ -101,11 +101,40 @@ suite('ProjectBoardModel', () => {
 			assert.strictEqual(model.getCards('general', 'p0')[0].id, id);
 		}
 	});
+
+	test('PB-07 submitted prompt time, not agent output or visits, controls order with stable unknown ties', () => {
+		const first = createChat('first', ChatInteractivity.Full);
+		const second = createChat('second', ChatInteractivity.Full);
+		const unknown = createChat('unknown', ChatInteractivity.Full);
+		const session = createSession(unknown, first, second);
+		const model = new ProjectBoardModel();
+		model.updateSessions([session]);
+		const id = (title: string) => model.cards.find(card => card.title === title)!.id;
+		model.setPromptRecency(id('first'), 1000);
+		model.setPromptRecency(id('second'), 2000);
+		const titles = () => model.getUnassignedCards().map(card => card.title);
+		assert.deepStrictEqual(titles(), ['second', 'first', 'unknown']);
+		first.status.set(SessionStatus.InProgress, undefined);
+		first.updatedAt.set(new Date(3000), undefined);
+		first.isRead.set(true, undefined);
+		model.updateSessions([session]);
+		assert.deepStrictEqual(titles(), ['second', 'first', 'unknown']);
+		model.setSortingDeferred(true);
+		model.setPromptRecency(id('first'), 5000);
+		assert.deepStrictEqual(titles(), ['second', 'first', 'unknown']);
+		model.setSortingDeferred(false);
+		assert.deepStrictEqual(titles(), ['first', 'second', 'unknown']);
+		model.setPromptRecency(id('first'), undefined);
+		model.setPromptRecency(id('second'), undefined);
+		assert.deepStrictEqual(titles(), ['first', 'second', 'unknown']);
+	});
 });
 
 interface ITestChat extends IChat {
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly isArchived: ISettableObservable<boolean>;
+	readonly updatedAt: ISettableObservable<Date>;
+	readonly isRead: ISettableObservable<boolean>;
 }
 
 function createChat(id: string, interactivity: ChatInteractivity): ITestChat {
@@ -114,6 +143,7 @@ function createChat(id: string, interactivity: ChatInteractivity): ITestChat {
 		override readonly title = observableValue(`title-${id}`, id);
 		override readonly status = observableValue<SessionStatus>(`status-${id}`, SessionStatus.Completed);
 		override readonly isRead = observableValue(`read-${id}`, false);
+		override readonly updatedAt = observableValue(`updated-${id}`, new Date(0));
 		override readonly isArchived = observableValue(`archived-${id}`, false);
 		override readonly interactivity = observableValue(`interactivity-${id}`, interactivity);
 		override readonly description = observableValue(`description-${id}`, undefined);

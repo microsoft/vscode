@@ -10,6 +10,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -17,15 +18,20 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionArtifact, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { IProjectBoardCard } from '../../common/projectBoardModel.js';
 import { ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
+import { ProjectBoardState } from '../../browser/projectBoardState.js';
 
 class TestChat extends mock<IChat>() {
 	override readonly title = observableValue('title', this.name);
@@ -52,7 +58,7 @@ suite('ProjectBoardService', () => {
 		return { document, nativeFocus };
 	}
 
-	function createBoard(document: Document, chats: readonly IChat[] = []) {
+	function createBoard(document: Document, chats: readonly IChat[] = [], storage = store.add(new InMemoryStorageService())) {
 		const container = mainWindow.document.createElement('div');
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
@@ -62,6 +68,7 @@ suite('ProjectBoardService', () => {
 			override readonly title = observableValue('session-title', 'Owning session');
 			override readonly chats = observableValue<readonly IChat[]>('chats', chats);
 			override readonly isArchived = observableValue('archived', false);
+			override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
 		}();
 		const state = { focusCount: 0, ownerFocusCount: 0, openCount: 0, disposeCount: 0, createdCount: 0, sessions: chats.length ? [session] : [], navigationError: undefined as Error | undefined };
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
@@ -71,12 +78,30 @@ suite('ProjectBoardService', () => {
 		const contextMenu = new class extends mock<IContextMenuService>() {
 			delegate: IContextMenuDelegate | undefined;
 			override showContextMenu(delegate: IContextMenuDelegate): void {
-				this.delegate = delegate;
+				this.delegate = {
+					...delegate,
+					getActions: () => delegate.getActions().map(action => toAction({
+						id: action.id, label: action.label, enabled: action.enabled, checked: action.checked,
+						run: async () => {
+							delegate.onHide?.(false);
+							await action.run();
+						},
+					})),
+				};
 			}
 		}();
 		const onOpened = store.add(new Emitter<URI>());
 		const errors = store.add(new Emitter<string>());
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IStorageService, storage);
+		const openedContext: string[] = [];
+		instantiationService.stub(IOpenerService, {
+			open: async (resource, options) => {
+				assert.deepStrictEqual(options, { fromUserGesture: true, allowCommands: false });
+				openedContext.push(resource.toString());
+				return true;
+			},
+		});
 		const questionPreview = observableValue<ProjectBoardQuestionPreviewState>('questionPreview', { kind: 'inactive' });
 		instantiationService.stubInstance(ProjectBoardQuestionPreview, { preview: questionPreview, dispose() { } });
 		instantiationService.stubInstance(ProjectBoardChatWindows, {
@@ -132,7 +157,7 @@ suite('ProjectBoardService', () => {
 			}(),
 			contextMenu,
 		));
-		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview };
+		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, openedContext, instantiationService };
 	}
 
 	test('PB-01 renders in an auxiliary document and reuses the window', async () => {
@@ -245,7 +270,7 @@ suite('ProjectBoardService', () => {
 		const { service, container } = createBoard(mainWindow.document.implementation.createHTMLDocument(), [main, child, hidden]);
 		await service.open();
 		child.title.set('Renamed child', undefined);
-		assert.deepStrictEqual(Array.from(container.querySelectorAll('h4'), element => element.textContent), ['main', 'Renamed child']);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('h4'), element => element.textContent), ['Renamed child', 'main']);
 		assert.strictEqual(container.querySelectorAll('.project-board-card-session').length, 2);
 	});
 
@@ -258,6 +283,7 @@ suite('ProjectBoardService', () => {
 		card.focus();
 		card.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
 		assert.ok(contextMenu.delegate);
+		assert.strictEqual(contextMenu.delegate.domForShadowRoot, container, 'Card menus must be hosted in the board window');
 		assert.strictEqual(contextMenu.delegate.getActions().find(action => action.checked)?.id, 'projectBoard.move.unassigned');
 		await contextMenu.delegate.getActions().find(action => action.id === 'projectBoard.move.general.p1')!.run();
 		contextMenu.delegate.onHide?.(false);
@@ -408,7 +434,7 @@ suite('ProjectBoardService', () => {
 		const child = new TestChat('child');
 		const { service, container, opened, onOpened, state } = createBoard(mainWindow.document.implementation.createHTMLDocument(), [main, child]);
 		await service.open();
-		const card = container.querySelectorAll<HTMLElement>('.project-board-card')[1];
+		const card = [...container.querySelectorAll<HTMLElement>('.project-board-card')].find(element => element.querySelector('h4')?.textContent === 'child')!;
 		assert.strictEqual(container.querySelectorAll('.project-board-card button, .project-board-card select, .project-board-card .monaco-button, .project-board-card-actions').length, 0);
 		card.click();
 		assert.deepStrictEqual(opened, []);
@@ -561,5 +587,110 @@ suite('ProjectBoardService', () => {
 			assert.strictEqual(container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Archived placement');
 		}
 		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-11 shared context links open their resources without opening or marking the chat', async () => {
+		const chat = new TestChat('Shared context');
+		const { service, container, session, opened, openedContext } = createBoard(mainWindow.document, [chat]);
+		session.artifacts.set([{
+			id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'example/project#12',
+			link: URI.parse('https://github.com/example/project/pull/12'), isArtifact: true,
+		}], undefined);
+		await service.open();
+		const context = container.querySelector('[aria-label="Shared session context"]')!;
+		const link = context.querySelector('a')!;
+		link.click();
+		link.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true }));
+		assert.deepStrictEqual({
+			label: link.textContent, opened, openedContext, read: chat.isRead.get(),
+		}, {
+			label: 'example/project#12', opened: [], openedContext: ['https://github.com/example/project/pull/12'], read: false,
+		});
+
+		test('PB-06/PB-10 edited axes and placements survive reconstruction and cancelled deletion retains archived placements', async () => {
+			const storage = store.add(new InMemoryStorageService());
+			const chat = new TestChat('Persistent card');
+			const first = createBoard(mainWindow.document, [chat], storage);
+			const labels = ['Engineering', 'Product'];
+			first.instantiationService.stub(IQuickInputService, { input: async () => labels.shift() });
+			let confirmations = 0;
+			first.instantiationService.stub(IDialogService, { confirm: async confirmation => {
+				assert.ok(confirmation.detail?.toString().includes('1 chat placements'));
+				confirmations++;
+				return { confirmed: false };
+			} });
+			await first.service.open();
+			first.container.querySelector<HTMLElement>('[data-board-control="add-row"]')!.click();
+			await Promise.resolve();
+			const axis = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Engineering')!;
+			assert.ok(axis());
+			first.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true }));
+			await first.contextMenu.delegate!.getActions().find(action => action.label === 'Move to Engineering, P0')!.run();
+			axis().click();
+			assert.strictEqual(first.contextMenu.delegate!.domForShadowRoot, first.container, 'Axis menus must be hosted in the board window');
+			await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.rename')!.run();
+			const renamed = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
+			assert.strictEqual(first.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
+			renamed().click();
+			await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.previous')!.run();
+			assert.strictEqual(first.container.querySelector('.project-board-row-heading')?.textContent, 'Product');
+			chat.isArchived.set(true, undefined);
+			renamed().click();
+			await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.delete')!.run();
+			assert.strictEqual(confirmations, 1);
+			assert.ok(renamed());
+			first.service.dispose();
+			const restored = createBoard(mainWindow.document, [chat], storage);
+			restored.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			await restored.service.open();
+			restored.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			assert.strictEqual(restored.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
+			const product = [...restored.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
+			product.click();
+			await restored.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.delete')!.run();
+			assert.strictEqual(restored.container.querySelector('.project-board-unassigned h4')?.textContent, 'Persistent card');
+			assert.strictEqual(chat.isRead.get(), false);
+		});
+
+		test('PB-06 unavailable placed chats retain an explicit removable placeholder while hidden workers stay hidden', async () => {
+			const chat = new TestChat('Temporarily missing');
+			const h = createBoard(mainWindow.document, [chat]);
+			await h.service.open();
+			h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true }));
+			await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.move.general.p0')!.run();
+			chat.interactivity.set(ChatInteractivity.Hidden, undefined);
+			assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
+			chat.interactivity.set(ChatInteractivity.Full, undefined);
+			h.state.sessions = [];
+			h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+			assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] .project-board-card-unavailable h4')?.textContent, 'Unavailable Chat');
+			h.state.sessions = [h.session];
+			h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
+			assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] h4')?.textContent, 'Temporarily missing');
+			h.state.sessions = [];
+			h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+			h.container.querySelector<HTMLElement>('.project-board-card-unavailable .monaco-button')!.click();
+			assert.strictEqual(h.container.querySelectorAll('.project-board-card-unavailable').length, 0);
+		});
+
+		test('PB-06 corrupt storage remains untouched until Reset Board is explicitly confirmed', async () => {
+			const storage = store.add(new InMemoryStorageService());
+			storage.store(ProjectBoardState.STORAGE_KEY, '{broken', StorageScope.PROFILE, StorageTarget.MACHINE);
+			const h = createBoard(mainWindow.document, [], storage);
+			let confirmed = false;
+			h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed }) });
+			await h.service.open();
+			assert.ok(h.container.querySelector('.project-board-storage-error'));
+			assert.strictEqual(h.container.querySelector('[data-board-control="add-row"]')?.getAttribute('aria-disabled'), 'true');
+			h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
+			await Promise.resolve();
+			assert.strictEqual(storage.get(ProjectBoardState.STORAGE_KEY, StorageScope.PROFILE), '{broken');
+			confirmed = true;
+			h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
+			await Promise.resolve();
+			assert.strictEqual(h.container.querySelector('.project-board-storage-error'), null);
+			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-column-heading')].map(element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
+		});
 	});
 });
