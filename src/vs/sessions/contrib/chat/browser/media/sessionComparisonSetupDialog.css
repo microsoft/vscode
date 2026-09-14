@@ -82,13 +82,13 @@
 .session-comparison-setup-rows-scroll {
 	flex: 1 1 auto;
 	min-height: 0;
-	max-height: 220px;
 }
 
 .session-comparison-setup-rows {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size60);
+	max-height: 220px;
 	overflow: hidden;
 	padding-right: var(--vscode-spacing-size60);
 }
