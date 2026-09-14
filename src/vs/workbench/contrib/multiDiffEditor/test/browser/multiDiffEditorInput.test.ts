@@ -149,14 +149,17 @@ suite('MultiDiffEditorInput', () => {
 
 		hideOriginalLineNumbers = false;
 		configurationChanged.fire({
+			affectedKeys: new Set(['diffEditor.hideOriginalLineNumbers']),
 			affectsConfiguration: (_resource, section) => section === 'diffEditor',
 		});
 		hideOriginalLineNumbers = true;
 		configurationChanged.fire({
+			affectedKeys: new Set(['diffEditor.hideOriginalLineNumbers']),
 			affectsConfiguration: (_resource, section) => section === 'diffEditor',
 		});
 		hideOriginalLineNumbers = null;
 		configurationChanged.fire({
+			affectedKeys: new Set(['diffEditor.hideOriginalLineNumbers']),
 			affectsConfiguration: (_resource, section) => section === 'diffEditor',
 		});
 

@@ -15,7 +15,7 @@ import { emptyProgressRunner, IEditorProgressService } from '../../../../platfor
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
-import { UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
+import { DiffEditorViewModel, UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
@@ -45,35 +45,40 @@ suite('DiffEditorWidget2', () => {
 			const modified = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
 			const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
 				renderSideBySide,
+				renderGutterMenu: false,
 				useInlineViewWhenSpaceIsLimited: false,
 				hideUnchangedRegions: { enabled: true, contextLineCount: 2, minimumLineCount: 4 },
 			}, { variant: 'compact' }));
 			const model = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
 			widget.layout(new Dimension(800, 500));
 			widget.setDiffModel(model);
-			disposables.add(toDisposable(() => widget.setDiffModel(null)));
-			await widget.waitForDiff();
-			const region = model.object.unchangedRegions.get()[0];
-			const toggle = container.querySelector<HTMLElement>('.editor.modified .disclosure-toggle')!;
-			const initiallyHidden = region.getHiddenModifiedRange().length;
-			toggle.focus();
-			toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-			const expanded = {
-				hiddenLines: region.getHiddenModifiedRange().length,
-				ariaExpanded: toggle.getAttribute('aria-expanded'),
-				retainsFocus: document.activeElement === toggle,
-				retainsControl: toggle.isConnected,
-			};
-			toggle.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-			assert.deepStrictEqual({
-				expanded,
-				collapsedHiddenLines: region.getHiddenModifiedRange().length,
-				collapsedAriaExpanded: toggle.getAttribute('aria-expanded'),
-			}, {
-				expanded: { hiddenLines: 0, ariaExpanded: 'true', retainsFocus: true, retainsControl: true },
-				collapsedHiddenLines: initiallyHidden,
-				collapsedAriaExpanded: 'false',
-			});
+			try {
+				await widget.waitForDiff();
+				assert.ok(model.object instanceof DiffEditorViewModel);
+				const region = model.object.unchangedRegions.get()[0];
+				const toggle = container.querySelector<HTMLElement>('.editor.modified .disclosure-toggle')!;
+				const initiallyHidden = region.getHiddenModifiedRange(undefined).length;
+				toggle.focus();
+				toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+				const expanded = {
+					hiddenLines: region.getHiddenModifiedRange(undefined).length,
+					ariaExpanded: toggle.getAttribute('aria-expanded'),
+					retainsFocus: document.activeElement === toggle,
+					retainsControl: toggle.isConnected,
+				};
+				toggle.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+				assert.deepStrictEqual({
+					expanded,
+					collapsedHiddenLines: region.getHiddenModifiedRange(undefined).length,
+					collapsedAriaExpanded: toggle.getAttribute('aria-expanded'),
+				}, {
+					expanded: { hiddenLines: 0, ariaExpanded: 'true', retainsFocus: true, retainsControl: true },
+					collapsedHiddenLines: initiallyHidden,
+					collapsedAriaExpanded: 'false',
+				});
+			} finally {
+				widget.setDiffModel(null);
+			}
 		});
 	}
 
