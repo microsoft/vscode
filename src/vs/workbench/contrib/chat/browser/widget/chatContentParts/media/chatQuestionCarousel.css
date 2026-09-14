@@ -25,6 +25,39 @@
 	border-color: var(--vscode-focusBorder);
 }
 
+.interactive-session .chat-question-carousel-container.chat-question-carousel-preview {
+	max-height: none;
+	margin: 0;
+	overflow-wrap: anywhere;
+
+	.chat-question-heading {
+		padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) 0;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-body2);
+		font-weight: var(--vscode-fontWeight-semiBold);
+		overflow-wrap: anywhere;
+	}
+
+	.chat-question-input-container .chat-question-list {
+		margin: 0;
+
+		.chat-question-list-item {
+			cursor: default;
+			user-select: text;
+			-webkit-user-select: text;
+
+			&:hover {
+				background-color: transparent;
+			}
+		}
+
+		.chat-question-list-label {
+			min-width: 0;
+			overflow-wrap: anywhere;
+		}
+	}
+}
+
 /* input part wrapper */
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container {
