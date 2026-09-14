@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, IDevContainerRelay, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -38,6 +38,19 @@ class TestRelay implements IDevContainerRelay {
 	}
 }
 
+class TestLogService extends NullLogService {
+	readonly infoMessages: string[] = [];
+	readonly warnings: { readonly message: string; readonly args: readonly unknown[] }[] = [];
+
+	override info(message: string): void {
+		this.infoMessages.push(message);
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push({ message, args });
+	}
+}
+
 class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainService {
 	readonly relay = new TestRelay();
 	readonly execCommands: string[] = [];
@@ -49,6 +62,14 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	forceConcurrentRenameCollision = false;
 	inheritedEnvironment: typeof process.env = process.env;
 	platform: NodeJS.Platform = process.platform;
+	remoteWorkspaceFolder = '/workspaces/project';
+	gitRootFolder: string | undefined;
+	gitRootReportedAsDubiousOwnership = false;
+	safeDirectories: readonly string[] = [];
+	containerMounts: readonly { readonly Type: string; readonly Source: string; readonly Destination: string }[] = [];
+	containerMountsError: Error | undefined;
+	hostDirectoryOwnedByCurrentUser = true;
+	readonly checkedHostDirectories: string[] = [];
 	private _renameCalls = 0;
 	private readonly _firstRenameStarted = new DeferredPromise<void>();
 	private readonly _secondRenameFinished = new DeferredPromise<void>();
@@ -62,10 +83,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		_certificates: readonly string[] = [],
 		private readonly _existingCertificateFiles: ReadonlySet<string> = new Set(),
 		testTmpDir = '/tmp',
+		logService: NullLogService = new NullLogService(),
 	) {
 		const configurationService = new TestConfigurationService({ 'http.systemCertificates': systemCertificates });
 		super(
-			new NullLogService(),
+			logService,
 			new class extends mock<IProductService>() {
 				override readonly quality = 'insider';
 				override readonly serverDataFolderName = '.vscode-server-oss';
@@ -147,15 +169,37 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		assert.deepStrictEqual(args, ['up', '--workspace-folder', '/workspace']);
 		this._reportOutput(connectionId, 'Starting Dev Container\n');
 		return Promise.resolve({
-			stdout: '[1 ms] Starting...\n{"outcome":"success","containerId":"container-id","remoteWorkspaceFolder":"/workspaces/project"}\n',
+			stdout: `[1 ms] Starting...\n${JSON.stringify({ outcome: 'success', containerId: 'container-id', remoteWorkspaceFolder: this.remoteWorkspaceFolder })}\n`,
 			stderr: '',
 			code: 0,
 		});
 	}
 
+	protected override _getContainerMounts(): Promise<readonly { readonly Type: string; readonly Source: string; readonly Destination: string }[]> {
+		if (this.containerMountsError) {
+			return Promise.reject(this.containerMountsError);
+		}
+		return Promise.resolve(this.containerMounts);
+	}
+
+	protected override _isHostDirectoryOwnedByCurrentUser(path: string): Promise<boolean> {
+		this.checkedHostDirectories.push(path);
+		return Promise.resolve(this.hostDirectoryOwnedByCurrentUser);
+	}
+
 	protected override _createExec(): ISshExec {
 		return async command => {
 			this.execCommands.push(command);
+			if (command.startsWith('command -v git ')) {
+				return {
+					stdout: this.gitRootReportedAsDubiousOwnership ? '' : this.gitRootFolder ?? '',
+					stderr: this.gitRootReportedAsDubiousOwnership && this.gitRootFolder ? `fatal: detected dubious ownership in repository at '${this.gitRootFolder}'` : '',
+					code: this.gitRootReportedAsDubiousOwnership || !this.gitRootFolder ? 128 : 0,
+				};
+			}
+			if (command === 'git config --global --get-all safe.directory') {
+				return { stdout: this.safeDirectories.join('\n'), stderr: '', code: this.safeDirectories.length ? 0 : 1 };
+			}
 			if (command === 'uname -s') {
 				return { stdout: 'Linux\n', stderr: '', code: 0 };
 			}
@@ -215,6 +259,19 @@ suite('Dev Container Agent Host Main Service', () => {
 			containerId: 'abc',
 			remoteWorkspaceFolder: '/workspaces/project',
 		});
+	});
+
+	test('parses Docker inspect mount information', () => {
+		assert.deepStrictEqual({
+			valid: parseDevContainerMounts('[{"Type":"bind","Source":"/host/project","Destination":"/workspaces/project"}]'),
+		}, {
+			valid: [{ Type: 'bind', Source: '/host/project', Destination: '/workspaces/project' }],
+		});
+		assert.throws(
+			() => parseDevContainerMounts('[{"Type":"bind","Source":"/host/project"}]'),
+			/Docker returned invalid mount information: Error in element 0: Error in property 'Destination': Expected string/,
+		);
+		assert.throws(() => parseDevContainerMounts('not json'), /Unable to parse Docker mount information/);
 	});
 
 	test('resolves the bundled Dev Container CLI', () => {
@@ -415,6 +472,90 @@ suite('Dev Container Agent Host Main Service', () => {
 			sent: ['{"jsonrpc":"2.0"}'],
 			disposed: true,
 			output: ['connection:Starting Dev Container\n'],
+		});
+	});
+
+	test('adds the exact bind-mounted repository root to Git safe.directory only when host-owned', async () => {
+		const configured = store.add(new TestDevContainerAgentHostMainService());
+		configured.remoteWorkspaceFolder = '/workspaces/project/folder';
+		configured.gitRootFolder = '/workspaces/project';
+		configured.gitRootReportedAsDubiousOwnership = true;
+		configured.containerMounts = [{ Type: 'bind', Source: '/host/workspace', Destination: '/workspaces' }];
+		await configured.connect({
+			connectionId: 'configured',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const unowned = store.add(new TestDevContainerAgentHostMainService());
+		unowned.gitRootFolder = '/workspaces/project';
+		unowned.containerMounts = configured.containerMounts;
+		unowned.hostDirectoryOwnedByCurrentUser = false;
+		await unowned.connect({
+			connectionId: 'unowned',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const outsideMount = store.add(new TestDevContainerAgentHostMainService());
+		outsideMount.gitRootFolder = '/other/project';
+		outsideMount.containerMounts = configured.containerMounts;
+		await outsideMount.connect({
+			connectionId: 'outside-mount',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		assert.deepStrictEqual({
+			configuredHostDirectories: configured.checkedHostDirectories,
+			configuredCommands: configured.execCommands.filter(command => command.includes('safe.directory')),
+			unownedHostDirectories: unowned.checkedHostDirectories,
+			unownedCommands: unowned.execCommands.filter(command => command.includes('safe.directory')),
+			outsideMountHostDirectories: outsideMount.checkedHostDirectories,
+			outsideMountCommands: outsideMount.execCommands.filter(command => command.includes('safe.directory')),
+		}, {
+			configuredHostDirectories: [join('/host/workspace', 'project')],
+			configuredCommands: [
+				'git config --global --get-all safe.directory',
+				'git config --global --add safe.directory \'/workspaces/project\'',
+			],
+			unownedHostDirectories: [join('/host/workspace', 'project')],
+			unownedCommands: [],
+			outsideMountHostDirectories: [],
+			outsideMountCommands: [],
+		});
+	});
+
+	test('logs the safe.directory configuration duration on success and failure', async () => {
+		const successLog = new TestLogService();
+		const successful = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', successLog));
+		await successful.connect({
+			connectionId: 'successful',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const failureLog = new TestLogService();
+		const failed = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', failureLog));
+		failed.gitRootFolder = '/workspaces/project';
+		failed.gitRootReportedAsDubiousOwnership = true;
+		failed.containerMountsError = new Error('Mount inspection failed');
+		await failed.connect({
+			connectionId: 'failed',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const normalizeDuration = (message: string) => message.replace(/\d+ms/, '<duration>');
+		const warning = failureLog.warnings.find(entry => entry.message.includes('Git safe.directory'));
+		assert.deepStrictEqual({
+			info: successLog.infoMessages.filter(message => message.includes('Git safe.directory configuration completed')).map(normalizeDuration),
+			warning: warning && normalizeDuration(warning.message),
+			error: warning?.args[0] instanceof Error ? warning.args[0].message : undefined,
+		}, {
+			info: ['[DevContainerAgentHost] Git safe.directory configuration completed in <duration>'],
+			warning: '[DevContainerAgentHost] Failed to configure Git safe.directory after <duration>',
+			error: 'Mount inspection failed',
 		});
 	});
 
