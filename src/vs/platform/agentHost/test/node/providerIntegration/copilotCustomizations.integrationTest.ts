@@ -10,6 +10,7 @@
  */
 
 import assert from 'assert';
+import { CopilotClient } from '@github/copilot-sdk';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -19,7 +20,9 @@ import { ActionType, SessionCustomizationsChangedAction } from '../../../common/
 import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
+import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 
 /**
  * Whether `notification` is a *settled* `session/customizationsChanged` for
@@ -220,6 +223,11 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	test('workspace with plugin [discover]', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
 		await runWorkspaceAndPluginCustomizationsTest('discover');
+	});
+
+	test('SDK-installed plugin reaches the client as a plugin customization [discover]', async function () {
+		this.timeout(TEST_TIMEOUT_MS);
+		await runSdkInstalledPluginCustomizationsTest();
 	});
 
 	test('workspace and synced-bundle plugin [scan]', async function () {
@@ -711,6 +719,128 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
+	}
+
+	/**
+	 * Emulates the *runtime-native* plugin channel.
+	 *
+	 * Two distinct paths put plugins in front of a Copilot session:
+	 *
+	 * 1. Client/host-supplied — the client forwards a `ClientPluginCustomization`
+	 *    (or the host discovers a plugin in the workspace); the agent host parses
+	 *    it and *tells* the SDK about it via `pluginDirectories` & friends on
+	 *    `SessionConfig`. The plugin tests above cover this.
+	 * 2. Runtime-native — the user installed a plugin with the Copilot CLI, which
+	 *    records it in `<COPILOT_HOME>/config.json`. The agent host never passes
+	 *    these to the SDK; the runtime loads them itself, and the host only learns
+	 *    of them afterwards, from discovery results tagged `source: 'plugin'`.
+	 *
+	 * This test covers (2), which is the path #335500 is about. Production never
+	 * sets `baseDirectory`/`COPILOT_HOME` on its client, so the runtime resolves
+	 * the user's real home; here `startRealServer({ homeDir })` points that same
+	 * resolution at a throwaway home, and the installer client writes into it
+	 * exactly as the CLI would. Installing through `plugins.install` (rather than
+	 * copying files into place) is required: the runtime is registry-driven, so
+	 * files alone are invisible to it.
+	 *
+	 * The home is isolated from `userHomeDir` so the installed plugin cannot leak
+	 * into the other tests' expected customization sets.
+	 */
+	async function runSdkInstalledPluginCustomizationsTest(): Promise<void> {
+		const workspaceDir = await createWorkspace('ahp-customizations-sdk-plugin-workspace-mock-');
+		const pluginSourceDir = await createWorkspace('ahp-customizations-sdk-plugin-source-mock-', false);
+		const pluginHomeDir = await createWorkspace('ahp-customizations-sdk-plugin-home-mock-', false);
+		await Promise.all([
+			mkdir(join(pluginSourceDir, '.plugin'), { recursive: true }),
+			mkdir(join(pluginSourceDir, 'agents'), { recursive: true }),
+			mkdir(join(pluginSourceDir, 'skills', 'installed-skill'), { recursive: true }),
+			mkdir(join(pluginSourceDir, 'rules'), { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(pluginSourceDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'SDK Installed Plugin', version: '1.0.0' }, undefined, 2)),
+			writeFile(join(pluginSourceDir, 'agents', 'installed.agent.md'), [
+				'---',
+				'name: Installed Agent',
+				'description: Agent from an SDK-installed plugin',
+				'---',
+				'You are installed by the SDK.',
+			].join('\n')),
+			writeFile(join(pluginSourceDir, 'skills', 'installed-skill', 'SKILL.md'), [
+				'---',
+				'name: installed-skill',
+				'description: Skill from an SDK-installed plugin',
+				'---',
+				'Use the installed skill.',
+			].join('\n')),
+			writeFile(join(pluginSourceDir, 'rules', 'installed.instructions.md'), 'Prefer SDK-installed plugin defaults.'),
+		]);
+
+		client.close();
+		server.process.kill();
+		let consumerSessionUri: string | undefined;
+		try {
+			const sdkClient = new CopilotClient({
+				gitHubToken: COPILOT_CONFIG.githubToken,
+				useLoggedInUser: false,
+				logLevel: 'error',
+				// No `baseDirectory`: production doesn't set one either, so the runtime
+				// resolves its home from HOME/COPILOT_HOME. Isolating on the same
+				// `pluginHomeDir` the server below is started with is what makes the
+				// installed plugin visible to it — a mismatch fails the test loudly.
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
+			});
+			let sdkClientStarted = false;
+			try {
+				await sdkClient.start();
+				sdkClientStarted = true;
+				await sdkClient.rpc.plugins.install({ source: pluginSourceDir });
+			} finally {
+				if (sdkClientStarted) {
+					await sdkClient.stop();
+				}
+			}
+
+			server = await startRealServer({ mockLlm: true, homeDir: pluginHomeDir });
+			client = new TestProtocolClient(server.port);
+			await client.connect();
+
+			const consumerClientId = 'real-sdk-customizations-plugin-consumer-client-mock';
+			consumerSessionUri = await createProviderSession(client, COPILOT_CONFIG, consumerClientId, createdSessions, URI.file(workspaceDir));
+			const session = await setupSession(consumerSessionUri, consumerClientId, 'discover', 'turn-customizations-plugin-consumer-mock');
+			const installedPlugin = session.customizations
+				?.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin)
+				.find(customization => customization.name === 'SDK Installed Plugin');
+			assert.ok(installedPlugin);
+			assert.deepStrictEqual({
+				version: installedPlugin.version,
+				pluginDirectories: session.customizations
+					?.filter(customization => customization.type === CustomizationType.Directory && customization.uri.startsWith(`${installedPlugin.uri}/`))
+					.map(customization => customization.uri),
+				children: (installedPlugin.children ?? [])
+					.map(child => ({ type: child.type, name: child.name }))
+					.sort((a, b) => a.name.localeCompare(b.name)),
+			}, {
+				version: '1.0.0',
+				pluginDirectories: [],
+				children: [
+					{ type: CustomizationType.Agent, name: 'Installed Agent' },
+					{ type: CustomizationType.Rule, name: 'installed' },
+					{ type: CustomizationType.Skill, name: 'installed-skill' },
+				].sort((a, b) => a.name.localeCompare(b.name)),
+			});
+		} finally {
+			if (consumerSessionUri) {
+				const sessionIndex = createdSessions.indexOf(consumerSessionUri);
+				if (sessionIndex >= 0) {
+					createdSessions.splice(sessionIndex, 1);
+				}
+			}
+			client.close();
+			server.process.kill();
+			server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
+			client = new TestProtocolClient(server.port);
+			await client.connect();
+		}
 	}
 
 	async function waitForPluginCustomizationUpdate(sessionUri: string, pluginUri: string): Promise<void> {

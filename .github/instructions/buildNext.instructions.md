@@ -37,6 +37,7 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
   - `bundle` command: TS → bundled JS using `esbuild.build()`
 - **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
+- **[resources.ts](../../build/next/resources.ts)** - Curated production resource selection and copied JavaScript minification
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
 - **[svg.ts](../../build/next/svg.ts)** - Production-only SVG finishing, independent of the legacy gulp infrastructure
@@ -58,6 +59,22 @@ In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` tas
 - `runEsbuildBundle()` → bundle command
 
 Old gulp-based bundling renamed to `core-ci-old`.
+
+### TypeScript Helpers in Production Bundles
+
+[bundle.ts](../../build/next/bundle.ts) holds the shared ESM options for normal entries (`neutral`) and Node bootstraps (`node`). Both compile TypeScript source directly with esbuild, which emits, scopes, and minifies the helpers each input needs. Their JS and CSS banners contain only the Microsoft copyright comment; do not append executable `tslib` to them. Esbuild does not parse banner text, so it cannot tree-shake it, minify it, or protect it from name/export collisions.
+
+- Desktop, server, server-web, and web entries do not consume the old banner's helpers or initialization. The public workbench and Sessions embedder exports are defined in their source entry points, not in tslib. Removing the banner intentionally removes its accidental 32 helper exports and default export, not any source-defined API.
+- Explicit tslib imports still follow normal bundler resolution: package imports remain external, while explicitly bundled helpers can be tree-shaken. Already-generated JavaScript retains its own helper definitions.
+- Non-minified bundles also omit the redundant library but retain readable esbuild-generated helpers. Development transpilation, standalone CommonJS preloads, and the separate Dev Tunnels bundle are unchanged.
+- The legacy `build/lib/optimize.ts` path still removes TypeScript-emitted boilerplate and supplies tslib in its own banner. Do not remove that injection based on the direct-from-TypeScript path.
+- Keep the copyright banner and existing license/notice packaging. Banner changes belong in esbuild's options so its source maps account for them; do not strip code after generating maps. Product integrity checksums continue to be computed from final bundled bytes during packaging.
+
+Focused coverage uses the production options for helper-free entries, service decorators, disposal, compiler-generated JS, explicit tslib imports, export/name collisions, legal comments, and source maps in both minified and non-minified modes:
+
+```bash
+node --test build/next/test/bundle.test.ts build/next/test/nls-sourcemap.test.ts
+```
 
 ### Production SVG Optimization
 
@@ -136,6 +153,10 @@ Two placeholders that need injection:
 
 **Lesson:** Don't add new output file formats that create parity differences with the old build. The old build is the reference.
 
+### Translated Message Cache Identity
+
+Desktop, server, and server-web packaging compute `nlsMetadataHash` from the commit, ordered NLS keys, and default messages, and stamp it into the product configuration. Native bootstrap and remote language-pack resolution pass this identity to `resolveNLSConfiguration()`, so a cached localized startup does not read or hash the NLS tables. Products without the new field retain the legacy commit-based cache path. Different target tables get separate caches; identical tables at the same commit reuse one cache.
+
 ### 7. Resource Copying: Transpile vs Bundle
 
 **Problem:** The new build used curated, specific resource pattern lists (e.g., `desktopResourcePatterns`) for **both** transpile/dev and production/bundle builds. Team members kept discovering missing resources because every new non-TS file in `src/` required manually adding its pattern.
@@ -149,6 +170,24 @@ Two placeholders that need injection:
 - Watch mode incremental copy now accepts **any** non-`.ts` file change (removed the `copyExtensions` allowlist).
 
 **Lesson:** Dev builds should copy everything (completeness matters); production builds should be selective (size matters). Don't mix the two strategies.
+
+### Production Copied JavaScript
+
+[resources.ts](../../build/next/resources.ts) owns the per-target resource patterns. `bundle --minify` minifies each selected JavaScript resource while copying it from `src/`; it does not traverse or re-minify bundled/generated outputs. Without `--minify`, copying remains byte-for-byte. Transpile, watch, and incremental development builds still use the separate unmodified copy path.
+
+The current JavaScript inventory is `vs/workbench/contrib/webview/browser/pre/service-worker.js` for desktop, server-web, and standalone web; server-only selects no JavaScript resources. The processing policy applies to JavaScript resources, not that filename, so additional scripts selected by the resource patterns receive the same handling.
+
+- Minification does not bundle, wrap, force an output module format, or tree-shake the scripts. A resolver bypasses the repository's `package.json` module-type inference, so classic globals/top-level `this` and CommonJS contexts are preserved; explicit ESM imports/exports remain ESM.
+- Legal comments and ordinary leading copyright/license headers are retained.
+- esbuild composes local external and inline input source maps, embeds original sources, and emits a sibling map with a local or `--source-map-base-url` reference. Copied scripts and bundled outputs share [rewriteSourceMappingURL()](../../build/next/source-map-url.ts) to keep CDN references platform-independent. Source-map read/parse diagnostics (including missing files, malformed JSON/mappings, and unsupported URLs) are promoted to build errors.
+- The standalone-web pipeline uploads all emitted core maps, including copied-script maps. Packaging still runs after resource processing and computes integrity checksums from final output bytes.
+- Generated NLS, tslib banners, native-private/dependency mangling, SVG optimization, and extension minification remain separate concerns.
+
+Focused regression tests (no workbench compilation required):
+
+```bash
+node --test build/next/test/resources.test.ts build/next/test/transpile.test.ts build/next/test/source-map-url.test.ts build/next/test/svg.test.ts
+```
 
 ---
 

@@ -8,7 +8,7 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_proc
 import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, retry, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, retry, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -44,7 +44,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { buildDefaultChatUri, chatStorageUri, createErrorResponsePart, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
-import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
@@ -1175,6 +1175,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _directoryCustomizationSequencers = new WeakMap<ICodexSession, Sequencer>();
 	private readonly _workingDirectoryMutations = new WeakMap<ICodexSession, ICodexWorkingDirectoryChange>();
 	private readonly _skillExtraRootsSequencer = new Sequencer();
+	private readonly _mcpInventoryRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	private readonly _sessionMcpDiscoveries = new Map<string, { readonly rootsSignature: string; readonly discovery: SessionMcpDiscovery; dispose(): void }>();
 	private readonly _pendingMcpStartupStatuses = new Map<string, Array<{ readonly client: ICodexAppServerClient; readonly name: string; readonly status: McpServerStartupState; readonly error: string | null }>>();
 	/**
@@ -7391,11 +7392,12 @@ export class CodexAgent extends Disposable implements IAgent {
 				const owningRuntimeOrder = Number(!isEqual(a.sessionUri, configurationResource)) - Number(!isEqual(b.sessionUri, configurationResource));
 				return owningRuntimeOrder || a.sessionId.localeCompare(b.sessionId);
 			});
+		const runtimeStates = this._preferredMcpPublisher(configurationResource)?.mcpController?.runtimeStates.get();
 		const byId = new Map<string, PluginCustomization>();
 		for (const session of sessions) {
 			for (const customization of this._resolveClientCustomizationEnablement(session).resolution.customizations) {
 				if (customization.type === CustomizationType.Plugin && !byId.has(customization.id)) {
-					byId.set(customization.id, customization);
+					byId.set(customization.id, applyMcpServerRuntimeStates(customization, runtimeStates));
 				}
 			}
 		}
@@ -7815,7 +7817,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		if (preferred?.mcpController) {
-			preferred.mcpController.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(preferred.threadId)));
+			preferred.mcpController.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(preferred.threadId)), true);
 		}
 	}
 
@@ -7882,7 +7884,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshMcpInventory(client: ICodexAppServerClient, threadId: string | null): Promise<void> {
+	private _refreshMcpInventory(client: ICodexAppServerClient, threadId: string | null): Promise<void> {
+		return this._mcpInventoryRefreshThrottler.queue(`${this._connectionGeneration}:${threadId ?? ''}`, () => this._doRefreshMcpInventory(client, threadId));
+	}
+
+	private async _doRefreshMcpInventory(client: ICodexAppServerClient, threadId: string | null): Promise<void> {
 		let data: ListMcpServerStatusResponse['data'] = [];
 		try {
 			let cursor: string | null | undefined = null;
