@@ -503,8 +503,10 @@ suite('WorkspacePicker - Connection Status', () => {
 				alignToAnchorTop: unifiedRemoteItem?.hover?.alignToAnchorTop,
 				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
 				submenuFilterPlaceholder: unifiedRemoteItem?.submenuOptions?.filterPlaceholder,
+				submenuFocusFilterOnOpen: unifiedRemoteItem?.submenuOptions?.focusFilterOnOpen,
 				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
 			},
+			unifiedFilteredRemoteItems: unifiedRemoteItem?.filterItems?.map(item => item.label),
 			unifiedSubmenu: unifiedRemoteActions instanceof SubmenuAction
 				? unifiedRemoteActions.actions.map(action => ({
 					label: action.label,
@@ -526,8 +528,16 @@ suite('WorkspacePicker - Connection Status', () => {
 				alignToAnchorTop: true,
 				submenuFilter: true,
 				submenuFilterPlaceholder: 'Search Remote',
+				submenuFocusFilterOnOpen: true,
 				submenuWidth: 180,
 			},
+			unifiedFilteredRemoteItems: [
+				'Manage Provider agenthost-tunnel-one',
+				'Manage Provider agenthost-tunnel-two',
+				'Manage Provider agenthost-tunnel-idle',
+				'Manage Provider agenthost-ssh',
+				'Manage Provider agenthost-wsl',
+			],
 			unifiedSubmenu: [
 				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
 				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
