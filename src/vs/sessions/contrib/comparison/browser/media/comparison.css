@@ -1,0 +1,244 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-comparison {
+	padding: var(--vscode-spacing-size240);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
+}
+
+.session-comparison h2 {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison .comparison-secondary,
+.session-comparison .comparison-baseline,
+.session-comparison .comparison-provider {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison .comparison-setup {
+	max-width: 900px;
+	margin: 0 auto;
+}
+
+.session-comparison .comparison-folder-row,
+.session-comparison .comparison-target,
+.session-comparison .comparison-setup-actions,
+.session-comparison .comparison-review-actions,
+.session-comparison .comparison-candidate-header,
+.session-comparison .comparison-candidate-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+}
+
+.session-comparison .comparison-folder-row {
+	margin: var(--vscode-spacing-size240) 0 var(--vscode-spacing-size80);
+	flex-wrap: wrap;
+}
+
+.session-comparison .comparison-folder-row > .monaco-inputbox {
+	flex: 1;
+	min-width: 160px;
+}
+
+.session-comparison .monaco-button {
+	width: auto;
+	min-width: 0;
+}
+
+.session-comparison .comparison-prompt-input {
+	width: 100%;
+	box-sizing: border-box;
+	margin: var(--vscode-spacing-size160) 0;
+}
+
+.session-comparison .comparison-prompt-input textarea.input {
+	min-height: 100px;
+	line-height: 1.5;
+	padding: var(--vscode-spacing-size120);
+}
+
+.session-comparison .comparison-targets {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.session-comparison .comparison-target {
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editor-background);
+	flex-wrap: wrap;
+}
+
+.session-comparison .comparison-target-name {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 140px;
+	overflow-wrap: anywhere;
+}
+
+.session-comparison strong,
+.session-comparison .comparison-attempt-label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison .comparison-attempt-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison .comparison-baseline {
+	margin-top: 0;
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
+.session-comparison .comparison-shared-prompt {
+	padding: var(--vscode-spacing-size160);
+	margin-bottom: var(--vscode-spacing-size240);
+	background: var(--vscode-textBlockQuote-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.session-comparison .comparison-shared-prompt summary {
+	cursor: pointer;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison .comparison-shared-prompt p {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	margin-bottom: 0;
+}
+
+.session-comparison .comparison-review-actions {
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size240);
+	flex-wrap: wrap;
+}
+
+.session-comparison .comparison-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size160);
+	align-items: stretch;
+}
+
+.session-comparison.narrow .comparison-grid {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.session-comparison .comparison-candidate {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	padding: var(--vscode-spacing-size200);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editor-background);
+}
+
+.session-comparison .comparison-candidate.preferred {
+	border-color: var(--vscode-focusBorder);
+}
+
+.session-comparison .comparison-candidate-header {
+	justify-content: space-between;
+	flex-wrap: wrap;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison .comparison-status {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison .failed .comparison-status {
+	color: var(--vscode-errorForeground);
+}
+
+.session-comparison .needs-input .comparison-status {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.session-comparison .comparison-model {
+	margin: var(--vscode-spacing-size80) 0 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow-wrap: anywhere;
+}
+
+.session-comparison .comparison-provider {
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
+.session-comparison .comparison-activity {
+	margin: var(--vscode-spacing-size120) 0;
+	overflow-wrap: anywhere;
+}
+
+.session-comparison .comparison-activity:empty {
+	display: none;
+}
+
+.session-comparison .comparison-response {
+	flex: 1;
+	min-height: 120px;
+	max-height: 320px;
+	overflow: auto;
+	overflow-wrap: anywhere;
+	margin: var(--vscode-spacing-size160) 0;
+}
+
+.session-comparison .comparison-response pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.session-comparison .comparison-files {
+	margin-top: auto;
+	padding-top: var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+}
+
+.session-comparison .comparison-stats {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison .comparison-file-names {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison .comparison-candidate-actions {
+	flex-wrap: wrap;
+	margin: var(--vscode-spacing-size160) 0;
+}
+
+.session-comparison .comparison-preference {
+	align-self: stretch;
+}
+
+.session-comparison .preferred .comparison-preference {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.session-comparison summary:focus-visible,
+.session-comparison .comparison-response:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
