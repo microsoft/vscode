@@ -1212,7 +1212,10 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 					};
 				}),
 				dispose: () => {
-					this._proxy.$releaseDocumentOnDropEdits(this._handle, request.id);
+					const cacheId = edits[0]?._cacheId?.[0];
+					if (typeof cacheId === 'number') {
+						this._proxy.$releaseDocumentOnDropEdits(this._handle, cacheId);
+					}
 				},
 			};
 		} finally {
