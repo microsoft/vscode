@@ -3837,7 +3837,7 @@ suite('ClaudeAgent', () => {
 		// requires usage to be reported BEFORE the turn is marked
 		// complete (otherwise consumers that flush state on
 		// `ChatTurnComplete` lose the usage attribution). Both
-		// signals come from the single `result` SDK message; the mapper
+		// signals come from the single `result` SDK message; the pipeline
 		// emits them in the prescribed order.
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

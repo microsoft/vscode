@@ -655,7 +655,7 @@ suite('ClaudeSdkPipeline', () => {
 			return signals.flatMap(s => s.kind === 'action' ? [s.action.type] : []);
 		}
 
-		test('re-emits ChatUsage with _meta.contextAttribution before ChatTurnComplete', async () => {
+		test('emits exactly one ChatUsage, enriched with _meta.contextAttribution, before ChatTurnComplete', async () => {
 			const contextUsage = makeContextUsageResponse({
 				totalTokens: 5_000,
 				systemPromptSections: [{ name: 'Identity', tokens: 1_000 }],
@@ -670,27 +670,62 @@ suite('ClaudeSdkPipeline', () => {
 
 			await pipeline.send(makePrompt('p1'), 'turn-1');
 
-			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatUsage, ActionType.ChatTurnComplete]);
-			assert.deepStrictEqual(warm.queries[0].contextUsageCalls, [{ detail: 'summary' }]);
-			assert.deepStrictEqual(observedLimits, [{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 }]);
-			const [base, enriched] = usageActionsOf(signals);
-			assert.deepStrictEqual(base.usage, { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' });
-			assert.deepStrictEqual(enriched.usage, {
-				inputTokens: 5_000,
-				outputTokens: 34,
-				cacheReadTokens: 5,
-				model: 'claude-test',
-				_meta: {
-					contextAttribution: {
-						totalTokens: 5_000,
-						compactions: { count: 0 },
-						entries: [
-							{ kind: 'system', id: 'system-prompt', label: 'System Prompt', tokens: 1_000 },
-							{ kind: 'toolDefinition', id: 'tool:Read', label: 'Read', tokens: 400 },
-						],
-					},
+			assert.deepStrictEqual(
+				{
+					actions: actionTypesOf(signals),
+					contextUsageCalls: warm.queries[0].contextUsageCalls,
+					observedLimits,
+					usage: usageActionsOf(signals).map(a => a.usage),
 				},
-			});
+				{
+					actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete],
+					contextUsageCalls: [{ detail: 'summary' }],
+					observedLimits: [{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 }],
+					usage: [{
+						inputTokens: 5_000,
+						outputTokens: 34,
+						cacheReadTokens: 5,
+						model: 'claude-test',
+						_meta: {
+							contextAttribution: {
+								totalTokens: 5_000,
+								compactions: { count: 0 },
+								entries: [
+									{ kind: 'system', id: 'system-prompt', label: 'System Prompt', tokens: 1_000 },
+									{ kind: 'toolDefinition', id: 'tool:Read', label: 'Read', tokens: 400 },
+								],
+							},
+						},
+					}],
+				},
+			);
+		});
+
+		test('one success result produces exactly one ChatUsage whether or not enrichment succeeds', async () => {
+			// The workbench counts a second usage report with different prompt
+			// tokens as another model call and adds its completion tokens again,
+			// so the mapper emits nothing for results and the pipeline emits once:
+			// enriched when the SDK answers, the base report otherwise.
+			const runTurn = async (contextUsage: () => Promise<SDKControlGetContextUsageResponse>) => {
+				const warm = new ScriptedWarmQuery([makeResultWithUsage()], contextUsage);
+				const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+				const signals: AgentSignal[] = [];
+				disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+				await pipeline.send(makePrompt('p1'), 'turn-1');
+				const usage = usageActionsOf(signals);
+				return { usageCount: usage.length, inputTokens: usage.map(a => a.usage.inputTokens) };
+			};
+
+			assert.deepStrictEqual(
+				{
+					enriched: await runTurn(async () => makeContextUsageResponse({ totalTokens: 5_000 })),
+					fallback: await runTurn(async () => { throw new Error('control request failed'); }),
+				},
+				{
+					enriched: { usageCount: 1, inputTokens: [5_000] },
+					fallback: { usageCount: 1, inputTokens: [12] },
+				},
+			);
 		});
 
 		test('a failed result still reports the model limits it observed, without usage enrichment', async () => {
@@ -714,7 +749,7 @@ suite('ClaudeSdkPipeline', () => {
 			);
 		});
 
-		test('a failing getContextUsage leaves the base ChatUsage and still completes the turn', async () => {
+		test('a failing getContextUsage falls back to the base ChatUsage and still completes the turn', async () => {
 			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => { throw new Error('control request failed'); });
 			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
 			const signals: AgentSignal[] = [];
@@ -722,7 +757,10 @@ suite('ClaudeSdkPipeline', () => {
 
 			await pipeline.send(makePrompt('p1'), 'turn-1');
 
-			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatTurnComplete]);
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }] },
+			);
 		});
 
 		test('a getContextUsage that never answers is bounded by the timeout and does not hang the turn', async () => {
@@ -734,10 +772,13 @@ suite('ClaudeSdkPipeline', () => {
 
 			await pipeline.send(makePrompt('p1'), 'turn-1');
 
-			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatTurnComplete]);
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }] },
+			);
 		});
 
-		test('a getContextUsage still pending from an earlier turn is not stacked: the next turn skips enrichment and still completes', async () => {
+		test('a getContextUsage still pending from an earlier turn is not stacked: the next turn falls back to the base ChatUsage and still completes', async () => {
 			// The timeout stops awaiting but cannot cancel the SDK control request.
 			// Without the guard every timed-out turn would queue one more request
 			// in the subprocess.
@@ -750,9 +791,10 @@ suite('ClaudeSdkPipeline', () => {
 			await pipeline.send(makePrompt('p1'), 'turn-1');
 			await pipeline.send(makePrompt('p2'), 'turn-2');
 
+			const base = { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' };
 			assert.deepStrictEqual(
-				{ contextUsageCalls: warm.queries[0].contextUsageCalls.length, actions: actionTypesOf(signals) },
-				{ contextUsageCalls: 1, actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete, ActionType.ChatUsage, ActionType.ChatTurnComplete] },
+				{ contextUsageCalls: warm.queries[0].contextUsageCalls.length, actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
+				{ contextUsageCalls: 1, actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete, ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [base, base] },
 			);
 		});
 	});
