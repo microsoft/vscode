@@ -133,6 +133,7 @@ if (userLocale) {
 		userLocale,
 		osLocale,
 		commit: product.commit,
+		nlsMetadataHash: product.nlsMetadataHash,
 		userDataPath,
 		nlsMetadataPath: import.meta.dirname
 	});
@@ -715,6 +716,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 		userLocale,
 		osLocale,
 		commit: product.commit,
+		nlsMetadataHash: product.nlsMetadataHash,
 		userDataPath,
 		nlsMetadataPath: import.meta.dirname
 	});

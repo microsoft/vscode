@@ -53,6 +53,16 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		});
 
+		test('Only allows inline-block display style on spans', () => {
+			const markdown = new MarkdownString(
+				'<span style="display:inline-block;">allowed</span><span style="display:block;">blocked</span>',
+				{ supportHtml: true },
+			);
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			assert.strictEqual(result.innerHTML, '<p><span style="display:inline-block;">allowed</span><span>blocked</span></p>');
+		});
+
 		test('Transforms parsed link targets without changing labels, titles, or code', () => {
 			const markdown = { value: '`[same](file:///same)` [a[b].ts](file:///same "file:///same") ![image](file:///same|width=10,height=20)' };
 			const result = store.add(renderMarkdown(markdown, {

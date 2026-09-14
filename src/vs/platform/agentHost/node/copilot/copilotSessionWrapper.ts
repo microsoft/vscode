@@ -291,6 +291,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSubagentStarted ??= this._sdkEvent('subagent.started');
 	}
 
+	private _onSubagentConfigured: Event<SessionEventPayload<'subagent.configured'>> | undefined;
+	get onSubagentConfigured(): Event<SessionEventPayload<'subagent.configured'>> {
+		return this._onSubagentConfigured ??= this._sdkEvent('subagent.configured');
+	}
+
 	private _onSubagentCompleted: Event<SessionEventPayload<'subagent.completed'>> | undefined;
 	get onSubagentCompleted(): Event<SessionEventPayload<'subagent.completed'>> {
 		return this._onSubagentCompleted ??= this._sdkEvent('subagent.completed');
