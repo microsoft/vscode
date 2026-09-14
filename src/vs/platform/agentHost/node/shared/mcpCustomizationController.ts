@@ -41,6 +41,36 @@ export interface ISdkMcpServer {
  */
 export type IMcpServerRuntimeState = Pick<McpServerCustomization, 'state' | 'channel'>;
 
+/** Applies live MCP runtime fields to matching top-level or child customizations. */
+export function applyMcpServerRuntimeStates<T extends Customization>(customization: T, runtimeStates: ReadonlyMap<string, IMcpServerRuntimeState> | undefined): T {
+	if (!runtimeStates?.size) {
+		return customization;
+	}
+	if (customization.type === CustomizationType.McpServer) {
+		const runtime = runtimeStates.get(customization.id);
+		return runtime && (!equals(customization.state, runtime.state) || customization.channel !== runtime.channel)
+			? { ...customization, state: runtime.state, channel: runtime.channel }
+			: customization;
+	}
+	const children = customization.children;
+	if (!children?.length) {
+		return customization;
+	}
+	let changed = false;
+	const updatedChildren = children.map(child => {
+		if (child.type !== CustomizationType.McpServer) {
+			return child;
+		}
+		const runtime = runtimeStates.get(child.id);
+		if (!runtime || (equals(child.state, runtime.state) && child.channel === runtime.channel)) {
+			return child;
+		}
+		changed = true;
+		return { ...child, state: runtime.state, channel: runtime.channel };
+	});
+	return changed ? { ...customization, children: updatedChildren } : customization;
+}
+
 /**
  * Re-export so existing imports of `DEFAULT_MCP_APP_CAPABILITIES` from
  * the controller keep working — the canonical home is now
