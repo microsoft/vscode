@@ -256,3 +256,54 @@
 	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 }
+
+.project-board-tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-left: auto;
+}
+
+.project-board-tools .monaco-button,
+.project-board-column-heading .monaco-button,
+.project-board-row-heading .monaco-button {
+	width: auto;
+}
+
+.project-board-card-context,
+.project-board-card-workspace,
+.project-board-card-warning,
+.project-board-card-prompt,
+.project-board-card-recency {
+	margin-top: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
+.project-board-card-context a {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+}
+
+.project-board-card-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.project-board-card-prompt {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
+	white-space: pre-wrap;
+}
+
+.project-board-card-workspace,
+.project-board-card-recency {
+	color: var(--vscode-descriptionForeground);
+}
+
+.project-board-column-heading .monaco-button,
+.project-board-row-heading .monaco-button {
+	overflow-wrap: anywhere;
+	white-space: normal;
+}
