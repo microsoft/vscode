@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+
+	Standalone design artifact, not a shipped VS Code contribution.
+	All execution is simulated. No requests, credentials, dependencies, or persistent storage.
+-->
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob:; media-src blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+	<title>Agents Window · Intent-first proposal</title>
+	<style>
+		/* Standalone theme defaults; production uses the workbench's registered tokens. */
+		:root {
+			color-scheme: dark;
+			--vscode-editor-background: #1f1f1f;
+			--vscode-sideBar-background: #181818;
+			--vscode-editorWidget-background: #252526;
+			--vscode-foreground: #cccccc;
+			--vscode-descriptionForeground: #a8a8a8;
+			--vscode-widget-border: #454545;
+			--vscode-focusBorder: #75beff;
+			--vscode-button-background: #0078d4;
+			--vscode-button-foreground: #ffffff;
+			--vscode-list-hoverBackground: #303030;
+			--vscode-list-activeSelectionBackground: #04395e;
+			--vscode-list-activeSelectionForeground: #ffffff;
+			--vscode-charts-green: #89d185;
+			--vscode-charts-yellow: #e2c08d;
+			--vscode-errorForeground: #f48771;
+			--vscode-cornerRadius-small: 4px;
+			--vscode-cornerRadius-medium: 6px;
+			--vscode-cornerRadius-large: 8px;
+			--vscode-strokeThickness: 1px;
+			--vscode-fontSize-heading1: 26px;
+			--vscode-fontSize-heading2: 18px;
+			--vscode-fontSize-body1: 13px;
+			--vscode-fontSize-label1: 12px;
+			--vscode-fontWeight-semiBold: 600;
+		}
+		:root[data-theme="light"] {
+			color-scheme: light;
+			--vscode-editor-background: #ffffff;
+			--vscode-sideBar-background: #f8f8f8;
+			--vscode-editorWidget-background: #f3f3f3;
+			--vscode-foreground: #333333;
+			--vscode-descriptionForeground: #606060;
+			--vscode-widget-border: #cecece;
+			--vscode-focusBorder: #005fb8;
+			--vscode-list-hoverBackground: #e8e8e8;
+			--vscode-list-activeSelectionBackground: #d6ebff;
+			--vscode-list-activeSelectionForeground: #222222;
+			--vscode-charts-green: #24712c;
+			--vscode-charts-yellow: #805700;
+			--vscode-errorForeground: #a1260d;
+		}
+		:root[data-theme="contrast"] {
+			color-scheme: dark;
+			--vscode-editor-background: #000000;
+			--vscode-sideBar-background: #000000;
+			--vscode-editorWidget-background: #000000;
+			--vscode-foreground: #ffffff;
+			--vscode-descriptionForeground: #ffffff;
+			--vscode-widget-border: #ffffff;
+			--vscode-focusBorder: #f38518;
+			--vscode-button-background: #000000;
+			--vscode-list-activeSelectionBackground: #000000;
+			--vscode-list-activeSelectionForeground: #ffffff;
+		}
+		* { box-sizing: border-box; }
+		body { margin: 0; background: var(--vscode-editor-background); color: var(--vscode-foreground); font: var(--vscode-fontSize-body1)/1.6 system-ui, sans-serif; }
+		button, input, select, textarea { font: inherit; color: inherit; }
+		button, select, input, textarea { border: var(--vscode-strokeThickness) solid var(--vscode-widget-border); border-radius: var(--vscode-cornerRadius-small); background: var(--vscode-editorWidget-background); padding: 6px 12px; }
+		button, select, summary { cursor: pointer; }
+		button:hover { background: var(--vscode-list-hoverBackground); }
+		button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+		button[aria-pressed="true"], button[aria-current="page"] { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); border-color: var(--vscode-focusBorder); }
+		:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+		button:disabled { cursor: not-allowed; color: var(--vscode-descriptionForeground); }
+		h1, h2, h3, p { margin: 0 0 12px; }
+		h1 { font-size: var(--vscode-fontSize-heading1); font-weight: var(--vscode-fontWeight-semiBold); line-height: 1.3; }
+		h2 { font-size: var(--vscode-fontSize-heading2); font-weight: var(--vscode-fontWeight-semiBold); }
+		h3, strong { font-size: inherit; font-weight: var(--vscode-fontWeight-semiBold); }
+		.titlebar { padding: 8px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--vscode-sideBar-background); border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border); }
+		.muted, small { color: var(--vscode-descriptionForeground); }
+		small, .eyebrow { font-size: var(--vscode-fontSize-label1); }
+		.eyebrow { color: var(--vscode-descriptionForeground); margin-bottom: 8px; }
+		.shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 58px); }
+		.sidebar { padding: 24px 16px; background: var(--vscode-sideBar-background); border-right: var(--vscode-strokeThickness) solid var(--vscode-widget-border); }
+		.sidebar nav { display: grid; gap: 6px; margin-bottom: 24px; }
+		.sidebar button { text-align: left; }
+		.sidebar input { width: 100%; }
+		.sidebar form { display: grid; gap: 8px; margin: 20px 0; }
+		main { min-width: 0; padding: 32px; }
+		.content { max-width: 1160px; margin: 0 auto; }
+		.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+		.spread { justify-content: space-between; }
+		.stack { display: grid; gap: 12px; }
+		.composer { padding: 20px; border: var(--vscode-strokeThickness) solid var(--vscode-widget-border); border-radius: var(--vscode-cornerRadius-medium); margin: 24px 0; }
+		textarea { display: block; width: 100%; min-height: 90px; resize: vertical; margin: 8px 0 12px; }
+		.filters { margin: 24px 0 16px; }
+		.filters input { flex: 1; min-width: 160px; }
+		.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+		.card { border: var(--vscode-strokeThickness) solid var(--vscode-widget-border); border-radius: var(--vscode-cornerRadius-medium); padding: 20px; display: grid; align-content: start; gap: 12px; }
+		.card h2, .card p { margin: 0; }
+		.card button { justify-self: start; }
+		.status { font-size: var(--vscode-fontSize-label1); }
+		.status.attention { color: var(--vscode-charts-yellow); }
+		.status.running { color: var(--vscode-focusBorder); }
+		.status.review { color: var(--vscode-charts-green); }
+		.status.disconnected { color: var(--vscode-errorForeground); }
+		.notice { padding: 12px 16px; border-left: 2px solid var(--vscode-focusBorder); background: var(--vscode-editorWidget-background); margin: 16px 0; }
+		.notice.attention { border-left-color: var(--vscode-charts-yellow); }
+		.detail-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 24px; margin-top: 24px; }
+		.detail-layout > * { min-width: 0; }
+		.message { padding: 16px; border-radius: var(--vscode-cornerRadius-medium); background: var(--vscode-editorWidget-background); margin: 16px 0; }
+		.detail-title { width: 100%; margin: 8px 0 12px; }
+		.timeline { padding-left: 24px; }
+		.timeline li { padding: 4px 0; }
+		.panel { border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border); padding-top: 16px; margin-top: 16px; }
+		.artifact { display: grid; gap: 8px; margin: 12px 0; overflow-wrap: anywhere; }
+		img, video { max-width: 100%; max-height: 260px; border-radius: var(--vscode-cornerRadius-small); }
+		details { margin-top: 24px; }
+		summary { font-weight: var(--vscode-fontWeight-semiBold); }
+		details p, details ul, details ol { margin-top: 12px; }
+		.matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 20px; margin-top: 20px; }
+		.matrix section { background: var(--vscode-editorWidget-background); padding: 16px; border-radius: var(--vscode-cornerRadius-medium); }
+		code { overflow-wrap: anywhere; }
+		dialog { max-width: 720px; max-height: 85vh; overflow: auto; border: var(--vscode-strokeThickness) solid var(--vscode-widget-border); border-radius: var(--vscode-cornerRadius-large); padding: 24px; background: var(--vscode-editor-background); color: var(--vscode-foreground); }
+		dialog pre { white-space: pre-wrap; font: inherit; }
+		.sr-only { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+		[hidden] { display: none; }
+		/* Browser-only mock responsiveness. Shipping UI uses custom-view layout constraints. */
+		@media (max-width: 900px) {
+			.shell { grid-template-columns: 190px minmax(0, 1fr); }
+			main { padding: 20px; }
+			.detail-layout { grid-template-columns: minmax(0, 1fr); }
+		}
+		@media (max-width: 600px) {
+			.shell { grid-template-columns: minmax(0, 1fr); }
+			.sidebar { border-right: 0; border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border); }
+		}
+	</style>
+</head>
+<body>
+	<header class="titlebar">
+		<div><strong>Visual Studio Code</strong> <span class="muted">/ Agents / My work</span></div>
+		<div class="row">
+			<small>Interactive proposal · simulated data · nothing is executed</small>
+			<label for="theme">Theme</label>
+			<select id="theme"><option value="dark">Dark</option><option value="light">Light</option><option value="contrast">High contrast</option></select>
+			<button id="help">Help</button>
+		</div>
+	</header>
+	<div class="shell">
+		<aside class="sidebar" aria-label="Organization">
+			<div class="eyebrow">Your work, not your folders</div>
+			<nav id="navigation" aria-label="Task collections"></nav>
+			<h3>Groups</h3>
+			<nav id="groups" aria-label="Custom groups"></nav>
+			<form id="group-form">
+				<label for="group-name">New group name</label>
+				<input id="group-name" maxlength="60" placeholder="e.g. Release readiness" required>
+				<button type="submit">Create Group</button>
+			</form>
+			<p class="muted">Tasks keep their chats, changes, and evidence together. A repository is context, not the front door.</p>
+			<small>Mock organization lasts until reload. Production reuses profile-scoped pin, group, and ordering services.</small>
+		</aside>
+		<main id="main">
+			<div class="content">
+				<section id="dashboard" aria-labelledby="dashboard-title">
+					<div class="eyebrow">Intent-first Agents Window</div>
+					<h1 id="dashboard-title" tabindex="-1">What do you want to get done?</h1>
+					<p class="muted">Start with an outcome. Resolve the repository and environment only when the work needs them.</p>
+					<form id="intent-form" class="composer">
+						<label for="intent"><strong>Describe a task</strong></label>
+						<textarea id="intent" maxlength="2000" required placeholder="Fix sign-in after refresh. I have a screenshot, but I don't know which repo owns this."></textarea>
+						<div class="row spread">
+							<span class="muted">No folder required · Clarify before making changes</span>
+							<button class="primary" type="submit">Explore Task (Demo)</button>
+						</div>
+						<small>Starts a simulated workspace-less conversation; open the task to attach evidence.</small>
+					</form>
+					<div class="row spread">
+						<div>
+							<h2 id="collection-title">All tasks</h2>
+							<p id="summary" class="muted"></p>
+						</div>
+						<button id="accessible-view">Read Dashboard as Text</button>
+					</div>
+					<div class="row filters">
+						<label for="search">Find a task</label>
+						<input id="search" type="search" placeholder="Title or repository">
+						<label for="status-filter">Status</label>
+						<select id="status-filter">
+							<option value="all">All statuses</option>
+							<option value="attention">Needs input</option>
+							<option value="running">Working</option>
+							<option value="review">Completed</option>
+							<option value="disconnected">Disconnected</option>
+						</select>
+					</div>
+					<div id="cards" class="cards"></div>
+					<p id="empty" hidden>No tasks match. Change the collection, status, or search.</p>
+					<details id="proposal">
+						<summary>Proposal, feasibility, and architecture</summary>
+						<p><strong>Feasible incrementally, not fully available out of the box.</strong> Workspace-less means no folder is required to begin. It does not mean code runs without a filesystem, permissions, or a provider. This file is a visual proposal, not an integration or proof of backend availability.</p>
+						<div class="matrix">
+							<section>
+								<h3>Reuse today</h3>
+								<ul>
+									<li>Workspace-less quick chats on capable providers.</li>
+									<li>Sessions, nested chats, custom groups, pins, archive, and filters.</li>
+									<li>Provider-mediated repository selection and Git cloning where supported.</li>
+									<li>Local and remote Agent Host sessions; experimental cloud-sandbox provisioning.</li>
+									<li>Image attachments and provider-reported artifacts and references.</li>
+								</ul>
+							</section>
+							<section>
+								<h3>New product work</h3>
+								<ul>
+									<li>This dashboard and intent-to-context recommendation flow.</li>
+									<li>Explicit confirmation of repository, environment, and permissions.</li>
+									<li>Linked handoff from quick chat to an execution session, without rewriting its identity.</li>
+									<li>Provider-neutral preparation progress and durable recovery.</li>
+									<li>Named execution presets (“recipes”), validated by their owning provider.</li>
+								</ul>
+							</section>
+							<section>
+								<h3>Do not promise</h3>
+								<ul>
+									<li>Arbitrary cloud machines, sizing, pricing, or universal recipe execution.</li>
+									<li>Reliable repository inference without evidence or user clarification.</li>
+									<li>A stock model understanding uploaded video or a universal recorder.</li>
+									<li>Cross-provider chat migration, automatic permission bypass, or guaranteed background execution.</li>
+									<li>Archiving a task shutting down billable compute.</li>
+								</ul>
+							</section>
+						</div>
+						<h3 class="panel">Organization: one intent, not one chat per tool call</h3>
+						<p>“Task” is a user-facing label for a session in this first iteration, not another backend task store. Keep one primary chat; additional verification or investigation chats stay inside that session when supported. Tool calls remain in the transcript. Pin important sessions, move them into optional groups, search, and archive finished work. Do not automatically regroup work after a user organizes it.</p>
+						<p>A quick chat that needs a different repository or compute provider creates a separate execution session through existing management operations. A proposed handoff records a visible source link and carries only approved context; it does not pretend that chats can move between providers. Existing custom groups can collect these related sessions. Their memberships remain local presentation state, not an execution boundary.</p>
+						<h3 class="panel">Architecture fit</h3>
+						<ul>
+							<li>Add a Sessions-owned <code>AbstractCustomView</code> dashboard through <code>ICustomViewService</code>. Opening a session dismisses the dashboard and returns to the existing chat/detail layout. No new workbench part or embedded production HTML app.</li>
+							<li><code>ISessionsManagementService</code> owns orchestration and provider routing; <code>ISessionsService</code> owns active/visible sessions. Cards derive from their observables, not a second session store.</li>
+							<li>Use <code>ISessionGroupsService</code> and <code>ISessionsListModelService</code> for organization. Preserve archived &gt; pinned &gt; custom group &gt; quick chat &gt; workspace/date placement.</li>
+							<li>Keep provider implementations isolated. New provisioning/preset contracts belong in shared interfaces; only providers call backend APIs. <code>vs/workbench</code> must never import <code>vs/sessions</code>.</li>
+							<li>“Preparing”, “cloning”, and “testing” are proposed progress details, not new values invented in <code>SessionStatus</code>. Report only observed events. Disconnected is connection state, not proof that the agent stopped.</li>
+							<li>Respect AI-disabled UI gating, model and provider capabilities, authentication, workspace trust, and runtime-managed permissions. Confirmation in this UI never replaces runtime enforcement.</li>
+							<li>Production uses existing widgets, theme tokens, localized labels, scoped menus, disposal, accessibility help, an accessible view, and a verbosity setting.</li>
+						</ul>
+						<h3 class="panel">Phased delivery and exit criteria</h3>
+						<ol>
+							<li><strong>Dashboard first:</strong> project existing sessions into a custom view; reuse organization and open actions. Verify keyboard navigation, themes, filtering, pin/archive precedence, and no duplicate session identities.</li>
+							<li><strong>Intent intake:</strong> reuse quick chat and attachments; ask for missing context and present editable recommendations with reasons. Verify ambiguous requests, unsupported providers, AI-disabled mode, and consented handoff.</li>
+							<li><strong>Prepare execution:</strong> reuse clone/worktree and available host paths; introduce provider-neutral preparation progress and recovery. Test cancellations, failed clones, expired authentication, duplicate sends, reconnects, and persisted operation identity before adding retry.</li>
+							<li><strong>Evidence and presets:</strong> surface provider artifacts; add capture only for runners that support it. Treat videos as files/links unless the selected model explicitly accepts them. Gate recipe support on real backend contracts for validation, lifecycle, cancellation, cost visibility, and cleanup.</li>
+						</ol>
+						<p class="muted">Source basis: this checkout's <code>src/vs/sessions/SESSIONS.md</code>, <code>SESSIONS_LIST.md</code>, <code>LAYOUT.md</code>, shared session/provider contracts, sandbox provider, and attachment implementation. The sandbox flag is off by default; current picker requires a repository even though the low-level request type allows omitting one. No general recipe API was found.</p>
+					</details>
+				</section>
+				<section id="detail" aria-labelledby="detail-heading" hidden></section>
+			</div>
+		</main>
+	</div>
+	<div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
+	<dialog id="text-dialog" aria-labelledby="dialog-title">
+		<h2 id="dialog-title"></h2>
+		<pre id="dialog-content"></pre>
+		<form method="dialog"><button>Close</button></form>
+	</dialog>
+	<script>
+		'use strict';
+		const byId = id => document.getElementById(id);
+		const groups = ['Release readiness', 'Investigations'];
+		const labels = { attention: 'Needs input', running: 'Working', review: 'Completed · review available', disconnected: 'Disconnected · last state unknown' };
+		const tasks = [
+			{ id: 1, title: 'Fix sign-in after refresh', group: 'Release readiness', status: 'attention', repo: 'Not confirmed', compute: 'Not selected', pinned: true, archived: false, quick: true, chats: ['Understand the issue'], activeChat: 0, prompt: 'Sign-in disappears when I refresh. Find the cause and fix it.', update: 'Which repository owns sign-in? Confirm context before any setup.', events: ['Intent received', 'Repository unresolved — no clone or compute started'], evidence: [] },
+			{ id: 2, title: 'Reduce startup retries', group: 'Release readiness', status: 'running', repo: 'microsoft/vscode', compute: 'Local Agent Host · existing checkout', pinned: false, archived: false, quick: false, chats: ['Implementation', 'Verification'], activeChat: 0, prompt: 'Reduce unnecessary reconnect retries and cover the behavior with tests.', update: 'Running focused tests in the selected checkout. Sample state only.', events: ['Repository and local environment confirmed', 'Focused fix prepared', 'Targeted tests running (simulated)'], evidence: [] },
+			{ id: 3, title: 'Explain chat session routing', group: 'Investigations', status: 'review', repo: 'No repository needed', compute: 'Local quick chat', pinned: false, archived: false, quick: true, chats: ['Explanation'], activeChat: 0, prompt: 'Explain the difference between a session and its chats.', update: 'Explanation ready. No files changed.', events: ['Workspace-less question received', 'Explanation completed (simulated)'], evidence: [] },
+			{ id: 4, title: 'Capture checkout regression', group: 'Investigations', status: 'disconnected', repo: 'example/storefront (illustrative)', compute: 'Cloud sandbox · experimental', pinned: false, archived: false, quick: false, chats: ['Reproduction'], activeChat: 0, prompt: 'Reproduce the checkout failure and keep evidence with the task.', update: 'Connection lost. The last reported run may still be active; do not start another VM.', events: ['Sandbox connection established (sample)', 'Reproduction requested; no capture received', 'Connection lost — completion and compute state unknown'], evidence: [] }
+		];
+		let collection = 'all';
+		let selectedId;
+		let nextId = 5;
+		let returnFocus;
+		const element = (tag, text, className) => {
+			const node = document.createElement(tag);
+			if (text !== undefined) { node.textContent = text; }
+			if (className) { node.className = className; }
+			return node;
+		};
+		const button = (text, action, className) => {
+			const node = element('button', text, className);
+			node.type = 'button';
+			node.addEventListener('click', action);
+			return node;
+		};
+		const announce = text => { byId('announcement').textContent = text; };
+		const badge = task => element('span', labels[task.status], `status ${task.status}`);
+		const visibleTasks = () => tasks.filter(task => {
+			if (collection === 'archived' ? !task.archived : task.archived) { return false; }
+			if (collection === 'pinned' && !task.pinned) { return false; }
+			if (collection === 'attention' && !['attention', 'disconnected'].includes(task.status)) { return false; }
+			if (collection.startsWith('group:') && task.group !== collection.slice(6)) { return false; }
+			if (byId('status-filter').value !== 'all' && task.status !== byId('status-filter').value) { return false; }
+			return `${task.title} ${task.repo}`.toLowerCase().includes(byId('search').value.toLowerCase());
+		});
+		function navigate(target) {
+			collection = target;
+			selectedId = undefined;
+			byId('dashboard').hidden = false;
+			byId('detail').hidden = true;
+			renderDashboard();
+			byId('dashboard-title').focus();
+		}
+		function renderNavigation() {
+			byId('navigation').replaceChildren();
+			byId('groups').replaceChildren();
+			const attention = tasks.filter(task => !task.archived && ['attention', 'disconnected'].includes(task.status)).length;
+			for (const [key, title] of [['all', 'All Tasks'], ['attention', `Needs Attention (${attention})`], ['pinned', 'Pinned'], ['archived', 'Archived'], ...groups.map(group => [`group:${group}`, group])]) {
+				const item = button(title, () => navigate(key));
+				if (collection === key && selectedId === undefined) { item.setAttribute('aria-current', 'page'); }
+				byId(key.startsWith('group:') ? 'groups' : 'navigation').append(item);
+			}
+		}
+		function renderDashboard() {
+			renderNavigation();
+			byId('collection-title').textContent = collection.startsWith('group:') ? collection.slice(6) : { all: 'All tasks', attention: 'Needs attention', pinned: 'Pinned', archived: 'Archived' }[collection];
+			const visible = visibleTasks();
+			byId('summary').textContent = `${visible.length} tasks shown · Progress and connection state stay separate · All data simulated`;
+			byId('cards').replaceChildren();
+			byId('empty').hidden = visible.length > 0;
+			for (const task of visible) {
+				const card = element('article', undefined, 'card');
+				card.append(badge(task), element('h2', task.title), element('p', task.update));
+				card.append(element('small', `${task.repo} · ${task.chats.length} chat${task.chats.length === 1 ? '' : 's'}${task.pinned ? ' · Pinned' : ''}`));
+				card.append(element('small', task.compute));
+				card.append(button('Open Task', () => openTask(task.id)));
+				byId('cards').append(card);
+			}
+		}
+		function openTask(id) {
+			selectedId = id;
+			byId('dashboard').hidden = true;
+			byId('detail').hidden = false;
+			renderNavigation();
+			renderDetail();
+			byId('detail-heading').focus();
+		}
+		function showText(title, content) {
+			returnFocus = document.activeElement;
+			byId('dialog-title').textContent = title;
+			byId('dialog-content').textContent = content;
+			byId('text-dialog').showModal();
+		}
+		function renderDetail() {
+			const task = tasks.find(item => item.id === selectedId);
+			const root = byId('detail');
+			root.replaceChildren();
+			const header = element('div', undefined, 'row spread');
+			header.append(button('Back to Dashboard', () => navigate(collection)), badge(task));
+			root.append(header);
+			const heading = element('h1', task.title);
+			heading.id = 'detail-heading';
+			heading.tabIndex = -1;
+			root.append(heading, element('p', `${task.repo} / ${task.compute}`, 'muted'));
+			const actions = element('div', undefined, 'row');
+			actions.append(button(task.pinned ? 'Unpin' : 'Pin', () => {
+				task.pinned = !task.pinned;
+				openTask(task.id);
+				announce(task.pinned ? 'Task pinned.' : 'Task unpinned.');
+			}));
+			actions.lastChild.disabled = task.archived;
+			actions.append(button(task.archived ? 'Restore Task' : 'Archive Task', () => {
+				task.archived = !task.archived;
+				if (task.archived) { task.group = ''; task.pinned = false; }
+				navigate(task.archived ? 'archived' : 'all');
+				announce('Organization updated. Archiving does not stop execution or compute.');
+			}));
+			actions.append(button('Read Task as Text', () => showText(task.title, [labels[task.status], task.repo, task.compute, task.update, ...task.events, ...task.evidence.map(file => `${file.name} — ${file.type}`)].join('\n\n'))));
+			root.append(actions);
+			const layout = element('div', undefined, 'detail-layout');
+			const conversation = element('div');
+			const context = element('aside');
+			context.setAttribute('aria-label', 'Task context and evidence');
+			layout.append(conversation, context);
+			root.append(layout);
+			conversation.append(element('h2', 'Chats in this task'));
+			const chats = element('div', undefined, 'row');
+			chats.setAttribute('aria-label', 'Choose a chat');
+			for (const [index, name] of task.chats.entries()) {
+				const chat = button(name, () => { task.activeChat = index; openTask(task.id); });
+				chat.setAttribute('aria-pressed', String(task.activeChat === index));
+				chats.append(chat);
+			}
+			conversation.append(chats, element('small', 'One main conversation; supporting chats stay nested. Additional chats require provider support.'));
+			const message = element('div', undefined, 'message');
+			message.append(element('strong', task.activeChat === 0 ? 'You' : 'Verification chat · sample'), element('p', task.activeChat === 0 ? task.prompt : 'Check the focused change, report test results, and preserve evidence here.'));
+			conversation.append(message);
+			conversation.append(element('h3', 'Latest reported activity'), element('p', task.activeChat === 0 ? task.update : 'This supporting chat keeps verification discussion separate without creating another top-level task.'));
+			if (task.status === 'attention') {
+				const approval = element('section', undefined, 'notice attention');
+				approval.append(element('h3', 'Confirm the scope before setup'));
+				approval.append(element('p', 'The repository cannot be inferred confidently from this request. Choose it explicitly. No repository has been cloned and no compute has been started.'));
+				const repoLabel = element('label', 'Repository (demo choices, not inferred matches)');
+				repoLabel.htmlFor = 'repository';
+				const repos = element('select');
+				repos.id = 'repository';
+				for (const name of ['Choose a repository', 'microsoft/vscode', 'example/storefront']) {
+					const option = element('option', name);
+					option.value = name === 'Choose a repository' ? '' : name;
+					repos.append(option);
+				}
+				const computeLabel = element('label', 'Execution environment');
+				computeLabel.htmlFor = 'compute';
+				const compute = element('select');
+				compute.id = 'compute';
+				for (const name of ['Local checkout / worktree', 'Existing remote host', 'Cloud sandbox (experimental)']) {
+					compute.append(element('option', name));
+				}
+				approval.append(repoLabel, repos, computeLabel, compute);
+				approval.classList.add('stack');
+				approval.append(element('small', 'Cloud requires enabled sandbox + remote-host features, service access, and authentication. Availability and cost must come from the provider; neither is checked in this demo.'));
+				const approve = button('Simulate Confirmed Handoff', () => {
+					if (!repos.value) { repos.focus(); announce('Choose a repository first.'); return; }
+					const execution = {
+						id: nextId++, title: `${task.title} — execution`, group: task.group, status: 'running',
+						repo: repos.value, compute: compute.value, pinned: false, archived: false, quick: false,
+						chats: ['Implementation'], activeChat: 0, prompt: task.prompt,
+						update: 'Preparation requested (simulated). No real clone or provisioning occurred.',
+						events: ['Context confirmed by user', 'Source conversation linked', 'Environment preparation requested (simulated)'],
+						evidence: [], sourceId: task.id
+					};
+					tasks.unshift(execution);
+					task.status = 'review';
+					task.executionId = execution.id;
+					task.update = 'Clarification complete. A separate execution session is linked; the original quick chat is preserved.';
+					openTask(execution.id);
+					announce('Demo execution session created. No code or compute was started.');
+				}, 'primary');
+				approval.append(approve);
+				conversation.append(approval);
+			}
+			if (task.sourceId || task.executionId) {
+				conversation.append(button(task.sourceId ? 'Open Source Conversation' : 'Open Execution Session', () => openTask(task.sourceId || task.executionId)));
+				conversation.append(element('p', 'Proposed handoff: separate provider-owned identities, explicit context transfer. Attachments are not copied automatically in this demo.', 'muted'));
+			}
+			if (task.status === 'running') {
+				conversation.append(button('Simulate Completion', () => {
+					task.status = 'review';
+					task.update = 'Run completed (simulated). Inspect changes and reported tests before accepting the work.';
+					task.events.push('Run completed; review requested (simulated)');
+					openTask(task.id);
+					announce('Simulated run completed; review available.');
+				}));
+				conversation.append(element('p', 'Production: offer cancel only when the provider supports it. Canceling a turn is not the same as releasing compute.', 'muted'));
+			}
+			if (task.status === 'disconnected') {
+				conversation.append(element('p', 'Keep the last known state and history visible. Reconnect to the existing environment; never silently provision a replacement.', 'notice attention'));
+				conversation.append(button('Simulate Reconnection', () => {
+					task.status = 'running';
+					task.update = 'Reconnected to the same sample environment; waiting for capture results.';
+					task.events.push('Reconnected to existing environment (simulated)');
+					openTask(task.id);
+					announce('Simulated reconnection. No replacement environment created.');
+				}));
+			}
+			conversation.append(element('h3', 'Activity timeline', 'panel'));
+			const timeline = element('ol', undefined, 'timeline');
+			task.events.forEach(event => timeline.append(element('li', event)));
+			conversation.append(timeline, element('small', 'No percentage or ETA without provider evidence. Completion means a run ended, not that a person accepted its result.'));
+			context.append(element('h2', 'Task details'));
+			const titleLabel = element('label', 'Task title');
+			titleLabel.htmlFor = 'task-title';
+			const title = element('input');
+			title.id = 'task-title';
+			title.className = 'detail-title';
+			title.value = task.title;
+			title.maxLength = 140;
+			title.addEventListener('change', () => {
+				if (title.value.trim()) {
+					task.title = title.value.trim();
+					heading.textContent = task.title;
+					announce('Task renamed.');
+				} else { title.value = task.title; }
+			});
+			context.append(titleLabel, title);
+			const groupLabel = element('label', 'Group ');
+			groupLabel.htmlFor = 'task-group';
+			const groupSelect = element('select');
+			groupSelect.id = 'task-group';
+			for (const name of ['', ...groups]) {
+				const option = element('option', name || 'Ungrouped');
+				option.value = name;
+				groupSelect.append(option);
+			}
+			groupSelect.value = task.group;
+			groupSelect.disabled = task.archived;
+			groupSelect.addEventListener('change', () => { task.group = groupSelect.value; announce('Task group changed.'); });
+			context.append(groupLabel, groupSelect);
+			context.append(element('p', 'Pins are a shortcut; groups are optional. Archiving removes group membership. Restoring does not restore the old group.', 'muted'));
+			context.append(element('h3', 'Execution recipe · proposed', 'panel'));
+			context.append(element('p', 'Repository + environment + setup + verification. Start with named presets over supported provider options, not a new universal VM scheduler.'));
+			context.append(element('small', 'Custom machine types, billing, teardown, and generic recipe execution are not available through a shared recipe API in this checkout.'));
+			context.append(element('h3', 'Evidence', 'panel'));
+			context.append(element('p', 'Attach a screenshot or recording for local preview. Nothing is uploaded or sent to a model. Only these previews are real; all run activity is simulated.', 'muted'));
+			const uploadLabel = element('label', 'Preview screenshots or recordings');
+			uploadLabel.htmlFor = 'evidence';
+			const upload = element('input');
+			upload.id = 'evidence';
+			upload.type = 'file';
+			upload.multiple = true;
+			upload.accept = 'image/png,image/jpeg,image/webp,video/mp4,video/webm';
+			upload.style.maxWidth = '100%';
+			upload.addEventListener('change', () => {
+				const allowed = new Set(['image/png', 'image/jpeg', 'image/webp', 'video/mp4', 'video/webm']);
+				let added = 0;
+				for (const file of upload.files) {
+					if (!allowed.has(file.type) || file.size > 50 * 1024 * 1024 || task.evidence.length >= 6) { continue; }
+					task.evidence.push({ name: file.name, type: file.type, url: URL.createObjectURL(file) });
+					added++;
+				}
+				openTask(task.id);
+				announce(`${added} local previews added. Limit: six files, 50 MB each; PNG, JPEG, WebP, MP4, or WebM only.`);
+			});
+			context.append(uploadLabel, upload, element('small', 'Up to 6 files, 50 MB each. Videos are references, not assumed model input. Automated capture requires a capable runner and consent.'));
+			if (!task.evidence.length) { context.append(element('p', 'No evidence attached. Never display a placeholder as a successful capture.', 'notice')); }
+			for (const file of task.evidence) {
+				const artifact = element('figure', undefined, 'artifact');
+				artifact.append(element('figcaption', `${file.name} · local preview only`));
+				const media = element(file.type.startsWith('image/') ? 'img' : 'video');
+				media.src = file.url;
+				if (media.tagName === 'IMG') { media.alt = `User-attached screenshot: ${file.name}`; }
+				else { media.controls = true; media.preload = 'metadata'; media.setAttribute('aria-label', `User-attached recording: ${file.name}`); }
+				artifact.append(media, button(`Remove ${file.name}`, () => {
+					URL.revokeObjectURL(file.url);
+					task.evidence.splice(task.evidence.indexOf(file), 1);
+					openTask(task.id);
+					announce('Local preview removed.');
+				}));
+				context.append(artifact);
+			}
+		}
+		byId('intent-form').addEventListener('submit', event => {
+			event.preventDefault();
+			const prompt = byId('intent').value.trim();
+			if (!prompt) { byId('intent').focus(); return; }
+			const task = { id: nextId++, title: prompt.slice(0, 100), group: '', status: 'attention', repo: 'Not confirmed', compute: 'Workspace-less intake (demo)', pinned: false, archived: false, quick: true, chats: ['Understand the task'], activeChat: 0, prompt, update: 'Tell me the expected outcome and confirm the repository if code changes are needed.', events: ['Intent received', 'Awaiting clarification — no execution environment created'], evidence: [] };
+			tasks.unshift(task);
+			byId('intent').value = '';
+			openTask(task.id);
+			announce('Demo intake created. No folder, clone, or compute required.');
+		});
+		byId('group-form').addEventListener('submit', event => {
+			event.preventDefault();
+			const name = byId('group-name').value.trim();
+			if (!name || groups.includes(name)) { announce('Enter a new, non-empty group name.'); return; }
+			groups.push(name);
+			byId('group-name').value = '';
+			renderNavigation();
+			if (selectedId !== undefined) { renderDetail(); }
+			announce(`Group ${name} created.`);
+		});
+		byId('search').addEventListener('input', () => { renderDashboard(); announce(`${visibleTasks().length} tasks shown.`); });
+		byId('status-filter').addEventListener('change', () => { renderDashboard(); announce(`${visibleTasks().length} tasks shown.`); });
+		byId('theme').addEventListener('change', event => { document.documentElement.dataset.theme = event.target.value; });
+		byId('accessible-view').addEventListener('click', () => showText('Dashboard as text', visibleTasks().map(task => `${task.title}\n${labels[task.status]}\n${task.repo}\n${task.compute}\n${task.update}`).join('\n\n') || 'No matching tasks.'));
+		const showHelp = () => showText('Agents dashboard help', 'This is a standalone proposal with simulated tasks. No agent runs or network requests occur.\n\nTab and Shift+Tab move between controls. Native selects use arrow keys. Enter opens a task or activates a button. Use Back to Dashboard to return. Search and status filters combine with the selected collection.\n\nOpen a task to rename, pin, group, archive, choose its chat, inspect progress, or preview local evidence. Simulate Confirmed Handoff creates a separate execution session, preserving the quick chat. Simulate Completion and Reconnection only change demo data.\n\nRead Dashboard as Text and Read Task as Text provide a plain-text summary. Escape closes this dialog and returns focus. Alt+F1 opens this help. Production would use VS Code accessible providers and a verbosity setting.\n\nNo data survives reload. Archiving never implies compute was stopped.');
+		byId('help').addEventListener('click', showHelp);
+		byId('text-dialog').addEventListener('close', () => returnFocus?.focus());
+		document.addEventListener('keydown', event => {
+			if (event.altKey && event.key === 'F1' && !byId('text-dialog').open) { event.preventDefault(); showHelp(); }
+		});
+		window.addEventListener('pagehide', () => {
+			for (const task of tasks) {
+				for (const file of task.evidence) { URL.revokeObjectURL(file.url); }
+			}
+		});
+		renderDashboard();
+	</script>
+</body>
+</html>
