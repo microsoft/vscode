@@ -21,7 +21,6 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { count } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuEntryActionViewItem, fillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -385,13 +384,15 @@ export class OutputPeekTree extends Disposable {
 		};
 
 		const getTestChildren = (result: ITestResult, test: TestResultItem, taskIndex: number): Iterable<ICompressedTreeElement<TreeElement>> => {
-			return test.tasks[taskIndex].messages
-				.map((m, messageIndex) =>
-					m.type === TestMessageType.Error
-						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: false }
-						: undefined
-				)
-				.filter(isDefined);
+			const children: ICompressedTreeElement<TreeElement>[] = [];
+			const messages = test.tasks[taskIndex].messages;
+			for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+				const m = messages[messageIndex];
+				if (m.type === TestMessageType.Error) {
+					children.push({ element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: false });
+				}
+			}
+			return children;
 		};
 
 		const getResultChildren = (result: ITestResult): ICompressedTreeElement<TreeElement>[] => {
@@ -485,6 +486,10 @@ export class OutputPeekTree extends Disposable {
 			}));
 
 			disposable.add(result.onChange(e => {
+				if (e.reason === TestResultItemChangeReason.NewMessage && e.message.type !== TestMessageType.Error) {
+					return;
+				}
+
 				// try updating the item in each of its tasks
 				for (const [index, task] of result.tasks.entries()) {
 					const taskNode = cc.get(task) as TaskElement;

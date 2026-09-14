@@ -409,6 +409,10 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				return;
 			}
 
+			if (ev.message.type === TestMessageType.Output && !ev.message.location) {
+				return;
+			}
+
 			msgThrottler.queue(() => {
 				this.applyResults();
 				return timeout(100);
@@ -678,7 +682,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				const state = test.tasks[taskId];
 				for (let i = state.messages.length - 1; i >= 0; i--) {
 					const m = state.messages[i];
-					if (m.type === TestMessageType.Output) {
+					if (m.type === TestMessageType.Output && m.location) {
 						tryAdd(test, m, buildTestUri({
 							type: TestUriType.ResultActualOutput,
 							messageIndex: i,
