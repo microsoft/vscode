@@ -62,6 +62,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
 		const timelineDisposables = new DisposableStore();
+		let disposed = false;
 
 		const convertTimelineItem = this.convertTimelineItem(provider.id, commandConverter, timelineDisposables).bind(this);
 
@@ -85,7 +86,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				}
 
 				const result = await provider.provideTimeline(uri, options, token);
-				if (result === undefined || result === null) {
+				if (disposed || result === undefined || result === null) {
 					return undefined;
 				}
 
@@ -99,9 +100,8 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				};
 			},
 			dispose() {
-				for (const sourceMap of itemsBySourceAndUriMap.values()) {
-					sourceMap.get(provider.id)?.clear();
-				}
+				disposed = true;
+				itemsBySourceAndUriMap.delete(provider.id);
 
 				disposable?.dispose();
 				timelineDisposables.dispose();
@@ -202,10 +202,6 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		this._providers.set(provider.id, { provider, extension });
 
 		return toDisposable(() => {
-			for (const sourceMap of this._itemsBySourceAndUriMap.values()) {
-				sourceMap.get(provider.id)?.clear();
-			}
-
 			this._providers.delete(provider.id);
 			this._proxy.$unregisterTimelineProvider(provider.id);
 			provider.dispose();
