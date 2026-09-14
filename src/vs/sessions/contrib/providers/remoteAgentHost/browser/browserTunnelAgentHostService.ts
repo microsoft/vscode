@@ -35,6 +35,7 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelVisibility,
 	ITunnelAgentHostService,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -446,6 +447,10 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {
