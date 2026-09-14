@@ -102,6 +102,7 @@ import { TestWorkbenchService } from './testWorkbenchService';
 import { TestWorkspaceService } from './testWorkspaceService';
 import { IGrepResultService, NullGrepResultService } from '../../../extension/tools/node/grepResultService';
 import { IRegionContextProviderService, NullRegionContextProviderService } from '../../languageContextProvider/common/regionContextProvider';
+import { ITypeScriptMetricsService, NullTypeScriptMetricsService } from '../../languageContextProvider/common/typeScriptMetrics';
 
 /**
  * Collects descriptors for services to use in testing.
@@ -271,6 +272,7 @@ export function createPlatformServices(disposables: Pick<DisposableStore, 'add'>
 	testingServiceCollection.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
 	testingServiceCollection.define(IGrepResultService, new SyncDescriptor(NullGrepResultService));
 	testingServiceCollection.define(IRegionContextProviderService, new SyncDescriptor(NullRegionContextProviderService));
+	testingServiceCollection.define(ITypeScriptMetricsService, new SyncDescriptor(NullTypeScriptMetricsService));
 	testingServiceCollection.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
 	testingServiceCollection.define(IPromptPathRepresentationService, new SyncDescriptor(TestPromptPathRepresentationService));
 	testingServiceCollection.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));

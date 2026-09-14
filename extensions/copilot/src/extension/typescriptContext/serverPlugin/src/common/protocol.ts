@@ -72,6 +72,24 @@ export type RegionResult = {
 	paths: PathInfo;
 };
 
+export type TypeScriptMetricValue = number | string;
+
+export interface TypeScriptMetrics extends Readonly<Record<string, TypeScriptMetricValue>> {
+	cognitiveComplexity: number;
+	cyclomaticComplexity: number;
+}
+
+export interface TypeScriptMetricEntity {
+	kind: string;
+	path: string[];
+	range: Range;
+	metrics: TypeScriptMetrics;
+}
+
+export interface TypeScriptMetricsResult {
+	entities: TypeScriptMetricEntity[];
+}
+
 export type WithinRangeCacheScope = {
 	kind: CacheScopeKind.WithinRange;
 	range: Range;
@@ -495,6 +513,46 @@ export namespace RegionContextResponse {
 
 export type RegionContextResponse = (tt.server.protocol.Response & {
 	body: RegionContextResponse.OK | RegionContextResponse.Failed;
+}) | { type: 'cancelled' };
+
+export interface TypeScriptMetricsRequestArgs extends tt.server.protocol.FileLocationRequestArgs {
+	content?: string;
+}
+
+export interface TypeScriptMetricsRequest extends tt.server.protocol.Request {
+	arguments?: TypeScriptMetricsRequestArgs;
+}
+
+export namespace TypeScriptMetricsResponse {
+	export type OK = TypeScriptMetricsResult;
+
+	export type Failed = CustomResponse.Failed;
+
+	export function isOk(response: TypeScriptMetricsResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
+		if (response?.type !== 'response') {
+			return false;
+		}
+		const body = response.body as OK | undefined;
+		return Array.isArray(body?.entities) && body.entities.every(entity =>
+			typeof entity.kind === 'string'
+			&& Array.isArray(entity.path)
+			&& entity.path.every(segment => typeof segment === 'string')
+			&& typeof entity.range?.start?.line === 'number'
+			&& typeof entity.range.start.character === 'number'
+			&& typeof entity.range?.end?.line === 'number'
+			&& typeof entity.range.end.character === 'number'
+			&& typeof entity.metrics?.cognitiveComplexity === 'number'
+			&& typeof entity.metrics.cyclomaticComplexity === 'number'
+		);
+	}
+
+	export function isError(response: TypeScriptMetricsResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {
+		return response?.type === 'response' && CustomResponse.isError(response);
+	}
+}
+
+export type TypeScriptMetricsResponse = (tt.server.protocol.Response & {
+	body: TypeScriptMetricsResponse.OK | TypeScriptMetricsResponse.Failed;
 }) | { type: 'cancelled' };
 
 export namespace ComputeContextResponse {

@@ -5,8 +5,9 @@
 import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
 import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
-import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RegionContextRequest, type RegionContextResponse, type RenameGroup } from '../common/protocol';
+import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RegionContextRequest, type RegionContextResponse, type RenameGroup, type TypeScriptMetricsRequest, type TypeScriptMetricsResponse } from '../common/protocol';
 import { RegionContextProvider } from '../common/regionContextProvider';
+import { TypeScriptMetricsProvider } from '../common/codeMetrics';
 import { CancellationTokenWithTimer, Sessions } from '../common/typescripts';
 const ts = TS();
 
@@ -104,6 +105,10 @@ interface NesRenameHandlerResponse extends tt.server.HandlerResponse {
 
 interface RegionContextHandlerResponse extends tt.server.HandlerResponse {
 	response: RegionContextResponse.OK | RegionContextResponse.Failed;
+}
+
+interface TypeScriptMetricsHandlerResponse extends tt.server.HandlerResponse {
+	response: TypeScriptMetricsResponse.OK | TypeScriptMetricsResponse.Failed;
 }
 
 let installAttempted: boolean = false;
@@ -225,6 +230,36 @@ const regionContextHandler = (request: RegionContextRequest): RegionContextHandl
 	}
 };
 
+const typeScriptMetricsHandler = (request: TypeScriptMetricsRequest): TypeScriptMetricsHandlerResponse => {
+	const input = resolveInput(request.arguments, 0);
+	if (FailedHandlerResponse.is(input)) {
+		return input;
+	}
+
+	try {
+		const content = request.arguments?.content;
+		if (content !== undefined && typeof content !== 'string') {
+			return { response: { error: ErrorCode.invalidArguments, message: 'Content must be a string' }, responseRequired: true };
+		}
+		const programSourceFile = input.program.getSourceFile(input.file);
+		const sourceFile = content === undefined
+			? programSourceFile
+			: ts.createSourceFile(
+				input.file,
+				content,
+				input.program.getCompilerOptions().target ?? ts.ScriptTarget.Latest,
+				true,
+			);
+		const result = sourceFile === undefined ? undefined : new TypeScriptMetricsProvider().compute(sourceFile);
+		return { response: result ?? { entities: [] }, responseRequired: true };
+	} catch (error) {
+		if (error instanceof Error) {
+			return { response: { error: ErrorCode.exception, message: error.message, stack: error.stack }, responseRequired: true };
+		}
+		return { response: { error: ErrorCode.exception, message: 'Unknown error' }, responseRequired: true };
+	}
+};
+
 const prepareNesRenameHandler = (request: PrepareNesRenameRequest): PrepareNesRenameHandlerResponse => {
 	const input = resolveInput(request.arguments, 50);
 	if (FailedHandlerResponse.is(input)) {
@@ -295,6 +330,7 @@ export function create(info: tt.server.PluginCreateInfo): tt.LanguageService {
 					languageServiceHost = info.languageServiceHost;
 					info.session.addProtocolHandler('_.copilot.context', computeContextHandler);
 					info.session.addProtocolHandler('_.copilot.regionContext', regionContextHandler);
+					info.session.addProtocolHandler('_.copilot.typeScriptMetrics', typeScriptMetricsHandler);
 					info.session.addProtocolHandler('_.copilot.prepareNesRename', prepareNesRenameHandler);
 					info.session.addProtocolHandler('_.copilot.postNesRename', nesRenameHandler);
 				}
