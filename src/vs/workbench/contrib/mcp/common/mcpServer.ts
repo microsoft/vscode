@@ -5,6 +5,7 @@
 
 import { AsyncIterableProducer, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
@@ -1417,9 +1418,21 @@ export class McpTool implements IMcpTool {
 				const state = this._server.connectionState.get();
 				if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
 					return this._callWithProgress(params, progress, context, token, false);
-				} else {
-					throw err;
 				}
+
+				// A disconnected transport cancels pending requests, but that is not caller cancellation.
+				if (isCancellationError(err) && !token.isCancellationRequested) {
+					if (state.state === McpConnectionState.Kind.Error) {
+						throw new McpConnectionFailedError(localize('mcp.toolConnectionFailed', "MCP connection failed: {0}", state.message));
+					}
+					if (state.state === McpConnectionState.Kind.Stopped) {
+						throw new McpConnectionFailedError(state.reason === 'needs-user-interaction'
+							? localize('mcp.toolInteractionRequired', "MCP server requires user interaction before this tool can run.")
+							: localize('mcp.toolDisconnected', "MCP server disconnected during the tool call."));
+					}
+				}
+
+				throw err;
 			} finally {
 				store.dispose();
 			}
