@@ -39,6 +39,7 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
+- **[svg.ts](../../build/next/svg.ts)** - Production-only SVG finishing, independent of the legacy gulp infrastructure
 
 ### Fast Non-Watch Incremental Builds
 
@@ -57,6 +58,25 @@ In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` tas
 - `runEsbuildBundle()` → bundle command
 
 Old gulp-based bundling renamed to `core-ci-old`.
+
+### Production SVG Optimization
+
+`bundle --minify` finishes every `.svg` file in the completed output tree through `optimizeSvgFiles()`. This runs after esbuild output writes, curated resource copying, standalone compilation, and additional web bundles, but before the bundle command resolves and downstream packaging computes checksums/integrity. Desktop, server-web, and standalone web share this stage; server outputs with no SVGs are a no-op.
+
+- The stage and its direct `svgo` / `@types/svgo` dependencies belong to the new build tooling. It does not import the legacy optimizer, gulp, or the gulp facade.
+- SVGO is pinned to **2.8.3**, matching the legacy `gulp-svgmin` dependency. Use its single-pass `preset-default`, not a newly upgraded optimizer or a discovered external config.
+- Intentional safety overrides retain IDs (including external fragments and ARIA references), `viewBox`, titles/descriptions, hidden elements, unknown attributes such as `focusable`, roles, comments, and metadata. Style inlining/minification and group collapsing are disabled: the legacy CSS usage pruning drops spinner keyframes, collapsing groups changes positional selectors, and CSS comments can contain licensing information. Other preset optimizations, including path and number compaction, remain enabled.
+- Only regular output files are considered. Sources are never rewritten, files are only replaced when smaller, and any optimization/read/write failure rejects the build with the affected path.
+- Non-minified bundles and development/transpile/watch/build-fast resource copying remain byte-preserving. There is no extension-resource finishing change.
+
+Focused validation (no client compilation required):
+
+```bash
+node --test build/next/test/svg.test.ts build/next/test/transpile.test.ts
+node build/next/index.ts bundle --minify --nls --target server-web --out out-svg-test
+```
+
+The `[svg]` build log reports actual input/output byte counts. These are uncompressed asset-size savings, not a startup or latency measurement. When changing the optimizer configuration, also compare representative rendered icons, themed illustrations, and animations.
 
 ---
 
