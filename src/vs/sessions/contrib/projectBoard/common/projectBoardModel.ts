@@ -26,6 +26,8 @@ export interface IProjectBoardCard {
 	readonly status: SessionStatus;
 	readonly isRead: boolean;
 	readonly description: string | undefined;
+	readonly archived: boolean;
+	readonly readOnly: boolean;
 }
 
 export const projectBoardRows: readonly IProjectBoardAxis[] = [
@@ -65,6 +67,8 @@ export class ProjectBoardModel {
 					status: chat.status.read(reader),
 					isRead: chat.isRead.read(reader),
 					description: chat.description.read(reader)?.value,
+					archived: !!(session.isArchived?.read(reader) || chat.isArchived?.read(reader)),
+					readOnly: chat.interactivity.read(reader) === ChatInteractivity.ReadOnly,
 				});
 			}
 		}
@@ -89,14 +93,14 @@ export class ProjectBoardModel {
 		this.placements.set(cardId, placement);
 	}
 
-	getUnassignedCards(): readonly IProjectBoardCard[] {
-		return this._cards.filter(card => !this.placements.has(card.id));
+	getUnassignedCards(showArchived = false): readonly IProjectBoardCard[] {
+		return this._cards.filter(card => (showArchived || !card.archived) && !this.placements.has(card.id));
 	}
 
-	getCards(rowId: string, columnId: string): readonly IProjectBoardCard[] {
+	getCards(rowId: string, columnId: string, showArchived = false): readonly IProjectBoardCard[] {
 		return this._cards.filter(card => {
 			const placement = this.placements.get(card.id);
-			return placement?.rowId === rowId && placement.columnId === columnId;
+			return (showArchived || !card.archived) && placement?.rowId === rowId && placement.columnId === columnId;
 		});
 	}
 }

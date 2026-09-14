@@ -238,3 +238,21 @@
 	margin: 6px 0;
 	padding-left: var(--vscode-spacing-size200, 20px);
 }
+
+.project-board-attention {
+	display: block;
+	margin-bottom: var(--vscode-spacing-size80);
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.project-board-more,
+.project-board-less {
+	margin-top: var(--vscode-spacing-size80);
+	width: auto;
+}
+
+.project-board-card-lifecycle {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
