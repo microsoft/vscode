@@ -141,6 +141,7 @@ export class SessionComparisonEditor extends EditorPane {
 			if (comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Synthesis)) {
 				this._renderSynthesis(content, comparison);
 			}
+			this._renderRecommendationActions(content, comparison, attempts);
 			return;
 		}
 		dom.append(content, dom.$('h1.session-comparison-title')).textContent = comparison.title;
@@ -193,29 +194,37 @@ export class SessionComparisonEditor extends EditorPane {
 				dom.append(list, dom.$('li')).textContent = conflict;
 			}
 		}
-		const actions = dom.append(panel, dom.$('.session-comparison-actions'));
-		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
-		if (!synthesis) {
-			this._appendSynthesizeButton(actions, comparison);
+	}
+
+	private _renderRecommendationActions(container: HTMLElement, comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[]): void {
+		const recommended = attempts.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
+		if (!recommended) {
+			return;
 		}
+		const index = attempts.indexOf(recommended);
+		const actions = dom.append(container, dom.$('.session-comparison-actions.session-comparison-result-actions'));
 		if (recommended.sessionResource) {
-			const review = this._contentStore.value?.add(new Button(actions, {
+			const focusWinner = this._contentStore.value?.add(new Button(actions, {
 				...defaultButtonStyles,
 				secondary: true,
-				ariaLabel: localize('sessionComparisonEditor.reviewWinningAttemptAriaLabel', "Review winning attempt, {0}", getSessionComparisonAttemptLabel(recommended, index)),
+				ariaLabel: localize('sessionComparisonEditor.focusWinningSessionAriaLabel', "Focus winning session, {0}", getSessionComparisonAttemptLabel(recommended, index)),
 			}));
-			if (review) {
-				review.label = localize('sessionComparisonEditor.reviewWinningAttempt', "Review Winning Attempt");
-				this._contentStore.value?.add(review.onDidClick(async () => {
-					review.enabled = false;
+			if (focusWinner) {
+				focusWinner.label = localize('sessionComparisonEditor.focusWinningSession', "Focus Winning Session");
+				this._contentStore.value?.add(focusWinner.onDidClick(async () => {
+					focusWinner.enabled = false;
 					try {
-						await this._reviewAttempt(comparison, recommended);
+						await this._focusAttempt(comparison, recommended);
 					} catch (error) {
 						this.notificationService.error(error);
-						review.enabled = true;
+						focusWinner.enabled = true;
 					}
 				}));
 			}
+		}
+		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
+		if (!synthesis) {
+			this._appendSynthesizeButton(actions, comparison);
 		}
 	}
 
@@ -258,12 +267,12 @@ export class SessionComparisonEditor extends EditorPane {
 	private _appendSynthesizeButton(container: HTMLElement, comparison: ISessionComparison): void {
 		const button = this._contentStore.value?.add(new Button(container, {
 			...defaultButtonStyles,
-			ariaLabel: localize('sessionComparisonEditor.synthesizeBestAriaLabel', "Synthesize the best implementation from all attempts"),
+			ariaLabel: localize('sessionComparisonEditor.synthesizeBestAriaLabel', "Synthesize the best concepts from all attempts"),
 		}));
 		if (!button) {
 			return;
 		}
-		button.label = localize('sessionComparisonEditor.synthesizeBest', "Synthesize Best Implementation");
+		button.label = localize('sessionComparisonEditor.synthesizeBest', "Synthesize Best Concepts");
 		this._contentStore.value?.add(button.onDidClick(async () => {
 			button.enabled = false;
 			try {
@@ -273,6 +282,14 @@ export class SessionComparisonEditor extends EditorPane {
 				button.enabled = true;
 			}
 		}));
+	}
+
+	private async _focusAttempt(comparison: ISessionComparison, participant: ISessionComparisonParticipant): Promise<void> {
+		if (!participant.sessionResource) {
+			return;
+		}
+		this.sessionComparisonService.selectAttempt(comparison.id, participant.id);
+		await this.sessionsService.openSession(participant.sessionResource, { source: 'chat' });
 	}
 
 	private _renderAttempt(container: HTMLElement, comparison: ISessionComparison, participant: ISessionComparisonParticipant, index: number): void {

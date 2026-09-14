@@ -200,6 +200,12 @@
 	margin-top: var(--vscode-spacing-size120);
 }
 
+.session-comparison-result-actions {
+	margin-top: var(--vscode-spacing-size240);
+	padding-top: var(--vscode-spacing-size160);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
 .session-comparison-section {
 	margin-top: var(--vscode-spacing-size240);
 	padding-top: var(--vscode-spacing-size160);

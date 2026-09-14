@@ -312,7 +312,43 @@
 	}
 
 	&.session-comparison-participant[data-session-group-connector] .session-icon {
-		visibility: hidden;
+		align-self: stretch;
+		width: var(--vscode-spacing-size160);
+
+		&::before,
+		&::after {
+			position: absolute;
+			content: '';
+		}
+
+		&::before {
+			top: var(--vscode-spacing-size80);
+			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
+			width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+			height: 0;
+			border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		}
+
+		&::after {
+			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
+			width: 0;
+			border-left: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		}
+	}
+
+	&.session-comparison-participant[data-session-group-connector='first'] .session-icon::after {
+		top: var(--vscode-spacing-size80);
+		bottom: calc(-1 * var(--vscode-spacing-size20));
+	}
+
+	&.session-comparison-participant[data-session-group-connector='middle'] .session-icon::after {
+		top: calc(-1 * var(--vscode-spacing-size20));
+		bottom: calc(-1 * var(--vscode-spacing-size20));
+	}
+
+	&.session-comparison-participant[data-session-group-connector='last'] .session-icon::after {
+		top: calc(-1 * var(--vscode-spacing-size20));
+		bottom: calc(100% - var(--vscode-spacing-size80));
 	}
 
 	.session-main {

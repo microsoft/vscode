@@ -2046,14 +2046,15 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(400, 400);
-			return { attempt1, attempt2, container, harness };
+			return { attempt1, attempt2, judge, container, harness };
 		}
 
 		test('renders a focal parent and compact attempts in participant order', () => {
 			const { attempt1, attempt2, container } = renderComparison();
 			const parent = container.querySelector<HTMLElement>('.session-comparison-group');
-			assert.ok(parent);
 			const attempts = [...container.querySelectorAll<HTMLElement>('.session-comparison-attempt')];
+			const judge = container.querySelector<HTMLElement>('.session-comparison-participant:not(.session-comparison-attempt)');
+			assert.ok(parent && judge);
 
 			assert.deepStrictEqual({
 				parent: {
@@ -2065,10 +2066,17 @@ suite('Sessions - SessionsList', () => {
 				attempts: attempts.map(attempt => ({
 					title: attempt.querySelector('.session-title')?.textContent,
 					status: attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent,
+					hasSpinner: attempt.querySelector('.session-comparison-attempt-status-icon')?.classList.contains('codicon-modifier-spin'),
 					details: attempt.querySelector('.session-details-row')?.textContent,
 					height: attempt.closest<HTMLElement>('.monaco-list-row')?.style.height,
 					connectorVisibility: mainWindow.getComputedStyle(attempt.querySelector<HTMLElement>('.session-icon')!).visibility,
 				})),
+				judge: {
+					title: judge.querySelector('.session-title')?.textContent,
+					inProgress: judge.classList.contains('in-progress'),
+					hasProgressIndicator: judge.querySelector('.session-icon')?.childElementCount === 1,
+					connectorVisibility: mainWindow.getComputedStyle(judge.querySelector<HTMLElement>('.session-icon')!).visibility,
+				},
 			}, {
 				parent: {
 					title: 'Improve the picker',
@@ -2077,9 +2085,10 @@ suite('Sessions - SessionsList', () => {
 					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
 				},
 				attempts: [
-					{ title: 'Attempt 1: Copilot · Claude Opus 5', status: undefined, details: '', height: '30px', connectorVisibility: 'hidden' },
-					{ title: 'Attempt 2: Codex · GPT-5', status: undefined, details: '', height: '30px', connectorVisibility: 'hidden' },
+					{ title: 'Attempt 1: Copilot · Claude Opus 5', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Attempt 2: Codex · GPT-5', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
 				],
+				judge: { title: 'Judge', inProgress: true, hasProgressIndicator: true, connectorVisibility: 'visible' },
 			});
 
 			attempt1.status.set(SessionStatus.Completed, undefined);

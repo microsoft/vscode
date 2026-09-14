@@ -4393,6 +4393,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!comparison) {
 			return false;
 		}
+		if (getSessionRowStatus(session, reader, false) === SessionStatus.InProgress) {
+			return true;
+		}
 		const statuses = comparison.participants
 			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt)
 			.map(participant => {

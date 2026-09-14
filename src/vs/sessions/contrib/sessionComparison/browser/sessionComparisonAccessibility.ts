@@ -30,7 +30,7 @@ export class SessionComparisonAccessibilityHelp implements IAccessibleViewImplem
 		}
 		const content = [
 			localize('sessionComparisonAccessibilityHelp.overview', "You are in an implementation attempt comparison. After review, it identifies the winning attempt, explains the evidence, and lists strong points from the other attempts."),
-			localize('sessionComparisonAccessibilityHelp.navigation', "When the Judge finishes, its chat closes and this comparison opens automatically. Use Synthesize Best Implementation to combine the strongest work in a new attempt, or Review Winning Attempt to open the winner and its changes. Use Tab and Shift+Tab to move between actions. Press Enter or Space to activate the focused action."),
+			localize('sessionComparisonAccessibilityHelp.navigation', "When the Judge finishes, its chat closes and this comparison opens automatically. At the bottom of the result, use Synthesize Best Concepts to combine the strongest work in a new attempt, or Focus Winning Session to return to the winner. Use Tab and Shift+Tab to move between actions. Press Enter or Space to activate the focused action."),
 			localize('sessionComparisonAccessibilityHelp.view', "Use Open Accessible View to read the comparison result as plain text."),
 		].join('\n');
 		return new AccessibleContentProvider(
