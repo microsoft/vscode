@@ -149,11 +149,14 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
-export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, index: number): string {
-	const harnessLabel = participant.harness.modelLabel
+export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
+	return participant.harness.modelLabel
 		? localize('sessionComparison.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
 		: participant.harness.label;
-	return localize('sessionComparison.attemptTitle', "Attempt {0}: {1}", index + 1, harnessLabel);
+}
+
+export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, index: number): string {
+	return localize('sessionComparison.attemptTitle', "Attempt {0}: {1}", index + 1, getSessionComparisonHarnessLabel(participant));
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {

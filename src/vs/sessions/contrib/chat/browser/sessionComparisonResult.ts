@@ -18,7 +18,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 
 export class SessionComparisonResult extends Disposable {
 
@@ -160,7 +160,7 @@ export class SessionComparisonResult extends Disposable {
 
 	private renderSynthesisPlan(comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[]): void {
 		const decisionSections = comparison.verdict?.decisionSections ?? [];
-		const attemptLabels = new Map(attempts.map((attempt, index) => [attempt.id, getSessionComparisonAttemptLabel(attempt, index)]));
+		const attemptLabels = new Map(attempts.map(attempt => [attempt.id, getSessionComparisonHarnessLabel(attempt)]));
 		const storedSelections = new Map(comparison.synthesisPlan?.selections.map(selection => [selection.sectionId, selection.participantId]));
 		const selections = new Map<string, string | undefined>();
 		const details = dom.append(this.domNode, dom.$('details.session-comparison-synthesis-plan'));

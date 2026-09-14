@@ -149,6 +149,10 @@ suite('Sessions - Comparison Result', () => {
 			layouts,
 			synthesisPlanSummary: synthesisPlanSummary?.textContent,
 			synthesisSelectLabel: synthesisSelect?.getAttribute('aria-label'),
+			synthesisSelect: {
+				hasAttemptNumber: synthesisSelect?.textContent?.includes('Attempt 2'),
+				hasHarness: synthesisSelect?.textContent?.includes('Codex'),
+			},
 			accessibility,
 		}, {
 			content: {
@@ -166,6 +170,10 @@ suite('Sessions - Comparison Result', () => {
 			layouts: 2,
 			synthesisPlanSummary: 'Customize Synthesis',
 			synthesisSelectLabel: 'Approach for Error handling',
+			synthesisSelect: {
+				hasAttemptNumber: false,
+				hasHarness: true,
+			},
 			accessibility: {
 				regionRole: 'region',
 				regionLabelledBy: title?.id,
