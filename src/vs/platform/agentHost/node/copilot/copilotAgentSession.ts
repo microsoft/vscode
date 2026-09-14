@@ -88,6 +88,7 @@ import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCus
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { createCopilotFactoryRunReader, readCopilotFactoryRuns } from './copilotFactoryRuns.js';
+import { isSessionFactoryRunTerminal } from '../../common/sessionFactoryRuns.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
@@ -248,6 +249,13 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
  * Factory. Offered only while Agent Factories are enabled for the session.
  */
 const PLAN_ACTION_AUTOPILOT_FACTORIES = 'autopilot_factories';
+
+/**
+ * How often live factory runs are re-read. The runtime's `factory.run_updated`
+ * fires only on start and settle, so this is what keeps phases, agents, and
+ * progress current in the UI while a run executes.
+ */
+const FACTORY_RUNS_LIVE_POLL_INTERVAL_MS = 3_000;
 
 /**
  * Steering prompt sent after a plan is approved with
@@ -886,6 +894,12 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
 	/** Coalesces bursts of `factory.run_*` events into one read of the session's factory runs. */
 	private readonly _factoryRunsRefreshThrottler = this._register(new Throttler());
+	/** Re-reads live factory runs between the runtime's sparse invalidation events. */
+	private readonly _factoryRunsPoll = this._register(new RunOnceScheduler(() => {
+		void this._refreshFactoryRuns().catch(err => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to poll factory runs: ${getErrorMessage(err)}`);
+		});
+	}, FACTORY_RUNS_LIVE_POLL_INTERVAL_MS));
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
 	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAssistedApproval | undefined>();
@@ -1685,6 +1699,11 @@ export class CopilotAgentSession extends Disposable {
 	 * them for every client surface. The SDK's `factory.run_updated` event is an
 	 * invalidation signal rather than a payload, so each burst collapses into one
 	 * read of the durable state.
+	 *
+	 * The runtime emits that invalidation only when a run starts and when it
+	 * settles; phase, agent, progress, and accounting revisions in between commit
+	 * silently. While any run is live the runs are therefore also re-read on a
+	 * timer, the same fallback the SDK's own `waitForRun` relies on.
 	 */
 	private _refreshFactoryRuns(): Promise<void> {
 		return this._factoryRunsRefreshThrottler.queue(async () => {
@@ -1695,7 +1714,18 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._onDidSessionProgress.fire({ kind: 'factory_runs_changed', session: this._ownerSessionUri, runs });
+			this._scheduleLiveFactoryRunsPoll(runs.some(run => !isSessionFactoryRunTerminal(run.status)));
 		});
+	}
+
+	private _scheduleLiveFactoryRunsPoll(hasLiveRun: boolean): void {
+		if (!hasLiveRun || this._store.isDisposed) {
+			this._factoryRunsPoll.cancel();
+			return;
+		}
+		if (!this._factoryRunsPoll.isScheduled()) {
+			this._factoryRunsPoll.schedule();
+		}
 	}
 
 	private _isAgentFactoriesEnabled(): boolean {

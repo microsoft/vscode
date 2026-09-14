@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, FactoryRunStatus, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -12,6 +12,7 @@ import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -311,6 +312,49 @@ class MockCopilotSession {
 			throw this.disconnectError;
 		}
 	}
+
+	/** Factory runs `session.factory.listRuns()` reports; `getRunDetail` expands each into a minimal detail. */
+	factoryRuns: Array<{ runId: string; status: FactoryRunStatus }> = [];
+	factoryListRunsCalls = 0;
+	factoryListRunsError: Error | undefined;
+	readonly factory = {
+		listRuns: async () => {
+			this.factoryListRunsCalls++;
+			if (this.factoryListRunsError) {
+				throw this.factoryListRunsError;
+			}
+			return this.factoryRuns.map(run => ({ runId: run.runId, status: run.status }));
+		},
+		getRunDetail: async (runId: string) => {
+			const run = this.factoryRuns.find(candidate => candidate.runId === runId);
+			assert.ok(run, `unknown factory run ${runId}`);
+			return {
+				runId,
+				factoryName: 'factory',
+				description: '',
+				status: run.status,
+				revision: 1,
+				createdAt: 0,
+				startedAt: null,
+				updatedAt: 0,
+				completedAt: null,
+				currentPhase: null,
+				declaredPhaseCount: 0,
+				liveAgentCount: 0,
+				totalSpawnedAgentCount: 0,
+				consumed: { activeMs: 0, subagents: 0, nanoAiu: 0 },
+				declaredLimits: {},
+				approved: null,
+				observedAt: 0,
+				activeSegmentStartedAt: null,
+				terminal: null,
+				phases: [],
+				agents: [],
+				progress: { records: [], oldestSeq: null, newestSeq: null, hasMoreOlder: false, hasMoreNewer: false, revision: 1 },
+			};
+		},
+		getRun: async (runId: string) => ({ runId, status: 'completed' as const }),
+	};
 
 	readonly rpc = {
 		agent: {
@@ -12365,6 +12409,63 @@ Use the attached image as context.
 
 			assert.deepStrictEqual(await permission, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
+	});
+
+	// ---- Agent Factories ------------------------------------------------------
+
+	suite('agent factories', () => {
+
+		test('publishes factory runs on the runtime invalidation events', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.factoryRuns = [{ runId: 'run-1', status: 'completed' }];
+
+			mockSession.fire('factory.run_settled', { runId: 'run-1', attempt: 1, factoryName: 'factory', status: 'completed' } as never, { ephemeral: true } as never);
+			await timeout(0);
+
+			const published = signals.filter(signal => signal.kind === 'factory_runs_changed');
+			assert.deepStrictEqual({
+				count: published.length,
+				runIds: published.at(-1)?.kind === 'factory_runs_changed' ? published.at(-1)!.runs.map(run => run.runId) : undefined,
+				session: published.at(-1)?.kind === 'factory_runs_changed' ? published.at(-1)!.session.toString() : undefined,
+			}, {
+				count: 1,
+				runIds: ['run-1'],
+				session: 'copilot:/test-session-1',
+			});
+		});
+
+		test('keeps re-reading while a run is live, since the runtime does not invalidate mid-run revisions', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 200 }, async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.factoryRuns = [{ runId: 'run-1', status: 'running' }];
+
+			mockSession.fire('factory.run_started', { runId: 'run-1', attempt: 1, factoryName: 'factory' } as never, { ephemeral: true } as never);
+			await timeout(0);
+			const afterEvent = mockSession.factoryListRunsCalls;
+			await timeout(3_000);
+			await timeout(3_000);
+			const afterTwoPolls = mockSession.factoryListRunsCalls;
+
+			// Settling stops the poll: the next tick reads once more, sees no live run, and stays quiet afterwards.
+			mockSession.factoryRuns = [{ runId: 'run-1', status: 'completed' }];
+			await timeout(3_000);
+			const afterSettle = mockSession.factoryListRunsCalls;
+			await timeout(30_000);
+
+			const lastPublished = signals.filter(signal => signal.kind === 'factory_runs_changed').at(-1);
+			assert.deepStrictEqual({
+				afterEvent,
+				afterTwoPolls,
+				afterSettle,
+				afterIdle: mockSession.factoryListRunsCalls,
+				lastStatus: lastPublished?.kind === 'factory_runs_changed' ? lastPublished.runs[0].status : undefined,
+			}, {
+				afterEvent: 1,
+				afterTwoPolls: 3,
+				afterSettle: 4,
+				afterIdle: 4,
+				lastStatus: 'completed',
+			});
+		}));
 	});
 
 	// ---- Plan mode ----------------------------------------------------------
