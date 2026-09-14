@@ -461,6 +461,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 						e.event.stopPropagation();
 						return;
 					}
+				}
 			}
 		}));
 		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, undefined, this._store)(evts => {

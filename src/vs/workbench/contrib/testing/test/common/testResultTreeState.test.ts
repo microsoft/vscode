@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { shouldSkipTestOutputDecoration, TestResultTreeState } from '../../common/testResultTreeState.js';
-import { TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from '../../common/testTypes.js';
+import { ITestOutputMessage, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from '../../common/testTypes.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 const testItem = (id: string): TestResultItem => ({
@@ -58,8 +59,8 @@ suite('TestResultTreeState', () => {
 	});
 
 	test('does not skip task-level located output refreshes', () => {
-		const locatedOutput = { type: TestMessageType.Output, message: 'setup', offset: 0, length: 5, location: { uri: URI.file('/test/file.ts'), range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } } };
-		const unlocatedTestOutput = { type: TestMessageType.Output, message: 'stdout', offset: 0, length: 6, location: undefined };
+		const locatedOutput: ITestOutputMessage = { type: TestMessageType.Output, message: 'setup', offset: 0, length: 5, location: { uri: URI.file('/test/file.ts'), range: new Range(1, 1, 1, 1) } };
+		const unlocatedTestOutput: ITestOutputMessage = { type: TestMessageType.Output, message: 'stdout', offset: 0, length: 6, location: undefined };
 		const item = testItem('known');
 
 		assert.deepStrictEqual([
