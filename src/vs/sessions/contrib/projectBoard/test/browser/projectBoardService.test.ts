@@ -32,6 +32,10 @@ import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/proje
 import { IProjectBoardCard } from '../../common/projectBoardModel.js';
 import { ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
+import { IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
 class TestChat extends mock<IChat>() {
 	override readonly title = observableValue('title', this.name);
@@ -94,6 +98,11 @@ suite('ProjectBoardService', () => {
 		const errors = store.add(new Emitter<string>());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IStorageService, storage);
+		const loadedModels = observableValue<Iterable<IChatModel>>('models', []);
+		instantiationService.stub(IChatService, { chatModels: loadedModels });
+		instantiationService.stub(IChatSessionsService, { getMaterializedSessionResource: () => undefined });
+		const metadata = observableValue<IProjectBoardMetadata>('metadata', { kind: 'unavailable', message: 'Prompt unavailable' });
+		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, dispose() { } });
 		const openedContext: string[] = [];
 		instantiationService.stub(IOpenerService, {
 			open: async (resource, options) => {
@@ -157,7 +166,7 @@ suite('ProjectBoardService', () => {
 			}(),
 			contextMenu,
 		));
-		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, openedContext, instantiationService };
+		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, openedContext, instantiationService, metadata, loadedModels };
 	}
 
 	test('PB-01 renders in an auxiliary document and reuses the window', async () => {
@@ -703,6 +712,22 @@ suite('ProjectBoardService', () => {
 			chat.title.set('Updated menu owner', undefined);
 			assert.strictEqual(contextHost.parentElement, h.container);
 			assert.strictEqual(h.container.querySelectorAll('.project-board').length, 1);
+		});
+
+		test('PB-07/PB-11 last prompt and submission time are explicit and metadata previews stay bounded', async () => {
+			const chats = Array.from({ length: 17 }, (_, index) => new TestChat(`Prompt ${index.toString().padStart(2, '0')}`));
+			const h = createBoard(mainWindow.document, chats);
+			h.metadata.set({ kind: 'ready', prompt: 'A submitted prompt', submittedAt: 1000, context: [] }, undefined);
+			await h.service.open();
+			assert.strictEqual(h.container.querySelectorAll('[data-submitted-at="1000"]').length, 16);
+			assert.ok(h.container.textContent?.includes('Metadata preview limit reached'));
+			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent), [...Array(16).fill('A submitted prompt'), 'Prompt unavailable']);
+			chats[0].title.set('Agent-updated title', undefined);
+			chats[0].isRead.set(true, undefined);
+			assert.strictEqual(h.container.querySelector('[data-submitted-at]')?.getAttribute('data-submitted-at'), '1000');
+			h.metadata.set({ kind: 'ready', prompt: 'A prompt without a known timestamp', context: [] }, undefined);
+			assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
+			assert.ok(h.container.textContent?.includes('Recency unavailable'));
 		});
 	});
 });
