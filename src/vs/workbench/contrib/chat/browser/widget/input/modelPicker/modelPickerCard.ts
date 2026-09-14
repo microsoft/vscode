@@ -116,7 +116,7 @@ export class ModelCard extends DisposableStore {
 		try {
 			const changes = await this._configurationChanges.queue(async () => {
 				const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].flatMap(group => {
-					const property = this._configProperty(group);
+					const property = getModelConfigProperty(options.model, options.configurationAccess, group);
 					return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
 						? [{ group, key: property.key, fromValue: property.value, toValue: values[property.key] }]
 						: [];

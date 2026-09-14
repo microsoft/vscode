@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import type { MultiDiffEditorVariant } from '../../../common/multiDiffEditor.js';
 
-export const enum MultiDiffEditorVariant {
-	Standard = 'standard',
-	Compact = 'compact',
-}
+export type { MultiDiffEditorVariant } from '../../../common/multiDiffEditor.js';
+export { multiDiffEditorVariants } from '../../../common/multiDiffEditor.js';
 
 export interface IMultiDiffEditorWidgetOptions {
+	/** Selects the layout and density treatment for the multi-diff editor. */
 	readonly variant: MultiDiffEditorVariant;
 	readonly diffEditorOptions?: IDiffEditorOptions;
 }
@@ -25,7 +25,7 @@ export interface IMultiDiffEditorVariantConfiguration {
 
 export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorVariant): IMultiDiffEditorVariantConfiguration {
 	switch (variant) {
-		case MultiDiffEditorVariant.Standard:
+		case 'noCardsNonCompact':
 			return {
 				className: 'multiDiffEditor-standard',
 				horizontalInsets: { left: 9, right: 9 },
@@ -33,7 +33,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 				contentBottomPadding: 0,
 				headerClickToCollapse: false,
 			};
-		case MultiDiffEditorVariant.Compact:
+		case 'noCards':
 			return {
 				className: 'multiDiffEditor-compact',
 				horizontalInsets: { left: 0, right: 0 },

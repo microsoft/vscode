@@ -27,10 +27,12 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { GitHubIssueState, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
+import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
+import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
+import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -95,61 +97,89 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	for (const activation of ['click', 'Enter', 'Space'] as const) {
-		test(`opens Session Changes from the changes pill with ${activation}`, () => {
-			const { instantiationService } = createServices();
-			const session = upcastPartial<IActiveSession>({
-				sessionId: 'provider:session',
-				capabilities: constObservable({ supportsMultipleChats: false }),
-				resource: URI.parse('session:1'),
-				chats: constObservable([]),
-				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
-				changesets: constObservable([]),
-				changes: constObservable([{
-					modifiedUri: URI.file('/session-change.ts'),
-					insertions: 10,
-					deletions: 4,
-				}]),
-			});
-			const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
-			instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
-				calls.push({ action: 'activate', resource: session?.resource });
-			});
-			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
-				revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
-			}));
-			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
-				openChangesEditor: async (resource, options) => {
-					calls.push({ action: 'open', resource, options });
-					return undefined;
-				},
-			}));
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
-			toolbar.setSession(session, undefined);
-			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
-			assert.ok(pill);
-
-			if (activation === 'click') {
-				pill.click();
-			} else {
-				pill.dispatchEvent(new KeyboardEvent('keydown', {
-					key: activation === 'Enter' ? 'Enter' : ' ',
-					keyCode: activation === 'Enter' ? 13 : 32,
-					bubbles: true,
+	for (const worktree of [false, true]) {
+		for (const activation of ['click', 'Enter', 'Space'] as const) {
+			test(`opens ${worktree ? 'Branch' : 'Session'} Changes from the pill with ${activation} and follows workspace updates`, () => {
+				const { instantiationService } = createServices();
+				const root = URI.file('/repo');
+				const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
+					folders: [{
+						root,
+						name: 'repo',
+						description: undefined,
+						workingDirectory: worktree ? URI.file('/worktrees/repo') : root,
+						gitRepository: {
+							uri: root,
+							workTreeUri: worktree ? URI.file('/worktrees/repo') : undefined,
+							baseBranchName: 'main',
+							gitHubInfo: constObservable(undefined),
+						},
+					}],
+				});
+				const workspace = observableValue('workspace', createWorkspace(worktree));
+				const session = upcastPartial<IActiveSession>({
+					sessionId: 'provider:session',
+					capabilities: constObservable({ supportsMultipleChats: false }),
+					resource: URI.parse('session:1'),
+					chats: constObservable([]),
+					workspace,
+					changesets: constObservable([]),
+					changes: constObservable([{
+						modifiedUri: URI.file('/session-change.ts'),
+						insertions: 10,
+						deletions: 4,
+					}]),
+				});
+				const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
+				instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
+					calls.push({ action: 'activate', resource: session?.resource });
+				});
+				instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+					revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
 				}));
-			}
+				instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+					openChangesEditor: async (resource, options) => {
+						calls.push({ action: 'open', resource, options });
+						return undefined;
+					},
+				}));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+				toolbar.setSession(session, undefined);
+				for (const currentWorktree of [worktree, !worktree]) {
+					workspace.set(createWorkspace(currentWorktree), undefined);
+					const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+					assert.ok(pill);
 
-			assert.deepStrictEqual(calls, [
-				{ action: 'activate', resource: session.resource },
-				{ action: 'reveal' },
-				{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID } } },
-			]);
-		});
+					if (activation === 'click') {
+						pill.click();
+					} else {
+						pill.dispatchEvent(new KeyboardEvent('keydown', {
+							key: activation === 'Enter' ? 'Enter' : ' ',
+							keyCode: activation === 'Enter' ? 13 : 32,
+							bubbles: true,
+						}));
+					}
+				}
+
+				assert.deepStrictEqual(calls, [worktree, !worktree].flatMap(currentWorktree => [
+					{ action: 'activate', resource: session.resource },
+					{ action: 'reveal' },
+					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID } } },
+				]));
+			});
+		}
 	}
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
-		const commandService = upcastPartial<ICommandService>({ executeCommand: async () => undefined });
-		const clipboardService = upcastPartial<IClipboardService>({ writeText: async () => { } });
+		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
+		const clipboardWrites: string[] = [];
+		const commandService = upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				commands.push({ id, args });
+				return undefined;
+			},
+		});
+		const clipboardService = upcastPartial<IClipboardService>({ writeText: async value => { clipboardWrites.push(value); } });
 		const openerService = upcastPartial<IOpenerService>({ open: async () => true });
 		const sessionsService = upcastPartial<ISessionsService>({ setActive: () => { } });
 		const pullRequestRef: IGitHubPullRequestRef = {
@@ -157,12 +187,13 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 332982,
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/332982'),
+			title: 'Recorded pull request title',
 		};
 		const pullRequest: IGitHubPullRequest = {
 			number: pullRequestRef.number,
 			title: 'Restore rich pill hovers',
 			body: 'Provides detailed pull request context.',
-			state: GitHubPullRequestState.Open,
+			state: GitHubPullRequestState.Merged,
 			author: { login: 'octocat', avatarUrl: '' },
 			headRef: 'feature/rich-hover',
 			headSha: 'abc123',
@@ -170,7 +201,7 @@ suite('SessionChatInputToolbar', () => {
 			isDraft: false,
 			createdAt: '2026-09-03T09:00:00Z',
 			updatedAt: '2026-09-03T10:00:00Z',
-			mergedAt: undefined,
+			mergedAt: '2026-09-04T10:00:00Z',
 			mergeable: true,
 			mergeableState: 'clean',
 		};
@@ -179,17 +210,18 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 42,
 			uri: URI.parse('https://github.com/microsoft/vscode/issues/42'),
+			title: 'Recorded issue title',
 		};
 		const issue: IGitHubIssue = {
 			number: issueRef.number,
 			title: 'Rich issue hover',
 			body: 'Provides detailed issue context.',
-			state: GitHubIssueState.Open,
-			stateReason: undefined,
+			state: GitHubIssueState.Closed,
+			stateReason: GitHubIssueStateReason.Completed,
 			author: { login: 'octocat', avatarUrl: '' },
 			createdAt: '2026-09-03T09:00:00Z',
 			updatedAt: '2026-09-03T10:00:00Z',
-			closedAt: undefined,
+			closedAt: '2026-09-04T10:00:00Z',
 		};
 		const pullRequestEntry = buildSessionPullRequestSections(
 			[{ ref: pullRequestRef, pullRequest, icon: Codicon.gitPullRequest, status: {} }],
@@ -215,6 +247,31 @@ suite('SessionChatInputToolbar', () => {
 			openerService,
 			sessionsService,
 		).flatMap(section => section.entries)[0];
+		const activeIssueEntry = buildSessionIssueSections(
+			[{
+				ref: issueRef,
+				issue: {
+					...issue,
+					state: GitHubIssueState.Open,
+					stateReason: undefined,
+					updatedAt: '2026-09-05T10:00:00Z',
+					closedAt: undefined,
+				},
+			}],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+		).flatMap(section => section.entries)[0];
+		const duplicateIssueEntry = buildSessionIssueSections(
+			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.Duplicate } }],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+		).flatMap(section => section.entries)[0];
 		const unresolvedIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: undefined }],
 			undefined,
@@ -230,41 +287,309 @@ suite('SessionChatInputToolbar', () => {
 			}
 			return await entry.pillHover.element(CancellationToken.None);
 		};
+		const renderDropdownHover = (entry: IChatPillEntry | undefined) =>
+			typeof entry?.hover?.content === 'function' ? entry.hover.content() : undefined;
 		const pullRequestHover = await renderHover(pullRequestEntry);
 		const issueHover = await renderHover(issueEntry);
+		const activeIssueHover = await renderHover(activeIssueEntry);
+		const duplicateIssueHover = await renderHover(duplicateIssueEntry);
+		const pullRequestDropdownHover = renderDropdownHover(pullRequestEntry);
+		const issueDropdownHover = renderDropdownHover(issueEntry);
+		pullRequestHover?.querySelectorAll<HTMLButtonElement>('.sessions-pr-hover-branch').forEach(branch => branch.click());
+		pullRequestEntry?.open();
+		unresolvedIssueEntry?.open();
 
 		assert.deepStrictEqual({
 			pullRequest: {
+				label: pullRequestEntry?.label,
+				badge: pullRequestEntry?.badge,
+				rowClassName: pullRequestEntry?.className,
+				pillHoverContentOwnsPadding: isManagedHoverTooltipHTMLElement(pullRequestEntry?.pillHover) ? pullRequestEntry.pillHover.contentOwnsPadding : undefined,
 				className: pullRequestHover?.className,
+				contentOrder: [...pullRequestHover?.children ?? []].map(element => element.className),
+				provenanceOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-header')?.children ?? []].map(element => element.className),
+				titleOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-title-content')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
+				dropdownClassName: pullRequestDropdownHover?.className,
+				dropdownMatchesStandaloneContent: pullRequestDropdownHover?.textContent === pullRequestHover?.textContent,
+				dropdownExpandable: pullRequestEntry?.hover?.expandable,
+				dropdownIndicator: pullRequestEntry?.hover?.showIndicator,
+				dropdownTabThroughPanel: pullRequestEntry?.hover?.tabThroughPanel,
+				dropdownTabbableElements: pullRequestEntry?.hover?.getTabbableElements?.().length,
+				dropdownContentOwnsPadding: pullRequestEntry?.hover?.contentOwnsPadding,
 				repository: pullRequestHover?.querySelector('.sessions-pr-hover-repository')?.textContent,
-				title: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.textContent,
+				reference: pullRequestHover?.querySelector('.sessions-pr-hover-reference')?.textContent,
+				referenceAriaLabel: pullRequestHover?.querySelector('.sessions-pr-hover-reference')?.getAttribute('aria-label'),
+				status: pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-status')?.textContent,
+				statusKind: pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-status')?.dataset.state,
+				statusIconAriaHidden: pullRequestHover?.querySelector('.sessions-pr-hover-status .codicon')?.getAttribute('aria-hidden'),
+				date: pullRequestHover?.querySelector('.sessions-pr-hover-date')?.textContent,
+				title: pullRequestHover?.querySelector('.sessions-pr-hover-title-content')?.textContent?.replace('#332982', '').trim(),
+				titleTailOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-title-tail')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
+				titleTooltip: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
 				description: pullRequestHover?.querySelector('.sessions-pr-hover-description-content')?.textContent,
+				author: pullRequestHover?.querySelector('.sessions-pr-hover-author')?.textContent,
 				branches: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => element.textContent),
+				branchArrowAriaHidden: pullRequestHover?.querySelector('.sessions-pr-hover-branch-arrow')?.getAttribute('aria-hidden'),
+				branchControls: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => ({
+					tagName: element.tagName,
+					ariaLabel: element.getAttribute('aria-label'),
+				})),
+				unresolvedLabel: unresolvedPullRequestEntry?.label,
+				unresolvedBadge: unresolvedPullRequestEntry?.badge,
+				unresolvedRowClassName: unresolvedPullRequestEntry?.className,
+				unresolvedAriaLabel: unresolvedPullRequestEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedPullRequestEntry?.tooltip,
 				unresolvedHover: unresolvedPullRequestEntry?.pillHover,
+				clipboardWrites,
 			},
 			issue: {
+				label: issueEntry?.label,
+				badge: issueEntry?.badge,
+				rowClassName: issueEntry?.className,
+				pillHoverContentOwnsPadding: isManagedHoverTooltipHTMLElement(issueEntry?.pillHover) ? issueEntry.pillHover.contentOwnsPadding : undefined,
 				className: issueHover?.className,
+				contentOrder: [...issueHover?.children ?? []].map(element => element.className),
+				provenanceOrder: [...issueHover?.querySelector('.sessions-issue-hover-header')?.children ?? []].map(element => element.className),
+				titleOrder: [...issueHover?.querySelector('.sessions-issue-hover-title-content')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
+				dropdownClassName: issueDropdownHover?.className,
+				dropdownMatchesStandaloneContent: issueDropdownHover?.textContent === issueHover?.textContent,
+				dropdownExpandable: issueEntry?.hover?.expandable,
+				dropdownIndicator: issueEntry?.hover?.showIndicator,
+				dropdownTabThroughPanel: issueEntry?.hover?.tabThroughPanel,
+				dropdownTabbableElements: issueEntry?.hover?.getTabbableElements?.().length,
+				dropdownContentOwnsPadding: issueEntry?.hover?.contentOwnsPadding,
 				repository: issueHover?.querySelector('.sessions-issue-hover-repository')?.textContent,
-				title: issueHover?.querySelector('.sessions-issue-hover-title')?.textContent,
+				reference: issueHover?.querySelector('.sessions-issue-hover-reference')?.textContent,
+				referenceAriaLabel: issueHover?.querySelector('.sessions-issue-hover-reference')?.getAttribute('aria-label'),
+				status: issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.textContent,
+				statusKind: issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
+				statusIconAriaHidden: issueHover?.querySelector('.sessions-issue-hover-status .codicon')?.getAttribute('aria-hidden'),
+				date: issueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
+				title: issueHover?.querySelector('.sessions-issue-hover-title-content')?.textContent?.replace('#42', '').trim(),
+				titleTailOrder: [...issueHover?.querySelector('.sessions-issue-hover-title-tail')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
+				titleTooltip: issueHover?.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
 				description: issueHover?.querySelector('.sessions-issue-hover-description-content')?.textContent,
+				author: issueHover?.querySelector('.sessions-issue-hover-author')?.textContent,
+				unresolvedLabel: unresolvedIssueEntry?.label,
+				unresolvedBadge: unresolvedIssueEntry?.badge,
+				unresolvedRowClassName: unresolvedIssueEntry?.className,
+				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
 				unresolvedHover: unresolvedIssueEntry?.pillHover,
+				openCommands: commands,
+			},
+			activeIssue: {
+				status: activeIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
+				date: activeIssueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
+			},
+			duplicateIssue: {
+				status: duplicateIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
+				statusKind: duplicateIssueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
 			},
 		}, {
 			pullRequest: {
+				label: 'Restore rich pill hovers',
+				badge: '#332982',
+				rowClassName: 'chat-pill-github-reference',
+				pillHoverContentOwnsPadding: true,
 				className: 'sessions-pr-hover',
+				contentOrder: [
+					'sessions-pr-hover-header',
+					'sessions-pr-hover-title',
+					'sessions-pr-hover-status-row',
+					'sessions-pr-hover-description',
+					'sessions-pr-hover-branches',
+					'sessions-pr-hover-author',
+				],
+				provenanceOrder: ['sessions-pr-hover-repository', 'sessions-pr-hover-date'],
+				titleOrder: ['#text', 'sessions-pr-hover-title-tail'],
+				titleTailOrder: ['#text', 'sessions-pr-hover-reference'],
+				dropdownClassName: 'sessions-pr-hover compact',
+				dropdownMatchesStandaloneContent: true,
+				dropdownExpandable: true,
+				dropdownIndicator: false,
+				dropdownTabThroughPanel: true,
+				dropdownTabbableElements: 4,
+				dropdownContentOwnsPadding: true,
 				repository: 'microsoft/vscode',
+				reference: '#332982',
+				referenceAriaLabel: 'Pull Request #332982',
+				status: 'Merged',
+				statusKind: 'merged',
+				statusIconAriaHidden: 'true',
+				date: 'on Sep 3',
 				title: 'Restore rich pill hovers',
+				titleTooltip: 'Restore rich pill hovers',
 				description: 'Provides detailed pull request context.',
+				author: '@octocat opened this pull request',
 				branches: ['main', 'feature/rich-hover'],
+				branchArrowAriaHidden: 'true',
+				branchControls: [
+					{ tagName: 'BUTTON', ariaLabel: 'Copy base branch main' },
+					{ tagName: 'BUTTON', ariaLabel: 'Copy head branch feature/rich-hover' },
+				],
+				unresolvedLabel: 'Recorded pull request title',
+				unresolvedBadge: '#332982',
+				unresolvedRowClassName: 'chat-pill-github-reference',
+				unresolvedAriaLabel: 'Open Pull Request #332982: Recorded pull request title',
+				unresolvedTooltip: 'Pull Request #332982: Recorded pull request title\nhttps://github.com/microsoft/vscode/pull/332982',
 				unresolvedHover: undefined,
+				clipboardWrites: ['main', 'feature/rich-hover'],
 			},
 			issue: {
+				label: 'Rich issue hover',
+				badge: '#42',
+				rowClassName: 'chat-pill-github-reference',
+				pillHoverContentOwnsPadding: true,
 				className: 'sessions-issue-hover',
-				repository: 'microsoft/vscode#42',
+				contentOrder: [
+					'sessions-issue-hover-header',
+					'sessions-issue-hover-title',
+					'sessions-issue-hover-status-row',
+					'sessions-issue-hover-description',
+					'sessions-issue-hover-author',
+				],
+				provenanceOrder: ['sessions-issue-hover-repository', 'sessions-issue-hover-date'],
+				titleOrder: ['#text', 'sessions-issue-hover-title-tail'],
+				titleTailOrder: ['#text', 'sessions-issue-hover-reference'],
+				dropdownClassName: 'sessions-issue-hover compact',
+				dropdownMatchesStandaloneContent: true,
+				dropdownExpandable: true,
+				dropdownIndicator: false,
+				dropdownTabThroughPanel: true,
+				dropdownTabbableElements: 2,
+				dropdownContentOwnsPadding: true,
+				repository: 'microsoft/vscode',
+				reference: '#42',
+				referenceAriaLabel: 'Issue #42',
+				status: 'Closed',
+				statusKind: 'closed',
+				statusIconAriaHidden: 'true',
+				date: 'on Sep 3',
 				title: 'Rich issue hover',
+				titleTooltip: 'Rich issue hover',
 				description: 'Provides detailed issue context.',
+				author: '@octocat opened this issue',
+				unresolvedLabel: 'Recorded issue title',
+				unresolvedBadge: '#42',
+				unresolvedRowClassName: 'chat-pill-github-reference',
+				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
+				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
+				openCommands: [
+					{
+						id: 'workbench.agentSessions.action.openPullRequest',
+						args: [{ pullRequest: pullRequestRef }],
+					},
+					{
+						id: 'workbench.agentSessions.action.openIssue',
+						args: [{ issue: issueRef }],
+					},
+				],
 			},
+			activeIssue: {
+				status: 'Open',
+				date: 'on Sep 3',
+			},
+			duplicateIssue: {
+				status: 'Duplicate',
+				statusKind: 'duplicate',
+			},
+		});
+	});
+
+	test('bounds and normalizes GitHub hover descriptions for assistive technology', () => {
+		const description = getGitHubHoverDescription(`<!-- template -->\n## Summary\n\n${'Useful context with [documentation](https://example.com). '.repeat(8)}`, 'No description provided.');
+		const unicodeDescription = getGitHubHoverDescription(`${'a'.repeat(198)}😀xy`, 'No description provided.');
+		const title = getGitHubHoverTitle(`${'a'.repeat(78)}😀xy`);
+		const titleParts = getGitHubHoverTitleParts('A title ending in context');
+		const singleTokenTitleParts = getGitHubHoverTitleParts('a'.repeat(100));
+
+		assert.deepStrictEqual({
+			startsWithReadableText: description.startsWith('Summary Useful context with documentation.'),
+			containsMarkdownSyntax: /<!--|##|\[|\]\(/.test(description),
+			length: description.length,
+			endsWithEllipsis: description.endsWith('…'),
+			unicodeDescription: {
+				codePoints: Array.from(unicodeDescription).length,
+				endsAtCodePointBoundary: unicodeDescription.endsWith('😀…'),
+				containsReplacementCharacter: unicodeDescription.includes('�'),
+			},
+			title: {
+				codePoints: Array.from(title).length,
+				endsAtCodePointBoundary: title.endsWith('😀…'),
+			},
+			titleParts,
+			singleTokenTitleParts,
+		}, {
+			startsWithReadableText: true,
+			containsMarkdownSyntax: false,
+			length: 200,
+			endsWithEllipsis: true,
+			unicodeDescription: {
+				codePoints: 200,
+				endsAtCodePointBoundary: true,
+				containsReplacementCharacter: false,
+			},
+			title: {
+				codePoints: 80,
+				endsAtCodePointBoundary: true,
+			},
+			titleParts: { leading: 'A title ending in ', trailing: 'context' },
+			singleTokenTitleParts: { leading: `${'a'.repeat(79)}…`, trailing: undefined },
+		});
+	});
+
+	test('uses the shared GitHub date pattern for valid timestamps', () => {
+		assert.deepStrictEqual({
+			valid: getGitHubHoverDate('2026-09-03T10:00:00Z'),
+			missing: getGitHubHoverDate(undefined),
+			invalid: getGitHubHoverDate('not-a-date'),
+		}, {
+			valid: 'Sep 3',
+			missing: undefined,
+			invalid: undefined,
+		});
+	});
+
+	test('reveals a bounded title when keyboard focus reaches its reference link', () => {
+		const title = `${'Long issue title '.repeat(8)}ending`;
+		const hover = createIssueHoverElement({
+			owner: 'microsoft',
+			repo: 'vscode',
+			number: 42,
+			repositoryHref: 'https://github.com/microsoft/vscode',
+			referenceHref: 'https://github.com/microsoft/vscode/issues/42',
+			issue: {
+				number: 42,
+				title,
+				body: '',
+				state: GitHubIssueState.Open,
+				stateReason: undefined,
+				author: { login: 'octocat', avatarUrl: '' },
+				createdAt: '2026-09-03T10:00:00Z',
+				updatedAt: '2026-09-03T10:00:00Z',
+				closedAt: undefined,
+			},
+			density: 'compact',
+		});
+		const titleContent = hover.querySelector('.sessions-issue-hover-title-content');
+		const reference = hover.querySelector<HTMLAnchorElement>('.sessions-issue-hover-reference');
+		const bounded = titleContent?.textContent;
+		reference?.dispatchEvent(new FocusEvent('focus'));
+		const focused = titleContent?.textContent;
+		reference?.dispatchEvent(new FocusEvent('blur'));
+
+		assert.deepStrictEqual({
+			bounded,
+			focused,
+			restored: titleContent?.textContent,
+			fullTitle: hover.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
+		}, {
+			bounded: `${getGitHubHoverTitle(title)}\u00a0#42`,
+			focused: `${title}\u00a0#42`,
+			restored: `${getGitHubHoverTitle(title)}\u00a0#42`,
+			fullTitle: title,
 		});
 	});
 
@@ -328,9 +653,41 @@ suite('SessionChatInputToolbar', () => {
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
 		};
 		const pullRequests: readonly IResolvedSessionPullRequest[] = [
-			{ ref, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: true }), icon: Codicon.gitPullRequestDraft, status: {} },
-			{ ref, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Closed, isDraft: true }), icon: Codicon.gitPullRequestDraft, status: {} },
-			{ ref: { ...ref, state: 'merged' }, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: false }), icon: Codicon.gitPullRequest, status: {} },
+			{
+				ref,
+				pullRequest: upcastPartial<IGitHubPullRequest>({
+					state: GitHubPullRequestState.Open,
+					isDraft: true,
+					author: { login: 'octocat', avatarUrl: '' },
+					title: 'Open draft',
+					body: '',
+					baseRef: 'main',
+					headRef: 'draft',
+					createdAt: '2026-09-01T10:00:00Z',
+					updatedAt: '2026-09-05T10:00:00Z',
+				}),
+				icon: Codicon.gitPullRequestDraft,
+				status: {},
+				ciStatus: GitHubCIOverallStatus.Pending,
+			},
+			{
+				ref,
+				pullRequest: upcastPartial<IGitHubPullRequest>({
+					state: GitHubPullRequestState.Closed,
+					isDraft: true,
+					author: { login: 'octocat', avatarUrl: '' },
+					title: 'Closed draft',
+					body: '',
+					baseRef: 'main',
+					headRef: 'draft',
+					createdAt: '2026-09-01T10:00:00Z',
+					updatedAt: '2026-09-05T10:00:00Z',
+					closedAt: '2026-09-04T10:00:00Z',
+				}),
+				icon: Codicon.gitPullRequestDraft,
+				status: {},
+			},
+			{ ref: { ...ref, state: 'merged' }, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: false }), icon: Codicon.gitPullRequest, status: { hasFailingChecks: true }, ciStatus: GitHubCIOverallStatus.Failure },
 			{ ref: { ...ref, liveState: 'closed', state: 'open' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
 			{ ref: { ...ref, state: 'merged' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
 			{ ref, pullRequest: undefined, icon: Codicon.gitPullRequestDone, status: {} },
@@ -345,7 +702,29 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<ISessionsService>({}),
 		).flatMap(section => section.entries);
 
-		assert.deepStrictEqual(entries.map(entry => entry.pullRequestState), ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open']);
+		const openDraftHover = typeof entries[0].hover?.content === 'function' ? entries[0].hover.content() : undefined;
+		const closedDraftHover = typeof entries[1].hover?.content === 'function' ? entries[1].hover.content() : undefined;
+		assert.deepStrictEqual({
+			states: entries.map(entry => entry.pullRequestState),
+			descriptions: entries.slice(0, 3).map(entry => entry.ariaDescription),
+			openDraftHover: {
+				status: openDraftHover?.querySelector('.sessions-pr-hover-status')?.textContent,
+				date: openDraftHover?.querySelector('.sessions-pr-hover-date')?.textContent,
+			},
+			closedDraftHover: {
+				status: closedDraftHover?.querySelector('.sessions-pr-hover-status')?.textContent,
+				date: closedDraftHover?.querySelector('.sessions-pr-hover-date')?.textContent,
+			},
+		}, {
+			states: ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open'],
+			descriptions: [
+				'draft. Checks pending. https://github.com/microsoft/vscode/pull/1',
+				'closed. https://github.com/microsoft/vscode/pull/1',
+				'failing checks. https://github.com/microsoft/vscode/pull/1',
+			],
+			openDraftHover: { status: 'Draft', date: 'on Sep 1' },
+			closedDraftHover: { status: 'Closed', date: 'on Sep 1' },
+		});
 	});
 
 	test('offers removal only for matching PR artifacts including legacy records and keeps open and copy actions', async () => {

@@ -8,12 +8,27 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
+import { WorkspaceArgumentKind } from '../../../common/workspaceSelection.js';
 
 const DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX = 'dev-container+';
 
 export interface IAgentsWindowFolderIntent {
 	readonly folderUri: URI | undefined;
 	readonly preferDevContainer: boolean;
+}
+
+/** Classifies the original argument without exposing its path or remote authority. */
+export function getAgentsWindowWorkspaceArgumentKind(workspaceUri: URI | undefined): WorkspaceArgumentKind {
+	if (!workspaceUri) {
+		return 'none';
+	}
+	if (workspaceUri.scheme === Schemas.file) {
+		return 'local';
+	}
+	if (workspaceUri.scheme === Schemas.vscodeRemote) {
+		return workspaceUri.authority.startsWith(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX) ? 'devContainer' : 'remote';
+	}
+	return 'other';
 }
 
 export function resolveAgentsWindowFolderIntent(workspaceUri: URI | undefined, configurationService: IConfigurationService): IAgentsWindowFolderIntent {

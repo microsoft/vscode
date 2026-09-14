@@ -65,6 +65,7 @@ import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
+import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -97,6 +98,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const contextKeyService = accessor.get(IContextKeyService);
+		const composerService = accessor.get(INewSessionComposerService);
 
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
@@ -195,6 +197,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		disposables.add(toDisposable(() => pickerVisibleContext.reset()));
 
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
+			composerService.notifyUserNavigation();
 			if (!selected.session) {
 				sessionsService.openNewSession();
 				sessionsPartService.focusSession(sessionsService.activeSession.get());

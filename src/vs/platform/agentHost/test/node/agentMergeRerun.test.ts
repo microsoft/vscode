@@ -110,7 +110,7 @@ suite('Agent Merge workflow reruns', () => {
 		const repeated = await h.tools.rerunFailedWorkflow(h.session, '1', true);
 
 		assert.deepStrictEqual({
-			details,
+			details: JSON.parse(details).message,
 			annotationIds: h.mutations.annotationIds,
 			logIds: h.mutations.logIds,
 			repeatedOutcome: JSON.parse(repeated).outcome,
@@ -451,7 +451,7 @@ class RerunTestHarness extends Disposable {
 			}(),
 			this.logService,
 		));
-		this.tools = new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), gitHubService, this.logService);
+		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), gitHubService, this.logService));
 		this.stateManager.dispatchServerAction(this.session, { type: ActionType.SessionReady });
 	}
 

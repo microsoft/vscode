@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { buildChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { createAgentMergeServerToolGroup, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName, type IAgentMergeToolAccessor } from '../../node/shared/agentMergeServerTools.js';
+import { AgentMergeCIRequest, createAgentMergeServerToolGroup, parseAgentMergeCIRequest, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName, type IAgentMergeToolAccessor } from '../../node/shared/agentMergeServerTools.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 
 suite('Agent Merge server tools', () => {
@@ -52,6 +52,40 @@ suite('Agent Merge server tools', () => {
 		});
 	});
 
+	test('documents summary-first diagnostics, supported continuation and true-tail completeness', () => {
+		const description = createAgentMergeServerToolGroup().definitions.find(tool => tool.name === readAgentMergeCIToolName)!.description!;
+		assert.deepStrictEqual([
+			'Defaults to a bounded summary', 'literal search with context', 'cursor alone',
+			'pull request head, workflow attempt, and job', 'real end only when complete is true',
+			'download limit is terminal', 'rather than repeating the summary or using other GitHub tools',
+			'Summary pages also respect cache capacity', 'Concurrent reads are queued',
+		].map(clause => description.includes(clause)), Array(9).fill(true));
+	});
+
+	test('validates diagnostic mode requirements and numeric bounds before execution', () => {
+		const invalid = [
+			null, [], { mode: 'other' }, { mode: 'tail' }, { cursor: 'c', mode: 'range' },
+			{ mode: 'range', evidenceId: 'e', startLine: 0 }, { mode: 'range', evidenceId: 'e', startLine: 1.5 },
+			{ mode: 'range', evidenceId: 'e', startLine: 2, endLine: 1 }, { mode: 'range', evidenceId: 'e', endLine: 201 },
+			{ mode: 'tail', evidenceId: 'e', lineCount: 201 }, { mode: 'tail', evidenceId: 'e', query: 'x' },
+			{ mode: 'search', evidenceId: 'e' }, { mode: 'search', evidenceId: 'e', query: 'x', contextLines: 6 },
+			{ mode: 'search', evidenceId: 'e', query: '\n' }, { mode: 'search', evidenceId: 'e', query: 'x'.repeat(201) },
+			{ jobId: '' }, { runId: 'unauthorized' },
+		];
+		for (const input of invalid) {
+			assert.throws(() => parseAgentMergeCIRequest(input), /Invalid readAgentMergeCI input/);
+		}
+		assert.deepStrictEqual([
+			parseAgentMergeCIRequest({}),
+			parseAgentMergeCIRequest({ jobId: 'job' }),
+			parseAgentMergeCIRequest({ cursor: 'cursor' }),
+			parseAgentMergeCIRequest({ mode: 'range', evidenceId: 'e', startLine: 10 }),
+		], [
+			{ mode: 'summary' }, { mode: 'summary', jobId: 'job' }, { cursor: 'cursor' },
+			{ mode: 'range', evidenceId: 'e', startLine: 10, endLine: 209, startColumn: undefined },
+		]);
+	});
+
 	test('distinguishes deferred, requested, unconfirmed and failed reruns in the transcript', () => {
 		const group = createAgentMergeServerToolGroup();
 		const message = (outcome: string, success = true) => group.getDisplay?.(rerunAgentMergeWorkflowToolName, {}, {
@@ -76,6 +110,7 @@ suite('Agent Merge server tools', () => {
 		const sessionUri = 'copilot:/merge-session';
 		const chatUri = buildChatUri(sessionUri, 'peer');
 		let receivedSession: string | undefined;
+		let receivedRequest: AgentMergeCIRequest | undefined;
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		stateManager.createSession({
 			resource: sessionUri,
@@ -88,8 +123,9 @@ suite('Agent Merge server tools', () => {
 		const host = new AgentServerToolHost(stateManager, [
 			createAgentMergeServerToolGroup({
 				isEnabled: () => true,
-				readFailedCI: async session => {
+				readFailedCI: async (session, request) => {
 					receivedSession = session;
+					receivedRequest = request;
 					return 'result';
 				},
 				replyToReviewThread: async () => '',
@@ -97,9 +133,12 @@ suite('Agent Merge server tools', () => {
 			}),
 		]);
 
-		const result = await host.executeTool(chatUri, readAgentMergeCIToolName, {});
+		const result = await host.executeTool(chatUri, readAgentMergeCIToolName, { mode: 'search', evidenceId: 'job-evidence', query: 'failure' });
 
-		assert.deepStrictEqual({ result, receivedSession }, { result: 'result', receivedSession: sessionUri });
+		assert.deepStrictEqual({ result, receivedSession, receivedRequest }, {
+			result: 'result', receivedSession: sessionUri,
+			receivedRequest: { mode: 'search', evidenceId: 'job-evidence', query: 'failure', startLine: 1, contextLines: undefined },
+		});
 		stateManager.dispose();
 	});
 });

@@ -159,7 +159,8 @@
 
 	.monaco-list-row:hover,
 	.monaco-list-row.focused:not(.selected),
-	.monaco-list:focus-within .monaco-list-row.focused {
+	.monaco-list:focus-within .monaco-list-row.focused,
+	.session-item.archive-onboarding {
 		.session-title-toolbar {
 			display: block;
 		}
@@ -170,7 +171,7 @@
 	}
 
 	/* Pinned but not hovered/focused: show only the unpin action */
-	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
+	.monaco-list-row:not(:hover):not(.focused) .session-item.pinned:not(.archive-onboarding) {
 		.session-title-toolbar {
 			display: block;
 

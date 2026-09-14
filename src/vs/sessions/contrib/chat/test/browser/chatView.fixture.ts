@@ -12,9 +12,13 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
+import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
+import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import type { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
@@ -251,7 +255,103 @@ async function renderAgentMergeBackground(context: ComponentFixtureContext): Pro
 	}
 }
 
+async function renderRequestLinkKeyboardFocus(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, false, {
+		height: 320,
+		listHeight: 220,
+		inputVisible: false,
+		messages: [{
+			user: 'Review [microsoft/vscode#334596](https://github.com/microsoft/vscode/issues/334596) before continuing.',
+			assistant: [{ kind: 'markdown', text: 'The request link should have one clear keyboard focus indicator.' }],
+		}],
+	});
+
+	const focusTarget = context.container.querySelector<HTMLAnchorElement>('.interactive-request .chat-markdown-part.rendered-markdown a[data-href]:not(.chat-rich-link)');
+	if (!focusTarget) {
+		throw new Error('Expected a plain request link');
+	}
+	focusTarget.focus();
+	if (!focusTarget.matches(':focus-visible')) {
+		throw new Error('Expected the request link to receive keyboard-visible focus');
+	}
+}
+
+async function renderRequestAttachmentBackground(context: ComponentFixtureContext): Promise<void> {
+	const attachment: IChatRequestVariableEntry = {
+		kind: 'generic',
+		id: 'fixture-feedback',
+		name: 'This does not guarantee an opaque background.',
+		value: 'This does not guarantee an opaque background.',
+		icon: Codicon.comment,
+	};
+	await renderChatView(context, true, {
+		height: 320,
+		listHeight: 300,
+		inputVisible: false,
+		messages: [{
+			user: '/act-on-feedback',
+			variables: [attachment],
+			assistant: [{ kind: 'markdown', text: 'Attachment treatment updated.' }],
+		}],
+	});
+}
+
+async function renderCheckpointControlsBackground(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, true, {
+		height: 360,
+		listHeight: 340,
+		inputVisible: false,
+		checkpointsEnabled: true,
+		menuItems: [
+			{
+				menuId: MenuId.ChatMessageCheckpoint,
+				item: {
+					command: {
+						id: RestoreCheckpointActionId,
+						title: 'Restore Checkpoint',
+						tooltip: 'Restores workspace and chat to this point',
+					},
+					group: 'navigation',
+					order: 2,
+				},
+			},
+			{
+				menuId: MenuId.ChatMessageCheckpoint,
+				item: {
+					command: {
+						id: ForkConversationActionId,
+						title: 'Fork Conversation',
+						tooltip: 'Fork conversation from this point',
+						icon: Codicon.repoForked,
+					},
+					group: 'navigation',
+					order: 3,
+				},
+			},
+		],
+		messages: [{
+			user: 'Continue from this checkpoint.',
+			assistant: [{ kind: 'markdown', text: '2 files changed: +34 -1' }],
+		}],
+	});
+	const checkpoint = context.container.querySelector<HTMLElement>('.checkpoint-container');
+	if (!checkpoint) {
+		throw new Error('Expected checkpoint controls');
+	}
+	checkpoint.classList.add('group-hovered');
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	CheckpointControlsBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Restore Checkpoint and fork controls each have their own compact opaque surface over the Codicons wallpaper between faded separator lines, with no opaque rectangle behind their toolbar or spacing. Direct hover changes only the hovered control surface.'],
+		render: renderCheckpointControlsBackground,
+	}),
+	RequestAttachmentBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A comment attachment pill and its /act-on-feedback request sit on opaque tinted surfaces above a short assistant reply on the Codicons wallpaper; the wallpaper remains visible around the surfaces without showing through them.'],
+		render: renderRequestAttachmentBackground,
+	}),
 	AgentMergeBackground: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A compact conversation on the built-in Codicons wallpaper shows an opaque user message, a short assistant reply, the Agent Merge enablement notice, an opaque Agent Merge request card, and a short final reply. All messages are visible together without scrolling, and the wallpaper remains visible around their surfaces.'],
@@ -266,6 +366,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The Agents chat without a wallpaper keeps the assistant response unboxed. The heading, Markdown table, code editor, and response footer use the normal transcript alignment, while the user request and composer retain their established surfaces.'],
 		render: context => renderAssistantResponse(context, false),
+	}),
+	RequestLinkKeyboardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A plain Markdown link in the Agents chat user request has exactly one solid, unclipped keyboard focus indicator in the themed focus color.'],
+		render: renderRequestLinkKeyboardFocus,
 	}),
 	StickyBackgroundContinuity: defineComponentFixture({
 		labels: { kind: 'screenshot' },

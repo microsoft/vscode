@@ -42,11 +42,24 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Projection between AHP state and provider-neutral Automation objects | `AgentHostAutomationStore` |
 | Import of one provider's legacy definitions into its Agent Host | `AgentHostAutomationStore` |
 | Host-owned definitions, scheduling, execution, and run lifecycle | `AgentHostAutomationService` |
+| Portable Automation blueprint format and validation | Workbench Automation common code |
+| Plugin Automation blueprint discovery and enablement | `IAgentPluginService` |
+| Explicit blueprint review and materialization | Automations contributions and `IAutomationService` |
 | Card, dialog, and history presentation | Automations contributions |
 
 `ProviderAutomationService` is an aggregate and router, not a global execution authority. Each store remains responsible for the data it owns.
 
 ## Domain model
+
+### Shareable blueprint
+
+`IAutomationBlueprint` is a versioned, portable definition containing a stable contributor-scoped identifier, display metadata, prompt, and schedule. It is not an Automation execution authority and intentionally excludes the runtime Automation identifier, target provider, workspace URI, session template, enabled state, timestamps, and run history.
+
+Blueprint schedules are manual-only, a relative hourly cadence, or a five-field cron expression interpreted in the importing user's local time zone for daily and weekly schedules. Import rejects recurrence or time-zone semantics the current Automation editor cannot preserve rather than degrading them to a different schedule.
+
+Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes blueprints as inert template contributions and follows the plugin's effective enablement; discovering, installing, or updating a plugin must not create, enable, update, or delete a persisted Automation.
+
+A blueprint becomes an `IAutomationDescriptor` only after the user reviews it in the Automation dialog and the result flows through `IAutomationService`. File imports and plugin templates start disabled, and target and provider-owned session configuration are resolved locally during review. Export projects only portable state and therefore does not transfer execution authority or run history.
 
 ### Automation
 

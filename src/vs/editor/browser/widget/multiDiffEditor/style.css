@@ -138,7 +138,7 @@
 	&.multiDiffEditor-standard {
 		.multiDiffEntry {
 			.collapse-button {
-				margin: 0 5px;
+				margin: 0 var(--vscode-spacing-size60);
 
 				a {
 					display: block;
@@ -154,7 +154,7 @@
 
 				.header-content {
 					margin: var(--vscode-spacing-size80) 0 0;
-					padding: var(--vscode-spacing-size40) 5px;
+					padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
 					border-top: var(--vscode-strokeThickness) solid var(--vscode-multiDiffEditor-border);
 					background: var(--vscode-multiDiffEditor-headerBackground);
 

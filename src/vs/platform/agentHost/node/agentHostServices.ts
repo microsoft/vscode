@@ -123,7 +123,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
 	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
 	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
-	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService));
+	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService, [undefined]));
 	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
 	services.set(
 		IByokLmProxyService,

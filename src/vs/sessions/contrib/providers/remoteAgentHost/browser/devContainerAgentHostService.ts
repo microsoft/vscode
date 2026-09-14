@@ -163,6 +163,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	private readonly _storedConnections = new Map<string, IStoredDevContainerAgentHost>();
 	private readonly _connectionFactory: DevContainerConnectionFactory;
 	private readonly _onDidRegisterConnector = this._register(new Emitter<IDevContainerAgentHostConnector>());
+	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
+	readonly onDidChangeAvailability = this._onDidChangeAvailability.event;
 	private _connector: IDevContainerAgentHostConnector | undefined;
 
 	constructor(
@@ -185,9 +187,11 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		}
 		this._connector = connector;
 		this._onDidRegisterConnector.fire(connector);
+		this._onDidChangeAvailability.fire();
 		return toDisposable(() => {
 			if (this._connector === connector) {
 				this._connector = undefined;
+				this._onDidChangeAvailability.fire();
 			}
 		});
 	}

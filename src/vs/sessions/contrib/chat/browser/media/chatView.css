@@ -56,18 +56,36 @@
 	color: var(--vscode-button-secondaryForeground);
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:hover,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):hover,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
-.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label.agent-host-mode-permissions-trigger:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'],
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown,
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-item-container.interactive-request .value .chat-attached-context .chat-attached-context-attachment:not(.image-attachment) {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
 }
 
 .agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-request-origin:not(.delegation) {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-request-origin:not(.delegation):hover {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
 }
@@ -84,16 +102,15 @@
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
 }
 
-/* The checkpoint and fork rows sit straight on the wallpaper: their controls are
- * transparent at rest and only :hover supplies a fill. Back each row's toolbar and
- * its sibling text with one opaque plate — the move the editor-instance restore row
- * already makes in chat.css — so the controls stay transparent and their existing
- * hover fill composites over it. */
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-container .monaco-toolbar,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .monaco-toolbar,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-label-text,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-dot-separator {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-container .monaco-toolbar .action-item:not(.confirming) > .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .monaco-toolbar .action-item:not(.confirming) > .action-label {
 	background-color: var(--session-view-background);
+	border-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-container .monaco-toolbar .action-item:not(.confirming) > .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .monaco-toolbar .action-item:not(.confirming) > .action-label:hover {
+	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
 }
 
 .agent-sessions-workbench .interactive-session {
@@ -205,6 +222,12 @@
 .agent-sessions-workbench .part.sessionspart .interactive-list .monaco-list-row.request > .monaco-tl-row > .monaco-tl-contents,
 .agent-sessions-workbench .chat-editor-relative .interactive-list .monaco-list-row.request > .monaco-tl-row > .monaco-tl-contents {
 	overflow: visible;
+}
+
+.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown a[data-href]:focus-visible:not(.chat-rich-link),
+.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown a[data-href]:focus-visible:not(.chat-rich-link) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block),

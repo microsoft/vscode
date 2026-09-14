@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../../../base/common/actions.js';
@@ -15,8 +16,9 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -61,6 +63,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -98,7 +101,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.worktreeElement = dom.append(details, dom.$('p.chat-session-archive-nudge-worktree'));
 
 		const footer = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-footer'));
-		this.archiveButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
+		this.archiveButton = this._register(new Button(footer, defaultButtonStyles));
 		this.archiveButton.element.setAttribute('aria-describedby', this.descriptionElement.id);
 		this._register(this.archiveButton.onDidClick(() => this.archive()));
 		this.cleanupSettingsButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
@@ -216,6 +219,9 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
+		if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
+			triggerConfettiAnimation(this.archiveButton.element);
+		}
 		this.setArchiving(true);
 		try {
 			await this.options.onArchive();

@@ -11,6 +11,7 @@ import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/de
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand, type PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
+import { IAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
@@ -29,6 +30,10 @@ export type IAgentPluginSkill = INamedPluginResource;
 export type IAgentPluginAgent = INamedPluginResource;
 export type IAgentPluginInstruction = INamedPluginResource;
 export type IAgentPluginMcpServerDefinition = IMcpServerDefinition;
+export interface IAgentPluginAutomation {
+	readonly uri: URI;
+	readonly blueprint: IAutomationBlueprint;
+}
 
 export interface IAgentPlugin {
 	readonly uri: URI;
@@ -53,6 +58,7 @@ export interface IAgentPlugin {
 	readonly agents: IObservable<readonly IAgentPluginAgent[]>;
 	readonly instructions: IObservable<readonly IAgentPluginInstruction[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
+	readonly automations: IObservable<readonly IAgentPluginAutomation[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;
 }

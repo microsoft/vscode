@@ -26,12 +26,12 @@ import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js
 import { SessionCustomizations } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
-import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
+import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -43,8 +43,8 @@ import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../ser
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
-import { createIssueHoverElement } from '../../github/browser/issueHover.js';
-import { createPullRequestHoverElement } from '../../github/browser/pullRequestHover.js';
+import { createIssueHover } from '../../github/browser/issueHover.js';
+import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
 import { linkKey } from '../../../common/sessionLinks.js';
 
 /** Fake artifacts for the pill debug overlay. */
@@ -72,22 +72,42 @@ function getPullRequestAttention(icon: ThemeIcon, status: IResolvedSessionPullRe
 	return undefined;
 }
 
-function getGitHubRepositoryHoverData(owner: string, repo: string, openerService: IOpenerService) {
+function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, openerService: IOpenerService) {
 	const repository = URI.parse(`https://github.com/${owner}/${repo}`);
 	return {
 		repositoryHref: repository.toString(true),
+		referenceHref: reference.toString(true),
 		onDidClickRepository: () => { void openerService.open(repository, { openExternal: true }); },
+		onDidClickReference: () => { void openerService.open(reference, { openExternal: true }); },
 	};
 }
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
 export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: { readonly artifacts: readonly ISessionArtifact[]; remove(artifactIds: readonly string[]): Promise<void> }): readonly IChatPullRequestPillSection[] {
-	const entries = pullRequests.map(({ ref, pullRequest, icon, status }) => {
+	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
 		const artifacts = artifactActions?.artifacts.filter(artifact => artifact.isArtifact && artifact.kind === SessionArtifactKind.PullRequest && artifact.link && linkKey(artifact.link.toString(true)) === linkKey(ref.uri.toString(true)));
 		const title = pullRequest?.title ?? ref.title;
-		const label = title
+		let hoverTabbableElements: readonly HTMLElement[] = [];
+		const createHover = pullRequest ? (density: 'default' | 'compact') => createPullRequestHover({
+			owner: ref.owner,
+			repo: ref.repo,
+			number: ref.number,
+			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService),
+			pullRequest,
+			ciStatus,
+			density,
+			...(pullRequest.baseRef ? { onDidClickBaseBranch: () => { void clipboardService.writeText(pullRequest.baseRef); } } : {}),
+			...(pullRequest.headRef ? { onDidClickHeadBranch: () => { void clipboardService.writeText(pullRequest.headRef); } } : {}),
+		}) : undefined;
+		const createDropdownHover = createHover ? () => {
+			const hover = createHover('compact');
+			hoverTabbableElements = hover.tabbableElements;
+			return hover.element;
+		} : undefined;
+		const resourceLabel = title
 			? localize('sessionChatPills.pullRequestWithTitle', "Pull Request #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.pullRequest', "Pull Request #{0}", ref.number);
+		const label = title ?? resourceLabel;
 		const resolvedIcon = icon ?? computePullRequestIcon('open');
 		const attention = getPullRequestAttention(resolvedIcon, status);
 		const pullRequestState = pullRequest?.state ?? ref.liveState ?? ref.state ?? getPullRequestStatusFromIcon(resolvedIcon) ?? 'open';
@@ -103,9 +123,13 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 						? localize('sessionChatPills.pullRequestClosed', "closed")
 						: localize('sessionChatPills.pullRequestOpen', "open")
 			);
+		const checksDescription = pullRequest && !(ciStatus === GitHubCIOverallStatus.Failure && status.hasFailingChecks)
+			? getPullRequestChecksStatusLabel(pullRequest, ciStatus)
+			: undefined;
 		return {
 			id: ref.uri.toString(),
 			label,
+			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
 			pullRequestState: state,
@@ -121,18 +145,14 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
-			...getChatPillResourceLocation(ref.uri, label),
-			ariaDescription: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
-			...(pullRequest ? {
-				pillHover: {
-					element: () => createPullRequestHoverElement({
-						owner: ref.owner,
-						repo: ref.repo,
-						number: ref.number,
-						...getGitHubRepositoryHoverData(ref.owner, ref.repo, openerService),
-						pullRequest,
-					}),
-				},
+			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			ariaDescription: checksDescription
+				? localize('sessionChatPills.pullRequestDescriptionWithChecks', "{0}. {1}. {2}", stateDescription, checksDescription, ref.uri.toString(true))
+				: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
+			...(!pullRequest && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
+			...(createDropdownHover && createHover ? {
+				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
 			} : {}),
 			open: () => {
 				if (session) {
@@ -153,12 +173,29 @@ interface IResolvedSessionIssue {
 /** Builds Agents Window issue pill entries, enriching them when live details are available. */
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
 	const entries = issues.map(({ ref, issue }) => {
-		const label = issue?.title
-			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, issue.title)
+		const title = issue?.title ?? ref.title;
+		let hoverTabbableElements: readonly HTMLElement[] = [];
+		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
+			owner: ref.owner,
+			repo: ref.repo,
+			number: ref.number,
+			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService),
+			issue,
+			density,
+		}) : undefined;
+		const createDropdownHover = createHover ? () => {
+			const hover = createHover('compact');
+			hoverTabbableElements = hover.tabbableElements;
+			return hover.element;
+		} : undefined;
+		const resourceLabel = title
+			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
+		const label = title ?? resourceLabel;
 		return {
 			id: ref.uri.toString(),
 			label,
+			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			toolbarActions: [toAction({
@@ -167,17 +204,11 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
-			...getChatPillResourceLocation(ref.uri, label),
-			...(issue ? {
-				pillHover: {
-					element: () => createIssueHoverElement({
-						owner: ref.owner,
-						repo: ref.repo,
-						number: ref.number,
-						...getGitHubRepositoryHoverData(ref.owner, ref.repo, openerService),
-						issue,
-					}),
-				},
+			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
+			...(createDropdownHover && createHover ? {
+				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
 			} : {}),
 			open: () => {
 				if (session) {
@@ -373,11 +404,14 @@ export class SessionChatInputToolbar extends Disposable {
 					if (!session || this._debugData.get()) {
 						return;
 					}
+					const isWorktree = session.workspace.get()?.folders[0]?.gitRepository?.workTreeUri !== undefined;
 					layoutService.revealEditorPartExplicitly();
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: SESSION_CHANGES_CHANGESET_ID
+							id: isWorktree
+								? BRANCH_CHANGES_CHANGESET_ID
+								: SESSION_CHANGES_CHANGESET_ID
 						}
 					});
 				},
@@ -413,6 +447,10 @@ export class SessionChatInputToolbar extends Disposable {
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {
 		return this._inputPills.getPillElements();
+	}
+
+	focusFirst(): boolean {
+		return this._inputPills.focusFirst();
 	}
 
 	/**

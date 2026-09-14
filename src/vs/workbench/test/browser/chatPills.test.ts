@@ -5,10 +5,13 @@
 
 import assert from 'assert';
 import { getWindow } from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import type { IManagedHoverContent } from '../../../base/browser/ui/hover/hover.js';
+import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { timeout } from '../../../base/common/async.js';
-import { Action } from '../../../base/common/actions.js';
+import { Action, IAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
@@ -23,6 +26,7 @@ import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.j
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
 const getDropdownPillHoverContents = Reflect.get(ChatDropdownPillActionViewItem.prototype, 'getHoverContents') as (this: ChatDropdownPillActionViewItem) => IManagedHoverContent;
+const getDropdownPillItems = Reflect.get(ChatDropdownPillActionViewItem.prototype, '_getDropdownItems') as (this: ChatDropdownPillActionViewItem) => IActionListItem<IChatPillEntry>[];
 
 suite('ChatPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -339,18 +343,21 @@ suite('ChatPills', () => {
 		viewItem.render(container);
 
 		const fallbackHover = getDropdownPillHoverContents.call(viewItem);
-		sections.set([{ title: 'Pull Requests', entries: [entry('1', richHover)] }], undefined);
+		sections.set([{ title: 'Pull Requests', entries: [{ ...entry('1', richHover), badge: '#1', className: 'chat-pill-github-reference' }] }], undefined);
 		const enrichedHover = getDropdownPillHoverContents.call(viewItem);
+		const mappedEntry = getDropdownPillItems.call(viewItem)[1];
 		sections.set([{ title: 'Pull Requests', entries: [entry('1', richHover), entry('2')] }], undefined);
 		const summaryHover = getDropdownPillHoverContents.call(viewItem);
 
 		assert.deepStrictEqual({
 			fallbackHover,
 			usesRichHover: enrichedHover === richHover,
+			mappedEntry: { label: mappedEntry.label, badge: mappedEntry.badge, className: mappedEntry.className },
 			summaryHover,
 		}, {
 			fallbackHover: 'https://github.com/microsoft/vscode/pull/1',
 			usesRichHover: true,
+			mappedEntry: { label: 'Pull Request #1', badge: '#1', className: 'chat-pill-github-reference' },
 			summaryHover: 'Show 2 pull requests',
 		});
 
@@ -363,6 +370,7 @@ suite('ChatPills', () => {
 		let visible = false;
 		let onHide: ((didCancel?: boolean) => void) | undefined;
 		let shownLabels: readonly (string | undefined)[] = [];
+		let shownAriaLabels: readonly (string | null)[] = [];
 		let updatedLabels: readonly (string | undefined)[] = [];
 		let hideCount = 0;
 		const dropdownFocus = mainWindow.document.createElement('button');
@@ -370,9 +378,13 @@ suite('ChatPills', () => {
 		disposables.add(toDisposable(() => dropdownFocus.remove()));
 		const actionWidgetService = new class extends mock<IActionWidgetService>() {
 			override get isVisible(): boolean { return visible; }
-			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, _anchor: HTMLElement | StandardMouseEvent | IAnchor, _container: HTMLElement | undefined, _actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>): void {
 				visible = true;
 				shownLabels = items.map(item => item.label);
+				shownAriaLabels = items.map(item => {
+					const ariaLabel = accessibilityProvider?.getAriaLabel?.(item);
+					return typeof ariaLabel === 'string' ? ariaLabel : null;
+				});
 				onHide = delegate.onHide;
 				dropdownFocus.focus();
 			}
@@ -391,6 +403,8 @@ suite('ChatPills', () => {
 		const entry = (id: string): IChatPillEntry => ({
 			id,
 			label: `Pull Request #${id}`,
+			ariaLabel: `Open Pull Request #${id}`,
+			ariaDescription: `open. Checks passed. https://github.com/microsoft/vscode/pull/${id}`,
 			open: () => { },
 		});
 		const sections = observableValue<readonly IChatPillSection[]>('chatPills.openSections', [{
@@ -431,6 +445,7 @@ suite('ChatPills', () => {
 
 		assert.deepStrictEqual({
 			shownLabels,
+			shownAriaLabels,
 			updatedLabels,
 			expandedAfterUpdate,
 			dropdownFocusPreserved,
@@ -439,6 +454,12 @@ suite('ChatPills', () => {
 			expandedAfterEmpty: button.getAttribute('aria-expanded'),
 		}, {
 			shownLabels: ['Pull Requests', 'Pull Request #1', 'Pull Request #2', 'Pull Request #3'],
+			shownAriaLabels: [
+				'Pull Requests',
+				'Open Pull Request #1, open. Checks passed. https://github.com/microsoft/vscode/pull/1',
+				'Open Pull Request #2, open. Checks passed. https://github.com/microsoft/vscode/pull/2',
+				'Open Pull Request #3, open. Checks passed. https://github.com/microsoft/vscode/pull/3',
+			],
 			updatedLabels: ['Pull Requests', 'Pull Request #2', 'Pull Request #3'],
 			expandedAfterUpdate: 'true',
 			dropdownFocusPreserved: true,

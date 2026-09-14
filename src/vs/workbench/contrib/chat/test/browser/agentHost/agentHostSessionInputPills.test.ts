@@ -12,6 +12,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -66,6 +67,18 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 	}
 }
 
+class TestOpenerService extends mock<IOpenerService>() {
+	readonly opened: { readonly resource: URI; readonly options: Parameters<IOpenerService['open']>[1] }[] = [];
+
+	override async open(resource: URI | string, options?: Parameters<IOpenerService['open']>[1]): Promise<boolean> {
+		this.opened.push({
+			resource: typeof resource === 'string' ? URI.parse(resource) : resource,
+			options,
+		});
+		return true;
+	}
+}
+
 suite('AgentHostSessionInputPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -89,7 +102,9 @@ suite('AgentHostSessionInputPills', () => {
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
+			pullRequestTitles: [...metadata.pullRequestTitles],
 			issueUrls: metadata.issueUrls,
+			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
@@ -97,7 +112,9 @@ suite('AgentHostSessionInputPills', () => {
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
 			],
+			pullRequestTitles: [['https://github.com/microsoft/vscode/pull/2', 'Created PR']],
 			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
+			issueTitles: [['https://github.com/microsoft/vscode/issues/3', 'Created Issue']],
 			artifactIds: ['website'],
 			// Newest first: `resource` was recorded after `issue-reference`.
 			referenceIds: ['resource', 'issue-reference'],
@@ -120,7 +137,9 @@ suite('AgentHostSessionInputPills', () => {
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
+			pullRequestTitles: [...metadata.pullRequestTitles],
 			issueUrls: metadata.issueUrls,
+			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
@@ -128,12 +147,151 @@ suite('AgentHostSessionInputPills', () => {
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
 			],
+			pullRequestTitles: [
+				['https://github.com/microsoft/vscode/pull/2', 'New PR'],
+				['https://github.com/microsoft/vscode/pull/1', 'Old PR'],
+			],
 			issueUrls: [
 				'https://github.com/microsoft/vscode/issues/2',
 				'https://github.com/microsoft/vscode/issues/1',
 			],
+			issueTitles: [
+				['https://github.com/microsoft/vscode/issues/2', 'New Issue'],
+				['https://github.com/microsoft/vscode/issues/1', 'Old Issue'],
+			],
 			artifactIds: ['new-website', 'old-website'],
 			referenceIds: ['new-reference', 'old-reference'],
+		});
+	});
+
+	test('renders recorded GitHub titles in editor and panel pills', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
+		const firstPullRequestUrl = 'https://github.com/microsoft/vscode/pull/335387';
+		const secondPullRequestUrl = 'https://github.com/microsoft/vscode/pull/332982';
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: buildDefaultChatUri(backendSession),
+				chats: [],
+				_meta: withSessionArtifacts(undefined, [
+					{
+						id: 'issue',
+						type: SessionArtifactType.Issue,
+						label: 'Agent Window issue pill discards the recorded issue title',
+						link: issueUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+					{
+						id: 'first-pr',
+						type: SessionArtifactType.PullRequest,
+						label: 'sessions: preserve recorded issue titles in pills',
+						link: firstPullRequestUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+					{
+						id: 'second-pr',
+						type: SessionArtifactType.PullRequest,
+						label: 'Chat: unify Agent Host status pills across chat surfaces',
+						link: secondPullRequestUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+				]),
+			} as unknown as SessionState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		let dropdownLabels: readonly string[] = [];
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			show: (_user, _supportsPreview, items) => {
+				dropdownLabels = items.map(item => item.label ?? '');
+			},
+			hide: () => { },
+			updateItems: () => { },
+			focusItemById: () => { },
+		}));
+		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+		] as const);
+		const openerService = new TestOpenerService();
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+
+		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
+		const [pullRequestButton, issueButton] = buttons;
+		pullRequestButton?.click();
+		issueButton?.click();
+		assert.deepStrictEqual({
+			pullRequests: {
+				label: pullRequestButton?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: pullRequestButton?.getAttribute('aria-label'),
+				dropdownLabels,
+			},
+			issue: {
+				label: issueButton?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: issueButton?.getAttribute('aria-label'),
+				ariaDescription: issueButton?.getAttribute('aria-description'),
+			},
+			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
+		}, {
+			pullRequests: {
+				label: '2 Pull Requests',
+				ariaLabel: 'Show 2 pull requests',
+				dropdownLabels: [
+					'Pull Requests',
+					'Pull Request #332982: Chat: unify Agent Host status pills across chat surfaces',
+					'Pull Request #335387: sessions: preserve recorded issue titles in pills',
+				],
+			},
+			issue: {
+				label: 'Issue #335383: Agent Window issue pill discards the recorded issue title',
+				ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
+				ariaDescription: issueUrl,
+			},
+			opened: [{
+				resource: issueUrl,
+				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
+			}],
 		});
 	});
 
@@ -479,12 +637,12 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		const filterActions = createSessionPullRequestPillData(constObservable([]), visibility.pullRequests).getContextMenuActions();
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
-		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
 			accessor.get(IConfigurationService),
 			accessor.get(IEditorService),
-			accessor.get(IOpenerService),
 		] as const);
+		const openerService = new TestOpenerService();
 
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -528,12 +686,14 @@ suite('AgentHostSessionInputPills', () => {
 			iconColor: singleIcon?.style.color,
 			hasChevron: singleButton?.querySelector('.chat-pill-chevron') !== null,
 		};
+		singleButton?.click();
 		await filterActions[1].run();
 
 		assert.deepStrictEqual({
 			multiple,
 			filteredLabel,
 			single,
+			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
 			filteredOnly: persistentContent.querySelector('.chat-dropdown-pill-button'),
 			canConfigure: persistentContent.querySelector('.chat-pills-row')?.classList.contains('empty'),
 		}, {
@@ -552,6 +712,10 @@ suite('AgentHostSessionInputPills', () => {
 				iconColor: 'var(--vscode-charts-purple)',
 				hasChevron: false,
 			},
+			opened: [{
+				resource: 'https://github.com/microsoft/vscode/pull/1',
+				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
+			}],
 			filteredOnly: null,
 			canConfigure: true,
 		});
