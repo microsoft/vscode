@@ -360,39 +360,39 @@ suite('TunnelAgentHostContribution', () => {
 			connectCalls: [true],
 			providers: [`agenthost-${address}`],
 		});
+	});
 
-		test('failed discovery preserves cached tunnels and providers', async () => {
-			const tunnelService = store.add(new StubTunnelService());
-			const remoteService = store.add(new StubRemoteAgentHostService());
-			const providersService = store.add(new StubSessionsProvidersService());
-			const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
-			const instantiationService = store.add(new TestInstantiationService());
-			instantiationService.stub(ITunnelAgentHostService, tunnelService);
-			instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
-			instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
-			instantiationService.stub(IConfigurationService, configurationService);
-			instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
-			instantiationService.stub(ILogService, new NullLogService());
-			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
-			instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
-			instantiationService.stub(IHostService, new StubHostService());
-			instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
-			instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+	test('failed discovery preserves cached tunnels and providers', async () => {
+		const tunnelService = store.add(new StubTunnelService());
+		const remoteService = store.add(new StubRemoteAgentHostService());
+		const providersService = store.add(new StubSessionsProvidersService());
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 
-			const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-			const cachedTunnel = { tunnelId: 'tunnel-preserved', clusterId: 'use', name: 'Preserved Tunnel' };
-			tunnelService.setCached([cachedTunnel]);
-			tunnelService.setListError(new Error('temporarily unavailable'));
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		const cachedTunnel = { tunnelId: 'tunnel-preserved', clusterId: 'use', name: 'Preserved Tunnel' };
+		tunnelService.setCached([cachedTunnel]);
+		tunnelService.setListError(new Error('temporarily unavailable'));
 
-			await (contribution as unknown as { _silentStatusCheck(): Promise<void> })._silentStatusCheck();
+		await (contribution as unknown as { _silentStatusCheck(): Promise<void> })._silentStatusCheck();
 
-			assert.deepStrictEqual({
-				cached: tunnelService.getCachedTunnels(),
-				providers: providersService.getProviders().map(provider => provider.id),
-			}, {
-				cached: [cachedTunnel],
-				providers: [`agenthost-${TUNNEL_ADDRESS_PREFIX}${cachedTunnel.tunnelId}`],
-			});
+		assert.deepStrictEqual({
+			cached: tunnelService.getCachedTunnels(),
+			providers: providersService.getProviders().map(provider => provider.id),
+		}, {
+			cached: [cachedTunnel],
+			providers: [`agenthost-${TUNNEL_ADDRESS_PREFIX}${cachedTunnel.tunnelId}`],
 		});
 	});
 
