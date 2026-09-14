@@ -11,3 +11,9 @@ export function randomPort(): number {
 	const max = 65535;
 	return min + Math.floor((max - min) * Math.random());
 }
+
+export function isCanonicalPortString(value: unknown): value is string {
+	return typeof value === 'string' &&
+		/^[1-9][0-9]{0,4}$/.test(value) &&
+		Number(value) <= 65535;
+}

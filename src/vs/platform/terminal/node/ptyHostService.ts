@@ -21,6 +21,7 @@ import { detectAvailableProfiles } from './terminalProfiles.js';
 import * as performance from '../../../base/common/performance.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { isCanonicalPortString } from '../../../base/common/ports.js';
 
 enum Constants {
 	MaxRestarts = 5
@@ -339,6 +340,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 
 	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		if (!isCanonicalPortString(port)) {
+			throw new Error('Invalid port');
+		}
 		if (!this._proxy.freePortKillProcess) {
 			throw new Error('freePortKillProcess does not exist on the pty proxy');
 		}

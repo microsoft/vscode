@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFile, exec } from 'child_process';
+import { execFile } from 'child_process';
 import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -34,6 +34,7 @@ import pkg from '@xterm/headless';
 import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
 import { hasKey, isFunction, isNumber, isString } from '../../../base/common/types.js';
 import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
+import { isCanonicalPortString } from '../../../base/common/ports.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
@@ -93,6 +94,34 @@ type WorkspaceId = string;
 
 let SerializeAddon: typeof XtermSerializeAddon;
 let Unicode11Addon: typeof XtermUnicode11Addon;
+
+export function getWindowsListeningProcess(stdout: string, port: string): string | undefined {
+	for (const line of stdout.split(/\r?\n/)) {
+		const columns = line.trim().split(/\s+/);
+		if (columns.length < 5 || columns[0].toUpperCase() !== 'TCP' || columns[3].toUpperCase() !== 'LISTENING') {
+			continue;
+		}
+		const localPort = columns[1].slice(columns[1].lastIndexOf(':') + 1);
+		const processId = columns.at(-1);
+		if (localPort === port && processId && /^[1-9][0-9]*$/.test(processId)) {
+			return processId;
+		}
+	}
+	return undefined;
+}
+
+export function getPosixListeningProcess(stdout: string): string | undefined {
+	return stdout.split(/\r?\n/).map(line => line.trim()).find(line => /^[1-9][0-9]*$/.test(line));
+}
+
+export function getFreePortProcessCommand(port: string, windows: boolean = isWindows): { executable: string; args: string[] } {
+	if (!isCanonicalPortString(port)) {
+		throw new Error('Invalid port');
+	}
+	return windows
+		? { executable: 'netstat', args: ['-ano', '-p', 'tcp'] }
+		: { executable: 'lsof', args: ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'] };
+}
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -202,25 +231,23 @@ export class PtyService extends Disposable implements IPtyService {
 
 	@traceRpc
 	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		if (!isCanonicalPortString(port)) {
+			throw new Error('Invalid port');
+		}
 		const stdout = await new Promise<string>((resolve, reject) => {
-			exec(isWindows ? `netstat -ano | findstr "${port}"` : `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
+			const command = getFreePortProcessCommand(port);
+			execFile(command.executable, command.args, { encoding: 'utf8' }, (err, stdout) => {
 				if (err) {
 					return reject('Problem occurred when listing active processes');
 				}
 				resolve(stdout);
 			});
 		});
-		const processesForPort = stdout.split(/\r?\n/).filter(s => !!s.trim());
-		if (processesForPort.length >= 1) {
-			const capturePid = /\s+(\d+)(?:\s+|$)/;
-			const processId = processesForPort[0].match(capturePid)?.[1];
-			if (processId) {
-				try {
-					process.kill(Number.parseInt(processId));
-				} catch { }
-			} else {
-				throw new Error(`Processes for port ${port} were not found`);
-			}
+		const processId = isWindows ? getWindowsListeningProcess(stdout, port) : getPosixListeningProcess(stdout);
+		if (processId) {
+			try {
+				process.kill(Number(processId));
+			} catch { }
 			return { port, processId };
 		}
 		throw new Error(`Could not kill process with port ${port}`);
