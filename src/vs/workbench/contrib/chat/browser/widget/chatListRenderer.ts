@@ -2727,15 +2727,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
 		templateData.renderedContent = contentForThisTurn;
-		const invalidatedThinkingParts = new Set<ChatThinkingContentPart>();
-		for (const [index, part] of partsToRender.entries()) {
-			if (part && (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && isParentSubagentTool(part)) {
-				const owner = this.getThinkingPartOwner(renderedParts[index]);
-				if (owner) {
-					invalidatedThinkingParts.add(owner);
-				}
-			}
-		}
 		const batchedSubagentParts = new Set<ChatSubagentContentPart>();
 		let codeBlockStartIndex = 0;
 		let treeStartIndex = 0;
@@ -2752,11 +2743,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 
-			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
+			let alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
 			const thinkingPartOwner = this.getThinkingPartOwner(alreadyRenderedPart);
-			const rebuildThinkingGroup = !!thinkingPartOwner && invalidatedThinkingParts.has(thinkingPartOwner);
-			if (rebuildThinkingGroup) {
-				partToRender = contentForThisTurn[contentIndex];
+			const promotesSubagent = !!partToRender
+				&& (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized')
+				&& isParentSubagentTool(partToRender)
+				&& !!thinkingPartOwner;
+			const promotionFollowsThinkingGroupContent = promotesSubagent && renderedParts.slice(0, contentIndex).some(part => this.getThinkingPartOwner(part) === thinkingPartOwner);
+			if (promotesSubagent && thinkingPartOwner && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized')) {
+				thinkingPartOwner.removeToolItem(partToRender.toolCallId, partToRender.toolId);
+				if (!thinkingPartOwner.isEffectivelyEmpty() && alreadyRenderedPart === thinkingPartOwner) {
+					alreadyRenderedPart = undefined;
+				}
 			}
 
 			if (!partToRender) {
@@ -2778,13 +2776,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& partToRender.kind !== 'working'
 				&& contentForThisTurn.slice(contentIndex + 1).some(part => part.kind === 'working');
 			if (alreadyRenderedPart) {
-				if (!rebuildThinkingGroup && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
+				if (partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
 					if (!Array.isArray(partToRender.value)) {
 						alreadyRenderedPart.updateThinking(partToRender);
 					}
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
-				} else if (!rebuildThinkingGroup && alreadyRenderedPart instanceof ChatThinkingContentPart && this.shouldPinPart(partToRender, element)) {
+				} else if (alreadyRenderedPart instanceof ChatThinkingContentPart && this.shouldPinPart(partToRender, element)) {
 					// keep existing thinking part if we are pinning it (combining tool calls into it)
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
@@ -2794,7 +2792,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// tearing down and rebuilding the entire markdown part.
 				if (partToRender.kind === 'markdownContent'
 					&& alreadyRenderedPart instanceof ChatMarkdownContentPart
-					&& !rebuildThinkingGroup
 					&& this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering)
 				) {
 					if (alreadyRenderedPart.tryIncrementalUpdate(partToRender)) {
@@ -2836,7 +2833,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			};
 
 			// combine tool invocations into thinking part if needed. render the tool, but do not replace the working spinner with the new part's dom node since it is already inside the thinking part.
-			const lastThinking = this.getLastThinkingPart(renderedParts);
+			const lastThinking = this.getLastThinkingPart(renderedParts.slice(0, contentIndex));
 			if (lastThinking && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized' || partToRender.kind === 'markdownContent' || partToRender.kind === 'textEditGroup' || partToRender.kind === 'externalEdit' || partToRender.kind === 'hook') && this.shouldPinPart(partToRender, element)) {
 				if (alreadyRenderedPart instanceof ChatMarkdownContentPart) {
 					lastThinking.removeEditPillByPartId(alreadyRenderedPart.codeblocksPartId);
@@ -2847,10 +2844,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					renderedParts[contentIndex] = newPart;
 					// Collapsed mode can create a new group instead of appending to the preceding thinking part.
 					if (newPart instanceof ChatThinkingContentPart && !newPart.domNode.parentElement) {
-						if (alreadyRenderedPart?.domNode?.parentElement && (!rebuildThinkingGroup || templateData.value.contains(alreadyRenderedPart.domNode))) {
+						if (alreadyRenderedPart?.domNode?.parentElement) {
 							alreadyRenderedPart.domNode.before(newPart.domNode);
-						} else if (rebuildThinkingGroup) {
-							this.insertRebuiltContentPart(newPart.domNode, contentIndex, templateData);
 						} else {
 							templateData.value.appendChild(newPart.domNode);
 						}
@@ -2863,9 +2858,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const newPart = this.renderChatContentPart(partToRender, templateData, context, batchedSubagentParts);
 			if (newPart) {
 				renderedParts[contentIndex] = newPart;
+				if (promotesSubagent && thinkingPartOwner && !thinkingPartOwner.isEffectivelyEmpty() && newPart.domNode) {
+					if (promotionFollowsThinkingGroupContent) {
+						thinkingPartOwner.domNode.after(newPart.domNode);
+					} else {
+						thinkingPartOwner.domNode.before(newPart.domNode);
+					}
+					return;
+				}
 				// Maybe the part can't be rendered in this context, but this shouldn't really happen
 				try {
-					if (alreadyRenderedPart?.domNode && (!rebuildThinkingGroup || templateData.value.contains(alreadyRenderedPart.domNode))) {
+					if (alreadyRenderedPart?.domNode) {
 						if (newPart.domNode) {
 							if (preserveWorkingPart) {
 								alreadyRenderedPart.domNode.before(newPart.domNode);
@@ -2879,11 +2882,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						}
 					} else if (newPart.domNode && !newPart.domNode.parentElement) {
 						// Only append if not already attached somewhere else (e.g. inside a thinking wrapper)
-						if (rebuildThinkingGroup) {
-							this.insertRebuiltContentPart(newPart.domNode, contentIndex, templateData);
-						} else {
-							templateData.value.appendChild(newPart.domNode);
-						}
+						templateData.value.appendChild(newPart.domNode);
 					}
 
 				} catch (err) {
@@ -2922,18 +2921,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.wasResponseComplete = element.isComplete;
 	}
 
-	private insertRebuiltContentPart(node: HTMLElement, contentIndex: number, templateData: IChatListItemTemplate): void {
-		const followingPart = templateData.renderedParts?.slice(contentIndex + 1)
-			.find(part => part?.domNode && templateData.value.contains(part.domNode));
-		let anchor = followingPart?.domNode;
-		while (anchor?.parentElement && anchor.parentElement !== templateData.value) {
-			anchor = anchor.parentElement;
-		}
-		templateData.value.insertBefore(node, anchor?.parentElement === templateData.value ? anchor : null);
-	}
-
 	private updateCompletedResponseDisclosure(element: IChatResponseViewModel, content: ReadonlyArray<IChatRendererContent>, templateData: IChatListItemTemplate, animateCollapse: boolean): void {
-		const restoreSummaryFocus = templateData.completedResponseDisclosure?.firstElementChild?.contains(dom.getActiveElement()) ?? false;
+		const activeElement = dom.getActiveElement();
+		const restoreSummaryFocus = templateData.completedResponseDisclosure?.firstElementChild?.contains(activeElement) ?? false;
+		const focusedContent = dom.isHTMLElement(activeElement) && templateData.value.contains(activeElement) && !restoreSummaryFocus
+			? activeElement
+			: undefined;
 		if (!element.isComplete || !this.configService.getValue<boolean>(ChatConfiguration.CollapseCompletedResponses)) {
 			this.removeCompletedResponseDisclosure(templateData);
 			templateData.completedResponseDisclosureOpen = undefined;
@@ -3034,8 +3027,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
 
-		const activeElement = dom.getActiveElement();
-		const keepOpenForFocus = nodesToCollapse.some(node => node.contains(activeElement));
+		const keepOpenForFocus = !!focusedContent && nodesToCollapse.some(node => node.contains(focusedContent));
 		const shouldAnimateInitialCollapse = animateCollapse
 			&& !keepOpenForFocus
 			&& !this.accessibilityService.isMotionReduced()
@@ -3057,6 +3049,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.completedResponseCollapseEndIndex = collapseEndIndex;
 		if (restoreSummaryFocus) {
 			summary.focus({ preventScroll: true });
+		} else if (focusedContent?.isConnected) {
+			focusedContent.focus({ preventScroll: true });
 		}
 		templateData.completedResponseDisclosureDisposables.add(dom.addDisposableListener(details, 'toggle', () => {
 			templateData.completedResponseDisclosureOpen = details.open;
@@ -3090,10 +3084,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		const activeElement = dom.getActiveElement();
+		const focusedContent = dom.isHTMLElement(activeElement) && details.contains(activeElement) && !details.firstElementChild?.contains(activeElement)
+			? activeElement
+			: undefined;
 		while (details.childNodes.length > 1) {
 			details.before(details.childNodes[1]);
 		}
 		details.remove();
+		if (focusedContent?.isConnected) {
+			focusedContent.focus({ preventScroll: true });
+		}
 		templateData.completedResponseDisclosure = undefined;
 		templateData.completedResponseCollapseStartIndex = undefined;
 		templateData.completedResponseCollapseEndIndex = undefined;
@@ -3381,7 +3382,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private getLastThinkingPartForGroupedItem(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): { part: ChatThinkingContentPart | undefined; separatedFromReasoning: boolean } {
-		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
 		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		if (lastThinking?.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items')) {
 			this.finalizeCurrentThinkingPart(context, templateData);
@@ -3621,7 +3622,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private finalizeCurrentThinkingPart(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
-		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
 		if (!lastThinking) {
 			return;
 		}
@@ -4826,7 +4827,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// (i.e., there are subsequent parts that won't be pinned to this thinking part)
 		const element = isResponseVM(context.element) ? context.element : undefined;
 		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
-		const lastThinkingPart = this.getLastThinkingPart(templateData.renderedParts);
+		const renderedPrefix = templateData.renderedParts?.slice(0, context.contentIndex);
+		const lastThinkingPart = this.getLastThinkingPart(renderedPrefix);
 		if (lastThinkingPart?.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly), 'items', 'reasoning')) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
@@ -4834,7 +4836,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+				const lastThinking = this.getLastThinkingPart(renderedPrefix);
 				lastThinking?.finalizeTitleIfDefault();
 				return this.renderNoContent(other => content.kind === other.kind, lastThinking);
 			}
@@ -4854,7 +4856,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return lastPart ?? this.renderNoContent(other => content.kind === other.kind);
 			// non-array, handle case where we are currently thinking vs. starting a new thinking part
 		} else {
-			const lastActiveThinking = this.getLastThinkingPart(templateData.renderedParts);
+			const lastActiveThinking = this.getLastThinkingPart(renderedPrefix);
 			if (lastActiveThinking) {
 				lastActiveThinking.setupThinkingContainer(content);
 				return lastActiveThinking;

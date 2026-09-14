@@ -1999,7 +1999,7 @@ suite('ChatListRenderer', () => {
 		const template = renderer.renderTemplate(container);
 		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
-		return { disposables, model, viewModel, request, response, container, renderer, template, render: () => renderer.renderElement(node, 0, template) };
+		return { disposables, model, viewModel, request, response, container, renderer, template, configurationService, render: () => renderer.renderElement(node, 0, template) };
 	}
 
 	function createSubagentTool(toolCallId: string, data: IChatSubagentToolInvocationData, parentToolCallId?: string): ChatToolInvocation {
@@ -2149,6 +2149,120 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	test('promotes a background launch without crossing an in-progress thinking-group boundary', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const firstTool = new ChatToolInvocation(
+			{ invocationMessage: 'First group tool', pastTenseMessage: 'First group tool' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'first', undefined, {},
+		);
+		const launch = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'launch', undefined, { mode: 'background' },
+		);
+		const secondTool = new ChatToolInvocation(
+			{ invocationMessage: 'Second group tool', pastTenseMessage: 'Second group tool' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'second', undefined, {},
+		);
+		model.acceptResponseProgress(request, firstTool);
+		render();
+		await firstTool.didExecuteTool(undefined);
+		render();
+		model.acceptResponseProgress(request, launch);
+		render();
+		await launch.didExecuteTool(undefined);
+		render();
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Continuing parent work.') });
+		render();
+		model.acceptResponseProgress(request, secondTool);
+		render();
+
+		const groupsBefore = [...new Set(template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart))];
+		assert.strictEqual(groupsBefore.length, 2);
+		launch.toolSpecificData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		launch.notifyToolSpecificDataChanged();
+		render();
+		const groupsAfter = [...new Set(template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart))];
+
+		assert.deepStrictEqual({
+			responseComplete: request.response?.isComplete,
+			groupCount: groupsAfter.length,
+			firstGroupRetained: groupsAfter[0] === groupsBefore[0],
+			secondGroupRetained: groupsAfter[1] === groupsBefore[1],
+			firstGroupActive: groupsAfter[0]?.getIsActive(),
+			secondGroupActive: groupsAfter[1]?.getIsActive(),
+			subagents: template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length,
+		}, {
+			responseComplete: false,
+			groupCount: 2,
+			firstGroupRetained: true,
+			secondGroupRetained: true,
+			firstGroupActive: false,
+			secondGroupActive: true,
+			subagents: 1,
+		});
+		disposables.dispose();
+	});
+
+	test('preserves a grouped tool control and expansion when its sibling launch is promoted', async () => {
+		const { disposables, model, request, template, configurationService, render } = createBackgroundSubagentRenderer();
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Inspecting files', pastTenseMessage: 'Inspected files' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'ordinary', undefined, {},
+		);
+		const launch = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'launch', undefined, { mode: 'background' },
+		);
+		model.acceptResponseProgress(request, ordinary);
+		await ordinary.didExecuteTool({
+			content: [],
+			toolResultDetails: {
+				input: '{"path":"file.ts"}',
+				output: [{ type: 'embed', value: 'No issues found', isText: true }],
+			},
+		});
+		model.acceptResponseProgress(request, launch);
+		await launch.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Continuing parent work.') });
+		render();
+		const group = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+		assert.ok(group);
+		group.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button')?.click();
+		const toolButton = group.domNode.querySelector<HTMLElement>('.chat-tool-invocation-part .chat-used-context-label > .monaco-button');
+		assert.ok(toolButton);
+		toolButton.focus();
+
+		launch.toolSpecificData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		launch.notifyToolSpecificDataChanged();
+		render();
+		const groupAfterPromotion = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+
+		assert.deepStrictEqual({
+			groupRetained: groupAfterPromotion === group,
+			expanded: groupAfterPromotion?.expanded.get(),
+			toolControlRetained: groupAfterPromotion?.domNode.contains(toolButton),
+			toolControlFocused: mainWindow.document.activeElement === toolButton,
+		}, {
+			groupRetained: true,
+			expanded: true,
+			toolControlRetained: true,
+			toolControlFocused: true,
+		});
+		disposables.dispose();
+	});
+
 	for (const hasStarted of [false, true]) {
 		test(`keeps child startup visible after parent finalization and repeated renders (started=${hasStarted})`, async () => {
 			const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
@@ -2232,6 +2346,55 @@ suite('ChatListRenderer', () => {
 			afterCompletion,
 			afterFollowUp: mainWindow.document.activeElement === template.completedResponseDisclosure?.querySelector('summary'),
 		}, { afterCompletion: true, afterFollowUp: true });
+		disposables.dispose();
+	});
+
+	test('preserves focused response controls when a background child changes the disclosure boundary', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const data: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Checking work', pastTenseMessage: 'Checked work' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'ordinary', undefined, {},
+		);
+		const invocation = createSubagentTool('launch', data);
+		model.acceptResponseProgress(request, ordinary);
+		await ordinary.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(subagent);
+		subagent.focus();
+		const childControl = mainWindow.document.activeElement;
+		assert.ok(dom.isHTMLElement(childControl) && subagent.domNode.contains(childControl));
+
+		data.isActive = false;
+		invocation.notifyToolSpecificDataChanged();
+		const childFocusedAfterCompletion = mainWindow.document.activeElement === childControl;
+		const siblingControl = template.completedResponseDisclosure?.querySelector<HTMLElement>('.chat-thinking-box .chat-used-context-label > .monaco-button');
+		assert.ok(siblingControl);
+		siblingControl.focus();
+
+		data.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			childFocusedAfterCompletion,
+			childInsideDisclosure: !!template.completedResponseDisclosure?.contains(childControl),
+			siblingFocusedAfterResume: mainWindow.document.activeElement === siblingControl,
+			siblingInsideDisclosure: !!template.completedResponseDisclosure?.contains(siblingControl),
+		}, {
+			childFocusedAfterCompletion: true,
+			childInsideDisclosure: true,
+			siblingFocusedAfterResume: true,
+			siblingInsideDisclosure: true,
+		});
 		disposables.dispose();
 	});
 

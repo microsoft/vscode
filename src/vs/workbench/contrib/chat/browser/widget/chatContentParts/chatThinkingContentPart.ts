@@ -2023,6 +2023,28 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this._onDidChangeHeight.fire();
 	}
 
+	public removeToolItem(toolCallId: string, toolId: string): boolean {
+		if (this.removeLazyItem(toolId)) {
+			return true;
+		}
+
+		const wrapper = this.toolWrappersByCallId.get(toolCallId);
+		if (!wrapper) {
+			return false;
+		}
+
+		const toolInvocation = this.toolInvocations.find(tool =>
+			(tool.kind === 'toolInvocation' || tool.kind === 'toolInvocationSerialized') && tool.toolCallId === toolCallId
+		);
+		if (toolInvocation) {
+			toolInvocation.isAttachedToThinking = false;
+		}
+		wrapper.remove();
+		this.ownedToolParts.deleteAndDispose(toolCallId);
+		this.removeMaterializedItem(toolCallId);
+		return true;
+	}
+
 	/**
 	 * Removes a markdown edit pill child by its part ID (codeblocksPartId).
 	 */
