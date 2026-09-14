@@ -2737,7 +2737,14 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			return false;
 		}
 
-		return other?.id !== this.id;
+		if (other.id !== this.id) {
+			return true;
+		}
+
+		// Accept replacement model parts so generated titles are written back to the current part.
+		return other === this.content
+			&& extractTextFromPart(other) === this.currentThinkingValue
+			&& other.reasoningDurationMs === this.reasoningDurationMs;
 	}
 
 	override dispose(): void {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -20,6 +21,7 @@ import { NullHoverService } from '../../../../../../platform/hover/test/browser/
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
@@ -48,6 +50,8 @@ import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatMo
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	test('recognizes anchors and their nested content as link targets', () => {
 		const anchor = mainWindow.document.createElement('a');
@@ -1395,6 +1399,97 @@ suite('ChatListRenderer', () => {
 			collapsedAgain: { collapsed: true, connected: true, atResponseRoot: false, insideThinking: true },
 		});
 	});
+
+	test('stops polling unchanged thinking and resumes on the next model update', () => runWithFakedTimers({}, async () => {
+		const disposables = store.add(new DisposableStore());
+		try {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.FixedScrolling);
+			configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.WithThinking);
+			configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+			configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const text = 'test';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+
+			const container = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer,
+				{} as ChatEditorOptions,
+				{},
+				{
+					getListLength: () => 1,
+					onDidScroll: () => toDisposable(() => { }),
+					container,
+					currentChatMode: () => ChatModeKind.Agent,
+					isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { },
+					stickyScrollTopPadding: 0,
+				},
+				undefined,
+				viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+			model.acceptResponseProgress(request, { kind: 'thinking', value: 'Thinking', id: 'thinking-1' });
+			renderer.renderElement(node, 0, template);
+			const thinkingPart = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+			assert.ok(thinkingPart);
+			const contentChecks = sinon.spy(thinkingPart, 'hasSameContent');
+			disposables.add(toDisposable(() => contentChecks.restore()));
+			const updates = sinon.spy(thinkingPart, 'updateThinking');
+			disposables.add(toDisposable(() => updates.restore()));
+
+			await timeout(100);
+			const checksAfterInitialRender = contentChecks.callCount;
+			await timeout(500);
+			const checksAfterPause = contentChecks.callCount;
+			const updatesAfterPause = updates.callCount;
+
+			model.acceptResponseProgress(request, { kind: 'thinking', value: ' with more detail', id: 'thinking-1' });
+			renderer.renderElement(node, 0, template);
+			await timeout(100);
+			const checksAfterUpdate = contentChecks.callCount;
+			await timeout(500);
+
+			assert.deepStrictEqual({
+				checksAfterInitialRender,
+				checksAfterPause,
+				updatesAfterPause,
+				updatesAfterResume: updates.callCount,
+				stoppedAfterResume: contentChecks.callCount === checksAfterUpdate,
+				renderedLatestText: template.value.textContent?.includes('Thinking with more detail'),
+				preservedThinkingPart: template.renderedParts?.includes(thinkingPart),
+			}, {
+				checksAfterInitialRender: 1,
+				checksAfterPause: 1,
+				updatesAfterPause: 0,
+				updatesAfterResume: 1,
+				stoppedAfterResume: true,
+				renderedLatestText: true,
+				preservedThinkingPart: true,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
 
 	test('final markdown remains mounted after thinking and tool progress completes with reduced motion', async () => {
 		const disposables = store.add(new DisposableStore());

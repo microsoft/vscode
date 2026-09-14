@@ -2132,7 +2132,162 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(result, true, 'Should accept markdown content as same content');
 		});
 
-		test('should return false for different thinking part with same id', () => {
+		test('should return true for unchanged thinking content', () => {
+			const values: IChatThinkingPart['value'][] = ['**Working**', ' \n**Working** \n', '', undefined, ['**Working**', ' on it']];
+			const context = createMockRenderContext(false);
+			const results = values.map(value => {
+				const content: IChatThinkingPart = { kind: 'thinking', value, id: 'id-1' };
+				const part = store.add(instantiationService.createInstance(
+					ChatThinkingContentPart,
+					content,
+					context,
+					mockMarkdownRenderer,
+					false
+				));
+
+				return part.hasSameContent(content, [], context.element);
+			});
+
+			assert.deepStrictEqual(results, [true, true, true, true, true]);
+		});
+
+		test('should detect in-place text and duration changes', () => {
+			const content = createThinkingPart('**Working**', 'id-1');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			content.value = '**Updated thinking**';
+			const sameBeforeTextUpdate = part.hasSameContent(content, [], context.element);
+			part.updateThinking(content);
+			const sameAfterTextUpdate = part.hasSameContent(content, [], context.element);
+
+			content.reasoningDurationMs = 2300;
+			const sameBeforeDurationUpdate = part.hasSameContent(content, [], context.element);
+			part.updateThinking(content);
+			const sameAfterDurationUpdate = part.hasSameContent(content, [], context.element);
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				sameBeforeTextUpdate,
+				sameAfterTextUpdate,
+				sameBeforeDurationUpdate,
+				sameAfterDurationUpdate,
+				finalLabel: part.domNode.querySelector('.monaco-button')?.textContent,
+			}, {
+				sameBeforeTextUpdate: false,
+				sameAfterTextUpdate: true,
+				sameBeforeDurationUpdate: false,
+				sameAfterDurationUpdate: true,
+				finalLabel: 'Updated thinking - 3s',
+			});
+		});
+
+		test('should accept replacement model parts before skipping unchanged content', () => {
+			const content = createThinkingPart('**Working**', 'id-1');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+			const replacement: IChatThinkingPart = {
+				...content,
+				value: '**Working** ',
+				metadata: { signature: 'updated' },
+				generatedTitle: 'Reviewed the implementation',
+			};
+
+			const sameBeforeUpdate = part.hasSameContent(replacement, [], context.element);
+			part.updateThinking(replacement);
+			const sameAfterUpdate = part.hasSameContent(replacement, [], context.element);
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				sameBeforeUpdate,
+				sameAfterUpdate,
+				finalLabel: part.domNode.querySelector('.monaco-button')?.textContent,
+			}, {
+				sameBeforeUpdate: false,
+				sameAfterUpdate: true,
+				finalLabel: 'Reviewed the implementation',
+			});
+		});
+
+		test('should persist generated titles on replacement model parts with unchanged text', () => {
+			const content = createThinkingPart('**Working**', 'id-1');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+			const replacement: IChatThinkingPart = { ...content, value: '**Working** ' };
+			const sameBeforeUpdate = part.hasSameContent(replacement, [], context.element);
+			if (!sameBeforeUpdate) {
+				part.updateThinking(replacement);
+			}
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				sameBeforeUpdate,
+				generatedTitle: replacement.generatedTitle,
+			}, {
+				sameBeforeUpdate: false,
+				generatedTitle: 'Working',
+			});
+		});
+
+		for (const thinkingStyle of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
+			test(`should compare only the active grouped thinking section in ${thinkingStyle} mode`, () => {
+				mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', thinkingStyle);
+				const content = createThinkingPart('**Earlier thinking**', 'id-1');
+				const context = createMockRenderContext(false);
+				const part = store.add(instantiationService.createInstance(
+					ChatThinkingContentPart,
+					content,
+					context,
+					mockMarkdownRenderer,
+					false
+				));
+				const nextContent = createThinkingPart('**Current thinking**', 'id-2');
+				part.setupThinkingContainer(nextContent);
+				part.updateThinking(nextContent);
+				const sameEarlierSection = part.hasSameContent(content, [], context.element);
+				const sameActiveSection = part.hasSameContent(nextContent, [], context.element);
+
+				nextContent.value += ' with more detail';
+				const sameBeforeUpdate = part.hasSameContent(nextContent, [], context.element);
+				part.updateThinking(nextContent);
+				const sameAfterUpdate = part.hasSameContent(nextContent, [], context.element);
+				part.resetId();
+
+				assert.deepStrictEqual({
+					sameEarlierSection,
+					sameActiveSection,
+					sameBeforeUpdate,
+					sameAfterUpdate,
+					sameInactiveSection: part.hasSameContent(nextContent, [], context.element),
+				}, {
+					sameEarlierSection: true,
+					sameActiveSection: true,
+					sameBeforeUpdate: false,
+					sameAfterUpdate: true,
+					sameInactiveSection: true,
+				});
+			});
+		}
+
+		test('should return false for changed thinking text with the same id', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
 
@@ -2146,9 +2301,8 @@ suite('ChatThinkingContentPart', () => {
 
 			const otherThinking: IChatRendererContent = createThinkingPart('**Different**', 'id-1');
 
-			// When the id is the same, hasSameContent returns true (other.id !== this.id is false)
 			const result = part.hasSameContent(otherThinking, [], context.element);
-			assert.strictEqual(result, false, 'Should return false for thinking part with same id');
+			assert.strictEqual(result, false, 'Should update changed thinking text');
 		});
 
 		test('should return true for thinking part with different id', () => {
