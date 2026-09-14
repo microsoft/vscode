@@ -1607,14 +1607,19 @@ suite('ActionListWidget', () => {
 		childRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		await timeout(600);
 		const childPanel = parentPanel.querySelector<HTMLElement>('.actionList .action-list-submenu-panel')!;
-		const submenuWidget = widget['_currentSubmenuWidget']!;
-		const layout = submenuWidget['_layoutSubmenu'];
+		const submenuWidget = (widget as unknown as {
+			_currentSubmenuWidget: {
+				_layoutSubmenu: (() => void) | undefined;
+				_list: { scrollTop: number };
+			} | undefined;
+		})._currentSubmenuWidget!;
+		const layout = submenuWidget._layoutSubmenu;
 		let layouts = 0;
-		submenuWidget['_layoutSubmenu'] = () => {
+		submenuWidget._layoutSubmenu = () => {
 			layouts++;
 			layout?.();
 		};
-		submenuWidget['_list'].scrollTop = 24;
+		submenuWidget._list.scrollTop = 24;
 
 		assert.deepStrictEqual({
 			panelVisible: childPanel.style.display !== 'none',
