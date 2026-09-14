@@ -190,8 +190,9 @@ export interface IClaudeModelLimits {
  * maxOutputTokens` (the workbench's context-usage widget and its language
  * model provider), so the prompt limit is published as the window minus the
  * output cap, matching how CAPI reports `max_prompt_tokens` for Copilot-routed
- * models. An observation without a usable output cap publishes the whole
- * window as the prompt limit so the sum still equals the window.
+ * models. An observation without a usable output cap (missing, or not below
+ * the window) publishes the whole window as the prompt limit and a zero
+ * output cap so the sum still equals the window.
  *
  * The SDK catalog names most models by alias (`sonnet`, `opus`, `haiku`) and
  * only carries the concrete id in `resolvedModel`, while `modelUsage` keys by
@@ -218,7 +219,7 @@ export function applyObservedNativeModelLimits(models: readonly IAgentModelInfo[
 			...model,
 			maxContextWindow: observed.contextWindow,
 			maxPromptTokens: hasOutputCap ? observed.contextWindow - observed.maxOutputTokens : observed.contextWindow,
-			maxOutputTokens: observed.maxOutputTokens,
+			maxOutputTokens: hasOutputCap ? observed.maxOutputTokens : 0,
 		};
 	});
 }

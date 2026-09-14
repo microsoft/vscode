@@ -3,29 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SDKControlGetContextUsageResponse } from '@anthropic-ai/claude-agent-sdk';
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { toClaudeContextAttribution } from '../../node/claude/claudeContextUsage.js';
-
-/** A `getContextUsage` report with every required field present and nothing in the window. */
-export function makeContextUsageResponse(overrides: Partial<SDKControlGetContextUsageResponse> = {}): SDKControlGetContextUsageResponse {
-	return {
-		categories: [],
-		totalTokens: 0,
-		maxTokens: 200_000,
-		rawMaxTokens: 200_000,
-		percentage: 0,
-		gridRows: [],
-		model: 'claude-test',
-		memoryFiles: [],
-		mcpTools: [],
-		agents: [],
-		isAutoCompactEnabled: true,
-		apiUsage: null,
-		...overrides,
-	};
-}
+import { makeContextUsageResponse } from './claudeContextUsageTestUtils.js';
 
 suite('claudeContextUsage', () => {
 

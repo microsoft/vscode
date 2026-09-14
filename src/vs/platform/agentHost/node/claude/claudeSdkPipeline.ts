@@ -186,8 +186,12 @@ export class ClaudeSdkPipeline extends Disposable {
 		return this._query!;
 	}
 
-	/** Report every model's SDK-declared limits from a successful result's `modelUsage`. */
-	private _observeModelLimits(message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>): void {
+	/**
+	 * Report every model's SDK-declared limits from a result's `modelUsage`.
+	 * Error results carry the same map, and a turn that fails still names the
+	 * model it ran, so limits are observed on every result subtype.
+	 */
+	private _observeModelLimits(message: Extract<SDKMessage, { type: 'result' }>): void {
 		for (const [model, usage] of Object.entries(message.modelUsage)) {
 			if (Number.isFinite(usage.contextWindow) && usage.contextWindow > 0) {
 				this._onDidObserveModelLimits.fire({
@@ -796,9 +800,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result') {
-					if (message.subtype === 'success') {
-						this._observeModelLimits(message);
-					}
+					this._observeModelLimits(message);
 					if (message.subtype === 'success' && turnId !== undefined) {
 						// Must land before `ChatTurnComplete`: the chat reducer
 						// only applies `ChatUsage` to the active turn.

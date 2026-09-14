@@ -123,7 +123,7 @@ suite('claudeModelSelection', () => {
 			);
 		});
 
-		test('an observation without a usable output cap publishes the whole window as the prompt limit', () => {
+		test('an observation without a usable output cap publishes the whole window as the prompt limit and no output cap', () => {
 			const catalog = mergeClaudeModelCatalogs([], [{ provider: CLAUDE_AGENT_PROVIDER_ID, id: 'claude-sonnet-4-5-20250929', name: 'Sonnet', supportsVision: false }]);
 			const limitsOf = (limits: Map<string, { contextWindow: number; maxOutputTokens: number }>) =>
 				applyObservedNativeModelLimits(catalog, limits).map(m => ({ maxContextWindow: m.maxContextWindow, maxPromptTokens: m.maxPromptTokens, maxOutputTokens: m.maxOutputTokens }));
@@ -134,7 +134,7 @@ suite('claudeModelSelection', () => {
 				},
 				{
 					noCap: [{ maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 0 }],
-					capExceedsWindow: [{ maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 200_000 }],
+					capExceedsWindow: [{ maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 0 }],
 				},
 			);
 		});

@@ -26,8 +26,8 @@ import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer, type IClaudeObservedModelLimits } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { makeContextUsageResponse } from './claudeContextUsage.test.js';
-import { makeResultSuccess } from './claudeMapSessionEventsTestUtils.js';
+import { makeContextUsageResponse } from './claudeContextUsageTestUtils.js';
+import { makeResultError, makeResultSuccess } from './claudeMapSessionEventsTestUtils.js';
 
 // ===== Test doubles =====
 
@@ -691,6 +691,27 @@ suite('ClaudeSdkPipeline', () => {
 					},
 				},
 			});
+		});
+
+		test('a failed result still reports the model limits it observed, without usage enrichment', async () => {
+			// A turn that ends in an error result made model calls all the same
+			// and names the serving model's window in `modelUsage`. The limits
+			// feed the native catalog; enrichment stays success-only.
+			const result = makeResultError('sess-1', ['boom']);
+			result.modelUsage = {
+				'claude-test': { inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 },
+			};
+			const warm = new ScriptedWarmQuery([result], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const observedLimits: IClaudeObservedModelLimits[] = [];
+			disposables.add(pipeline.onDidObserveModelLimits(l => observedLimits.push(l)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{ observedLimits, contextUsageCalls: warm.queries[0].contextUsageCalls.length },
+				{ observedLimits: [{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 }], contextUsageCalls: 0 },
+			);
 		});
 
 		test('a failing getContextUsage leaves the base ChatUsage and still completes the turn', async () => {
