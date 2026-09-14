@@ -12,7 +12,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { SessionComparisonEditorFocusedContext } from '../../../common/contextkeys.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonFileKey, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonFileKey, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionComparisonEditor } from './sessionComparisonEditor.js';
 import { SessionComparisonEditorInput } from './sessionComparisonEditorInput.js';
@@ -86,13 +86,27 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 					const attemptIndex = participant.role === SessionComparisonParticipantRole.Attempt
 						? attempts.findIndex(attempt => attempt.id === participant.id)
 						: -1;
-					const participantLabel = participant.harness.modelLabel
-						? localize('sessionComparisonAccessibleView.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
-						: participant.harness.label;
 					const label = attemptIndex >= 0
-						? localize('sessionComparisonAccessibleView.numberedAttempt', "Attempt {0}: {1}", attemptIndex + 1, participantLabel)
-						: localize('sessionComparisonAccessibleView.participant', "{0}: {1}", role, participantLabel);
+						? getSessionComparisonAttemptLabel(participant, attemptIndex)
+						: localize('sessionComparisonAccessibleView.participant', "{0}: {1}", role, participant.harness.modelLabel
+							? localize('sessionComparisonAccessibleView.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
+							: participant.harness.label);
 					lines.push('', label, localize('sessionComparisonAccessibleView.status', "Status: {0}", status));
+					if (participant.usage) {
+						lines.push(participant.usage.cachedTokens === undefined
+							? localize('sessionComparisonAccessibleView.partialUsage', "Usage: {0} input tokens, {1} output tokens. Partial data.", participant.usage.inputTokens, participant.usage.outputTokens)
+							: localize('sessionComparisonAccessibleView.usage', "Usage: {0} input tokens, {1} cached input tokens, {2} output tokens.", participant.usage.inputTokens, participant.usage.cachedTokens, participant.usage.outputTokens));
+						for (const model of participant.usage.models) {
+							lines.push(localize(
+								'sessionComparisonAccessibleView.modelUsage',
+								"Model {0}: {1} input tokens, {2} cached input tokens, {3} output tokens.",
+								model.model,
+								model.inputTokens,
+								model.cachedTokens,
+								model.outputTokens,
+							));
+						}
+					}
 					const summary = session?.changesSummary?.get();
 					if (summary) {
 						lines.push(localize('sessionComparisonAccessibleView.changes', "Changed files: {0}, additions: {1}, deletions: {2}", summary.files, summary.additions, summary.deletions));
@@ -136,7 +150,7 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 					const recommended = comparison.participants.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
 					const recommendedIndex = recommended ? attempts.findIndex(participant => participant.id === recommended.id) : -1;
 					const recommendedLabel = recommended
-						? localize('sessionComparisonAccessibleView.numberedAttempt', "Attempt {0}: {1}", recommendedIndex + 1, recommended.harness.label)
+						? getSessionComparisonAttemptLabel(recommended, recommendedIndex)
 						: localize('sessionComparisonAccessibleView.unknown', "Unknown");
 					lines.push('', localize('sessionComparisonAccessibleView.recommendation', "Recommended attempt: {0}", recommendedLabel), comparison.verdict.explanation);
 					for (const conflict of comparison.verdict.conflicts) {

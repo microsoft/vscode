@@ -13,10 +13,13 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionComparisonAttemptVerdict, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
+const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
 
 interface ICompleteSessionComparisonInput {
 	readonly comparisonId: string;
@@ -24,6 +27,112 @@ interface ICompleteSessionComparisonInput {
 	readonly explanation: string;
 	readonly conflicts: readonly string[];
 	readonly attempts: readonly ISessionComparisonAttemptVerdict[];
+}
+
+interface IReadSessionComparisonInput {
+	readonly comparisonId: string;
+}
+
+export class ReadSessionComparisonTool implements IToolImpl {
+
+	constructor(
+		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+	) { }
+
+	getToolData(): IToolData {
+		return {
+			id: ReadSessionComparisonToolId,
+			toolReferenceName: 'readAttemptComparison',
+			canBeReferencedInPrompt: true,
+			icon: Codicon.compareChanges,
+			displayName: localize('sessionComparison.readTool.displayName', "Read Attempt Comparison"),
+			userDescription: localize('sessionComparison.readTool.userDescription', "Read the attempts and evidence for an active comparison"),
+			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed files, change summaries, worktree locations, and exact targets for get_session_context. It does not return full transcripts or submit a verdict.',
+			source: ToolDataSource.Internal,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled),
+			runsInWorkspace: false,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					comparisonId: {
+						type: 'string',
+						description: 'The comparison ID supplied in the Judge or synthesis prompt.',
+					},
+				},
+				required: ['comparisonId'],
+				additionalProperties: false,
+			},
+		};
+	}
+
+	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
+		return {
+			invocationMessage: localize('sessionComparison.readTool.invocationMessage', "Reading attempt comparison"),
+			pastTenseMessage: localize('sessionComparison.readTool.pastTenseMessage', "Read attempt comparison"),
+		};
+	}
+
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
+		const input = parseReadInput(invocation.parameters);
+		if (!input) {
+			return toolError('The comparison manifest input is invalid.');
+		}
+		const comparison = this.comparisonService.getComparison(input.comparisonId);
+		if (!comparison) {
+			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
+		}
+		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis])) {
+			return toolError('Only the Judge or synthesis session for this comparison can read its manifest.');
+		}
+		const invokingSession = invocation.context?.sessionResource
+			? this.sessionsManagementService.getSession(invocation.context.sessionResource)
+			: undefined;
+
+		const attempts = comparison.participants
+			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)
+			.map((participant, index) => {
+				const session = this.sessionsManagementService.getSession(participant.sessionResource!);
+				const changes = session?.changes.get() ?? [];
+				const changedFiles = changes.slice(0, 200).map(change => ({
+					resource: (isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri).toString(),
+					insertions: change.insertions,
+					deletions: change.deletions,
+				}));
+				const workspace = session?.workspace.get();
+				const sessionContextTarget = session && invokingSession && invokingSession.providerId === session.providerId
+					? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
+					: undefined;
+				return {
+					participantId: participant.id,
+					label: `Attempt ${index + 1}: ${participant.harness.label}${participant.harness.modelLabel ? ` · ${participant.harness.modelLabel}` : ''}`,
+					harness: {
+						agent: participant.harness.label,
+						model: participant.harness.modelLabel ?? 'Default',
+					},
+					status: session?.status.get() ?? 'unavailable',
+					launchError: participant.launchError,
+					sessionContextTarget,
+					sessionContextUnavailableReason: session && !sessionContextTarget
+						? 'Transcript follow-up is unavailable from this Judge host; use the manifest and worktree evidence.'
+						: undefined,
+					worktree: workspace ? {
+						workingDirectory: workspace.folders[0]?.root.fsPath,
+						folders: workspace.folders.map(folder => folder.root.fsPath),
+					} : undefined,
+					changesSummary: session?.changesSummary?.get(),
+					changedFiles,
+					changedFilesTruncated: changes.length > changedFiles.length,
+				};
+			});
+		return toolResult(JSON.stringify({
+			comparisonId: comparison.id,
+			originalTask: comparison.prompt,
+			baseBranch: comparison.branch,
+			attempts,
+			next: 'Inspect code in the listed worktrees. Use get_session_context with an exact attempt sessionContextTarget for validation claims or other transcript evidence. Do not discover sessions, guess references, or create sessions.',
+		}));
+	}
 }
 
 export class CompleteSessionComparisonTool implements IToolImpl {
@@ -113,9 +222,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
-		const invokingSession = invocation.context?.sessionResource;
-		const judge = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
-		if (!invokingSession || !judge?.sessionResource || !isEqual(invokingSession, judge.sessionResource)) {
+		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge])) {
 			return toolError('Only the judge session for this comparison can submit its verdict.');
 		}
 		const attemptIds = new Set(comparison.participants
@@ -150,9 +257,39 @@ export class SessionComparisonToolContribution extends Disposable implements IWo
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		const toolSet = this._register(toolsService.createToolSet(
+			ToolDataSource.Internal,
+			'vscode_sessionComparison',
+			'sessionComparison',
+			{
+				icon: Codicon.compareChanges,
+				description: localize('sessionComparison.toolSet.description', "Compare implementation attempts"),
+				hiddenInToolsPicker: true,
+			},
+		));
+		const readTool = instantiationService.createInstance(ReadSessionComparisonTool);
+		const readToolData = readTool.getToolData();
+		this._register(toolsService.registerTool(readToolData, readTool));
+		this._register(toolSet.addTool(readToolData));
 		const tool = instantiationService.createInstance(CompleteSessionComparisonTool);
-		this._register(toolsService.registerTool(tool.getToolData(), tool));
+		const toolData = tool.getToolData();
+		this._register(toolsService.registerTool(toolData, tool));
+		this._register(toolSet.addTool(toolData));
 	}
+}
+
+function parseReadInput(value: unknown): IReadSessionComparisonInput | undefined {
+	return isRecord(value) && typeof value.comparisonId === 'string'
+		? { comparisonId: value.comparisonId }
+		: undefined;
+}
+
+function isInvokingParticipant(comparison: ISessionComparison, invocation: IToolInvocation, roles: readonly SessionComparisonParticipantRole[]): boolean {
+	const invokingSession = invocation.context?.sessionResource;
+	return !!invokingSession && comparison.participants.some(participant =>
+		roles.includes(participant.role)
+		&& !!participant.sessionResource
+		&& isEqual(invokingSession, participant.sessionResource));
 }
 
 function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined {

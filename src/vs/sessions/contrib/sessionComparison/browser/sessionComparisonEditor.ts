@@ -6,8 +6,10 @@
 import './media/sessionComparisonEditor.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -16,6 +18,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -26,9 +29,10 @@ import { IAccessibleViewService } from '../../../../platform/accessibility/brows
 import { SessionComparisonEditorFocusedContext } from '../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionComparisonFileKey, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonFileKey, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { IChatUsageSummary } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { SessionComparisonEditorInput } from './sessionComparisonEditorInput.js';
 
 export class SessionComparisonEditor extends EditorPane {
@@ -51,6 +55,7 @@ export class SessionComparisonEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(SessionComparisonEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -142,10 +147,7 @@ export class SessionComparisonEditor extends EditorPane {
 	private _renderAttempt(container: HTMLElement, comparison: ISessionComparison, participant: ISessionComparisonParticipant, index: number): void {
 		const card = dom.append(container, dom.$('.session-comparison-attempt'));
 		const heading = dom.append(card, dom.$('h2.session-comparison-attempt-title'));
-		const harness = participant.harness.modelLabel
-			? localize('sessionComparisonEditor.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
-			: participant.harness.label;
-		heading.textContent = localize('sessionComparisonEditor.numberedAttempt', "Attempt {0}: {1}", index + 1, harness);
+		heading.textContent = getSessionComparisonAttemptLabel(participant, index);
 
 		if (participant.launchError) {
 			dom.append(card, dom.$('p.session-comparison-error')).textContent =
@@ -163,7 +165,18 @@ export class SessionComparisonEditor extends EditorPane {
 			localize('sessionComparisonEditor.elapsed', "Elapsed"),
 			session ? formatDuration(Math.max(0, session.updatedAt.get().getTime() - session.createdAt.getTime())) : localize('sessionComparisonEditor.unknown', "Unknown"),
 		);
-		appendEvidence(evidence, localize('sessionComparisonEditor.usage', "Usage"), localize('sessionComparisonEditor.unknown', "Unknown"));
+		const usageElement = appendEvidence(
+			evidence,
+			localize('sessionComparisonEditor.usage', "Usage"),
+			participant.usage ? formatUsageSummary(participant.usage) : localize('sessionComparisonEditor.unknown', "Unknown"),
+		);
+		if (participant.usage) {
+			usageElement.ariaLabel = formatUsageAccessibilityLabel(participant.usage);
+			const hover = formatUsageHover(participant.usage);
+			if (hover) {
+				this._contentStore.value?.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), usageElement, hover));
+			}
+		}
 		appendEvidence(
 			evidence,
 			localize('sessionComparisonEditor.changedFiles', "Changed files"),
@@ -183,7 +196,7 @@ export class SessionComparisonEditor extends EditorPane {
 			const actions = dom.append(card, dom.$('.session-comparison-actions'));
 			const useAttempt = this._contentStore.value?.add(new Button(actions, {
 				...defaultButtonStyles,
-				ariaLabel: localize('sessionComparisonEditor.useAttemptAriaLabel', "Use attempt {0}, {1}", index + 1, harness),
+				ariaLabel: localize('sessionComparisonEditor.useAttemptAriaLabel', "Use {0}", getSessionComparisonAttemptLabel(participant, index)),
 			}));
 			if (useAttempt) {
 				useAttempt.label = comparison.selectedParticipantId === participant.id
@@ -247,7 +260,7 @@ export class SessionComparisonEditor extends EditorPane {
 			const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 			const recommendationIndex = recommendation ? attempts.findIndex(participant => participant.id === recommendation.id) : -1;
 			const recommendationLabel = recommendation
-				? localize('sessionComparisonEditor.numberedAttempt', "Attempt {0}: {1}", recommendationIndex + 1, recommendation.harness.label)
+				? getSessionComparisonAttemptLabel(recommendation, recommendationIndex)
 				: localize('sessionComparisonEditor.unknown', "Unknown");
 			dom.append(section, dom.$('p.session-comparison-recommendation')).textContent =
 				localize('sessionComparisonEditor.recommendation', "Recommended: {0}", recommendationLabel);
@@ -367,9 +380,46 @@ export class SessionComparisonEditor extends EditorPane {
 	}
 }
 
-function appendEvidence(container: HTMLElement, label: string, value: string): void {
+function appendEvidence(container: HTMLElement, label: string, value: string): HTMLElement {
 	dom.append(container, dom.$('dt')).textContent = label;
-	dom.append(container, dom.$('dd')).textContent = value;
+	const element = dom.append(container, dom.$('dd'));
+	element.textContent = value;
+	return element;
+}
+
+function formatUsageSummary(usage: IChatUsageSummary): string {
+	const input = formatTokenCount(usage.inputTokens);
+	const output = formatTokenCount(usage.outputTokens);
+	if (usage.cachedTokens === undefined) {
+		return localize('sessionComparisonEditor.partialUsageValue', "{0} input · {1} output · partial", input, output);
+	}
+	return localize('sessionComparisonEditor.usageValue', "{0} input · {1} cached · {2} output", input, formatTokenCount(usage.cachedTokens), output);
+}
+
+function formatUsageHover(usage: IChatUsageSummary): string | undefined {
+	if (usage.models.length === 0) {
+		return usage.isComplete ? undefined : localize('sessionComparisonEditor.partialUsageHover', "The provider did not report a complete per-model token breakdown.");
+	}
+	const lines = usage.models.map(model => localize(
+		'sessionComparisonEditor.modelUsageHover',
+		"{0}: {1} input, {2} cached, {3} output",
+		model.model,
+		model.inputTokens,
+		model.cachedTokens,
+		model.outputTokens,
+	));
+	if (!usage.isComplete) {
+		lines.push(localize('sessionComparisonEditor.partialUsageHover', "The provider did not report a complete per-model token breakdown."));
+	}
+	return lines.join('\n');
+}
+
+function formatUsageAccessibilityLabel(usage: IChatUsageSummary): string {
+	const total = usage.cachedTokens === undefined
+		? localize('sessionComparisonEditor.partialUsageAriaLabel', "Usage: {0} input tokens, {1} output tokens. Partial data.", usage.inputTokens, usage.outputTokens)
+		: localize('sessionComparisonEditor.usageAriaLabel', "Usage: {0} input tokens, {1} cached input tokens, {2} output tokens.", usage.inputTokens, usage.cachedTokens, usage.outputTokens);
+	const models = formatUsageHover(usage);
+	return models ? localize('sessionComparisonEditor.usageAriaLabelWithModels', "{0} {1}", total, models) : total;
 }
 
 function appendFileList(container: HTMLElement, title: string, files: readonly string[]): void {

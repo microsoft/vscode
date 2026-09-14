@@ -371,13 +371,15 @@ export interface INewChatInputSendRequest {
  * to add a bit of personality. One is picked per widget instance, avoiding
  * an immediate repeat of the previous pick.
  */
+export const NEW_SESSION_PROMPT_PLACEHOLDER = localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea");
+
 const RANDOM_PLACEHOLDERS = [
 	localize('sessionsChatInput.placeholder.whatAreYouBuilding', "What are you building?"),
 	localize('sessionsChatInput.placeholder.whatWillYouShipToday', "What will you ship today?"),
 	localize('sessionsChatInput.placeholder.describeWhatYouWantToBuild', "Describe what you want to build"),
 	localize('sessionsChatInput.placeholder.whatsYourNextMilestone', "What's your next milestone?"),
 	localize('sessionsChatInput.placeholder.whatAreYouTryingToAchieve', "What are you trying to achieve?"),
-	localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea"),
+	NEW_SESSION_PROMPT_PLACEHOLDER,
 	localize('sessionsChatInput.placeholder.whatsTheGoal', "What's the goal?"),
 	localize('sessionsChatInput.placeholder.whatWillYouCreate', "What will you create?"),
 	localize('sessionsChatInput.placeholder.whatFeatureAreYouDreamingUp', "What feature are you dreaming up?"),
@@ -1922,6 +1924,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	prefillInput(text: string): void {
+		this.setInputValue(text);
+		this._editor?.focus();
+	}
+
+	getInputValue(): string {
+		return this._editor?.getModel()?.getValue() ?? '';
+	}
+
+	setInputValue(text: string): void {
 		const editor = this._editor;
 		const model = editor?.getModel();
 		if (editor && model) {
@@ -1929,7 +1940,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const lastLine = model.getLineCount();
 			const maxColumn = model.getLineMaxColumn(lastLine);
 			editor.setPosition({ lineNumber: lastLine, column: maxColumn });
-			editor.focus();
 		}
 	}
 

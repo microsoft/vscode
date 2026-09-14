@@ -61,6 +61,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -69,6 +70,7 @@ import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 // =============================================================================
 // TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
 // -----------------------------------------------------------------------------
@@ -172,6 +174,11 @@ export interface ISessionGroupItem {
 	readonly sessions: ISession[];
 	readonly isEmpty: boolean;
 	readonly editing: boolean;
+	readonly comparison?: {
+		readonly id: string;
+		readonly title: string;
+		readonly summary: (reader?: IReader) => string;
+	};
 }
 
 export interface ISessionShowMore {
@@ -201,6 +208,7 @@ export class SessionChatItem {
 export type ISessionChatItem = SessionChatItem;
 
 export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
+type SessionGroupConnectorPosition = 'first' | 'middle' | 'last';
 
 function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 	return item instanceof SessionChatItem;
@@ -290,6 +298,7 @@ const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	private static readonly ITEM_HEIGHT_COMPACT = 28;
+	private static readonly ITEM_HEIGHT_COMPARISON_ATTEMPT = 28;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT = 28;
@@ -311,6 +320,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	 */
 	private static readonly ITEM_HEIGHT_PHONE = 76;
 	private static readonly SECTION_HEIGHT = 26;
+	private static readonly COMPARISON_SECTION_HEIGHT = 44;
 	private static readonly SHOW_MORE_HEIGHT = 26;
 	private static readonly PLACEHOLDER_HEIGHT = 26;
 
@@ -329,6 +339,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		 */
 		private readonly _aggregateChatApprovals = false,
 		private readonly _useInsetRowSpacing = false,
+		private readonly _isComparisonAttempt: (session: ISession) => boolean = () => false,
 	) { }
 
 	private withInsetRowSpacing(height: number): number {
@@ -350,6 +361,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			}
 			return this.withInsetRowSpacing(chatHeight);
 		}
+		if (isSessionGroupItem(element) && element.comparison) {
+			return SessionsTreeDelegate.COMPARISON_SECTION_HEIGHT;
+		}
 		if (isSessionSection(element) || isSessionGroupItem(element)) {
 			return SessionsTreeDelegate.SECTION_HEIGHT;
 		}
@@ -363,6 +377,8 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		let height: number;
 		if (this._isPhone()) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
+		} else if (this._isComparisonAttempt(element as ISession)) {
+			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPARISON_ATTEMPT;
 		} else if (this._useCompactQuickChatRows && isQuickChatSession(element as ISession)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
 		} else if (this._isCompact()) {
@@ -689,6 +705,9 @@ interface ISessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
+	readonly comparisonAttemptStatus: HTMLElement;
+	readonly comparisonAttemptStatusIcon: HTMLElement;
+	readonly comparisonAttemptStatusLabel: HTMLElement;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
@@ -764,7 +783,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; isComparisonParticipant?: (session: ISession) => boolean; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			archiveOnboardingSession?: IObservable<ISession | undefined>;
@@ -834,6 +853,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Shown when a voice response arrived while this session was unfocused and
 		// is held until it is (mirrors the main window's sessions viewer).
 		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
+		const comparisonAttemptStatus = DOM.append(titleRow, $('span.session-comparison-attempt-status'));
+		const comparisonAttemptStatusIcon = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-icon'));
+		comparisonAttemptStatusIcon.setAttribute('aria-hidden', 'true');
+		const comparisonAttemptStatusLabel = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-label'));
 		// The list opens a session on click and on Gesture `tap` (touch).
 		// DOM event propagation stops only cover mouse/pointer events; the
 		// list's tap handler reads from `Gesture` directly, bypassing
@@ -897,7 +920,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -919,6 +942,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.elementDisposables.add(autorun(reader => {
 				template.container.classList.toggle('archive-onboarding', this.options.archiveOnboardingSession?.read(reader)?.sessionId === element.sessionId);
 			}));
+		}
+		const groupConnectorPosition = this.options.getGroupConnectorPosition?.(element);
+		const comparisonAttemptLabel = this.options.getComparisonAttemptLabel?.(element);
+		template.container.classList.toggle('session-comparison-attempt', comparisonAttemptLabel !== undefined);
+		template.container.classList.toggle('session-comparison-participant', this.options.isComparisonParticipant?.(element) === true);
+		if (groupConnectorPosition) {
+			template.container.dataset.sessionGroupConnector = groupConnectorPosition;
+		} else {
+			delete template.container.dataset.sessionGroupConnector;
 		}
 
 		if (this.options.onDidRequestRename) {
@@ -1037,11 +1069,30 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('unread', !isRead && !isArchived);
 			template.container.classList.toggle('quick-chat', isQuickChat && this.options.useCompactQuickChatRows);
+			template.comparisonAttemptStatus.classList.toggle('visible', comparisonAttemptLabel !== undefined && (this.options.shouldShowComparisonAttemptStatus?.(element, reader) ?? true));
+			template.comparisonAttemptStatusIcon.className = 'session-comparison-attempt-status-icon';
+			switch (sessionStatus) {
+				case SessionStatus.InProgress:
+					template.comparisonAttemptStatusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptWorking', "Working...");
+					break;
+				case SessionStatus.NeedsInput:
+					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Input needed");
+					break;
+				case SessionStatus.Completed:
+					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptCompleted', "Completed");
+					break;
+				case SessionStatus.Error:
+					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptFailed', "Failed");
+					break;
+				default:
+					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptPending', "Pending");
+			}
 		}));
 
 		// Title — reactive
 		template.elementDisposables.add(autorun(reader => {
-			const titleText = element.title.read(reader);
+			const titleText = comparisonAttemptLabel ?? element.title.read(reader);
 			template.title.set(titleText, matches);
 		}));
 
@@ -1059,7 +1110,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			DOM.clearNode(template.compactHoverDescription);
 
 			// Compact quick chats have no details row.
-			if (isQuickChat && this.options.useCompactQuickChatRows) {
+			if (comparisonAttemptLabel !== undefined || (isQuickChat && this.options.useCompactQuickChatRows)) {
 				descriptionDisposable.clear();
 				timeDisposable.clear();
 				return;
@@ -1614,7 +1665,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 interface ISessionGroupTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
+	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
+	readonly description: HTMLElement;
 	readonly inputContainer: HTMLElement;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
@@ -1628,6 +1681,7 @@ interface ISessionGroupRendererDelegate {
 	commitEdit(group: ISessionGroup, name: string): void;
 	cancelEdit(group: ISessionGroup): void;
 	select(element: ISessionGroupItem, event: MouseEvent): void;
+	toggleCollapsed(element: ISessionGroupItem): void;
 }
 
 class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionGroupTemplate> {
@@ -1653,7 +1707,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		chevron.setAttribute('aria-hidden', 'true');
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
-		const label = DOM.append(container, $('span.session-section-label'));
+		const labelContainer = DOM.append(container, $('.session-group-labels'));
+		const label = DOM.append(labelContainer, $('span.session-section-label'));
+		const description = DOM.append(labelContainer, $('span.session-group-description'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 
@@ -1663,7 +1719,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, icon, collapsed: observableValue(this, false), label, description, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -1677,9 +1733,33 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		this.templatesById.set(element.group.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 
-		template.label.textContent = element.group.name;
+		const isComparison = element.comparison !== undefined;
+		template.container.classList.toggle('session-comparison-group', isComparison);
+		template.icon.className = 'session-section-icon';
+		template.icon.classList.add(...ThemeIcon.asClassNameArray(isComparison ? Codicon.layers : Codicon.folderLibrary));
+		template.label.textContent = element.comparison?.title ?? element.group.name;
+		if (element.comparison) {
+			template.elementDisposables.add(autorun(reader => {
+				template.description.textContent = element.comparison?.summary(reader) ?? '';
+			}));
+		} else {
+			template.description.textContent = '';
+		}
+		template.description.classList.toggle('visible', isComparison);
 		this.updateChevron(template, node.collapsible, node.collapsed);
 		renderSessionHeaderIcon(template, element.sessions, Codicon.folderLibrary, this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
+		if (isComparison) {
+			for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+				template.elementDisposables.add(DOM.addDisposableListener(template.chevron, eventType, event => {
+					event.preventDefault();
+					event.stopPropagation();
+					if (eventType === 'click') {
+						this.delegate.toggleCollapsed(element);
+					}
+				}));
+			}
+			template.elementDisposables.add(Gesture.ignoreTarget(template.chevron));
+		}
 		SessionGroupHasVisibleSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
 		SessionGroupIsEmptyContext.bindTo(template.contextKeyService).set(element.isEmpty);
 
@@ -1882,7 +1962,9 @@ class SessionsAccessibilityProvider {
 			));
 		}
 		if (isSessionGroupItem(element)) {
-			return this.getSectionAriaLabel(element.group.name, element.sessions);
+			return element.comparison
+				? derived(this, reader => localize('comparisonGroupAria', "{0}, {1}", element.comparison!.title, element.comparison!.summary(reader)))
+				: this.getSectionAriaLabel(element.group.name, element.sessions);
 		}
 		if (isSessionSection(element)) {
 			if (element.id === AUTOMATIONS_SECTION_ID) {
@@ -2566,6 +2648,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private readonly sessionGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_SESSION_GROUP_LIMIT);
 	private readonly expandedSessionGroups = new Set<string>();
+	private readonly renderedGroupConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
+	private readonly renderedComparisonAttemptLabels = new Map<string, string>();
+	private readonly renderedComparisonParticipantIds = new Set<string>();
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
@@ -2608,6 +2693,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
+		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -2688,6 +2774,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				grouping: this.options.grouping,
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
+				getGroupConnectorPosition: s => this.renderedGroupConnectorPositions.get(s.sessionId),
+				getComparisonAttemptLabel: s => this.renderedComparisonAttemptLabels.get(s.sessionId),
+				isComparisonParticipant: s => this.renderedComparisonParticipantIds.has(s.sessionId),
+				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				visibleSessions: this._sessionsService.visibleSessions,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
@@ -2755,6 +2845,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
+			toggleCollapsed: element => this.tree.toggleCollapsed(element),
 		}, showUnreadInCollapsedSections, sessionsWithFailingCI, instantiationService, contextKeyService);
 		this._groupRenderer = groupRenderer;
 
@@ -2771,6 +2862,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			true /* useCompactQuickChatRows */,
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
+			session => this.renderedComparisonAttemptLabels.has(session.sessionId),
 		);
 		this._delegate = delegate;
 
@@ -2852,7 +2944,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				horizontalScrolling: false,
 				multipleSelectionSupport: true,
-				expandOnlyOnTwistieClick: element => isSessionItem(element),
+				expandOnlyOnTwistieClick: element => isSessionItem(element) || (isSessionGroupItem(element) && element.comparison !== undefined),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				findWidgetContainer: this.options.findWidgetContainer,
@@ -2866,7 +2958,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (element: SessionListItem) => {
 						if (isSessionGroupItem(element)) {
-							return element.group.name;
+							return element.comparison?.title ?? element.group.name;
 						}
 						if (isSessionSection(element)) {
 							return element.label;
@@ -2927,6 +3019,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.hoveredGuideSessionId.set(undefined, undefined);
 			}
 		}));
+		this._register(this.tree.onMouseClick(e => {
+			if (e.element && isSessionGroupItem(e.element) && e.element.comparison && e.browserEvent.button === 0) {
+				this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, e.element.comparison.id);
+			}
+		}));
 		this._register(this.tree.onDidChangeSelection(() => {
 			this.selectedGuideSessionIds.set(guideOwnerSessionIds(this.tree.getSelection()), undefined);
 		}));
@@ -2979,6 +3076,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
 				this.tree.setSelection([]);
 				this.commandService.executeCommand('sessionsView.manageAutomations');
+				return;
+			}
+			if (isSessionGroupItem(element) && element.comparison) {
+				if (!DOM.isMouseEvent(e.browserEvent) || e.browserEvent.button !== 0) {
+					this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, element.comparison.id);
+				}
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
@@ -3265,14 +3368,40 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// service (defaulting to newest-first), independent of their members'
 		// recency, and is shared across both grouping modes.
 		const groupItemsById = new Map<string, ISessionGroupItem>();
+		const comparisonsByGroupId = new Map(this.sessionComparisonService.comparisons.get().map(comparison => [comparison.groupId, comparison]));
+		this.renderedGroupConnectorPositions.clear();
+		this.renderedComparisonAttemptLabels.clear();
+		this.renderedComparisonParticipantIds.clear();
 		for (const group of this._sessionGroupsService.getGroups()) {
 			const members = groupedMembers.get(group.id) ?? [];
-			const sortedMembers = sortSessions(members, sorting, sortKeyForGrouping);
+			const comparison = comparisonsByGroupId.get(group.id);
+			const sortedMembers = comparison
+				? sortComparisonGroupMembers(comparison, members, sorting, sortKeyForGrouping)
+				: sortSessions(members, sorting, sortKeyForGrouping);
+			if (comparison) {
+				for (const member of members.filter(candidate => comparison.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, candidate.resource)))) {
+					this.renderedComparisonParticipantIds.add(member.sessionId);
+				}
+				const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+				for (const [index, participant] of attempts.entries()) {
+					const session = participant.sessionResource
+						? members.find(member => isEqual(member.resource, participant.sessionResource))
+						: undefined;
+					if (session) {
+						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonAttemptLabel(participant, index));
+					}
+				}
+			}
 			groupItemsById.set(group.id, {
 				group,
 				sessions: sortedMembers,
 				isEmpty: this._sessionGroupsService.getSessionIdsInGroup(group.id).length === 0,
 				editing: group.id === this._editingGroupId,
+				comparison: comparison ? {
+					id: comparison.id,
+					title: comparison.title,
+					summary: reader => getComparisonGroupSummary(comparison, this.sessions, reader),
+				} : undefined,
 			});
 		}
 		const defaultGroupIds = [...groupItemsById.values()]
@@ -3436,6 +3565,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 				}]
 				: renderSessionChildren(groupItem.sessions, sectionId, groupItem.group.name, !this.hasFindPattern && this.workspaceGroupCapped);
+			const visibleGroupSessions = groupChildren.map(child => child.element).filter(isSessionItem);
+			if (visibleGroupSessions.length > 1) {
+				for (let index = 0; index < visibleGroupSessions.length; index++) {
+					this.renderedGroupConnectorPositions.set(
+						visibleGroupSessions[index].sessionId,
+						index === 0 ? 'first' : index === visibleGroupSessions.length - 1 ? 'last' : 'middle',
+					);
+				}
+			}
 			return {
 				element: groupItem,
 				collapsible: true,
@@ -4250,6 +4388,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.getRenderedSessionGroup(session) !== undefined;
 	}
 
+	private shouldShowComparisonAttemptStatus(session: ISession, reader: IReader): boolean {
+		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
+		if (!comparison) {
+			return false;
+		}
+		const statuses = comparison.participants
+			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt)
+			.map(participant => {
+				if (participant.launchError) {
+					return SessionStatus.Error;
+				}
+				const attemptSession = participant.sessionResource
+					? this.sessions.find(candidate => isEqual(candidate.resource, participant.sessionResource))
+					: undefined;
+				return attemptSession?.status.read(reader);
+			});
+		return statuses.includes(SessionStatus.Error) || new Set(statuses).size > 1;
+	}
+
 	/** Whether any registered provider can create quick chats (gates the always-visible "Chats" section). */
 	private _someProviderSupportsQuickChats(): boolean {
 		return this._sessionsProvidersService.getProviders().some(p => !!p.supportsQuickChats);
@@ -4543,6 +4700,52 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
 	const key = getSortKey ?? defaultSortKey;
 	return [...sessions].sort((a, b) => key(b, sorting) - key(a, sorting));
+}
+
+function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: ISession[], sorting: SessionsSorting, getSortKey: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
+	const participantOrder = (session: ISession) => comparison.participants.findIndex(participant => participant.sessionResource && isEqual(participant.sessionResource, session.resource));
+	return sortSessions(sessions, sorting, getSortKey).sort((a, b) => {
+		const aIndex = participantOrder(a);
+		const bIndex = participantOrder(b);
+		if (aIndex < 0) {
+			return bIndex < 0 ? 0 : 1;
+		}
+		if (bIndex < 0) {
+			return -1;
+		}
+		return aIndex - bIndex;
+	});
+}
+
+function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {
+	const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+	const statuses = attempts.map(participant => {
+		if (participant.launchError) {
+			return SessionStatus.Error;
+		}
+		return participant.sessionResource
+			? reader
+				? sessions.find(session => isEqual(session.resource, participant.sessionResource))?.status.read(reader)
+				: sessions.find(session => isEqual(session.resource, participant.sessionResource))?.status.get()
+			: undefined;
+	});
+	const needsInput = statuses.filter(status => status === SessionStatus.NeedsInput).length;
+	const working = statuses.filter(status => status === SessionStatus.InProgress).length;
+	const finished = statuses.filter(status => status === SessionStatus.Completed || status === SessionStatus.Error).length;
+	if (needsInput > 0) {
+		return needsInput === 1
+			? localize('comparisonGroup.oneAttemptNeedsInput', "Comparison · 1 attempt needs input")
+			: localize('comparisonGroup.attemptsNeedInput', "Comparison · {0} attempts need input", needsInput);
+	}
+	if (working > 0) {
+		return working === 1
+			? localize('comparisonGroup.oneAttemptWorking', "Comparison · 1 attempt working")
+			: localize('comparisonGroup.attemptsWorking', "Comparison · {0} attempts working", working);
+	}
+	if (finished === attempts.length) {
+		return localize('comparisonGroup.attemptsFinished', "Comparison · {0} attempts finished", attempts.length);
+	}
+	return localize('comparisonGroup.attempts', "Comparison · {0} attempts", attempts.length);
 }
 
 export interface ISessionLimitResult {

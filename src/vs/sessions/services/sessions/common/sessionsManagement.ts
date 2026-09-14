@@ -266,6 +266,12 @@ export interface ISessionsManagementService {
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
 
 	/**
+	 * Returns an opaque provider-owned target for reading a chat through the
+	 * provider's session-context tool.
+	 */
+	getSessionContextReference(resource: URI): string | undefined;
+
+	/**
 	 * Get all session types from all registered providers, deduplicated by
 	 * {@link ISessionType.id} (first provider wins). Use
 	 * {@link getAllProviderSessionTypes} when provider identity matters.

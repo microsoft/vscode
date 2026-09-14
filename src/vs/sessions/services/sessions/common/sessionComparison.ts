@@ -8,7 +8,9 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatUsageSummary } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { ISessionFolder } from './session.js';
 
 export const enum SessionComparisonParticipantRole {
@@ -44,6 +46,7 @@ export interface ISessionComparisonParticipant {
 	readonly harness: ISessionComparisonHarness;
 	readonly sessionResource?: URI;
 	readonly launchError?: string;
+	readonly usage?: IChatUsageSummary;
 }
 
 export interface ISessionComparisonAttemptVerdict {
@@ -74,6 +77,7 @@ export interface ISessionComparison {
 	readonly workspace: URI;
 	readonly prompt: string;
 	readonly branch?: string;
+	readonly judgeHarness?: ISessionComparisonHarness;
 	readonly participants: readonly ISessionComparisonParticipant[];
 	readonly selectedParticipantId?: string;
 	readonly verdict?: ISessionComparisonVerdict;
@@ -84,6 +88,7 @@ export interface IStartSessionComparisonOptions {
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
+	readonly judgeHarness: ISessionComparisonHarness;
 	readonly permissionLevel?: string;
 	readonly branch?: string;
 }
@@ -102,6 +107,13 @@ export interface ISessionComparisonService {
 }
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
+
+export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, index: number): string {
+	const harnessLabel = participant.harness.modelLabel
+		? localize('sessionComparison.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
+		: participant.harness.label;
+	return localize('sessionComparison.attemptTitle', "Attempt {0}: {1}", index + 1, harnessLabel);
+}
 
 export function getSessionComparisonFileKey(resource: URI, folders: readonly ISessionFolder[]): string {
 	const matchingFolders = folders

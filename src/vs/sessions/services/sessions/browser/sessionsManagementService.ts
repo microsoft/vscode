@@ -297,6 +297,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return undefined;
 	}
 
+	getSessionContextReference(resource: URI): string | undefined {
+		const ownedChat = this.getSessionForChatResource(resource);
+		return ownedChat ? this._getProvider(ownedChat.session)?.getSessionContextReference?.(ownedChat.chat.resource) : undefined;
+	}
+
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
 	}

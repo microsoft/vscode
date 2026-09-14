@@ -214,6 +214,13 @@ export interface ISessionsProvider {
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Returns an opaque target that the provider's session-context tool accepts
+	 * for the given chat, or `undefined` when transcript access is unavailable.
+	 */
+	getSessionContextReference?(chatResource: URI): string | undefined;
+
 	/**
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */

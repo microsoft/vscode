@@ -4,63 +4,99 @@
  *--------------------------------------------------------------------------------------------*/
 
 .session-comparison-setup-dialog {
-	width: min(640px, calc(100% - var(--vscode-spacing-size320)));
+	width: min(560px, calc(100% - var(--vscode-spacing-size320)));
+}
+
+.session-comparison-setup-dialog .dialog-message {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.session-comparison-setup-dialog .dialog-message-text {
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	letter-spacing: -0.01em;
+}
+
+.monaco-dialog-box.session-comparison-setup-dialog .dialog-message-row .dialog-message-container {
+	overflow-y: hidden;
+}
+
+.monaco-dialog-box.session-comparison-setup-dialog .dialog-message-body {
+	min-height: 0;
+	overflow: hidden;
 }
 
 .session-comparison-setup-body {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
 	min-width: 0;
+	max-height: calc(90vh - 120px);
 }
 
-.session-comparison-setup-description,
 .session-comparison-setup-validation,
 .session-comparison-setup-usage {
 	color: var(--vscode-descriptionForeground);
 }
 
 .session-comparison-setup-section-title {
-	margin: 0 0 var(--vscode-spacing-size80);
+	margin: 0 0 var(--vscode-spacing-size60);
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-comparison-setup-context-list {
-	display: grid;
-	grid-template-columns: max-content minmax(0, 1fr);
-	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
-	margin: 0;
+.session-comparison-setup-prompt .monaco-inputbox {
+	width: 100%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.session-comparison-setup-context-list dt {
+.session-comparison-setup-prompt .monaco-inputbox textarea.input {
+	min-height: 52px;
+	line-height: 1.4;
+}
+
+.session-comparison-setup-context-summary {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.session-comparison-setup-context-separator {
 	color: var(--vscode-descriptionForeground);
 }
 
-.session-comparison-setup-context-note {
-	margin: var(--vscode-spacing-size80) 0 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
+.session-comparison-setup-context-value {
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-comparison-setup-context-list dd {
-	min-width: 0;
-	margin: 0;
-	overflow-wrap: anywhere;
+.session-comparison-setup-attempts {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.session-comparison-setup-rows-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	max-height: 220px;
 }
 
 .session-comparison-setup-rows {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size80);
-	max-height: 280px;
-	overflow-y: auto;
+	gap: var(--vscode-spacing-size60);
+	overflow: hidden;
+	padding-right: var(--vscode-spacing-size60);
 }
 
 .session-comparison-setup-row {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size60);
 	padding: var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -73,6 +109,11 @@
 	gap: var(--vscode-spacing-size80);
 }
 
+.session-comparison-setup-judge-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
 .session-comparison-setup-row-header .monaco-button,
 .session-comparison-setup-add.monaco-button {
 	width: auto;
@@ -81,7 +122,7 @@
 .session-comparison-setup-row-controls {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
 }
 
 .session-comparison-setup-field {
@@ -101,12 +142,71 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-comparison-setup-field .monaco-select-box {
+.session-comparison-setup-select {
 	width: 100%;
 }
 
 .session-comparison-setup-add {
 	align-self: flex-start;
+	margin-top: var(--vscode-spacing-size40);
+	border-color: transparent;
+	background-color: transparent;
+	color: var(--vscode-textLink-foreground);
+	padding-inline: var(--vscode-spacing-size40);
+}
+
+.session-comparison-setup-add:hover {
+	border-color: transparent;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-comparison-setup-remove {
+	border-color: transparent;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	padding-inline: var(--vscode-spacing-size40);
+}
+
+.session-comparison-setup-remove:hover {
+	border-color: transparent;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.session-comparison-setup-evaluation {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	padding-top: var(--vscode-spacing-size80);
+}
+
+.session-comparison-setup-evaluation-summary {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	cursor: pointer;
+	color: var(--vscode-foreground);
+}
+
+.session-comparison-setup-evaluation-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.session-comparison-setup-evaluation-value {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.session-comparison-setup-judge {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size80);
 }
 
 .session-comparison-setup-validation,
