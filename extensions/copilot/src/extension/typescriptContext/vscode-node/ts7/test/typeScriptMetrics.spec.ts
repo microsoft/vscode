@@ -9,7 +9,7 @@ import { API } from '@typescript/native/unstable/async';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
-import { TS7TypeScriptMetricsProvider } from '../typeScriptMetricsService';
+import { TS7CodeReviewProvider } from '../codeReviewService';
 import { expectedRuntimeComplexity, getExpectedTypeScriptMetrics, runtimeComplexitySource, summarizeRuntimeComplexity, summarizeTypeScriptMetrics, typeScriptMetricsSource } from './typeScriptMetricsTestData';
 
 suite('TypeScript 7 metrics', () => {
@@ -26,7 +26,7 @@ suite('TypeScript 7 metrics', () => {
 	});
 
 	test('computes complexity from a file path', async () => {
-		const provider = new TS7TypeScriptMetricsProvider(new TestLogService(), new TestTypeScript7Api(api));
+		const provider = new TS7CodeReviewProvider(new TestLogService(), new TestTypeScript7Api(api));
 		try {
 			const result = await provider.computeMetrics(filePath);
 			assert.ok(result !== undefined);
@@ -44,7 +44,7 @@ suite('TypeScript 7 metrics', () => {
 	});
 
 	test('computes complexity for every executable entity from supplied content', async () => {
-		const provider = new TS7TypeScriptMetricsProvider(new TestLogService(), new TestTypeScript7Api(api));
+		const provider = new TS7CodeReviewProvider(new TestLogService(), new TestTypeScript7Api(api));
 		try {
 			const result = await provider.computeMetrics(filePath, typeScriptMetricsSource);
 			assert.ok(result !== undefined);
@@ -55,7 +55,7 @@ suite('TypeScript 7 metrics', () => {
 	});
 
 	test('estimates runtime complexity from loop structure', async () => {
-		const provider = new TS7TypeScriptMetricsProvider(new TestLogService(), new TestTypeScript7Api(api));
+		const provider = new TS7CodeReviewProvider(new TestLogService(), new TestTypeScript7Api(api));
 		try {
 			const result = await provider.computeMetrics(filePath, runtimeComplexitySource);
 			assert.ok(result !== undefined);

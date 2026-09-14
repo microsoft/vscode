@@ -22,9 +22,9 @@ vi.mock('vscode', () => ({
 	Uri: { file: (fsPath: string) => ({ fsPath }) },
 }));
 
-import { TS6TypeScriptMetricsProvider } from '../ts6/typeScriptMetricsService';
+import { TS6CodeReviewProvider } from '../ts6/codeReviewService';
 
-suite('TypeScript 6 metrics service', () => {
+suite('TypeScript 6 code review service', () => {
 	beforeEach(() => {
 		executeCommand.mockReset();
 	});
@@ -39,7 +39,7 @@ suite('TypeScript 6 metrics service', () => {
 			}],
 		};
 		executeCommand.mockResolvedValue({ type: 'response', body: expectedResult });
-		const provider = new TS6TypeScriptMetricsProvider();
+		const provider = new TS6CodeReviewProvider();
 		try {
 			const actual = await provider.computeMetrics('C:\\workspace\\metrics.ts', 'const value = 1;');
 			assert.deepStrictEqual({
@@ -63,6 +63,59 @@ suite('TypeScript 6 metrics service', () => {
 						line: 1,
 						offset: 1,
 						content: 'const value = 1;',
+					},
+					{ executionTarget: 0 },
+				],
+			});
+		} finally {
+			provider.dispose();
+		}
+	});
+
+	test('sends changed ranges and modified content to tsserver', async () => {
+		const expectedResult = {
+			buckets: [{
+				kind: 'method',
+				path: ['Calculator', 'calculate'],
+				range: { start: 2, end: 5 },
+				changes: [{
+					classifications: ['algorithmic'],
+					changeType: 'changed',
+					start: 3,
+					end: 4,
+				}],
+			}],
+		};
+		executeCommand.mockResolvedValue({ type: 'response', body: expectedResult });
+		const provider = new TS6CodeReviewProvider();
+		try {
+			const actual = await provider.classifyChanges(
+				'C:\\workspace\\calculator.ts',
+				{
+					added: [],
+					changed: [{ start: 3, end: 4 }],
+					deleted: [],
+				},
+				'class Calculator { calculate() { return 2; } }',
+			);
+			assert.deepStrictEqual({
+				actual,
+				command: executeCommand.mock.calls[0],
+			}, {
+				actual: expectedResult,
+				command: [
+					'typescript.tsserverRequest',
+					'_.copilot.typeScriptChangeClassification',
+					{
+						file: { fsPath: 'C:\\workspace\\calculator.ts' },
+						line: 1,
+						offset: 1,
+						changes: {
+							added: [],
+							changed: [{ start: 3, end: 4 }],
+							deleted: [],
+						},
+						content: 'class Calculator { calculate() { return 2; } }',
 					},
 					{ executionTarget: 0 },
 				],

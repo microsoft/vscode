@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { suite, test } from 'vitest';
 
 import { packageJson } from '../../../../platform/env/common/packagejson';
-import type { ITypeScriptChangeClassificationService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult } from '../../../../platform/languageContextProvider/common/typeScriptChangeClassification';
+import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart } from '../../../../vscodeTypes';
 import { getContributedToolName, ToolName } from '../../common/toolNames';
@@ -72,7 +72,7 @@ suite('TypeScript change classification tool', () => {
 				},
 			],
 		};
-		const service = new TestTypeScriptChangeClassificationService(classification);
+		const service = new TestCodeReviewService(classification);
 		const tool = new TypeScriptChangeClassificationTool(service);
 		const input: ITypeScriptChangeClassificationToolInput = {
 			filePath: 'C:\\workspace\\calculator.ts',
@@ -101,7 +101,7 @@ suite('TypeScript change classification tool', () => {
 	});
 
 	test('rejects invalid buckets without invoking the service', async () => {
-		const service = new TestTypeScriptChangeClassificationService({ buckets: [] });
+		const service = new TestCodeReviewService({ buckets: [] });
 		const tool = new TypeScriptChangeClassificationTool(service);
 
 		await assert.rejects(
@@ -123,7 +123,7 @@ interface ServiceCall {
 	readonly content?: string;
 }
 
-class TestTypeScriptChangeClassificationService implements ITypeScriptChangeClassificationService {
+class TestCodeReviewService implements ICodeReviewService {
 	readonly _serviceBrand: undefined;
 	readonly calls: ServiceCall[] = [];
 
@@ -132,6 +132,10 @@ class TestTypeScriptChangeClassificationService implements ITypeScriptChangeClas
 	async classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
 		this.calls.push({ filePath, changes, content });
 		return this.result;
+	}
+
+	async computeMetrics(): Promise<TypeScriptMetricsResult | undefined> {
+		return undefined;
 	}
 
 	dispose(): void { }

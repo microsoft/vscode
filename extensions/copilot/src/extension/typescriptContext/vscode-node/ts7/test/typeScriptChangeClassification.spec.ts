@@ -9,9 +9,9 @@ import path from 'node:path';
 import { API } from '@typescript/native/unstable/async';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 
-import type { TypeScriptChangeClassificationInput } from '../../../../../platform/languageContextProvider/common/typeScriptChangeClassification';
+import type { TypeScriptChangeClassificationInput } from '../../../../../platform/languageContextProvider/common/codeReviewService';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
-import { TS7TypeScriptChangeClassificationProvider } from '../typeScriptChangeClassificationService';
+import { TS7CodeReviewProvider } from '../codeReviewService';
 
 suite('TypeScript 7 change classifier', () => {
 	let api: API;
@@ -222,7 +222,7 @@ suite('TypeScript 7 change classifier', () => {
 	});
 
 	async function classify(changes: TypeScriptChangeClassificationInput, content?: string): Promise<readonly object[]> {
-		const provider = new TS7TypeScriptChangeClassificationProvider(new TestLogService(), new TestTypeScript7Api(api));
+		const provider = new TS7CodeReviewProvider(new TestLogService(), new TestTypeScript7Api(api));
 		try {
 			const result = await provider.classifyChanges(filePath, changes, content);
 			assert.ok(result !== undefined);

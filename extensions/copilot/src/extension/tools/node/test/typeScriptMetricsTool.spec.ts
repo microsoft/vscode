@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { suite, test } from 'vitest';
 
 import { packageJson } from '../../../../platform/env/common/packagejson';
-import type { ITypeScriptMetricsService, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/typeScriptMetrics';
+import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart, Range } from '../../../../vscodeTypes';
 import { getContributedToolName, ToolName } from '../../common/toolNames';
@@ -47,7 +47,7 @@ suite('TypeScript metrics tool', () => {
 				metrics: { cognitiveComplexity: 3, cyclomaticComplexity: 4, runtimeComplexity: 'O(n)' },
 			}],
 		};
-		const service = new TestTypeScriptMetricsService(metrics);
+		const service = new TestCodeReviewService(metrics);
 		const tool = new TypeScriptMetricsTool(service);
 		const result = await tool.invoke(createOptions({
 			filePath: 'C:\\workspace\\calculator.ts',
@@ -77,7 +77,7 @@ suite('TypeScript metrics tool', () => {
 	});
 
 	test('rejects relative file paths without invoking the service', async () => {
-		const service = new TestTypeScriptMetricsService({ entities: [] });
+		const service = new TestCodeReviewService({ entities: [] });
 		const tool = new TypeScriptMetricsTool(service);
 
 		await assert.rejects(
@@ -88,7 +88,7 @@ suite('TypeScript metrics tool', () => {
 	});
 });
 
-class TestTypeScriptMetricsService implements ITypeScriptMetricsService {
+class TestCodeReviewService implements ICodeReviewService {
 	readonly _serviceBrand: undefined;
 	readonly calls: Array<ITypeScriptMetricsToolInput> = [];
 
@@ -97,6 +97,10 @@ class TestTypeScriptMetricsService implements ITypeScriptMetricsService {
 	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {
 		this.calls.push({ filePath, content });
 		return this.result;
+	}
+
+	async classifyChanges(_filePath: string, _changes: TypeScriptChangeClassificationInput, _content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
+		return undefined;
 	}
 
 	dispose(): void { }

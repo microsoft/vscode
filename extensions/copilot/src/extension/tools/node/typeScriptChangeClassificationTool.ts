@@ -5,7 +5,7 @@
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 
-import { ITypeScriptChangeClassificationService } from '../../../platform/languageContextProvider/common/typeScriptChangeClassification';
+import { ICodeReviewService } from '../../../platform/languageContextProvider/common/codeReviewService';
 import type { LineRange } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
@@ -26,7 +26,7 @@ export class TypeScriptChangeClassificationTool implements vscode.LanguageModelT
 	static readonly toolName = ToolName.TypeScriptChangeClassification;
 
 	constructor(
-		@ITypeScriptChangeClassificationService private readonly typeScriptChangeClassificationService: ITypeScriptChangeClassificationService,
+		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ITypeScriptChangeClassificationToolInput>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
@@ -49,7 +49,7 @@ export class TypeScriptChangeClassificationTool implements vscode.LanguageModelT
 			throw new Error('content must be a string when provided');
 		}
 
-		const result = await this.typeScriptChangeClassificationService.classifyChanges(filePath, {
+		const result = await this.codeReviewService.classifyChanges(filePath, {
 			added: addedLineRanges,
 			changed: changedLineRanges,
 			deleted: deletedLines,

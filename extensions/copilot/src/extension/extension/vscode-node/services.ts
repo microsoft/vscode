@@ -153,10 +153,8 @@ import { AutomaticInstructionsCollector, IAutomaticInstructionsCollector } from 
 import { GrepResultService, IGrepResultService } from '../../tools/node/grepResultService';
 import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { ContainerContextProviderService } from '../../typescriptContext/vscode-node/regionContextProvider';
-import { ITypeScriptChangeClassificationService } from '../../../platform/languageContextProvider/common/typeScriptChangeClassification';
-import { TypeScriptChangeClassificationService } from '../../typescriptContext/vscode-node/typeScriptChangeClassificationService';
-import { ITypeScriptMetricsService } from '../../../platform/languageContextProvider/common/typeScriptMetrics';
-import { TypeScriptMetricsService } from '../../typescriptContext/vscode-node/typeScriptMetricsService';
+import { ICodeReviewService } from '../../../platform/languageContextProvider/common/codeReviewService';
+import { CodeReviewService } from '../../typescriptContext/vscode-node/codeReviewService';
 
 
 // ###########################################################################################
@@ -177,8 +175,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IDiffService, new DiffServiceImpl());
 	builder.define(IGrepResultService, new SyncDescriptor(GrepResultService));
 	builder.define(IRegionContextProviderService, new SyncDescriptor(ContainerContextProviderService));
-	builder.define(ITypeScriptChangeClassificationService, new SyncDescriptor(TypeScriptChangeClassificationService));
-	builder.define(ITypeScriptMetricsService, new SyncDescriptor(TypeScriptMetricsService));
+	builder.define(ICodeReviewService, new SyncDescriptor(CodeReviewService));
 	builder.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [true]));
 	builder.define(IToolsService, new SyncDescriptor(ToolsService));
 	builder.define(IToolDeferralService, new ToolDeferralService());

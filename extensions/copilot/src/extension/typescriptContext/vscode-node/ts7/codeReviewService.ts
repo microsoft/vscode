@@ -7,23 +7,24 @@ import * as ts from '@typescript/native/unstable/ast';
 import type * as vscode from 'vscode';
 
 import type { ILogService } from '../../../../platform/log/common/logService';
-import type { ITypeScriptChangeClassificationService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult } from '../../../../platform/languageContextProvider/common/typeScriptChangeClassification';
+import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import type * as protocol from '../../common/serverProtocol';
-import { toTypeScriptChangeClassificationResult } from '../typeScriptChangeClassification';
+import { toTypeScriptChangeClassificationResult, toTypeScriptMetricsResult } from '../codeReview';
+import { computeTypeScriptMetrics } from './codeMetrics';
 import { TypeScript7Api } from './ts7Api';
 
 type Node = ts.Node;
 type SourceFile = ts.SourceFile;
 
-interface TypeScriptChangeClassificationApi {
+interface CodeReviewApi {
 	clearSourceFileCache(): void;
 	updateSnapshot(params?: { openFiles?: DocumentIdentifier[]; closeFiles?: DocumentIdentifier[] }): Promise<Snapshot>;
 	runWithTemporaryFileUpdate(baseSnapshot: Snapshot, file: DocumentIdentifier, newText: string, callback: (snapshot: Snapshot) => void | Promise<void>): Promise<void>;
 }
 
-interface TypeScriptChangeClassificationApiProvider extends vscode.Disposable {
-	getApi(): Promise<TypeScriptChangeClassificationApi | undefined>;
+interface CodeReviewApiProvider extends vscode.Disposable {
+	getApi(): Promise<CodeReviewApi | undefined>;
 }
 
 interface LineSpan {
@@ -70,12 +71,37 @@ interface ClassifiedBucket {
 	readonly classifications: protocol.TypeScriptChangeClassification[];
 }
 
-export class TS7TypeScriptChangeClassificationProvider implements Omit<ITypeScriptChangeClassificationService, '_serviceBrand'>, vscode.Disposable {
+export class TS7CodeReviewProvider implements Omit<ICodeReviewService, '_serviceBrand'>, vscode.Disposable {
 	private readonly disposables = new DisposableStore();
-	private readonly nativeApi: TypeScriptChangeClassificationApiProvider;
+	private readonly nativeApi: CodeReviewApiProvider;
 
-	constructor(logService: ILogService, nativeApi: TypeScriptChangeClassificationApiProvider = new TypeScript7Api(logService)) {
+	constructor(logService: ILogService, nativeApi: CodeReviewApiProvider = new TypeScript7Api(logService)) {
 		this.nativeApi = this.disposables.add(nativeApi);
+	}
+
+	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {
+		const api = await this.nativeApi.getApi();
+		if (api === undefined) {
+			return undefined;
+		}
+
+		api.clearSourceFileCache();
+		const snapshot = await api.updateSnapshot({ openFiles: [filePath] });
+		try {
+			if (content === undefined) {
+				return await this.computeMetricsSnapshot(snapshot, filePath);
+			}
+
+			let result: TypeScriptMetricsResult | undefined;
+			await api.runWithTemporaryFileUpdate(snapshot, filePath, content, async updatedSnapshot => {
+				result = await this.computeMetricsSnapshot(updatedSnapshot, filePath);
+			});
+			return result;
+		} finally {
+			await snapshot.dispose();
+			const closedSnapshot = await api.updateSnapshot({ closeFiles: [filePath] });
+			await closedSnapshot.dispose();
+		}
 	}
 
 	async classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
@@ -105,6 +131,12 @@ export class TS7TypeScriptChangeClassificationProvider implements Omit<ITypeScri
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	private async computeMetricsSnapshot(snapshot: Snapshot, filePath: string): Promise<TypeScriptMetricsResult | undefined> {
+		const project = await snapshot.getDefaultProjectForFile(filePath);
+		const sourceFile = await project?.program.getSourceFile(filePath);
+		return sourceFile === undefined ? undefined : toTypeScriptMetricsResult(computeTypeScriptMetrics(sourceFile));
 	}
 
 	private async classifySnapshot(snapshot: Snapshot, filePath: string, changes: TypeScriptChangeClassificationInput): Promise<protocol.TypeScriptChangeClassificationResult | undefined> {

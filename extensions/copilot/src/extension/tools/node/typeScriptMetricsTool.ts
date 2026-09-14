@@ -5,7 +5,7 @@
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 
-import { ITypeScriptMetricsService } from '../../../platform/languageContextProvider/common/typeScriptMetrics';
+import { ICodeReviewService } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
@@ -22,7 +22,7 @@ export class TypeScriptMetricsTool implements vscode.LanguageModelTool<ITypeScri
 	static readonly toolName = ToolName.TypeScriptMetrics;
 
 	constructor(
-		@ITypeScriptMetricsService private readonly typeScriptMetricsService: ITypeScriptMetricsService,
+		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ITypeScriptMetricsToolInput>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
@@ -36,7 +36,7 @@ export class TypeScriptMetricsTool implements vscode.LanguageModelTool<ITypeScri
 			throw new Error('content must be a string when provided');
 		}
 
-		const result = await this.typeScriptMetricsService.computeMetrics(filePath, content);
+		const result = await this.codeReviewService.computeMetrics(filePath, content);
 		checkCancellation(token);
 		if (result === undefined) {
 			throw new Error('TypeScript metrics are unavailable for the requested file');

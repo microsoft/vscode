@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import type { ITypeScriptMetricsService, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/typeScriptMetrics';
+import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import * as protocol from '../../common/serverProtocol';
-import { toTypeScriptMetricsResult } from '../typeScriptMetrics';
+import { toTypeScriptChangeClassificationResult, toTypeScriptMetricsResult } from '../codeReview';
 
 enum ExecutionTarget {
 	Semantic,
@@ -23,7 +23,13 @@ type TypeScriptMetricsRequestArgs = Omit<protocol.TypeScriptMetricsRequestArgs, 
 	offset: number;
 };
 
-export class TS6TypeScriptMetricsProvider implements Omit<ITypeScriptMetricsService, '_serviceBrand'>, vscode.Disposable {
+type TypeScriptChangeClassificationRequestArgs = Omit<protocol.TypeScriptChangeClassificationRequestArgs, 'file' | 'projectFileName' | 'line' | 'offset'> & {
+	file: vscode.Uri;
+	line: number;
+	offset: number;
+};
+
+export class TS6CodeReviewProvider implements Omit<ICodeReviewService, '_serviceBrand'>, vscode.Disposable {
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
 
 	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {
@@ -37,12 +43,34 @@ export class TS6TypeScriptMetricsProvider implements Omit<ITypeScriptMetricsServ
 			'typescript.tsserverRequest',
 			'_.copilot.typeScriptMetrics',
 			args,
-			TS6TypeScriptMetricsProvider.ExecConfig,
+			TS6CodeReviewProvider.ExecConfig,
 		);
 		if (protocol.TypeScriptMetricsResponse.isError(response)) {
 			throw new Error(`TypeScript metrics request failed: ${response.body.message}`);
 		}
 		return protocol.TypeScriptMetricsResponse.isOk(response) ? toTypeScriptMetricsResult(response.body) : undefined;
+	}
+
+	async classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
+		const args: TypeScriptChangeClassificationRequestArgs = {
+			file: vscode.Uri.file(filePath),
+			line: 1,
+			offset: 1,
+			changes,
+			content,
+		};
+		const response = await vscode.commands.executeCommand<protocol.TypeScriptChangeClassificationResponse | undefined>(
+			'typescript.tsserverRequest',
+			'_.copilot.typeScriptChangeClassification',
+			args,
+			TS6CodeReviewProvider.ExecConfig,
+		);
+		if (protocol.TypeScriptChangeClassificationResponse.isError(response)) {
+			throw new Error(`TypeScript change classification request failed: ${response.body.message}`);
+		}
+		return protocol.TypeScriptChangeClassificationResponse.isOk(response)
+			? toTypeScriptChangeClassificationResult(response.body)
+			: undefined;
 	}
 
 	dispose(): void {
