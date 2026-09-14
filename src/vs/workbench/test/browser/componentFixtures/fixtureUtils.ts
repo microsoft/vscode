@@ -704,6 +704,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	});
 	defineInstance(IHoverService, {
 		_serviceBrand: undefined,
+		getStickyHover: () => undefined,
 		showDelayedHover: () => undefined,
 		setupDelayedHover: () => ({ dispose: () => { } }),
 		setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
