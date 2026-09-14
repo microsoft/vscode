@@ -2096,10 +2096,10 @@ suite('Sessions - SessionsList', () => {
 					layersIcon: true,
 					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
 				},
-				order: ['Judge', 'Synthesis', 'Attempt 1: Copilot · Claude Opus 5', 'Attempt 2: Codex · GPT-5'],
+				order: ['Judge', 'Synthesis', 'Copilot · Claude Opus 5', 'Codex · GPT-5'],
 				attempts: [
-					{ title: 'Attempt 1: Copilot · Claude Opus 5', ariaLabel: 'Attempt 1: Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
-					{ title: 'Attempt 2: Codex · GPT-5', ariaLabel: 'Attempt 2: Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Codex · GPT-5', ariaLabel: 'Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
 				],
 				judge: { title: 'Judge', inProgress: true, hasProgressIndicator: true, connector: null },
 				independentParticipantConnectors: [null, null],

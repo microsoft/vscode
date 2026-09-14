@@ -135,7 +135,7 @@ suite('Sessions - Comparison Result', () => {
 
 		assert.deepStrictEqual({
 			content: {
-				winner: initialText.includes('Attempt 2: Codex won'),
+				winner: initialText.includes('Codex won'),
 				customize: initialText.includes('Customize Synthesis'),
 				section: initialText.includes('Error handling'),
 				approach: initialText.includes('Return typed diagnostics.'),
@@ -183,7 +183,7 @@ suite('Sessions - Comparison Result', () => {
 				actionsRole: 'group',
 				actionsLabel: 'Comparison result actions',
 				buttonLabels: [
-					'Focus winning session, Attempt 2: Codex',
+					'Focus winning session, Codex',
 					'Synthesize using the Judge recommendation',
 					'Start synthesis with the selected approaches',
 				],

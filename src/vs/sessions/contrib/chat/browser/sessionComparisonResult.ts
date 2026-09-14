@@ -18,7 +18,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 
 export class SessionComparisonResult extends Disposable {
 
@@ -78,7 +78,7 @@ export class SessionComparisonResult extends Disposable {
 			this.domNode.hidden = true;
 			return;
 		}
-		const winnerLabel = getSessionComparisonAttemptLabel(winner, attempts.indexOf(winner));
+		const winnerLabel = getSessionComparisonHarnessLabel(winner);
 		const title = dom.append(this.domNode, dom.$('h2.session-comparison-result-title'));
 		title.id = this.titleId;
 		title.textContent =
@@ -108,7 +108,7 @@ export class SessionComparisonResult extends Disposable {
 				const verdict = comparison.verdict.attempts.find(candidate => candidate.participantId === attempt.id);
 				const strengths = verdict?.notableDifferences.length ? verdict.notableDifferences : verdict?.summary ? [verdict.summary] : [];
 				const row = dom.append(body, dom.$('tr'));
-				const label = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt));
+				const label = getSessionComparisonHarnessLabel(attempt);
 				const attemptHeader = dom.append(row, dom.$('th'));
 				attemptHeader.setAttribute('scope', 'row');
 				attemptHeader.textContent = label;

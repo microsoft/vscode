@@ -23,7 +23,7 @@ import { aggregateChatUsage, IChatUsageSummary } from '../../../../workbench/con
 import { SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonAttemptJudged } from '../../../common/sessionsTelemetry.js';
 
 const JUDGE_PROMPT_URI = FileAccess.asFileUri('vs/sessions/prompts/judge.md');
@@ -48,6 +48,8 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	readonly comparisons = this._comparisons;
 	private readonly _judgeStarting = new Set<string>();
 	private readonly _synthesisStarting = new Set<string>();
+	private readonly _migratingAttemptTitles = new Set<string>();
+	private readonly _migratedAttemptTitles = new Set<string>();
 	private readonly _reportedExecutionTelemetry = new Set<string>();
 	private readonly _reportedOutcomeTelemetry = new Set<string>();
 	private _judgePromptTemplate: Promise<string> | undefined;
@@ -66,8 +68,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const comparisons = this._load();
 		this._comparisons.set(comparisons, undefined);
 		this._ensureComparisonGroupMembership(comparisons);
+		this._migrateLegacyAttemptTitles(comparisons);
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
-			this._ensureComparisonGroupMembership(this._comparisons.get());
+			const comparisons = this._comparisons.get();
+			this._ensureComparisonGroupMembership(comparisons);
+			this._migrateLegacyAttemptTitles(comparisons);
 			this._checkComparisons();
 		}));
 		this._checkComparisons();
@@ -108,7 +113,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				const session = await this.sessionsManagementService.createAndSendNewChatRequest(options.workspace, {
 					query: options.prompt,
 					attachedContext: options.attachedContext ? [...options.attachedContext] : undefined,
-					title: getSessionComparisonAttemptLabel(participant, index),
+					title: getSessionComparisonHarnessLabel(participant),
 					background: true,
 				}, this._createOptions(harness, options, id, index), token);
 				return {
@@ -504,6 +509,31 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource)?.sessionId : undefined)
 				.filter(sessionId => sessionId !== undefined);
 			this.sessionGroupsService.addToGroup(sessionIds, comparison.groupId);
+		}
+	}
+
+	private _migrateLegacyAttemptTitles(comparisons: readonly ISessionComparison[]): void {
+		for (const comparison of comparisons) {
+			const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+			for (const [index, participant] of attempts.entries()) {
+				const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
+				if (!session || this._migratingAttemptTitles.has(session.sessionId) || this._migratedAttemptTitles.has(session.sessionId)) {
+					continue;
+				}
+				const title = getSessionComparisonHarnessLabel(participant);
+				const legacyTitle = localize('sessionComparison.legacyAttemptTitle', "Attempt {0}: {1}", index + 1, title);
+				if (session.title.get() !== legacyTitle) {
+					continue;
+				}
+				this._migratingAttemptTitles.add(session.sessionId);
+				void this.sessionsManagementService.renameSession(session, title).then(() => {
+					this._migratedAttemptTitles.add(session.sessionId);
+				}, error => {
+					this.logService.warn('[SessionComparisonService] Failed to migrate an attempt title.', error);
+				}).finally(() => {
+					this._migratingAttemptTitles.delete(session.sessionId);
+				});
+			}
 		}
 	}
 

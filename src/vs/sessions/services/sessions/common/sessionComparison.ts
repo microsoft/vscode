@@ -155,10 +155,6 @@ export function getSessionComparisonHarnessLabel(participant: ISessionComparison
 		: participant.harness.label;
 }
 
-export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, index: number): string {
-	return localize('sessionComparison.attemptTitle', "Attempt {0}: {1}", index + 1, getSessionComparisonHarnessLabel(participant));
-}
-
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {
 	const rolePriority = (role: SessionComparisonParticipantRole): number => {
 		switch (role) {

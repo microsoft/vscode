@@ -61,7 +61,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -3387,12 +3387,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.renderedComparisonParticipantIds.add(member.sessionId);
 				}
 				const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-				for (const [index, participant] of attempts.entries()) {
+				for (const participant of attempts) {
 					const session = participant.sessionResource
 						? members.find(member => isEqual(member.resource, participant.sessionResource))
 						: undefined;
 					if (session) {
-						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonAttemptLabel(participant, index));
+						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonHarnessLabel(participant));
 					}
 				}
 			}

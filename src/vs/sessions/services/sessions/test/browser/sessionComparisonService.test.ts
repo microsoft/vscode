@@ -104,8 +104,8 @@ suite('SessionComparisonService', () => {
 			groupedSessionIds: groupsService.groupedSessionIds,
 		}, {
 			requests: [
-				{ query: 'Implement the feature', title: 'Attempt 1: One · Model 1' },
-				{ query: 'Implement the feature', title: 'Attempt 2: Two · Model 2' },
+				{ query: 'Implement the feature', title: 'One · Model 1' },
+				{ query: 'Implement the feature', title: 'Two · Model 2' },
 			],
 			roles: [
 				SessionComparisonParticipantRole.Attempt,
@@ -344,6 +344,36 @@ suite('SessionComparisonService', () => {
 		assert.deepStrictEqual(groupsService.groupedSessionIds, ['attempt', 'judge']);
 	});
 
+	test('removes attempt numbers from untouched legacy session titles', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessions.comparisons', JSON.stringify([{
+			id: 'comparison',
+			groupId: 'comparison-group',
+			title: 'Comparison',
+			createdAt: 1,
+			workspace: 'file:///workspace',
+			prompt: 'Implement',
+			participants: [{
+				id: 'attempt',
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Copilot', modelLabel: 'Claude Opus 5' },
+				sessionResource: 'test:/attempt',
+			}],
+		}]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { sessionsManagementService } = createServices(storageService);
+		sessionsManagementService.addSession({
+			...stubSession('attempt'),
+			title: constObservable('Attempt 1: Copilot · Claude Opus 5'),
+		});
+		sessionsManagementService.fireChange();
+		await timeout(0);
+
+		assert.deepStrictEqual(sessionsManagementService.renameCalls, [{
+			sessionId: 'attempt',
+			title: 'Copilot · Claude Opus 5',
+		}]);
+	});
+
 	test('synthesizes only after an explicit request with the recommended harness', async () => {
 		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
@@ -515,6 +545,7 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 	private readonly _results: Array<() => Promise<ISession | undefined>> = [];
 	private readonly _sessions = new Map<string, ISession>();
 	readonly createCalls: Array<{ folderUri: URI; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
+	readonly renameCalls: Array<{ sessionId: string; title: string }> = [];
 	deleteFailureSessionId: string | undefined;
 
 	enqueue(session: ISession): void {
@@ -554,6 +585,10 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 			throw new Error('cleanup failed');
 		}
 		this._sessions.delete(session.resource.toString());
+	}
+
+	override async renameSession(session: ISession, title: string): Promise<void> {
+		this.renameCalls.push({ sessionId: session.sessionId, title });
 	}
 
 	fireChange(): void {
