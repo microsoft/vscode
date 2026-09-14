@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { copyFile, mkdir, readdir, rename } from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
+import { escapeJavaScriptBuildOutput } from '../../build/lib/escapeJavaScriptOutput.ts';
 
 const REPO_ROOT = import.meta.dirname;
 const isWatch = process.argv.includes('--watch');
@@ -24,7 +25,8 @@ const baseBuildOptions = {
 	// With --sourcemaps flag, generate external source maps (no sourceMappingURL comment in output).
 	sourcemap: isDev ? 'linked' : (generateSourceMaps ? 'external' : false),
 	sourcesContent: false,
-	treeShaking: true
+	treeShaking: true,
+	metafile: true,
 } satisfies esbuild.BuildOptions;
 
 const baseNodeBuildOptions = {
@@ -260,6 +262,7 @@ const typeScriptServerPluginBuildOptions = {
 	sourcemap: isDev ? 'linked' : false,
 	sourcesContent: false,
 	treeShaking: true,
+	metafile: true,
 	external: [
 		'typescript',
 		'typescript/lib/tsserverlibrary',
@@ -382,7 +385,7 @@ async function main() {
 		});
 		rebuild();
 	} else {
-		await Promise.all([
+		const buildResults = await Promise.all([
 			esbuild.build(nodeExtHostBuildOptions),
 			esbuild.build(webExtHostBuildOptions),
 			esbuild.build(nodeSimulationBuildOptions),
@@ -404,6 +407,8 @@ async function main() {
 			],
 			{ cwd: REPO_ROOT, stdio: 'inherit' },
 		);
+
+		await escapeJavaScriptBuildOutput(REPO_ROOT, buildResults, REPO_ROOT);
 
 		// Move source maps to separate directory so they're not packaged with the extension
 		await moveSourceMapsToSeparateDir();

@@ -21,6 +21,7 @@ import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
+import { escapeJavaScriptOutput } from '../lib/escapeJavaScriptOutput.ts';
 
 const globAsync = promisify(glob);
 
@@ -1028,6 +1029,11 @@ ${tslib}`,
 			minify: doMinify,
 			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
 		});
+	}
+
+	const escaped = await escapeJavaScriptOutput(outDirPath);
+	if (escaped.files) {
+		console.log(`[bundle] Escaped Unicode in ${escaped.regularExpressions} regexes and ${escaped.comments} comments across ${escaped.files} files`);
 	}
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);

@@ -7,6 +7,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
+import { escapeJavaScriptOutput } from '../lib/escapeJavaScriptOutput.ts';
 
 const REPO_ROOT = path.dirname(path.dirname(import.meta.dirname));
 const ENTRY_POINT = path.join(REPO_ROOT, 'build', 'next', 'devTunnelsWebEntry.js');
@@ -35,6 +36,7 @@ const vscodeJsonrpcCancellationPath = resolveDevTunnelsJsonRpcModule('cancellati
  */
 export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: string }): Promise<void> {
 	const outDir = path.resolve(REPO_ROOT, options.outDir);
+	const outFile = path.join(outDir, 'devTunnelsModule.js');
 	const t1 = Date.now();
 	await fs.promises.mkdir(outDir, { recursive: true });
 
@@ -56,10 +58,11 @@ export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: s
 		],
 		minify: options.minify,
 		sourcemap: 'linked',
-		outfile: path.join(outDir, 'devTunnelsModule.js'),
+		outfile: outFile,
 		plugins: [devTunnelsBrowserShimPlugin()],
 		logLevel: 'warning',
 	});
+	await escapeJavaScriptOutput(outDir, [outFile]);
 	console.log(`[dev-tunnels-web] Done in ${Date.now() - t1}ms`);
 }
 

@@ -372,17 +372,7 @@ export function adjustSourceMap(
 }
 
 function buildLineStarts(text: string): number[] {
-	const starts: number[] = [0];
-	let pos = 0;
-	while (true) {
-		const nl = text.indexOf('\n', pos);
-		if (nl === -1) {
-			break;
-		}
-		starts.push(nl + 1);
-		pos = nl + 1;
-	}
-	return starts;
+	return collectLineStarts([text]);
 }
 
 /**
@@ -390,48 +380,36 @@ function buildLineStarts(text: string): number[] {
  * `originalCode`, without materialising the full new string.
  */
 function buildLineStartsAfterEdits(originalCode: string, edits: readonly TextEdit[]): number[] {
-	const starts: number[] = [0];
-	let oldPos = 0;
-	let newPos = 0;
-
-	for (const edit of edits) {
-		// Scan unchanged region [oldPos, edit.start) for newlines
-		let from = oldPos;
-		while (true) {
-			const nl = originalCode.indexOf('\n', from);
-			if (nl === -1 || nl >= edit.start) {
-				break;
-			}
-			starts.push(newPos + (nl - oldPos) + 1);
-			from = nl + 1;
+	function* parts(): Iterable<string> {
+		let offset = 0;
+		for (const edit of edits) {
+			yield originalCode.slice(offset, edit.start);
+			yield edit.newText;
+			offset = edit.end;
 		}
-		newPos += edit.start - oldPos;
-
-		// Scan replacement text for newlines
-		let replFrom = 0;
-		while (true) {
-			const nl = edit.newText.indexOf('\n', replFrom);
-			if (nl === -1) {
-				break;
-			}
-			starts.push(newPos + nl + 1);
-			replFrom = nl + 1;
-		}
-		newPos += edit.newText.length;
-
-		oldPos = edit.end;
+		yield originalCode.slice(offset);
 	}
+	return collectLineStarts(parts());
+}
 
-	// Scan remaining unchanged text after last edit
-	let from = oldPos;
-	while (true) {
-		const nl = originalCode.indexOf('\n', from);
-		if (nl === -1) {
-			break;
+function collectLineStarts(parts: Iterable<string>): number[] {
+	const starts = [0];
+	let offset = 0;
+	let previousCarriageReturn = false;
+	for (const part of parts) {
+		if (!part.length) {
+			continue;
 		}
-		starts.push(newPos + (nl - oldPos) + 1);
-		from = nl + 1;
+		const newlines = /\r\n|[\r\n\u2028\u2029]/g;
+		if (previousCarriageReturn && part.startsWith('\n')) {
+			starts[starts.length - 1] = offset + 1;
+			newlines.lastIndex = 1;
+		}
+		while (newlines.exec(part)) {
+			starts.push(offset + newlines.lastIndex);
+		}
+		offset += part.length;
+		previousCarriageReturn = part.endsWith('\r');
 	}
-
 	return starts;
 }
