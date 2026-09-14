@@ -118,6 +118,44 @@ export interface OTelConfigInput {
 	vscodeTelemetryLevel?: string;
 }
 
+interface OTelPolicyConfiguration {
+	inspect<T>(section: string): unknown;
+}
+
+type OTelPolicyConfig = Pick<OTelConfigInput,
+	'policyEnabled' |
+	'policyExporterType' |
+	'policyOtlpEndpoint' |
+	'policyCaptureContent' |
+	'policyOutfile' |
+	'policyProtocol' |
+	'policyServiceName' |
+	'policyResourceAttributes' |
+	'policyHeaders'>;
+
+/**
+ * Reads extension-owned policy references, falling back to their core policy owners because
+ * core settings are registered before extension configuration contributes its references.
+ */
+export function readOTelPolicyConfig(extensionSettings: OTelPolicyConfiguration, coreSettings: OTelPolicyConfiguration): OTelPolicyConfig {
+	const policyValue = <T>(key: string, coreKey = key): T | undefined => {
+		const extensionValue = (extensionSettings.inspect<T>(key) as { policyValue?: T } | undefined)?.policyValue;
+		return extensionValue ?? (coreSettings.inspect<T>(coreKey) as { policyValue?: T } | undefined)?.policyValue;
+	};
+
+	return {
+		policyEnabled: policyValue<boolean>('enabled'),
+		policyExporterType: policyValue<OTelExporterType>('exporterType'),
+		policyOtlpEndpoint: policyValue<string>('otlpEndpoint'),
+		policyCaptureContent: policyValue<boolean>('captureContent'),
+		policyOutfile: policyValue<string>('outfile'),
+		policyProtocol: policyValue<string>('protocol', 'otlpProtocol'),
+		policyServiceName: policyValue<string>('serviceName'),
+		policyResourceAttributes: policyValue<Record<string, string>>('resourceAttributes'),
+		policyHeaders: policyValue<Record<string, string>>('headers'),
+	};
+}
+
 /**
  * Resolve OTel configuration with layered precedence:
  * 1. Enterprise policy values from managed settings (highest)
