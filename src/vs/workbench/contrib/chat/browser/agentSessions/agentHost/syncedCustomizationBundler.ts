@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { hash } from '../../../../../../base/common/hash.js';
+import { hash, numberHash } from '../../../../../../base/common/hash.js';
 import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -31,6 +31,15 @@ const DISPLAY_NAME = 'VS Code Synced Data';
 const FILE_OPERATION_CONCURRENCY = 10;
 const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git\nnode_modules\n', '/', undefined, true);
 const bundleSequencer = new SequencerByKey<string>();
+
+/** Computes a stable content hash over the given bytes (length-sensitive). */
+function hashBytes(bytes: Uint8Array): number {
+	let hashVal = numberHash(bytes.length, 0);
+	for (let i = 0; i < bytes.length; i++) {
+		hashVal = numberHash(bytes[i], hashVal);
+	}
+	return hashVal;
+}
 
 const MANIFEST_CONTENT = JSON.stringify({
 	name: DISPLAY_NAME,
@@ -258,10 +267,10 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		const entries: { sourceUri: URI; destUri: URI; hashPart: string }[] = [];
+		const entries: { sourceUri: URI; destUri: URI; hashKey: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		const addEntry = (file: ISyncableFile, source: IFileStatWithPartialMetadata, destUri: URI, hashKey: string): void => {
-			entries.push({ sourceUri: source.resource, destUri, hashPart: `${hashKey}:${source.mtime}:${source.size}` });
+			entries.push({ sourceUri: source.resource, destUri, hashKey });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
 					uri: source.resource,
@@ -326,7 +335,18 @@ export class SyncedCustomizationBundler extends Disposable {
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
-		const hashParts = entries.map(e => e.hashPart);
+		// Read file contents up front so the nonce reflects actual content, not
+		// just metadata. A metadata-only nonce (mtime + size) can collide when a
+		// file is edited to the same size within the filesystem's mtime
+		// resolution, silently dropping the change from downstream syncs.
+		const fileContents = await Promise.all(entries.map(async entry => ({
+			destUri: entry.destUri,
+			hashKey: entry.hashKey,
+			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
+		})));
+		this._throwIfDisposed();
+
+		const hashParts = fileContents.map(e => `${e.hashKey}:${hashBytes(e.content.buffer)}`);
 		if (mcpContent !== undefined) {
 			hashParts.push(`.mcp.json:${mcpContent}`);
 		}
@@ -340,7 +360,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._throwIfDisposed();
 
 		// Nothing changed since the last successful bundle — reuse it and skip
-		// reading file contents and rewriting the in-memory plugin tree.
+		// rewriting the in-memory plugin tree.
 		if (nonce === this._lastNonce && this._lastRef) {
 			this._originByDest = originByDest;
 			if (mcpServers.length > 0 && !equals(childEnablement, this._lastRef.ref.childEnablement)) {
@@ -353,12 +373,6 @@ export class SyncedCustomizationBundler extends Disposable {
 			}
 			return this._lastRef;
 		}
-
-		const fileContents = await Promise.all(entries.map(async entry => ({
-			destUri: entry.destUri,
-			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
-		})));
-		this._throwIfDisposed();
 
 		// Delete the previous tree for this authority, preserving other authorities
 		try {
