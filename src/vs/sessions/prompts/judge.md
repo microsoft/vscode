@@ -8,5 +8,5 @@ Judge implementation comparison `{{comparisonId}}`.
 4. Record whether each validation result came from the attempt report, your own Judge run, or unavailable evidence. When a validation category genuinely does not apply, use `notApplicable` for both its result and source.
 5. Explain why the winning attempt is strongest using specific code and validation evidence. For every other attempt, record its strongest reusable points in `notableDifferences`.
 6. Do not modify, merge, apply, or delete any attempt.
-7. Call `#completeAttemptComparison` with the recommendation and supporting evidence. If it rejects invalid input, correct the reported fields and retry; do not submit again after success.
+7. Call `#completeAttemptComparison` with the recommendation and supporting evidence. Refer to attempts only by the `attemptNumber` values returned by `#readAttemptComparison`; do not copy participant or session UUIDs. If it rejects invalid input, correct the reported fields and retry; do not submit again after success.
 8. After the tool returns, respond concisely with the winning attempt, specific code and validation evidence for why it won, and the strongest reusable points from every other attempt.

@@ -64,7 +64,7 @@ suite('SessionComparisonTool', () => {
 			originalTask: 'Implement the feature',
 			baseBranch: 'main',
 			attempts: [{
-				participantId: 'attempt',
+				attemptNumber: 1,
 				label: 'Attempt 1: Copilot · Claude',
 				harness: { agent: 'Copilot', model: 'Claude' },
 				status: SessionStatus.Completed,
@@ -82,7 +82,7 @@ suite('SessionComparisonTool', () => {
 				changedFilesStatus: 'available',
 				changedFilesTruncated: false,
 			}],
-			next: 'Review every attempt diff in its authoritative worktree. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in its authoritative worktree. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
 		});
 	});
 
@@ -96,11 +96,11 @@ suite('SessionComparisonTool', () => {
 
 		const result = await invoke(tool, {
 			comparisonId: comparison.id,
-			recommendedParticipantId: 'attempt',
+			recommendedAttemptNumber: 1,
 			explanation: 'No implementation changes were needed.',
 			conflicts: [],
 			attempts: [{
-				participantId: 'attempt',
+				attemptNumber: 1,
 				summary: 'Completed the requested inspection without changing code.',
 				validation: {
 					tests: SessionComparisonValidationState.NotApplicable,
@@ -121,10 +121,14 @@ suite('SessionComparisonTool', () => {
 
 		assert.deepStrictEqual({
 			result: JSON.parse(getText(result)),
+			recommendedParticipantId: submitted?.recommendedParticipantId,
+			attemptParticipantId: submitted?.attempts[0].participantId,
 			validation: submitted?.attempts[0].validation,
 			validationSource: submitted?.attempts[0].validationSource,
 		}, {
 			result: { status: 'submitted', comparisonId: 'comparison' },
+			recommendedParticipantId: 'attempt',
+			attemptParticipantId: 'attempt',
 			validation: {
 				tests: SessionComparisonValidationState.NotApplicable,
 				build: SessionComparisonValidationState.NotApplicable,
@@ -148,11 +152,11 @@ suite('SessionComparisonTool', () => {
 
 		const result = await invoke(tool, {
 			comparisonId: comparison.id,
-			recommendedParticipantId: 'attempt',
+			recommendedAttemptNumber: 1,
 			explanation: 'No implementation changes were needed.',
 			conflicts: [],
 			attempts: [{
-				participantId: 'attempt',
+				attemptNumber: 1,
 				summary: 'Completed the requested inspection without changing code.',
 				validation: {
 					tests: SessionComparisonValidationState.NotApplicable,
@@ -186,11 +190,11 @@ suite('SessionComparisonTool', () => {
 			toolId: 'tool',
 			parameters: {
 				comparisonId: comparison.id,
-				recommendedParticipantId: 'attempt',
+				recommendedAttemptNumber: 1,
 				explanation: 'The implementation is correct and focused.',
 				conflicts: [],
 				attempts: [{
-					participantId: 'attempt',
+					attemptNumber: 1,
 					summary: 'Focused implementation with passing tests.',
 					validation: {
 						tests: SessionComparisonValidationState.Passed,

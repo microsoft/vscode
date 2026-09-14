@@ -23,10 +23,14 @@ const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
 
 interface ICompleteSessionComparisonInput {
 	readonly comparisonId: string;
-	readonly recommendedParticipantId: string;
+	readonly recommendedAttemptNumber: number;
 	readonly explanation: string;
 	readonly conflicts: readonly string[];
-	readonly attempts: readonly ISessionComparisonAttemptVerdict[];
+	readonly attempts: readonly ICompleteSessionComparisonAttemptInput[];
+}
+
+interface ICompleteSessionComparisonAttemptInput extends Omit<ISessionComparisonAttemptVerdict, 'participantId'> {
+	readonly attemptNumber: number;
 }
 
 interface IReadSessionComparisonInput {
@@ -105,7 +109,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 					? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
 					: undefined;
 				return {
-					participantId: participant.id,
+					attemptNumber: index + 1,
 					label: `Attempt ${index + 1}: ${participant.harness.label}${participant.harness.modelLabel ? ` · ${participant.harness.modelLabel}` : ''}`,
 					harness: {
 						agent: participant.harness.label,
@@ -132,7 +136,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			originalTask: comparison.prompt,
 			baseBranch: comparison.branch,
 			attempts,
-			next: 'Review every attempt diff in its authoritative worktree. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in its authoritative worktree. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
 		}));
 	}
 }
@@ -151,7 +155,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.tool.displayName', "Complete Attempt Comparison"),
 			userDescription: localize('sessionComparison.tool.userDescription', "Submit the judge's structured attempt comparison"),
-			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Record whether each validation result came from the attempt report, a Judge run, was unavailable, or was not applicable. Use notApplicable for both validation state and source when a category genuinely does not apply. The recommended participant must be one of the comparison attempts. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
+			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Reference attempts only by the attemptNumber values returned by readAttemptComparison; do not use participant or session UUIDs. Record whether each validation result came from the attempt report, a Judge run, was unavailable, or was not applicable. Use notApplicable for both validation state and source when a category genuinely does not apply. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -162,9 +166,10 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 						type: 'string',
 						description: 'The comparison ID supplied in the judge prompt.',
 					},
-					recommendedParticipantId: {
-						type: 'string',
-						description: 'The participant ID of the strongest attempt.',
+					recommendedAttemptNumber: {
+						type: 'integer',
+						minimum: 1,
+						description: 'The attemptNumber of the strongest attempt from readAttemptComparison.',
 					},
 					explanation: {
 						type: 'string',
@@ -181,7 +186,11 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 						items: {
 							type: 'object',
 							properties: {
-								participantId: { type: 'string' },
+								attemptNumber: {
+									type: 'integer',
+									minimum: 1,
+									description: 'The attemptNumber from readAttemptComparison.',
+								},
 								summary: { type: 'string' },
 								validation: {
 									type: 'object',
@@ -212,12 +221,12 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 									items: { type: 'string' },
 								},
 							},
-							required: ['participantId', 'summary', 'validation', 'validationSource', 'unresolvedIssues', 'notableDifferences'],
+							required: ['attemptNumber', 'summary', 'validation', 'validationSource', 'unresolvedIssues', 'notableDifferences'],
 							additionalProperties: false,
 						},
 					},
 				},
-				required: ['comparisonId', 'recommendedParticipantId', 'explanation', 'conflicts', 'attempts'],
+				required: ['comparisonId', 'recommendedAttemptNumber', 'explanation', 'conflicts', 'attempts'],
 				additionalProperties: false,
 			},
 		};
@@ -242,14 +251,15 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 		if (!isInvokingParticipant(comparison, invocation, [SessionComparisonParticipantRole.Judge])) {
 			return toolError('Only the judge session for this comparison can submit its verdict.');
 		}
-		const attemptIds = new Set(comparison.participants
-			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)
-			.map(participant => participant.id));
-		if (!attemptIds.has(input.recommendedParticipantId)
-			|| input.attempts.length !== attemptIds.size
-			|| input.attempts.some(attempt => !attemptIds.has(attempt.participantId))
-			|| new Set(input.attempts.map(attempt => attempt.participantId)).size !== input.attempts.length) {
-			return toolError('The verdict must recommend an attempt and include exactly one finding for every attempt.');
+		const attemptParticipants = comparison.participants
+			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource);
+		if (!Number.isInteger(input.recommendedAttemptNumber)
+			|| input.recommendedAttemptNumber < 1
+			|| input.recommendedAttemptNumber > attemptParticipants.length
+			|| input.attempts.length !== attemptParticipants.length
+			|| input.attempts.some(attempt => !Number.isInteger(attempt.attemptNumber) || attempt.attemptNumber < 1 || attempt.attemptNumber > attemptParticipants.length)
+			|| new Set(input.attempts.map(attempt => attempt.attemptNumber)).size !== input.attempts.length) {
+			return toolError('The verdict must recommend an attemptNumber and include exactly one finding for every attemptNumber returned by readAttemptComparison.');
 		}
 		if (input.attempts.some(attempt => validationKinds.some(kind =>
 			(attempt.validation[kind] === SessionComparisonValidationState.NotApplicable)
@@ -258,10 +268,16 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 		}
 
 		const verdict: ISessionComparisonVerdict = {
-			recommendedParticipantId: input.recommendedParticipantId,
+			recommendedParticipantId: attemptParticipants[input.recommendedAttemptNumber - 1].id,
 			explanation: input.explanation,
 			conflicts: input.conflicts,
-			attempts: input.attempts,
+			attempts: input.attempts.map(attempt => {
+				const { attemptNumber, ...finding } = attempt;
+				return {
+					participantId: attemptParticipants[attemptNumber - 1].id,
+					...finding,
+				};
+			}),
 		};
 		this.comparisonService.submitVerdict(input.comparisonId, verdict);
 		const result = toolResult(JSON.stringify({ status: 'submitted', comparisonId: input.comparisonId }));
@@ -317,16 +333,16 @@ function isInvokingParticipant(comparison: ISessionComparison, invocation: ITool
 function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined {
 	if (!isRecord(value)
 		|| typeof value.comparisonId !== 'string'
-		|| typeof value.recommendedParticipantId !== 'string'
+		|| typeof value.recommendedAttemptNumber !== 'number'
 		|| typeof value.explanation !== 'string'
 		|| !isStringArray(value.conflicts)
 		|| !Array.isArray(value.attempts)) {
 		return undefined;
 	}
-	const attempts: ISessionComparisonAttemptVerdict[] = [];
+	const attempts: ICompleteSessionComparisonAttemptInput[] = [];
 	for (const attempt of value.attempts) {
 		if (!isRecord(attempt)
-			|| typeof attempt.participantId !== 'string'
+			|| typeof attempt.attemptNumber !== 'number'
 			|| typeof attempt.summary !== 'string'
 			|| !isRecord(attempt.validation)
 			|| !isValidationState(attempt.validation.tests)
@@ -343,7 +359,7 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 			return undefined;
 		}
 		attempts.push({
-			participantId: attempt.participantId,
+			attemptNumber: attempt.attemptNumber,
 			summary: attempt.summary,
 			validation: {
 				tests: attempt.validation.tests,
@@ -363,7 +379,7 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 	}
 	return {
 		comparisonId: value.comparisonId,
-		recommendedParticipantId: value.recommendedParticipantId,
+		recommendedAttemptNumber: value.recommendedAttemptNumber,
 		explanation: value.explanation,
 		conflicts: value.conflicts,
 		attempts,
