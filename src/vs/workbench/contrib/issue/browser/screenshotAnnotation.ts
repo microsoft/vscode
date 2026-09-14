@@ -14,6 +14,19 @@ import { localize } from '../../../../nls.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IScreenshot } from './issueReporterOverlay.js';
 
+/**
+ * Loads screenshot data into an image element, returning undefined when the
+ * data cannot be decoded by the browser.
+ */
+export function loadScreenshotImage(dataUrl: string): Promise<HTMLImageElement | undefined> {
+	return new Promise(resolve => {
+		const image = mainWindow.document.createElement('img');
+		image.onload = () => resolve(image);
+		image.onerror = () => resolve(undefined);
+		image.src = dataUrl;
+	});
+}
+
 const enum AnnotationTool {
 	Select = 'select',
 	Freehand = 'freehand',

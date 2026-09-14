@@ -2167,6 +2167,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 	openSession(sessionResource: URI): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: unknown, target?: unknown, options?: unknown): Promise<IChatWidget | undefined> { return undefined; }
+	async openNewAgentHostEditorSession(): Promise<undefined> { return undefined; }
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined { return undefined; }
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> { return []; }
 	register(newWidget: IChatWidget): IDisposable { return Disposable.None; }

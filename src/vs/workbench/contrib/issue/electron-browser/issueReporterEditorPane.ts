@@ -42,6 +42,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { loadScreenshotImage } from '../browser/screenshotAnnotation.js';
 
 /** Context key that's `true` whenever any IssueReporter editor is open in any group, even when not focused. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -240,12 +241,10 @@ export class IssueReporterEditorPane extends EditorPane {
 					return;
 				}
 
-				const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-					const image = mainWindow.document.createElement('img');
-					image.onload = () => resolve(image);
-					image.onerror = reject;
-					image.src = dataUrl;
-				});
+				const img = await loadScreenshotImage(dataUrl);
+				if (!img) {
+					throw new Error('Failed to load captured screenshot');
+				}
 
 				this.wizard.addScreenshot({ dataUrl, width: img.naturalWidth, height: img.naturalHeight });
 

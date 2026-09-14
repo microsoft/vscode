@@ -11,34 +11,26 @@ import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyn
 import { IAgentSkill, IBuiltinPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
 
-/** URI root for built-in skills bundled with the Agents app. */
-export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
+/** URI root for built-in skills available only in the Agents app. */
+export const SESSIONS_BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
 
 /**
- * Sessions-specific PromptsService that additionally discovers built-in skills
- * bundled at `vs/sessions/skills/{folder}/SKILL.md`.
- *
- * Built-in skills are contributed via the single {@link getBuiltinPromptFiles}
- * override, so the base service merges them into `findAgentSkills()`,
- * `listPromptFiles(skill)` and
- * `listPromptFilesForStorage(skill, PromptsStorage.builtIn)` and applies its own
- * parsing, sanitization and duplicate-name precedence. Built-ins have the lowest
- * skill priority, so a user/workspace skill with the same folder name wins.
+ * Extends shared workbench prompt discovery with skills owned by the Agents app.
  */
 export class AgenticPromptsService extends PromptsService {
 
-	private _builtinSkillsCache: Promise<readonly IAgentSkill[]> | undefined;
+	private sessionsBuiltinSkillsCache: Promise<readonly IAgentSkill[]> | undefined;
 
-	private async getBuiltinSkills(): Promise<readonly IAgentSkill[]> {
-		if (!this._builtinSkillsCache) {
-			this._builtinSkillsCache = this.discoverBuiltinSkills();
+	private async getSessionsBuiltinSkills(): Promise<readonly IAgentSkill[]> {
+		if (!this.sessionsBuiltinSkillsCache) {
+			this.sessionsBuiltinSkillsCache = this.discoverSessionsBuiltinSkills();
 		}
-		return this._builtinSkillsCache;
+		return this.sessionsBuiltinSkillsCache;
 	}
 
-	private async discoverBuiltinSkills(): Promise<readonly IAgentSkill[]> {
+	private async discoverSessionsBuiltinSkills(): Promise<readonly IAgentSkill[]> {
 		try {
-			const stat = await this.fileService.resolve(BUILTIN_SKILLS_URI);
+			const stat = await this.fileService.resolve(SESSIONS_BUILTIN_SKILLS_URI);
 			if (!stat.children) {
 				return [];
 			}
@@ -58,8 +50,7 @@ export class AgenticPromptsService extends PromptsService {
 					}
 					const name = sanitizeSkillText(rawName, 64);
 					const description = sanitizeSkillText(rawDescription, 1024);
-					const folderName = basename(child.resource);
-					if (name !== folderName) {
+					if (name !== basename(child.resource)) {
 						continue;
 					}
 					skills.push({
@@ -70,8 +61,8 @@ export class AgenticPromptsService extends PromptsService {
 						disableModelInvocation: parsed.header?.disableModelInvocation === true,
 						userInvocable: parsed.header?.userInvocable !== false,
 					});
-				} catch (e) {
-					this.logger.warn(`[AgenticPromptsService] Failed to parse built-in skill: ${skillFileUri}`, e instanceof Error ? e.message : String(e));
+				} catch (error) {
+					this.logger.warn(`[AgenticPromptsService] Failed to parse built-in skill: ${skillFileUri}`, error instanceof Error ? error.message : String(error));
 				}
 			}
 			return skills;
@@ -80,36 +71,33 @@ export class AgenticPromptsService extends PromptsService {
 		}
 	}
 
-	private async getBuiltinSkillPaths(): Promise<readonly IBuiltinPromptPath[]> {
-		const skills = await this.getBuiltinSkills();
-		return skills.map(s => ({
-			uri: s.uri,
-			storage: PromptsStorage.builtIn,
-			type: PromptsType.skill,
-			name: s.name,
-			description: s.description,
-		}));
-	}
-
 	/**
-	 * Contributes the built-in skills bundled with the Agents app. The base
-	 * {@link PromptsService} merges these into skill discovery
-	 * (`findAgentSkills()`), `listPromptFiles(skill)` and
-	 * `listPromptFilesForStorage(skill, PromptsStorage.builtIn)`, applying its
-	 * own parsing, sanitization and duplicate-name precedence (built-ins have
-	 * the lowest priority, so user/workspace skills of the same name win).
+	 * Combines shared workbench built-ins with skills owned by the Agents app.
 	 */
 	protected override async getBuiltinPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IBuiltinPromptPath[]> {
-		if (type !== PromptsType.skill) {
-			return [];
+		const sharedBuiltins = await super.getBuiltinPromptFiles(type, token);
+		if (type !== PromptsType.skill || token.isCancellationRequested) {
+			return sharedBuiltins;
 		}
-		return this.getBuiltinSkillPaths();
+		const sessionsSkills = await this.getSessionsBuiltinSkills();
+		if (token.isCancellationRequested) {
+			return sharedBuiltins;
+		}
+		return [
+			...sharedBuiltins,
+			...sessionsSkills.map(skill => ({
+				uri: skill.uri,
+				storage: PromptsStorage.builtIn,
+				type: PromptsType.skill,
+				name: skill.name,
+				description: skill.description,
+			} satisfies IBuiltinPromptPath)),
+		];
 	}
 }
 
 /**
- * Strips XML tags and truncates to the given max length.
- * Matches the sanitization applied by PromptsService for other skill sources.
+ * Strips XML tags and truncates metadata read from a bundled skill.
  */
 function sanitizeSkillText(text: string, maxLength: number): string {
 	const sanitized = text.replace(/<[^>]+>/g, '');

@@ -52,6 +52,10 @@ export class MockChatWidgetService implements IChatWidgetService {
 		throw new Error('Method not implemented.');
 	}
 
+	openNewAgentHostEditorSession(): Promise<undefined> {
+		return Promise.resolve(undefined);
+	}
+
 	register(newWidget: IChatWidget): IDisposable {
 		return Disposable.None;
 	}

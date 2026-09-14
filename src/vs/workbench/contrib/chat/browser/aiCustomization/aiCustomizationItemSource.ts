@@ -337,15 +337,15 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	}
 
 	/**
-	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
+	 * Merges built-in skills contributed by the active prompts service
 	 * into the provider's items. The provider may re-discover the bundled
 	 * copies when scanning disk — those duplicates are dropped (deduped by
 	 * URI) and replaced with the authoritative built-in entry tagged
 	 * `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
 	 * group. User-authored overrides (different URI, same name) are preserved.
 	 *
-	 * A workbench that uses the base `PromptsService` contributes no built-in
-	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
+	 * The editor workbench contributes its shared built-ins, while the Sessions
+	 * workbench additionally contributes Sessions-specific skills.
 	 */
 	private async mergeBuiltinSkills(items: readonly IAICustomizationListItem[], promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
