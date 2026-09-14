@@ -219,7 +219,15 @@ export async function runEmptyWorkbenchColdStart(
 			logger,
 			logsPath: logsDir,
 			crashesPath: crashesDir,
-			extraEnv: request.env,
+			extraEnv: {
+				ELECTRON_RUN_AS_NODE: undefined,
+				...(request.appRoot ? {
+					VSCODE_CLI: '1',
+					VSCODE_DEV: '1',
+					VSCODE_REPOSITORY: request.appRoot
+				} : {}),
+				...request.env
+			},
 			extraArgs: [
 				'--new-window',
 				'--disable-extensions',

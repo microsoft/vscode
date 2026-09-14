@@ -105,7 +105,8 @@ test('emits monotonic phase timings and runtime metadata with a fake launch', as
 			duration: value.durationMs === value.endTimeMs - value.startTimeMs
 		})),
 		metadata: result.metadata,
-		launchArgs: launchOptions?.extraArgs
+		launchArgs: launchOptions?.extraArgs,
+		launchEnv: launchOptions?.extraEnv
 	}, {
 		status: 'success',
 		valid: true,
@@ -132,7 +133,13 @@ test('emits monotonic phase timings and runtime metadata with a fake launch', as
 			'--trace-startup-file=trace.json',
 			'--js-flags=--logfile=v8.log',
 			'--enable-features=BenchmarkFeature'
-		]
+		],
+		launchEnv: {
+			ELECTRON_RUN_AS_NODE: undefined,
+			VSCODE_CLI: '1',
+			VSCODE_DEV: '1',
+			VSCODE_REPOSITORY: root
+		}
 	});
 });
 

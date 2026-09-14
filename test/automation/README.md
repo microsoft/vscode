@@ -35,4 +35,6 @@ The v1 request is:
 
 Use `appExecutable` instead of `appRoot` and `electronExecutable` for a packaged VS Code executable. `userDataDir` and `extensionsDir` must be fresh, empty, absolute, and distinct. `launchArgs` remain ordered and are passed to Electron unchanged; profile overrides are rejected.
 
+For `appRoot` launches, the story applies the same `VSCODE_DEV`, `VSCODE_CLI`, and `VSCODE_REPOSITORY` environment used by the existing source smoke-test launcher. Request `env` values are applied last.
+
 The CLI writes one v1 JSON result atomically. It reports `processSpawn`, `firstWindow`, `didFinishLoad`, `monacoWorkbench`, and `workbenchRestored` as `{ startTimeMs, endTimeMs, durationMs }` values from one monotonic origin. Human-readable output is written only to the requested log file.
