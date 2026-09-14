@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentsDashboardHistoryEvent, AgentsDashboardHistoryEventType, buildAgentsDashboardChatActivity, buildAgentsDashboardHistoryBuckets } from '../../common/agentsDashboardHistory.js';
 
 suite('AgentsDashboardHistory', () => {
@@ -171,6 +172,55 @@ suite('AgentsDashboardHistory', () => {
 			end: completedAt + 1,
 			completed: true,
 			interactions: 1,
+		});
+	});
+
+	test('selected session activity includes every live chat without a lane cap', () => {
+		const now = Date.now();
+		const sessionResource = URI.parse('test-session:///many-chats');
+		const chatKinds = [
+			undefined,
+			undefined,
+			ChatOriginKind.Fork,
+			ChatOriginKind.SideChat,
+			ChatOriginKind.Tool,
+			undefined,
+			ChatOriginKind.Fork,
+			ChatOriginKind.SideChat,
+			ChatOriginKind.Tool,
+			undefined,
+			undefined,
+			undefined,
+		];
+		const chats = chatKinds.map((originKind, index) => new class extends mock<IChat>() {
+			override readonly resource = index === 0 ? sessionResource : sessionResource.with({ fragment: `chat-${index}` });
+			override readonly createdAt = new Date(now - (chatKinds.length - index) * 1_000);
+			override readonly title = constObservable(`Chat ${index + 1}`);
+			override readonly origin = originKind === undefined ? undefined : { kind: originKind, parentChat: sessionResource };
+		}());
+		const session = new class extends mock<ISession>() {
+			override readonly sessionId = 'many-chats';
+			override readonly resource = sessionResource;
+			override readonly createdAt = new Date(now - 20_000);
+			override readonly title = constObservable('Many chats');
+			override readonly status = constObservable(SessionStatus.Completed);
+			override readonly lastTurnEnd = constObservable(new Date(now));
+			override readonly chats = constObservable(chats);
+			override readonly mainChat = constObservable(chats[0]);
+		}();
+
+		const activity = buildAgentsDashboardChatActivity([], [session], 'today', now, session.sessionId);
+
+		assert.deepStrictEqual({
+			totalChats: activity.totalChats,
+			renderedChats: activity.sessions[0]?.chats.length,
+			kinds: [...new Set(activity.sessions[0]?.chats.map(chat => chat.kind))].sort(),
+			chatsWithCreationAnchors: activity.sessions[0]?.chats.filter(chat => chat.events.some(event => event.type === AgentsDashboardHistoryEventType.ChatCreated)).length,
+		}, {
+			totalChats: 12,
+			renderedChats: 12,
+			kinds: ['chat', 'fork', 'main', 'sideChat', 'subagent'],
+			chatsWithCreationAnchors: 12,
 		});
 	});
 });

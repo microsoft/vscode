@@ -51,7 +51,6 @@ const SESSION_ROW_HEIGHT = 32;
 const SESSION_EXPANDED_ROW_MIN_HEIGHT = 260;
 const SESSION_ACTIVITY_FIXED_HEIGHT = 180;
 const SESSION_ACTIVITY_LANE_HEIGHT = 20;
-const MAX_SESSION_ACTIVITY_LANES = 10;
 const SESSION_ROW_TEMPLATE_ID = 'agentsDashboard.sessionRow';
 
 class SessionsTableDelegate implements ITableVirtualDelegate<IAgentsDashboardSessionRow> {
@@ -118,7 +117,7 @@ function getSessionRowHeight(row: IAgentsDashboardSessionRow, expanded: boolean)
 	}
 	return Math.max(
 		SESSION_EXPANDED_ROW_MIN_HEIGHT,
-		SESSION_ACTIVITY_FIXED_HEIGHT + Math.min(row.chatCount, MAX_SESSION_ACTIVITY_LANES) * SESSION_ACTIVITY_LANE_HEIGHT,
+		SESSION_ACTIVITY_FIXED_HEIGHT + row.chatCount * SESSION_ACTIVITY_LANE_HEIGHT,
 	);
 }
 

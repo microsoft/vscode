@@ -219,23 +219,19 @@ export function buildAgentsDashboardChatActivity(
 			eventsBySession.set(event.sessionId, []);
 		}
 	}
+	if (selectedSessionId && selectedSession && !eventsBySession.has(selectedSessionId)) {
+		eventsBySession.set(selectedSessionId, []);
+	}
 
 	const activitySessions: IAgentsDashboardSessionChatActivity[] = [];
 	for (const [sessionId, sessionEvents] of eventsBySession) {
 		const liveSession = liveSessions.get(sessionId);
 		const liveChats = new Map((liveSession?.chats.get() ?? []).map(chat => [getAgentsDashboardChatId(chat.resource), chat]));
-		const visibleChatIds = new Set([...liveChats]
-			.filter(([, chat]) => {
-				const kind = getAgentsDashboardChatKind(liveSession, chat);
-				return kind === 'main' || kind === 'chat';
-			})
-			.map(([chatId]) => chatId));
 		const eventsByChat = new Map<string, typeof sessionEvents>();
+		for (const chatId of liveChats.keys()) {
+			eventsByChat.set(chatId, []);
+		}
 		for (const event of sessionEvents) {
-			const created = createdChats.get(`${sessionId}\n${event.chatId}`);
-			if (!visibleChatIds.has(event.chatId) && created?.chatKind !== 'main' && created?.chatKind !== 'chat') {
-				continue;
-			}
 			const chatActivity = eventsByChat.get(event.chatId) ?? [];
 			chatActivity.push(event);
 			eventsByChat.set(event.chatId, chatActivity);
@@ -253,15 +249,22 @@ export function buildAgentsDashboardChatActivity(
 					direction: event.sourceChatId === chatId ? 'sent' : 'received',
 					peerChatId: event.sourceChatId === chatId ? event.targetChatId : event.sourceChatId,
 				}));
+			const activityEvents: IAgentsDashboardChatActivityEvent[] = eventsForChat.map(event => ({
+				type: event.type,
+				timestamp: event.timestamp,
+			}));
+			if (!activityEvents.some(event => event.type === AgentsDashboardHistoryEventType.ChatCreated) && liveChat) {
+				activityEvents.push({
+					type: AgentsDashboardHistoryEventType.ChatCreated,
+					timestamp: liveChat.createdAt.getTime(),
+				});
+			}
 			chats.push({
 				chatId,
 				label: getChatActivityLabel(liveSession, liveChat, created?.chatKind ?? 'chat'),
 				kind: created?.chatKind ?? getAgentsDashboardChatKind(liveSession, liveChat),
 				parentChatId: created?.parentChatId ?? (liveChat?.origin?.parentChat ? getAgentsDashboardChatId(liveChat.origin.parentChat) : undefined),
-				events: [...eventsForChat.map(event => ({
-					type: event.type,
-					timestamp: event.timestamp,
-				})), ...delegatedActivity].sort((a, b) => a.timestamp - b.timestamp),
+				events: [...activityEvents, ...delegatedActivity].sort((a, b) => a.timestamp - b.timestamp),
 			});
 		}
 		chats.sort((a, b) => chatKindOrder(a.kind) - chatKindOrder(b.kind) || a.label.localeCompare(b.label));
@@ -285,16 +288,9 @@ export function buildAgentsDashboardChatActivity(
 		Number(b.chats.length > 1) - Number(a.chats.length > 1)
 		|| b.interactionCount - a.interactionCount
 		|| a.label.localeCompare(b.label));
-	const selected: IAgentsDashboardSessionChatActivity[] = [];
-	let laneCount = 0;
-	for (const session of activitySessions) {
-		if (selected.length >= 5 || laneCount >= 10) {
-			break;
-		}
-		const remaining = 10 - laneCount;
-		selected.push({ ...session, chats: session.chats.slice(0, remaining) });
-		laneCount += Math.min(session.chats.length, remaining);
-	}
+	const selected = selectedSessionId
+		? activitySessions.filter(session => session.sessionId === selectedSessionId)
+		: activitySessions.slice(0, 5);
 	return {
 		start,
 		end,
@@ -351,8 +347,9 @@ function getChatActivityLabel(session: ISession | undefined, chat: IChat | undef
 	if (kind === 'main') {
 		return localize('agentsDashboard.chatActivity.mainChat', "Main chat");
 	}
-	const sameKindCount = (session?.chats.get() ?? []).filter(candidate => getAgentsDashboardChatKind(session, candidate) === kind).length;
-	const suffix = sameKindCount > 1 ? ` ${sameKindCount}` : '';
+	const sameKindChats = (session?.chats.get() ?? []).filter(candidate => getAgentsDashboardChatKind(session, candidate) === kind);
+	const chatIndex = chat ? sameKindChats.findIndex(candidate => candidate.resource.toString() === chat.resource.toString()) : -1;
+	const suffix = sameKindChats.length > 1 && chatIndex >= 0 ? ` ${chatIndex + 1}` : '';
 	switch (kind) {
 		case 'sideChat':
 			return localize('agentsDashboard.chatActivity.sideChat', "Side chat{0}", suffix);
