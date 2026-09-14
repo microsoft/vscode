@@ -1144,13 +1144,6 @@ export namespace ProxyChannel {
 	export interface ICreateServiceChannelOptions extends IProxyOptions {
 
 		/**
-		 * Disables buffering of service events until the first listener attaches.
-		 * Events fired while no listener is attached are dropped, rather than
-		 * retained indefinitely on a channel that is never listened to.
-		 */
-		disableEventBuffering?: boolean;
-
-		/**
 		 * Events that should subscribe lazily and not replay emissions before the first IPC listener.
 		 */
 		unbufferedEvents?: readonly string[];
@@ -1161,11 +1154,6 @@ export namespace ProxyChannel {
 		const disableMarshalling = options?.disableMarshalling;
 		const unbufferedEvents = options?.unbufferedEvents ? new Set(options.unbufferedEvents) : undefined;
 
-		const createServiceEvent = (key: string): Event<unknown> => {
-			const serviceEvent = handler[key] as Event<unknown>;
-			return options?.disableEventBuffering ? serviceEvent : Event.buffer(serviceEvent, key, true, undefined, disposables);
-		};
-
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
 		// However, this will not work for services that
@@ -1174,7 +1162,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key) && !unbufferedEvents?.has(key)) {
-				mapEventNameToEvent.set(key, createServiceEvent(key));
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
 			}
 		}
 
@@ -1197,7 +1185,7 @@ export namespace ProxyChannel {
 							return handler[event] as Event<T>;
 						}
 
-						mapEventNameToEvent.set(event, createServiceEvent(event));
+						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
 					}
