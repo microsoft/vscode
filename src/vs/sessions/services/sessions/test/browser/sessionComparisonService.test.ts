@@ -352,7 +352,20 @@ suite('SessionComparisonService', () => {
 
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		service.submitVerdict(comparison.id, verdict(attempts[1].id, attempts.map(attempt => attempt.id)));
+		service.submitVerdict(comparison.id, {
+			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
+			decisionSections: [{
+				id: 'error-handling',
+				title: 'Error handling',
+				description: 'Choose the error representation.',
+				affectedFiles: ['src/parser.ts'],
+				options: attempts.map(attempt => ({ participantId: attempt.id, approach: `Use ${attempt.harness.label}` })),
+				recommendedParticipantId: attempts[1].id,
+			}],
+		});
+		service.setSynthesisPlan(comparison.id, {
+			selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
+		});
 		assert.strictEqual(sessionsManagementService.createCalls.length, 2);
 		await service.synthesize(comparison.id);
 
@@ -363,12 +376,66 @@ suite('SessionComparisonService', () => {
 			sessionTypeId: sessionsManagementService.createCalls[2].createOptions?.sessionTypeId,
 			modelId: sessionsManagementService.createCalls[2].createOptions?.modelId,
 			prompt: sessionsManagementService.createCalls[2].options.query,
+			plan: current?.synthesisPlan,
 		}, {
 			synthesisResource: 'test:/synthesis',
 			providerId: 'provider-two',
 			sessionTypeId: 'type-two',
 			modelId: 'model-two',
-			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nAttempt two is stronger.`,
+			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. If the manifest includes a synthesisPlan, treat every selected section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nAttempt two is stronger.`,
+			plan: {
+				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
+			},
+		});
+	});
+
+	test('persists synthesis selections and rejects unknown sections or approaches', async () => {
+		const { service, sessionsManagementService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		const comparison = await service.startComparison(startOptions());
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		service.submitVerdict(comparison.id, {
+			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
+			decisionSections: [{
+				id: 'tests',
+				title: 'Test strategy',
+				description: 'Choose the preferred coverage structure.',
+				affectedFiles: ['test/parser.test.ts'],
+				options: attempts.map(attempt => ({ participantId: attempt.id, approach: attempt.harness.label })),
+				recommendedParticipantId: attempts[1].id,
+			}],
+		});
+		service.setSynthesisPlan(comparison.id, {
+			selections: [{ sectionId: 'tests', participantId: attempts[0].id }],
+		});
+		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
+		const restored = createServices(storageService).service.getComparison(comparison.id)?.synthesisPlan;
+		let unknownSection: string | undefined;
+		let unknownAttempt: string | undefined;
+		try {
+			service.setSynthesisPlan(comparison.id, { selections: [{ sectionId: 'missing' }] });
+		} catch (error) {
+			unknownSection = error instanceof Error ? error.message : String(error);
+		}
+		try {
+			service.setSynthesisPlan(comparison.id, { selections: [{ sectionId: 'tests', participantId: 'missing' }] });
+		} catch (error) {
+			unknownAttempt = error instanceof Error ? error.message : String(error);
+		}
+
+		assert.deepStrictEqual({
+			live: service.getComparison(comparison.id)?.synthesisPlan,
+			stored: stored[0].synthesisPlan,
+			restored,
+			unknownSection,
+			unknownAttempt,
+		}, {
+			live: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
+			stored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
+			restored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
+			unknownSection: 'The synthesis plan contains an invalid section selection.',
+			unknownAttempt: 'The synthesis plan contains an invalid section selection.',
 		});
 	});
 

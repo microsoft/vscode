@@ -23,7 +23,7 @@ import { aggregateChatUsage, IChatUsageSummary } from '../../../../workbench/con
 import { SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonVerdict, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonAttemptJudged } from '../../../common/sessionsTelemetry.js';
 
 const JUDGE_PROMPT_URI = FileAccess.asFileUri('vs/sessions/prompts/judge.md');
@@ -164,8 +164,40 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (verdict.attempts.some(attempt => !attemptIds.has(attempt.participantId))) {
 			throw new Error('The comparison verdict contains an unknown attempt.');
 		}
-		this._replaceComparison({ ...comparison, verdict });
+		const sectionIds = new Set<string>();
+		for (const section of verdict.decisionSections ?? []) {
+			const optionIds = new Set(section.options.map(option => option.participantId));
+			if (sectionIds.has(section.id)
+				|| !attemptIds.has(section.recommendedParticipantId)
+				|| !optionIds.has(section.recommendedParticipantId)
+				|| optionIds.size !== section.options.length
+				|| section.options.some(option => !attemptIds.has(option.participantId))) {
+				throw new Error('The comparison verdict contains an invalid synthesis decision section.');
+			}
+			sectionIds.add(section.id);
+		}
+		this._replaceComparison({ ...comparison, verdict, synthesisPlan: undefined });
 		this._reportOutcomeTelemetry(comparison, verdict);
+	}
+
+	setSynthesisPlan(comparisonId: string, plan: ISessionComparisonSynthesisPlan | undefined): void {
+		const comparison = this._requireComparison(comparisonId);
+		if (!plan) {
+			this._replaceComparison({ ...comparison, synthesisPlan: undefined });
+			return;
+		}
+		const sections = new Map((comparison.verdict?.decisionSections ?? []).map(section => [section.id, section]));
+		const selectedSectionIds = new Set<string>();
+		for (const selection of plan.selections) {
+			const section = sections.get(selection.sectionId);
+			if (!section
+				|| selectedSectionIds.has(selection.sectionId)
+				|| selection.participantId !== undefined && !section.options.some(option => option.participantId === selection.participantId)) {
+				throw new Error('The synthesis plan contains an invalid section selection.');
+			}
+			selectedSectionIds.add(selection.sectionId);
+		}
+		this._replaceComparison({ ...comparison, synthesisPlan: plan });
 	}
 
 	async synthesize(comparisonId: string): Promise<void> {
@@ -186,7 +218,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._synthesisStarting.add(comparisonId);
 		try {
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison {0} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\n{1}", comparison.id, comparison.verdict?.explanation ?? localize('sessionComparison.noJudgeExplanation', "No Judge explanation is available; use the selected attempt as the base.")),
+				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison {0} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. If the manifest includes a synthesisPlan, treat every selected section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\n{1}", comparison.id, comparison.verdict?.explanation ?? localize('sessionComparison.noJudgeExplanation', "No Judge explanation is available; use the selected attempt as the base.")),
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
 			}, {

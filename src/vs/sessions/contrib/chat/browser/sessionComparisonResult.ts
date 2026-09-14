@@ -7,16 +7,18 @@ import './media/sessionComparisonResult.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 
 export class SessionComparisonResult extends Disposable {
 
@@ -24,6 +26,9 @@ export class SessionComparisonResult extends Disposable {
 	private readonly renderStore = this._register(new DisposableStore());
 	private readonly titleId = `session-comparison-result-title-${generateUuid()}`;
 	private announcedComparisonId: string | undefined;
+	private renderedComparisonId: string | undefined;
+	private renderedVerdict: ISessionComparison['verdict'];
+	private renderedParticipants: ISessionComparison['participants'] | undefined;
 
 	constructor(
 		currentSession: IObservable<ISession | undefined>,
@@ -31,6 +36,7 @@ export class SessionComparisonResult extends Disposable {
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super();
 		this.domNode.hidden = true;
@@ -42,11 +48,19 @@ export class SessionComparisonResult extends Disposable {
 			const comparison = session
 				? this.comparisonService.comparisons.read(reader).find(candidate => isJudgeSession(candidate, session))
 				: undefined;
+			if (comparison?.id === this.renderedComparisonId
+				&& comparison?.verdict === this.renderedVerdict
+				&& comparison?.participants === this.renderedParticipants) {
+				return;
+			}
 			this.render(comparison?.verdict ? comparison : undefined);
 		}));
 	}
 
 	private render(comparison: ISessionComparison | undefined): void {
+		this.renderedComparisonId = comparison?.id;
+		this.renderedVerdict = comparison?.verdict;
+		this.renderedParticipants = comparison?.participants;
 		this.renderStore.clear();
 		dom.clearNode(this.domNode);
 		const wasHidden = this.domNode.hidden;
@@ -118,18 +132,21 @@ export class SessionComparisonResult extends Disposable {
 		}
 
 		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
+		if (!synthesis && comparison.verdict.decisionSections?.length) {
+			this.renderSynthesisPlan(comparison, attempts);
+		}
 		const synthesize = this.renderStore.add(new Button(actions, {
 			...defaultButtonStyles,
 			ariaLabel: synthesis
 				? localize('sessionComparisonResult.synthesisStartedAriaLabel', "Synthesis has started")
-				: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize the best concepts from all attempts"),
+				: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize using the Judge recommendation"),
 		}));
 		synthesize.label = synthesis
 			? localize('sessionComparisonResult.synthesisStarted', "Synthesis Started")
-			: localize('sessionComparisonResult.synthesize', "Synthesize Best Concepts");
+			: localize('sessionComparisonResult.synthesize', "Synthesize Recommended");
 		synthesize.enabled = !synthesis;
 		if (!synthesis) {
-			this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize)));
+			this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize, undefined)));
 		}
 
 		if (this.announcedComparisonId !== comparison.id) {
@@ -139,6 +156,59 @@ export class SessionComparisonResult extends Disposable {
 		if (wasHidden) {
 			this.onDidChangeLayout();
 		}
+	}
+
+	private renderSynthesisPlan(comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[]): void {
+		const decisionSections = comparison.verdict?.decisionSections ?? [];
+		const attemptLabels = new Map(attempts.map((attempt, index) => [attempt.id, getSessionComparisonAttemptLabel(attempt, index)]));
+		const storedSelections = new Map(comparison.synthesisPlan?.selections.map(selection => [selection.sectionId, selection.participantId]));
+		const selections = new Map<string, string | undefined>();
+		const details = dom.append(this.domNode, dom.$('details.session-comparison-synthesis-plan'));
+		const summary = dom.append(details, dom.$('summary.session-comparison-synthesis-plan-summary'));
+		summary.textContent = localize('sessionComparisonResult.customizeSynthesis', "Customize Synthesis");
+		this.renderStore.add(dom.addDisposableListener(details, 'toggle', this.onDidChangeLayout));
+		dom.append(details, dom.$('p.session-comparison-synthesis-plan-description')).textContent =
+			localize('sessionComparisonResult.customizeSynthesisDescription', "Choose which attempt's approach the synthesis agent should follow for each implementation decision. The agent will reconcile dependencies and validate the combined result in a new worktree.");
+
+		for (const section of decisionSections) {
+			const card = dom.append(details, dom.$('section.session-comparison-synthesis-section'));
+			dom.append(card, dom.$('h4.session-comparison-synthesis-section-title')).textContent = section.title;
+			dom.append(card, dom.$('p.session-comparison-synthesis-section-description')).textContent = section.description;
+			const selectContainer = dom.append(card, dom.$('.session-comparison-synthesis-section-select'));
+			const options = [
+				{ text: localize('sessionComparisonResult.synthesizerDecides', "Let Synthesizer Decide") },
+				...section.options.map(option => ({
+					text: attemptLabels.get(option.participantId) ?? option.participantId,
+					detail: option.approach,
+					decoratorRight: option.participantId === section.recommendedParticipantId
+						? localize('sessionComparisonResult.recommended', "Recommended")
+						: undefined,
+				})),
+			];
+			const storedParticipantId = storedSelections.has(section.id)
+				? storedSelections.get(section.id)
+				: section.recommendedParticipantId;
+			const selectedIndex = Math.max(0, section.options.findIndex(option => option.participantId === storedParticipantId) + 1);
+			selections.set(section.id, selectedIndex === 0 ? undefined : section.options[selectedIndex - 1].participantId);
+			const select = this.renderStore.add(new SelectBox(options, selectedIndex, this.contextViewService, defaultSelectBoxStyles, {
+				ariaLabel: localize('sessionComparisonResult.sectionSelection', "Approach for {0}", section.title),
+				useCustomDrawn: true,
+				contextViewLayer: 1,
+			}));
+			select.render(selectContainer);
+			this.renderStore.add(select.onDidSelect(({ index }) => {
+				selections.set(section.id, index === 0 ? undefined : section.options[index - 1].participantId);
+				this.comparisonService.setSynthesisPlan(comparison.id, createSynthesisPlan(decisionSections, selections));
+			}));
+		}
+
+		const actions = dom.append(details, dom.$('.session-comparison-synthesis-plan-actions'));
+		const start = this.renderStore.add(new Button(actions, {
+			...defaultButtonStyles,
+			ariaLabel: localize('sessionComparisonResult.startPlannedSynthesisAriaLabel', "Start synthesis with the selected approaches"),
+		}));
+		start.label = localize('sessionComparisonResult.startPlannedSynthesis', "Start Planned Synthesis");
+		this.renderStore.add(start.onDidClick(() => this.synthesize(comparison, start, createSynthesisPlan(decisionSections, selections))));
 	}
 
 	private async focusWinner(comparison: ISessionComparison, winner: ISessionComparisonParticipant, button: Button): Promise<void> {
@@ -155,15 +225,29 @@ export class SessionComparisonResult extends Disposable {
 		}
 	}
 
-	private async synthesize(comparison: ISessionComparison, button: Button): Promise<void> {
+	private async synthesize(comparison: ISessionComparison, button: Button, plan: ISessionComparisonSynthesisPlan | undefined): Promise<void> {
 		button.enabled = false;
 		try {
+			this.comparisonService.setSynthesisPlan(comparison.id, plan);
 			await this.comparisonService.synthesize(comparison.id);
 		} catch (error) {
 			this.notificationService.error(error);
 			button.enabled = true;
 		}
 	}
+
+}
+
+function createSynthesisPlan(
+	sections: NonNullable<ISessionComparison['verdict']>['decisionSections'],
+	selections: ReadonlyMap<string, string | undefined>,
+): ISessionComparisonSynthesisPlan {
+	return {
+		selections: (sections ?? []).map(section => ({
+			sectionId: section.id,
+			participantId: selections.get(section.id),
+		})),
+	};
 }
 
 function isJudgeSession(comparison: ISessionComparison, session: ISession): boolean {

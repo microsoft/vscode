@@ -76,11 +76,36 @@ export interface ISessionComparisonAttemptVerdict {
 	readonly notableDifferences: readonly string[];
 }
 
+export interface ISessionComparisonDecisionOption {
+	readonly participantId: string;
+	readonly approach: string;
+}
+
+export interface ISessionComparisonDecisionSection {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly affectedFiles: readonly string[];
+	readonly options: readonly ISessionComparisonDecisionOption[];
+	readonly recommendedParticipantId: string;
+}
+
 export interface ISessionComparisonVerdict {
 	readonly recommendedParticipantId: string;
 	readonly explanation: string;
 	readonly conflicts: readonly string[];
 	readonly attempts: readonly ISessionComparisonAttemptVerdict[];
+	readonly decisionSections?: readonly ISessionComparisonDecisionSection[];
+}
+
+export interface ISessionComparisonSynthesisSelection {
+	readonly sectionId: string;
+	/** Undefined means the synthesis agent should decide for this section. */
+	readonly participantId?: string;
+}
+
+export interface ISessionComparisonSynthesisPlan {
+	readonly selections: readonly ISessionComparisonSynthesisSelection[];
 }
 
 export interface ISessionComparison {
@@ -95,6 +120,7 @@ export interface ISessionComparison {
 	readonly participants: readonly ISessionComparisonParticipant[];
 	readonly selectedParticipantId?: string;
 	readonly verdict?: ISessionComparisonVerdict;
+	readonly synthesisPlan?: ISessionComparisonSynthesisPlan;
 }
 
 export interface IStartSessionComparisonOptions {
@@ -116,6 +142,7 @@ export interface ISessionComparisonService {
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
 	selectAttempt(comparisonId: string, participantId: string): void;
 	submitVerdict(comparisonId: string, verdict: ISessionComparisonVerdict): void;
+	setSynthesisPlan(comparisonId: string, plan: ISessionComparisonSynthesisPlan | undefined): void;
 	synthesize(comparisonId: string): Promise<void>;
 	discardOriginalAttempts(comparisonId: string): Promise<readonly string[]>;
 }

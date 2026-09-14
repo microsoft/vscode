@@ -54,3 +54,47 @@
 	padding-top: var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
+
+.session-comparison-synthesis-plan {
+	margin-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.session-comparison-synthesis-plan-summary {
+	cursor: pointer;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-synthesis-plan-description,
+.session-comparison-synthesis-section-description {
+	margin: var(--vscode-spacing-size80) 0 0;
+}
+
+.session-comparison-synthesis-section {
+	margin-top: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-sideBar-background);
+}
+
+.session-comparison-synthesis-section-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-synthesis-section-select {
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.session-comparison-synthesis-section-select .monaco-select-box {
+	width: 100%;
+}
+
+.session-comparison-synthesis-plan-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: var(--vscode-spacing-size120);
+}
