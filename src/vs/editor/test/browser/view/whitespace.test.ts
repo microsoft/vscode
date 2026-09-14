@@ -78,6 +78,10 @@ suite('WhitespaceOverlay', () => {
 		}, { svgs: 1, shapes: 1, paths: 1, glyphs: 1000 });
 	});
 
+	test('leaves SVGs empty on lines without whitespace', () => {
+		assert.deepStrictEqual(renderWhitespace(['', 'text']).map(element => element.querySelector('svg')?.innerHTML), ['', '']);
+	});
+
 	test('preserves circle and tab-arrow geometry in separate closed subpaths', () => {
 		const [element] = renderWhitespace([' \t ']);
 		assert.deepStrictEqual({
@@ -100,7 +104,10 @@ suite('WhitespaceOverlay', () => {
 		['selection', [0, 0, 0, 0, 0]]
 	] as const) {
 		test(`respects ${mode} whitespace rendering`, () => {
-			assert.deepStrictEqual(renderWhitespace(text, { renderWhitespace: mode }).map(glyphCount), expected);
+			assert.deepStrictEqual(renderWhitespace(text, { renderWhitespace: mode }).map(element => ({
+				glyphs: glyphCount(element),
+				shapes: element.querySelectorAll('svg > *').length
+			})), expected.map(glyphs => ({ glyphs, shapes: glyphs > 0 ? 1 : 0 })));
 		});
 	}
 
