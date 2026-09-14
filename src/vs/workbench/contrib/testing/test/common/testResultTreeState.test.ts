@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { shouldSkipTestOutputDecoration, TestResultTreeState } from '../../common/testResultTreeState.js';
 import { ITestOutputMessage, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from '../../common/testTypes.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,6 +34,8 @@ const testItem = (id: string): TestResultItem => ({
 });
 
 suite('TestResultTreeState', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('retains output-only tests discovered in separate refresh batches', () => {
 		const first = testItem('first');
 		const second = testItem('second');
