@@ -289,6 +289,11 @@
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
+.project-board-recency-warning {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
 .project-board-card-prompt {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
