@@ -86,6 +86,8 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUriIsDefault?: boolean;
 	readonly sessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** Open the profile's Project Board without changing the Agents window's selected chat or workspace. */
+	readonly openProjectBoard?: boolean;
 }
 
 export interface ICPUProperties {
