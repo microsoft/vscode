@@ -360,13 +360,13 @@ export class OutputPeekTree extends Disposable {
 
 		const cc = new CreationCache<TreeElement>();
 
-		const getTaskChildren = (taskElem: TaskElement): Iterable<ICompressedTreeElement<TreeElement>> => {
+		const getTaskChildren = (taskElem: TaskElement, includeMessageChildren = true, changedItems?: Set<TestResultItem>): Iterable<ICompressedTreeElement<TreeElement>> => {
 			const { results, index, itemsCache, task } = taskElem;
-			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0);
+			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || (includeMessageChildren ? test.tasks[index].messages.length > 0 : !!changedItems?.has(test)));
 			let result: Iterable<ICompressedTreeElement<TreeElement>> = Iterable.map(tests, test => ({
 				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, test, index)),
 				incompressible: true,
-				children: getTestChildren(results, test, index),
+				children: includeMessageChildren ? getTestChildren(results, test, index) : [],
 			}));
 
 			if (task.coverage.get()) {
@@ -446,18 +446,26 @@ export class OutputPeekTree extends Disposable {
 
 		// Queued result updates to prevent spamming CPU when lots of tests are
 		// completing and messaging quickly (#142514)
-		const taskChildrenToUpdate = new Set<TaskElement>();
+		const taskChildrenToUpdate = new Map<TaskElement, { includeMessageChildren: boolean; changedItems: Set<TestResultItem> }>();
 		const taskChildrenUpdate = this._register(new RunOnceScheduler(() => {
-			for (const taskNode of taskChildrenToUpdate) {
+			for (const [taskNode, update] of taskChildrenToUpdate) {
 				if (this.tree.hasElement(taskNode)) {
-					this.tree.setChildren(taskNode, getTaskChildren(taskNode), { diffIdentityProvider });
+					this.tree.setChildren(taskNode, getTaskChildren(taskNode, update.includeMessageChildren, update.changedItems), { diffIdentityProvider });
 				}
 			}
 			taskChildrenToUpdate.clear();
 		}, 300));
 
-		const queueTaskChildrenUpdate = (taskNode: TaskElement) => {
-			taskChildrenToUpdate.add(taskNode);
+		const queueTaskChildrenUpdate = (taskNode: TaskElement, includeMessageChildren = true, changedItem?: TestResultItem) => {
+			const previous = taskChildrenToUpdate.get(taskNode);
+			const changedItems = previous?.changedItems ?? new Set<TestResultItem>();
+			if (changedItem) {
+				changedItems.add(changedItem);
+			}
+			taskChildrenToUpdate.set(taskNode, {
+				includeMessageChildren: includeMessageChildren || previous?.includeMessageChildren === true,
+				changedItems,
+			});
 			if (!taskChildrenUpdate.isScheduled()) {
 				taskChildrenUpdate.schedule();
 			}
@@ -501,7 +509,7 @@ export class OutputPeekTree extends Disposable {
 						return;
 					}
 
-					queueTaskChildrenUpdate(taskNode);
+					queueTaskChildrenUpdate(taskNode, e.reason !== TestResultItemChangeReason.NewMessage || e.message.type !== TestMessageType.Output, e.item);
 				}
 			}));
 
