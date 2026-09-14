@@ -68,38 +68,38 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 
-		test('inspect exposes policy value separately from the effective default value', function () {
-			const configuration = createExtHostConfiguration(
-				{ setting: { enabled: false } },
-				undefined,
-				{ setting: { enabled: true } }
-			);
-
-			assert.deepStrictEqual(configuration.getConfiguration('setting').inspect<boolean>('enabled'), {
-				key: 'setting.enabled',
-				policyValue: true,
-				defaultValue: true,
-				globalLocalValue: false,
-				globalRemoteValue: undefined,
-				globalValue: false,
-				workspaceValue: undefined,
-				workspaceFolderValue: undefined,
-				defaultLanguageValue: undefined,
-				globalLocalLanguageValue: undefined,
-				globalRemoteLanguageValue: undefined,
-				globalLanguageValue: undefined,
-				workspaceLanguageValue: undefined,
-				workspaceFolderLanguageValue: undefined,
-				languageIds: []
-			});
-		});
-
 		assert.strictEqual(extHostConfig.getConfiguration('search.exclude')['**/node_modules'], true);
 		assert.strictEqual(extHostConfig.getConfiguration('search.exclude').get('**/node_modules'), true);
 		assert.strictEqual(extHostConfig.getConfiguration('search').get<any>('exclude')['**/node_modules'], true);
 
 		assert.strictEqual(extHostConfig.getConfiguration('search.exclude').has('**/node_modules'), true);
 		assert.strictEqual(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
+	});
+
+	test('inspect exposes policy value separately from the effective default value', function () {
+		const configuration = createExtHostConfiguration(
+			{ setting: { enabled: false } },
+			undefined,
+			{ setting: { enabled: true } }
+		);
+
+		assert.deepStrictEqual(configuration.getConfiguration('setting').inspect<boolean>('enabled'), {
+			key: 'setting.enabled',
+			policyValue: true,
+			defaultValue: true,
+			globalLocalValue: false,
+			globalRemoteValue: undefined,
+			globalValue: false,
+			workspaceValue: undefined,
+			workspaceFolderValue: undefined,
+			defaultLanguageValue: undefined,
+			globalLocalLanguageValue: undefined,
+			globalRemoteLanguageValue: undefined,
+			globalLanguageValue: undefined,
+			workspaceLanguageValue: undefined,
+			workspaceFolderLanguageValue: undefined,
+			languageIds: []
+		});
 	});
 
 	test('has/get', () => {
