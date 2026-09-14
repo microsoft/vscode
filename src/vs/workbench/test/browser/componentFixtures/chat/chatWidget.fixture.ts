@@ -153,10 +153,12 @@ export interface IChatWidgetFixtureOptions {
 	readonly richSubagents?: boolean;
 }
 
-interface IChatWidgetFixtureHandle {
+export interface IChatWidgetFixtureHandle {
+	readonly instantiationService: ReturnType<typeof createEditorServices>;
 	readonly inputPart: ChatInputPart;
 	readonly listWidget: ChatListWidget;
 	readonly model: ChatModel;
+	readonly viewModel: ChatViewModel;
 	readonly width: number;
 	readonly addTerminalConfirmation: (request: ReturnType<ChatModel['addRequest']>, command: string) => void;
 }
@@ -679,9 +681,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	}
 
 	options.onRendered?.({
+		instantiationService,
 		inputPart,
 		listWidget,
 		model,
+		viewModel,
 		width,
 		addTerminalConfirmation: (request, command) => {
 			model.acceptResponseProgress(request, new ChatToolInvocation(

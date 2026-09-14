@@ -12,6 +12,7 @@ import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
+import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
 import product from '../../product.json' with { type: 'json' };
@@ -936,17 +937,7 @@ ${tslib}`,
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
-				if (sourceMapBaseUrl) {
-					const relativePath = path.relative(path.join(REPO_ROOT, outDir), file.path);
-					content = content.replace(
-						/\/\/# sourceMappingURL=.+$/m,
-						`//# sourceMappingURL=${sourceMapBaseUrl}/${relativePath}.map`
-					);
-					content = content.replace(
-						/\/\*# sourceMappingURL=.+\*\/$/m,
-						`/*# sourceMappingURL=${sourceMapBaseUrl}/${relativePath}.map*/`
-					);
-				}
+				content = rewriteSourceMappingURL(content, path.relative(path.join(REPO_ROOT, outDir), file.path), sourceMapBaseUrl);
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {

@@ -239,7 +239,7 @@ Two categories of corruption:
 
 1. **`sourcesContent: true`** - Production bundles embed original TypeScript source content in `.map` files, matching the old build's `includeContent: true` behavior.
 
-2. **`--source-map-base-url` option** - Rewrites `sourceMappingURL` comments to point to CDN URLs.
+2. **`--source-map-base-url` option** - Rewrites JS and CSS `sourceMappingURL` comments to point to CDN URLs, using forward slashes for relative output paths on every platform. Without this option, existing comments are left unchanged. Tests in [source-map-url.test.ts](../../build/next/test/source-map-url.test.ts).
 
 3. **NLS plugin inline source maps** (`nls-plugin.ts`) - The `onLoad` handler generates an inline source map (`//# sourceMappingURL=data:...`) mapping from NLS-transformed source back to original. esbuild composes this with its own bundle source map. `SourceMapGenerator.setSourceContent` embeds the original source so `sourcesContent` in the final `.map` has the real TypeScript. `generateNLSSourceMap` adds per-column identity mappings after each edit on a line so that esbuild's source-map composition preserves fine-grained column accuracy (source maps don't interpolate columns — they use binary search, so a single boundary mapping would collapse all subsequent columns to the edit-end position). Tests in `test/nls-sourcemap.test.ts`.
 
