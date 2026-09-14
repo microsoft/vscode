@@ -198,7 +198,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 								precondition: enabled ? undefined : ContextKeyExpr.false(),
 							},
 							group: 'navigation',
-							order: 4,
+							order: Number.MAX_SAFE_INTEGER,
 							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId)),
 						}));
 					}

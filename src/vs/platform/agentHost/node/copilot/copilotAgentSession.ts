@@ -17,7 +17,7 @@ import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable 
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
-import { safeStringify } from '../../../../base/common/objects.js';
+import { equals, safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -64,6 +64,7 @@ import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerVal
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
+import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -1065,7 +1066,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private _lastAppliedPermissionMode: PermissionMode | undefined;
-	private _autoApprovalExperimentalModeEnabled = false;
+	private _experimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
 	private readonly _sandboxConfigSequencer = new Sequencer();
 	private readonly _mcpEnablementSequencer = new Sequencer();
@@ -1495,6 +1496,32 @@ export class CopilotAgentSession extends Disposable {
 		return e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
 	}
 
+	private _updateSubagentModel(parentToolCallId: string, model: string | undefined): void {
+		if (!model) {
+			return;
+		}
+		const previous = this._lastSubagentUsageByToolCallId.get(parentToolCallId);
+		const autoModeResolved = this._autoModeResolvedByToolCallId.get(parentToolCallId);
+		const modelId = isAutoModel(model) ? autoModeResolved?.chosenModel ?? model : model;
+		const metadata = { ...previous?._meta };
+		if (autoModeResolved) {
+			metadata.autoModeResolved = autoModeResolved;
+		} else {
+			delete metadata.autoModeResolved;
+		}
+		const usage: UsageInfo = { ...previous, model: modelId };
+		if (Object.keys(metadata).length > 0) {
+			usage._meta = metadata;
+		} else {
+			delete usage._meta;
+		}
+		if (equals(previous, usage)) {
+			return;
+		}
+		this._lastSubagentUsageByToolCallId.set(parentToolCallId, usage);
+		this._emitAction({ type: ActionType.ChatUsage, turnId: this._turnId, usage }, parentToolCallId);
+	}
+
 	private _resumeSubagentForEvent(e: { readonly agentId?: string }, message?: Message): void {
 		if (this._dropLateRootTurnEvents) {
 			return;
@@ -1518,6 +1545,11 @@ export class CopilotAgentSession extends Disposable {
 			toolCallId: parentToolCallId,
 			message,
 		});
+		const usage = this._lastSubagentUsageByToolCallId.get(parentToolCallId);
+		if (usage) {
+			// Model routing can arrive before the child turn exists.
+			this._emitAction({ type: ActionType.ChatUsage, turnId: this._turnId, usage }, parentToolCallId);
+		}
 	}
 
 	private _completeSubagentTurn(agentId: string | undefined, toolCallId?: string): void {
@@ -4170,6 +4202,10 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.Mode) ?? 'interactive';
 	}
 
+	private _isHydraFusionEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+	}
+
 	private _subscribeToPermissionConfigChanges(): void {
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			void this._syncPermissionModeAfterConfigChange();
@@ -4241,14 +4277,14 @@ export class CopilotAgentSession extends Disposable {
 			const mode = this._getSdkPermissionMode();
 			const configuredLevel = this._getConfiguredApprovalLevel();
 			this._logService.info(`[Copilot:${this.sessionId}] Syncing permission mode: source=${source}, agentMode=${this._getConfiguredAgentMode()}, configuredLevel=${configuredLevel}, sdkMode=${mode}, previousSdkMode=${this._lastAppliedPermissionMode ?? 'unknown'}, globalAutoApprove=${this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true}`);
-			const experimentalModeEnabled = mode === 'assisted';
-			if (this._autoApprovalExperimentalModeEnabled !== experimentalModeEnabled) {
+			const experimentalModeEnabled = mode === 'assisted' || this._isHydraFusionEnabled();
+			if (this._experimentalModeEnabled !== experimentalModeEnabled) {
 				const experimentalResult = await this._wrapper.session.rpc.options.update({ isExperimentalMode: experimentalModeEnabled });
 				if (!experimentalResult.success) {
-					throw new Error(`Copilot SDK rejected experimental mode update required by permission mode '${mode}'`);
+					throw new Error('Copilot SDK rejected experimental mode required by the current session configuration');
 				}
-				this._autoApprovalExperimentalModeEnabled = experimentalModeEnabled;
-				this._logService.info(`[Copilot:${this.sessionId}] ${experimentalModeEnabled ? 'Enabled' : 'Disabled'} SDK experimental mode for permission mode '${mode}'`);
+				this._experimentalModeEnabled = experimentalModeEnabled;
+				this._logService.info(`[Copilot:${this.sessionId}] ${experimentalModeEnabled ? 'Enabled' : 'Disabled'} SDK experimental mode`);
 			}
 			if (this._lastAppliedPermissionMode === mode) {
 				return;
@@ -5664,6 +5700,27 @@ export class CopilotAgentSession extends Disposable {
 				// Preserve the immediate parent tool-call edge so discovery content routes to the right ancestor chat.
 				parentToolCallId: tracked?.parentToolCallId,
 			});
+			this._updateSubagentModel(e.data.toolCallId, e.data.model);
+		}));
+
+		this._register(wrapper.onSubagentConfigured(e => {
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			if (!parentToolCallId) {
+				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute model configuration for unknown subagent agentId=${e.agentId}`);
+				return;
+			}
+			this._updateSubagentModel(parentToolCallId, e.data.model);
+		}));
+
+		this._register(wrapper.onTurnStart(e => {
+			if (!e.agentId || !e.data.model) {
+				return;
+			}
+			this._resumeSubagentForEvent(e);
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			if (parentToolCallId) {
+				this._updateSubagentModel(parentToolCallId, e.data.model);
+			}
 		}));
 
 		this._register(wrapper.onSessionError(e => {
@@ -5738,15 +5795,14 @@ export class CopilotAgentSession extends Disposable {
 					hasImage: e.data.hasImage,
 				});
 			}
-			// A subagent routes its own model calls, so record the decision against the
-			// subagent rather than letting it describe the parent turn. Auto routes
-			// before the model call, so the usage event that follows picks this up.
+			// Publish the child's routing before its model call, independently of parent usage.
 			if (e.agentId) {
 				const subagentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 				if (!subagentToolCallId) {
 					this._logService.warn(`[Copilot:${sessionId}] Unable to attribute Auto mode resolution for unknown subagent agentId=${e.agentId}; leaving the parent turn's routing untouched`);
 				} else {
 					this._autoModeResolvedByToolCallId.set(subagentToolCallId, e.data);
+					this._updateSubagentModel(subagentToolCallId, e.data.chosenModel);
 				}
 				return;
 			}
@@ -6624,7 +6680,15 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionModelChange(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Model changed: ${e.data.previousModel ?? '(none)'} -> ${e.data.newModel}`);
-			if (!e.agentId) {
+			if (e.agentId) {
+				const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+				if (parentToolCallId) {
+					if (e.data.previousModel !== e.data.newModel) {
+						this._autoModeResolvedByToolCallId.delete(parentToolCallId);
+					}
+					this._updateSubagentModel(parentToolCallId, e.data.newModel);
+				}
+			} else {
 				this._promptCacheRefreshGeneration++;
 				if (e.data.previousModel !== e.data.newModel) {
 					this._setPromptCacheState(undefined);

@@ -1020,7 +1020,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
-			// window reload), so nothing reacts to it here; only BYOK models refresh.
+			// window reload), so nothing reacts to it here.
 			this._refreshByokModels();
 			this._refreshModelsIfAutoModeTiersChanged();
 		}));
@@ -1076,6 +1076,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeAdvisor) === true;
 	}
 
+	private _isHydraFusionEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+	}
+
 	private _areAutoModeTiersEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) === true;
 	}
@@ -1111,6 +1115,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isSessionSyncEnabled(),
 			this._isRubberDuckEnabled(),
 			this._isClaudeAdvisorEnabled(),
+			this._isHydraFusionEnabled(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getEnterpriseHost(),
 			this._isSystemProxyEnabled(),
@@ -2077,7 +2082,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * allocated each call so the observable always notifies its consumers.
 	 */
 	private _publishModels(): void {
-		this._models.set([...this._capiModels, ...this._byokModels], undefined);
+		const hydraFusionModels: readonly IAgentModelInfo[] = this._isHydraFusionEnabled() && !this._capiModels.some(model => model.id === 'hydrafusion') ? [{
+			provider: this.id,
+			id: 'hydrafusion',
+			name: 'HydraFusion',
+			supportsVision: true,
+			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
+		}] : [];
+		this._models.set([...this._capiModels, ...hydraFusionModels, ...this._byokModels], undefined);
 	}
 
 	/**
@@ -5183,7 +5195,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
 			...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
 		];
-		const env = createCopilotCliEnvironment(process.env, omittedKeys, this._isClaudeAdvisorEnabled());
+		const env = createCopilotCliEnvironment(
+			process.env,
+			omittedKeys,
+			this._isClaudeAdvisorEnabled(),
+			this._isHydraFusionEnabled(),
+		);
 		if (proxy) {
 			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
 				env[key] = proxy;

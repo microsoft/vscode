@@ -5719,6 +5719,33 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		for (const enabled of [false, true]) {
+			test(`sets standalone HydraFusion flags to ${enabled} and preserves inherited environment`, () => {
+				const ambient = Object.freeze({
+					COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION,HYDRAFUSION_ROLLOUT,COMPUTER_USE',
+					HYDRAFUSION: String(!enabled),
+					HYDRAFUSION_ROLLOUT: String(!enabled),
+					COMPUTER_USE: 'true',
+					PATH: '/usr/bin',
+				});
+				const env = createCopilotCliEnvironment(ambient, [], false, enabled);
+
+				assert.deepStrictEqual({
+					hydraFusion: env['HYDRAFUSION'],
+					hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
+					featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
+					computerUse: env['COMPUTER_USE'],
+					path: env['PATH'],
+				}, {
+					hydraFusion: String(enabled),
+					hydraFusionRollout: String(enabled),
+					featureFlags: ambient.COPILOT_CLI_ENABLED_FEATURE_FLAGS,
+					computerUse: 'true',
+					path: '/usr/bin',
+				});
+			});
+		}
+
 		test('does not block client startup on system proxy resolution', async () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
@@ -6321,7 +6348,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('enables Rubber Duck and disables Claude Advisor by default', async () => {
+		test('enables Rubber Duck and disables Claude Advisor and HydraFusion by default', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
@@ -6332,9 +6359,13 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					rubberDuck: env?.['RUBBER_DUCK_AGENT'],
 					advisor: env?.['ANTHROPIC_ADVISOR'],
+					hydraFusion: env?.['HYDRAFUSION'],
+					hydraFusionRollout: env?.['HYDRAFUSION_ROLLOUT'],
 				}, {
 					rubberDuck: 'true',
 					advisor: 'false',
+					hydraFusion: 'false',
+					hydraFusionRollout: 'false',
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -6352,6 +6383,64 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 
 				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['ANTHROPIC_ADVISOR'], 'true');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('publishes HydraFusion when enabled and restarts its runtime when disabled', async () => {
+			const client = new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: {
+					[CopilotCliConfigKey.HydraFusion]: true,
+				},
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				await agent.refreshModels();
+
+				assert.deepStrictEqual({
+					models: agent.models.get().map(model => model.id),
+					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
+					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
+				}, {
+					models: ['gpt-5', 'hydrafusion'],
+					hydraFusion: 'true',
+					hydraFusionRollout: 'true',
+				});
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
+				await agent.listChatsToMigrate();
+				await agent.refreshModels();
+				assert.deepStrictEqual({
+					models: agent.models.get().map(model => model.id),
+					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
+					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
+					stopCallCount: client.stopCallCount,
+				}, {
+					models: ['gpt-5'],
+					hydraFusion: 'false',
+					hydraFusionRollout: 'false',
+					stopCallCount: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not duplicate HydraFusion when the runtime advertises it', async () => {
+			const client = new TestCopilotClient([], [{ id: 'hydrafusion', name: 'HydraFusion' }]);
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+
+				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['hydrafusion']);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -7457,6 +7546,25 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(config.contextTier, 'long_context');
 		});
 	});
+
+	for (const enabled of [false, true]) {
+		test(`agent-created sessions set experimental mode for HydraFusion=${enabled}`, async () => {
+			const { agent, instantiationService } = createTestAgentContext(disposables, {
+				environmentServiceRegistration: 'native',
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				rootConfig: { [CopilotCliConfigKey.HydraFusion]: enabled },
+			});
+			try {
+				const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
+				const session = disposables.add(createdSession.session);
+				await session.initializeSession();
+
+				assert.strictEqual(createdSession.createOptions()?.enableExperimentalMode, enabled ? true : undefined);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	}
 
 	test('agent-created sessions can resolve session-state paths via INativeEnvironmentService', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
