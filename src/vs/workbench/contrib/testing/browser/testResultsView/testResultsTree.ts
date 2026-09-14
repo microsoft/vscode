@@ -359,15 +359,33 @@ export class OutputPeekTree extends Disposable {
 		)) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		const cc = new CreationCache<TreeElement>();
+		const taskItems = new Map<TaskElement, Set<TestResultItem>>();
+		const messageChildren = new Map<TestResultItem, ICompressedTreeElement<TreeElement>[]>();
 
 		const getTaskChildren = (taskElem: TaskElement, includeMessageChildren = true, changedItems?: Set<TestResultItem>): Iterable<ICompressedTreeElement<TreeElement>> => {
 			const { results, index, itemsCache, task } = taskElem;
-			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || (includeMessageChildren ? test.tasks[index].messages.length > 0 : !!changedItems?.has(test)));
-			let result: Iterable<ICompressedTreeElement<TreeElement>> = Iterable.map(tests, test => ({
-				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, test, index)),
-				incompressible: true,
-				children: includeMessageChildren ? getTestChildren(results, test, index) : [],
-			}));
+			const knownItems = taskItems.get(taskElem) ?? new Set<TestResultItem>();
+			if (includeMessageChildren) {
+				for (const test of results.tests) {
+					if (test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0) {
+						knownItems.add(test);
+					}
+				}
+			} else {
+				for (const test of changedItems ?? []) {
+					knownItems.add(test);
+				}
+			}
+			taskItems.set(taskElem, knownItems);
+			const testElements: ICompressedTreeElement<TreeElement>[] = [];
+			for (const test of knownItems) {
+				testElements.push({
+					element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, test, index)),
+					incompressible: true,
+					children: messageChildren.get(test) ?? [],
+				});
+			}
+			let result: Iterable<ICompressedTreeElement<TreeElement>> = testElements;
 
 			if (task.coverage.get()) {
 				result = Iterable.concat(
@@ -392,6 +410,7 @@ export class OutputPeekTree extends Disposable {
 					children.push({ element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: false });
 				}
 			}
+			messageChildren.set(test, children);
 			return children;
 		};
 

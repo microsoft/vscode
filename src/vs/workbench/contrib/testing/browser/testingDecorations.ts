@@ -409,7 +409,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				return;
 			}
 
-			if (ev.message.type === TestMessageType.Output && !ev.message.location) {
+			if (ev.message.type === TestMessageType.Output && !ev.message.location && ev.item) {
 				return;
 			}
 
