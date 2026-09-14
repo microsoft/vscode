@@ -52,9 +52,6 @@ rounds:
           turnId: ${turn_0}
           toolCallId: ${toolCall_1}
           toolName: read_agent
-      - channel: ${session_0}
-        action:
-          type: session/chatAdded
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete

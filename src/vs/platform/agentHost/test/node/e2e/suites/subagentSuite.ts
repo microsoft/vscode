@@ -314,6 +314,12 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		assert.match(initial.responseText.trim(), /PARENT_INITIAL_DONE$/);
 		const subagentChat = subagentChatFromReceived(parentChat);
 		assert.ok(subagentChat, 'the task tool should expose the retained subagent chat');
+		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'session/chatAdded')).some(notification => {
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri
+				&& envelope.action.type === ActionType.SessionChatAdded
+				&& envelope.action.summary.resource.toString() === subagentChat;
+		}), 'the retained subagent chat should be added to the session catalog');
 
 		async function readCompletedChild(expectedTurnCount: number): Promise<ChatState> {
 			let child: ChatState | undefined;
@@ -373,7 +379,10 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				active: false,
 			},
 		]);
-		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
+		await assertRecordedAhpSnapshot(this.test!, context.client, {
+			...behaviorSnapshot,
+			ignoredActionTypes: [ActionType.SessionChatAdded],
+		});
 	});
 
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {
