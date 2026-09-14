@@ -1121,9 +1121,8 @@ export class ActionListWidget<T> extends Disposable {
 				// Filter once the composition commits instead.
 				const onFilterValueChanged = () => {
 					const value = this._filterInput!.value;
-					// `compositionend` and the `input` event that follows it both land here (and browsers
-					// disagree on their order), so only filter when the text actually changed.
-					if (this._imeSessionInProgress || value === this._filterText) {
+					// Restart cancelled compositions without duplicating the trailing input event's live request.
+					if (this._imeSessionInProgress || value === this._filterText && !this._filterCts.value?.token.isCancellationRequested) {
 						return;
 					}
 					this._filterText = value;
@@ -1321,7 +1320,12 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			this._allMenuItems = [...items];
 			this._applyFilter(true);
-		}).catch(() => { /* best-effort */ });
+		}).catch(() => { /* best-effort */ }).finally(() => {
+			// Retain cancelled requests so an interrupted IME search can restart with unchanged text.
+			if (this._filterCts.value === cts && !cts.token.isCancellationRequested) {
+				this._filterCts.clear();
+			}
+		});
 	}
 
 	private _applyFilter(skipTextFilter = false, fireLayout = true, focusItemId?: string): void {

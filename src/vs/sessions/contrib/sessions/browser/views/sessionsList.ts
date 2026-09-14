@@ -290,6 +290,7 @@ const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
 
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
+	private static readonly ITEM_HEIGHT_COMPACT = 28;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT = 28;
@@ -317,6 +318,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	constructor(
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly _isPhone: () => boolean,
+		private readonly _isCompact: () => boolean,
 		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
 		private readonly _ciFixModel: ISessionCIFixModel | undefined = undefined,
 		private readonly _useCompactQuickChatRows = true,
@@ -364,6 +366,8 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
 		} else if (this._useCompactQuickChatRows && isQuickChatSession(element as ISession)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
+		} else if (this._isCompact()) {
+			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPACT;
 		} else {
 			height = SessionsTreeDelegate.ITEM_HEIGHT;
 		}
@@ -682,6 +686,7 @@ interface ISessionItemTemplate {
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
+	readonly compactHoverDescription: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
@@ -760,7 +765,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			archiveOnboardingSession?: IObservable<ISession | undefined>;
@@ -825,6 +830,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			pausedClass: SESSION_TITLE_SHIMMER_PAUSED_CLASS,
 			animationNames: SESSION_TITLE_SHIMMER_ANIMATION_NAMES,
 		}));
+		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		// Shown when a voice response arrived while this session was unfocused and
 		// is held until it is (mirrors the main window's sessions viewer).
@@ -892,7 +898,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -945,7 +951,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element))).domNode,
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element), this.options.compact())).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -1052,6 +1058,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
+			DOM.clearNode(template.compactHoverDescription);
 
 			// Compact quick chats have no details row.
 			if (isQuickChat && this.options.useCompactQuickChatRows) {
@@ -1061,6 +1068,24 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			const diffStats = getSessionDiffStats(element, reader);
+			const workspaceBadgeLabel = workspace && (
+				this.options.grouping() !== SessionsGrouping.Workspace ||
+				this.options.isPinned(element) ||
+				element.isArchived.read(reader) ||
+				this.options.isRenderedInCustomGroup?.(element)
+			)
+				? getWorkspaceBadgeLabel(workspace)
+				: undefined;
+			if (this.options.compact()) {
+				descriptionDisposable.clear();
+				timeDisposable.clear();
+
+				if (workspaceBadgeLabel) {
+					DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, workspaceBadgeLabel));
+				}
+				return;
+			}
+
 			let timeDate: Date | undefined;
 
 			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
@@ -1072,6 +1097,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			const parts: HTMLElement[] = [];
 
+			const statusMessage = getSessionStatusMessage(sessionStatus, description);
 			if (sessionStatus !== SessionStatus.InProgress) {
 				let icon: ThemeIcon;
 				if (isQuickChat) {
@@ -1088,14 +1114,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			if (!hideDetails) {
 				const badgeLabel = isQuickChat
 					? localize('quickChatBadge', "No workspace")
-					: workspace && (
-						this.options.grouping() !== SessionsGrouping.Workspace ||
-						this.options.isPinned(element) ||
-						element.isArchived.read(reader) ||
-						this.options.isRenderedInCustomGroup?.(element)
-					)
-						? getWorkspaceBadgeLabel(workspace)
-						: undefined;
+					: workspaceBadgeLabel;
 				if (badgeLabel) {
 					const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 					badgeEl.textContent = badgeLabel;
@@ -1114,7 +1133,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(diffEl);
 			}
 
-			const statusMessage = getSessionStatusMessage(sessionStatus, description);
 			if (statusMessage !== undefined) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -2399,6 +2417,7 @@ export interface ISessionsListControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
+	readonly compact?: () => boolean;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 
@@ -2439,6 +2458,7 @@ export interface ISessionsList {
 	hasFocusOrSelection(): boolean;
 	setVisible(visible: boolean): void;
 	layout(height: number, width: number): void;
+	setCompact(): void;
 	focus(): void;
 	update(expandAll?: boolean): void;
 	openFind(): void;
@@ -2625,6 +2645,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
+		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
 		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
 			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -2673,6 +2694,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
 				useCompactQuickChatRows: true,
+				compact: () => this.options.compact?.() ?? false,
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				aggregateChatApprovals: false,
 				toolbarMenuId: SessionItemToolbarMenuId,
@@ -2745,6 +2767,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
 			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
+			() => this.options.compact?.() ?? false,
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
 			undefined,
 			true /* useCompactQuickChatRows */,
@@ -3692,6 +3715,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	layout(height: number, width: number): void {
 		this.tree.layout(height, width);
+	}
+
+	setCompact(): void {
+		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.update();
 	}
 
 	focus(): void {
@@ -4869,6 +4897,7 @@ export class SessionsFlatList extends Disposable {
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
 				useCompactQuickChatRows,
+				compact: () => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
 				// This list renders no nested chat rows, so the session row is the
 				// only place an approval on any of its chats can surface.
@@ -4893,7 +4922,7 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
