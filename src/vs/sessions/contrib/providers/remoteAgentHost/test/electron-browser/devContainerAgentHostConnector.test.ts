@@ -21,7 +21,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { ITelemetryData, ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../common/workspaceSelection.js';
@@ -133,6 +133,7 @@ suite('Dev Container Agent Host Connector', () => {
 		const environmentInputs: string[][] = [];
 		const events: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
 		const telemetryService = new class extends mock<ITelemetryService>() {
+			override readonly telemetryLevel = TelemetryLevel.USAGE;
 			override publicLog2(eventName: string, data?: ITelemetryData): void {
 				events.push({ eventName, data });
 			}
@@ -163,6 +164,34 @@ suite('Dev Container Agent Host Connector', () => {
 				data: { dockerAvailable: true, devContainerFolderCount: 1 },
 			}],
 		});
+	});
+
+	test('does not inspect recent workspaces when usage telemetry is disabled', async () => {
+		const calls: string[] = [];
+		const recentWorkspacesService = new class extends mock<ISessionsRecentWorkspacesService>() {
+			override readonly historyLoadState = observableValue<WorkspaceHistoryLoadState>({}, 'loading');
+			override getRecentWorkspaces(): IRecentWorkspace[] {
+				calls.push('getRecentWorkspaces');
+				return [];
+			}
+		}();
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override readonly telemetryLevel = TelemetryLevel.ERROR;
+			override publicLog2(): void {
+				calls.push('publicLog2');
+			}
+		}();
+
+		await reportDevContainerEnvironment(
+			recentWorkspacesService,
+			async () => {
+				calls.push('getEnvironment');
+				return { dockerAvailable: true, devContainerFolderCount: 0 };
+			},
+			telemetryService,
+		);
+
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('registers a disabled-by-default user setting', () => {

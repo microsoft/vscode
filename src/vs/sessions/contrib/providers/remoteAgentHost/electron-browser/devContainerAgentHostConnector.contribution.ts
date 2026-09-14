@@ -30,7 +30,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
@@ -76,6 +76,9 @@ export async function reportDevContainerEnvironment(
 	getEnvironment: (workspaceUris: readonly URI[]) => Promise<DevContainerEnvironmentEvent>,
 	telemetryService: ITelemetryService,
 ): Promise<void> {
+	if (telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
+		return;
+	}
 	await waitForState(recentWorkspacesService.historyLoadState, state => state !== 'loading');
 	const workspaceUris: URI[] = [];
 	const seen = new Set<string>();
