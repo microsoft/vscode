@@ -108,4 +108,48 @@ suite('Semantic Diff Server Tool', () => {
 			'without opening an editor',
 		].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)), []);
 	});
+
+	test('prompt and group schema request an evidence-based paragraph about the logical unit', () => {
+		const analysisDescription = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		assert.deepStrictEqual({
+			missingPromptClauses: ['paragraph of 2-3 sentences', 'centered on the logical unit', 'how the related edits work together', 'resulting behavior or contract', 'concrete conditions or mechanisms', 'Distinguish adding regression coverage from observing that tests passed', 'do not invent motivation'].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
+			schemaGuidance: analysisDescription.includes('Focus on intent and impact, not a file/hunk inventory'),
+		}, { missingPromptClauses: [], schemaGuidance: true });
+	});
+
+	test('prompt and group schema specify dependency-aware review order rather than a mechanical sort', () => {
+		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		assert.deepStrictEqual({
+			missingPromptClauses: [
+				'analysis.groups in the recommended review order',
+				'exactly this array order',
+				'prerequisite contracts, data shapes, and foundational behavior before the consumers',
+				'Among independent groups, prioritize high-impact behavior changes',
+				'Do not sort groups by filename, title, diff size, or change type',
+				'Keep tests and generated/supporting edits with their logical unit',
+				'review walkthrough',
+			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
+			schemaGuidance: schema.includes('Mutually exclusive semantic groups in recommended review order; cards render in exactly this array order'),
+		}, { missingPromptClauses: [], schemaGuidance: true });
+	});
+
+	test('prompt and schema require exclusive ownership and an evidence-based completion pass', () => {
+		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		assert.deepStrictEqual({
+			missingPromptClauses: [
+				'Semantic groups must be mutually exclusive',
+				'each assigned hunk belongs to exactly one group',
+				'Never copy the same file/range into another group under a different ID',
+				'Aim for zero unassigned or untyped hunks',
+				'revisit every hunk whose groupId or changeType is unresolved',
+				'Use low confidence with an explicit uncertainty explanation',
+				'genuinely unresolved cases after that targeted investigation',
+				'Preserve the known axis when only one is unresolved',
+				'Never omit difficult hunks, invent an assignment, or hide excluded/truncated evidence',
+			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
+			schemaOwnership: schema.includes('The single group that owns this hunk'),
+			schemaInventory: schema.includes('Every observed Git hunk exactly once'),
+			schemaInvestigation: schema.includes('Null is a last resort after targeted investigation'),
+		}, { missingPromptClauses: [], schemaOwnership: true, schemaInventory: true, schemaInvestigation: true });
+	});
 });

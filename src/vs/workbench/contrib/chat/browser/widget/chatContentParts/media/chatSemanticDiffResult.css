@@ -61,12 +61,11 @@
 .chat-semantic-diff .semantic-diff-card-heading {
 	display: flex;
 	align-items: baseline;
-	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size80);
 }
 
 .chat-semantic-diff .semantic-diff-title {
-	flex: 1 1 12em;
+	flex: 1;
 	min-width: 0;
 }
 
@@ -78,6 +77,14 @@
 
 .chat-semantic-diff .semantic-diff-error {
 	color: var(--vscode-errorForeground);
+}
+
+.chat-semantic-diff .semantic-diff-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.chat-semantic-diff .semantic-diff-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 .chat-semantic-diff .semantic-diff-uncertainty,
@@ -94,10 +101,24 @@
 	margin: var(--vscode-spacing-size80) 0 0;
 }
 
-.chat-semantic-diff .semantic-diff-file,
 .chat-semantic-diff .semantic-diff-hunk {
 	margin: var(--vscode-spacing-size80) 0 0;
 	min-width: 0;
+}
+
+.chat-semantic-diff .semantic-diff-files {
+	padding: var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-chat-requestBorder));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-semantic-diff .semantic-diff-file {
+	margin: 0;
+	min-width: 0;
+}
+
+.chat-semantic-diff .semantic-diff-file > .semantic-diff-panel {
+	padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size80);
 }
 
 .chat-semantic-diff .semantic-diff-hunk {
@@ -138,6 +159,45 @@
 
 .chat-semantic-diff .semantic-diff-file-toggle {
 	width: 100%;
+	padding-block: var(--vscode-spacing-sizeNone);
+	min-height: var(--vscode-spacing-size240);
+	align-items: center;
+}
+
+.chat-semantic-diff .semantic-diff-file-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	width: 100%;
+}
+
+.chat-semantic-diff .semantic-diff-resource-label {
+	flex: 1;
+	min-width: 0;
+	align-items: center;
+	/* Resolve the line height before icon themes apply their own font size. */
+	line-height: 1.5em;
+}
+
+.chat-semantic-diff .semantic-diff-resource-label::before {
+	height: auto;
+}
+
+.chat-semantic-diff .semantic-diff-resource-label .monaco-icon-label-container {
+	white-space: nowrap;
+}
+
+.chat-semantic-diff .semantic-diff-file-row > .semantic-diff-line-counts {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.chat-semantic-diff .semantic-diff-group-toggle {
+	flex-shrink: 0;
+	max-width: 50%;
+	margin-inline-start: auto;
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .chat-semantic-diff .semantic-diff-disclosure-label {
@@ -149,10 +209,6 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size40);
-}
-
-.chat-semantic-diff .semantic-diff-file-toggle .semantic-diff-types {
-	flex-basis: 100%;
 }
 
 .chat-semantic-diff .semantic-diff-type {

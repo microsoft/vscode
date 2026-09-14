@@ -16,10 +16,31 @@ Investigation:
 
 Classification:
 - Group by specific intent, not by file, directory, or edit category. Keep tests with the behavior they cover, supporting edits with their intent, and generated artifacts with the change that caused them. One file can contribute different hunks to different groups.
+- Semantic groups must be mutually exclusive: each assigned hunk belongs to exactly one group. Include each observed hunk exactly once in analysis.hunks and use its single groupId as the only membership reference. Never copy the same file/range into another group under a different ID. This is hunk ownership, not file ownership.
+- Give groups distinct scopes. Merge groups that describe the same intent instead of creating overlapping umbrella groups or separate groups for their tests. For a mixed hunk, choose the best-supported primary intent and explain incidental effects there; do not duplicate or artificially split the hunk.
 - Independently classify each hunk as logic (production behavior or public contract), test (hand-authored tests/fixtures), supporting (evidence of no intended behavior change), or generated (evidence of reproducible machine output). A public API rename or dependency manifest version change is logic, not automatically supporting; a lockfile can be generated in that same group.
 - For mixed types choose the primary in this order: logic, test, supporting, generated; list remaining observed types in that order as secondaryChangeTypes. These types never mean safe, approved, or skippable.
-- Use a null groupId for inseparable multiple intents, a null changeType when type is unknown, or both; retain the hunk. Null axes require null confidence, assigned axes require high/medium/low confidence. Explain every null axis or low confidence in uncertainty.
-- Provide concise evidence-based groupReason and typeReason, not private reasoning. Remove empty groups and preserve deliberate group order.
+- Provide concise evidence-based groupReason and typeReason, not private reasoning. Remove empty groups.
+
+Classification completion pass:
+- Aim for zero unassigned or untyped hunks. Before submitting, revisit every hunk whose groupId or changeType is unresolved. Inspect targeted before/after context, relevant callers, the behavior exercised by tests, or generation metadata to resolve the specific ambiguity.
+- Make the best-supported assignment when evidence is sufficient. A mixed change type, incidental cleanup, or less-than-perfect certainty is not by itself a reason to leave a hunk unclassified. Use low confidence with an explicit uncertainty explanation when an assignment is defensible but tentative.
+- Reserve a null groupId or null changeType for genuinely unresolved cases after that targeted investigation, such as inaccessible evidence or inseparable independent intents with no defensible primary assignment. Preserve the known axis when only one is unresolved. Null axes require null confidence; assigned axes require high/medium/low confidence. Explain every null axis or low confidence in uncertainty and record applicable limitations.
+- Audit the final inventory by file and old/new ranges: each observed hunk appears once, has one group and one primary type wherever supportable, and every remaining unknown has a concrete explanation. Never omit difficult hunks, invent an assignment, or hide excluded/truncated evidence just to make the unknown counts zero.
+
+Review order:
+- Put analysis.groups in the recommended review order. The client renders cards in exactly this array order; there is no separate priority field. Choose a coherent walkthrough, not the order in which Git or your investigation happened to list changes.
+- Put prerequisite contracts, data shapes, and foundational behavior before the consumers that depend on them. For example, explain a new validation contract before the feature that calls it. Infer dependencies from the inspected code, not directory proximity.
+- Among independent groups, prioritize high-impact behavior changes, failure paths, and changes needing careful scrutiny before routine mechanical cleanup. Preserve the dependency order even when a dependent change is larger.
+- Do not sort groups by filename, title, diff size, or change type. Keep tests and generated/supporting edits with their logical unit; a dependency upgrade must not be pushed to the end merely because its lockfile is generated.
+
+Card summaries:
+- Write each group's description as a self-contained paragraph of 2-3 sentences (roughly 40-80 words, at most 600 characters) centered on the logical unit. This is the reviewer's brief for the group, not a one-line changelog entry.
+- Lead with the problem being addressed or capability being introduced and the resulting behavior or contract. Explain how the related edits work together using concrete conditions or mechanisms, contrasting before and after when known. Include the most relevant boundary case, compatibility constraint, dependency on an earlier group, or behavior covered by added tests when the evidence supports it.
+- Prefer precise explanations over phrases such as "updates several files", "improves handling", or "adds tests". Avoid a file/hunk inventory, bullet lists, repeating the title, and change counts. Name a function or API only when it clarifies the logical unit.
+- Ground the paragraph in the inspected evidence; do not invent motivation, test results, or performance claims. Distinguish adding regression coverage from observing that tests passed. A reader should understand this unit's purpose, mechanism, and review-relevant consequences without opening its file list.
+- Example of the desired style, not facts to copy: "Prevent billing totals from becoming negative for non-positive tax rates or excessive discounts. The tax-rate guard and discount cap close the two invalid-total paths, while regression tests exercise their boundary inputs. Normal billing calculations retain their existing behavior."
+- Before submitting, read the titles and summaries in array order: prerequisites should already be explained, each paragraph should describe one distinct intent, and together the cards should form a coherent review walkthrough. Do not add sequence numbers to titles; array order carries the sequence.
 
 Submission:
 - Submit schemaVersion: 1 and analysis only; summary, status, and sourceVerification are tool-derived. Paths must be repository-relative POSIX paths. Renames use the new path and a distinct oldPath; other statuses use oldPath: null. Preserve binary/metadata-only files without fabricated hunks and with nonTextChange limitations.

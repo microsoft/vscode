@@ -43,7 +43,14 @@ const definitions: Record<string, IJSONSchema> = {
 			else: { properties: { targetRevision: { type: 'null' } } }
 		}]
 	},
-	group: object({ id: reference('id'), title: text(100), description: text(600) }),
+	group: object({
+		id: reference('id'),
+		title: text(100),
+		description: {
+			...text(600),
+			description: 'A self-contained review brief of 2-3 sentences, at most 600 characters. Lead with the logical unit\'s purpose and resulting behavior or contract, explain how the related edits work together, and include an evidence-supported boundary case, compatibility constraint, dependency, or test coverage. Focus on intent and impact, not a file/hunk inventory or a restatement of the title. Do not invent motivation or claim tests passed without evidence.',
+		},
+	}),
 	file: {
 		...object({
 			id: reference('id'), path: reference('path'), oldPath: nullable(reference('path')),
@@ -58,8 +65,14 @@ const definitions: Record<string, IJSONSchema> = {
 	},
 	classification: {
 		...object({
-			groupId: nullable(reference('id')),
-			changeType: nullable(reference('changeType')),
+			groupId: {
+				...nullable(reference('id')),
+				description: 'The single group that owns this hunk. Choose the best-supported primary intent; never duplicate a hunk across groups. Null is a last resort after targeted investigation when no assignment is defensible.',
+			},
+			changeType: {
+				...nullable(reference('changeType')),
+				description: 'The best-supported primary change type. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
+			},
 			secondaryChangeTypes: { ...array('changeType', 3), uniqueItems: true },
 			summary: text(160), groupReason: reference('reason'), typeReason: reference('reason'),
 			groupConfidence: reference('confidence'), typeConfidence: reference('confidence'),
@@ -98,8 +111,17 @@ const definitions: Record<string, IJSONSchema> = {
 		message: reference('reason'), fileId: nullable(reference('id')), hunkId: nullable(reference('id'))
 	}),
 	analysis: object({
-		source: reference('source'), groups: array('group', 100), files: array('file', 200),
-		hunks: array('hunk', 500), limitations: array('limitation', 200)
+		source: reference('source'),
+		groups: {
+			...array('group', 100),
+			description: 'Mutually exclusive semantic groups in recommended review order; cards render in exactly this array order. Each assigned hunk belongs to one group, although a file can contribute different hunks to different groups. Put prerequisite contracts and foundational behavior before their consumers, then prioritize higher-impact independent changes before routine cleanup. Do not sort by filename, title, diff size, or change type.',
+		},
+		files: array('file', 200),
+		hunks: {
+			...array('hunk', 500),
+			description: 'Every observed Git hunk exactly once. Do not copy a file/range under another ID or group. Revisit unresolved classifications before submission; preserve explicit uncertainty only where the available evidence cannot support an assignment.',
+		},
+		limitations: array('limitation', 200)
 	}),
 	summary: object({
 		groups: reference('count'), files: reference('count'), hunks: reference('count'),

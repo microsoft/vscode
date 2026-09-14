@@ -15,6 +15,7 @@ import { getToolSpecificDataDescription } from '../../../../browser/accessibilit
 import { ChatSemanticDiffResultSubPart, projectSemanticDiffGroups } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSemanticDiffResultSubPart.js';
 import { shouldRenderSemanticDiffResult } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { IChatSemanticDiffData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatSemanticDiffResultSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,7 +29,7 @@ suite('ChatSemanticDiffResultSubPart', () => {
 	function render(report = createSemanticDiffExample(), owner: object = {}, toolCallId = 'classification'): ChatSemanticDiffResultSubPart {
 		const data: IChatSemanticDiffData = { kind: 'semanticDiff', result: { ok: true, report } };
 		const invocation = upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', toolCallId, isComplete: true, toolSpecificData: data });
-		const part = store.add(new ChatSemanticDiffResultSubPart(invocation, data, owner, false));
+		const part = store.add(workbenchInstantiationService(undefined, store).createInstance(ChatSemanticDiffResultSubPart, invocation, data, owner, false));
 		dom.append(document.body, part.domNode);
 		store.add(toDisposable(() => part.domNode.remove()));
 		return part;
@@ -104,6 +105,47 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		});
 	});
 
+	test('renders the submitted review sequence without sorting by title or change type', () => {
+		const report = createSemanticDiffExample();
+		report.analysis.groups = [report.analysis.groups[2], report.analysis.groups[0], report.analysis.groups[1]];
+		const part = render(report);
+		assert.deepStrictEqual(
+			[...part.domNode.querySelectorAll('.semantic-diff-title')].map(title => title.textContent),
+			['Upgrade lodash to 4.17.21', 'Prevent negative billing totals', 'Standardize the internal quantity field'],
+		);
+	});
+
+	test('shows per-group file and line counts in the header', () => {
+		const part = render();
+		const cards = [...part.domNode.querySelectorAll<HTMLElement>('.semantic-diff-card')];
+		assert.deepStrictEqual(cards.map(card => {
+			const toggle = button(card, '.semantic-diff-group-toggle');
+			return {
+				header: toggle.parentElement?.classList.contains('semantic-diff-card-heading'),
+				label: button(toggle, '.semantic-diff-disclosure-label').textContent,
+				accessibleLabel: toggle.getAttribute('aria-label'),
+				duplicateCounts: card.querySelector(':scope > .semantic-diff-counts') !== null,
+			};
+		}), [
+			{ header: true, label: '3 files +12 -5', accessibleLabel: 'Prevent negative billing totals, 3 files +12 -5, 4 hunks', duplicateCounts: false },
+			{ header: true, label: '2 files +2 -2', accessibleLabel: 'Standardize the internal quantity field, 2 files +2 -2, 2 hunks', duplicateCounts: false },
+			{ header: true, label: '2 files +3 -3', accessibleLabel: 'Upgrade lodash to 4.17.21, 2 files +3 -3, 2 hunks', duplicateCounts: false },
+		]);
+	});
+
+	test('uses singular file wording and counts a file only once across multiple hunks', () => {
+		const { analysis } = createSemanticDiffExample();
+		const group = analysis.groups[0];
+		const file = analysis.files[0];
+		const part = render(reportFor({
+			...analysis,
+			groups: [group],
+			files: [file],
+			hunks: analysis.hunks.filter(hunk => hunk.fileId === file.id && hunk.classification.groupId === group.id),
+		}));
+		assert.strictEqual(button(part.domNode, '.semantic-diff-group-toggle .semantic-diff-disclosure-label').textContent, '1 file +5 -4');
+	});
+
 	test('labels the old insertion anchor and new source range unambiguously', () => {
 		const part = render();
 		const files = activate(part.domNode, '.semantic-diff-group-toggle');
@@ -112,13 +154,96 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		assert.strictEqual(button(panel(testsFile), '.semantic-diff-ranges').textContent, 'Old: insertion after line 40; New: lines 41-45');
 	});
 
-	test('body expands only, explicit controls toggle, and independent cards retain state', () => {
+	test('renders compact file rows with icon labels, directories and counts instead of classification badges', () => {
+		const part = render();
+		const files = activate(part.domNode, '.semantic-diff-group-toggle');
+		assert.deepStrictEqual(
+			[...files.querySelectorAll<HTMLElement>('.semantic-diff-file-toggle')].map(row => ({
+				name: button(row, '.label-name').textContent,
+				directory: button(row, '.label-description').textContent,
+				icon: button(row, '.semantic-diff-resource-label').classList.contains('file-icon'),
+				counts: button(row, '.semantic-diff-line-counts').textContent,
+				typeBadges: row.querySelectorAll('.semantic-diff-type').length,
+				ariaLabel: row.getAttribute('aria-label'),
+			})),
+			[
+				{ name: 'calculateTotal.js', directory: 'src/billing', icon: true, counts: '+5 -4', typeBadges: 0, ariaLabel: 'src/billing/calculateTotal.js, Modified, 2 hunks, +5 -4' },
+				{ name: 'discountEngine.js', directory: 'src/billing', icon: true, counts: '+2 -1', typeBadges: 0, ariaLabel: 'src/billing/discountEngine.js, Modified, 1 hunk, +2 -1' },
+				{ name: 'calculateTotal.test.js', directory: 'src/billing', icon: true, counts: '+5 -0', typeBadges: 0, ariaLabel: 'src/billing/calculateTotal.test.js, Modified, 1 hunk, +5 -0' },
+			],
+		);
+	});
+
+	test('root files have no artificial directory and renamed files retain both paths in their accessible label', () => {
+		const report = createSemanticDiffExample();
+		const renamed = report.analysis.files[0];
+		renamed.status = 'renamed';
+		renamed.oldPath = 'src/old/calculateTotal.js';
+		const part = render(report);
+		activate(part.domNode, '.semantic-diff-group-toggle');
+		const dependencyToggle = part.domNode.querySelectorAll<HTMLElement>('.semantic-diff-group-toggle')[2];
+		dependencyToggle.click();
+		const dependencyFiles = panel(dependencyToggle);
+		assert.deepStrictEqual({
+			rootNames: [...dependencyFiles.querySelectorAll('.label-name')].map(element => element.textContent),
+			rootDirectories: [...dependencyFiles.querySelectorAll('.label-description')].map(element => element.textContent).filter(Boolean),
+			renameLabel: button(part.domNode, '.semantic-diff-file-toggle').getAttribute('aria-label'),
+		}, {
+			rootNames: ['package.json', 'package-lock.json'],
+			rootDirectories: [],
+			renameLabel: 'src/old/calculateTotal.js \u2192 src/billing/calculateTotal.js, Renamed, 2 hunks, +5 -4',
+		});
+	});
+
+	test('omits card and file chevrons while retaining classification-detail chevrons', () => {
+		const part = render();
+		const header = button(part.domNode, '.semantic-diff-group-toggle');
+		const collapsedChevronCount = header.querySelectorAll('.codicon').length;
+		const files = activate(part.domNode, '.semantic-diff-group-toggle');
+		const hunks = activate(files, '.semantic-diff-file-toggle');
+		assert.deepStrictEqual({
+			collapsedChevronCount,
+			expandedChevronCount: header.querySelectorAll('.codicon').length,
+			expanded: header.getAttribute('aria-expanded'),
+			fileChevronCount: button(files, '.semantic-diff-file-toggle').querySelectorAll('.codicon').length,
+			detailChevronCount: button(hunks, '.semantic-diff-rationale-toggle').querySelectorAll('.codicon').length,
+		}, { collapsedChevronCount: 0, expandedChevronCount: 0, expanded: 'true', fileChevronCount: 0, detailChevronCount: 1 });
+	});
+
+	test('renders separate addition and deletion spans in card, file and hunk summaries', () => {
+		const part = render();
+		const files = activate(part.domNode, '.semantic-diff-group-toggle');
+		const hunks = activate(files, '.semantic-diff-file-toggle');
+		const summaries = [
+			button(part.domNode, '.semantic-diff-group-toggle'),
+			button(files, '.semantic-diff-file-toggle'),
+			button(hunks, '.semantic-diff-counts'),
+		];
+		assert.deepStrictEqual(summaries.map(summary => ({
+			added: button(summary, '.semantic-diff-lines-added').textContent,
+			removed: button(summary, '.semantic-diff-lines-removed').textContent,
+			text: button(summary, '.semantic-diff-line-counts').textContent,
+		})), [
+			{ added: '+12', removed: '-5', text: '+12 -5' },
+			{ added: '+5', removed: '-4', text: '+5 -4' },
+			{ added: '+3', removed: '-3', text: '+3 -3' },
+		]);
+	});
+
+	test('only card statistics toggle the card, and independent cards retain state', () => {
 		const part = render();
 		const card = button(part.domNode, '.semantic-diff-card');
 		const control = button(card, '.semantic-diff-group-toggle');
-		card.click();
-		card.click();
+		const nonControls = [card, button(card, '.semantic-diff-title'), button(card, '.semantic-diff-description')];
+		for (const element of nonControls) {
+			element.click();
+		}
 		const afterBodyClicks = control.getAttribute('aria-expanded');
+		control.click();
+		for (const element of nonControls) {
+			element.click();
+		}
+		const afterExpandedBodyClicks = control.getAttribute('aria-expanded');
 		const filePanel = activate(card, '.semantic-diff-file-toggle');
 		activate(filePanel, '.semantic-diff-rationale-toggle');
 		control.click();
@@ -128,12 +253,13 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		second.click();
 		assert.deepStrictEqual({
 			afterBodyClicks,
+			afterExpandedBodyClicks,
 			hidden,
 			firstExpanded: control.getAttribute('aria-expanded'),
 			fileExpanded: button(card, '.semantic-diff-file-toggle').getAttribute('aria-expanded'),
 			rationaleExpanded: button(card, '.semantic-diff-rationale-toggle').getAttribute('aria-expanded'),
 			secondExpanded: second.getAttribute('aria-expanded'),
-		}, { afterBodyClicks: 'true', hidden: true, firstExpanded: 'true', fileExpanded: 'true', rationaleExpanded: 'true', secondExpanded: 'true' });
+		}, { afterBodyClicks: 'false', afterExpandedBodyClicks: 'true', hidden: true, firstExpanded: 'true', fileExpanded: 'true', rationaleExpanded: 'true', secondExpanded: 'true' });
 	});
 
 	test('supports Enter and Space, reports height changes, and restores focus before hiding descendants', () => {
@@ -246,8 +372,9 @@ suite('ChatSemanticDiffResultSubPart', () => {
 			ungrouped: button(part.domNode, '.semantic-diff-ungrouped').querySelectorAll('.semantic-diff-hunk').length,
 			hunks: part.domNode.querySelectorAll('.semantic-diff-hunk').length,
 			binary: button(part.domNode, '.semantic-diff-nontext').textContent?.includes('Binary image has no text hunks.'),
-			observed: button(part.domNode, '.semantic-diff-counts').textContent?.startsWith('Observed'),
-		}, { notice: 'Hunks without a group: 1; hunks without a type: 2; uncertain hunks: 2. Axis counts may overlap.', stale: 'Stale analysis: Source changed after capture.', ungrouped: 1, hunks: 8, binary: true, observed: true });
+			changeSummary: button(part.domNode, '.semantic-diff-group-toggle .semantic-diff-disclosure-label').textContent,
+			compactHunkTotals: [...part.domNode.querySelectorAll('.semantic-diff-hunk .semantic-diff-counts')].every(element => /^\+\d+ -\d+$/.test(element.textContent ?? '')),
+		}, { notice: 'Hunks without a group: 1; hunks without a type: 2; uncertain hunks: 2. Axis counts may overlap.', stale: 'Stale analysis: Source changed after capture.', ungrouped: 1, hunks: 8, binary: true, changeSummary: '3 files +9 -2', compactHunkTotals: true });
 	});
 
 	test('distinguishes complete empty and partial empty reports', () => {
@@ -299,7 +426,7 @@ suite('ChatSemanticDiffResultSubPart', () => {
 			toolSpecificData: errorData,
 			resultDetails: { input: '', output: [], isError: true },
 		});
-		const part = store.add(new ChatSemanticDiffResultSubPart(invocation, errorData, {}, false));
+		const part = store.add(workbenchInstantiationService(undefined, store).createInstance(ChatSemanticDiffResultSubPart, invocation, errorData, {}, false));
 		assert.deepStrictEqual({
 			showError: shouldRenderSemanticDiffResult(invocation),
 			showSuccess: shouldRenderSemanticDiffResult({ ...invocation, toolSpecificData: { kind: 'semanticDiff', result: { ok: true, report: createSemanticDiffExample() } } }),

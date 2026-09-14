@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { buildSemanticDiffReport, ISemanticDiffAnalysis, SemanticDiffValidationResult, validateSemanticDiffReport } from '../../../../../platform/agentHost/common/semanticDiff.js';
 import { createSemanticDiffExample } from '../../../../../platform/agentHost/test/common/semanticDiffFixtures.js';
 import { ChatSemanticDiffResultSubPart } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatSemanticDiffResultSubPart.js';
 import { IChatSemanticDiffData, IChatToolInvocationSerialized } from '../../../../contrib/chat/common/chatService/chatService.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { registerChatFixtureServices } from './chatFixtureUtils.js';
 
-function renderResult({ container, disposableStore }: ComponentFixtureContext, result: SemanticDiffValidationResult, options: { expanded?: boolean; narrow?: boolean; zoom?: boolean } = {}): void {
+function renderResult({ container, disposableStore, theme, fileIconTheme }: ComponentFixtureContext, result: SemanticDiffValidationResult, options: { expanded?: 'files' | 'details'; narrow?: boolean; zoom?: boolean } = {}): void {
 	container.style.width = options.narrow ? '320px' : '600px';
 	container.style.padding = '12px';
 	container.style.boxSizing = 'border-box';
@@ -24,10 +26,15 @@ function renderResult({ container, disposableStore }: ComponentFixtureContext, r
 		isComplete: true,
 		toolSpecificData: data,
 	});
-	const part = disposableStore.add(new ChatSemanticDiffResultSubPart(invocation, data, {}, false));
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, fileIconTheme, additionalServices: registerChatFixtureServices });
+	disposableStore.add(instantiationService.get(ILanguageService).registerLanguage({ id: 'javascript', extensions: ['.js'] }));
+	disposableStore.add(instantiationService.get(ILanguageService).registerLanguage({ id: 'json', extensions: ['.json'] }));
+	const part = disposableStore.add(instantiationService.createInstance(ChatSemanticDiffResultSubPart, invocation, data, {}, false));
 	container.appendChild(part.domNode);
 	if (options.expanded) {
 		part.domNode.querySelector<HTMLElement>('.semantic-diff-group-toggle')?.click();
+	}
+	if (options.expanded === 'details') {
 		part.domNode.querySelector<HTMLElement>('.semantic-diff-file-toggle')?.click();
 		part.domNode.querySelector<HTMLElement>('.semantic-diff-rationale-toggle')?.click();
 	}
@@ -61,6 +68,14 @@ function partialResult(): SemanticDiffValidationResult {
 	});
 }
 
+function paragraphResult(): SemanticDiffValidationResult {
+	const report = createSemanticDiffExample();
+	report.analysis.groups[0].description = 'Keep billing totals non-negative when tax rates are non-positive or a discount exceeds the order value. The tax-rate guard and the discount cap address the same invalid-total path, while regression coverage checks the boundary cases. These changes preserve normal billing calculations and make the exceptional inputs behave consistently.';
+	report.analysis.groups[1].description = 'Use one internal name for item quantities as they move from the item adapter into invoice calculations. The rename updates both sides of that handoff so consumers continue to read the value the adapter provides. This is a naming cleanup independent of the billing guards, with no intended change to the quantity calculation.';
+	report.analysis.groups[2].description = 'Make the application depend on lodash 4.17.21 and keep the resolved dependency graph aligned with that choice. The manifest selects the new version, while the generated lockfile records the corresponding resolution. Both edits belong to the same dependency upgrade rather than separate hand-authored and generated-code work.';
+	return validateSemanticDiffReport(report);
+}
+
 function emptyResult(partial: boolean): SemanticDiffValidationResult {
 	const { analysis } = createSemanticDiffExample();
 	return buildSemanticDiffReport({
@@ -77,22 +92,29 @@ export default defineThemedFixtureGroup({ path: 'chat/semanticDiff/' }, {
 	Example: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'Three collapsed intent cards lead with their titles, descriptions, file and hunk counts. Equal inner padding and subtle ordinal accents distinguish intents, not change types.',
+			'Three collapsed intent cards lead with their titles and paragraph summaries. Each upper-right control shows a neutral file count followed by green additions and red deletions, with no chevron or duplicate totals beneath the summary. Equal inner padding and subtle ordinal accents distinguish intents, not change types.',
 		],
-		render: context => renderResult(context, { ok: true, report: createSemanticDiffExample() }),
+		render: context => renderResult(context, paragraphResult()),
 	}),
 	BillingDetails: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
 			'The first intent card reveals three file rows, including its regression test. The calculation file reveals two hunks and the first classification rationale. The other two cards remain collapsed.',
 		],
-		render: context => renderResult(context, { ok: true, report: createSemanticDiffExample() }, { expanded: true }),
+		render: context => renderResult(context, paragraphResult(), { expanded: 'details' }),
+	}),
+	FileList: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: [
+			'The first card shows compact file rows with themed icons vertically centered beside filenames and directories, and right-aligned green/red counts. No file-row chevrons, statuses, hunk counts or type badges are visible. Other cards remain collapsed.',
+		],
+		render: context => renderResult(context, paragraphResult(), { expanded: 'files' }),
 	}),
 	NarrowZoom: defineComponentFixture({
 		expectedVisualDescriptions: [
-			'At a 320 pixel width with doubled body text, titles, full paths, counts, and nested explanations wrap without horizontal clipping or overlapping controls.',
+			'At a 320 pixel width with doubled body text, card titles and nested explanations wrap. Compact file labels ellipsize while the line counts remain visible, with no horizontal page overflow.',
 		],
-		render: context => renderResult(context, { ok: true, report: createSemanticDiffExample() }, { expanded: true, narrow: true, zoom: true }),
+		render: context => renderResult(context, paragraphResult(), { expanded: 'details', narrow: true, zoom: true }),
 	}),
 	Partial: defineComponentFixture({
 		expectedVisualDescriptions: [

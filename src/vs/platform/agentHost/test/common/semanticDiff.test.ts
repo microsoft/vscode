@@ -439,6 +439,17 @@ suite('Semantic diff classification', () => {
 			input.analysis.hunks.push({ ...input.analysis.hunks[0], id: 'duplicate' });
 			expectIssue(input, '/analysis/hunks/1', 'OVERLAPPING_HUNKS');
 		});
+		test('rejects a hunk copied into a second group under a different ID', () => {
+			const input = minimalSubmission();
+			const hunk = input.analysis.hunks[0];
+			input.analysis.groups.push({ ...input.analysis.groups[0], id: 'second-group' });
+			input.analysis.hunks.push({
+				...hunk,
+				id: 'copied-hunk',
+				classification: { ...hunk.classification, groupId: 'second-group' },
+			});
+			expectIssue(input, '/analysis/hunks/1', 'OVERLAPPING_HUNKS');
+		});
 		for (const side of ['oldRange', 'newRange'] as const) {
 			test(`rejects overlapping or nested nonempty ${side}`, () => {
 				const input = minimalSubmission();
@@ -484,6 +495,18 @@ suite('Semantic diff classification', () => {
 	});
 
 	suite('classification and limitations', () => {
+		test('rejects multiple group references on a single hunk', () => {
+			const input = minimalSubmission();
+			const hunk = input.analysis.hunks[0];
+			expectIssue({
+				...input,
+				analysis: {
+					...input.analysis,
+					hunks: [{ ...hunk, classification: { ...hunk.classification, groupId: [hunk.classification.groupId, 'second-group'] } }],
+				},
+			}, '/analysis/hunks/0/classification/groupId', 'SCHEMA_VIOLATION');
+		});
+
 		test('unknown references and empty groups are rejected', () => {
 			const input = minimalSubmission();
 			input.analysis.hunks[0].fileId = 'missing-file';

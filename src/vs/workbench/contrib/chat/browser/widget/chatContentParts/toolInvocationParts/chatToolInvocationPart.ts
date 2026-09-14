@@ -326,7 +326,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (shouldRenderSemanticDiffResult(this.toolInvocation) && this.toolInvocation.toolSpecificData?.kind === 'semanticDiff') {
-			return new ChatSemanticDiffResultSubPart(
+			return this.instantiationService.createInstance(ChatSemanticDiffResultSubPart,
 				this.toolInvocation,
 				this.toolInvocation.toolSpecificData,
 				isResponseVM(this.context.element) ? this.context.element.model : this.context.element,

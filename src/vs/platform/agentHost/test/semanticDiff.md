@@ -44,8 +44,22 @@ and light variants; Example and BillingDetails also include high-contrast themes
 Using the full example:
 
 1. Confirm there are three intent cards, not separate Logic/Test/Supporting cards.
+   Each card shows `x files +N -M` in the upper-right disclosure control,
+   using the unique file count for that group and singular "1 file" when applicable.
+   There is no hunk count, "Observed" prefix, or slash in the visible header summary.
+   Additions and deletions use the same green/red theme colors as Agents Window
+   diff summaries, including in expanded file and hunk details.
+   The header totals have no chevron. Only clicking the upper-right statistics
+   toggles the card; clicking the title, summary or card background does nothing.
+   Enter/Space on the focused statistics button also toggles the card.
+   Partial reports retain their separate partial-analysis notice.
+   No duplicate totals appear below the paragraph summary.
 2. Expand **Prevent negative billing totals**. Expect three files, four hunks,
    and +12/-5. Its test file appears alongside the implementation files.
+   The compact file rows show a themed icon, filename, directory and right-aligned
+   green/red totals, without type badges, statuses, hunk counts or chevrons.
+   Long labels ellipsize, with full paths in the hover and accessible label.
+   Clicking a file still reveals its hunk classifications and explanations.
 3. Expand **Standardize the internal quantity field**. Expect two files,
    two hunks, and +2/-2. The calculation file appears here as well, but only
    with its quantity-related hunk.
@@ -60,6 +74,7 @@ Using the full example:
    accessible expanded/collapsed state.
 9. Try light, dark, and high-contrast themes, a narrow 320 CSS-pixel container,
    and 200% text zoom. Paths and descriptions must remain readable and copyable.
+   File icons should stay vertically centered with the filename at each text size.
 10. Inspect partial, empty, and invalid-result fixtures. Missing evidence and
     uncertainty must be explicit; invalid results must not produce valid-looking
     cards. A partial empty result must not say there are no changes.
@@ -92,6 +107,8 @@ No card or file interaction should open an editor, rerun Git, or invoke a model.
    > classify_diff_hunks with the complete observed hunk inventory. Keep tests
    > with the behavior they cover. Classify logic, test, supporting, and generated
    > independently of intent. Report missing evidence and uncertainty honestly.
+   > Order the groups as a recommended review walkthrough, explaining prerequisites
+   > before dependent changes. Give each group a useful paragraph summary.
    > Do not open editors or repeat the entire classification as prose.
 
 4. Confirm the agent first inspects Git and then invokes **Classify Diff Hunks**.
@@ -103,6 +120,22 @@ No card or file interaction should open an editor, rerun Git, or invoke a model.
    Compare hunk membership and source ranges with the selected Git diff.
    Semantic quality requires human checking: schema validity does not establish
    that the model chose the right intent or type.
+   Each card summary should be a self-contained paragraph explaining its logical
+   unit's purpose, concrete mechanism, and resulting behavior, including an
+   evidence-supported boundary case, compatibility constraint, or test coverage
+   where relevant.
+   It should not simply list files, repeat counts or the title, or claim
+   unsupported test results.
+   Check that prerequisite contracts and foundational changes appear before their
+   consumers. Among independent units, higher-impact behavior should precede
+   routine cleanup. The cards preserve the submitted group-array order; they do
+   not sort by filename, title, diff size, or change type.
+   Verify that every observed file/range appears only once, even if the same file
+   contributes different hunks to several groups. The model should make a targeted
+   completion pass to resolve unassigned groups or unknown primary types before
+   submission. Defensible tentative assignments use low confidence and an
+   explanation; remaining unknowns must identify a genuine evidence gap or
+   ambiguity rather than silently dropping the hunk or forcing a guess.
 
 6. Open another session and return, then reload the development window and reopen
    the conversation. The completed report should still render. Disclosure state

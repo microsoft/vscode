@@ -7,9 +7,18 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { posix } from '../../../../../../../base/common/path.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { formatSemanticDiffRange, getSemanticDiffChangeTypeLabel, getSemanticDiffConfidenceLabel, ISemanticDiffAnalysis, ISemanticDiffReport, isSemanticDiffHunkUncertain, validateSemanticDiffReport } from '../../../../../../../platform/agentHost/common/semanticDiff.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
+import { FileKind } from '../../../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
+import { createFileIconThemableTreeContainerScope } from '../../../../../files/browser/views/explorerView.js';
 import { IChatSemanticDiffData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -91,9 +100,12 @@ function hunkCount(count: number): string {
 	return count === 1 ? localize('semanticDiff.oneHunk', "1 hunk") : localize('semanticDiff.hunks', "{0} hunks", count);
 }
 
+function fileCount(count: number): string {
+	return count === 1 ? localize('semanticDiff.oneFile', "1 file") : localize('semanticDiff.files', "{0} files", count);
+}
+
 function counts(files: number, hunks: number): string {
-	const fileCount = files === 1 ? localize('semanticDiff.oneFile', "1 file") : localize('semanticDiff.files', "{0} files", files);
-	return localize('semanticDiff.counts', "{0}, {1}", fileCount, hunkCount(hunks));
+	return localize('semanticDiff.counts', "{0}, {1}", fileCount(files), hunkCount(hunks));
 }
 
 /** Native, lazy classification disclosures; no submitted path or text is executable. */
@@ -103,6 +115,7 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 	private readonly state: IDisclosureState;
+	private readonly resourceLabels = this._register(new MutableDisposable<ResourceLabels>());
 	private readonly idPrefix = `chat-semantic-diff-${nextInstanceId++}`;
 	private selectionAtPointerDown = false;
 
@@ -111,8 +124,11 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		readonly data: IChatSemanticDiffData,
 		stateOwner: object,
 		announceCompletion: boolean,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super(toolInvocation);
+		this._register(createFileIconThemableTreeContainerScope(this.domNode, themeService));
 		this.state = getDisclosureState(stateOwner, toolInvocation.toolCallId);
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, () => {
 			this.selectionAtPointerDown = this.hasSelection();
@@ -191,7 +207,7 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 				localize('semanticDiff.target', "Target revision: {0}", source.targetRevision ?? localize('semanticDiff.noTarget', "Not applicable")),
 				localize('semanticDiff.captured', "Captured: {0}", source.capturedAt),
 				localize('semanticDiff.inventory', "Submitted inventory: {0}", source.inventoryComplete ? localize('semanticDiff.complete', "Complete") : localize('semanticDiff.incomplete', "Incomplete")),
-				localize('semanticDiff.globalCounts', "{0} intent groups; {1}; {2}", summary.groups, counts(summary.files, summary.hunks), this.lineCounts(analysis.hunks, report.status === 'partial')),
+				localize('semanticDiff.globalCounts', "{0} intent groups; {1}; {2}", summary.groups, counts(summary.files, summary.hunks), this.formatLineCounts(analysis.hunks)),
 				localize('semanticDiff.provenance', "Classification and source metadata reported by the agent; not verified against Git."),
 				localize('semanticDiff.freshness', "Source freshness is unknown beyond the reported capture time, including when reopening a saved result."),
 				localize('semanticDiff.contextRanges', "Source ranges may include unchanged context; they are not exact changed-line spans."),
@@ -213,29 +229,46 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		title.id = `${this.idPrefix}-group-${index}`;
 		card.setAttribute('aria-labelledby', title.id);
 		dom.append(card, dom.$('p.semantic-diff-description', undefined, group.description));
-		dom.append(card, dom.$('p.semantic-diff-counts', undefined, this.lineCounts(hunks, report.status === 'partial')));
 		if (hunks.some(isSemanticDiffHunkUncertain)) {
 			dom.append(card, dom.$('p.semantic-diff-uncertainty', undefined, localize('semanticDiff.uncertain', "Uncertain classification")));
 		}
-		const disclosure = this.createDisclosure(
-			heading, card, counts(files.length, hunks.length), JSON.stringify(['group', group.id]), 'semantic-diff-group-toggle',
-			panel => this.renderFiles(panel, report, group.id, files),
-			localize('semanticDiff.groupDisclosure', "{0}, {1}", group.title, counts(files.length, hunks.length)),
+		const lineCounts = this.formatLineCounts(hunks);
+		const summary = dom.$('span.semantic-diff-group-summary', undefined,
+			dom.$('span.semantic-diff-file-count', undefined, fileCount(files.length)),
+			' ',
+			this.renderLineCounts(hunks),
 		);
-		this._register(dom.addDisposableListener(card, dom.EventType.CLICK, event => {
-			if (event.defaultPrevented || this.selectionAtPointerDown || this.hasSelection() || !(event.target instanceof Element) || event.target.closest('a, button, input, [role="button"]')) {
-				return;
-			}
-			disclosure.expand();
-		}));
+		this.createDisclosure(
+			heading, card, summary, JSON.stringify(['group', group.id]), 'semantic-diff-group-toggle',
+			panel => this.renderFiles(panel, report, group.id, files),
+			localize('semanticDiff.groupDisclosureWithFiles', "{0}, {1} {2}, {3}", group.title, fileCount(files.length), lineCounts, hunkCount(hunks.length)),
+			false,
+		);
 	}
 
 	private renderFiles(parent: HTMLElement, report: ISemanticDiffReport, groupId: string | null, files: readonly IFileProjection[]): void {
 		const list = dom.append(parent, dom.$('ul.semantic-diff-files'));
+		const labels = this.resourceLabels.value ??= this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
 		for (const { file, hunks } of files) {
 			const row = dom.append(list, dom.$('li.semantic-diff-file'));
-			const label = localize('semanticDiff.fileSummary', "{0} · {1} · {2} · {3}", fileLabel(file), fileStatusLabel(file), hunkCount(hunks.length), this.lineCounts(hunks, report.status === 'partial'));
-			const disclosure = this.createDisclosure(row, row, label, JSON.stringify(['file', groupId, file.id]), 'semantic-diff-file-toggle', panel => {
+			const label = dom.$('span.semantic-diff-file-row');
+			const resourceLabel = this._register(labels.create(label));
+			const directory = posix.dirname(file.path);
+			resourceLabel.setResource({
+				// Derive icons without treating agent-provided paths as local workspace files.
+				resource: URI.from({ scheme: Schemas.inMemory, path: `/${file.path}` }),
+				name: posix.basename(file.path),
+				description: directory === '.' ? '' : directory,
+			}, {
+				fileKind: FileKind.FILE,
+				forceLabel: true,
+				title: fileLabel(file),
+				descriptionTitle: fileLabel(file),
+			});
+			resourceLabel.element.classList.add('semantic-diff-resource-label');
+			dom.append(label, this.renderLineCounts(hunks));
+			const ariaLabel = localize('semanticDiff.fileDisclosure', "{0}, {1}, {2}, {3}", fileLabel(file), fileStatusLabel(file), hunkCount(hunks.length), this.formatLineCounts(hunks));
+			this.createDisclosure(row, row, label, JSON.stringify(['file', groupId, file.id]), 'semantic-diff-file-toggle', panel => {
 				const groups = new Set(report.analysis.hunks.filter(hunk => hunk.fileId === file.id).map(hunk => hunk.classification.groupId));
 				dom.append(panel, dom.$('h4', undefined, groups.size > 1 && groupId !== null
 					? localize('semanticDiff.groupHunks', "Hunks in this group")
@@ -244,18 +277,7 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 				for (const hunk of hunks) {
 					this.renderHunk(dom.append(list, dom.$('li.semantic-diff-hunk')), report, hunk);
 				}
-			});
-			const types = dom.append(disclosure.button.element, dom.$('span.semantic-diff-types'));
-			const present = new Map<ChangeType, number>();
-			for (const hunk of hunks) {
-				const type = hunk.classification.changeType;
-				present.set(type, (present.get(type) ?? 0) + 1);
-			}
-			const typeLabels = [...present].map(([type, count]) => localize('semanticDiff.typeCount', "{0} ({1})", getSemanticDiffChangeTypeLabel(type), count));
-			for (const typeLabel of typeLabels) {
-				dom.append(types, dom.$('span.semantic-diff-type', undefined, typeLabel));
-			}
-			disclosure.button.element.setAttribute('aria-label', localize('semanticDiff.fileAriaLabel', "{0}. Primary types: {1}", label, typeLabels.join(', ')));
+			}, ariaLabel, false);
 		}
 	}
 
@@ -268,7 +290,7 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		for (const type of classification.secondaryChangeTypes) {
 			dom.append(types, dom.$('span.semantic-diff-type', undefined, secondaryTypeLabel(type)));
 		}
-		dom.append(parent, dom.$('p.semantic-diff-counts', undefined, this.lineCounts([hunk], report.status === 'partial')));
+		dom.append(parent, dom.$('p.semantic-diff-counts', undefined, this.renderLineCounts([hunk])));
 		if (isSemanticDiffHunkUncertain(hunk)) {
 			const axes = [
 				...(classification.groupId === null ? [localize('semanticDiff.noGroup', "Unclassified group")] : classification.groupConfidence === 'low' ? [localize('semanticDiff.lowGroup', "Low group confidence")] : []),
@@ -289,10 +311,24 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		});
 	}
 
-	private lineCounts(hunks: readonly Hunk[], observed: boolean): string {
+	private lineCounts(hunks: readonly Hunk[]): { additions: number; deletions: number } {
 		const additions = hunks.reduce((sum, hunk) => sum + hunk.additions, 0);
 		const deletions = hunks.reduce((sum, hunk) => sum + hunk.deletions, 0);
-		return observed ? localize('semanticDiff.observedLines', "Observed +{0} / \u2212{1}", additions, deletions) : localize('semanticDiff.lines', "+{0} / \u2212{1}", additions, deletions);
+		return { additions, deletions };
+	}
+
+	private formatLineCounts(hunks: readonly Hunk[]): string {
+		const { additions, deletions } = this.lineCounts(hunks);
+		return localize('semanticDiff.compactLines', "+{0} -{1}", additions, deletions);
+	}
+
+	private renderLineCounts(hunks: readonly Hunk[]): HTMLElement {
+		const { additions, deletions } = this.lineCounts(hunks);
+		return dom.$('span.semantic-diff-line-counts', undefined,
+			dom.$('span.semantic-diff-lines-added', undefined, localize('semanticDiff.addedLines', "+{0}", additions)),
+			' ',
+			dom.$('span.semantic-diff-lines-removed', undefined, localize('semanticDiff.removedLines', "-{0}", deletions)),
+		);
 	}
 
 	private hasSelection(): boolean {
@@ -300,7 +336,7 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		return !!selection && !selection.isCollapsed && (this.domNode.contains(selection.anchorNode) || this.domNode.contains(selection.focusNode));
 	}
 
-	private createDisclosure(buttonParent: HTMLElement, panelParent: HTMLElement, label: string, stateKey: string, className: string, render: (panel: HTMLElement) => void, ariaLabel = label): { button: Button; expand: () => void } {
+	private createDisclosure(buttonParent: HTMLElement, panelParent: HTMLElement, label: string | HTMLElement, stateKey: string, className: string, render: (panel: HTMLElement) => void, ariaLabel = typeof label === 'string' ? label : label.textContent ?? '', showChevron = true): void {
 		const button = this._register(new Button(buttonParent, {
 			...defaultButtonStyles,
 			buttonBackground: undefined,
@@ -310,7 +346,7 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 			ariaLabel,
 		}));
 		button.element.classList.add('semantic-diff-disclosure', className);
-		const icon = dom.append(button.element, dom.$('span.codicon', { 'aria-hidden': 'true' }));
+		const icon = showChevron ? dom.append(button.element, dom.$('span.codicon', { 'aria-hidden': 'true' })) : undefined;
 		dom.append(button.element, dom.$('span.semantic-diff-disclosure-label', undefined, label));
 		const panel = dom.append(panelParent, dom.$('.semantic-diff-panel'));
 		panel.id = `${this.idPrefix}-${encodeURIComponent(stateKey)}`;
@@ -326,8 +362,8 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 			}
 			panel.hidden = !expanded;
 			button.element.setAttribute('aria-expanded', String(expanded));
-			icon.classList.toggle('codicon-chevron-down', expanded);
-			icon.classList.toggle('codicon-chevron-right', !expanded);
+			icon?.classList.toggle('codicon-chevron-down', expanded);
+			icon?.classList.toggle('codicon-chevron-right', !expanded);
 			if (expanded) {
 				this.state.expanded.add(stateKey);
 			} else {
@@ -346,12 +382,5 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 			update(!this.state.expanded.has(stateKey), true);
 		}));
 		update(this.state.expanded.has(stateKey), false);
-		return {
-			button, expand: () => {
-				if (!this.state.expanded.has(stateKey)) {
-					update(true, true);
-				}
-			}
-		};
 	}
 }
