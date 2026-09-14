@@ -433,10 +433,10 @@ namespace MetricsAst {
 			return node.body === undefined ? undefined : { kind: 'method', pathSegment: node.name.getText(sourceFile) };
 		}
 		if (ts.isGetAccessorDeclaration(node)) {
-			return node.body === undefined ? undefined : { kind: 'getter', pathSegment: node.name.getText(sourceFile) };
+			return node.body === undefined ? undefined : { kind: 'getter', pathSegment: `get ${node.name.getText(sourceFile)}` };
 		}
 		if (ts.isSetAccessorDeclaration(node)) {
-			return node.body === undefined ? undefined : { kind: 'setter', pathSegment: node.name.getText(sourceFile) };
+			return node.body === undefined ? undefined : { kind: 'setter', pathSegment: `set ${node.name.getText(sourceFile)}` };
 		}
 		if (ts.isClassStaticBlockDeclaration(node)) {
 			return { kind: 'static-block' };

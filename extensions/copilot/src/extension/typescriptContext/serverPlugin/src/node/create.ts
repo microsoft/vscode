@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
+import { TypeScriptChangeClassifier } from '../common/changeClassifier';
 import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
-import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RegionContextRequest, type RegionContextResponse, type RenameGroup, type TypeScriptMetricsRequest, type TypeScriptMetricsResponse } from '../common/protocol';
+import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RegionContextRequest, type RegionContextResponse, type RenameGroup, type TypeScriptChangeClassificationRequest, type TypeScriptChangeClassificationResponse, type TypeScriptMetricsRequest, type TypeScriptMetricsResponse } from '../common/protocol';
 import { RegionContextProvider } from '../common/regionContextProvider';
 import { TypeScriptMetricsProvider } from '../common/codeMetrics';
 import { CancellationTokenWithTimer, Sessions } from '../common/typescripts';
@@ -109,6 +110,10 @@ interface RegionContextHandlerResponse extends tt.server.HandlerResponse {
 
 interface TypeScriptMetricsHandlerResponse extends tt.server.HandlerResponse {
 	response: TypeScriptMetricsResponse.OK | TypeScriptMetricsResponse.Failed;
+}
+
+interface TypeScriptChangeClassificationHandlerResponse extends tt.server.HandlerResponse {
+	response: TypeScriptChangeClassificationResponse.OK | TypeScriptChangeClassificationResponse.Failed;
 }
 
 let installAttempted: boolean = false;
@@ -260,6 +265,47 @@ const typeScriptMetricsHandler = (request: TypeScriptMetricsRequest): TypeScript
 	}
 };
 
+const typeScriptChangeClassificationHandler = (request: TypeScriptChangeClassificationRequest): TypeScriptChangeClassificationHandlerResponse => {
+	const input = resolveInput(request.arguments, 0);
+	if (FailedHandlerResponse.is(input)) {
+		return input;
+	}
+
+	try {
+		const content = request.arguments?.content;
+		const changes = request.arguments?.changes;
+		if (content !== undefined && typeof content !== 'string') {
+			return { response: { error: ErrorCode.invalidArguments, message: 'Content must be a string' }, responseRequired: true };
+		}
+		if (changes === undefined
+			|| !Array.isArray(changes.added)
+			|| !changes.added.every(range => Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start)
+			|| !Array.isArray(changes.changed)
+			|| !changes.changed.every(range => Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start)
+			|| !Array.isArray(changes.deleted)
+			|| !changes.deleted.every(deleted => Number.isInteger(deleted.line) && deleted.line >= 0
+				&& Number.isInteger(deleted.deletedLineCount) && deleted.deletedLineCount > 0)) {
+			return { response: { error: ErrorCode.invalidArguments, message: 'TypeScript change buckets contain invalid line information' }, responseRequired: true };
+		}
+
+		const programSourceFile = input.program.getSourceFile(input.file);
+		if (programSourceFile === undefined) {
+			return { response: { buckets: [] }, responseRequired: true };
+		}
+		const scriptTarget = input.program.getCompilerOptions().target ?? ts.ScriptTarget.Latest;
+		const sourceFile = content === undefined
+			? programSourceFile
+			: ts.createSourceFile(input.file, content, scriptTarget, true);
+		const result = new TypeScriptChangeClassifier().classify(sourceFile, changes);
+		return { response: result, responseRequired: true };
+	} catch (error) {
+		if (error instanceof Error) {
+			return { response: { error: ErrorCode.exception, message: error.message, stack: error.stack }, responseRequired: true };
+		}
+		return { response: { error: ErrorCode.exception, message: 'Unknown error' }, responseRequired: true };
+	}
+};
+
 const prepareNesRenameHandler = (request: PrepareNesRenameRequest): PrepareNesRenameHandlerResponse => {
 	const input = resolveInput(request.arguments, 50);
 	if (FailedHandlerResponse.is(input)) {
@@ -331,6 +377,7 @@ export function create(info: tt.server.PluginCreateInfo): tt.LanguageService {
 					info.session.addProtocolHandler('_.copilot.context', computeContextHandler);
 					info.session.addProtocolHandler('_.copilot.regionContext', regionContextHandler);
 					info.session.addProtocolHandler('_.copilot.typeScriptMetrics', typeScriptMetricsHandler);
+					info.session.addProtocolHandler('_.copilot.typeScriptChangeClassification', typeScriptChangeClassificationHandler);
 					info.session.addProtocolHandler('_.copilot.prepareNesRename', prepareNesRenameHandler);
 					info.session.addProtocolHandler('_.copilot.postNesRename', nesRenameHandler);
 				}

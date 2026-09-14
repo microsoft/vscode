@@ -562,6 +562,102 @@
         }
       },
       {
+        "name": "copilot_classifyTypeScriptChanges",
+        "displayName": "%copilot.tools.typeScriptChangeClassification.name%",
+        "toolReferenceName": "typescriptChanges",
+        "icon": "$(diff)",
+        "userDescription": "%copilot.tools.typeScriptChangeClassification.description%",
+        "modelDescription": "Classify added, changed, and deleted line buckets in a TypeScript or JavaScript file as structural and/or algorithmic changes. Use this when reviewing edits and you already know which lines were added, changed, or deleted; do not use it to retrieve a git diff or compiler diagnostics. Added and changed ranges use zero-based start-inclusive, end-exclusive lines. Deleted entries provide the current-snapshot anchor line and deleted line count. Optionally provide content as the source snapshot; otherwise the current TypeScript language-service snapshot is used. Returns read-only JSON grouped into one bucket per enclosing named entity path. Each bucket includes the structural entity's zero-based, end-exclusive line range, and each input change retains its classifications and location.",
+        "tags": [],
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string",
+              "description": "The absolute path to the TypeScript or JavaScript file whose changes should be classified."
+            },
+            "addedLineRanges": {
+              "type": "array",
+              "description": "Zero-based start-inclusive, end-exclusive line ranges containing added lines.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "start": {
+                    "type": "integer",
+                    "description": "The zero-based first added line."
+                  },
+                  "end": {
+                    "type": "integer",
+                    "description": "The zero-based line after the last added line."
+                  }
+                },
+                "required": [
+                  "start",
+                  "end"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "changedLineRanges": {
+              "type": "array",
+              "description": "Zero-based start-inclusive, end-exclusive line ranges containing changed lines.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "start": {
+                    "type": "integer",
+                    "description": "The zero-based first changed line."
+                  },
+                  "end": {
+                    "type": "integer",
+                    "description": "The zero-based line after the last changed line."
+                  }
+                },
+                "required": [
+                  "start",
+                  "end"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "deletedLines": {
+              "type": "array",
+              "description": "Deleted-line buckets located by their anchor in the current source snapshot.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "line": {
+                    "type": "integer",
+                    "description": "The zero-based line where the first line was deleted."
+                  },
+                  "deletedLineCount": {
+                    "type": "integer",
+                    "description": "The number of deleted lines."
+                  }
+                },
+                "required": [
+                  "line",
+                  "deletedLineCount"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "content": {
+              "type": "string",
+              "description": "Optional source snapshot to classify. When omitted, the current TypeScript language-service snapshot is used."
+            }
+          },
+          "required": [
+            "filePath",
+            "addedLineRanges",
+            "changedLineRanges",
+            "deletedLines"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
         "name": "copilot_getChangedFiles",
         "displayName": "%copilot.tools.getChangedFiles.name%",
         "toolReferenceName": "changes",

@@ -36,6 +36,7 @@ import './searchSubagentTool';
 import './searchWorkspaceSymbolsTool';
 import './sessionStoreSqlTool';
 import './toolSearchTool';
+import './typeScriptChangeClassificationTool';
 import './typeScriptMetricsTool';
 import './viewImageTool';
 import './vscodeAPITool';

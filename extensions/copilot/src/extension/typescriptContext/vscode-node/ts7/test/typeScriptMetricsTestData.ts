@@ -105,8 +105,8 @@ export function getExpectedTypeScriptMetrics(): object[] {
 		{ kind: 'arrow-function', path: ['decide', 'nested'], range: { start: 14, end: 14 }, cognitiveComplexity: 1, cyclomaticComplexity: 2, runtimeComplexity: 'O(1)' },
 		{ kind: 'class', path: ['Worker'], range: { start: 18, end: 56 }, cognitiveComplexity: 1, cyclomaticComplexity: 2, runtimeComplexity: 'O(n)' },
 		{ kind: 'constructor', path: ['Worker', 'constructor'], range: { start: 25, end: 29 }, cognitiveComplexity: 1, cyclomaticComplexity: 2, runtimeComplexity: 'O(n)' },
-		{ kind: 'getter', path: ['Worker', 'state'], range: { start: 31, end: 33 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
-		{ kind: 'setter', path: ['Worker', 'state'], range: { start: 35, end: 41 }, cognitiveComplexity: 1, cyclomaticComplexity: 2, runtimeComplexity: 'O(1)' },
+		{ kind: 'getter', path: ['Worker', 'get state'], range: { start: 31, end: 33 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
+		{ kind: 'setter', path: ['Worker', 'set state'], range: { start: 35, end: 41 }, cognitiveComplexity: 1, cyclomaticComplexity: 2, runtimeComplexity: 'O(1)' },
 		{ kind: 'method', path: ['Worker', 'method'], range: { start: 43, end: 55 }, cognitiveComplexity: 3, cyclomaticComplexity: 4, runtimeComplexity: 'O(1)' },
 		{ kind: 'function', path: ['outer'], range: { start: 58, end: 64 }, cognitiveComplexity: 1, cyclomaticComplexity: 3, runtimeComplexity: 'O(1)' },
 	];

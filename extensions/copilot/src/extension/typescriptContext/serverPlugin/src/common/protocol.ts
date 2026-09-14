@@ -91,6 +91,44 @@ export interface TypeScriptMetricsResult {
 	entities: TypeScriptMetricEntity[];
 }
 
+export type TypeScriptChangeClassification = 'algorithmic' | 'structural';
+
+export interface TypeScriptDeletedLines {
+	line: number;
+	deletedLineCount: number;
+}
+
+export interface TypeScriptChangeClassificationInput {
+	added: readonly LineRange[];
+	changed: readonly LineRange[];
+	deleted: readonly TypeScriptDeletedLines[];
+}
+
+interface TypeScriptClassifiedChangeBase {
+	classifications: TypeScriptChangeClassification[];
+}
+
+export type TypeScriptClassifiedChange = TypeScriptClassifiedAddedOrChangedLines | TypeScriptClassifiedDeletedLines;
+
+export interface TypeScriptClassifiedAddedOrChangedLines extends TypeScriptClassifiedChangeBase, LineRange {
+	changeType: 'added' | 'changed';
+}
+
+export interface TypeScriptClassifiedDeletedLines extends TypeScriptClassifiedChangeBase, TypeScriptDeletedLines {
+	changeType: 'deleted';
+}
+
+export interface TypeScriptChangeBucket {
+	kind: string;
+	path: string[];
+	range: LineRange;
+	changes: TypeScriptClassifiedChange[];
+}
+
+export interface TypeScriptChangeClassificationResult {
+	buckets: TypeScriptChangeBucket[];
+}
+
 export type WithinRangeCacheScope = {
 	kind: CacheScopeKind.WithinRange;
 	range: Range;
@@ -555,6 +593,50 @@ export namespace TypeScriptMetricsResponse {
 
 export type TypeScriptMetricsResponse = (tt.server.protocol.Response & {
 	body: TypeScriptMetricsResponse.OK | TypeScriptMetricsResponse.Failed;
+}) | { type: 'cancelled' };
+
+export interface TypeScriptChangeClassificationRequestArgs extends tt.server.protocol.FileLocationRequestArgs {
+	changes: TypeScriptChangeClassificationInput;
+	content?: string;
+}
+
+export interface TypeScriptChangeClassificationRequest extends tt.server.protocol.Request {
+	arguments?: TypeScriptChangeClassificationRequestArgs;
+}
+
+export namespace TypeScriptChangeClassificationResponse {
+	export type OK = TypeScriptChangeClassificationResult;
+
+	export type Failed = CustomResponse.Failed;
+
+	export function isOk(response: TypeScriptChangeClassificationResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
+		if (response?.type !== 'response') {
+			return false;
+		}
+		const body = response.body as OK | undefined;
+		return Array.isArray(body?.buckets) && body.buckets.every(bucket =>
+			typeof bucket.kind === 'string'
+			&& Array.isArray(bucket.path)
+			&& bucket.path.every(segment => typeof segment === 'string')
+			&& typeof bucket.range?.start === 'number'
+			&& typeof bucket.range.end === 'number'
+			&& Array.isArray(bucket.changes)
+			&& bucket.changes.every(change =>
+				Array.isArray(change.classifications)
+				&& change.classifications.every(classification => classification === 'algorithmic' || classification === 'structural')
+				&& ((change.changeType === 'added' || change.changeType === 'changed')
+					? typeof change.start === 'number' && typeof change.end === 'number'
+					: change.changeType === 'deleted' && typeof change.line === 'number' && typeof change.deletedLineCount === 'number'))
+		);
+	}
+
+	export function isError(response: TypeScriptChangeClassificationResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {
+		return response?.type === 'response' && CustomResponse.isError(response);
+	}
+}
+
+export type TypeScriptChangeClassificationResponse = (tt.server.protocol.Response & {
+	body: TypeScriptChangeClassificationResponse.OK | TypeScriptChangeClassificationResponse.Failed;
 }) | { type: 'cancelled' };
 
 export namespace ComputeContextResponse {
