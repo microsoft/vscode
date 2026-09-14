@@ -242,6 +242,37 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
 }
 
 /**
+ * Host-synthesized `exit_plan_mode` action. The runtime's action set is closed,
+ * so this never reaches the SDK: picking it approves the plan as `autopilot`
+ * and then steers the model to implement the plan's sections with an Agent
+ * Factory. Offered only while Agent Factories are enabled for the session.
+ */
+const PLAN_ACTION_AUTOPILOT_FACTORIES = 'autopilot_factories';
+
+/**
+ * Steering prompt sent after a plan is approved with
+ * {@link PLAN_ACTION_AUTOPILOT_FACTORIES}. Written for the model: it names the
+ * factory tools by their runtime names and spells out the phase shape so the
+ * run is observable section by section.
+ */
+function buildFactoryPlanImplementationPrompt(planPath: string | undefined): string {
+	const planReference = planPath
+		? `The approved plan is in ${planPath}.`
+		: 'Use the plan you just had approved.';
+	return [
+		'Implement the approved plan with an Agent Factory instead of doing every section yourself.',
+		planReference,
+		'',
+		'1. Read the factory guide with `factories_manage` (`operation: "guide"`), then author a session-scoped factory with `factories_manage` (`operation: "author"`).',
+		'2. Give the factory one phase per plan section (group only sections that are trivially small). In each phase, implement the section with `ctx.agent(...)`, using a distinct `label` per agent and a prompt that includes the section text, the files it touches, and the acceptance criteria. Run independent sections with `ctx.parallel`; keep sections that depend on each other sequential.',
+		'3. End with a verification phase whose agents build, run the relevant tests, and review the combined changes against the plan, returning structured findings.',
+		'4. Start the factory with `run_factory`, wait for it to settle, then read its result. Fix any gaps or failures it reports yourself before finishing.',
+		'',
+		'If the factory tools are unavailable in this session, implement the plan directly instead.',
+	].join('\n');
+}
+
+/**
  * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
  * Keys not present here fall back to the raw action id.
  */
@@ -256,6 +287,11 @@ function getPlanActionDescription(actionId: string): { label: string; descriptio
 			return {
 				label: localize('agentHost.planReview.autopilotFleet.label', "Implement with Autopilot Fleet"),
 				description: localize('agentHost.planReview.autopilotFleet.description', "Continue autonomously with fleet management, using the selected approval level."),
+			};
+		case PLAN_ACTION_AUTOPILOT_FACTORIES:
+			return {
+				label: localize('agentHost.planReview.autopilotFactories.label', "Implement with Agent Factories"),
+				description: localize('agentHost.planReview.autopilotFactories.description', "Continue autonomously, implementing each plan section with a factory subagent and verifying the result."),
 			};
 		case 'interactive':
 			return {
@@ -910,6 +946,8 @@ export class CopilotAgentSession extends Disposable {
 			readonly actions: readonly string[];
 			readonly recommendedAction: string;
 			readonly questionId: string;
+			/** Path of the plan file at review time, when the runtime reported one. */
+			readonly planPath?: string;
 		}
 	>();
 	/** File edit tracker for this session. */
@@ -1662,6 +1700,20 @@ export class CopilotAgentSession extends Disposable {
 
 	private _isAgentFactoriesEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AgentFactories) === true;
+	}
+
+	/**
+	 * Inserts the host-only Agent Factories plan action right after the
+	 * autopilot variants the runtime offered. The runtime never sees this id
+	 * (see {@link PLAN_ACTION_AUTOPILOT_FACTORIES}), and it is offered only when
+	 * the session can actually author and run factories.
+	 */
+	private _withFactoryPlanAction(actions: readonly string[]): readonly string[] {
+		if (!this._isAgentFactoriesEnabled() || !actions.includes('autopilot') || actions.includes(PLAN_ACTION_AUTOPILOT_FACTORIES)) {
+			return actions;
+		}
+		const anchor = Math.max(actions.indexOf('autopilot_fleet'), actions.indexOf('autopilot'));
+		return [...actions.slice(0, anchor + 1), PLAN_ACTION_AUTOPILOT_FACTORIES, ...actions.slice(anchor + 1)];
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {
@@ -4777,7 +4829,7 @@ export class CopilotAgentSession extends Disposable {
 	 * cannot handle.
 	 */
 	private _resolveExitPlanMode(
-		pending: { actions: readonly string[]; recommendedAction: string; questionId: string },
+		pending: { actions: readonly string[]; recommendedAction: string; questionId: string; planPath?: string },
 		response: ChatInputResponseKind,
 		answers?: Record<string, ChatInputAnswer>,
 	): CopilotExitPlanModeResponse {
@@ -4840,19 +4892,42 @@ export class CopilotAgentSession extends Disposable {
 		// idempotent, so the later event is a no-op.
 		this._syncAhpModeFromExitPlanAction(selectedAction);
 
-		const isAutopilot = selectedAction === 'autopilot' || selectedAction === 'autopilot_fleet';
+		// The factories action is host-only: the SDK sees a plain autopilot
+		// approval, and the factory playbook follows as a steering message the
+		// model reads as soon as it resumes implementation.
+		if (selectedAction === PLAN_ACTION_AUTOPILOT_FACTORIES) {
+			this._steerFactoryPlanImplementation(pending.planPath);
+		}
+		const sdkAction = selectedAction === PLAN_ACTION_AUTOPILOT_FACTORIES ? 'autopilot' : selectedAction;
+		const isAutopilot = sdkAction === 'autopilot' || sdkAction === 'autopilot_fleet';
 		return {
 			approved: true,
-			selectedAction,
+			selectedAction: sdkAction,
 			...(isAutopilot && this._isBypassApprovals() ? { autoApproveEdits: true } : {}),
 		};
+	}
+
+	/**
+	 * Sends the Agent Factory implementation playbook as a steering message so
+	 * it shows as its own turn and reaches the model right after the plan
+	 * approval result. Failures are logged rather than surfaced: the plan is
+	 * already approved, so the model still implements it, just directly.
+	 */
+	private _steerFactoryPlanImplementation(planPath: string | undefined): void {
+		const steering: PendingMessage = {
+			id: generateUuid(),
+			message: { text: buildFactoryPlanImplementationPrompt(planPath), origin: { kind: MessageKind.User } },
+		};
+		void this.sendSteering(steering).catch(err => {
+			this._logService.error(`[Copilot:${this.sessionId}] Failed to steer factory plan implementation`, err);
+		});
 	}
 
 	/**
 	 * Translates an approved `exit_plan_mode` action into the AHP `mode` axis
 	 * and writes it so the mode picker reflects the choice immediately:
 	 *
-	 *  - `autopilot` / `autopilot_fleet` → `mode='autopilot'`.
+	 *  - `autopilot` / `autopilot_fleet` / `autopilot_factories` → `mode='autopilot'`.
 	 *  - `interactive` → `mode='interactive'`.
 	 *  - `exit_only` (approve plan without executing) leaves the mode untouched.
 	 */
@@ -4860,6 +4935,7 @@ export class CopilotAgentSession extends Disposable {
 		switch (selectedAction) {
 			case 'autopilot':
 			case 'autopilot_fleet':
+			case PLAN_ACTION_AUTOPILOT_FACTORIES:
 				this._syncAhpConfigFromSdkMode('autopilot');
 				break;
 			case 'interactive':
@@ -6492,7 +6568,8 @@ export class CopilotAgentSession extends Disposable {
 			return { approved: false };
 		}
 
-		const options = data.actions.map(actionId => {
+		const offeredActions = this._withFactoryPlanAction(data.actions);
+		const options = offeredActions.map(actionId => {
 			const desc = getPlanActionDescription(actionId);
 			return {
 				id: actionId,
@@ -6531,9 +6608,10 @@ export class CopilotAgentSession extends Disposable {
 		}, ChatInputRequestPurpose.PlanReview);
 
 		const pendingPlanReview = this._pendingPlanReviews.register(requestId, {
-			actions: data.actions,
+			actions: offeredActions,
 			recommendedAction: data.recommendedAction,
 			questionId,
+			...(planPath ? { planPath } : {}),
 		});
 
 		this._onDidSessionProgress.fire({

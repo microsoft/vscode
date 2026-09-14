@@ -12563,6 +12563,65 @@ Use the attached image as context.
 			]);
 		});
 
+		test('offers Implement with Agent Factories after the autopilot variants only when factories are enabled', async () => {
+			const actions = ['autopilot', 'autopilot_fleet', 'interactive', 'exit_only'];
+			const offeredIds = async (rootValues: Record<string, unknown> | undefined) => {
+				const { session, runtime, waitForSignal } = await createAgentSession(disposables, { rootValues });
+				session.resetTurnState('turn-plan');
+				const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions }), { sessionId: 'test-session-1' });
+				const request = getInputRequest(await waitForSignal(s => isAction(s, ActionType.ChatInputRequested)));
+				const question = request.questions![0];
+				const ids = question.kind === ChatInputQuestionKind.SingleSelect ? question.options.map(o => o.id) : [];
+				const factoriesOption = question.kind === ChatInputQuestionKind.SingleSelect ? question.options.find(o => o.id === 'autopilot_factories') : undefined;
+				session.respondToUserInputRequest(request.id, ChatInputResponseKind.Decline);
+				await responsePromise;
+				return { ids, label: factoriesOption?.label };
+			};
+
+			assert.deepStrictEqual({
+				disabled: await offeredIds(undefined),
+				enabled: await offeredIds({ [CopilotCliConfigKey.AgentFactories]: true }),
+			}, {
+				disabled: { ids: actions, label: undefined },
+				enabled: { ids: ['autopilot', 'autopilot_fleet', 'autopilot_factories', 'interactive', 'exit_only'], label: 'Implement with Agent Factories' },
+			});
+		});
+
+		test('Implement with Agent Factories approves as autopilot and steers the model with the factory playbook', async () => {
+			const { session, runtime, mockSession, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.AgentFactories]: true },
+			});
+			session.resetTurnState('turn-plan');
+			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
+
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
+			const request = getInputRequest(await waitForSignal(s => isAction(s, ActionType.ChatInputRequested)));
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				[request.questions![0].id]: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot_factories' },
+				},
+			});
+			const response = await responsePromise;
+			await timeout(0);
+
+			const steering = mockSession.sendRequests.at(-1) as { prompt: string; mode?: string } | undefined;
+			assert.deepStrictEqual({
+				response,
+				sessionConfigUpdates,
+				steeringMode: steering?.mode,
+				mentionsTools: ['factories_manage', 'run_factory', 'ctx.parallel'].every(name => steering?.prompt.includes(name)),
+				mentionsPlan: steering?.prompt.includes('/sessions/abc/plan.md'),
+			}, {
+				// The runtime never sees the host-only action id.
+				response: { approved: true, selectedAction: 'autopilot' },
+				sessionConfigUpdates: [{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } }],
+				steeringMode: 'immediate',
+				mentionsTools: true,
+				mentionsPlan: true,
+			});
+		});
+
 		test('peer chat syncs mode=autopilot to the owning session, not its own chat resource', async () => {
 			// A peer chat's `resource` (exact persistence scope) differs from
 			// `sessionUri` (the shared owning/configuration scope). The SDK-mode
