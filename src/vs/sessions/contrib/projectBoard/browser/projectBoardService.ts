@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -25,6 +25,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
 import { CHAT_CARD_LARGE_CLASS } from '../../../../workbench/contrib/chat/browser/widget/chatCard.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -33,10 +35,12 @@ import { IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBo
 import { ProjectBoardState } from './projectBoardState.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
+import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
 import './media/projectBoard.css';
 
 const projectBoardDragDataType = 'application/vnd.code.project-board-card';
 const maxQuestionPreviews = 8;
+const maxMetadataPreviews = 16;
 
 export const IProjectBoardService = createDecorator<IProjectBoardService>('projectBoardService');
 
@@ -59,6 +63,11 @@ class ProjectBoardView extends Disposable {
 	private readonly questionChats = new Map<string, IChat>();
 	private readonly previewStates = new Map<string, ProjectBoardQuestionPreviewState>();
 	private readonly notifiedPreviewErrors = new Map<string, string>();
+	private readonly metadataPreviews = this._register(new DisposableMap<string, ProjectBoardMetadata>());
+	private readonly metadataChats = new Map<string, IChat>();
+	private readonly metadataStates = new Map<string, IProjectBoardMetadata>();
+	private readonly notifiedMetadataErrors = new Map<string, string>();
+	private readonly promptTimes = new Map<string, number>();
 	private showArchived = false;
 	private readonly visibleCounts = new Map<string, number>();
 	private dragging = false;
@@ -87,6 +96,8 @@ class ProjectBoardView extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this.sessionsManagementService = services.sessionsManagementService;
@@ -119,9 +130,57 @@ class ProjectBoardView extends Disposable {
 			this.drafts = this.chatWindows.drafts.read(reader);
 			this.model.updateConfiguration(this.boardState.configuration.read(reader));
 			this.model.updateSessions(this.sessionsManagementService.getSessions(), reader);
+			this.updateMetadata(reader);
 			this.updateQuestionPreviews(reader);
 			this.render();
 		});
+	}
+
+	private updateMetadata(reader: IReader): void {
+		const loadedModels = new Map([...this.chatService.chatModels.read(reader)].map(model => [model.sessionResource.toString(), model]));
+		for (const card of this.model.cards) {
+			const resource = this.chatSessionsService.getMaterializedSessionResource(card.chat.resource) ?? card.chat.resource;
+			const model = loadedModels.get(resource.toString());
+			if (model) {
+				model.lastRequestObs.read(reader);
+				observableSignalFromEvent(this, model.onDidChange).read(reader);
+				this.rememberPromptTime(card.id, getProjectBoardSubmittedAt(model));
+			}
+		}
+		const visible = this.getDisplayedCards().slice(0, maxMetadataPreviews);
+		const observed = new Set(visible.map(card => card.id));
+		for (const id of this.metadataPreviews.keys()) {
+			if (!observed.has(id)) {
+				this.metadataPreviews.deleteAndDispose(id);
+				this.metadataChats.delete(id);
+				this.notifiedMetadataErrors.delete(id);
+			}
+		}
+		this.metadataStates.clear();
+		for (const card of visible) {
+			if (this.metadataChats.get(card.id) !== card.chat) {
+				this.metadataPreviews.set(card.id, this.instantiationService.createInstance(ProjectBoardMetadata, card.chat));
+				this.metadataChats.set(card.id, card.chat);
+			}
+			const metadata = this.metadataPreviews.get(card.id)!.metadata.read(reader);
+			this.metadataStates.set(card.id, metadata);
+			if (metadata.kind === 'ready') {
+				this.rememberPromptTime(card.id, metadata.submittedAt);
+			}
+			if (metadata.kind === 'error' && this.notifiedMetadataErrors.get(card.id) !== metadata.error) {
+				this.notifiedMetadataErrors.set(card.id, metadata.error);
+				this.notificationService.error(metadata.message);
+			}
+		}
+	}
+
+	private rememberPromptTime(cardId: string, submittedAt: number | undefined): void {
+		this.model.setPromptRecency(cardId, submittedAt);
+		if (submittedAt === undefined) {
+			this.promptTimes.delete(cardId);
+		} else {
+			this.promptTimes.set(cardId, submittedAt);
+		}
 	}
 
 	private updateQuestionPreviews(reader: IReader): void {
@@ -595,6 +654,48 @@ class ProjectBoardView extends Disposable {
 			description.textContent = card.description;
 			store.add(this.hoverService.setupDelayedHover(description, { content: card.description }));
 			element.appendChild(description);
+		}
+		const metadata = this.metadataStates.get(card.id);
+		const prompt = document.createElement('div');
+		prompt.className = 'project-board-card-prompt';
+		prompt.textContent = metadata?.kind === 'ready' && metadata.prompt !== undefined
+			? metadata.prompt
+			: metadata?.kind === 'loading'
+				? localize('projectBoard.loadingPrompt', "Loading last prompt…")
+				: localize('projectBoard.promptUnavailable', "Prompt unavailable");
+		store.add(this.hoverService.setupDelayedHover(prompt, { content: prompt.textContent }));
+		element.appendChild(prompt);
+		const time = this.promptTimes.get(card.id);
+		const recency = document.createElement('div');
+		recency.className = 'project-board-card-recency';
+		recency.textContent = time === undefined
+			? localize('projectBoard.recencyUnavailable', "Recency unavailable")
+			: localize('projectBoard.lastPrompt', "Last prompt: {0}", new Date(time).toLocaleString());
+		if (time !== undefined) {
+			recency.dataset.submittedAt = String(time);
+		}
+		element.appendChild(recency);
+		if (metadata && metadata.kind !== 'loading' && metadata.message) {
+			const capability = document.createElement('div');
+			capability.className = 'project-board-card-warning';
+			capability.textContent = metadata.message;
+			element.appendChild(capability);
+		} else if (!metadata) {
+			const capability = document.createElement('div');
+			capability.className = 'project-board-card-warning';
+			capability.textContent = localize('projectBoard.metadataLimit', "Metadata preview limit reached. Open the chat for details.");
+			element.appendChild(capability);
+		}
+		if (metadata?.kind === 'ready' && metadata.context.length) {
+			const context = document.createElement('section');
+			context.className = 'project-board-card-context';
+			const label = document.createElement('div');
+			label.textContent = localize('projectBoard.promptContext', "Last prompt context");
+			context.appendChild(label);
+			for (const item of metadata.context) {
+				this.createContextLink(context, item.label, item.uri, `${card.id}:prompt:${item.uri}`, store);
+			}
+			element.appendChild(context);
 		}
 		if (card.sharedContext.length) {
 			const context = document.createElement('section');
