@@ -43,7 +43,7 @@ import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDI
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, isAgentsWindowOpenSource, OPEN_AGENT_PROJECT_BOARD_COMMAND_ID } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -230,6 +230,21 @@ export class ToggleOpenInAgentsWindowTitleBarAction extends ToggleTitleBarConfig
 			6,
 			OPEN_AGENTS_WINDOW_PRECONDITION,
 		);
+	}
+}
+
+export class OpenAgentProjectBoardAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_AGENT_PROJECT_BOARD_COMMAND_ID,
+			title: localize2('openAgentProjectBoard', "Agents: Open Project Board"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext.toNegated()),
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(INativeHostService).openAgentsWindow({ openProjectBoard: true });
 	}
 }
 
