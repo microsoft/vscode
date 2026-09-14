@@ -89,6 +89,12 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 
 		await driveTurnToCompletion(client, sessionUri, 'turn-otel-export', 'Reply exactly "traced".', 1);
 		await driveTurnToCompletion(client, sessionUri, 'turn-otel-title', '/rename OTel Captured Title', 10);
+		// The Agent Host synthetic spans (session + title_changed) reach the file
+		// as soon as the turn completes, but the SDK/CLI's own `invoke_agent` root
+		// span only closes at turn end and is exported through the runtime's
+		// `otlp-http` AsyncBatchSpanProcessor, whose default scheduled delay batches
+		// it out ~5s later. Poll well past that batch cadence so the assertion waits
+		// for the batched SDK span instead of racing it.
 		const exported = await retry(async () => {
 			const contents = await readFile(exportFile, 'utf8').catch(() => '');
 			if (!contents.includes('"traceId"')
@@ -99,7 +105,7 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 				throw new Error(`OTel spans have not reached the file exporter: ${contents}`);
 			}
 			return contents;
-		}, 100, 100);
+		}, 250, 240);
 
 		assert.ok(exported.split('\n').filter(Boolean).length > 0);
 	});
