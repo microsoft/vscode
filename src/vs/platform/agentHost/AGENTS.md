@@ -558,6 +558,13 @@ Managed asks remain one-time-only. An ordinary sandbox escape's “Allow in this
 Session” changes the owner's sandbox selection, not global settings or tool
 allow lists.
 
+Custom terminal input helpers (`write_bash` and `write_powershell`) write to a
+persistent host shell, not necessarily a sandboxed foreground command. When
+sandboxing is enabled, each input requires the existing unsandboxed-execution
+approval and is rejected if bypass is disabled. Policy is checked again after
+approval. This applies to interactive input as well as idle-shell input;
+checking whether the shell is busy cannot guarantee that input stays sandboxed.
+
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 
 ### 8g. Seam → provider read it replaces
