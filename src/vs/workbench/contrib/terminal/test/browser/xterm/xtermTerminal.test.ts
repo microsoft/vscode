@@ -22,8 +22,8 @@ import { TestColorTheme, TestThemeService } from '../../../../../../platform/the
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
 import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
-import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
+import { getXtermScaledDimensions, XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
+import { ITerminalConfiguration, ITerminalFont, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
@@ -489,5 +489,22 @@ suite('XtermTerminal', () => {
 				brightWhite: '#16000f',
 			});
 		});
+	});
+});
+
+suite('getXtermScaledDimensions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const w = { devicePixelRatio: 1.2 } as Window;
+	const font: ITerminalFont = { fontFamily: 'monospace', fontSize: 14, letterSpacing: 0, lineHeight: 1, charWidth: 8, charHeight: 17 };
+
+	test('should ceil a fractional device char height', () => {
+		// 17 * 1.2 = 20.4 device px per row, so 1257 device px fit 59 rows
+		deepStrictEqual(getXtermScaledDimensions(w, font, 803 / 1.2, 1257 / 1.2), { rows: 59, cols: 83 });
+	});
+
+	test('should not lose a device pixel per row to float error', () => {
+		// xterm reports a 22 device px cell as 22 / 1.2 CSS px; 22 / 1.2 * 1.2 is 22.000000000000004
+		deepStrictEqual(getXtermScaledDimensions(w, { ...font, charHeight: 22 / 1.2 }, 803 / 1.2, 1257 / 1.2), { rows: 57, cols: 83 });
 	});
 });
