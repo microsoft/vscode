@@ -8,7 +8,7 @@ import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionVi
 import { ClickAnimation } from '../../base/browser/ui/animations/animations.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../platform/actions/common/actions.js';
-import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../platform/chat/common/sessionArchiveActions.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../common/sessionCommands.js';
@@ -17,7 +17,7 @@ export function getSessionArchiveActionViewItemOptions(options: IActionViewItemO
 	return {
 		...options,
 		get onClickAnimation() {
-			return configurationService.getValue<boolean>(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING)
+			return configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
 				? ClickAnimation.Confetti
 				: undefined;
 		}

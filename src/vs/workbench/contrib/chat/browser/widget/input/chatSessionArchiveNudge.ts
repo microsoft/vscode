@@ -18,7 +18,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel, SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -219,7 +219,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
-		if (this.configurationService.getValue<boolean>(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
+		if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
 			triggerConfettiAnimation(this.archiveButton.element);
 		}
 		this.setArchiving(true);

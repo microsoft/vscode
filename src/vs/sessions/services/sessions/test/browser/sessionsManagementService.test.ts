@@ -543,6 +543,34 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('openNewSession with toSide places an empty composer beside the active quick-chat draft', async () => {
+		const quickChat = stubSession({
+			sessionId: 'quick-chat',
+			providerId: 'test',
+			isQuickChat: constObservable(true),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createQuickChat(): ISession { return quickChat; }
+		}(quickChat);
+		const { service, view } = createSessionsManagementService(quickChat, disposables, provider);
+
+		view.openQuickChat();
+		const result = await view.openNewSession({ toSide: true });
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(session => session?.sessionId ?? null),
+			active: view.activeSession.get(),
+			preservedDraft: service.newSession.get()?.sessionId,
+			result: result.session,
+		}, {
+			visible: ['quick-chat', null],
+			active: undefined,
+			preservedDraft: 'quick-chat',
+			result: undefined,
+		});
+	});
+
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);

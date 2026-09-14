@@ -2168,8 +2168,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	line-height: var(--vscode-codiconFontSize-compact);
 }
 
-.monaco-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) .codicon-stop-circle {
-	color: var(--vscode-errorForeground) !important;
+.interactive-session .chat-input-toolbars .codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,

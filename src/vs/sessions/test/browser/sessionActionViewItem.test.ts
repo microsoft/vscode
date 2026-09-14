@@ -13,7 +13,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../browser/sessionActionViewItem.js';
 
@@ -39,7 +39,7 @@ suite('SessionActionViewItem', () => {
 	test('uses confetti for archive actions when enabled', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING, true);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		const expected = Object.create(MenuEntryActionViewItem.prototype) as MenuEntryActionViewItem;
 		instantiationService.stubInstance<MenuEntryActionViewItem>(MenuEntryActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, configurationService);
@@ -66,7 +66,7 @@ suite('SessionActionViewItem', () => {
 		const configurationService = new TestConfigurationService();
 		const options = getSessionArchiveActionViewItemOptions({ icon: true }, configurationService);
 		const disabled = options.onClickAnimation;
-		await configurationService.setUserConfiguration(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING, true);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		const enabled = options.onClickAnimation;
 
 		assert.deepStrictEqual({

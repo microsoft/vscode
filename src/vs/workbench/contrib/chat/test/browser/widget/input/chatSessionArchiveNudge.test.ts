@@ -11,7 +11,7 @@ import { MutableDisposable, toDisposable } from '../../../../../../../base/commo
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -167,7 +167,7 @@ suite('ChatSessionArchiveNudge', () => {
 
 	test('shows confetti when marking a merged pull request session as done', async () => {
 		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
-		await configurationService.setUserConfiguration(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING, true);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
 		const animation = document.body.querySelector('.animation-overlay');
@@ -178,7 +178,7 @@ suite('ChatSessionArchiveNudge', () => {
 
 	test('does not show confetti when reduced motion is enabled', async () => {
 		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, true);
-		await configurationService.setUserConfiguration(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING, true);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
 

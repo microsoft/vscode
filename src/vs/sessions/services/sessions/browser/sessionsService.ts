@@ -1169,7 +1169,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
 
-		const targetSession = newSession ?? undefined;
+		const activeSession = this._visibility.activeSession.get();
+		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
+			? undefined
+			: newSession;
 		this._activateOrInsert(targetSession, options?.toSide);
 		return { session: targetSession, trustDeclined: false };
 	}

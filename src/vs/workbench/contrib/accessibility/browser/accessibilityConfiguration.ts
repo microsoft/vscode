@@ -1106,7 +1106,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	}]);
 
 function getDelaysFromConfig(accessor: (key: string) => any, type: 'general' | 'errorAtPosition' | 'warningAtPosition'): { announcement: number; sound: number } | undefined {
-	return accessor(`accessibility.signalOptions.experimental.delays.${type}`) || accessor('accessibility.signalOptions')?.['experimental.delays']?.[`${type}`] || accessor('accessibility.signalOptions')?.['delays']?.[`${type}`];
+	return accessor(`accessibility.signalOptions.experimental.delays.${type}`) || accessor('accessibility.signalOptions')?.['experimental.delays']?.[`${type}`] || accessor('accessibility.signalOptions')?.delays?.[`${type}`];
 }
 
 function getVolumeFromConfig(accessor: (key: string) => any): string | undefined {

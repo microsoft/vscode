@@ -414,6 +414,18 @@ export async function mapSessionEvents(
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 	/** Same, per subagent tool call: applied when that subagent's turn is built. */
 	const pendingSubagentAutoModeResolved = new Map<string, Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data']>();
+	const subagentModels = new Map<string, string>();
+
+	const recordSubagentModel = (parentToolCallId: string | undefined, model: string | undefined): void => {
+		if (!parentToolCallId || !model) {
+			return;
+		}
+		subagentModels.set(parentToolCallId, model);
+		const builder = subagentBuilders.get(parentToolCallId);
+		if (builder) {
+			builder.message = { ...builder.message, model: { id: model } };
+		}
+	};
 
 	/** Envelope timestamp of the event currently being processed. */
 	let currentEventTimestamp: string | undefined;
@@ -456,16 +468,17 @@ export async function mapSessionEvents(
 	const ensureSubagentBuilder = (parentToolCallId: string): ITurnBuilder => {
 		let builder = subagentBuilders.get(parentToolCallId);
 		if (!builder) {
-			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp });
+			const model = subagentModels.get(parentToolCallId);
+			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
 			subagentBuilders.set(parentToolCallId, builder);
 			if (!subagentTurnStates.has(parentToolCallId)) {
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
 			}
-			const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
-			if (autoModeResolved) {
-				builder.usage = { model: autoModeResolved.chosenModel, _meta: { autoModeResolved } };
-				pendingSubagentAutoModeResolved.delete(parentToolCallId);
-			}
+		}
+		const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
+		if (autoModeResolved) {
+			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, autoModeResolved } };
+			pendingSubagentAutoModeResolved.delete(parentToolCallId);
 		}
 		touch(builder);
 		return builder;
@@ -483,7 +496,9 @@ export async function mapSessionEvents(
 		currentEventTimestamp = readEventTimestamp(e);
 		switch (e.type) {
 			case 'assistant.turn_start':
-				if (!e.agentId) {
+				if (e.agentId) {
+					recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model);
+				} else {
 					if (parentBuilder && parentTurnState === TurnState.Error) {
 						const waitingStartedAt = parentBuilder.waitingStartedAt === undefined ? undefined : Date.parse(parentBuilder.waitingStartedAt);
 						const resumedAt = currentEventTimestamp === undefined ? undefined : Date.parse(currentEventTimestamp);
@@ -522,7 +537,21 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'session.model_change': {
-				currentModel = { id: e.data.newModel };
+				if (e.agentId) {
+					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+					recordSubagentModel(parentToolCallId, e.data.newModel);
+					if (parentToolCallId && e.data.previousModel !== e.data.newModel) {
+						pendingSubagentAutoModeResolved.delete(parentToolCallId);
+						const builder = subagentBuilders.get(parentToolCallId);
+						if (builder?.usage) {
+							const metadata = { ...builder.usage._meta };
+							delete metadata.autoModeResolved;
+							builder.usage = { ...builder.usage, model: e.data.newModel, _meta: metadata };
+						}
+					}
+				} else {
+					currentModel = { id: e.data.newModel };
+				}
 				break;
 			}
 			case 'session.auto_mode_resolved': {
@@ -679,6 +708,11 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'subagent.started': {
+				recordSubagentModel(e.data.toolCallId, e.data.model);
+				break;
+			}
+			case 'subagent.configured': {
+				recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model);
 				break;
 			}
 			case 'tool.execution_start': {
