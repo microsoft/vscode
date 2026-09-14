@@ -5,6 +5,7 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import esbuild from 'esbuild';
+import { escapeJavaScriptBuildOutput } from '../build/lib/escapeJavaScriptOutput.ts';
 
 export interface RunConfig {
 	readonly srcDir: string;
@@ -57,6 +58,7 @@ export async function runBuild(
 		entryPoints: config.entryPoints,
 		outdir,
 		...(config.additionalOptions || {}),
+		metafile: true,
 	};
 
 	const isWatch = args.indexOf('--watch') >= 0;
@@ -70,9 +72,12 @@ export async function runBuild(
 		);
 	} else {
 		try {
-			await buildOnce(resolvedOptions, config.beforeBuild);
+			const result = await buildOnce(resolvedOptions, config.beforeBuild);
 			await didBuild?.(outdir);
-		} catch {
+			const workingDirectory = resolvedOptions.absWorkingDir ?? process.cwd();
+			await escapeJavaScriptBuildOutput(path.resolve(workingDirectory, outdir), [result], workingDirectory);
+		} catch (error) {
+			console.error(error);
 			process.exit(1);
 		}
 	}
