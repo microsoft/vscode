@@ -486,10 +486,6 @@ export class OutputPeekTree extends Disposable {
 			}));
 
 			disposable.add(result.onChange(e => {
-				if (e.reason === TestResultItemChangeReason.NewMessage && e.message.type !== TestMessageType.Error) {
-					return;
-				}
-
 				// try updating the item in each of its tasks
 				for (const [index, task] of result.tasks.entries()) {
 					const taskNode = cc.get(task) as TaskElement;
