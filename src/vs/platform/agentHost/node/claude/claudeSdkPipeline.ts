@@ -346,10 +346,10 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	private readonly _onDidObserveModelLimits = this._register(new Emitter<IClaudeObservedModelLimits>());
 	/**
-	 * Fires once per model named in a successful `result`'s `modelUsage` with
-	 * the context window and output cap the SDK reports for it. The agent folds
-	 * these into the native model catalog, which the SDK otherwise publishes
-	 * without limits.
+	 * Fires once per model named in a `result`'s `modelUsage`, whatever the
+	 * result's subtype, with the context window and output cap the SDK reports
+	 * for it. The agent folds these into the native model catalog, which the
+	 * SDK otherwise publishes without limits.
 	 */
 	readonly onDidObserveModelLimits: Event<IClaudeObservedModelLimits> = this._onDidObserveModelLimits.event;
 

@@ -165,8 +165,9 @@ export function mergeClaudeModelCatalogs(proxy: readonly IAgentModelInfo[], nati
 }
 
 /**
- * A model's context-window limits as the Claude Agent SDK reports them on a
- * successful `result` (`modelUsage[model].contextWindow` / `.maxOutputTokens`).
+ * A model's context-window limits as the Claude Agent SDK reports them on any
+ * `result`, successful or not (`modelUsage[model].contextWindow` /
+ * `.maxOutputTokens`).
  */
 export interface IClaudeModelLimits {
 	readonly contextWindow: number;
