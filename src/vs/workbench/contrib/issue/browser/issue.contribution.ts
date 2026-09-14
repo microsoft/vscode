@@ -20,7 +20,7 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { BrowserScreenshotService, IScreenshotService } from './screenshotService.js';
 import { BrowserRecordingService, IRecordingService } from './recordingService.js';
 import { BrowserGitHubUploadService, IGitHubUploadService } from './githubUploadService.js';
-
+import './issueWizard.js';
 
 class WebIssueContribution extends BaseIssueContribution {
 	constructor(@IProductService productService: IProductService, @IConfigurationService configurationService: IConfigurationService) {

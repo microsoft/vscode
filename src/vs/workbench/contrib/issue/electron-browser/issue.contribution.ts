@@ -36,6 +36,7 @@ import { IGitHubUploadService } from '../browser/githubUploadService.js';
 import { NativeGitHubUploadService } from './nativeGitHubUploadService.js';
 import { IssueReporterEditorPane } from './issueReporterEditorPane.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
+import '../browser/issueWizard.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
