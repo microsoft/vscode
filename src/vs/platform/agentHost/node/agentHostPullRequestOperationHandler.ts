@@ -45,6 +45,8 @@ type PullRequestCreationConfiguration = Pick<IPullRequestCreateOptions, 'draft' 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
 	readonly pullRequestUrl: string;
+	readonly pullRequestNumber: number;
+	readonly pullRequestTitle?: string;
 	/** The head branch the pull request was created (or found) for. */
 	readonly branchName: string;
 }
@@ -67,7 +69,8 @@ export interface PullRequestCreatedEvent {
  *    / {@link ISessionGitState.githubRepo} (populated by the git probe).
  * 6. Reuse an existing PR for the branch, or POST `/repos/{owner}/{repo}/pulls`
  *    via {@link IAgentHostOctoKitService}.
- * 7. Return the PR URL as an {@link InvokeChangesetOperationResult.followUp}.
+ * 7. Record the PR as a session artifact and associate it with the branch.
+ * 8. Return the PR URL as an {@link InvokeChangesetOperationResult.followUp}.
  */
 export class AgentHostPullRequestOperationHandler implements IChangesetOperationHandler {
 
@@ -85,7 +88,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _enableAgentMerge: boolean,
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
-		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
+		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => Promise<void>,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
@@ -448,7 +451,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		options: PullRequestCreationConfiguration,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!options.autoMergeMethod) {
-			this._completePullRequestOperation(sessionUri, pr.url, branchName, options);
+			await this._completePullRequestOperation(sessionUri, pr, branchName, options);
 			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined, options));
 		}
 
@@ -471,12 +474,18 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.number}: missing pull request node id`);
 		}
 
-		this._completePullRequestOperation(sessionUri, pr.url, branchName, options);
+		await this._completePullRequestOperation(sessionUri, pr, branchName, options);
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError, options));
 	}
 
-	private _completePullRequestOperation(sessionUri: string, pullRequestUrl: string, branchName: string, options: PullRequestCreationConfiguration): void {
-		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl, branchName });
+	private async _completePullRequestOperation(sessionUri: string, pullRequest: CreatedPullRequest, branchName: string, options: PullRequestCreationConfiguration): Promise<void> {
+		await this._onPullRequestCreated({
+			sessionKey: sessionUri,
+			pullRequestUrl: pullRequest.url,
+			pullRequestNumber: pullRequest.number,
+			...(pullRequest.title ? { pullRequestTitle: pullRequest.title } : {}),
+			branchName,
+		});
 		if (!options.agentMerge) {
 			return;
 		}
