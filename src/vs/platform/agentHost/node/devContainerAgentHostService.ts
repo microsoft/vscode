@@ -46,6 +46,11 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
+const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
+
+export function getDevContainerExecArgs(workspaceFolder: string, command: string): readonly string[] {
+	return ['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command];
+}
 
 interface IDevContainerUpResult {
 	readonly containerId: string;
@@ -56,6 +61,11 @@ interface IDevContainerMount {
 	readonly Type: string;
 	readonly Source: string;
 	readonly Destination: string;
+}
+
+interface IGitIdentity {
+	readonly name: string | undefined;
+	readonly email: string | undefined;
 }
 
 const devContainerUpResultValidator = vObj({
@@ -143,7 +153,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.workspaceFolder}`);
 			const up = await this._runDevContainer(
 				config.connectionId,
-				['up', '--workspace-folder', config.workspaceFolder],
+				['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder],
 				tokenSource.token,
 			);
 			const upResult = parseDevContainerUpResult(up.stdout);
@@ -160,6 +170,15 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			} catch (error) {
 				safeDirectoryStopWatch.stop();
 				this._logService.warn(`${LOG_PREFIX} Failed to configure Git safe.directory after ${safeDirectoryStopWatch.elapsed()}ms`, error);
+			}
+			const gitIdentityStopWatch = StopWatch.create(false);
+			try {
+				await this._configureGitIdentity(exec, tokenSource.token);
+				gitIdentityStopWatch.stop();
+				this._logService.info(`${LOG_PREFIX} Git identity configuration completed in ${gitIdentityStopWatch.elapsed()}ms`);
+			} catch (error) {
+				gitIdentityStopWatch.stop();
+				this._logService.warn(`${LOG_PREFIX} Failed to configure Git identity after ${gitIdentityStopWatch.elapsed()}ms`, error);
 			}
 			const [{ stdout: unameS }, { stdout: unameM }, { stdout: libc }] = await Promise.all([
 				exec('uname -s'),
@@ -270,6 +289,46 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		this._logService.info(`${LOG_PREFIX} Added Git root '${rootFolder}' to the Dev Container user's safe.directory list`);
 	}
 
+	private async _configureGitIdentity(exec: ISshExec, token: CancellationToken): Promise<void> {
+		const identity = await this._getHostGitIdentity(token);
+		if (!identity.name && !identity.email) {
+			return;
+		}
+
+		const gitAvailable = await exec('command -v git >/dev/null 2>&1', { ignoreExitCode: true });
+		if (gitAvailable.code !== 0) {
+			return;
+		}
+
+		const values: readonly { readonly key: string; readonly value: string | undefined }[] = [
+			{ key: 'user.name', value: identity.name },
+			{ key: 'user.email', value: identity.email },
+		];
+		for (const { key, value } of values) {
+			if (!value) {
+				continue;
+			}
+			const configured = await exec(`git config --get ${key}`, { ignoreExitCode: true });
+			if (configured.code === 0 && configured.stdout.trim()) {
+				continue;
+			}
+			await exec(`git config --global --replace-all ${key} ${shellEscape(value)}`);
+			this._logService.info(`${LOG_PREFIX} Configured Git ${key} from the host for the Dev Container user`);
+		}
+	}
+
+	protected async _getHostGitIdentity(token: CancellationToken): Promise<IGitIdentity> {
+		const environment = await this._resolveShellEnvironment();
+		const read = async (key: string): Promise<string | undefined> => {
+			const result = await this._runLocalCommand('git', ['config', '--global', '--get', key], environment, token);
+			return result.code === 0 ? result.stdout.trim() || undefined : undefined;
+		};
+		return {
+			name: await read('user.name'),
+			email: await read('user.email'),
+		};
+	}
+
 	protected async _getContainerMounts(connectionId: string, containerId: string, token: CancellationToken): Promise<readonly IDevContainerMount[]> {
 		const environment = await this._resolveShellEnvironment();
 		const result = await this._runLocalCommand(
@@ -315,7 +374,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return async (command, options) => {
 			const result = await this._runDevContainer(
 				connectionId,
-				['exec', '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command],
+				getDevContainerExecArgs(workspaceFolder, command),
 				token,
 			);
 			if (result.code !== 0 && !options?.ignoreExitCode) {
@@ -325,7 +384,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		};
 	}
 
-	private _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {
 		return new Promise((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				reject(new CancellationError());
@@ -384,14 +443,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const child = this._spawnDevContainer([
-			'exec',
-			'--workspace-folder',
-			workspaceFolder,
-			'/bin/sh',
-			'-c',
-			command,
-		], environment);
+		const child = this._spawnDevContainer(getDevContainerExecArgs(workspaceFolder, command), environment);
 		const cancellationListener = token.onCancellationRequested(() => {
 			if (!child.killed) {
 				child.kill();

@@ -159,6 +159,7 @@
 	overflow: visible;
 	text-overflow: clip;
 	white-space: nowrap;
+	transform: translateY(1px);
 }
 
 .agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {

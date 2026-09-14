@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { combinedDisposable, Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -106,12 +106,16 @@ class DevContainerOutputWriter extends Disposable {
 		this._connectionIds.delete(connectionId);
 	}
 
+	reveal(): Promise<void> {
+		return this._outputService.showChannel(this._channelId, true);
+	}
+
 	private _append(value: string): void {
 		this._outputService.getChannel(this._channelId)?.append(value);
 	}
 }
 
-class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector {
+export class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector {
 	private readonly _mainService: IDevContainerAgentHostMainService;
 
 	constructor(
@@ -190,7 +194,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 					};
 				} catch (error) {
 					outputWriter.removeConnection(reconnectConnectionId);
-					if (error instanceof CancellationError) {
+					if (isCancellationError(error)) {
 						throw new NonReconnectableTransportError('Dev Container Agent Host connection was cancelled.');
 					}
 					throw error;
@@ -234,6 +238,9 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				defaultDirectory: result.remoteWorkspaceFolder,
 			};
 		} catch (error) {
+			if (!token.isCancellationRequested && !isCancellationError(error)) {
+				await outputWriter.reveal();
+			}
 			outputWriter.dispose();
 			await this._mainService.disconnect(connectionId);
 			throw error;
