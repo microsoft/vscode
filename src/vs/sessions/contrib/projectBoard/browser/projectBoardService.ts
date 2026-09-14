@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, addStandardDisposableListener, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, addStandardDisposableListener, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -64,6 +64,8 @@ class ProjectBoardView extends Disposable {
 	private dragging = false;
 	private rendering = false;
 	private menuOpen = false;
+	private menuGeneration = 0;
+	private boardElement: HTMLElement | undefined;
 	private readonly sessionsManagementService: ISessionsManagementService;
 	private readonly notificationService: INotificationService;
 	private readonly logService: ILogService;
@@ -94,7 +96,7 @@ class ProjectBoardView extends Disposable {
 		this.instantiationService = services.instantiationService;
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.observeSessions()));
 		this._register(addDisposableListener(this.container, EventType.FOCUS_OUT, () => {
-			if (!this.rendering) {
+			if (!this.rendering && this.model.isSortingDeferred) {
 				queueMicrotask(() => {
 					if (!this._store.isDisposed && !this.dragging && !this.menuOpen && !this.hasFocusedCard()) {
 						this.model.setSortingDeferred(false);
@@ -186,7 +188,8 @@ class ProjectBoardView extends Disposable {
 		this.renderDisposables.value = store;
 		this.cardElements.clear();
 		this.controlElements.clear();
-		clearNode(this.container);
+		// Context-view hosts share the auxiliary container and must survive board rerenders.
+		this.boardElement?.remove();
 
 		const document = mainWindow.document;
 		const board = document.createElement('main');
@@ -295,6 +298,7 @@ class ProjectBoardView extends Disposable {
 
 		board.appendChild(grid);
 		this.container.appendChild(board);
+		this.boardElement = board;
 		this.rendering = false;
 		if (ownerDocument.hasFocus()) {
 			if (focusedControl) {
@@ -324,6 +328,7 @@ class ProjectBoardView extends Disposable {
 		button.element.setAttribute('aria-label', localize('projectBoard.editAxis', "Edit {0}: {1}", kind === 'row' ? localize('projectBoard.row', "row") : localize('projectBoard.column', "column"), axis.label));
 		store.add(button.onDidClick(() => {
 			this.menuOpen = true;
+			const generation = ++this.menuGeneration;
 			const axes = kind === 'row' ? this.model.rows : this.model.columns;
 			const index = axes.findIndex(item => item.id === axis.id);
 			this.contextMenuService.showContextMenu({
@@ -336,8 +341,11 @@ class ProjectBoardView extends Disposable {
 					toAction({ id: 'projectBoard.axis.delete', label: localize('projectBoard.deleteAxis', "Delete"), enabled: axes.length > 1, run: () => this.deleteAxis(kind, axis) }),
 				],
 				onHide: () => {
+					if (generation !== this.menuGeneration) {
+						return;
+					}
 					this.menuOpen = false;
-					this.observeSessions();
+					this.refreshAfterMenu();
 					if (container.ownerDocument.hasFocus()) {
 						this.controlElements.get(`axis:${kind}:${axis.id}`)?.focus({ preventScroll: true });
 					}
@@ -350,6 +358,7 @@ class ProjectBoardView extends Disposable {
 		const label = await this.quickInputService.input({
 			title: axis ? localize('projectBoard.renameAxis', "Rename Board Axis") : kind === 'row' ? localize('projectBoard.addRow', "Add Row") : localize('projectBoard.addColumn', "Add Column"),
 			value: axis?.label,
+			ignoreFocusLost: true,
 			prompt: localize('projectBoard.axisLabel', "Enter a nonempty label."),
 			validateInput: async value => value.trim() ? undefined : localize('projectBoard.emptyAxis', "The label must not be empty."),
 		});
@@ -389,6 +398,14 @@ class ProjectBoardView extends Disposable {
 		} catch (error) {
 			this.logService.error('[ProjectBoard] Board configuration change failed', error);
 		}
+	}
+
+	private refreshAfterMenu(): void {
+		queueMicrotask(() => {
+			if (!this._store.isDisposed && !this.menuOpen) {
+				this.observeSessions();
+			}
+		});
 	}
 
 	private async resetBoard(): Promise<void> {
@@ -751,6 +768,7 @@ class ProjectBoardView extends Disposable {
 	private showMoveMenu(card: IProjectBoardCard, element: HTMLElement): void {
 		const placement = this.model.getPlacement(card.id);
 		this.menuOpen = true;
+		const generation = ++this.menuGeneration;
 		this.contextMenuService.showContextMenu({
 			domForShadowRoot: this.container,
 			getAnchor: () => element,
@@ -771,8 +789,11 @@ class ProjectBoardView extends Disposable {
 				}))),
 			],
 			onHide: () => {
+				if (generation !== this.menuGeneration) {
+					return;
+				}
 				this.menuOpen = false;
-				this.observeSessions();
+				this.refreshAfterMenu();
 				if (this.container.ownerDocument.hasFocus()) {
 					this.cardElements.get(card.id)?.focus({ preventScroll: true });
 				}
