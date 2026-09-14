@@ -67,6 +67,7 @@ suite('Issue Wizard Launch Command', () => {
 	const defaultSkillUri = URI.file('/application/vs/workbench/contrib/chat/common/promptSyntax/builtinSkills/issue-wizard/SKILL.md');
 	const defaultSkillUriString = defaultSkillUri.toString();
 	const defaultSyncedSkillUri = URI.parse('vscode-synced-customization:/agent-host-codex/skills/issue-wizard/SKILL.md');
+	const defaultMaterializedSkillUri = URI.file('/user-data/agentPlugins/vscode-synced-customization-agent-host-codex/123/skills/issue-wizard/SKILL.md');
 	const defaultSkillDescription = 'Establish a shared understanding of a VS Code bug before troubleshooting.';
 	const agentHostSessionType = 'agent-host-codex';
 
@@ -85,6 +86,7 @@ suite('Issue Wizard Launch Command', () => {
 		agentHostSessionTypes?: string[];
 		builtinSkillUri?: URI | undefined;
 		completionSkillUri?: URI;
+		completionSkillSyncedUri?: URI;
 		provideSkillCompletion?: boolean;
 		openSessionReturns?: boolean;
 		aiHidden?: boolean;
@@ -192,10 +194,12 @@ suite('Issue Wizard Launch Command', () => {
 						attachment: {
 							kind: 'skill',
 							uri: completionSkillUri,
+							...(options?.completionSkillSyncedUri ? { syncedUri: options.completionSkillSyncedUri } : {}),
 							displayName: 'issue-wizard',
 							description: defaultSkillDescription,
 							_meta: {
 								uri: completionSkillUri.toString(),
+								...(options?.completionSkillSyncedUri ? { syncedUri: options.completionSkillSyncedUri.toString() } : {}),
 								name: 'issue-wizard',
 								displayName: 'issue-wizard',
 								description: defaultSkillDescription,
@@ -464,12 +468,12 @@ suite('Issue Wizard Launch Command', () => {
 		});
 	});
 
-	test('invokes the bundled skill through its Agent Host synced copy', async () => {
-		setupServices({ completionSkillUri: defaultSyncedSkillUri });
+	test('invokes the bundled skill through its materialized Agent Host copy', async () => {
+		setupServices({ completionSkillUri: defaultMaterializedSkillUri, completionSkillSyncedUri: defaultSyncedSkillUri });
 		await runCommand();
 
 		assert.deepStrictEqual({ acceptedRequests, notifications }, {
-			acceptedRequests: [{ query: '/issue-wizard Help me troubleshoot a VS Code issue.', attachmentIds: [defaultSyncedSkillUri.toString()] }],
+			acceptedRequests: [{ query: '/issue-wizard Help me troubleshoot a VS Code issue.', attachmentIds: [defaultMaterializedSkillUri.toString()] }],
 			notifications: { warn: [], error: [] },
 		});
 	});

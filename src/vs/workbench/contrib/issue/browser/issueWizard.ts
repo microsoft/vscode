@@ -182,7 +182,10 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 			}, CancellationToken.None);
 			const skillCompletion = completionResult?.items.find(item =>
 				item.attachment.kind === 'skill'
-				&& isEqual(this.agentHostActiveClientService.getOrigin(item.attachment.uri)?.uri ?? item.attachment.uri, issueWizardSkill.uri)
+				&& isEqual(
+					this.agentHostActiveClientService.getOrigin(item.attachment.syncedUri ?? item.attachment.uri)?.uri ?? item.attachment.uri,
+					issueWizardSkill.uri,
+				)
 				&& item.insertText.trimEnd() === slashCommand
 				&& item.attachment.displayName === issueWizardSkill.name
 				&& item.attachment.description === issueWizardSkill.description

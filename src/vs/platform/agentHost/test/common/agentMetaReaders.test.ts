@@ -268,9 +268,26 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(cmdWithHint, { command: 'rename', isSkill: true, argumentHint: 'New name' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', isSkill: true, argumentHint: 'New name' });
 
-			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
-			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
+			const skill = toSkillCompletionAttachmentMeta({
+				uri: 'file:///s/SKILL.md',
+				syncedUri: 'vscode-synced-customization:/bundle/skills/s/SKILL.md',
+				name: 'mon',
+				displayName: 'mon',
+				description: undefined,
+			});
+			assert.deepStrictEqual(skill, {
+				uri: 'file:///s/SKILL.md',
+				syncedUri: 'vscode-synced-customization:/bundle/skills/s/SKILL.md',
+				name: 'mon',
+				displayName: 'mon',
+			});
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), {
+				kind: 'skill',
+				uri: 'file:///s/SKILL.md',
+				syncedUri: 'vscode-synced-customization:/bundle/skills/s/SKILL.md',
+				name: 'mon',
+				displayName: 'mon',
+			});
 		});
 
 		test('getCommandArgumentHint reads the hint and ignores wrong-typed / absent bags', () => {

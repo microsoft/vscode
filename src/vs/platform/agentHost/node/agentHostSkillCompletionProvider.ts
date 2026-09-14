@@ -78,6 +78,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 					label: '/' + skill.slashCommandName,
 					_meta: toSkillCompletionAttachmentMeta({
 						uri: skill.uri,
+						syncedUri: skill.syncedUri,
 						name: skill.name,
 						displayName: skill.slashCommandName,
 						description: skill.description,
@@ -114,6 +115,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			name: skill.name,
 			description: skill.description,
 			uri: skill.uri,
+			syncedUri: getSyncedSkillUri(container, skill),
 		};
 	}
 }
@@ -122,9 +124,22 @@ function isSyncedCustomization(container: PluginCustomization): boolean {
 	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');
 }
 
+function getSyncedSkillUri(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): string | undefined {
+	if (container.type !== CustomizationType.Plugin || !isSyncedCustomization(container)) {
+		return undefined;
+	}
+	const pathSegments = URI.parse(skill.uri).path.split('/').filter(Boolean);
+	const componentIndex = Math.max(pathSegments.lastIndexOf('skills'), pathSegments.lastIndexOf('commands'));
+	if (componentIndex === -1) {
+		return undefined;
+	}
+	return URI.joinPath(URI.parse(container.uri), ...pathSegments.slice(componentIndex)).toString();
+}
+
 interface SlashCommmandCandidate {
 	readonly slashCommandName: string;
 	readonly name: string;
 	readonly description: string | undefined;
 	readonly uri: string;
+	readonly syncedUri?: string;
 }
