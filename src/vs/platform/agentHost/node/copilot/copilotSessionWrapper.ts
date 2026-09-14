@@ -356,6 +356,21 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');
 	}
 
+	private _onFactoryRunUpdated: Event<SessionEventPayload<'factory.run_updated'>> | undefined;
+	get onFactoryRunUpdated(): Event<SessionEventPayload<'factory.run_updated'>> {
+		return this._onFactoryRunUpdated ??= this._sdkEvent('factory.run_updated');
+	}
+
+	private _onFactoryRunStarted: Event<SessionEventPayload<'factory.run_started'>> | undefined;
+	get onFactoryRunStarted(): Event<SessionEventPayload<'factory.run_started'>> {
+		return this._onFactoryRunStarted ??= this._sdkEvent('factory.run_started');
+	}
+
+	private _onFactoryRunSettled: Event<SessionEventPayload<'factory.run_settled'>> | undefined;
+	get onFactoryRunSettled(): Event<SessionEventPayload<'factory.run_settled'>> {
+		return this._onFactoryRunSettled ??= this._sdkEvent('factory.run_settled');
+	}
+
 	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
 	get onCommandsChanged(): Event<SessionEventPayload<'commands.changed'>> {
 		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');

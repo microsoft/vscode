@@ -932,6 +932,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
+		const agentFactoriesEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AgentFactories) === true;
 		const tools = [...shellTools, ...runtime.createClientSdkTools(toolSearchActive), ...runtime.createServerSdkTools()];
 		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
 		const managedSettingsPermissions = this._managedSettingsService.permissions;
@@ -994,7 +995,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
-			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
+			requestExtensions: agentFactoriesEnabled,
+			...(agentFactoriesEnabled ? { featureFlags: { agent_factories: true, EXTENSIONS: true } } : {}),
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),

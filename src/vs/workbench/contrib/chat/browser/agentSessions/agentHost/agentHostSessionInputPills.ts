@@ -17,6 +17,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { ISessionFactoryRun, readSessionFactoryRunsNewestFirst } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -37,6 +38,8 @@ import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
+import { AgentHostFactoryRunEditorInput } from './agentHostFactoryRunEditorInput.js';
+import { describeFactoryRun, getFactoryRunStatusIcon } from './agentHostFactoryRunPresentation.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
@@ -46,6 +49,7 @@ const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Artifacts,
 	SessionChatPillKind.References,
 	SessionChatPillKind.Browsers,
+	SessionChatPillKind.Factories,
 ];
 
 const artifactIcons: ReadonlyMap<SessionArtifactType, ThemeIcon> = new Map([
@@ -389,6 +393,14 @@ export class AgentHostSessionInputPills extends Disposable {
 			const entries = browserInputs.read(reader).map(input => this._browserEntry(input, sessionResource.read(reader)));
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
 		});
+		const factorySections = derived(this, reader => {
+			const resource = sessionResource.read(reader);
+			const runs = readSessionFactoryRunsNewestFirst(sessionState.read(reader)?._meta);
+			if (!resource || runs.length === 0) {
+				return [];
+			}
+			return [{ title: localize('agentHostSessionPills.factories.section', "Factory Runs"), entries: runs.map(run => this._factoryRunEntry(run, resource)) }];
+		});
 
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
@@ -401,6 +413,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			artifacts: { sections: artifactSections },
 			references: { sections: referenceSections },
 			browsers: { sections: browserSections },
+			factories: { sections: factorySections },
 		}, offeredPillKinds));
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',
@@ -548,6 +561,21 @@ export class AgentHostSessionInputPills extends Disposable {
 			label,
 			icon: Codicon.globe,
 			open: () => { void this._openBrowser(input, sessionResource); },
+		};
+	}
+
+	private _factoryRunEntry(run: ISessionFactoryRun, sessionResource: URI): IChatPillEntry {
+		const description = describeFactoryRun(run);
+		return {
+			id: run.runId,
+			label: run.factoryName,
+			pillLabel: run.factoryName,
+			badge: description,
+			icon: getFactoryRunStatusIcon(run.status),
+			ariaLabel: localize('agentHostSessionPills.openFactoryRun', "Open factory run {0}", run.factoryName),
+			ariaDescription: description,
+			tooltip: `${run.factoryName}\n${description}`,
+			open: () => { void this._editorService.openEditor(new AgentHostFactoryRunEditorInput(sessionResource, run.runId, run.factoryName), { pinned: true }); },
 		};
 	}
 

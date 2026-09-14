@@ -28,6 +28,7 @@ suite('SessionChatPills', () => {
 				{ kind: SessionChatPillKind.References, label: 'References', checked: true },
 				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
 				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
+				{ kind: SessionChatPillKind.Factories, label: 'Factories', checked: true },
 			],
 		});
 	});

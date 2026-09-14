@@ -87,6 +87,7 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
+import { createCopilotFactoryRunReader, readCopilotFactoryRuns } from './copilotFactoryRuns.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
@@ -847,6 +848,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private _subagentTaskStatusRevision = 0;
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
+	/** Coalesces bursts of `factory.run_*` events into one read of the session's factory runs. */
+	private readonly _factoryRunsRefreshThrottler = this._register(new Throttler());
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
 	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAssistedApproval | undefined>();
@@ -1637,6 +1640,28 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 		});
+	}
+
+	/**
+	 * Re-reads the session's Agent Factory runs from the runtime and publishes
+	 * them for every client surface. The SDK's `factory.run_updated` event is an
+	 * invalidation signal rather than a payload, so each burst collapses into one
+	 * read of the durable state.
+	 */
+	private _refreshFactoryRuns(): Promise<void> {
+		return this._factoryRunsRefreshThrottler.queue(async () => {
+			const runs = await readCopilotFactoryRuns(createCopilotFactoryRunReader(this._wrapper.session.factory), (runId, error) => {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read factory run ${runId}: ${getErrorMessage(error)}`);
+			});
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._onDidSessionProgress.fire({ kind: 'factory_runs_changed', session: this._ownerSessionUri, runs });
+		});
+	}
+
+	private _isAgentFactoriesEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AgentFactories) === true;
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {
@@ -6753,6 +6778,25 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${sessionId}] Failed to reconcile subagent task status: ${getErrorMessage(err)}`);
 			});
 		}));
+
+		// Factory events are ephemeral invalidations; the durable run state is
+		// re-read on each so the published projection never goes stale.
+		const refreshFactoryRuns = () => {
+			void this._refreshFactoryRuns().catch(err => {
+				this._logService.warn(`[Copilot:${sessionId}] Failed to refresh factory runs: ${getErrorMessage(err)}`);
+			});
+		};
+		this._register(wrapper.onFactoryRunUpdated(refreshFactoryRuns));
+		this._register(wrapper.onFactoryRunStarted(refreshFactoryRuns));
+		this._register(wrapper.onFactoryRunSettled(refreshFactoryRuns));
+		// Runs outlive the turn that started them, so a resumed session republishes
+		// them without waiting for the next event. Skipped when factories are off,
+		// where the runtime rejects the read.
+		if (this._isAgentFactoriesEnabled()) {
+			void this._refreshFactoryRuns().catch(err => {
+				this._logService.trace(`[Copilot:${sessionId}] Initial factory run read failed: ${getErrorMessage(err)}`);
+			});
+		}
 
 		this._register(wrapper.onTurnStart(e => {
 			const turn = this._currentTurn.value;

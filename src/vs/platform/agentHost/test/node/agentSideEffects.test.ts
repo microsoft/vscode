@@ -25,6 +25,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { readSessionFactoryRuns, SessionFactoryRunStatus, type ISessionFactoryRun } from '../../common/sessionFactoryRuns.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
@@ -3959,6 +3960,54 @@ suite('AgentSideEffects', () => {
 			// Steering message should be removed from state
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.steeringMessage, undefined);
+		});
+
+		test('publishes factory runs on the session meta bag without disturbing other slots', () => {
+			setupSession(undefined, { keep: 'me' });
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			const run: ISessionFactoryRun = {
+				runId: 'run-1',
+				factoryName: 'review-changed',
+				description: 'Review changed files',
+				status: SessionFactoryRunStatus.Running,
+				revision: 1,
+				createdAt: 1,
+				updatedAt: 2,
+				liveAgentCount: 1,
+				totalSpawnedAgentCount: 1,
+				usage: { activeMs: 10, subagents: 1, aiCredits: 0 },
+				limits: {},
+				phases: [],
+				agents: [],
+				progress: [],
+			};
+
+			agent.fireProgress({ kind: 'factory_runs_changed', session: sessionUri, runs: [run] });
+			const published = readSessionFactoryRuns(stateManager.getSessionState(sessionUri.toString())?._meta);
+			agent.fireProgress({ kind: 'factory_runs_changed', session: sessionUri, runs: [] });
+
+			assert.deepStrictEqual({
+				published,
+				metaChanges: envelopes.filter(e => e.action.type === ActionType.SessionMetaChanged).map(e => e.channel),
+				after: stateManager.getSessionState(sessionUri.toString())?._meta,
+			}, {
+				published: [run],
+				metaChanges: [sessionUri.toString(), sessionUri.toString()],
+				after: { keep: 'me' },
+			});
+		});
+
+		test('ignores factory runs for a session it does not know', () => {
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireProgress({ kind: 'factory_runs_changed', session: AgentSession.uri('mock', 'unknown'), runs: [] });
+
+			assert.deepStrictEqual(envelopes, []);
 		});
 	});
 
