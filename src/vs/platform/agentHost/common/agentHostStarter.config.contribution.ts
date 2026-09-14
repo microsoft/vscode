@@ -13,8 +13,8 @@ import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
-	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostActiveAgentTitleGenerationSettingId,
+	AgentHostAcpAgentsSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -23,6 +23,7 @@ import {
 	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
 	AgentHostCopilotMultiRootEnabledSettingId,
+	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
@@ -313,6 +314,44 @@ configurationRegistry.registerConfiguration({
 						value: nls.localize('chat.agentHost.codexAgent.enabled.policy', "Enable Codex Agent sessions in VS Code. Start and resume agentic coding sessions powered by OpenAI Codex. Usage can be routed through GitHub Copilot or authenticated directly with an OpenAI account."),
 					}
 				}
+			},
+		},
+		[AgentHostAcpAgentsSettingId]: {
+			type: 'array',
+			description: nls.localize('chat.agentHost.acpAgents', "Configures ACP-compatible coding agents that the Agent Host starts as native providers. The Agent Host process must be restarted for changes to take effect."),
+			default: [],
+			scope: ConfigurationScope.MACHINE,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+			items: {
+				type: 'object',
+				required: ['id', 'command'],
+				additionalProperties: false,
+				properties: {
+					id: {
+						type: 'string',
+						pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
+						description: nls.localize('chat.agentHost.acpAgents.id', "Unique lowercase identifier used for the Agent Host provider."),
+					},
+					name: {
+						type: 'string',
+						description: nls.localize('chat.agentHost.acpAgents.name', "Display name shown for the agent."),
+					},
+					command: {
+						type: 'string',
+						description: nls.localize('chat.agentHost.acpAgents.command', "Executable that starts the ACP agent."),
+					},
+					args: {
+						type: 'array',
+						items: { type: 'string' },
+						description: nls.localize('chat.agentHost.acpAgents.args', "Arguments passed to the ACP agent executable."),
+					},
+					env: {
+						type: 'object',
+						additionalProperties: { type: 'string' },
+						description: nls.localize('chat.agentHost.acpAgents.env', "Environment variables added when starting the ACP agent."),
+					},
+				},
 			},
 		},
 		[AgentHostCodexAgentSdkRootSettingId]: {

@@ -291,6 +291,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			displayName: agent.displayName,
 			description: agent.description,
 			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
+			icon: agent.provider.startsWith('acp-') ? Codicon.agent.id : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,

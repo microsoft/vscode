@@ -192,6 +192,9 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
  */
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
+/** Configuration key for statically configured ACP-backed Agent Host providers. */
+export const AgentHostAcpAgentsSettingId = 'chat.agentHost.acpAgents';
+
 /**
  * Configuration key controlling whether extension-provided BYOK ("bring your
  * own key") models are published and included in new agent-host sessions.
@@ -229,6 +232,9 @@ export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_E
 
 /** Overrides the soft cap on resident session roots. Primarily used by integration tests. */
 export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_RESIDENCY_LIMIT';
+
+/** Serialized {@link IAgentHostAcpAgentConfiguration} entries forwarded to the Agent Host process. */
+export const AgentHostAcpAgentsEnvVar = 'VSCODE_AGENT_HOST_ACP_AGENTS';
 
 /** Overrides the retry delay after a provider temporarily vetoes session release. Primarily used by integration tests. */
 export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_RETRY_MS';
@@ -636,6 +642,16 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
+	readonly acpAgents?: readonly IAgentHostAcpAgentConfiguration[];
+}
+
+/** Process launch configuration for one ACP-backed Agent Host provider. */
+export interface IAgentHostAcpAgentConfiguration {
+	readonly id: string;
+	readonly name?: string;
+	readonly command: string;
+	readonly args?: readonly string[];
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export function buildAgentSdkEnv(
@@ -659,6 +675,9 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
+	}
+	if (settings.acpAgents && settings.acpAgents.length > 0) {
+		setIfMissing(AgentHostAcpAgentsEnvVar, JSON.stringify(settings.acpAgents));
 	}
 	return out;
 }
