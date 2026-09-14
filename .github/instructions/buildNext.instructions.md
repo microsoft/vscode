@@ -58,6 +58,22 @@ In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` tas
 
 Old gulp-based bundling renamed to `core-ci-old`.
 
+### TypeScript Helpers in Production Bundles
+
+[bundle.ts](../../build/next/bundle.ts) holds the shared ESM options for normal entries (`neutral`) and Node bootstraps (`node`). Both compile TypeScript source directly with esbuild, which emits, scopes, and minifies the helpers each input needs. Their JS and CSS banners contain only the Microsoft copyright comment; do not append executable `tslib` to them. Esbuild does not parse banner text, so it cannot tree-shake it, minify it, or protect it from name/export collisions.
+
+- Desktop, server, server-web, and web entries do not consume the old banner's helpers or initialization. The public workbench and Sessions embedder exports are defined in their source entry points, not in tslib. Removing the banner intentionally removes its accidental 32 helper exports and default export, not any source-defined API.
+- Explicit tslib imports still follow normal bundler resolution: package imports remain external, while explicitly bundled helpers can be tree-shaken. Already-generated JavaScript retains its own helper definitions.
+- Non-minified bundles also omit the redundant library but retain readable esbuild-generated helpers. Development transpilation, standalone CommonJS preloads, and the separate Dev Tunnels bundle are unchanged.
+- The legacy `build/lib/optimize.ts` path still removes TypeScript-emitted boilerplate and supplies tslib in its own banner. Do not remove that injection based on the direct-from-TypeScript path.
+- Keep the copyright banner and existing license/notice packaging. Banner changes belong in esbuild's options so its source maps account for them; do not strip code after generating maps. Product integrity checksums continue to be computed from final bundled bytes during packaging.
+
+Focused coverage uses the production options for helper-free entries, service decorators, disposal, compiler-generated JS, explicit tslib imports, export/name collisions, legal comments, and source maps in both minified and non-minified modes:
+
+```bash
+node --test build/next/test/bundle.test.ts build/next/test/nls-sourcemap.test.ts
+```
+
 ---
 
 ## Key Learnings
