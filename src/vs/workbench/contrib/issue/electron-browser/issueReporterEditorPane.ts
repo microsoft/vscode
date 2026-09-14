@@ -127,6 +127,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		this.container = append(parent, $('div.issue-reporter-editor-tab'));
 		this.container.style.height = '100%';
 		this.container.style.overflow = 'auto';
+		this._register(this.onDidFocus(() => this.wizard?.activateFloatingBar()));
 	}
 
 	private shouldShowUpdateBanner(): boolean {

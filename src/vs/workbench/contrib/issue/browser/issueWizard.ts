@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { timeout } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -19,6 +22,7 @@ import { IWorkbenchContribution, Extensions, IWorkbenchContributionsRegistry } f
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -30,9 +34,11 @@ import { PromptsType } from '../../chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../chat/common/promptSyntax/service/promptsService.js';
 import { IIssueWizardIntakeService, IIssueWizardScreenshotAnnotationService, IssueWizardIntakeService, IssueWizardScreenshotAnnotationService } from './issueWizardIntakeService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { ScreenshotCaptureBar } from './screenshotCaptureBar.js';
 
 export const ISSUE_WIZARD_COMMAND_ID = 'workbench.action.help.troubleshootWithIssueWizard';
 export const ISSUE_WIZARD_ADD_SCREENSHOT_COMMAND_ID = 'workbench.action.issueWizard.addHighlightedScreenshot';
+export const IssueWizardCaptureBarActiveContext = new RawContextKey<boolean>('issueWizardCaptureBarActive', false, localize('issueWizardCaptureBarActive', "Whether the Issue Wizard screenshot bar owns capture"));
 const ISSUE_WIZARD_SLASH_COMMAND = 'issue-wizard';
 
 /**
@@ -46,13 +52,19 @@ export const IIssueWizardLauncherService = createDecorator<IIssueWizardLauncherS
 
 export interface IIssueWizardLauncherService {
 	readonly _serviceBrand: undefined;
+	readonly captureBarActive: boolean;
 	launch(options?: IIssueWizardLaunchOptions): Promise<void>;
 	addHighlightedScreenshot(): Promise<void>;
 }
 
-export class IssueWizardLauncherService implements IIssueWizardLauncherService {
+export class IssueWizardLauncherService extends Disposable implements IIssueWizardLauncherService {
 	readonly _serviceBrand: undefined;
-	private readonly issueWizardWidgets = new WeakSet<IChatWidget>();
+	private readonly captureBarDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly captureBarActiveContext: IContextKey<boolean>;
+	private captureBar: ScreenshotCaptureBar | undefined;
+	private captureTarget: IChatWidget | undefined;
+	private captureOperation: Promise<void> | undefined;
+	get captureBarActive(): boolean { return this.captureBar?.active ?? false; }
 
 	constructor(
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
@@ -63,9 +75,31 @@ export class IssueWizardLauncherService implements IIssueWizardLauncherService {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IIssueWizardIntakeService private readonly issueWizardIntakeService: IIssueWizardIntakeService,
-	) { }
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+	) {
+		super();
+		this.captureBarActiveContext = IssueWizardCaptureBarActiveContext.bindTo(this.contextKeyService);
+		this._register(toDisposable(() => this.captureBarActiveContext.reset()));
+		this._register(this.chatWidgetService.onDidRemoveWidget(widget => {
+			if (widget === this.captureTarget) {
+				this.clearCaptureBar();
+			}
+		}));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
+			if (this.chatEntitlementService.sentiment.hidden) {
+				this.clearCaptureBar();
+			}
+		}));
+	}
 
 	async launch(options?: IIssueWizardLaunchOptions): Promise<void> {
+		if (this.chatEntitlementService.sentiment.hidden) {
+			this.notificationService.warn(localize('issueWizardUnavailable.aiDisabled', "Issue Wizard is unavailable because AI features are disabled in this window."));
+			return;
+		}
 		if (!this.agentHostEnablementService.enabled.get()) {
 			this.notificationService.warn(localize('issueWizardUnavailable.disabled', "Issue Wizard is unavailable because Agent Host is disabled in this window."));
 			return;
@@ -81,20 +115,15 @@ export class IssueWizardLauncherService implements IIssueWizardLauncherService {
 	}
 
 	async addHighlightedScreenshot(): Promise<void> {
-		const chatWidget = this.chatWidgetService.lastFocusedWidget;
-		if (!chatWidget || !this.issueWizardWidgets.has(chatWidget)) {
+		const captureBar = this.captureBar;
+		if (!captureBar || !this.captureTarget) {
 			this.notificationService.warn(localize('issueWizardScreenshot.noActiveSession', "Open an Issue Wizard session before adding a highlighted screenshot."));
 			return;
 		}
-
-		const attachments = await this.issueWizardIntakeService.collectScreenshot();
-		if (!attachments) {
+		if (!await captureBar.triggerCapture()) {
 			return;
 		}
-		for (const attachment of attachments) {
-			chatWidget.attachmentModel.addContext(attachment);
-		}
-		chatWidget.focusInput();
+		await this.captureOperation;
 	}
 
 	private getInvokingWorkspaceFolder(): URI | undefined {
@@ -134,12 +163,73 @@ export class IssueWizardLauncherService implements IIssueWizardLauncherService {
 
 			chatWidget.attachmentModel.addContext(toPromptFileVariableEntry(parsedPrompt.uri, PromptFileVariableKind.PromptFile, undefined, true));
 
-			this.issueWizardWidgets.add(chatWidget);
 			chatWidget.focusInput();
 			await chatWidget.acceptInput(this.createBootstrapMessage(symptom?.trim()));
+			this.showCaptureBar(chatWidget);
 		} catch (error) {
 			this.notificationService.error(localize('issueWizardStartFailed', "Issue Wizard failed to start: {0}", toErrorMessage(error)));
 		}
+	}
+
+	private showCaptureBar(chatWidget: IChatWidget): void {
+		this.clearCaptureBar();
+		const captureBarDisposables = new DisposableStore();
+		this.captureBarDisposables.value = captureBarDisposables;
+		const captureBar = captureBarDisposables.add(new ScreenshotCaptureBar(this.layoutService.activeContainer, this.contextMenuService));
+		this.captureBar = captureBar;
+		this.captureTarget = chatWidget;
+		captureBarDisposables.add(chatWidget.onDidFocus(() => captureBar.activate()));
+		captureBarDisposables.add(captureBar.onDidChangeActive(active => {
+			if (captureBar === this.captureBar) {
+				this.captureBarActiveContext.set(active);
+			}
+		}));
+		captureBarDisposables.add(captureBar.onDidRequestScreenshot(() => {
+			const operation = this.captureAndAttachScreenshot(chatWidget, captureBar);
+			this.captureOperation = operation;
+			void operation.finally(() => {
+				if (this.captureOperation === operation) {
+					this.captureOperation = undefined;
+				}
+			});
+		}));
+
+		this.captureBarActiveContext.set(captureBar.active);
+	}
+
+	private async captureAndAttachScreenshot(chatWidget: IChatWidget, captureBar: ScreenshotCaptureBar): Promise<void> {
+		captureBar.setCaptureEnabled(false, localize('issueWizardScreenshot.capturing', "Capturing screenshot..."));
+		try {
+			if (captureBar.shouldHideForCapture) {
+				captureBar.hide();
+				await timeout(100);
+			}
+
+			const attachments = await this.issueWizardIntakeService.collectScreenshot();
+			if (!attachments || captureBar !== this.captureBar || chatWidget !== this.captureTarget) {
+				return;
+			}
+			for (const attachment of attachments) {
+				chatWidget.attachmentModel.addContext(attachment);
+			}
+			await this.chatWidgetService.reveal(chatWidget);
+			chatWidget.focusInput();
+		} catch (error) {
+			this.notificationService.error(localize('issueWizardScreenshot.failed', "Issue Wizard could not add the screenshot: {0}", toErrorMessage(error)));
+		} finally {
+			if (captureBar === this.captureBar) {
+				captureBar.show();
+				captureBar.setCaptureEnabled(true);
+			}
+		}
+	}
+
+	private clearCaptureBar(): void {
+		this.captureBar = undefined;
+		this.captureTarget = undefined;
+		this.captureOperation = undefined;
+		this.captureBarActiveContext.set(false);
+		this.captureBarDisposables.clear();
 	}
 
 	private createBootstrapMessage(symptom: string | undefined): string {

@@ -12,8 +12,10 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -45,10 +47,15 @@ suite('Issue Wizard Launch Command', () => {
 	let screenshotCollectionCount: number;
 	let acceptedQueries: string[];
 	let attachedContext: IChatRequestVariableEntry[];
+	let attachedSessionResources: URI[];
 	let openedSessionResources: URI[];
+	let openedWidgets: IChatWidget[];
 	let focusedSessionResources: URI[];
 	let openedSessionOptions: { sessionType: string; displayName: string; workspaceFolder: URI }[];
 	let lastFocusedWidget: IChatWidget | undefined;
+	let onDidRemoveWidget: Emitter<IChatWidget>;
+	let chatSentiment: IChatSentiment;
+	let onDidChangeChatSentiment: Emitter<void>;
 
 	const workspaceFolderUri = URI.file('/workspace');
 	const defaultSkillUri = URI.file('/application/vs/workbench/contrib/chat/common/promptSyntax/builtinSkills/issue-wizard/SKILL.md');
@@ -69,6 +76,7 @@ suite('Issue Wizard Launch Command', () => {
 		agentHostSessionTypes?: string[];
 		builtinSkillUri?: URI | undefined;
 		openSessionReturns?: boolean;
+		aiHidden?: boolean;
 		collectScreenshot?: () => Promise<readonly IChatRequestVariableEntry[] | undefined>;
 	}): void {
 		notifications = { warn: [], error: [] };
@@ -76,12 +84,22 @@ suite('Issue Wizard Launch Command', () => {
 		screenshotCollectionCount = 0;
 		acceptedQueries = [];
 		attachedContext = [];
+		attachedSessionResources = [];
 		openedSessionResources = [];
+		openedWidgets = [];
 		focusedSessionResources = [];
 		openedSessionOptions = [];
 		lastFocusedWidget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ sessionResource: URI.parse('agent-host-codex:/unrelated') }) });
+		onDidRemoveWidget = disposables.add(new Emitter<IChatWidget>());
+		onDidChangeChatSentiment = disposables.add(new Emitter<void>());
+		chatSentiment = { completed: true, hidden: options?.aiHidden ?? false };
 
 		instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+		instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+			override readonly onDidChangeSentiment = onDidChangeChatSentiment.event;
+			override get sentiment(): IChatSentiment { return chatSentiment; }
+		});
 		instantiationService.stub(IAgentHostEnablementService, {
 			_serviceBrand: undefined,
 			enabled: constObservable(options?.enabled ?? true),
@@ -145,6 +163,8 @@ suite('Issue Wizard Launch Command', () => {
 		const shouldReturnWidget = options?.openSessionReturns ?? true;
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			get lastFocusedWidget() { return lastFocusedWidget; },
+			onDidRemoveWidget: onDidRemoveWidget.event,
+			reveal: async () => true,
 			openNewAgentHostEditorSession: async sessionOptions => {
 				openedSessionOptions.push(sessionOptions);
 				const sessionResource = URI.parse(`${sessionOptions.sessionType}:/untitled-${openedSessionResources.length + 1}`);
@@ -152,15 +172,22 @@ suite('Issue Wizard Launch Command', () => {
 				if (!shouldReturnWidget) { return undefined; }
 				const widget = upcastPartial<IChatWidget>({
 					viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
-					attachmentModel: upcastPartial<ChatAttachmentModel>({ addContext: (entry: IChatRequestVariableEntry) => { attachedContext.push(entry); } }),
+					onDidFocus: Event.None,
+					attachmentModel: upcastPartial<ChatAttachmentModel>({
+						addContext: (entry: IChatRequestVariableEntry) => {
+							attachedContext.push(entry);
+							attachedSessionResources.push(sessionResource);
+						}
+					}),
 					acceptInput: async query => { if (query) { acceptedQueries.push(query); } },
 					focusInput: () => focusedSessionResources.push(sessionResource),
 				});
+				openedWidgets.push(widget);
 				lastFocusedWidget = widget;
 				return { sessionResource, widget };
 			},
 		}));
-		instantiationService.stub(IIssueWizardLauncherService, instantiationService.createInstance(IssueWizardLauncherService));
+		instantiationService.stub(IIssueWizardLauncherService, disposables.add(instantiationService.createInstance(IssueWizardLauncherService)));
 	}
 
 	async function runCommand(options?: IIssueWizardLaunchOptions): Promise<void> {
@@ -202,6 +229,56 @@ suite('Issue Wizard Launch Command', () => {
 		});
 	});
 
+	test('shows the existing floating screenshot bar without recording controls after launch', async () => {
+		setupServices();
+		await runCommand();
+
+		const captureBar = document.querySelector<HTMLElement>('.issue-reporter-floating-bar');
+		assert.deepStrictEqual({
+			visible: !!captureBar && captureBar.style.display !== 'none',
+			screenshotLabel: captureBar?.querySelector<HTMLElement>('.wizard-segmented-main')?.textContent,
+			hasRecordingControl: !!captureBar?.querySelector('.wizard-record-btn'),
+		}, {
+			visible: true,
+			screenshotLabel: 'Screenshot',
+			hasRecordingControl: false,
+		});
+	});
+
+	test('removes the capture bar when its exact Issue Wizard widget closes', async () => {
+		setupServices();
+		await runCommand();
+		const captureBarVisibleBeforeClose = !!document.querySelector('.issue-reporter-floating-bar');
+
+		onDidRemoveWidget.fire(openedWidgets[0]);
+		await runAddScreenshotCommand();
+
+		assert.deepStrictEqual({
+			captureBarVisibleBeforeClose,
+			captureBarVisible: !!document.querySelector('.issue-reporter-floating-bar'),
+			screenshotCollectionCount,
+			notifications,
+		}, {
+			captureBarVisibleBeforeClose: true,
+			captureBarVisible: false,
+			screenshotCollectionCount: 0,
+			notifications: { warn: ['Open an Issue Wizard session before adding a highlighted screenshot.'], error: [] },
+		});
+	});
+
+	test('removes the capture bar when AI features are disabled', async () => {
+		setupServices();
+		await runCommand();
+		const visibleBeforeDisablement = !!document.querySelector('.issue-reporter-floating-bar');
+
+		chatSentiment = { completed: true, hidden: true };
+		onDidChangeChatSentiment.fire();
+		assert.deepStrictEqual({ visibleBeforeDisablement, visibleAfterDisablement: !!document.querySelector('.issue-reporter-floating-bar') }, {
+			visibleBeforeDisablement: true,
+			visibleAfterDisablement: false,
+		});
+	});
+
 	test('preserves a supplied symptom in the bootstrap message', async () => {
 		setupServices();
 		await runCommand({ symptom: 'Saving stalls for 10 seconds' });
@@ -224,18 +301,24 @@ suite('Issue Wizard Launch Command', () => {
 		});
 	});
 
-	test('adds highlighted screenshot context after the conversation has started', async () => {
+	test('the screenshot command attaches to the exact Issue Wizard after focus changes', async () => {
 		const screenshotAttachment: IChatRequestVariableEntry = { kind: 'image', id: 'img-1', name: 'Issue screenshot', value: new Uint8Array([1, 2, 3]) };
 		setupServices({ collectScreenshot: async () => [screenshotAttachment] });
 		await runCommand();
-		assert.ok(lastFocusedWidget?.viewModel);
-		Object.defineProperty(lastFocusedWidget.viewModel, 'sessionResource', { value: URI.parse(`${agentHostSessionType}:/persisted-session`) });
+		lastFocusedWidget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ sessionResource: URI.parse(`${agentHostSessionType}:/unrelated-session`) }) });
+
 		await runAddScreenshotCommand();
 
-		assert.deepStrictEqual({ screenshotCollectionCount, queries: acceptedQueries, attachmentIds: attachedContext.map(context => context.id) }, {
+		assert.deepStrictEqual({
+			screenshotCollectionCount,
+			queries: acceptedQueries,
+			attachmentIds: attachedContext.map(context => context.id),
+			screenshotSession: attachedSessionResources.at(-1)?.toString(),
+		}, {
 			screenshotCollectionCount: 1,
 			queries: ['Use the bundled Issue Wizard skill.\nHelp me troubleshoot a VS Code issue.'],
 			attachmentIds: [`vscode.prompt.file__${defaultSkillUri.toString()}`, 'img-1'],
+			screenshotSession: openedSessionResources[0].toString(),
 		});
 	});
 
@@ -267,6 +350,16 @@ suite('Issue Wizard Launch Command', () => {
 			openedSessionResources: [],
 			acceptedQueries: [],
 			notifications: { warn: ['Issue Wizard is unavailable because Agent Host is disabled in this window.'], error: [] },
+		});
+	});
+
+	test('does not launch when AI features are hidden', async () => {
+		setupServices({ aiHidden: true });
+		await runCommand();
+		assert.deepStrictEqual({ openedSessionResources, acceptedQueries, notifications }, {
+			openedSessionResources: [],
+			acceptedQueries: [],
+			notifications: { warn: ['Issue Wizard is unavailable because AI features are disabled in this window.'], error: [] },
 		});
 	});
 
@@ -378,9 +471,8 @@ suite('Issue Wizard Screenshot Intake', () => {
 suite('Issue Wizard Contributions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function evaluate(when: ContextKeyExpression | undefined, enabled: boolean): boolean {
-		assert.ok(when);
-		return when.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => (key === ChatContextKeys.enabled.key ? enabled : undefined) as T });
+	function evaluate(when: ContextKeyExpression | undefined, enabled: boolean): boolean | undefined {
+		return when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => (key === ChatContextKeys.enabled.key ? enabled : undefined) as T });
 	}
 
 	test('hides command palette and Help menu entries when AI features are disabled', () => {
@@ -390,18 +482,24 @@ suite('Issue Wizard Contributions', () => {
 			.find(item => isIMenuItem(item) && item.command.id === ISSUE_WIZARD_ADD_SCREENSHOT_COMMAND_ID);
 		const helpItem = MenuRegistry.getMenuItems(MenuId.MenubarHelpMenu)
 			.find(item => isIMenuItem(item) && item.command.id === ISSUE_WIZARD_COMMAND_ID);
-		assert.ok(commandPaletteItem && isIMenuItem(commandPaletteItem));
-		assert.ok(screenshotCommandPaletteItem && isIMenuItem(screenshotCommandPaletteItem));
-		assert.ok(helpItem && isIMenuItem(helpItem));
+		const commandWhen = commandPaletteItem && isIMenuItem(commandPaletteItem) ? commandPaletteItem.when : undefined;
+		const screenshotCommandWhen = screenshotCommandPaletteItem && isIMenuItem(screenshotCommandPaletteItem) ? screenshotCommandPaletteItem.when : undefined;
+		const helpWhen = helpItem && isIMenuItem(helpItem) ? helpItem.when : undefined;
 
 		assert.deepStrictEqual({
-			commandEnabled: evaluate(commandPaletteItem.when, true),
-			commandDisabled: evaluate(commandPaletteItem.when, false),
-			screenshotCommandEnabled: evaluate(screenshotCommandPaletteItem.when, true),
-			screenshotCommandDisabled: evaluate(screenshotCommandPaletteItem.when, false),
-			helpEnabled: evaluate(helpItem.when, true),
-			helpDisabled: evaluate(helpItem.when, false),
+			commandRegistered: !!commandPaletteItem,
+			screenshotCommandRegistered: !!screenshotCommandPaletteItem,
+			helpRegistered: !!helpItem,
+			commandEnabled: evaluate(commandWhen, true),
+			commandDisabled: evaluate(commandWhen, false),
+			screenshotCommandEnabled: evaluate(screenshotCommandWhen, true),
+			screenshotCommandDisabled: evaluate(screenshotCommandWhen, false),
+			helpEnabled: evaluate(helpWhen, true),
+			helpDisabled: evaluate(helpWhen, false),
 		}, {
+			commandRegistered: true,
+			screenshotCommandRegistered: true,
+			helpRegistered: true,
 			commandEnabled: true,
 			commandDisabled: false,
 			screenshotCommandEnabled: true,
@@ -428,13 +526,17 @@ suite('Issue Wizard Contributions', () => {
 			}
 		};
 		const contribution = disposables.add(new IssueWizardStatusbarContribution(statusbarService, entitlementService));
-		assert.strictEqual(activeEntryCount, 0);
+		const activeEntryCountWhenHidden = activeEntryCount;
 
 		sentiment = { completed: true, hidden: false };
 		onDidChangeSentiment.fire();
-		assert.deepStrictEqual({ activeEntryCount, command: entries[0].command }, { activeEntryCount: 1, command: ISSUE_WIZARD_COMMAND_ID });
+		const visibleState = { activeEntryCount, command: entries[0]?.command };
 
 		contribution.dispose();
-		assert.strictEqual(activeEntryCount, 0);
+		assert.deepStrictEqual({ activeEntryCountWhenHidden, visibleState, activeEntryCountAfterDispose: activeEntryCount }, {
+			activeEntryCountWhenHidden: 0,
+			visibleState: { activeEntryCount: 1, command: ISSUE_WIZARD_COMMAND_ID },
+			activeEntryCountAfterDispose: 0,
+		});
 	});
 });

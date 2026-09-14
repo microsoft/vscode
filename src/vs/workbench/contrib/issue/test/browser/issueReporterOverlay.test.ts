@@ -145,4 +145,44 @@ ${systemInfoSection}
 `,
 		});
 	});
+
+	test('keeps the recording control when Issue Reporter uses the shared capture bar', () => {
+		const container = document.createElement('div');
+		const overlay = store.add(new IssueReporterOverlay(
+			{
+				styles: {},
+				zoomLevel: 0,
+				enabledExtensions: [],
+				restrictedMode: false,
+				isInstallationPure: true,
+				isSessionsWindow: false,
+				githubAccessToken: '',
+				issueType: IssueType.Bug,
+				issueSource: IssueSource.VSCode,
+			},
+			true,
+			container,
+			new TestContextViewService(),
+		));
+		overlay.show();
+		let screenshotRequests = 0;
+		let recordingRequests = 0;
+		store.add(overlay.onDidRequestScreenshot(() => screenshotRequests++));
+		store.add(overlay.onDidRequestStartRecording(() => recordingRequests++));
+
+		const captureBar = document.querySelector<HTMLElement>('.issue-reporter-floating-bar');
+		captureBar?.querySelector<HTMLElement>('.wizard-segmented-main')?.click();
+		captureBar?.querySelector<HTMLElement>('.wizard-record-btn')?.click();
+		assert.deepStrictEqual({
+			screenshotLabel: captureBar?.querySelector<HTMLElement>('.wizard-segmented-main')?.textContent,
+			recordingLabel: captureBar?.querySelector<HTMLElement>('.wizard-record-btn')?.textContent,
+			screenshotRequests,
+			recordingRequests,
+		}, {
+			screenshotLabel: 'Screenshot',
+			recordingLabel: 'Record video',
+			screenshotRequests: 1,
+			recordingRequests: 1,
+		});
+	});
 });
