@@ -37,7 +37,7 @@ async function getExtensionHostPort(
 	dialogService: IDialogService,
 	productService: IProductService,
 ): Promise<number | undefined> {
-	const inspectPorts = await extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, false);
+	const inspectPorts = await extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, true);
 	if (inspectPorts.length === 0) {
 		const res = await dialogService.confirm({
 			message: nls.localize('restart1', "Debug Extensions"),
