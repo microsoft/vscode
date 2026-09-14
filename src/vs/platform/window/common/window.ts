@@ -436,6 +436,8 @@ export interface INativeRunActionInWindowRequest {
 	readonly args?: unknown[];
 }
 
+export const OPEN_AGENT_PROJECT_BOARD_COMMAND_ID = 'workbench.action.openAgentProjectBoard';
+
 export interface INativeRunKeybindingInWindowRequest {
 	readonly userSettingsLabel: string;
 }
