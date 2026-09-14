@@ -1288,11 +1288,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
 			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
 		const openItemLabel = options.openItemLabel;
-		let rowToOpen: HTMLElement | undefined;
-		for (let attempt = 0; attempt < 20 && !rowToOpen; attempt++) {
-			rowToOpen = openItemLabel
-				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+		const findRowToOpen = () => openItemLabel
+			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+		let rowToOpen = findRowToOpen();
+		for (let attempt = 0; options.pluginReadmeContent !== undefined && attempt < 20 && !rowToOpen; attempt++) {
+			rowToOpen = findRowToOpen();
 			if (!rowToOpen) {
 				await timeout(50);
 			}
