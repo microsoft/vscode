@@ -1313,12 +1313,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 
 			if (options.pluginReadmeContent !== undefined) {
-				await timeout(200);
-				const pluginDetailContainer = ctx.container.querySelector<HTMLElement>('.plugin-detail-editor-container');
-				if (pluginDetailContainer) {
-					pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+				let pluginDetailContainer: HTMLElement | null = null;
+				for (let attempt = 0; attempt < 20 && !pluginDetailContainer; attempt++) {
 					await timeout(50);
+					pluginDetailContainer = ctx.container.querySelector<HTMLElement>('.plugin-detail-editor-container');
 				}
+				if (!pluginDetailContainer) {
+					throw new Error('Plugin detail did not render');
+				}
+				pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+				await timeout(50);
 			}
 		}
 	}
