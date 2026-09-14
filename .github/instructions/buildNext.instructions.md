@@ -37,6 +37,7 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
   - `bundle` command: TS → bundled JS using `esbuild.build()`
 - **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
+- **[resources.ts](../../build/next/resources.ts)** - Curated production resource selection and copied JavaScript minification
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
 
@@ -129,6 +130,24 @@ Two placeholders that need injection:
 - Watch mode incremental copy now accepts **any** non-`.ts` file change (removed the `copyExtensions` allowlist).
 
 **Lesson:** Dev builds should copy everything (completeness matters); production builds should be selective (size matters). Don't mix the two strategies.
+
+### Production Copied JavaScript
+
+[resources.ts](../../build/next/resources.ts) owns the per-target resource patterns. `bundle --minify` minifies each selected JavaScript resource while copying it from `src/`; it does not traverse or re-minify bundled/generated outputs. Without `--minify`, copying remains byte-for-byte. Transpile, watch, and incremental development builds still use the separate unmodified copy path.
+
+The current JavaScript inventory is `vs/workbench/contrib/webview/browser/pre/service-worker.js` for desktop, server-web, and standalone web; server-only selects no JavaScript resources. The processing policy applies to JavaScript resources, not that filename, so additional scripts selected by the resource patterns receive the same handling.
+
+- Minification does not bundle, wrap, force an output module format, or tree-shake the scripts. A resolver bypasses the repository's `package.json` module-type inference, so classic globals/top-level `this` and CommonJS contexts are preserved; explicit ESM imports/exports remain ESM.
+- Legal comments and ordinary leading copyright/license headers are retained.
+- esbuild composes local external and inline input source maps, embeds original sources, and emits a sibling map with a local or `--source-map-base-url` reference (using URL path separators). Source-map read/parse diagnostics (including missing files, malformed JSON/mappings, and unsupported URLs) are promoted to build errors.
+- The standalone-web pipeline uploads all emitted core maps, including copied-script maps. Packaging still runs after resource processing and computes integrity checksums from final output bytes.
+- Generated NLS, tslib banners, native-private/dependency mangling, SVG optimization, and extension minification remain separate concerns.
+
+Focused regression tests (no workbench compilation required):
+
+```bash
+node --test build/next/test/resources.test.ts build/next/test/transpile.test.ts
+```
 
 ---
 
