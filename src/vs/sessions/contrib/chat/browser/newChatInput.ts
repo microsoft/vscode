@@ -794,7 +794,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService));
 		this._register({ dispose: () => sessionControlsContainer.remove() });
 
-		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
+		const secondaryControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-secondary-controls-container'));
+		const repoConfigContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
 		if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
 			this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
@@ -816,7 +817,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(installMobileChipLaneScroll(newChatBottomContainer, this.layoutService));
 
 		// Generic extension point for status indicators in the new-session view.
-		const statusContainer = dom.append(repoConfigContainer, dom.$('.new-chat-status-toolbar'));
+		const statusContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-status-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, statusContainer, MenuId.ChatInputStatus, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },

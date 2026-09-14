@@ -131,7 +131,7 @@ suite('Session Sync Changes', () => {
 			second: getVisibleEntries(second.session).length,
 			aiDisabled: getVisibleEntries(first.session, false).length,
 		}, {
-			first: [{ id: commandId, group: 'navigation', order: 4 }],
+			first: [{ id: commandId, group: 'navigation', order: Number.MAX_SAFE_INTEGER }],
 			second: 0,
 			aiDisabled: 0,
 		});
