@@ -1285,52 +1285,55 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 
 	if (options.openFirstItem) {
-		const openItemLabel = options.openItemLabel;
-		const findRowToOpen = () => {
+		if (options.pluginReadmeContent !== undefined) {
+			const plugin = installedPlugins.find(plugin => plugin.label === 'CircleCI');
+			if (!plugin) {
+				throw new Error('CircleCI fixture plugin not found');
+			}
+			await editor.showPluginDetail({
+				kind: AgentPluginItemKind.Installed,
+				name: plugin.label,
+				description: '/workspace/.copilot/plugins',
+				plugin,
+			});
+		} else {
 			const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
 				.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
-			return openItemLabel
+			const openItemLabel = options.openItemLabel;
+			const rowToOpen = openItemLabel
 				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
 				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
-		};
-		let rowToOpen = findRowToOpen();
-		for (let attempt = 0; options.pluginReadmeContent !== undefined && attempt < 20 && !rowToOpen; attempt++) {
-			await timeout(50);
-			rowToOpen = findRowToOpen();
-		}
-		if (options.pluginReadmeContent !== undefined && !rowToOpen) {
-			throw new Error('Plugin row did not render');
-		}
-		if (rowToOpen) {
-			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			if (rowToOpen) {
+				rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 
-			if (options.editorDisplayMode === 'raw') {
-				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
-				modeButton?.click();
+				if (options.editorDisplayMode === 'raw') {
+					const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
+					modeButton?.click();
+				}
 			}
+		}
 
-			if (options.pluginReadmeContent !== undefined) {
-				let pluginDetailContainer: HTMLElement | null = null;
-				let overflowingCodeBlock: HTMLElement | null = null;
-				for (let attempt = 0; attempt < 40 && (!pluginDetailContainer || !overflowingCodeBlock); attempt++) {
-					await timeout(50);
-					const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
-					const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
-					const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-					if (pluginDetailView?.style.display !== 'none' && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
-						pluginDetailContainer = detailContainer;
-						overflowingCodeBlock = codeBlock;
-					}
-				}
-				if (!pluginDetailContainer || !overflowingCodeBlock) {
-					throw new Error('Overflowing plugin detail did not render');
-				}
-				pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+		if (options.pluginReadmeContent !== undefined) {
+			let pluginDetailContainer: HTMLElement | null = null;
+			let overflowingCodeBlock: HTMLElement | null = null;
+			for (let attempt = 0; attempt < 40 && (!pluginDetailContainer || !overflowingCodeBlock); attempt++) {
 				await timeout(50);
+				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
+				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
+				if (pluginDetailView?.style.display !== 'none' && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+					pluginDetailContainer = detailContainer;
+					overflowingCodeBlock = codeBlock;
+				}
 			}
+			if (!pluginDetailContainer || !overflowingCodeBlock) {
+				throw new Error('Overflowing plugin detail did not render');
+			}
+			pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+			await timeout(50);
 		}
 	}
 }
