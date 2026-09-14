@@ -13,8 +13,6 @@ import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import { readISODate, writeISODate } from './lib/date.ts';
 import * as task from './lib/gulp/task.ts';
-import buildfile from './buildfile.ts';
-import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import packageJson from '../package.json' with { type: 'json' };
@@ -26,19 +24,17 @@ import { getProductionDependencies } from './lib/dependencies.ts';
 import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
-import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
 import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
-import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
-import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
+import { runEsbuildTranspile, runEsbuildBundle, getBootstrapEntryPointsForTarget } from './lib/esbuild.ts';
 
 
 const glob = promisify(globCallback);
@@ -58,149 +54,10 @@ function getLockedPackageVersion(packageName: string): string {
 	return version;
 }
 
-// Build
-const vscodeEntryPoints = [
-	buildfile.workerEditor,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.workerProfileAnalysis,
-	buildfile.workerOutputLinks,
-	buildfile.workerBackgroundTokenization,
-	buildfile.workbenchDesktop,
-	buildfile.code
-].flat();
-
-const vscodeResourceIncludes = [
-
-	// NLS
-	'out-build/nls.messages.json',
-	'out-build/nls.keys.json',
-
-	// Workbench
-	'out-build/vs/code/electron-browser/workbench/workbench.html',
-	'out-build/vs/sessions/electron-browser/sessions.html',
-
-	// Electron Preload
-	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-browser/preload-aux.js',
-	'out-build/vs/platform/browserView/electron-browser/preload-browserView.js',
-
-	// Node Scripts
-	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
-
-	// Touchbar
-	'out-build/vs/workbench/browser/parts/editor/media/*.png',
-	'out-build/vs/workbench/contrib/debug/browser/media/*.png',
-
-	// External Terminal
-	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-
-	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
-
-	// Accessibility Signals
-	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'out-build/vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
-
-	// Welcome
-	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
-	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-
-	// Chat Pet
-	'out-build/vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
-
-	// Sessions
-	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
-	'out-build/vs/sessions/contrib/welcome/browser/media/*.svg',
-	'out-build/vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg',
-	'out-build/vs/sessions/prompts/*.prompt.md',
-	'out-build/vs/sessions/skills/**/SKILL.md',
-
-	// Extensions
-	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
-	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
-
-	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
-
-	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-
-	// Tree Sitter highlights
-	'out-build/vs/editor/common/languages/highlights/*.scm',
-
-	// Tree Sitter injection queries
-	'out-build/vs/editor/common/languages/injections/*.scm'
-];
-
-const vscodeResources = [
-
-	// Includes
-	...vscodeResourceIncludes,
-
-	// Excludes
-	'!out-build/vs/code/browser/**',
-	'!out-build/vs/editor/standalone/**',
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
-	'!**/test/**'
-];
-
-const bootstrapEntryPoints = [
-	'out-build/main.js',
-	'out-build/cli.js',
-	'out-build/bootstrap-fork.js'
-];
-
-const bundleVSCodeTask = task.define('bundle-vscode', task.series(
-	util.rimraf('out-vscode'),
-	// Optimize: bundles source files automatically based on
-	// import statements based on the passed in entry points.
-	// In addition, concat window related bootstrap files into
-	// a single file.
-	optimize.bundleTask(
-		{
-			out: 'out-vscode',
-			esm: {
-				src: 'out-build',
-				entryPoints: [
-					...vscodeEntryPoints,
-					...bootstrapEntryPoints
-				],
-				resources: vscodeResources,
-				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench' || entryPoint === 'vs/sessions/electron-browser/sessions'
-			}
-		}
-	)
-));
-task.task(bundleVSCodeTask);
-
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
-const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	bundleVSCodeTask,
-	util.rimraf('out-vscode-min'),
-	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
-));
-task.task(minifyVSCodeTask);
-
-task.task(task.define('core-ci-old', task.series(
-	task.task('compile-build-with-mangling') as task.Task,
-	task.parallel(
-		task.task('minify-vscode') as task.Task,
-		task.task('minify-vscode-reh') as task.Task,
-		task.task('minify-vscode-reh-web') as task.Task,
-	)
-)));
 
 task.task(task.define('core-ci', task.series(
 	copyCodiconsTask,
@@ -597,7 +454,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		result = inlineMeta(result, {
-			targetPaths: bootstrapEntryPoints,
+			targetPaths: getBootstrapEntryPointsForTarget('desktop').map(entry => `${entry}.js`),
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});
@@ -733,39 +590,26 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 		task.task(vscodeTaskCI);
 
-		let vscodeTask: task.Task;
-		if (useEsbuildTranspile) {
-			const esbuildBundleTask = task.define(
-				`esbuild-bundle${dashed(platform)}${dashed(arch)}${dashed(minified)}`,
-				() => runEsbuildBundle(
-					sourceFolderName,
-					!!minified,
-					true,
-					'desktop',
-					minified && useCdnSourceMapsForPackagingTasks ? `${sourceMappingURLBase}/core` : undefined
-				)
-			);
-			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				copyCodiconsTask,
-				cleanExtensionsBuildTask,
-				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
-				compileExtensionMediaBuildTask,
-				writeISODate('out-build'),
-				esbuildBundleTask,
-				vscodeTaskCI
-			));
-		} else {
-			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
-				cleanExtensionsBuildTask,
-				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
-				compileExtensionMediaBuildTask,
-				minified ? minifyVSCodeTask : bundleVSCodeTask,
-				vscodeTaskCI
-			));
-		}
+		const esbuildBundleTask = task.define(
+			`esbuild-bundle${dashed(platform)}${dashed(arch)}${dashed(minified)}`,
+			() => runEsbuildBundle(
+				sourceFolderName,
+				!!minified,
+				true,
+				'desktop',
+				minified && useCdnSourceMapsForPackagingTasks ? `${sourceMappingURLBase}/core` : undefined
+			)
+		);
+		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+			copyCodiconsTask,
+			cleanExtensionsBuildTask,
+			compileNonNativeExtensionsBuildTask,
+			compileCopilotExtensionBuildTask,
+			compileExtensionMediaBuildTask,
+			writeISODate('out-build'),
+			esbuildBundleTask,
+			vscodeTaskCI
+		));
 		task.task(vscodeTask);
 
 		return vscodeTask;

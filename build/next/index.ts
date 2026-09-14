@@ -15,9 +15,9 @@ import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult 
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
+import { getBootstrapEntryPointsForTarget, type BuildTarget } from '../lib/esbuild.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
-import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
@@ -58,15 +58,12 @@ const options = {
 	sourceMapBaseUrl: getArgValue('--source-map-base-url'),
 };
 
-// Build targets
-type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
-
 const SRC_DIR = 'src';
 const OUT_DIR = 'out';
 const OUT_VSCODE_DIR = 'out-vscode';
 
 // ============================================================================
-// Entry Points (from build/buildfile.ts)
+// Entry Points
 // ============================================================================
 
 // Extension host bundles are excluded from private field mangling because they
@@ -138,19 +135,6 @@ const serverEntryPoints = [
 	'vs/platform/agentHost/node/diffWorkerMain',
 ];
 
-// Bootstrap files per target
-const bootstrapEntryPointsDesktop = [
-	'main',
-	'cli',
-	'bootstrap-fork',
-];
-
-const bootstrapEntryPointsServer = [
-	'server-main',
-	'server-cli',
-	'bootstrap-fork',
-];
-
 /**
  * Get entry points for a build target.
  */
@@ -181,23 +165,6 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
-		default:
-			throw new Error(`Unknown target: ${target}`);
-	}
-}
-
-/**
- * Get bootstrap entry points for a build target.
- */
-function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] {
-	switch (target) {
-		case 'desktop':
-			return bootstrapEntryPointsDesktop;
-		case 'server':
-		case 'server-web':
-			return bootstrapEntryPointsServer;
-		case 'web':
-			return []; // Web has no bootstrap files (served by external server)
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -1026,14 +993,6 @@ ${tslib}`,
 // ============================================================================
 
 async function watch(): Promise<void> {
-	if (!useEsbuildTranspile) {
-		console.log('Starting transpilation...');
-		console.log('Finished transpilation with 0 errors after 0 ms');
-		console.log('[watch] esbuild transpile disabled (useEsbuildTranspile=false). Keeping process alive as no-op.');
-		await new Promise(() => { }); // keep alive
-		return;
-	}
-
 	console.log('Starting transpilation...');
 
 	const outDir = OUT_DIR;

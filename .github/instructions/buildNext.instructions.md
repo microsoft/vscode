@@ -51,13 +51,21 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 - `npm run build-fast -- --force` forces all lanes to rebuild and refreshes state.
 - State is invalidated before outputs change and published only after every selected lane succeeds. If inputs change during the build, the pre-build snapshot is saved so late changes are rebuilt on the next run.
 
-### Integration with Old Build
+### Gulp Integration and Retained Build Tooling
 
 In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` task wires up these helpers (defined in [build/lib/esbuild.ts](../../build/lib/esbuild.ts)):
 - `runEsbuildTranspile()` → transpile command
 - `runEsbuildBundle()` → bundle command
 
-Old gulp-based bundling renamed to `core-ci-old`.
+Desktop, server, server-web, and standalone web packaging use the same `runEsbuildBundle()` helper. Minified bundles enable `--minify --mangle-privates --nls`. Local server and web builds generate API proposal names and the shared build date explicitly instead of compiling an intermediate production tree.
+
+The canonical production entry points, resource lists, and product/built-in-extension injection live in [build/next/index.ts](../../build/next/index.ts). Bootstrap entry points are shared with packaging through [build/lib/esbuild.ts](../../build/lib/esbuild.ts), so package metadata is injected into the same files the bundler emits. Gulp still orchestrates compilation, extension builds, packaging, and translations; there is no separate legacy production bundle/minify chain.
+
+Do not remove shared tooling based on its age:
+- `editor-distro` still uses [createCompile()](../../build/lib/compilation.ts), the TypeScript stream compiler, and [nls.ts](../../build/lib/nls.ts) to emit Monaco ESM with English messages preserved.
+- Development and extension transpilation still use the stream transpilers; declaration generation and editor extraction still use the TypeScript API.
+- [i18n.ts](../../build/lib/i18n.ts) serves Monaco, translation export/import, and localization packages. `vscode-translations-export` obtains core metadata from `core-ci`.
+- `source-map` is used by the current NLS/private-field transforms as well as the stream compiler. `gulp-sourcemaps` remains in the Monaco/development/extension pipelines; its type augmentation lives in [gulp-sourcemaps.d.ts](../../build/lib/typings/gulp-sourcemaps.d.ts).
 
 ### Production SVG Optimization
 
@@ -115,7 +123,7 @@ Two placeholders that need injection:
 
 ### 4. Server-web Target Specifics
 
-- Removes `webEndpointUrlTemplate` from product config (see `tweakProductForServerWeb` in old build)
+- Removes `webEndpointUrlTemplate` from product config in `fileContentMapperPlugin()`
 - Uses `.build/extensions` for builtin extensions (not `.build/web/extensions`)
 - Bundles the browser shell `vs/code/browser/workbench/workbench`, which statically imports the web workbench. Do not also emit `vs/workbench/workbench.web.main.internal` as a separate server-web entry; standalone `web` still needs that entry.
 
@@ -127,7 +135,7 @@ Two placeholders that need injection:
 
 **Fix:** Removed `...keyboardMapEntryPoints` from the `desktop` case in `getEntryPointsForTarget()`. Keep for `server-web` and `web`.
 
-**Lesson:** Always verify new build entry points against the old build's per-target definitions in `buildfile.ts` and the respective gulpfiles.
+**Lesson:** Keep target-specific entry points in `getEntryPointsForTarget()` in [build/next/index.ts](../../build/next/index.ts). Desktop keyboard layouts are bundled dependencies, not additional entry points.
 
 ### 6. NLS Output File Parity
 
@@ -174,17 +182,19 @@ npm run gulp vscode-reh-web-darwin-arm64-min
 
 ---
 
-## Open Items / Future Work
+## Production Build Responsibilities
 
-1. **`BUILD_INSERT_PACKAGE_CONFIGURATION`** - Server bootstrap files ([bootstrap-meta.ts](../../src/bootstrap-meta.ts)) have this marker for package.json injection. Currently handled by [inlineMeta.ts](../lib/inlineMeta.ts) in the old build's packaging step.
+1. **`BUILD_INSERT_PACKAGE_CONFIGURATION`** - Server bootstrap files ([bootstrap-meta.ts](../../src/bootstrap-meta.ts)) have this marker for package.json injection. It is handled by [inlineMeta.ts](../../build/lib/inlineMeta.ts) during packaging.
 
-2. **Mangling** - The new build doesn't do TypeScript-based mangling yet. Old `core-ci` with mangling is now `core-ci-old`.
+2. **Mangling** - Production bundles use `--mangle-privates` and [private-to-property.ts](../../build/next/private-to-property.ts), not a TypeScript-to-TypeScript mangling pass.
 
-3. **Entry point duplication** - Entry points are duplicated between [buildfile.ts](../buildfile.ts) and [index.ts](index.ts). Consider consolidating.
+3. **Entry points and resources** - Per-target definitions are maintained in [index.ts](../../build/next/index.ts), not duplicated in packaging gulpfiles.
 
 ---
 
-## Build Comparison: OLD (gulp-tsb) vs NEW (esbuild) — Desktop Build
+## Historical Build Comparison: OLD (gulp-tsb) vs NEW (esbuild) — Desktop Build
+
+The following measurements and action items describe the initial migration, not the current production build.
 
 ### Summary
 
@@ -359,12 +369,12 @@ The default `VS Code - Build` task now runs three parallel watchers:
 | Task | What it does | Script |
 |------|-------------|--------|
 | **Core - Transpile** | esbuild single-file TS→JS (fast, no type checking) | `watch-client-transpiled` → `node build/next/index.ts transpile --watch` |
-| **Core - Typecheck** | tsc `noEmit` watch (type errors only, no output) | `watch-clientd` → `gulp watch-client` (uses `watchTypeCheckTask`) |
+| **Core - Typecheck** | tsgo `noEmit` watch (type errors only, no output) | `watch-clientd` → `gulp watch-client` (uses `watchTypeCheckTask`) |
 | **Ext - Build** | Extension compilation (unchanged) | `watch-extensionsd` |
 
 ### Key Changes
 
-- **`build/lib/compilation.ts`**: `ICompileTaskOptions` gained `noEmit?: boolean`. `watchTypeCheckTask()` runs the tsc type-checker in watch mode with `noEmit: true`.
+- **`build/lib/compilation.ts`**: `watchTypeCheckTask()` runs tsgo with `noEmit: true` in response to source changes, alongside Monaco declaration generation.
 - **`build/gulpfile.ts`**: `watchClientTask` is now `task.parallel(compilation.watchTypeCheckTask('src'), ...)` — no `rimraf('out')` (the transpiler owns that), no JS emit.
 - **`build/next/index.ts`**: Watch mode emits `Starting transpilation...` / `Finished transpilation with N errors after X ms` for VS Code problem matcher.
 - **`.vscode/tasks.json`**: Old "Core - Build" split into "Core - Transpile" + "Core - Typecheck" with separate problem matchers (owners: `esbuild` vs `typescript`).
