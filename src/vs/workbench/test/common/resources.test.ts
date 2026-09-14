@@ -11,6 +11,8 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { ResourceGlobMatcher } from '../../common/resources.js';
 import { TestContextService } from './workbenchTestServices.js';
+import { testWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
+import { isWindows } from '../../../base/common/platform.js';
 
 suite('ResourceGlobMatcher', () => {
 
@@ -74,6 +76,20 @@ suite('ResourceGlobMatcher', () => {
 
 		assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);
 		assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
+	});
+
+	test("relative path prefix ./ is normalized (issue #304130)", async () => {
+		// Regression test: patterns like './src/**' in files.readonlyInclude must behave
+		// the same as 'src/**'. The ResourceGlobMatcher used to leave the leading './' in
+		// place, so the glob never matched the workspace-relative resource path.
+		const wsRoot = isWindows ? 'C:\\testWorkspace' : '/testWorkspace';
+		const workspaceCtx = new TestContextService(testWorkspace(URI.file(wsRoot)));
+		await configurationService.setUserConfiguration(SETTING, { ["./src/**"]: true });
+		// eslint-disable-next-line local/code-no-any-casts
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
+		const resource = URI.file(wsRoot + (isWindows ? '\\src\\file.ts' : '/src/file.ts'));
+		const matcher = disposables.add(new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), workspaceCtx, configurationService));
+		assert.equal(matcher.matches(resource), true, '"./src/**" should match a resource under src/ within the workspace');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
