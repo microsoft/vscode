@@ -161,10 +161,15 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 			}
 			const parsedPrompt = await this.promptsService.parseNew(issueWizardSkill.uri, CancellationToken.None);
 
-			chatWidget.attachmentModel.addContext(toPromptFileVariableEntry(parsedPrompt.uri, PromptFileVariableKind.PromptFile, undefined, true));
+			const skillAttachment = toPromptFileVariableEntry(parsedPrompt.uri, PromptFileVariableKind.PromptFile, undefined, true);
+			chatWidget.attachmentModel.addContext(skillAttachment);
 
 			chatWidget.focusInput();
-			await chatWidget.acceptInput(this.createBootstrapMessage(symptom?.trim()));
+			try {
+				await chatWidget.acceptInput(this.createBootstrapMessage(symptom?.trim()));
+			} finally {
+				chatWidget.attachmentModel.delete(skillAttachment.id);
+			}
 			this.showCaptureBar(chatWidget);
 		} catch (error) {
 			this.notificationService.error(localize('issueWizardStartFailed', "Issue Wizard failed to start: {0}", toErrorMessage(error)));

@@ -45,8 +45,9 @@ suite('Issue Wizard Launch Command', () => {
 	let notifications: { warn: string[]; error: string[] };
 	let intakeResult: readonly IChatRequestVariableEntry[] | undefined;
 	let screenshotCollectionCount: number;
-	let acceptedQueries: string[];
+	let acceptedRequests: { query: string; attachmentIds: string[] }[];
 	let attachedContext: IChatRequestVariableEntry[];
+	let activeAttachments: IChatRequestVariableEntry[];
 	let attachedSessionResources: URI[];
 	let openedSessionResources: URI[];
 	let openedWidgets: IChatWidget[];
@@ -59,6 +60,7 @@ suite('Issue Wizard Launch Command', () => {
 
 	const workspaceFolderUri = URI.file('/workspace');
 	const defaultSkillUri = URI.file('/application/vs/workbench/contrib/chat/common/promptSyntax/builtinSkills/issue-wizard/SKILL.md');
+	const defaultSkillAttachmentId = `vscode.prompt.file__${defaultSkillUri.toString()}`;
 	const agentHostSessionType = 'agent-host-codex';
 
 	function createWorkspaceFolder(uri: URI, name: string, index: number): IWorkspaceFolder {
@@ -82,8 +84,9 @@ suite('Issue Wizard Launch Command', () => {
 		notifications = { warn: [], error: [] };
 		intakeResult = undefined;
 		screenshotCollectionCount = 0;
-		acceptedQueries = [];
+		acceptedRequests = [];
 		attachedContext = [];
+		activeAttachments = [];
 		attachedSessionResources = [];
 		openedSessionResources = [];
 		openedWidgets = [];
@@ -174,12 +177,28 @@ suite('Issue Wizard Launch Command', () => {
 					viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
 					onDidFocus: Event.None,
 					attachmentModel: upcastPartial<ChatAttachmentModel>({
-						addContext: (entry: IChatRequestVariableEntry) => {
-							attachedContext.push(entry);
-							attachedSessionResources.push(sessionResource);
-						}
+						get attachments() { return activeAttachments; },
+						addContext: (...entries: IChatRequestVariableEntry[]) => {
+							for (const entry of entries) {
+								attachedContext.push(entry);
+								attachedSessionResources.push(sessionResource);
+								if (!activeAttachments.some(attachment => attachment.id === entry.id)) {
+									activeAttachments.push(entry);
+								}
+							}
+						},
+						delete: (...ids: string[]) => {
+							activeAttachments = activeAttachments.filter(attachment => !ids.includes(attachment.id));
+						},
 					}),
-					acceptInput: async query => { if (query) { acceptedQueries.push(query); } },
+					acceptInput: async query => {
+						if (query) {
+							acceptedRequests.push({
+								query,
+								attachmentIds: activeAttachments.map(attachment => attachment.id),
+							});
+						}
+					},
 					focusInput: () => focusedSessionResources.push(sessionResource),
 				});
 				openedWidgets.push(widget);
@@ -214,7 +233,7 @@ suite('Issue Wizard Launch Command', () => {
 			selectedFolders: openedSessionOptions.map(options => options.workspaceFolder.toString()),
 			displayNames: openedSessionOptions.map(options => options.displayName),
 			focusedSessions: focusedSessionResources.map(resource => resource.toString()),
-			queries: acceptedQueries,
+			queries: acceptedRequests.map(request => request.query),
 			attachmentKinds: attachedContext.map(context => context.kind),
 			notifications,
 		}, {
@@ -282,7 +301,7 @@ suite('Issue Wizard Launch Command', () => {
 	test('preserves a supplied symptom in the bootstrap message', async () => {
 		setupServices();
 		await runCommand({ symptom: 'Saving stalls for 10 seconds' });
-		assert.deepStrictEqual({ screenshotCollectionCount, query: acceptedQueries[0] }, {
+		assert.deepStrictEqual({ screenshotCollectionCount, query: acceptedRequests[0].query }, {
 			screenshotCollectionCount: 0,
 			query: 'Use the bundled Issue Wizard skill.\nHelp me troubleshoot a VS Code issue.\nSymptom: Saving stalls for 10 seconds',
 		});
@@ -293,11 +312,24 @@ suite('Issue Wizard Launch Command', () => {
 		await runCommand();
 
 		assert.deepStrictEqual({
-			usesShadowableSlashCommand: acceptedQueries[0].startsWith('/issue-wizard'),
+			usesShadowableSlashCommand: acceptedRequests[0].query.startsWith('/issue-wizard'),
 			attachmentIds: attachedContext.map(context => context.id),
 		}, {
 			usesShadowableSlashCommand: false,
-			attachmentIds: [`vscode.prompt.file__${defaultSkillUri.toString()}`],
+			attachmentIds: [defaultSkillAttachmentId],
+		});
+	});
+
+	test('consumes the bundled skill only with the bootstrap request', async () => {
+		setupServices();
+		await runCommand();
+
+		assert.deepStrictEqual({
+			bootstrapAttachmentIds: acceptedRequests[0].attachmentIds,
+			remainingAttachmentIds: activeAttachments.map(attachment => attachment.id),
+		}, {
+			bootstrapAttachmentIds: [defaultSkillAttachmentId],
+			remainingAttachmentIds: [],
 		});
 	});
 
@@ -311,13 +343,17 @@ suite('Issue Wizard Launch Command', () => {
 
 		assert.deepStrictEqual({
 			screenshotCollectionCount,
-			queries: acceptedQueries,
+			queries: acceptedRequests.map(request => request.query),
+			bootstrapAttachmentIds: acceptedRequests[0].attachmentIds,
 			attachmentIds: attachedContext.map(context => context.id),
+			composerAttachmentIds: activeAttachments.map(context => context.id),
 			screenshotSession: attachedSessionResources.at(-1)?.toString(),
 		}, {
 			screenshotCollectionCount: 1,
 			queries: ['Use the bundled Issue Wizard skill.\nHelp me troubleshoot a VS Code issue.'],
-			attachmentIds: [`vscode.prompt.file__${defaultSkillUri.toString()}`, 'img-1'],
+			bootstrapAttachmentIds: [defaultSkillAttachmentId],
+			attachmentIds: [defaultSkillAttachmentId, 'img-1'],
+			composerAttachmentIds: ['img-1'],
 			screenshotSession: openedSessionResources[0].toString(),
 		});
 	});
@@ -326,9 +362,9 @@ suite('Issue Wizard Launch Command', () => {
 		setupServices();
 		await runCommand();
 		await runAddScreenshotCommand();
-		assert.deepStrictEqual({ opened: openedSessionResources.length, acceptedQueries, attachmentKinds: attachedContext.map(context => context.kind), notifications }, {
+		assert.deepStrictEqual({ opened: openedSessionResources.length, acceptedRequests, attachmentKinds: attachedContext.map(context => context.kind), notifications }, {
 			opened: 1,
-			acceptedQueries: ['Use the bundled Issue Wizard skill.\nHelp me troubleshoot a VS Code issue.'],
+			acceptedRequests: [{ query: 'Use the bundled Issue Wizard skill.\nHelp me troubleshoot a VS Code issue.', attachmentIds: [defaultSkillAttachmentId] }],
 			attachmentKinds: ['promptFile'],
 			notifications: { warn: [], error: [] },
 		});
@@ -346,9 +382,9 @@ suite('Issue Wizard Launch Command', () => {
 	test('reports unavailable state when Agent Host is disabled', async () => {
 		setupServices({ enabled: false });
 		await runCommand();
-		assert.deepStrictEqual({ openedSessionResources, acceptedQueries, notifications }, {
+		assert.deepStrictEqual({ openedSessionResources, acceptedRequests, notifications }, {
 			openedSessionResources: [],
-			acceptedQueries: [],
+			acceptedRequests: [],
 			notifications: { warn: ['Issue Wizard is unavailable because Agent Host is disabled in this window.'], error: [] },
 		});
 	});
@@ -356,9 +392,9 @@ suite('Issue Wizard Launch Command', () => {
 	test('does not launch when AI features are hidden', async () => {
 		setupServices({ aiHidden: true });
 		await runCommand();
-		assert.deepStrictEqual({ openedSessionResources, acceptedQueries, notifications }, {
+		assert.deepStrictEqual({ openedSessionResources, acceptedRequests, notifications }, {
 			openedSessionResources: [],
-			acceptedQueries: [],
+			acceptedRequests: [],
 			notifications: { warn: ['Issue Wizard is unavailable because AI features are disabled in this window.'], error: [] },
 		});
 	});
@@ -366,9 +402,9 @@ suite('Issue Wizard Launch Command', () => {
 	test('reports unavailable state when no Agent Host session type is registered', async () => {
 		setupServices({ agentHostSessionTypes: [] });
 		await runCommand();
-		assert.deepStrictEqual({ openedSessionResources, acceptedQueries, notifications }, {
+		assert.deepStrictEqual({ openedSessionResources, acceptedRequests, notifications }, {
 			openedSessionResources: [],
-			acceptedQueries: [],
+			acceptedRequests: [],
 			notifications: { warn: [], error: ['Issue Wizard failed to start: No Agent Host session provider is available.'] },
 		});
 	});
@@ -376,8 +412,8 @@ suite('Issue Wizard Launch Command', () => {
 	test('reports a user-visible failure when the bundled skill cannot be resolved', async () => {
 		setupServices({ builtinSkillUri: undefined });
 		await runCommand();
-		assert.deepStrictEqual({ acceptedQueries, attachedContext, notifications }, {
-			acceptedQueries: [],
+		assert.deepStrictEqual({ acceptedRequests, attachedContext, notifications }, {
+			acceptedRequests: [],
 			attachedContext: [],
 			notifications: { warn: [], error: ['Issue Wizard failed to start: The bundled Issue Wizard skill could not be loaded.'] },
 		});
@@ -386,9 +422,9 @@ suite('Issue Wizard Launch Command', () => {
 	test('reports a user-visible failure when the exact session widget cannot be opened', async () => {
 		setupServices({ openSessionReturns: false });
 		await runCommand();
-		assert.deepStrictEqual({ opened: openedSessionResources.length, acceptedQueries, notifications }, {
+		assert.deepStrictEqual({ opened: openedSessionResources.length, acceptedRequests, notifications }, {
 			opened: 1,
-			acceptedQueries: [],
+			acceptedRequests: [],
 			notifications: { warn: [], error: ['Issue Wizard failed to start: Chat session was not created.'] },
 		});
 	});
