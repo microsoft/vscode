@@ -4718,6 +4718,10 @@ function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: IS
 }
 
 function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {
+	if (comparison.verdict) {
+		return localize('comparisonGroup.reviewReady', "Comparison · Review ready");
+	}
+	const judge = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
 	const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 	const statuses = attempts.map(participant => {
 		if (participant.launchError) {
@@ -4741,6 +4745,26 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 		return working === 1
 			? localize('comparisonGroup.oneAttemptWorking', "Comparison · 1 attempt working")
 			: localize('comparisonGroup.attemptsWorking', "Comparison · {0} attempts working", working);
+	}
+	if (judge?.launchError) {
+		return localize('comparisonGroup.reviewFailed', "Comparison · Review failed");
+	}
+	if (judge?.sessionResource) {
+		const judgeStatus = reader
+			? sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.read(reader)
+			: sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.get();
+		if (judgeStatus === SessionStatus.NeedsInput) {
+			return localize('comparisonGroup.judgeNeedsInput', "Comparison · Judge needs input");
+		}
+		if (judgeStatus === SessionStatus.Untitled || judgeStatus === SessionStatus.InProgress) {
+			return localize('comparisonGroup.reviewing', "Comparison · Reviewing attempts");
+		}
+		if (judgeStatus === SessionStatus.Error) {
+			return localize('comparisonGroup.reviewFailed', "Comparison · Review failed");
+		}
+		if (judgeStatus === SessionStatus.Completed) {
+			return localize('comparisonGroup.reviewIncomplete', "Comparison · Review incomplete");
+		}
 	}
 	if (finished === attempts.length) {
 		return localize('comparisonGroup.attemptsFinished', "Comparison · {0} attempts finished", attempts.length);

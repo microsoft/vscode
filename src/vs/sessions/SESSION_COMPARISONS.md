@@ -36,8 +36,8 @@ The comparison service creates attempts directly and adds each launched particip
 1. The prompt, attachments, workspace, branch, permission level, and Judge harness/model are frozen at launch. The prompt and attachments are shared across attempts, and each attempt independently selects a model advertised by its harness provider.
 2. Every harness must support worktree configuration. Model identifiers remain provider-local and are never matched across providers by identifier or display name.
 3. Attempts launch concurrently. One launch failure is recorded without deleting successful attempts.
-4. The Judge calls `readAttemptComparison` once to obtain the original task, successful participants, worktree locations, changed files, change summaries, and exact provider-owned transcript targets. It calls the existing `get_session_context` tool with those exact targets to inspect validation claims or other focused transcript evidence, then calls `completeAttemptComparison` exactly once. It does not discover sessions, guess references, or create sessions.
-5. Selecting an attempt opens its session and records a preference; it does not apply changes to the user's working tree.
+4. The Judge calls `readAttemptComparison` once to obtain the original task, successful participants, worktree locations, changed files, change summaries, and exact provider-owned transcript targets. It reviews every attempt's diff, calls the existing `get_session_context` tool with those exact targets to inspect validation claims or other focused transcript evidence, and runs missing targeted validation when needed. It records whether each validation result came from the attempt report, a Judge run, or unavailable evidence, then calls `completeAttemptComparison` exactly once. It does not discover sessions, guess references, create sessions, or modify attempts.
+5. The completed verdict makes the comparison ready for review. Reviewing an attempt records a preference, opens its session, and opens its Changes editor; it does not apply changes to the user's working tree.
 6. Judge recommendations are advisory. Synthesis starts only through an explicit user action and creates a new isolated grouped participant. Original attempts remain until an explicit, confirmed discard.
 7. Cleanup reports partial deletion failures and retains records for attempts that could not be deleted.
 
@@ -78,7 +78,7 @@ flowchart TD
 	Judge -.->|2. get_session_context exact target<br/>only when more transcript evidence is needed| Context[Existing Agent Host transcript reader]
 	Context -.-> Judge
 	Judge -->|3. completeAttemptComparison exactly once| Verdict[Persisted structured verdict]
-	Verdict --> Editor[Comparison editor<br/>recommendation + evidence + Use Attempt]
+	Verdict --> Editor[Comparison editor<br/>recommendation + evidence<br/>Review Recommended Attempt]
 	Editor -->|Synthesize explicitly| Synthesis
 	Editor -->|Discard explicitly| Cleanup[Delete original attempt sessions/worktrees<br/>retain partial failures]
 ```

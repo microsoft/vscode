@@ -2003,7 +2003,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison() {
+		function renderComparison(verdict?: ISessionComparison['verdict']) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress });
@@ -2014,6 +2014,7 @@ suite('Sessions - SessionsList', () => {
 				createdAt: 1,
 				workspace: URI.parse('file:///workspace'),
 				prompt: 'Improve the picker',
+				verdict,
 				participants: [
 					{
 						id: 'participant-1',
@@ -2088,7 +2089,7 @@ suite('Sessions - SessionsList', () => {
 				summary: parent.querySelector('.session-group-description')?.textContent,
 				statuses: attempts.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent),
 			}, {
-				summary: 'Comparison · 2 attempts finished',
+				summary: 'Comparison · Reviewing attempts',
 				statuses: [undefined, undefined],
 			});
 		});
@@ -2121,6 +2122,24 @@ suite('Sessions - SessionsList', () => {
 				commands: [],
 				expanded: expandedBefore === 'true' ? 'false' : 'true',
 				summary: 'Comparison · 2 attempts working',
+			});
+		});
+
+		test('marks a judged comparison as ready to review', () => {
+			const { container } = renderComparison({
+				recommendedParticipantId: 'participant-1',
+				explanation: 'Attempt 1 is the strongest.',
+				conflicts: [],
+				attempts: [],
+			});
+			const parent = container.querySelector<HTMLElement>('.session-comparison-group');
+
+			assert.deepStrictEqual({
+				summary: parent?.querySelector('.session-group-description')?.textContent,
+				ariaLabel: parent?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			}, {
+				summary: 'Comparison · Review ready',
+				ariaLabel: 'Improve the picker, Comparison · Review ready',
 			});
 		});
 	});

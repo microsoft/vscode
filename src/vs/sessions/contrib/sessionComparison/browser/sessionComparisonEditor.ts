@@ -5,6 +5,7 @@
 
 import './media/sessionComparisonEditor.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -29,10 +30,11 @@ import { IAccessibleViewService } from '../../../../platform/accessibility/brows
 import { SessionComparisonEditorFocusedContext } from '../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, getSessionComparisonFileKey, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonFileKey, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatUsageSummary } from '../../../../workbench/contrib/chat/common/chatUsage.js';
+import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { SessionComparisonEditorInput } from './sessionComparisonEditorInput.js';
 
 export class SessionComparisonEditor extends EditorPane {
@@ -42,6 +44,7 @@ export class SessionComparisonEditor extends EditorPane {
 	private readonly _inputStore = this._register(new MutableDisposable<IDisposable>());
 	private readonly _contentStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _discardPrompted = new Set<string>();
+	private readonly _announcedVerdicts = new Set<string>();
 
 	constructor(
 		group: IEditorGroup,
@@ -51,6 +54,7 @@ export class SessionComparisonEditor extends EditorPane {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -92,6 +96,10 @@ export class SessionComparisonEditor extends EditorPane {
 					}
 				}
 			}
+			if (comparison?.verdict && !this._announcedVerdicts.has(comparison.id)) {
+				this._announcedVerdicts.add(comparison.id);
+				status(localize('sessionComparisonEditor.reviewReady', "Comparison review ready."));
+			}
 			this._render(input.comparisonId);
 		});
 	}
@@ -132,6 +140,7 @@ export class SessionComparisonEditor extends EditorPane {
 			localize('sessionComparisonEditor.subtitle', "Independent attempts run from the same task and remain in separate worktrees.");
 
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		this._renderRecommendation(content, comparison, attempts);
 		const startState = getStartingState(attempts, this.sessionsManagementService);
 		const startStateElement = dom.append(content, dom.$(`p.session-comparison-start-state ${startState === 'different' ? 'session-comparison-error' : ''}`));
 		startStateElement.textContent = startingStateLabel(startState);
@@ -144,10 +153,71 @@ export class SessionComparisonEditor extends EditorPane {
 		this._renderSynthesis(content, comparison);
 	}
 
+	private _renderRecommendation(container: HTMLElement, comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[]): void {
+		if (!comparison.verdict) {
+			return;
+		}
+		const recommended = attempts.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
+		if (!recommended) {
+			return;
+		}
+		const index = attempts.indexOf(recommended);
+		const verdict = comparison.verdict.attempts.find(attempt => attempt.participantId === recommended.id);
+		const panel = dom.append(container, dom.$('section.session-comparison-recommendation-panel'));
+		dom.append(panel, dom.$('span.session-comparison-recommendation-eyebrow')).textContent =
+			localize('sessionComparisonEditor.judgeRecommendation', "Judge recommendation");
+		dom.append(panel, dom.$('h2.session-comparison-recommendation-title')).textContent =
+			getSessionComparisonAttemptLabel(recommended, index);
+		dom.append(panel, dom.$('p.session-comparison-recommendation-explanation')).textContent = comparison.verdict.explanation;
+		if (verdict) {
+			dom.append(panel, dom.$('p.session-comparison-recommendation-validation')).textContent = localize(
+				'sessionComparisonEditor.recommendedValidation',
+				"Tests: {0} · Build: {1} · Lint: {2} · Diagnostics: {3}",
+				validationLabelWithSource(verdict.validation.tests, verdict.validationSource?.tests),
+				validationLabelWithSource(verdict.validation.build, verdict.validationSource?.build),
+				validationLabelWithSource(verdict.validation.lint, verdict.validationSource?.lint),
+				validationLabelWithSource(verdict.validation.diagnostics, verdict.validationSource?.diagnostics),
+			);
+		}
+		if (comparison.verdict.conflicts.length > 0) {
+			const conflicts = dom.append(panel, dom.$('.session-comparison-recommendation-conflicts'));
+			dom.append(conflicts, dom.$('h3')).textContent = localize('sessionComparisonEditor.conflicts', "Conflicts to Resolve");
+			const list = dom.append(conflicts, dom.$('ul'));
+			for (const conflict of comparison.verdict.conflicts) {
+				dom.append(list, dom.$('li')).textContent = conflict;
+			}
+		}
+		if (recommended.sessionResource) {
+			const actions = dom.append(panel, dom.$('.session-comparison-actions'));
+			const review = this._contentStore.value?.add(new Button(actions, {
+				...defaultButtonStyles,
+				ariaLabel: localize('sessionComparisonEditor.reviewRecommendedAttemptAriaLabel', "Review recommended attempt, {0}", getSessionComparisonAttemptLabel(recommended, index)),
+			}));
+			if (review) {
+				review.label = localize('sessionComparisonEditor.reviewRecommendedAttempt', "Review Recommended Attempt");
+				this._contentStore.value?.add(review.onDidClick(async () => {
+					review.enabled = false;
+					try {
+						await this._reviewAttempt(comparison, recommended);
+					} catch (error) {
+						this.notificationService.error(error);
+						review.enabled = true;
+					}
+				}));
+			}
+		}
+	}
+
 	private _renderAttempt(container: HTMLElement, comparison: ISessionComparison, participant: ISessionComparisonParticipant, index: number): void {
 		const card = dom.append(container, dom.$('.session-comparison-attempt'));
-		const heading = dom.append(card, dom.$('h2.session-comparison-attempt-title'));
+		card.classList.toggle('recommended', comparison.verdict?.recommendedParticipantId === participant.id);
+		const header = dom.append(card, dom.$('.session-comparison-attempt-header'));
+		const heading = dom.append(header, dom.$('h2.session-comparison-attempt-title'));
 		heading.textContent = getSessionComparisonAttemptLabel(participant, index);
+		if (comparison.verdict?.recommendedParticipantId === participant.id) {
+			dom.append(header, dom.$('span.session-comparison-recommended-badge')).textContent =
+				localize('sessionComparisonEditor.recommendedBadge', "Recommended");
+		}
 
 		if (participant.launchError) {
 			dom.append(card, dom.$('p.session-comparison-error')).textContent =
@@ -183,10 +253,10 @@ export class SessionComparisonEditor extends EditorPane {
 			summary ? localize('sessionComparisonEditor.changedFilesValue', "{0} files, +{1}, -{2}", summary.files, summary.additions, summary.deletions) : localize('sessionComparisonEditor.unknown', "Unknown"),
 		);
 		const verdict = comparison.verdict?.attempts.find(candidate => candidate.participantId === participant.id);
-		appendEvidence(evidence, localize('sessionComparisonEditor.tests', "Tests"), validationLabel(verdict?.validation.tests));
-		appendEvidence(evidence, localize('sessionComparisonEditor.build', "Build"), validationLabel(verdict?.validation.build));
-		appendEvidence(evidence, localize('sessionComparisonEditor.lint', "Lint"), validationLabel(verdict?.validation.lint));
-		appendEvidence(evidence, localize('sessionComparisonEditor.diagnostics', "Diagnostics"), validationLabel(verdict?.validation.diagnostics));
+		appendEvidence(evidence, localize('sessionComparisonEditor.tests', "Tests"), validationLabelWithSource(verdict?.validation.tests, verdict?.validationSource?.tests));
+		appendEvidence(evidence, localize('sessionComparisonEditor.build', "Build"), validationLabelWithSource(verdict?.validation.build, verdict?.validationSource?.build));
+		appendEvidence(evidence, localize('sessionComparisonEditor.lint', "Lint"), validationLabelWithSource(verdict?.validation.lint, verdict?.validationSource?.lint));
+		appendEvidence(evidence, localize('sessionComparisonEditor.diagnostics', "Diagnostics"), validationLabelWithSource(verdict?.validation.diagnostics, verdict?.validationSource?.diagnostics));
 
 		if (verdict?.summary) {
 			dom.append(card, dom.$('p.session-comparison-summary')).textContent = verdict.summary;
@@ -194,21 +264,35 @@ export class SessionComparisonEditor extends EditorPane {
 
 		if (participant.sessionResource) {
 			const actions = dom.append(card, dom.$('.session-comparison-actions'));
-			const useAttempt = this._contentStore.value?.add(new Button(actions, {
+			const reviewAttempt = this._contentStore.value?.add(new Button(actions, {
 				...defaultButtonStyles,
-				ariaLabel: localize('sessionComparisonEditor.useAttemptAriaLabel', "Use {0}", getSessionComparisonAttemptLabel(participant, index)),
+				ariaLabel: localize('sessionComparisonEditor.reviewAttemptAriaLabel', "Review {0}", getSessionComparisonAttemptLabel(participant, index)),
 			}));
-			if (useAttempt) {
-				useAttempt.label = comparison.selectedParticipantId === participant.id
-					? localize('sessionComparisonEditor.selectedAttempt', "Selected")
-					: localize('sessionComparisonEditor.useAttempt', "Use Attempt");
-				useAttempt.enabled = comparison.selectedParticipantId !== participant.id;
-				this._contentStore.value?.add(useAttempt.onDidClick(async () => {
-					this.sessionComparisonService.selectAttempt(comparison.id, participant.id);
-					await this.sessionsService.openSession(participant.sessionResource!, { source: 'chat' });
+			if (reviewAttempt) {
+				reviewAttempt.label = comparison.selectedParticipantId === participant.id
+					? localize('sessionComparisonEditor.reviewedAttempt', "Reviewed")
+					: localize('sessionComparisonEditor.reviewAttempt', "Review Attempt");
+				reviewAttempt.enabled = comparison.selectedParticipantId !== participant.id;
+				this._contentStore.value?.add(reviewAttempt.onDidClick(async () => {
+					reviewAttempt.enabled = false;
+					try {
+						await this._reviewAttempt(comparison, participant);
+					} catch (error) {
+						this.notificationService.error(error);
+						reviewAttempt.enabled = true;
+					}
 				}));
 			}
 		}
+	}
+
+	private async _reviewAttempt(comparison: ISessionComparison, participant: ISessionComparisonParticipant): Promise<void> {
+		if (!participant.sessionResource) {
+			return;
+		}
+		this.sessionComparisonService.selectAttempt(comparison.id, participant.id);
+		await this.sessionsService.openSession(participant.sessionResource, { source: 'chat' });
+		await this.sessionChangesService.openChangesEditor(participant.sessionResource);
 	}
 
 	private _renderChangeComparison(container: HTMLElement, attempts: readonly ISessionComparisonParticipant[]): void {
@@ -256,22 +340,8 @@ export class SessionComparisonEditor extends EditorPane {
 				? localize('sessionComparisonEditor.judgeStatus', "Status: {0}", sessionStatusLabel(judgeSession.status.get()))
 				: localize('sessionComparisonEditor.statusUnknown', "Unknown");
 		} else {
-			const recommendation = comparison.participants.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
-			const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-			const recommendationIndex = recommendation ? attempts.findIndex(participant => participant.id === recommendation.id) : -1;
-			const recommendationLabel = recommendation
-				? getSessionComparisonAttemptLabel(recommendation, recommendationIndex)
-				: localize('sessionComparisonEditor.unknown', "Unknown");
-			dom.append(section, dom.$('p.session-comparison-recommendation')).textContent =
-				localize('sessionComparisonEditor.recommendation', "Recommended: {0}", recommendationLabel);
-			dom.append(section, dom.$('p')).textContent = comparison.verdict.explanation;
-			if (comparison.verdict.conflicts.length > 0) {
-				dom.append(section, dom.$('h3')).textContent = localize('sessionComparisonEditor.conflicts', "Conflicts to Resolve");
-				const conflicts = dom.append(section, dom.$('ul'));
-				for (const conflict of comparison.verdict.conflicts) {
-					dom.append(conflicts, dom.$('li')).textContent = conflict;
-				}
-			}
+			dom.append(section, dom.$('p.session-comparison-subtitle')).textContent =
+				localize('sessionComparisonEditor.judgeComplete', "Review complete.");
 		}
 		if (judge.sessionResource) {
 			this._appendOpenSessionButton(section, judge.sessionResource, localize('sessionComparisonEditor.openJudge', "Open Judge"));
@@ -292,7 +362,7 @@ export class SessionComparisonEditor extends EditorPane {
 					ariaLabel: localize('sessionComparisonEditor.synthesizeAriaLabel', "Synthesize a new attempt"),
 				}));
 				if (button) {
-					button.label = localize('sessionComparisonEditor.synthesize', "Synthesize");
+					button.label = localize('sessionComparisonEditor.synthesize', "Synthesize Attempts");
 					this._contentStore.value?.add(button.onDidClick(async () => {
 						button.enabled = false;
 						try {
@@ -493,5 +563,19 @@ function validationLabel(state: SessionComparisonValidationState | undefined): s
 			return localize('sessionComparisonEditor.validationNotRun', "Not run");
 		default:
 			return localize('sessionComparisonEditor.validationUnknown', "Unknown");
+	}
+}
+
+function validationLabelWithSource(state: SessionComparisonValidationState | undefined, source: SessionComparisonValidationSource | undefined): string {
+	const label = validationLabel(state);
+	switch (source) {
+		case SessionComparisonValidationSource.AttemptReport:
+			return localize('sessionComparisonEditor.validationAttemptReported', "{0} (attempt reported)", label);
+		case SessionComparisonValidationSource.JudgeRun:
+			return localize('sessionComparisonEditor.validationJudgeVerified', "{0} (Judge verified)", label);
+		case SessionComparisonValidationSource.Unavailable:
+			return localize('sessionComparisonEditor.validationUnavailable', "{0} (evidence unavailable)", label);
+		default:
+			return label;
 	}
 }

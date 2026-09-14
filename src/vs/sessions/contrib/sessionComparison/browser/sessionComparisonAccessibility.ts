@@ -12,7 +12,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { SessionComparisonEditorFocusedContext } from '../../../common/contextkeys.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonAttemptLabel, getSessionComparisonFileKey, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonFileKey, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionComparisonEditor } from './sessionComparisonEditor.js';
 import { SessionComparisonEditorInput } from './sessionComparisonEditorInput.js';
@@ -30,7 +30,7 @@ export class SessionComparisonAccessibilityHelp implements IAccessibleViewImplem
 		}
 		const content = [
 			localize('sessionComparisonAccessibilityHelp.overview', "You are in an implementation attempt comparison. It summarizes independent agent attempts, changed files, validation, the Judge recommendation, and optional synthesis."),
-			localize('sessionComparisonAccessibilityHelp.navigation', "Use Tab and Shift+Tab to move between attempt, Judge, synthesis, and cleanup actions. Press Enter or Space to activate the focused action."),
+			localize('sessionComparisonAccessibilityHelp.navigation', "When review is ready, use Review Recommended Attempt to open the recommended session and its changes. Use Tab and Shift+Tab to move between attempt, Judge, synthesis, and cleanup actions. Press Enter or Space to activate the focused action."),
 			localize('sessionComparisonAccessibilityHelp.view', "Use Open Accessible View to read the complete comparison evidence as plain text."),
 		].join('\n');
 		return new AccessibleContentProvider(
@@ -67,6 +67,22 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 				}
 				const lines = [comparison.title, comparison.prompt];
 				const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+				if (comparison.verdict) {
+					const recommended = attempts.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
+					const recommendedIndex = recommended ? attempts.indexOf(recommended) : -1;
+					const recommendedLabel = recommended
+						? getSessionComparisonAttemptLabel(recommended, recommendedIndex)
+						: localize('sessionComparisonAccessibleView.unknown', "Unknown");
+					lines.push(
+						'',
+						localize('sessionComparisonAccessibleView.reviewReady', "Comparison review ready."),
+						localize('sessionComparisonAccessibleView.recommendation', "Recommended attempt: {0}", recommendedLabel),
+						comparison.verdict.explanation,
+					);
+					for (const conflict of comparison.verdict.conflicts) {
+						lines.push(localize('sessionComparisonAccessibleView.conflict', "Conflict: {0}", conflict));
+					}
+				}
 				for (const participant of comparison.participants) {
 					const role = participant.role === SessionComparisonParticipantRole.Attempt
 						? localize('sessionComparisonAccessibleView.attempt', "Attempt")
@@ -116,10 +132,10 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 						lines.push(localize(
 							'sessionComparisonAccessibleView.validation',
 							"Tests: {0}. Build: {1}. Lint: {2}. Diagnostics: {3}.",
-							validationLabel(attemptVerdict.validation.tests),
-							validationLabel(attemptVerdict.validation.build),
-							validationLabel(attemptVerdict.validation.lint),
-							validationLabel(attemptVerdict.validation.diagnostics),
+							validationLabel(attemptVerdict.validation.tests, attemptVerdict.validationSource?.tests),
+							validationLabel(attemptVerdict.validation.build, attemptVerdict.validationSource?.build),
+							validationLabel(attemptVerdict.validation.lint, attemptVerdict.validationSource?.lint),
+							validationLabel(attemptVerdict.validation.diagnostics, attemptVerdict.validationSource?.diagnostics),
 						));
 						lines.push(attemptVerdict.summary);
 						for (const issue of attemptVerdict.unresolvedIssues) {
@@ -146,17 +162,6 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 						? localize('sessionComparisonAccessibleView.overlappingFile', "Overlapping file: {0}", file)
 						: localize('sessionComparisonAccessibleView.attemptSpecificFile', "Attempt-specific file: {0}", file));
 				}
-				if (comparison.verdict) {
-					const recommended = comparison.participants.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
-					const recommendedIndex = recommended ? attempts.findIndex(participant => participant.id === recommended.id) : -1;
-					const recommendedLabel = recommended
-						? getSessionComparisonAttemptLabel(recommended, recommendedIndex)
-						: localize('sessionComparisonAccessibleView.unknown', "Unknown");
-					lines.push('', localize('sessionComparisonAccessibleView.recommendation', "Recommended attempt: {0}", recommendedLabel), comparison.verdict.explanation);
-					for (const conflict of comparison.verdict.conflicts) {
-						lines.push(localize('sessionComparisonAccessibleView.conflict', "Conflict: {0}", conflict));
-					}
-				}
 				return lines.join('\n');
 			},
 			() => editor.focus(),
@@ -170,15 +175,30 @@ function getActiveComparisonEditor(accessor: ServicesAccessor): SessionCompariso
 	return editor instanceof SessionComparisonEditor ? editor : undefined;
 }
 
-function validationLabel(state: SessionComparisonValidationState): string {
+function validationLabel(state: SessionComparisonValidationState, source: SessionComparisonValidationSource | undefined): string {
+	let label: string;
 	switch (state) {
 		case SessionComparisonValidationState.Passed:
-			return localize('sessionComparisonAccessibleView.validationPassed', "passed");
+			label = localize('sessionComparisonAccessibleView.validationPassed', "passed");
+			break;
 		case SessionComparisonValidationState.Failed:
-			return localize('sessionComparisonAccessibleView.validationFailed', "failed");
+			label = localize('sessionComparisonAccessibleView.validationFailed', "failed");
+			break;
 		case SessionComparisonValidationState.NotRun:
-			return localize('sessionComparisonAccessibleView.validationNotRun', "not run");
+			label = localize('sessionComparisonAccessibleView.validationNotRun', "not run");
+			break;
 		case SessionComparisonValidationState.Unknown:
-			return localize('sessionComparisonAccessibleView.validationUnknown', "unknown");
+			label = localize('sessionComparisonAccessibleView.validationUnknown', "unknown");
+			break;
+	}
+	switch (source) {
+		case SessionComparisonValidationSource.AttemptReport:
+			return localize('sessionComparisonAccessibleView.validationAttemptReported', "{0}, attempt reported", label);
+		case SessionComparisonValidationSource.JudgeRun:
+			return localize('sessionComparisonAccessibleView.validationJudgeVerified', "{0}, Judge verified", label);
+		case SessionComparisonValidationSource.Unavailable:
+			return localize('sessionComparisonAccessibleView.validationUnavailable', "{0}, evidence unavailable", label);
+		default:
+			return label;
 	}
 }

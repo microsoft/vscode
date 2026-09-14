@@ -16,7 +16,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
 const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
@@ -48,7 +48,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.readTool.displayName', "Read Attempt Comparison"),
 			userDescription: localize('sessionComparison.readTool.userDescription', "Read the attempts and evidence for an active comparison"),
-			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed files, change summaries, worktree locations, and exact targets for get_session_context. It does not return full transcripts or submit a verdict.',
+			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed files, change summaries, worktree locations, and exact targets for get_session_context. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -130,7 +130,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			originalTask: comparison.prompt,
 			baseBranch: comparison.branch,
 			attempts,
-			next: 'Inspect code in the listed worktrees. Use get_session_context with an exact attempt sessionContextTarget for validation claims or other transcript evidence. Do not discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in the listed worktrees. Use get_session_context with an exact attempt sessionContextTarget for validation claims or other transcript evidence. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not discover sessions, guess references, or create sessions.',
 		}));
 	}
 }
@@ -149,7 +149,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.tool.displayName', "Complete Attempt Comparison"),
 			userDescription: localize('sessionComparison.tool.userDescription', "Submit the judge's structured attempt comparison"),
-			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this exactly once after inspecting every referenced attempt, its code changes, and its validation evidence. The recommended participant must be one of the comparison attempts. This persists an advisory verdict; synthesis only starts through an explicit user action.',
+			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this exactly once after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Record whether each validation result came from the attempt report, a Judge run, or was unavailable. The recommended participant must be one of the comparison attempts. This persists an advisory verdict; synthesis only starts through an explicit user action.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -192,10 +192,21 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 									required: ['tests', 'build', 'lint', 'diagnostics'],
 									additionalProperties: false,
 								},
+								validationSource: {
+									type: 'object',
+									properties: {
+										tests: validationSourceSchema(),
+										build: validationSourceSchema(),
+										lint: validationSourceSchema(),
+										diagnostics: validationSourceSchema(),
+									},
+									required: ['tests', 'build', 'lint', 'diagnostics'],
+									additionalProperties: false,
+								},
 								unresolvedIssues: { type: 'array', items: { type: 'string' } },
 								notableDifferences: { type: 'array', items: { type: 'string' } },
 							},
-							required: ['participantId', 'summary', 'validation', 'unresolvedIssues', 'notableDifferences'],
+							required: ['participantId', 'summary', 'validation', 'validationSource', 'unresolvedIssues', 'notableDifferences'],
 							additionalProperties: false,
 						},
 					},
@@ -311,6 +322,11 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 			|| !isValidationState(attempt.validation.build)
 			|| !isValidationState(attempt.validation.lint)
 			|| !isValidationState(attempt.validation.diagnostics)
+			|| !isRecord(attempt.validationSource)
+			|| !isValidationSource(attempt.validationSource.tests)
+			|| !isValidationSource(attempt.validationSource.build)
+			|| !isValidationSource(attempt.validationSource.lint)
+			|| !isValidationSource(attempt.validationSource.diagnostics)
 			|| !isStringArray(attempt.unresolvedIssues)
 			|| !isStringArray(attempt.notableDifferences)) {
 			return undefined;
@@ -323,6 +339,12 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 				build: attempt.validation.build,
 				lint: attempt.validation.lint,
 				diagnostics: attempt.validation.diagnostics,
+			},
+			validationSource: {
+				tests: attempt.validationSource.tests,
+				build: attempt.validationSource.build,
+				lint: attempt.validationSource.lint,
+				diagnostics: attempt.validationSource.diagnostics,
 			},
 			unresolvedIssues: attempt.unresolvedIssues,
 			notableDifferences: attempt.notableDifferences,
@@ -349,6 +371,17 @@ function validationStateSchema(): IJSONSchema {
 	};
 }
 
+function validationSourceSchema(): IJSONSchema {
+	return {
+		type: 'string',
+		enum: [
+			SessionComparisonValidationSource.AttemptReport,
+			SessionComparisonValidationSource.JudgeRun,
+			SessionComparisonValidationSource.Unavailable,
+		],
+	};
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
@@ -362,6 +395,12 @@ function isValidationState(value: unknown): value is SessionComparisonValidation
 		|| value === SessionComparisonValidationState.Failed
 		|| value === SessionComparisonValidationState.NotRun
 		|| value === SessionComparisonValidationState.Unknown;
+}
+
+function isValidationSource(value: unknown): value is SessionComparisonValidationSource {
+	return value === SessionComparisonValidationSource.AttemptReport
+		|| value === SessionComparisonValidationSource.JudgeRun
+		|| value === SessionComparisonValidationSource.Unavailable;
 }
 
 function toolResult(value: string): IToolResult {

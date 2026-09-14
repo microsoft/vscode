@@ -412,7 +412,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			throw new Error('No successful comparison attempt is available to run the Judge.');
 		}
 		const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-			query: localize('sessionComparison.judgePrompt', "Judge implementation comparison {0}. Call #readAttemptComparison with this ID, inspect every returned attempt and its available evidence, then call #completeAttemptComparison exactly once.", comparison.id),
+			query: localize('sessionComparison.judgePrompt', "Judge implementation comparison {0}. Call #readAttemptComparison with this ID. Review every attempt's code changes and validation evidence. Run missing targeted tests, build, lint, or diagnostics when needed to make a reliable recommendation, and record whether each validation result came from the attempt or from your own run. Do not modify any attempt. Then call #completeAttemptComparison exactly once.", comparison.id),
 			title: localize('sessionComparison.judgeTitle', "Judge: {0}", comparison.title),
 			background: true,
 		}, {

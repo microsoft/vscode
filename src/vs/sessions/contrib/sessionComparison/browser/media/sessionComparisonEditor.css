@@ -25,6 +25,49 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.session-comparison-recommendation-panel {
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size200);
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.session-comparison-recommendation-eyebrow {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-recommendation-title {
+	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-recommendation-explanation,
+.session-comparison-recommendation-validation {
+	margin: var(--vscode-spacing-size80) 0 0;
+}
+
+.session-comparison-recommendation-validation {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.session-comparison-recommendation-conflicts {
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.session-comparison-recommendation-conflicts h3,
+.session-comparison-recommendation-conflicts ul {
+	margin: 0;
+}
+
+.session-comparison-recommendation-conflicts ul {
+	padding-left: var(--vscode-spacing-size200);
+}
+
 .session-comparison-attempts {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -39,13 +82,35 @@
 	background: var(--vscode-sideBar-background);
 }
 
+.session-comparison-attempt.recommended {
+	border-color: var(--vscode-focusBorder);
+}
+
+.session-comparison-attempt-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
 .session-comparison-attempt-title {
-	margin: 0 0 var(--vscode-spacing-size120);
+	flex: 1;
+	min-width: 0;
+	margin: 0;
 	overflow: hidden;
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.session-comparison-recommended-badge {
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label3);
 }
 
 .session-comparison-evidence {
@@ -81,9 +146,5 @@
 
 .session-comparison-section h2,
 .session-comparison-section h3 {
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.session-comparison-recommendation {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }

@@ -11,9 +11,9 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ReadSessionComparisonTool } from '../../browser/sessionComparisonTool.js';
+import { CompleteSessionComparisonTool, ReadSessionComparisonTool } from '../../browser/sessionComparisonTool.js';
 
 const progress: ToolProgress = { report: () => { } };
 const attemptResource = URI.parse('test:/attempt');
@@ -34,7 +34,7 @@ suite('SessionComparisonTool', () => {
 			description: tool.getToolData().modelDescription,
 		}, {
 			referenceName: 'readAttemptComparison',
-			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed files, change summaries, worktree locations, and exact targets for get_session_context. It does not return full transcripts or submit a verdict.',
+			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed files, change summaries, worktree locations, and exact targets for get_session_context. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
 		});
 	});
 
@@ -81,7 +81,58 @@ suite('SessionComparisonTool', () => {
 				}],
 				changedFilesTruncated: false,
 			}],
-			next: 'Inspect code in the listed worktrees. Use get_session_context with an exact attempt sessionContextTarget for validation claims or other transcript evidence. Do not discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in the listed worktrees. Use get_session_context with an exact attempt sessionContextTarget for validation claims or other transcript evidence. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not discover sessions, guess references, or create sessions.',
+		});
+	});
+
+	test('records automatic review evidence provenance in the verdict', async () => {
+		const comparison = stubComparison();
+		let submitted: ISessionComparisonVerdict | undefined;
+		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+			getComparison: () => comparison,
+			submitVerdict: (_comparisonId, verdict) => submitted = verdict,
+		}));
+		const result = await tool.invoke({
+			callId: 'call',
+			toolId: 'tool',
+			parameters: {
+				comparisonId: comparison.id,
+				recommendedParticipantId: 'attempt',
+				explanation: 'The implementation is correct and focused.',
+				conflicts: [],
+				attempts: [{
+					participantId: 'attempt',
+					summary: 'Focused implementation with passing tests.',
+					validation: {
+						tests: SessionComparisonValidationState.Passed,
+						build: SessionComparisonValidationState.Passed,
+						lint: SessionComparisonValidationState.Unknown,
+						diagnostics: SessionComparisonValidationState.Passed,
+					},
+					validationSource: {
+						tests: SessionComparisonValidationSource.JudgeRun,
+						build: SessionComparisonValidationSource.AttemptReport,
+						lint: SessionComparisonValidationSource.Unavailable,
+						diagnostics: SessionComparisonValidationSource.JudgeRun,
+					},
+					unresolvedIssues: [],
+					notableDifferences: ['Smallest diff'],
+				}],
+			},
+			context: { sessionResource: judgeResource },
+		}, async () => 0, progress, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result: JSON.parse(getText(result)),
+			validationSource: submitted?.attempts[0].validationSource,
+		}, {
+			result: { status: 'submitted', comparisonId: 'comparison' },
+			validationSource: {
+				tests: SessionComparisonValidationSource.JudgeRun,
+				build: SessionComparisonValidationSource.AttemptReport,
+				lint: SessionComparisonValidationSource.Unavailable,
+				diagnostics: SessionComparisonValidationSource.JudgeRun,
+			},
 		});
 	});
 

@@ -150,7 +150,7 @@ suite('SessionComparisonService', () => {
 					},
 				},
 			},
-			judgePrompt: `Judge implementation comparison ${comparison.id}. Call #readAttemptComparison with this ID, inspect every returned attempt and its available evidence, then call #completeAttemptComparison exactly once.`,
+			judgePrompt: `Judge implementation comparison ${comparison.id}. Call #readAttemptComparison with this ID. Review every attempt's code changes and validation evidence. Run missing targeted tests, build, lint, or diagnostics when needed to make a reliable recommendation, and record whether each validation result came from the attempt or from your own run. Do not modify any attempt. Then call #completeAttemptComparison exactly once.`,
 		});
 	});
 

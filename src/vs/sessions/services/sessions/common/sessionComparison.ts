@@ -27,6 +27,12 @@ export const enum SessionComparisonValidationState {
 	Unknown = 'unknown',
 }
 
+export const enum SessionComparisonValidationSource {
+	AttemptReport = 'attemptReport',
+	JudgeRun = 'judgeRun',
+	Unavailable = 'unavailable',
+}
+
 export interface ISessionComparisonHarness {
 	readonly providerId: string;
 	readonly sessionTypeId: string;
@@ -57,6 +63,12 @@ export interface ISessionComparisonAttemptVerdict {
 		readonly build: SessionComparisonValidationState;
 		readonly lint: SessionComparisonValidationState;
 		readonly diagnostics: SessionComparisonValidationState;
+	};
+	readonly validationSource?: {
+		readonly tests: SessionComparisonValidationSource;
+		readonly build: SessionComparisonValidationSource;
+		readonly lint: SessionComparisonValidationSource;
+		readonly diagnostics: SessionComparisonValidationSource;
 	};
 	readonly unresolvedIssues: readonly string[];
 	readonly notableDifferences: readonly string[];
