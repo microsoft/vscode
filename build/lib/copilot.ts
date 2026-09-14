@@ -261,6 +261,18 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	const tgrepPlatformArch = toCopilotTgrepPlatformArch(platform, arch);
 
+	// Kente Workbench does not ship the GitHub Copilot extension —
+	// packageCopilotExtensionStream (build/lib/extensions.ts) keeps it out of the
+	// packaged output — so there is no shim to materialize. Upstream throws here
+	// because its builds must guarantee the artifact is present; for a fork that
+	// deliberately excludes it, skipping is correct. This only skips when the
+	// extension was never packaged — a build that does bundle Copilot still fails
+	// loudly on a missing SDK, as before.
+	if (!fs.existsSync(builtInCopilotExtensionDir)) {
+		console.log(`[prepareBuiltInCopilotRipgrepShim] Skipping: no built-in Copilot extension at ${builtInCopilotExtensionDir}`);
+		return;
+	}
+
 	const extensionNodeModules = path.join(builtInCopilotExtensionDir, 'node_modules');
 	const copilotBase = path.join(extensionNodeModules, '@github', 'copilot');
 	const copilotSdkBase = path.join(copilotBase, 'sdk');

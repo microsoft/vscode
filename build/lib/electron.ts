@@ -143,8 +143,10 @@ const electronAssetResolver = electronFeed
 export const config = {
 	version: electronVersion,
 	productAppName: product.nameLong,
-	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
+	// Kente Workbench: this build is not published by Microsoft, so the executable's
+	// version resource must not name it as the company or copyright holder.
+	companyName: `${product.nameLong} contributors`,
+	copyright: `Copyright (C) 2026 ${product.nameLong} contributors. All rights reserved`,
 	darwinExecutable: product.nameShort,
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,

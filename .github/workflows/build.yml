@@ -1,0 +1,156 @@
+name: Build Kente Workbench
+
+# Native build matrix — each OS builds on itself.
+# Cross-compiling Electron native modules (node-gyp) is unreliable,
+# so we never build the Windows package from a Linux/macOS runner or vice versa.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# @vscode/ripgrep's postinstall fetches a prebuilt binary from the GitHub API.
+# Unauthenticated, that request is rate-limited and returns 403 on shared
+# runners, which fails npm ci before it ever reaches compile. The downloader
+# honours GITHUB_TOKEN, so give it one.
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+            gulp_task: vscode-darwin-arm64-min
+          # macos-latest is arm64. Building the x64 package there is a
+          # cross-architecture build, which is what the note above warns
+          # against — it installs only the arm64 platform packages. Intel
+          # macOS needs an Intel runner. macos-13 was retired in December 2025
+          # (jobs targeting it queue forever); macos-15-intel is GitHub's last
+          # x86_64 macOS image, supported until August 2027.
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+            gulp_task: vscode-darwin-x64-min
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            gulp_task: vscode-win32-x64-min
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Node version from .nvmrc
+        id: nvmrc
+        shell: bash
+        run: echo "version=$(cat .nvmrc)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.nvmrc.outputs.version }}
+          cache: npm
+
+      # build/npm/preinstall.ts probes %ProgramFiles% for a Visual Studio
+      # install and aborts if it finds none. Rather than depend on that probe
+      # matching the runner image's layout, locate the install with vswhere
+      # and hand preinstall the explicit path it documents.
+      - name: Locate Visual Studio
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe not found at $vswhere" }
+          $vs = & $vswhere -latest -products * -property installationPath
+          if (-not $vs) { throw "vswhere found no Visual Studio installation" }
+          Write-Host "Using Visual Studio at $vs"
+          "vs2022_install=$vs" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # The win32 packaging task strips existing Authenticode signatures from
+      # native modules with signtool.exe before stamping their version info.
+      # The Windows SDK is installed on the runner, but its bin directory is
+      # not on PATH, so the spawn fails with ENOENT.
+      - name: Put signtool on PATH
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          $kits = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $signtool = Get-ChildItem -Path $kits -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+)+$' } |
+            Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe (x64) not found under $kits" }
+          Write-Host "Using $($signtool.FullName)"
+          $signtool.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Build platform package
+        run: npm run gulp ${{ matrix.gulp_task }}
+
+      # The gulp packaging tasks write to the *parent* of the repository
+      # (../VSCode-<platform>-<arch>). upload-artifact refuses any path
+      # containing '..', so move the output inside the workspace first.
+      - name: Collect build output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          shopt -s nullglob
+          found=0
+          for dir in ../VSCode-*; do
+            mv "$dir" artifacts/
+            found=1
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No VSCode-* build output found beside the repository" >&2
+            exit 1
+          fi
+          ls -la artifacts
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kente-workbench-${{ matrix.platform }}-${{ matrix.arch }}
+          path: artifacts/**
+          # An artifact that silently fails to upload is worse than a red build.
+          if-no-files-found: error
+          retention-days: 14
+
+  # Fast local-iteration check — runs on every push, doesn't produce a package.
+  # Mirrors what you'd run by hand on gaf-dev-svr3.
+  lint-and-compile-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Native modules built from source on Linux need these headers.
+      # Without libkrb5-dev, `kerberos` fails with:
+      #   fatal error: gssapi/gssapi.h: No such file or directory
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libkrb5-dev \
+            libx11-dev \
+            libxkbfile-dev \
+            libsecret-1-dev \
+            pkg-config
+
+      - run: npm ci
+      - run: npm run compile
+      - run: npm run eslint

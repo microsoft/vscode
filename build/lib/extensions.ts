@@ -470,8 +470,16 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
  * but must be compiled from source and included in the build.
  */
 export function packageCopilotExtensionStream(disableMangle: boolean): Stream {
+	// Kente Workbench does not ship the GitHub Copilot extension. Being listed in
+	// `excludedExtensions` only keeps it out of the generic local-extensions
+	// stream; every desktop and server packaging task still pulls it in through
+	// this function, together with the proprietary @github/copilot CLI in its
+	// node_modules. That CLI reaches models directly rather than through
+	// sendChatRequest/invokeTool, so bundling it would put an ungoverned agent
+	// beside the governance gate (see D-003).
+	const shipBuiltInCopilot = false;
 	const extensionPath = path.join(root, 'extensions', 'copilot');
-	if (!fs.existsSync(extensionPath)) {
+	if (!shipBuiltInCopilot || !fs.existsSync(extensionPath)) {
 		return es.readArray([]);
 	}
 

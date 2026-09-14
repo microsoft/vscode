@@ -16,11 +16,22 @@ import eslint from './gulp-eslint.ts';
 import * as formatter from './lib/formatter.ts';
 import gulpstylelint from './stylelint.ts';
 
-const copyrightHeaderLines = [
-	'/*---------------------------------------------------------------------------------------------',
-	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
-	' *--------------------------------------------------------------------------------------------*/',
+// Upstream files keep Microsoft's header. Files authored for this fork carry the
+// Kente Workbench header instead — claiming Microsoft copyright on code they did
+// not write would be plainly wrong. Either variant is accepted.
+const copyrightHeaderVariants = [
+	[
+		'/*---------------------------------------------------------------------------------------------',
+		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/',
+	],
+	[
+		'/*---------------------------------------------------------------------------------------------',
+		' *  Copyright (c) Kente Workbench contributors. All rights reserved.',
+		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/',
+	],
 ];
 
 interface VinylFileWithLines extends VinylFile {
@@ -92,8 +103,13 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
+		// Kente Workbench: as a third-party fork we must ship our own gallery
+		// (Open VSX), so extensionsGallery is expected to be present. What must
+		// never come back is Microsoft's marketplace, whose terms do not permit
+		// use by forks.
+		const gallery = JSON.stringify(product.extensionsGallery ?? '');
+		if (gallery.includes('marketplace.visualstudio.com')) {
+			console.error(`product.json: 'extensionsGallery' must not point at Microsoft's marketplace`);
 			errorCount++;
 		}
 
@@ -162,12 +178,12 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const copyrights = es.through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
-			}
+		const hasValidHeader = copyrightHeaderVariants.some(
+			header => header.every((headerLine, i) => lines[i] === headerLine)
+		);
+		if (!hasValidHeader) {
+			console.error(file.relative + ': Missing or bad copyright statement');
+			errorCount++;
 		}
 
 		this.emit('data', file);
