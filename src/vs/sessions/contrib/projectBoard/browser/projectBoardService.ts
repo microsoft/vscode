@@ -514,6 +514,13 @@ class ProjectBoardView extends Disposable {
 		for (const card of cards.slice(0, limit)) {
 			list.appendChild(this.createCard(document, card, store));
 		}
+		const unknownHidden = cards.slice(limit).filter(card => !this.promptTimes.has(card.id)).length;
+		if (unknownHidden) {
+			const recency = document.createElement('p');
+			recency.className = 'project-board-recency-warning';
+			recency.textContent = localize('projectBoard.hiddenRecency', "Recency unavailable for {0} hidden chats. Expand to load their metadata.", unknownHidden);
+			group.appendChild(recency);
+		}
 		for (const placement of missing.slice(0, Math.max(0, limit - cards.length))) {
 			const unavailable = document.createElement('article');
 			unavailable.className = 'project-board-card project-board-card-unavailable';
@@ -614,12 +621,18 @@ class ProjectBoardView extends Disposable {
 
 	private createCard(document: Document, card: IProjectBoardCard, store: DisposableStore): HTMLElement {
 		const element = document.createElement('article');
+		const descriptions: string[] = [];
+		const describe = (content: HTMLElement) => {
+			content.id = `project-board-detail-${generateUuid()}`;
+			descriptions.push(content.id);
+		};
 		element.className = `project-board-card project-board-card-${this.getStatusClass(card)}`;
 		element.draggable = this.boardState.canEdit;
 		element.setAttribute('aria-label', localize('projectBoard.cardLabel', "{0}, {1}, {2}", card.title, card.sessionTitle, this.getStatusLabel(card)));
 
 		const title = document.createElement('h4');
 		title.textContent = card.title;
+		store.add(this.hoverService.setupDelayedHover(title, { content: card.title }));
 		element.appendChild(title);
 
 		const session = document.createElement('div');
@@ -630,6 +643,7 @@ class ProjectBoardView extends Disposable {
 			const workspace = document.createElement('div');
 			workspace.className = 'project-board-card-workspace';
 			workspace.textContent = card.workspace;
+			describe(workspace);
 			store.add(this.hoverService.setupDelayedHover(workspace, { content: card.workspace }));
 			element.appendChild(workspace);
 		}
@@ -652,12 +666,14 @@ class ProjectBoardView extends Disposable {
 			const description = document.createElement('div');
 			description.className = 'project-board-card-description';
 			description.textContent = card.description;
+			describe(description);
 			store.add(this.hoverService.setupDelayedHover(description, { content: card.description }));
 			element.appendChild(description);
 		}
 		const metadata = this.metadataStates.get(card.id);
 		const prompt = document.createElement('div');
 		prompt.className = 'project-board-card-prompt';
+		describe(prompt);
 		prompt.textContent = metadata?.kind === 'ready' && metadata.prompt !== undefined
 			? metadata.prompt
 			: metadata?.kind === 'loading'
@@ -668,6 +684,7 @@ class ProjectBoardView extends Disposable {
 		const time = this.promptTimes.get(card.id);
 		const recency = document.createElement('div');
 		recency.className = 'project-board-card-recency';
+		describe(recency);
 		recency.textContent = time === undefined
 			? localize('projectBoard.recencyUnavailable', "Recency unavailable")
 			: localize('projectBoard.lastPrompt', "Last prompt: {0}", new Date(time).toLocaleString());
@@ -725,9 +742,10 @@ class ProjectBoardView extends Disposable {
 		if (preview && preview.kind !== 'inactive') {
 			const previewElement = this.createQuestionPreview(document, preview, store);
 			previewElement.id = `project-board-input-${generateUuid()}`;
-			element.setAttribute('aria-describedby', previewElement.id);
+			descriptions.push(previewElement.id);
 			element.appendChild(previewElement);
 		}
+		element.setAttribute('aria-describedby', descriptions.join(' '));
 
 		store.add(addDisposableListener(element, EventType.DRAG_START, event => {
 			this.dragging = true;
