@@ -13,6 +13,7 @@ import { pathToFileURL } from 'url';
 import * as vm from 'vm';
 import { SourceMapConsumer, type RawSourceMap } from 'source-map';
 import { copyResources, getResourcePaths, type BuildTarget } from '../resources.ts';
+import { optimizeSvgFiles } from '../svg.ts';
 import { applyIncrementalClientChanges, copyFile } from '../transpile.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
@@ -104,6 +105,31 @@ suite('production resources', () => {
 		assert.deepStrictEqual(contents, [source, source, source]);
 		assert.strictEqual(fs.existsSync(path.join(outDir, `${serviceWorkerPath}.map`)), false);
 	});
+
+	for (const minify of [false, true]) {
+		test(`SVG finishing preserves copied JavaScript and its source map (minify: ${minify})`, async t => {
+			const { srcDir, outDir } = await createFixture(t);
+			const svgPath = 'vs/workbench/browser/media/code-icon.svg';
+			const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect x="0" y="0" width="16" height="16" fill="#ff0000"/></svg>';
+			await writeFile(srcDir, serviceWorkerPath, script);
+			await writeFile(srcDir, svgPath, svg);
+			await copyResources(srcDir, outDir, 'desktop', minify, sourceMapBaseUrl);
+			const javascriptPaths = minify ? [serviceWorkerPath, `${serviceWorkerPath}.map`] : [serviceWorkerPath];
+			const before = await Promise.all(javascriptPaths.map(file => fs.promises.readFile(path.join(outDir, file))));
+
+			await optimizeSvgFiles(outDir, minify);
+
+			assert.deepStrictEqual({
+				javascript: await Promise.all(javascriptPaths.map(file => fs.promises.readFile(path.join(outDir, file)))),
+				svg: await fs.promises.readFile(path.join(outDir, svgPath), 'utf8'),
+				sources: await Promise.all([serviceWorkerPath, svgPath].map(file => fs.promises.readFile(path.join(srcDir, file), 'utf8'))),
+			}, {
+				javascript: before,
+				svg: minify ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><path fill="red" d="M0 0h16v16H0z"/></svg>' : svg,
+				sources: [script, svg],
+			});
+		});
+	}
 
 	test('preserves classic globals, top-level this, sloppy mode, and direct eval', async t => {
 		const { srcDir, outDir } = await createFixture(t);

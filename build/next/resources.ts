@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 import glob from 'glob';
+import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { copyFile } from './transpile.ts';
 
 const globAsync = promisify(glob);
@@ -202,10 +203,7 @@ export async function copyResources(srcDir: string, outDir: string, target: Buil
 			const srcPath = path.resolve(srcDir, file);
 			const destPath = path.resolve(outDir, file);
 			if (minify && /\.(?:cjs|mjs|js)$/.test(file)) {
-				const sourceMappingURL = sourceMapBaseUrl
-					? `${sourceMapBaseUrl.replace(/\/$/, '')}/${file.replaceAll('\\', '/')}.map`
-					: `${path.basename(destPath)}.map`;
-				await minifyJavaScriptResource(srcPath, destPath, sourceMappingURL);
+				await minifyJavaScriptResource(srcPath, destPath, file, sourceMapBaseUrl);
 			} else {
 				await copyFile(srcPath, destPath);
 			}
@@ -216,7 +214,7 @@ export async function copyResources(srcDir: string, outDir: string, target: Buil
 	console.log(`[resources] Copied ${files.length} files`);
 }
 
-async function minifyJavaScriptResource(srcPath: string, destPath: string, sourceMappingURL: string): Promise<void> {
+async function minifyJavaScriptResource(srcPath: string, destPath: string, relativePath: string, sourceMapBaseUrl?: string): Promise<void> {
 	const source = await fs.promises.readFile(srcPath, 'utf8');
 	const header = source.match(/^\s*(?:#![^\n]*\n\s*)?(?<header>\/\*[\s\S]*?\*\/)/)?.groups?.header;
 	// The standard source copyright header is not an esbuild legal comment.
@@ -232,7 +230,7 @@ async function minifyJavaScriptResource(srcPath: string, destPath: string, sourc
 		platform: 'neutral',
 		target: ['es2024'],
 		treeShaking: false,
-		sourcemap: 'external',
+		sourcemap: 'linked',
 		sourcesContent: true,
 		legalComments: 'inline',
 		banner,
@@ -258,7 +256,7 @@ async function minifyJavaScriptResource(srcPath: string, destPath: string, sourc
 	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
 	for (const output of result.outputFiles) {
 		await fs.promises.writeFile(output.path, output.path === destPath
-			? `${output.text}//# sourceMappingURL=${sourceMappingURL}\n`
+			? rewriteSourceMappingURL(output.text, relativePath, sourceMapBaseUrl?.replace(/\/$/, ''))
 			: output.contents);
 	}
 }

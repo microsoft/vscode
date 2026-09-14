@@ -12,6 +12,7 @@ import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
+import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
 import product from '../../product.json' with { type: 'json' };
@@ -22,6 +23,7 @@ import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 import { copyResources, type BuildTarget } from './resources.ts';
+import { optimizeSvgFiles } from './svg.ts';
 
 const globAsync = promisify(glob);
 
@@ -735,17 +737,7 @@ ${tslib}`,
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
-				if (sourceMapBaseUrl) {
-					const relativePath = path.relative(path.join(REPO_ROOT, outDir), file.path);
-					content = content.replace(
-						/\/\/# sourceMappingURL=.+$/m,
-						`//# sourceMappingURL=${sourceMapBaseUrl}/${relativePath}.map`
-					);
-					content = content.replace(
-						/\/\*# sourceMappingURL=.+\*\/$/m,
-						`/*# sourceMappingURL=${sourceMapBaseUrl}/${relativePath}.map*/`
-					);
-				}
+				content = rewriteSourceMappingURL(content, path.relative(path.join(REPO_ROOT, outDir), file.path), sourceMapBaseUrl);
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {
@@ -828,6 +820,9 @@ ${tslib}`,
 			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
 		});
 	}
+
+	// Finish emitted assets and copied resources before packaging computes integrity data.
+	await optimizeSvgFiles(outDirPath, doMinify);
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }
@@ -965,7 +960,7 @@ Options for 'transpile':
 	--exclude-tests    Exclude test files from transpilation
 
 Options for 'bundle':
-	--minify           Minify bundles and copied JavaScript resources
+	--minify           Minify bundles, copied JavaScript resources, and SVG assets
 	--nls              Process NLS (localization) strings
 	--mangle-privates  Convert native #private fields to regular properties
 	--out <dir>        Output directory (default: out-vscode)
