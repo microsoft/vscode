@@ -5,7 +5,7 @@
 
 import { AsyncClipboardStrategy, CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorHostTransport, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
-import { Disposable, autorun, observableValue } from '@vscode/observables';
+import { Disposable, autorun, observableValue, transaction } from '@vscode/observables';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
 import '@vscode/markdown-editor/themes/vscode-default.css';
@@ -42,6 +42,7 @@ interface CodeBlockEditorProviderDefinition {
 interface InitialState {
 	readonly content: string;
 	readonly documentVersion: number;
+	readonly editGeneration: number;
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
@@ -122,6 +123,7 @@ class Editor extends Disposable {
 	#controller: EditorController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: VirtualizedIframeEmbeddedEditorFactory | undefined;
+	#editGeneration: number;
 
 	readonly #comments = new CommentsModel();
 	#commentsView: CommentsView | undefined;
@@ -141,6 +143,7 @@ class Editor extends Disposable {
 			throw new Error('Missing Markdown editor message secret');
 		}
 		this.#messageSecret = messageSecret;
+		this.#editGeneration = initialState.editGeneration;
 		this.#linkPresentationProvider = initialState.richLinksEnabled
 			? this._register(new WebviewLinkPresentationProvider(
 				initialState.linkPresentationRules,
@@ -168,6 +171,10 @@ class Editor extends Disposable {
 					// text: it maps the selection through the change and clears stale
 					// pending-paragraph state, so the caret stays valid after an undo shrinks
 					// the document. The guard stops this echoing back as a user edit.
+					if (typeof message.editGeneration !== 'number' || !Number.isInteger(message.editGeneration) || message.editGeneration < 0) {
+						break;
+					}
+					this.#editGeneration = message.editGeneration;
 					this.isUpdatingFromExtension = true;
 					this.model.replaceSourceText(new StringValue(message.content));
 					this.isUpdatingFromExtension = false;
@@ -220,6 +227,23 @@ class Editor extends Disposable {
 					this.#commentsView?.revealComment(message.id);
 					break;
 				}
+				case 'revealLinkTarget': {
+					const contentLength = this.model.sourceText.get().value.length;
+					if (typeof message.start === 'number' && Number.isInteger(message.start) && message.start >= 0
+						&& typeof message.endExclusive === 'number' && Number.isInteger(message.endExclusive) && message.endExclusive >= message.start
+						&& message.endExclusive <= contentLength
+						&& typeof message.selectionStart === 'number' && Number.isInteger(message.selectionStart) && message.selectionStart >= 0
+						&& message.selectionStart <= contentLength) {
+						transaction(tx => {
+							this.model.pendingParagraph.set(undefined, tx);
+							this.model.selectionSource.set('user', tx);
+							this.model.selection.set(Selection.collapsed(message.selectionStart), tx);
+						});
+						this.#view?.focus();
+						this.#view?.revealRangeAtTop(OffsetRange.fromTo(message.start, message.endExclusive));
+					}
+					break;
+				}
 				case 'command': {
 					const command = commands.find(command => command.id === message.command);
 					if (command) {
@@ -231,7 +255,11 @@ class Editor extends Disposable {
 		});
 
 		this.#createView(host, initialState.content);
-		this.#vscode.postMessage({ type: 'ready', documentVersion: initialState.documentVersion });
+		this.#vscode.postMessage({
+			type: 'ready',
+			documentVersion: initialState.documentVersion,
+			editGeneration: this.#editGeneration,
+		});
 		this._register({
 			dispose: () => {
 				for (const resolve of this.#codeBlockEditorRequests.values()) {
@@ -455,7 +483,11 @@ class Editor extends Disposable {
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
 			if (!this.isUpdatingFromExtension && text !== previousText) {
-				this.#vscode.postMessage({ type: 'edit', ...computeTextEdit(previousText, text) });
+				this.#vscode.postMessage({
+					type: 'edit',
+					...computeTextEdit(previousText, text),
+					editGeneration: this.#editGeneration,
+				});
 			}
 			previousText = text;
 		}));
@@ -572,6 +604,9 @@ function isInitialState(value: unknown): value is InitialState {
 	const candidate = value as Record<string, unknown>;
 	return typeof candidate.content === 'string'
 		&& typeof candidate.documentVersion === 'number'
+		&& typeof candidate.editGeneration === 'number'
+		&& Number.isInteger(candidate.editGeneration)
+		&& candidate.editGeneration >= 0
 		&& typeof candidate.readonly === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);

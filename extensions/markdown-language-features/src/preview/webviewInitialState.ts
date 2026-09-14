@@ -6,6 +6,7 @@
 export interface MarkdownEditorInitialState {
 	readonly content: string;
 	readonly documentVersion: number;
+	readonly editGeneration: number;
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: string }[];
