@@ -13,14 +13,14 @@ import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 suite('Markdown editor links', () => {
 	test('validates edits from the webview', () => {
 		assert.deepStrictEqual({
-			valid: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 'new', editGeneration: 2 }),
-			negativeStart: readMarkdownEditorEdit({ start: -1, endExclusive: 3, text: 'new', editGeneration: 2 }),
-			reversed: readMarkdownEditorEdit({ start: 3, endExclusive: 1, text: 'new', editGeneration: 2 }),
-			fractional: readMarkdownEditorEdit({ start: 1.5, endExclusive: 3, text: 'new', editGeneration: 2 }),
-			nonText: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 4, editGeneration: 2 }),
+			valid: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 'new', editEpoch: 2 }),
+			negativeStart: readMarkdownEditorEdit({ start: -1, endExclusive: 3, text: 'new', editEpoch: 2 }),
+			reversed: readMarkdownEditorEdit({ start: 3, endExclusive: 1, text: 'new', editEpoch: 2 }),
+			fractional: readMarkdownEditorEdit({ start: 1.5, endExclusive: 3, text: 'new', editEpoch: 2 }),
+			nonText: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 4, editEpoch: 2 }),
 			staleShape: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 'new' }),
 		}, {
-			valid: { start: 1, endExclusive: 3, text: 'new', editGeneration: 2 },
+			valid: { start: 1, endExclusive: 3, text: 'new', editEpoch: 2 },
 			negativeStart: undefined,
 			reversed: undefined,
 			fractional: undefined,
@@ -32,11 +32,11 @@ suite('Markdown editor links', () => {
 	test('invalidates stale tasks after a queued task fails', async () => {
 		const errors: unknown[] = [];
 		const operations: string[] = [];
-		const recoveries: number[] = [];
+		const recoveryEpochs: number[] = [];
 		const queue = new RecoveringTaskQueue(
-			async (error, generation) => {
+			async (error, epoch) => {
 				errors.push(error);
-				recoveries.push(generation);
+				recoveryEpochs.push(epoch);
 			},
 			error => errors.push(error),
 		);
@@ -44,17 +44,17 @@ suite('Markdown editor links', () => {
 		const failed = queue.enqueue(0, async () => { throw new Error('failed'); });
 		const stale = queue.enqueue(0, async () => { operations.push('stale'); });
 		await Promise.all([failed, stale]);
-		await queue.enqueue(queue.generation, async () => { operations.push('fresh'); });
+		await queue.enqueue(queue.epoch, async () => { operations.push('fresh'); });
 
 		assert.deepStrictEqual({
 			errors: errors.map(error => error instanceof Error ? error.message : String(error)),
-			generation: queue.generation,
-			recoveries,
+			epoch: queue.epoch,
+			recoveryEpochs,
 			operations,
 		}, {
 			errors: ['failed'],
-			generation: 1,
-			recoveries: [1],
+			epoch: 1,
+			recoveryEpochs: [1],
 			operations: ['fresh'],
 		});
 	});
@@ -67,15 +67,15 @@ suite('Markdown editor links', () => {
 		);
 
 		const accepted = queue.enqueue(0, async () => { operations.push('accepted'); });
-		const barrier = queue.enqueueBarrier(generation => { operations.push(`reload:${generation}`); });
+		const barrier = queue.enqueueBarrier(epoch => { operations.push(`reload:${epoch}`); });
 		const stale = queue.enqueue(0, async () => { operations.push('stale'); });
 		await Promise.all([accepted, barrier, stale]);
 
 		assert.deepStrictEqual({
-			generation: queue.generation,
+			epoch: queue.epoch,
 			operations,
 		}, {
-			generation: 1,
+			epoch: 1,
 			operations: ['accepted', 'reload:1'],
 		});
 	});
@@ -86,13 +86,13 @@ suite('Markdown editor links', () => {
 			start: 1,
 			endExclusive: 1,
 			text: '\n',
-			editGeneration: 0,
+			editEpoch: 0,
 		});
 		const second = first && computeMarkdownEditorEdit(resource, first.expectedDocumentText, vscode.EndOfLine.CRLF, first.nextWebviewText, {
 			start: 2,
 			endExclusive: 2,
 			text: 'x',
-			editGeneration: 0,
+			editEpoch: 0,
 		});
 
 		assert.deepStrictEqual({
@@ -214,7 +214,7 @@ suite('Markdown editor initial state', () => {
 		const state = {
 			content: '</meta><script>globalThis.modified = true</script><!--\n# Heading "quoted"',
 			documentVersion: 17,
-			editGeneration: 3,
+			editEpoch: 3,
 			readonly: true,
 			richLinksEnabled: true,
 			linkPresentationRules: [],

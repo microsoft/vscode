@@ -42,7 +42,8 @@ interface CodeBlockEditorProviderDefinition {
 interface InitialState {
 	readonly content: string;
 	readonly documentVersion: number;
-	readonly editGeneration: number;
+	/** Identifies the authoritative text baseline against which local edits are computed. */
+	readonly editEpoch: number;
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
@@ -123,7 +124,8 @@ class Editor extends Disposable {
 	#controller: EditorController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: VirtualizedIframeEmbeddedEditorFactory | undefined;
-	#editGeneration: number;
+	/** Identifies the authoritative text baseline against which local edits are computed. */
+	#editEpoch: number;
 
 	readonly #comments = new CommentsModel();
 	#commentsView: CommentsView | undefined;
@@ -143,7 +145,7 @@ class Editor extends Disposable {
 			throw new Error('Missing Markdown editor message secret');
 		}
 		this.#messageSecret = messageSecret;
-		this.#editGeneration = initialState.editGeneration;
+		this.#editEpoch = initialState.editEpoch;
 		this.#linkPresentationProvider = initialState.richLinksEnabled
 			? this._register(new WebviewLinkPresentationProvider(
 				initialState.linkPresentationRules,
@@ -171,10 +173,10 @@ class Editor extends Disposable {
 					// text: it maps the selection through the change and clears stale
 					// pending-paragraph state, so the caret stays valid after an undo shrinks
 					// the document. The guard stops this echoing back as a user edit.
-					if (typeof message.editGeneration !== 'number' || !Number.isInteger(message.editGeneration) || message.editGeneration < 0) {
+					if (typeof message.editEpoch !== 'number' || !Number.isInteger(message.editEpoch) || message.editEpoch < 0) {
 						break;
 					}
-					this.#editGeneration = message.editGeneration;
+					this.#editEpoch = message.editEpoch;
 					this.isUpdatingFromExtension = true;
 					this.model.replaceSourceText(new StringValue(message.content));
 					this.isUpdatingFromExtension = false;
@@ -258,7 +260,7 @@ class Editor extends Disposable {
 		this.#vscode.postMessage({
 			type: 'ready',
 			documentVersion: initialState.documentVersion,
-			editGeneration: this.#editGeneration,
+			editEpoch: this.#editEpoch,
 		});
 		this._register({
 			dispose: () => {
@@ -486,7 +488,7 @@ class Editor extends Disposable {
 				this.#vscode.postMessage({
 					type: 'edit',
 					...computeTextEdit(previousText, text),
-					editGeneration: this.#editGeneration,
+					editEpoch: this.#editEpoch,
 				});
 			}
 			previousText = text;
@@ -604,9 +606,9 @@ function isInitialState(value: unknown): value is InitialState {
 	const candidate = value as Record<string, unknown>;
 	return typeof candidate.content === 'string'
 		&& typeof candidate.documentVersion === 'number'
-		&& typeof candidate.editGeneration === 'number'
-		&& Number.isInteger(candidate.editGeneration)
-		&& candidate.editGeneration >= 0
+		&& typeof candidate.editEpoch === 'number'
+		&& Number.isInteger(candidate.editEpoch)
+		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
