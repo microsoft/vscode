@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../browser/widget/input/chatInputPickerResponsiveLayout.js';
 import '../../../../browser/widget/input/modelPicker/media/modelPicker.css';
@@ -20,8 +22,39 @@ suite('ChatInputPickerResponsiveLayout', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		host.remove();
 	});
+
+	function createPickerLane(width: number, expandedWidths: number[]) {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = `${width}px`;
+		lane.style.overflow = 'hidden';
+
+		const items = expandedWidths.map(expandedWidth => {
+			const picker = dom.append(lane, dom.$('.picker'));
+			picker.style.flex = '0 0 auto';
+			picker.style.width = `${expandedWidth}px`;
+			const label = dom.append(picker, dom.$('.picker-label'));
+			label.style.display = 'block';
+			label.style.width = `${expandedWidth}px`;
+			let compact = false;
+			return {
+				element: picker,
+				isCompact: () => compact,
+				setCompact: (value: boolean) => {
+					compact = value;
+					picker.style.width = value ? '20px' : `${expandedWidth}px`;
+					label.style.display = value ? 'none' : 'block';
+				},
+			};
+		});
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.measuredPickerLane', lane, {
+			getItems: () => items,
+		}));
+		return { lane, items, layout };
+	}
 
 	test('uses the rendered picker width instead of a viewport threshold', () => {
 		const lane = dom.append(host, dom.$('.picker-lane'));
@@ -107,6 +140,84 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 	});
 
+	test('skips preferred-width measurement while rendered pickers overflow', () => {
+		const { lane, items, layout } = createPickerLane(130, [80, 80, 80]);
+		const clone = sinon.spy(lane, 'cloneNode');
+
+		layout.layout();
+
+		assert.deepStrictEqual({
+			compact: items.map(item => item.isCompact()),
+			measurements: clone.callCount,
+		}, {
+			compact: [false, true, true],
+			measurements: 2,
+		});
+	});
+
+	test('prepares all preferred-width measurement styles before attaching the clone', () => {
+		const { items, layout } = createPickerLane(300, [80, 80, 80]);
+		const observer = new (dom.getWindow(host).MutationObserver)(() => { });
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(host, { attributes: true, childList: true, subtree: true });
+
+		layout.layout();
+
+		const mutations = observer.takeRecords();
+		const measurementHosts = mutations.flatMap(mutation => Array.from(mutation.addedNodes))
+			.filter((node): node is HTMLElement => dom.isHTMLElement(node) && node.classList.contains('chat-input-picker-measurement-host'));
+		const measurementWrites = mutations.filter(mutation =>
+			mutation.type === 'attributes' && dom.isHTMLElement(mutation.target) && mutation.target.closest('.chat-input-picker-measurement-host'));
+		const measurement = measurementHosts[0]?.firstElementChild;
+
+		assert.deepStrictEqual({
+			compact: items.map(item => item.isCompact()),
+			measurements: measurementHosts.length,
+			measurementWrites: measurementWrites.length,
+			ariaHidden: measurement?.getAttribute('aria-hidden'),
+			inert: measurement?.hasAttribute('inert'),
+			remainingHosts: host.querySelectorAll('.chat-input-picker-measurement-host').length,
+		}, {
+			compact: [false, false, false],
+			measurements: 1,
+			measurementWrites: 0,
+			ariaHidden: 'true',
+			inert: true,
+			remainingHosts: 0,
+		});
+	});
+
+	test('preserves visual compaction order for reversed picker lanes', () => {
+		const { lane, items, layout } = createPickerLane(180, [80, 80, 80]);
+		lane.style.flexDirection = 'row-reverse';
+
+		layout.layout();
+
+		assert.deepStrictEqual(items.map(item => item.isCompact()), [true, false, false]);
+	});
+
+	test('excludes hidden picker bounds from fit checks', () => {
+		const { items, layout } = createPickerLane(160, [80, 200, 80]);
+		items[1].element.style.display = 'none';
+
+		layout.layout();
+
+		assert.deepStrictEqual(items.map(item => item.isCompact()), [false, false, false]);
+	});
+
+	test('still measures non-picker contents when picker bounds fit', () => {
+		const { lane, items, layout } = createPickerLane(120, [80]);
+		const fixedItem = dom.append(lane, dom.$('.non-responsive-item'));
+		fixedItem.style.flex = '0 0 100px';
+		const label = dom.append(fixedItem, dom.$('span'));
+		label.style.display = 'block';
+		label.style.width = '100px';
+
+		layout.layout();
+
+		assert.deepStrictEqual(items.map(item => item.isCompact()), [true]);
+	});
+
 	test('treats an empty picker set as fully compact', () => {
 		const lane = dom.append(host, dom.$('.picker-lane'));
 		const layout = store.add(new ChatInputPickerResponsiveLayout('test.emptyPickerLane', lane, {
@@ -141,11 +252,22 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		await new Promise(resolve => setTimeout(resolve, 0));
 		const afterUnrelatedMutation = layoutCalls;
 
+		picker.setAttribute('data-picker-open', 'true');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const afterVisualStateMutation = layoutCalls;
+
 		picker.textContent = 'picker changed';
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		assert.strictEqual(afterUnrelatedMutation, 0);
-		assert.ok(layoutCalls > 0);
+		assert.deepStrictEqual({
+			afterUnrelatedMutation,
+			afterVisualStateMutation,
+			afterContentMutation: layoutCalls > 0,
+		}, {
+			afterUnrelatedMutation: 0,
+			afterVisualStateMutation: 0,
+			afterContentMutation: true,
+		});
 	});
 
 	test('restores overflowed actions in compact form before considering expanded labels', () => {

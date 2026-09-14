@@ -9,7 +9,9 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -37,13 +39,16 @@ suite('ChatSessionArchiveNudge', () => {
 		};
 	}
 
-	function createServices(assignmentService: IWorkbenchAssignmentService = new NullWorkbenchAssignmentService(), wording = ChatSessionArchiveActionWording.Archive) {
+	function createServices(assignmentService: IWorkbenchAssignmentService = new NullWorkbenchAssignmentService(), wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
 		const errors: string[] = [];
 		const warnings: string[] = [];
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		const configurationService = new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: wording });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return reducedMotion; }
+		}());
 		instantiationService.stub(IWorkbenchAssignmentService, assignmentService);
 		instantiationService.stub(ILogService, new class extends NullLogService {
 			override warn(message: string): void {
@@ -74,8 +79,8 @@ suite('ChatSessionArchiveNudge', () => {
 		return container;
 	}
 
-	function createWidget(overrides?: Partial<IChatSessionArchiveNudgeOptions>, assignmentService?: IWorkbenchAssignmentService, wording = ChatSessionArchiveActionWording.Archive) {
-		const { instantiationService, configurationService, errors, warnings } = createServices(assignmentService, wording);
+	function createWidget(overrides?: Partial<IChatSessionArchiveNudgeOptions>, assignmentService?: IWorkbenchAssignmentService, wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
+		const { instantiationService, configurationService, errors, warnings } = createServices(assignmentService, wording, reducedMotion);
 		const container = createContainer();
 		const widget = store.add(instantiationService.createInstance(ChatSessionArchiveNudge, options(overrides)));
 		container.appendChild(widget.domNode);
@@ -158,6 +163,26 @@ suite('ChatSessionArchiveNudge', () => {
 			dismissLabel: 'Dismiss Archive Suggestion',
 			groupLabel: widget.domNode.querySelector('h3')?.id,
 		});
+	});
+
+	test('shows confetti when marking a merged pull request session as done', async () => {
+		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+
+		archive.click();
+		const animation = document.body.querySelector('.animation-overlay');
+		animation?.remove();
+
+		assert.ok(animation);
+	});
+
+	test('does not show confetti when reduced motion is enabled', async () => {
+		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, true);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+
+		archive.click();
+
+		assert.strictEqual(document.body.querySelector('.animation-overlay'), null);
 	});
 
 	test('opens automatic cleanup settings and reports failures', async () => {

@@ -9,9 +9,11 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	transform: translateY(1px);
 }
 
 .agent-host-mode-permission-summary,
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
 .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description {
 	color: var(--vscode-descriptionForeground);
 	opacity: 0.85;
@@ -29,6 +31,8 @@
 
 .hc-black .agent-host-mode-permission-summary,
 .hc-light .agent-host-mode-permission-summary,
+.hc-black .action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
+.hc-light .action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
 .hc-black .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description,
 .hc-light .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description {
 	opacity: 1;
@@ -44,36 +48,48 @@
 	display: none;
 }
 
+.action-widget .monaco-list-row.action.agent-host-mode-section,
 .action-widget .monaco-list-row.action.agent-host-mode-permissions {
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
 }
 
+.action-widget .monaco-list-row.action.agent-host-mode-section .title,
 .action-widget .monaco-list-row.action.agent-host-mode-permissions .title {
-	flex: 0 0 auto;
+	flex: 1 1 auto;
 }
 
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
 .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description {
-	flex: 1;
+	order: 2;
+	flex: 0 1 auto;
 	min-width: 0;
+	margin-left: calc(-1 * var(--vscode-spacing-size20));
+	margin-right: var(--vscode-spacing-size80);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	text-align: right;
 }
 
-.action-widget .monaco-list-row.action.agent-host-mode-permissions .action-list-item-toolbar {
+.action-widget .monaco-list-row.action.agent-host-mode-permissions.has-toolbar .action-list-item-toolbar {
 	display: flex;
 	visibility: visible;
+	order: 1;
+	margin-right: 0;
+	color: inherit;
 }
 
 .action-widget .monaco-list-row.action.agent-host-mode-permissions .action-list-item-toolbar .action-label {
 	padding: var(--vscode-spacing-size20);
+	color: inherit;
 }
 
 .sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger,
 .agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger {
 	display: flex;
-	height: auto;
+	height: var(--chat-input-control-height);
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	overflow: visible;
@@ -87,21 +103,31 @@
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	min-width: 0;
-	padding: 0 var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size40);
 	color: inherit;
 	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 }
 
-.agent-host-mode-permissions-trigger .agent-host-mode-button {
-	padding-right: calc(var(--vscode-spacing-size60) / 2);
-}
-
 .agent-host-mode-permissions-trigger .agent-host-permissions-button {
-	padding-left: calc(var(--vscode-spacing-size60) / 2);
+	position: relative;
+	margin-left: var(--vscode-spacing-size20);
 }
 
-.action-label.agent-host-mode-permissions-trigger .agent-host-mode-picker-button.agent-host-mode-button > .codicon {
+.agent-host-mode-permissions-trigger .agent-host-permissions-button::before {
+	position: absolute;
+	left: calc(-1 * var(--vscode-spacing-size20) / 2);
+	top: 50%;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size120);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	content: "";
+	transform: translate(-50%, -50%);
+	z-index: 1;
+	pointer-events: none;
+}
+
+.action-label.agent-host-mode-permissions-trigger .agent-host-mode-picker-button > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	width: var(--vscode-codiconFontSize-compact);
 	height: var(--vscode-codiconFontSize-compact);
@@ -110,8 +136,19 @@
 }
 
 .sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger:hover,
-.agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger:hover {
+.agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger:hover,
+.sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'],
+.agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-host-mode-permissions-trigger .agent-host-mode-picker-button:not([aria-disabled='true']):hover,
+.agent-host-mode-permissions-trigger .agent-host-mode-picker-button[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label.agent-host-mode-permissions-trigger:hover:not(.disabled) {
+	outline: none;
 }
 
 .agent-host-mode-picker-button:focus-visible {

@@ -319,6 +319,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						],
 						isAutomationDialogPopupTarget,
 						handle.acceptPromptSuggestion,
+						handle.cancelPromptSuggestion,
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => {

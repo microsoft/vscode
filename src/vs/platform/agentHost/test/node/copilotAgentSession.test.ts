@@ -3986,6 +3986,8 @@ suite('CopilotAgentSession', () => {
 
 		// The subagent routes its own model call; the parent never picked this model.
 		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		const beforeUsage = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []);
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 5,
@@ -4000,11 +4002,156 @@ suite('CopilotAgentSession', () => {
 				}]
 				: []);
 
-		assert.deepStrictEqual(routed, [
-			// The parent aggregate keeps describing the parent's own model call...
-			{ parentToolCallId: undefined, chosenModel: undefined },
-			// ...while the subagent's own component carries the routing.
-			{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+		assert.deepStrictEqual({ beforeUsage, routed }, {
+			beforeUsage: [{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.5', _meta: { autoModeResolved: { chosenModel: 'gpt-5.5' } } } }],
+			routed: [
+				{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+				{ parentToolCallId: undefined, chosenModel: undefined },
+				{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
+			],
+		});
+	});
+
+	for (const executionMode of ['sync', 'background']) {
+		test(`reports a ${executionMode} subagent model before its first usage event`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+				executionMode, model: 'gpt-5.4-mini',
+			}, { agentId: 'agent-1' });
+			const afterStart = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+				? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []);
+			mockSession.fire('subagent.configured', { model: 'claude-sonnet-4.6', multiTurn: executionMode === 'background' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'claude-sonnet-4.6' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				afterStart,
+				modelUpdates: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+					? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []),
+			}, {
+				afterStart: [{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.4-mini' } }],
+				modelUpdates: [
+					{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.4-mini' } },
+					{ parentToolCallId: 'tc-subagent', usage: { model: 'claude-sonnet-4.6' } },
+				],
+			});
+		});
+	}
+
+	test('reports the model when a background child starts after its parent turn finishes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		session.resetTurnState('');
+		mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'gpt-5.4-mini' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []), [
+			{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.4-mini' } },
+		]);
+	});
+
+	test('subagent model updates preserve prior usage without charging again', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5', inputTokens: 5, outputTokens: 7,
+		}, { agentId: 'agent-1' });
+		const childUsage = () => signals.flatMap(signal => signal.kind === 'action'
+			&& signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+			? [signal.action.usage] : []);
+		const before = childUsage().at(-1);
+		mockSession.fire('subagent.configured', { model: 'claude-sonnet-4.6', multiTurn: true }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(childUsage(), [before, { ...before, model: 'claude-sonnet-4.6' }]);
+	});
+
+	test('does not attribute an unknown subagent model to the parent', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.configured', { model: 'gpt-5.4-mini', multiTurn: true }, { agentId: 'unknown-agent' });
+		mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'gpt-5.4-mini' }, { agentId: 'unknown-agent' });
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage), []);
+	});
+
+	test('keeps the routed subagent model when later configuration still says Auto', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('subagent.configured', { model: 'auto', multiTurn: true }, { agentId: 'agent-1' });
+		mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [signal.action.usage] : []), [
+			{ model: 'auto' },
+			{ model: 'gpt-5.5', _meta: { autoModeResolved: { chosenModel: 'gpt-5.5' } } },
+		]);
+	});
+
+	test('preserves subagent Auto routing and usage across same-model configuration changes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 5, outputTokens: 7 }, { agentId: 'agent-1' });
+		const before = signals.length;
+
+		mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.slice(before).filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage), []);
+	});
+
+	test('reports an explicit child model change without retaining earlier Auto routing', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'claude-sonnet-4.6' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			? [{ parentToolCallId: signal.parentToolCallId, usage: signal.action.usage }] : []), [
+			{ parentToolCallId: 'tc-subagent', usage: { model: 'gpt-5.5', _meta: { autoModeResolved: { chosenModel: 'gpt-5.5' } } } },
+			{ parentToolCallId: 'tc-subagent', usage: { model: 'claude-sonnet-4.6' } },
+		]);
+	});
+
+	test('republishes an early model selection when a retained background child resumes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Explore tests',
+			status: 'idle', agentType: 'explore', prompt: 'Initial request',
+			startedAt: new Date(0).toISOString(), idleSince: new Date(1).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
+		mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+		const afterRouting = signals.length;
+		mockSession.fire('user.message', { content: 'Review the follow-up', source: 'agent-parent' }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual(signals.slice(afterRouting).flatMap<{ kind: 'subagent_resumed' | ActionType.ChatUsage; model?: string; parentToolCallId?: string }>(signal =>
+			signal.kind === 'subagent_resumed' ? [{ kind: signal.kind }]
+				: signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+					? [{ kind: signal.action.type, model: signal.action.usage.model, parentToolCallId: signal.parentToolCallId }] : []), [
+			{ kind: 'subagent_resumed' },
+			{ kind: ActionType.ChatUsage, model: 'gpt-5.5', parentToolCallId: 'tc-subagent' },
 		]);
 	});
 
@@ -4055,7 +4202,7 @@ suite('CopilotAgentSession', () => {
 				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
 				: []);
 
-		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5', 'gpt-5.5']);
 	});
 
 	test('keeps a subagent Auto resolution when the root turn has already been cleared', async () => {
@@ -4085,7 +4232,7 @@ suite('CopilotAgentSession', () => {
 				? [readUsageInfoMeta(signal.action.usage).autoModeResolved?.chosenModel]
 				: []);
 
-		assert.deepStrictEqual(subagentRouting, ['gpt-5.5']);
+		assert.deepStrictEqual(subagentRouting, ['gpt-5.5', 'gpt-5.5']);
 	});
 
 	test('accumulates whole-turn token totals per model across parent and subagent calls', async () => {
@@ -5523,6 +5670,28 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('HydraFusion keeps SDK experimental mode enabled when approval mode changes', async () => {
+			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues,
+				rootValues: {
+					[CopilotCliConfigKey.HydraFusion]: true,
+				},
+			});
+
+			await session.syncPermissionMode('turn-start');
+			configValues[SessionConfigKey.AutoApprove] = 'default';
+			await session.syncPermissionMode('config-change');
+
+			assert.deepStrictEqual({
+				experimentalModeUpdates: mockSession.experimentalModeUpdates,
+				permissionModes: mockSession.permissionModeSetCalls,
+			}, {
+				experimentalModeUpdates: [true],
+				permissionModes: ['assisted', 'manual'],
+			});
+		});
+
 		test('Approve When Safe honors approve recommendations without prompting', async () => {
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -5875,6 +6044,91 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.slice(1), [{ enabled: false }, { enabled: false }]);
 		});
 
+		for (const platform of ['linux', 'win32'] as const) {
+			for (const peerChat of [false, true]) {
+				test(`applies an idle ${peerChat ? 'peer' : 'default'} session sandbox toggle before the next prompt on ${platform}`, async () => {
+					const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+					const resource = peerChat ? URI.parse(buildChatUri(sessionUri, 'sandbox-peer')) : undefined;
+					const sandbox = {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+					};
+					const results = [];
+					for (const selection of ['off', 'on', 'default']) {
+						const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+							sessionUri, chatChannelUri: resource, resource, platform,
+							rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
+						});
+						setConfigValue(SessionConfigKey.SandboxEnabled, selection);
+						fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: selection });
+						await timeout(0);
+						const beforePrompt = [...mockSession.sandboxConfigUpdates];
+						const permissionModesBeforePrompt = [...mockSession.permissionModeSetCalls];
+						await session.send('hello', undefined, 'sandbox-turn');
+						results.push({ beforePrompt, afterPrompt: [...mockSession.sandboxConfigUpdates], permissionModesBeforePrompt });
+					}
+
+					assert.deepStrictEqual(results, [
+						{ enabled: false },
+						buildSandboxConfigForSdk(platform, sandbox),
+						buildSandboxConfigForSdk(platform, sandbox),
+					].map(sandboxConfig => ({
+						beforePrompt: [sandboxConfig],
+						afterPrompt: [sandboxConfig, sandboxConfig],
+						permissionModesBeforePrompt: [],
+					})));
+				});
+			}
+		}
+
+		test('idle session sandbox override is applied immediately and stays pinned across root changes', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange, setRootValue, fireRootConfigChange } = await createAgentSession(disposables);
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, sandbox);
+			fireRootConfigChange();
+			await timeout(0);
+
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+			await timeout(0);
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { ...sandbox, allowNetwork: false });
+			fireRootConfigChange();
+			await timeout(0);
+
+			const beforePrompt = [...mockSession.sandboxConfigUpdates];
+			await session.send('hello', undefined, 'sandbox-turn');
+			assert.deepStrictEqual({
+				beforePrompt,
+				afterPrompt: mockSession.sandboxConfigUpdates,
+			}, {
+				beforePrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }],
+				afterPrompt: [buildSandboxConfigForSdk('linux', sandbox), { enabled: false }, { enabled: false }, { enabled: false }],
+			});
+		});
+
+		test('logs idle sandbox update failures without aborting and retries before the next prompt', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, { logService });
+			mockSession.sandboxConfigUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				errors: logService.errors.map(entry => entry.first instanceof Error ? entry.first.message : entry.first),
+				abortCalls: mockSession.abortCalls,
+			}, {
+				errors: ['Copilot SDK rejected sandbox config update'],
+				abortCalls: 0,
+			});
+			await assert.rejects(() => session.send('hello', undefined, 'failed-turn'), /rejected sandbox config update/);
+			assert.deepStrictEqual(mockSession.sendRequests, []);
+
+			mockSession.sandboxConfigUpdateSuccess = true;
+			await session.send('hello', undefined, 'retry-turn');
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+		});
+
 		test('ignores approval changes for other sessions', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -6010,19 +6264,51 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
 		});
 
-		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
+		test('per-request sandbox: applied when the custom terminal tool is enabled', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: {
-					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostSandboxConfigKey.Sandbox]: sandbox,
 					[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
 				},
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			// The host's own terminal sandbox engine handles containment, so the
-			// SDK sandbox config is not managed in this mode.
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, []);
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [buildSandboxConfigForSdk('linux', sandbox)]);
+		});
+
+		test('sandbox config changes apply while idle and active with the custom terminal tool enabled', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
+			await timeout(0);
+
+			session.resetTurnState('active-turn');
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [
+				buildSandboxConfigForSdk('linux', {
+					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+					[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+				}),
+				{ enabled: false },
+			]);
+		});
+
+		test('rejects a turn when SDK sandbox configuration fails with the custom terminal tool enabled', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			mockSession.sandboxConfigUpdateSuccess = false;
+
+			await assert.rejects(() => session.send('hello', undefined, 'turn-1'), /rejected sandbox config update/);
+
+			assert.deepStrictEqual(mockSession.sendRequests, []);
 		});
 
 		test('pending permissions are denied on dispose', async () => {

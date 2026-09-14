@@ -497,11 +497,12 @@ async function assessDisabledInstalledMcpServer(
 	configurationResolverService: IConfigurationResolverService,
 	workingDirectories: readonly URI[] | undefined,
 ): Promise<IAgentHostMcpServerSupport> {
-	const sourceKind = getMcpConfigurationSourceKind(server.configPath?.target);
+	const sourceKind = getMcpCollectionSourceKind(server.configPath?.provenance ?? getMcpCollectionProvenance(server.configPath?.target), undefined)
+		?? AgentHostMcpServerSourceKind.Unknown;
 	const compatibility = await getInstalledMcpServerCompatibility(server, sourceKind, configurationResolverService);
-	const collectionId = server.configPath
+	const collectionId = server.configPath?.collectionId ?? (server.configPath
 		? `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${server.configPath.id}`
-		: getCollectionIdFromInstalledServer(server);
+		: getCollectionIdFromInstalledServer(server));
 	return {
 		id: server.id,
 		name: server.name,
@@ -531,11 +532,6 @@ function getCollectionIdFromInstalledServer(server: IAgentHostInstalledMcpServer
 	return server.id.endsWith(nameSuffix)
 		? server.id.slice(0, -nameSuffix.length)
 		: `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}unknown`;
-}
-
-function getMcpConfigurationSourceKind(configTarget: ConfigurationTarget | undefined): AgentHostMcpServerSourceKind {
-	return getMcpCollectionSourceKind(getMcpCollectionProvenance(configTarget), undefined)
-		?? AgentHostMcpServerSourceKind.Unknown;
 }
 
 async function getInstalledMcpServerCompatibility(

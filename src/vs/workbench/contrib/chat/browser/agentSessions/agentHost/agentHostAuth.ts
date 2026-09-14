@@ -408,16 +408,16 @@ async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: Pick<AuthenticationSession, 'accessToken' | 'expiresIn'> | undefined,
+	session: Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> | undefined,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
-	const expiresIn = session?.expiresIn;
+	const expiresAfter = session?.expiresAfter;
 	const request: IAgentHostAuthenticateRequest = {
 		resource,
 		scopes,
 		token,
-		...(expiresIn !== undefined && Number.isInteger(expiresIn) && expiresIn > 0 ? { expiresIn } : {}),
+		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 	};
 	if (options.authTokenCache) {
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request));
