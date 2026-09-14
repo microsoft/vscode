@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow } from '../../../../../base/common/date.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -66,6 +67,8 @@ export interface ISessionSummaryHoverPullRequest {
  */
 export interface ISessionSummaryHoverData {
 	readonly title: string;
+	/** When the session was last updated. */
+	readonly updatedAt?: Date;
 	readonly location?: ISessionSummaryHoverLocation;
 	/**
 	 * Pull requests this session produced. Pull requests inherited from the
@@ -131,6 +134,10 @@ export class SessionSummaryHoverWidget {
 		if (data.providerLabel) {
 			appendSeparator(this._title);
 			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, data.providerLabel));
+		}
+		if (data.updatedAt) {
+			appendSeparator(this._title);
+			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, fromNow(data.updatedAt, true)));
 		}
 
 		dom.clearNode(this._location);
