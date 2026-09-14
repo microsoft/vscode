@@ -20,7 +20,9 @@ suite('TypeScript metrics tool', () => {
 		const contributedName = getContributedToolName(ToolName.TypeScriptMetrics);
 		const definition = packageJson.contributes.languageModelTools.find(tool => tool.name === contributedName);
 		const requiredDescriptionParts = [
-			'cognitive and cyclomatic complexity',
+			'cognitive complexity',
+			'cyclomatic complexity',
+			'Big-O runtime complexity',
 			'absolute file path',
 			'zero-based source ranges',
 			'unnamed entities are aggregated',
@@ -42,7 +44,7 @@ suite('TypeScript metrics tool', () => {
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
 				range: new Range(2, 1, 8, 2),
-				metrics: { cognitiveComplexity: 3, cyclomaticComplexity: 4 },
+				metrics: { cognitiveComplexity: 3, cyclomaticComplexity: 4, runtimeComplexity: 'O(n)' },
 			}],
 		};
 		const service = new TestTypeScriptMetricsService(metrics);
@@ -68,7 +70,7 @@ suite('TypeScript metrics tool', () => {
 						start: { line: 2, character: 1 },
 						end: { line: 8, character: 2 },
 					},
-					metrics: { cognitiveComplexity: 3, cyclomaticComplexity: 4 },
+					metrics: { cognitiveComplexity: 3, cyclomaticComplexity: 4, runtimeComplexity: 'O(n)' },
 				}],
 			}),
 		});

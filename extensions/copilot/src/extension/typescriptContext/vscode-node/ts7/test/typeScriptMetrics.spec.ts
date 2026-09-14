@@ -10,7 +10,7 @@ import { afterAll, beforeAll, suite, test } from 'vitest';
 
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { TS7TypeScriptMetricsProvider } from '../typeScriptMetricsService';
-import { getExpectedTypeScriptMetrics, summarizeTypeScriptMetrics, typeScriptMetricsSource } from './typeScriptMetricsTestData';
+import { expectedRuntimeComplexity, getExpectedTypeScriptMetrics, runtimeComplexitySource, summarizeRuntimeComplexity, summarizeTypeScriptMetrics, typeScriptMetricsSource } from './typeScriptMetricsTestData';
 
 suite('TypeScript 7 metrics', () => {
 	let api: API;
@@ -31,12 +31,12 @@ suite('TypeScript 7 metrics', () => {
 			const result = await provider.computeMetrics(filePath);
 			assert.ok(result !== undefined);
 			assert.deepStrictEqual(summarizeTypeScriptMetrics(result), [
-				{ kind: 'sourceFile', path: [], range: { start: 0, end: 32 }, cognitiveComplexity: 0, cyclomaticComplexity: 1 },
-				{ kind: 'constructor', path: ['Calculator', 'constructor'], range: { start: 8, end: 10 }, cognitiveComplexity: 0, cyclomaticComplexity: 1 },
-				{ kind: 'method', path: ['Calculator', 'add'], range: { start: 12, end: 15 }, cognitiveComplexity: 0, cyclomaticComplexity: 1 },
-				{ kind: 'method', path: ['Calculator', 'getResult'], range: { start: 17, end: 22 }, cognitiveComplexity: 0, cyclomaticComplexity: 1 },
-				{ kind: 'function', path: ['createCalculator'], range: { start: 25, end: 27 }, cognitiveComplexity: 0, cyclomaticComplexity: 1 },
-				{ kind: 'function', path: ['getValue'], range: { start: 29, end: 31 }, cognitiveComplexity: 0, cyclomaticComplexity: 1 },
+				{ kind: 'sourceFile', path: [], range: { start: 0, end: 32 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
+				{ kind: 'constructor', path: ['Calculator', 'constructor'], range: { start: 8, end: 10 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
+				{ kind: 'method', path: ['Calculator', 'add'], range: { start: 12, end: 15 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
+				{ kind: 'method', path: ['Calculator', 'getResult'], range: { start: 17, end: 22 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
+				{ kind: 'function', path: ['createCalculator'], range: { start: 25, end: 27 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
+				{ kind: 'function', path: ['getValue'], range: { start: 29, end: 31 }, cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
 			]);
 		} finally {
 			provider.dispose();
@@ -49,6 +49,17 @@ suite('TypeScript 7 metrics', () => {
 			const result = await provider.computeMetrics(filePath, typeScriptMetricsSource);
 			assert.ok(result !== undefined);
 			assert.deepStrictEqual(summarizeTypeScriptMetrics(result), getExpectedTypeScriptMetrics());
+		} finally {
+			provider.dispose();
+		}
+	});
+
+	test('estimates runtime complexity from loop structure', async () => {
+		const provider = new TS7TypeScriptMetricsProvider(new TestLogService(), new TestTypeScript7Api(api));
+		try {
+			const result = await provider.computeMetrics(filePath, runtimeComplexitySource);
+			assert.ok(result !== undefined);
+			assert.deepStrictEqual(summarizeRuntimeComplexity(result), expectedRuntimeComplexity);
 		} finally {
 			provider.dispose();
 		}

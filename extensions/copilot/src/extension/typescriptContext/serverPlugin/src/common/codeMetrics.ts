@@ -34,6 +34,7 @@ interface MetricTarget {
 class TypeScriptMetricsComputer {
 	private readonly computations: readonly MetricComputation[] = [
 		new ComplexityMetricComputation(),
+		new RuntimeComplexityMetricComputation(),
 	];
 
 	compute(sourceFile: SourceFile): protocol.TypeScriptMetricsResult {
@@ -140,10 +141,11 @@ class TypeScriptMetricsComputer {
 
 		const cognitiveComplexity = metrics.cognitiveComplexity;
 		const cyclomaticComplexity = metrics.cyclomaticComplexity;
-		if (typeof cognitiveComplexity !== 'number' || typeof cyclomaticComplexity !== 'number') {
-			throw new Error('The TypeScript metric computations did not produce both complexity metrics');
+		const runtimeComplexity = metrics.runtimeComplexity;
+		if (typeof cognitiveComplexity !== 'number' || typeof cyclomaticComplexity !== 'number' || typeof runtimeComplexity !== 'string') {
+			throw new Error('The TypeScript metric computations did not produce all required metrics');
 		}
-		return { ...metrics, cognitiveComplexity, cyclomaticComplexity };
+		return { ...metrics, cognitiveComplexity, cyclomaticComplexity, runtimeComplexity };
 	}
 }
 
@@ -227,6 +229,181 @@ class ComplexityMetricComputation implements MetricComputation {
 		const value = metrics[name];
 		if (typeof value !== 'number') {
 			throw new Error(`TypeScript metric '${name}' must be numeric to aggregate it`);
+		}
+		return value;
+	}
+}
+
+type RuntimeOrder = readonly [polynomial: number, logarithmic: number];
+
+/**
+ * Estimates local Big-O complexity from loop structure. Sequential work and branches use
+ * the maximum order, nested loops multiply, and unknown calls are constant time.
+ */
+class RuntimeComplexityMetricComputation implements MetricComputation {
+	compute(entity: Node, sourceFile: SourceFile): MetricValues {
+		return { runtimeComplexity: this.format(this.computeNode(entity, sourceFile, true)) };
+	}
+
+	aggregate(current: MetricValues, incoming: MetricValues): MetricValues {
+		const currentOrder = this.parse(this.getMetric(current));
+		const incomingOrder = this.parse(this.getMetric(incoming));
+		return { runtimeComplexity: this.format(this.max(currentOrder, incomingOrder)) };
+	}
+
+	private computeNode(node: Node, sourceFile: SourceFile, isRoot: boolean): RuntimeOrder {
+		if (!isRoot && MetricsAst.getEntity(node, sourceFile) !== undefined) {
+			return [0, 0];
+		}
+
+		let childOrder: RuntimeOrder = [0, 0];
+		node.forEachChild(child => {
+			childOrder = this.max(childOrder, this.computeNode(child, sourceFile, false));
+		});
+		return MetricsAst.isLoop(node)
+			? this.multiply(this.getLoopFactor(node, sourceFile), childOrder)
+			: childOrder;
+	}
+
+	private getLoopFactor(node: Node, sourceFile: SourceFile): RuntimeOrder {
+		if (ts.isForInStatement(node) || ts.isForOfStatement(node)) {
+			return [1, 0];
+		}
+
+		let condition: Node | undefined;
+		let updateRoot: Node | undefined;
+		if (ts.isForStatement(node)) {
+			condition = node.condition;
+			updateRoot = node.incrementor;
+		} else if (ts.isWhileStatement(node) || ts.isDoStatement(node)) {
+			condition = node.expression;
+			updateRoot = node.statement;
+		}
+
+		if (condition === undefined || updateRoot === undefined) {
+			return [1, 0];
+		}
+		const controlExpressions = this.getControlExpressions(condition, sourceFile);
+		return this.containsLogarithmicUpdate(updateRoot, sourceFile, controlExpressions, true) ? [0, 1] : [1, 0];
+	}
+
+	private getControlExpressions(node: Node, sourceFile: SourceFile): ReadonlySet<string> {
+		const result = new Set<string>();
+		const visit = (current: Node): void => {
+			if (ts.isIdentifier(current) || ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+				result.add(current.getText(sourceFile));
+			}
+			current.forEachChild(visit);
+		};
+		visit(node);
+		return result;
+	}
+
+	private containsLogarithmicUpdate(node: Node, sourceFile: SourceFile, controlExpressions: ReadonlySet<string>, isRoot: boolean): boolean {
+		if (!isRoot && MetricsAst.getEntity(node, sourceFile) !== undefined) {
+			return false;
+		}
+		if (ts.isBinaryExpression(node) && this.isLogarithmicUpdate(node, sourceFile, controlExpressions)) {
+			return true;
+		}
+
+		let result = false;
+		node.forEachChild(child => {
+			if (!result) {
+				result = this.containsLogarithmicUpdate(child, sourceFile, controlExpressions, false);
+			}
+		});
+		return result;
+	}
+
+	private isLogarithmicUpdate(node: tt.BinaryExpression, sourceFile: SourceFile, controlExpressions: ReadonlySet<string>): boolean {
+		const target = node.left.getText(sourceFile);
+		if (!controlExpressions.has(target)) {
+			return false;
+		}
+		if (this.isLogarithmicCompoundOperator(node.operatorToken.kind)) {
+			return true;
+		}
+		if (node.operatorToken.kind !== ts.SyntaxKind.EqualsToken || !ts.isBinaryExpression(node.right) || !this.isLogarithmicBinaryOperator(node.right.operatorToken.kind)) {
+			return false;
+		}
+		return node.right.left.getText(sourceFile) === target || node.right.right.getText(sourceFile) === target;
+	}
+
+	private isLogarithmicCompoundOperator(kind: number): boolean {
+		return kind === ts.SyntaxKind.AsteriskEqualsToken
+			|| kind === ts.SyntaxKind.SlashEqualsToken
+			|| kind === ts.SyntaxKind.LessThanLessThanEqualsToken
+			|| kind === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken
+			|| kind === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken;
+	}
+
+	private isLogarithmicBinaryOperator(kind: number): boolean {
+		return kind === ts.SyntaxKind.AsteriskToken
+			|| kind === ts.SyntaxKind.SlashToken
+			|| kind === ts.SyntaxKind.LessThanLessThanToken
+			|| kind === ts.SyntaxKind.GreaterThanGreaterThanToken
+			|| kind === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken;
+	}
+
+	private multiply(left: RuntimeOrder, right: RuntimeOrder): RuntimeOrder {
+		return [left[0] + right[0], left[1] + right[1]];
+	}
+
+	private max(left: RuntimeOrder, right: RuntimeOrder): RuntimeOrder {
+		if (left[0] !== right[0]) {
+			return left[0] > right[0] ? left : right;
+		}
+		return left[1] >= right[1] ? left : right;
+	}
+
+	private format(order: RuntimeOrder): string {
+		const factors: string[] = [];
+		if (order[0] > 0) {
+			factors.push(order[0] === 1 ? 'n' : `n^${order[0]}`);
+		}
+		if (order[1] > 0) {
+			factors.push(order[1] === 1 ? 'log n' : `log^${order[1]} n`);
+		}
+		return `O(${factors.length === 0 ? '1' : factors.join(' ')})`;
+	}
+
+	private parse(value: string): RuntimeOrder {
+		if (!value.startsWith('O(') || !value.endsWith(')')) {
+			throw new Error(`Invalid runtime complexity '${value}'`);
+		}
+		let body = value.slice(2, -1);
+		if (body === '1') {
+			return [0, 0];
+		}
+
+		let logarithmic = 0;
+		const logarithmicMatch = /log(?:\^([1-9]\d*))? n$/.exec(body);
+		if (logarithmicMatch !== null) {
+			logarithmic = Number(logarithmicMatch[1] ?? '1');
+			body = body.slice(0, logarithmicMatch.index).trim();
+		}
+
+		let polynomial = 0;
+		if (body === 'n') {
+			polynomial = 1;
+		} else if (body.length > 0) {
+			const polynomialMatch = /^n\^([1-9]\d*)$/.exec(body);
+			if (polynomialMatch === null) {
+				throw new Error(`Invalid runtime complexity '${value}'`);
+			}
+			polynomial = Number(polynomialMatch[1]);
+		}
+		if (polynomial === 0 && logarithmic === 0) {
+			throw new Error(`Invalid runtime complexity '${value}'`);
+		}
+		return [polynomial, logarithmic];
+	}
+
+	private getMetric(metrics: MetricValues): string {
+		const value = metrics.runtimeComplexity;
+		if (typeof value !== 'string') {
+			throw new Error(`TypeScript metric 'runtimeComplexity' must be a string to aggregate it`);
 		}
 		return value;
 	}

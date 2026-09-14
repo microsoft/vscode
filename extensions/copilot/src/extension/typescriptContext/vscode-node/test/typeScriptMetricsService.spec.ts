@@ -35,7 +35,7 @@ suite('TypeScript 6 metrics service', () => {
 				kind: 'sourceFile',
 				path: [],
 				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 12 } },
-				metrics: { cognitiveComplexity: 0, cyclomaticComplexity: 1 },
+				metrics: { cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
 			}],
 		};
 		executeCommand.mockResolvedValue({ type: 'response', body: expectedResult });

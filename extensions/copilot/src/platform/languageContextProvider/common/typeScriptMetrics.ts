@@ -11,6 +11,10 @@ export type TypeScriptMetricValue = number | string;
 export interface TypeScriptMetrics extends Readonly<Record<string, TypeScriptMetricValue>> {
 	readonly cognitiveComplexity: number;
 	readonly cyclomaticComplexity: number;
+	/**
+	 * A local syntactic estimate. Unknown calls are treated as constant time.
+	 */
+	readonly runtimeComplexity: string;
 }
 
 export interface TypeScriptMetricEntity {

@@ -8,7 +8,7 @@ import ts from 'typescript';
 import { beforeAll, suite, test } from 'vitest';
 
 import type * as codeMetrics from '../../common/codeMetrics';
-import { getExpectedTypeScriptMetrics, summarizeTypeScriptMetrics, typeScriptMetricsSource } from './typeScriptMetricsTestData';
+import { expectedRuntimeComplexity, getExpectedTypeScriptMetrics, runtimeComplexitySource, summarizeRuntimeComplexity, summarizeTypeScriptMetrics, typeScriptMetricsSource } from './typeScriptMetricsTestData';
 
 let TypeScriptMetricsProvider: typeof codeMetrics.TypeScriptMetricsProvider;
 
@@ -24,5 +24,12 @@ suite('TypeScript 6 metrics', () => {
 		const result = new TypeScriptMetricsProvider().compute(sourceFile);
 
 		assert.deepStrictEqual(summarizeTypeScriptMetrics(result), getExpectedTypeScriptMetrics());
+	});
+
+	test('estimates runtime complexity from loop structure', () => {
+		const sourceFile = ts.createSourceFile('runtimeMetrics.ts', runtimeComplexitySource, ts.ScriptTarget.Latest, true);
+		const result = new TypeScriptMetricsProvider().compute(sourceFile);
+
+		assert.deepStrictEqual(summarizeRuntimeComplexity(result), expectedRuntimeComplexity);
 	});
 });

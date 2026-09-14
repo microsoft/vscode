@@ -77,6 +77,7 @@ export type TypeScriptMetricValue = number | string;
 export interface TypeScriptMetrics extends Readonly<Record<string, TypeScriptMetricValue>> {
 	cognitiveComplexity: number;
 	cyclomaticComplexity: number;
+	runtimeComplexity: string;
 }
 
 export interface TypeScriptMetricEntity {
@@ -543,6 +544,7 @@ export namespace TypeScriptMetricsResponse {
 			&& typeof entity.range.end.character === 'number'
 			&& typeof entity.metrics?.cognitiveComplexity === 'number'
 			&& typeof entity.metrics.cyclomaticComplexity === 'number'
+			&& typeof entity.metrics.runtimeComplexity === 'string'
 		);
 	}
 

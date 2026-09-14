@@ -540,7 +540,7 @@
         "toolReferenceName": "typescriptMetrics",
         "icon": "$(symbol-number)",
         "userDescription": "%copilot.tools.typeScriptMetrics.description%",
-        "modelDescription": "Compute cognitive and cyclomatic complexity for every executable entity in a TypeScript or JavaScript file. Use this when you need per-entity complexity metrics; do not use it for compiler diagnostics or runtime profiling. Supply an absolute file path. Optionally provide content to analyze unsaved or hypothetical text instead of the language service's file contents. Returns JSON with hierarchical entity paths, zero-based source ranges, and metrics; unnamed entities are aggregated into their nearest named container.",
+        "modelDescription": "Compute cognitive complexity, cyclomatic complexity, and estimated Big-O runtime complexity for every executable entity in a TypeScript or JavaScript file. Use this when you need per-entity complexity metrics; do not use it for compiler diagnostics or measured runtime profiling. Supply an absolute file path. Optionally provide content to analyze unsaved or hypothetical text instead of the language service's file contents. Returns JSON with hierarchical entity paths, zero-based source ranges, and metrics; unnamed entities are aggregated into their nearest named container.",
         "tags": [],
         "canBeReferencedInPrompt": true,
         "inputSchema": {
