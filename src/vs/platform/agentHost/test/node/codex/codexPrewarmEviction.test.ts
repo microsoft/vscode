@@ -1846,6 +1846,44 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 	});
 
+	test('MCP inventory refreshes coalesce per thread', async () => {
+		const agent = await createAgent(disposables);
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		let requests = 0;
+		const client = {
+			request: async (method: string) => {
+				assert.strictEqual(method, 'mcpServerStatus/list');
+				requests++;
+				if (requests === 1) {
+					firstStarted.complete();
+					await releaseFirst.p;
+				}
+				return { data: [], nextCursor: null };
+			},
+		} as never;
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		const first = agent['_refreshMcpInventory'](client, null);
+		await firstStarted.p;
+		const second = agent['_refreshMcpInventory'](client, null);
+		const third = agent['_refreshMcpInventory'](client, null);
+		await new Promise(resolve => setImmediate(resolve));
+		const requestsWhileFirstPending = requests;
+		releaseFirst.complete();
+		await Promise.all([first, second, third]);
+
+		assert.deepStrictEqual({ requestsWhileFirstPending, requests }, {
+			requestsWhileFirstPending: 1,
+			requests: 2,
+		});
+	});
+
 	test('every persistent app-server receives the current skill extra roots before it is returned', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
