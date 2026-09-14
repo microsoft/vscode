@@ -39,10 +39,10 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
-import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { ISessionsPartService, SessionGridLayout } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
@@ -231,15 +231,17 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; instantiationService: TestInstantiationService; storage: InMemoryStorageService; partService: TestSessionsPartService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
 	const providers = Array.isArray(provider) ? provider : [provider];
 	const contextKeyService = disposables.add(new MockContextKeyService());
 	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
+	const storage = disposables.add(new InMemoryStorageService());
+	const partService = new TestSessionsPartService();
 
-	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
@@ -257,8 +259,8 @@ function createSessionsManagementService(
 	}
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-	const view = createView(instantiationService, service, disposables, customViewService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService };
+	const view = createView(instantiationService, service, disposables, customViewService, partService);
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, instantiationService, storage, partService };
 }
 
 /**
@@ -266,9 +268,12 @@ function createSessionsManagementService(
  * exercise the view/model behaviour, so the calls are no-ops.
  */
 class TestSessionsPartService extends mock<ISessionsPartService>() {
+	readonly updates: { ids: (string | undefined)[]; layout: SessionGridLayout | undefined }[] = [];
 	override readonly onDidFocusSession = Event.None;
 	override readonly onDidToggleMaximizeSession = Event.None;
-	override updateVisibleSessions(): void { }
+	override updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], _active: IActiveSession | undefined, layout?: SessionGridLayout): void {
+		this.updates.push({ ids: visible.map(session => session?.sessionId), layout });
+	}
 	override focusSession(): void { }
 }
 
@@ -297,9 +302,10 @@ function createView(
 	service: ISessionsManagementService,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
+	partService = new TestSessionsPartService(),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
-	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
+	instantiationService.stub(ISessionsPartService, partService);
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
@@ -1482,6 +1488,75 @@ suite('SessionsManagementService', () => {
 			sticky: [true, false, false],
 			active: 'b',
 		});
+	});
+
+	test('openSessionsInGrid atomically opens only the requested sessions and restores the tiled mode', async () => {
+		const sessions = ['a', 'b', 'c', 'd', 'unrelated'].map(sessionId => stubSession({ sessionId, providerId: 'test', status: constObservable(SessionStatus.Completed) }));
+		const prepared: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override getSessions() { return sessions; }
+			override async prepareSessionForOpen(session: ISession): Promise<void> { prepared.push(session.sessionId); }
+		}(sessions[0]);
+		const fixture = createSessionsManagementService(sessions[0], disposables, provider);
+		await fixture.view.openSession(sessions[4].resource);
+		fixture.partService.updates.length = 0;
+		prepared.length = 0;
+		await fixture.view.openSessionsInGrid([...sessions.slice(0, 4), sessions[0]]);
+		const initialUpdates = [...fixture.partService.updates];
+		await fixture.storage.flush();
+		fixture.view.dispose();
+		const restoredParts = new TestSessionsPartService();
+		const restored = createView(fixture.instantiationService, fixture.service, disposables, fixture.customViewService, restoredParts);
+		await restored.restoreVisibleSessions();
+		const restoredLayout = restoredParts.updates.at(-1);
+		await restored.openSession(sessions[4].resource);
+		assert.deepStrictEqual({
+			initialUpdates,
+			prepared: prepared.slice(0, 4),
+			restoredLayout,
+			ordinaryLayout: restoredParts.updates.at(-1)?.layout,
+		}, {
+			initialUpdates: [{ ids: ['a', 'b', 'c', 'd'], layout: 'grid' }],
+			prepared: ['a', 'b', 'c', 'd'],
+			restoredLayout: { ids: ['a', 'b', 'c', 'd'], layout: 'grid' },
+			ordinaryLayout: 'columns',
+		});
+	});
+
+	test('openSessionsInGrid preserves the current layout when preparing an attempt fails', async () => {
+		const sessions = ['a', 'b'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
+		const provider = new class extends TestSessionsProvider {
+			override getSessions() { return sessions; }
+			override async prepareSessionForOpen(session: ISession): Promise<void> {
+				if (session === sessions[1]) { throw new Error('Provider disconnected'); }
+			}
+		}(sessions[0]);
+		const { view } = createSessionsManagementService(sessions[0], disposables, provider);
+		await view.openSession(sessions[0].resource);
+		await assert.rejects(view.openSessionsInGrid(sessions), /Provider disconnected/);
+		assert.deepStrictEqual(view.visibleSessions.get().map(session => session?.sessionId), ['a']);
+	});
+
+	test('openSessionsInGrid does not supersede a newer explicit navigation', async () => {
+		const sessions = ['a', 'b', 'c'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
+		const started = new DeferredPromise<void>();
+		const pending = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override getSessions() { return sessions; }
+			override async prepareSessionForOpen(session: ISession): Promise<void> {
+				if (session === sessions[1]) {
+					started.complete();
+					await pending.p;
+				}
+			}
+		}(sessions[0]);
+		const { view } = createSessionsManagementService(sessions[0], disposables, provider);
+		const opening = view.openSessionsInGrid(sessions.slice(0, 2));
+		await started.p;
+		await view.openSession(sessions[2].resource);
+		pending.complete();
+		await opening;
+		assert.deepStrictEqual(view.visibleSessions.get().map(session => session?.sessionId), ['c']);
 	});
 
 	test('restoreVisibleSessions prepares only the active session', async () => {

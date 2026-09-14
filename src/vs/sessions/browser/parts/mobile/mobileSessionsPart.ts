@@ -50,7 +50,7 @@ export class MobileSessionsPart extends SessionsPart {
 
 		// Full dimensions - no card margins or session-bar subtraction.
 		const { contentSize } = this.layoutContents(width, height);
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left);
+		this.layoutSessionGrid(contentSize.width, contentSize.height, top, left);
 		Part.prototype.layout.call(this, width, height, top, left);
 	}
 }
