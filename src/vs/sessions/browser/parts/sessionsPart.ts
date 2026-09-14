@@ -267,7 +267,7 @@ export class SessionsPart extends Part {
 			return;
 		}
 		const count = this._slots.length;
-		const columns = this._gridLayout === 'grid' ? getSessionGridColumns(count, this._lastLayout?.width ?? 800) : count;
+		const columns = this._gridLayout === 'grid' ? this.getGridColumnCount(count) : count;
 		const shape = this._gridLayout === 'grid' ? `grid:${count}:${columns}` : 'columns';
 		if (shape === this._gridShape) {
 			return;
@@ -288,6 +288,10 @@ export class SessionsPart extends Part {
 		if (restoreFocus) {
 			focused.focus();
 		}
+	}
+
+	protected getGridColumnCount(count: number): number {
+		return getSessionGridColumns(count);
 	}
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {

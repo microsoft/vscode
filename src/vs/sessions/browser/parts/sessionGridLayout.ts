@@ -5,8 +5,8 @@
 
 import { Direction, Grid, IView, Orientation, Sizing } from '../../../base/browser/ui/grid/grid.js';
 
-export function getSessionGridColumns(count: number, width: number): number {
-	return Math.max(1, Math.min(Math.ceil(Math.sqrt(count)), Math.floor(width / 400)));
+export function getSessionGridColumns(count: number): number {
+	return Math.max(1, Math.ceil(Math.sqrt(count)));
 }
 
 /** Rearranges existing views without disposing their chat widgets. */

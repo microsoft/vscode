@@ -20,6 +20,10 @@ import { isPhoneLayout } from './mobileLayout.js';
  */
 export class MobileSessionsPart extends SessionsPart {
 
+	protected override getGridColumnCount(count: number): number {
+		return isPhoneLayout(this.layoutService) ? 1 : super.getGridColumnCount(count);
+	}
+
 	override updateStyles(): void {
 		// Always run the desktop implementation first so inline styles are
 		// set on tablet/desktop transitions. In phone mode we then clear
