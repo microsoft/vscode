@@ -10,6 +10,8 @@
   "private": true,
   "scripts": {
     "compile": "npm run copy-driver-definition && node ../../node_modules/typescript/bin/tsc6",
+    "benchmark:empty-workbench": "npm run compile && node out/benchmark/emptyWorkbenchColdStartCli.js",
+    "test": "npm run compile && node --test out/benchmark/emptyWorkbenchColdStart.test.js",
     "watch": "npm-run-all2 -lp watch-driver-definition watch-tsc",
     "watch-tsc": "node ../../node_modules/typescript/bin/tsc6 --watch --preserveWatchOutput",
     "copy-driver-definition": "node tools/copy-driver-definition.js",

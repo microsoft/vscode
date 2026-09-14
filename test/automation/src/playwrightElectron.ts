@@ -25,17 +25,18 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	args.push('--enable-smoke-test-driver');
 
 	// Launch electron via playwright
-	const { electron, context, page, videoStartedAt } = await launchElectron({ electronPath, args, env }, options);
+	const { electron, context, page, whenLoaded, videoStartedAt } = await launchElectron({ electronPath, args, env }, options);
 	const electronProcess = electron.process();
 
 	return {
 		electronProcess,
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options, videoStartedAt)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, whenLoaded, options, videoStartedAt)
 	};
 }
 
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
 	const { logger, tracing, snapshots } = options;
+	const launchTimeout = options.launchTimeout ?? LAUNCH_TIMEOUT;
 
 	// The recording canvas is fixed, but VS Code sizes its own window (1440x900
 	// with a workspace, 1200x800 empty), so the capture would otherwise show the
@@ -55,20 +56,30 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 					size: videoSize
 				} : undefined,
 			env: configuration.env as { [key: string]: string },
-			timeout: LAUNCH_TIMEOUT
+			timeout: launchTimeout
 		}), 'playwright-electron#launch', logger);
 	} catch (error) {
 		throw enrichLaunchError(error, options);
 	}
+	const electronProcess = electron.process();
+	options.electronLaunchObserver?.onProcessSpawn?.(electronProcess);
+	electronProcess.once('exit', (code, signal) => options.electronLaunchObserver?.onFailure?.({
+		type: 'processExit',
+		message: `Electron process exited before the story completed (code: ${code}, signal: ${signal}).`,
+		code,
+		signal
+	}));
 
 	let window = electron.windows()[0];
 	if (!window) {
 		try {
-			window = await measureAndLog(() => electron.waitForEvent('window', { timeout: LAUNCH_TIMEOUT }), 'playwright-electron#firstWindow', logger);
+			window = await measureAndLog(() => electron.waitForEvent('window', { timeout: launchTimeout }), 'playwright-electron#firstWindow', logger);
 		} catch (error) {
 			throw enrichLaunchError(error, options);
 		}
 	}
+	options.electronLaunchObserver?.onFirstWindow?.();
+	const whenLoaded = window.waitForLoadState('load');
 	if (options.videosPath) {
 		try {
 			await electron.evaluate(({ BrowserWindow }, size) => {
@@ -112,7 +123,13 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 
 	window.on('console', e => logger.log(`Playwright (Electron): window.on('console') [${e.text()}]`));
 	window.on('pageerror', async (error) => logger.log(`Playwright (Electron) ERROR: page error: ${error}`));
-	window.on('crash', () => logger.log('Playwright (Electron) ERROR: page crash'));
+	window.on('crash', () => {
+		logger.log('Playwright (Electron) ERROR: page crash');
+		options.electronLaunchObserver?.onFailure?.({
+			type: 'rendererCrash',
+			message: 'The first VS Code renderer crashed before the story completed.'
+		});
+	});
 	window.on('close', () => logger.log('Playwright (Electron): page close'));
 	window.on('response', async (response) => {
 		if (response.status() >= 400) {
@@ -120,7 +137,12 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		}
 	});
 
-	return { electron, context, page: window, videoStartedAt };
+	electron.on('close', () => options.electronLaunchObserver?.onFailure?.({
+		type: 'playwrightDisconnect',
+		message: 'Playwright disconnected from the Electron application before the story completed.'
+	}));
+
+	return { electron, context, page: window, whenLoaded, videoStartedAt };
 }
 
 /**
@@ -131,7 +153,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 function enrichLaunchError(error: unknown, options: LaunchOptions): Error {
 	const original = error instanceof Error ? error.message : String(error);
 	const enriched = new Error(
-		`Failed to launch Electron within ${LAUNCH_TIMEOUT}ms. The Electron process likely crashed or hung during startup ` +
+		`Failed to launch Electron within ${options.launchTimeout ?? LAUNCH_TIMEOUT}ms. The Electron process likely crashed or hung during startup ` +
 		`(a native crash will leave a minidump in the crashes directory: '${options.crashesPath}'). ` +
 		`Inspect the crash dumps and the Playwright trace (https://trace.playwright.dev/) for details. Original error: ${original}`
 	);

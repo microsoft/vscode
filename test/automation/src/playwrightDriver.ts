@@ -98,6 +98,19 @@ export class PlaywrightDriver {
 		return this._currentPage;
 	}
 
+	async getElectronProcessVersions(): Promise<{ electron?: string; chrome?: string; node?: string; v8?: string } | undefined> {
+		if (!('windows' in this.application)) {
+			return undefined;
+		}
+
+		return (this.application as playwright.ElectronApplication).evaluate(() => ({
+			electron: process.versions.electron,
+			chrome: process.versions.chrome,
+			node: process.versions.node,
+			v8: process.versions.v8
+		}));
+	}
+
 	/**
 	 * Get all open windows/pages.
 	 * For Electron apps, returns all Electron windows.

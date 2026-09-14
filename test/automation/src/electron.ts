@@ -19,7 +19,7 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
+	const { applicationPath, codePath, sourceAppRoot, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs, extraEnv } = options;
 	const env = { ...process.env };
 
 	const args: string[] = [
@@ -87,7 +87,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	}
 
 	if (!codePath) {
-		args.unshift(options.sourceAppRoot ?? root);
+		args.unshift(applicationPath ?? sourceAppRoot ?? root);
 	}
 
 	if (extraArgs) {
@@ -107,7 +107,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		}
 	}
 
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+	const electronPath = options.electronPath ?? (codePath ? getBuildElectronPath(codePath) : getDevElectronPath());
 
 	return {
 		env,

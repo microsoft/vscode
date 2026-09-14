@@ -20,6 +20,9 @@ export interface LaunchOptions {
 	codePath?: string;
 	/** Isolated source-app metadata and bootstrap overlay; ignored for packaged builds. */
 	readonly sourceAppRoot?: string;
+	readonly applicationPath?: string;
+	readonly electronPath?: string;
+	readonly launchTimeout?: number;
 	readonly workspacePath?: string;
 	userDataDir?: string;
 	readonly extensionsPath?: string;
@@ -39,6 +42,7 @@ export interface LaunchOptions {
 	readonly quality: Quality;
 	version: { major: number; minor: number; patch: number };
 	readonly extensionDevelopmentPath?: string;
+	readonly electronLaunchObserver?: ElectronLaunchObserver;
 
 	/**
 	 * Extra environment variables merged on top of the inherited `process.env`
@@ -47,6 +51,19 @@ export interface LaunchOptions {
 	 * mocks (e.g. `VSCODE_COPILOT_CHAT_TOKEN`).
 	 */
 	readonly extraEnv?: Readonly<Record<string, string | undefined>>;
+}
+
+export interface ElectronLaunchFailure {
+	readonly type: 'processExit' | 'rendererCrash' | 'playwrightDisconnect';
+	readonly message: string;
+	readonly code?: number | null;
+	readonly signal?: NodeJS.Signals | null;
+}
+
+export interface ElectronLaunchObserver {
+	onProcessSpawn?(process: cp.ChildProcess): void;
+	onFirstWindow?(): void;
+	onFailure?(failure: ElectronLaunchFailure): void;
 }
 
 interface ICodeInstance {
