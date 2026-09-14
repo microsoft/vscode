@@ -52,7 +52,7 @@ type SessionComparisonAttemptCompletedEvent = ISessionComparisonAttemptCompleted
 
 type SessionComparisonAttemptCompletedClassification = {
 	owner: 'meganrogge';
-	comment: 'Tracks terminal implementation attempts in Executes Parallel Agents, including aggregate token usage when available.';
+	comment: 'Tracks terminal implementation attempts in Execute Parallel Agents, including aggregate token usage when available.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate attempts from the same comparison.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };
@@ -85,7 +85,7 @@ type SessionComparisonAttemptJudgedEvent = ISessionComparisonAttemptJudgedTeleme
 
 type SessionComparisonAttemptJudgedClassification = {
 	owner: 'meganrogge';
-	comment: 'Relates Executes Parallel Agents attempts to the Judge recommendation and categorical validation outcome.';
+	comment: 'Relates Execute Parallel Agents attempts to the Judge recommendation and categorical validation outcome.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate attempts from the same comparison.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier, used to correlate with attempt execution and trusted model telemetry.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };

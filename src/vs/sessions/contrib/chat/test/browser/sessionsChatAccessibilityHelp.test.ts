@@ -100,7 +100,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { activation: true, nextButton: true });
 	});
 
-	test('describes Executes Parallel Agents only when enabled', async () => {
+	test('describes Execute Parallel Agents only when enabled', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[COMPARE_AGENTS_ENABLED_SETTING]: false,
@@ -116,8 +116,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.deepStrictEqual({
-			disabled: disabledContent.includes('activate Executes Parallel Agents'),
-			enabled: enabledProvider.provideContent().includes('activate Executes Parallel Agents'),
+			disabled: disabledContent.includes('activate Execute Parallel Agents'),
+			enabled: enabledProvider.provideContent().includes('activate Execute Parallel Agents'),
 		}, {
 			disabled: false,
 			enabled: true,

@@ -283,7 +283,7 @@ export class NewChatWidget extends Disposable {
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
 				additionalAction: {
 					id: 'sessions.runMultipleAgents',
-					label: localize('runMultipleAgents.label', "Executes Parallel Agents..."),
+					label: localize('runMultipleAgents.label', "Execute Parallel Agents..."),
 					description: comparisonDescription,
 					icon: Codicon.layers,
 					isVisible: () => this._compareAgentsEnabled.get() && this._getComparisonBranch() !== undefined,
