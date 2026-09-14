@@ -38,6 +38,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { readSessionFactoryRuns, type ISessionFactoryRun } from '../../../../../platform/agentHost/common/sessionFactoryRuns.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -940,6 +941,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	/** Artifacts recorded by the agent, derived from the session's `_meta` bag. */
 	readonly artifacts: IObservable<readonly ISessionArtifact[]>;
+	/** Agent Factory runs the host published on the session's `_meta` bag. */
+	readonly factoryRuns: IObservable<readonly ISessionFactoryRun[]>;
 
 	private _activity: ISettableObservable<string | undefined>;
 
@@ -1038,6 +1041,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const meta = this._metaObs.read(reader);
 			return partitionSessionArtifacts(meta).entries.map(entry => entry.artifact);
 		});
+		this.factoryRuns = derivedOpts<readonly ISessionFactoryRun[]>({ owner: this, equalsFn: structuralEquals }, reader => readSessionFactoryRuns(this._metaObs.read(reader)));
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual

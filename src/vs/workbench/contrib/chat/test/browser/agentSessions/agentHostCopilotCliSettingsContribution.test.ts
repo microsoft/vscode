@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -92,7 +92,7 @@ async function flush(): Promise<void> {
 	await Promise.resolve();
 }
 
-function setup(disposables: DisposableStore, settings: Record<string, unknown>) {
+function setup(disposables: DisposableStore, settings: Record<string, unknown>, agentHostEnabled = true) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	disposables.add({ dispose: () => agentHostService.dispose() });
@@ -100,7 +100,7 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>) 
 	disposables.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: observableValue('agentHostEnabled', agentHostEnabled), managedSandboxEnforced: constObservable(false) });
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
 	return { agentHostService };
 }
@@ -163,6 +163,25 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
+		});
+
+		test('forwards the effective HydraFusion value only when local Agent Host is enabled', async () => {
+			const results: { setting: boolean; agentHostEnabled: boolean; forwarded: boolean | undefined }[] = [];
+			for (const [setting, agentHostEnabled] of [[false, true], [true, true], [true, false]] as const) {
+				const { agentHostService } = setup(disposables, { [AgentHostHydraFusionEnabledSettingId]: setting }, agentHostEnabled);
+				agentHostService.setRootState(makeRootStateWithSchema({
+					[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
+				}));
+				await flush();
+				const action = agentHostService.dispatchedActions[0]?.action as IRootConfigChangedAction | undefined;
+				results.push({ setting, agentHostEnabled, forwarded: action?.config[CopilotCliConfigKey.HydraFusion] as boolean | undefined });
+			}
+
+			assert.deepStrictEqual(results, [
+				{ setting: false, agentHostEnabled: true, forwarded: false },
+				{ setting: true, agentHostEnabled: true, forwarded: true },
+				{ setting: true, agentHostEnabled: false, forwarded: undefined },
+			]);
 		});
 		agentHostService.setRootState(makeRootStateWithSchema({
 			[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
