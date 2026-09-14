@@ -253,7 +253,7 @@ export class NewChatWidget extends Disposable {
 			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),
 			() => this._hasEnoughSessionsForFirstRunNotices(),
 		);
-		const comparisonDescription = localize('runMultipleAgents.description', "Runs isolated attempts in parallel, then compares the results.");
+		const comparisonDescription = localize('runMultipleAgents.description', "Compares results and lets you synthesize the best concepts.");
 
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
@@ -283,7 +283,7 @@ export class NewChatWidget extends Disposable {
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
 				additionalAction: {
 					id: 'sessions.runMultipleAgents',
-					label: localize('runMultipleAgents.label', "Run Multiple Agents..."),
+					label: localize('runMultipleAgents.label', "Executes Parallel Agents..."),
 					description: comparisonDescription,
 					icon: Codicon.layers,
 					isVisible: () => this._compareAgentsEnabled.get() && this._getComparisonBranch() !== undefined,

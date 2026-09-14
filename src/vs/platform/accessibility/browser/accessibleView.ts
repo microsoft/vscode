@@ -50,7 +50,6 @@ export const enum AccessibleViewProviderId {
 	ProblemsFilterHelp = 'problemsFilterHelp',
 	SessionsChat = 'sessionsChat',
 	SessionsChanges = 'sessionsChanges',
-	SessionComparison = 'sessionComparison',
 	Survey = 'survey',
 	Automations = 'automations',
 	ConnectionDiagnostics = 'connectionDiagnostics',

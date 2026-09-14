@@ -74,6 +74,50 @@ suite('Dialog', () => {
 		await result;
 	});
 
+	test('includes interactive custom body controls in keyboard navigation', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		let textarea!: HTMLTextAreaElement;
+		let select!: HTMLSelectElement;
+		let action!: Button;
+		const dialog = disposables.add(new Dialog(container, 'Message', ['Save', 'Cancel'], {
+			renderBody: body => {
+				textarea = append(body, $('textarea'));
+				select = append(body, $('select'));
+				action = disposables.add(new Button(body, unthemedButtonStyles));
+				action.label = 'Add attempt';
+			},
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+
+		const dispatchKey = (target: HTMLElement, key: string, keyCode: number) => {
+			target.focus();
+			const event = new (getWindow(target).KeyboardEvent)('keydown', { key, keyCode, bubbles: true, cancelable: true });
+			target.dispatchEvent(event);
+			return {
+				activeElement: getWindow(target).document.activeElement,
+				defaultPrevented: event.defaultPrevented,
+			};
+		};
+
+		assert.deepStrictEqual({
+			textareaToSelect: dispatchKey(textarea, 'Tab', 9),
+			selectToAction: dispatchKey(select, 'Tab', 9),
+			selectArrow: dispatchKey(select, 'ArrowRight', 39),
+		}, {
+			textareaToSelect: { activeElement: select, defaultPrevented: true },
+			selectToAction: { activeElement: action.element, defaultPrevented: true },
+			selectArrow: { activeElement: select, defaultPrevented: false },
+		});
+
+		dialog.dispose();
+		await result;
+	});
+
 	test('renders a plain string detail as text', async () => {
 		const container = append(document.body, $('.test-dialog-container'));
 		disposables.add(toDisposable(() => container.remove()));

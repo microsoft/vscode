@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-comparison-result {
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+}
+
+.session-comparison-result-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-result-explanation {
+	margin: var(--vscode-spacing-size80) 0 0;
+}
+
+.session-comparison-result-subtitle {
+	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-result-strengths {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.session-comparison-result-strengths th,
+.session-comparison-result-strengths td {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	text-align: left;
+	vertical-align: top;
+}
+
+.session-comparison-result-strengths th:first-child {
+	width: 30%;
+}
+
+.session-comparison-result-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}

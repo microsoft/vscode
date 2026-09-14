@@ -13,7 +13,7 @@ Session comparisons run the same task through multiple Sessions providers and pr
 | Comparison records, participant lifecycle, selection, and cleanup | `ISessionComparisonService` |
 | Attempt and Judge harness/provider-local model selection | new-session composer |
 | Session creation, model resolution, and worktree isolation | Sessions provider through `ISessionsManagementService` |
-| Attempt evidence and user actions | comparison editor |
+| Attempt evidence and user actions | Judge chat result and comparison parent grid |
 | Bounded attempt manifest | `readAttemptComparison` tool |
 | Targeted transcript follow-up | existing Agent Host `get_session_context` tool |
 | Structured recommendation | visible grouped Judge session and `completeAttemptComparison` tool |
@@ -35,15 +35,15 @@ The comparison service creates attempts directly and adds each launched particip
 
 1. The prompt, attachments, workspace, branch, permission level, and Judge harness/model are frozen at launch. The prompt and attachments are shared across attempts, and each attempt independently selects a model advertised by its harness provider.
 2. Every harness must support worktree configuration. Model identifiers remain provider-local and are never matched across providers by identifier or display name.
-3. Attempts launch concurrently. One launch failure is recorded without deleting successful attempts. While any attempt is still active, comparison navigation presents the existing attempt sessions in a tiled Sessions grid. When every attempt is terminal, the presentation returns to the ordinary Sessions layout and opens the comparison editor for Judge progress and results.
+3. Attempts launch concurrently. One launch failure is recorded without deleting successful attempts. Opening the comparison parent presents every available participant session in participant order in a tiled Sessions grid, including attempts, the Judge, and synthesis when they exist.
 4. The Judge calls `readAttemptComparison` once to obtain the original task, successful participants, worktree locations, changed files, change summaries, and exact provider-owned transcript targets. It reviews every attempt's diff, calls the existing `get_session_context` tool with those exact targets to inspect validation claims or other focused transcript evidence, and runs missing targeted validation when needed. It records whether each validation result came from the attempt report, a Judge run, or unavailable evidence, then calls `completeAttemptComparison` exactly once. It does not discover sessions, guess references, create sessions, or modify attempts.
-5. After the Judge submits a verdict and its session completes, the Judge chat closes and the comparison editor opens automatically. Reviewing an attempt records a preference, opens its session, and opens its Changes editor; it does not apply changes to the user's working tree.
+5. After the Judge submits a verdict, its chat remains open and presents the winning attempt, supporting evidence, strong points from other attempts, and actions to focus the winner or start synthesis. Focusing the winner records a preference and opens its session without automatically opening its Changes editor; it does not apply changes to the user's working tree.
 6. Judge recommendations are advisory. Synthesis starts only through an explicit user action and creates a new isolated grouped participant. Original attempts remain until an explicit, confirmed discard.
 7. Cleanup reports partial deletion failures and retains records for attempts that could not be deleted.
 
 ## Evidence
 
-The comparison editor derives file counts, diff size, elapsed time, file overlap, attempt-specific files, starting-source/base-branch agreement, and live token usage from provider-neutral session state. When an attempt becomes terminal, the comparison service persists aggregate input, cached-input, and output totals plus their per-model breakdown and completeness. Missing evidence is shown as unknown rather than inferred as successful or equal.
+The Judge result uses the persisted structured verdict and provider-neutral participant state. When an attempt becomes terminal, the comparison service persists aggregate input, cached-input, and output totals plus their per-model breakdown and completeness. Missing evidence is shown as unknown rather than inferred as successful or equal.
 
 `readAttemptComparison` is intentionally a bounded manifest rather than a second transcript API. Agent Host already owns transcript retrieval through `get_session_context`, including summary, digest, and full detail levels. For attempts owned by the same provider authority as the Judge, the manifest maps provider-neutral participant records to exact provider-owned targets accepted by that existing tool. Cross-provider or cross-host attempts remain comparable through their bounded change, worktree, and validation evidence, but do not advertise an unusable transcript target. Token usage is not included in the Judge manifest or prompts, so it remains informational and cannot silently become a ranking criterion.
 
@@ -68,6 +68,12 @@ flowchart TD
 	Service -->|createAndSendNewChatRequest| A1
 	Service -->|createAndSendNewChatRequest| A2
 	Service -->|createAndSendNewChatRequest| AN
+	Service -->|Open comparison parent| Grid[Sessions grid<br/>all available participants]
+	Grid -.-> A1
+	Grid -.-> A2
+	Grid -.-> AN
+	Grid -.-> Judge
+	Grid -.-> Synthesis
 	A1 --> Terminal{At least two launched attempts terminal}
 	A2 --> Terminal
 	AN --> Terminal
@@ -78,7 +84,7 @@ flowchart TD
 	Judge -.->|2. get_session_context exact target<br/>only when more transcript evidence is needed| Context[Existing Agent Host transcript reader]
 	Context -.-> Judge
 	Judge -->|3. completeAttemptComparison exactly once| Verdict[Persisted structured verdict]
-	Verdict -->|Judge completes<br/>close Judge chat and open automatically| Editor[Comparison editor<br/>recommendation + evidence<br/>Review Recommended Attempt]
-	Editor -->|Synthesize explicitly| Synthesis
-	Editor -->|Discard explicitly| Cleanup[Delete original attempt sessions/worktrees<br/>retain partial failures]
+	Verdict -->|Render in Judge chat| Result[Judge result<br/>winner + evidence + other strengths]
+	Result -->|Focus winner explicitly| A1
+	Result -->|Synthesize explicitly| Synthesis
 ```

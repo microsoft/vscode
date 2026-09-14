@@ -9,3 +9,4 @@ Judge implementation comparison `{{comparisonId}}`.
 5. Explain why the winning attempt is strongest using specific code and validation evidence. For every other attempt, record its strongest reusable points in `notableDifferences`.
 6. Do not modify, merge, apply, or delete any attempt.
 7. Call `#completeAttemptComparison` exactly once with the recommendation and supporting evidence.
+8. After the tool returns, respond concisely with the winning attempt, specific code and validation evidence for why it won, and the strongest reusable points from every other attempt.
