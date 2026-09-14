@@ -116,6 +116,10 @@ Two placeholders that need injection:
 
 **Lesson:** Don't add new output file formats that create parity differences with the old build. The old build is the reference.
 
+### Translated Message Cache Identity
+
+Desktop, server, and server-web packaging compute `nlsMetadataHash` from the commit, ordered NLS keys, and default messages, and stamp it into the product configuration. Native bootstrap and remote language-pack resolution pass this identity to `resolveNLSConfiguration()`, so a cached localized startup does not read or hash the NLS tables. Products without the new field retain the legacy commit-based cache path. Different target tables get separate caches; identical tables at the same commit reuse one cache.
+
 ### 7. Resource Copying: Transpile vs Bundle
 
 **Problem:** The new build used curated, specific resource pattern lists (e.g., `desktopResourcePatterns`) for **both** transpile/dev and production/bundle builds. Team members kept discovering missing resources because every new non-TS file in `src/` required manually adding its pattern.
