@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -20,9 +21,13 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { ITelemetryData, ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
-import { DevContainerAgentHostConnector, ensureDevContainerAgentHostsEnabled, isDevContainerWorkspaceAvailable } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
+import { WorkspaceHistoryLoadState } from '../../../../../common/workspaceSelection.js';
+import { ISessionFolder, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { DevContainerAgentHostConnector, ensureDevContainerAgentHostsEnabled, getDevContainerEnvironment, isDevContainerWorkspaceAvailable, reportDevContainerEnvironment } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +73,95 @@ suite('Dev Container Agent Host Connector', () => {
 			devContainerAgentHostsDisabled: false,
 			remoteAgentHostsDisabled: false,
 			nonFileWorkspace: false,
+		});
+	});
+
+	test('reports Docker independently from the Dev Container folder count', async () => {
+		const existingPaths = new Set([
+			'/first/.devcontainer/devcontainer.json',
+			'/third/.devcontainer.json',
+		]);
+		const fileService = new class extends mock<IFileService>() {
+			override async exists(resource: URI): Promise<boolean> {
+				return existingPaths.has(resource.path);
+			}
+		}();
+		const mainService = new class extends mock<IDevContainerAgentHostMainService>() {
+			override async isDockerAvailable(): Promise<boolean> {
+				return false;
+			}
+		}();
+
+		assert.deepStrictEqual(
+			await getDevContainerEnvironment(
+				[URI.file('/first'), URI.file('/second'), URI.file('/third')],
+				fileService,
+				mainService,
+			),
+			{
+				dockerAvailable: false,
+				devContainerFolderCount: 2,
+			},
+		);
+	});
+
+	test('waits for recent workspace history and reports unique local folders', async () => {
+		const historyLoadState = observableValue<WorkspaceHistoryLoadState>({}, 'loading');
+		const folder = (root: URI) => new class extends mock<ISessionFolder>() {
+			override readonly root = root;
+		}();
+		const workspace = (root: URI) => new class extends mock<ISessionWorkspace>() {
+			override readonly folders = [folder(root)];
+		}();
+		const recentWorkspace = (workspace: ISessionWorkspace): IRecentWorkspace => ({
+			workspace,
+			providerId: 'local-agent-host',
+			checked: false,
+			source: 'vscode',
+		});
+		const recentWorkspacesService = new class extends mock<ISessionsRecentWorkspacesService>() {
+			override readonly historyLoadState = historyLoadState;
+			override getRecentWorkspaces(): IRecentWorkspace[] {
+				return [
+					recentWorkspace(workspace(URI.file('/first'))),
+					recentWorkspace(workspace(URI.file('/second'))),
+					recentWorkspace(workspace(URI.file('/first'))),
+					recentWorkspace(workspace(URI.parse('vscode-remote://host/remote'))),
+				];
+			}
+		}();
+		const environmentInputs: string[][] = [];
+		const events: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName: string, data?: ITelemetryData): void {
+				events.push({ eventName, data });
+			}
+		}();
+		const report = reportDevContainerEnvironment(
+			recentWorkspacesService,
+			async workspaceUris => {
+				environmentInputs.push(workspaceUris.map(uri => uri.path));
+				return { dockerAvailable: true, devContainerFolderCount: 1 };
+			},
+			telemetryService,
+		);
+		await Promise.resolve();
+		const beforeHistoryLoaded = { environmentInputs: [...environmentInputs], events: [...events] };
+
+		historyLoadState.set('loaded', undefined);
+		await report;
+
+		assert.deepStrictEqual({
+			beforeHistoryLoaded,
+			environmentInputs,
+			events,
+		}, {
+			beforeHistoryLoaded: { environmentInputs: [], events: [] },
+			environmentInputs: [['/first', '/second']],
+			events: [{
+				eventName: 'vscodeAgents.devContainer/environment',
+				data: { dockerAvailable: true, devContainerFolderCount: 1 },
+			}],
 		});
 	});
 
