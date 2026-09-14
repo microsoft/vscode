@@ -1285,18 +1285,21 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 
 	if (options.openFirstItem) {
-		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
-			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
 		const openItemLabel = options.openItemLabel;
-		const findRowToOpen = () => openItemLabel
-			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+		const findRowToOpen = () => {
+			const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
+				.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
+			return openItemLabel
+				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+		};
 		let rowToOpen = findRowToOpen();
 		for (let attempt = 0; options.pluginReadmeContent !== undefined && attempt < 20 && !rowToOpen; attempt++) {
+			await timeout(50);
 			rowToOpen = findRowToOpen();
-			if (!rowToOpen) {
-				await timeout(50);
-			}
+		}
+		if (options.pluginReadmeContent !== undefined && !rowToOpen) {
+			throw new Error('Plugin row did not render');
 		}
 		if (rowToOpen) {
 			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
