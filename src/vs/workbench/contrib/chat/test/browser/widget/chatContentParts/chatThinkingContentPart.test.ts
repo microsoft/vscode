@@ -1349,6 +1349,54 @@ suite('ChatThinkingContentPart', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 		});
 
+		for (const expanded of [false, true]) {
+			test(`transfers retained tool ownership between rebuilt groups (expanded=${expanded})`, () => {
+				const createGroup = () => disposables.add(instantiationService.createInstance(
+					ChatThinkingContentPart, createThinkingPart('**Working**'), createMockRenderContext(), mockMarkdownRenderer, false,
+				));
+				const first = createGroup();
+				const second = createGroup();
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Checking work' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'tool-call', undefined, {},
+				);
+				let disposeCount = 0;
+				let renderCount = 0;
+				const toolPart = disposables.add(toDisposable(() => disposeCount++));
+				const toolNode = $('div', undefined, 'Tool result');
+				const render = () => {
+					renderCount++;
+					return { domNode: toolNode, disposable: toolPart };
+				};
+				first.appendItem(render, tool.toolId, tool, undefined, undefined, toolPart);
+				if (expanded) {
+					first.expandContent();
+				}
+
+				const detachedPart = first.detachToolPart(tool.toolCallId);
+				second.appendItem(render, tool.toolId, tool, undefined, undefined, detachedPart);
+				first.dispose();
+				const disposedWithFirstGroup = disposeCount;
+				if (expanded) {
+					second.expandContent();
+				}
+				second.dispose();
+
+				assert.deepStrictEqual({
+					detachedOriginal: detachedPart === toolPart,
+					disposedWithFirstGroup,
+					disposedWithSecondGroup: disposeCount,
+					renderCount,
+				}, {
+					detachedOriginal: true,
+					disposedWithFirstGroup: 0,
+					disposedWithSecondGroup: 1,
+					renderCount: expanded ? 2 : 0,
+				});
+			});
+		}
+
 		test('appendItem should use lazy rendering when collapsed', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
