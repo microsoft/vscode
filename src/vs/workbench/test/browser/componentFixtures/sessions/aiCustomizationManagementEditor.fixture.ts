@@ -1314,12 +1314,19 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 			if (options.pluginReadmeContent !== undefined) {
 				let pluginDetailContainer: HTMLElement | null = null;
-				for (let attempt = 0; attempt < 20 && !pluginDetailContainer; attempt++) {
+				let overflowingCodeBlock: HTMLElement | null = null;
+				for (let attempt = 0; attempt < 40 && (!pluginDetailContainer || !overflowingCodeBlock); attempt++) {
 					await timeout(50);
-					pluginDetailContainer = ctx.container.querySelector<HTMLElement>('.plugin-detail-editor-container');
+					const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+					const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
+					const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
+					if (pluginDetailView?.style.display !== 'none' && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+						pluginDetailContainer = detailContainer;
+						overflowingCodeBlock = codeBlock;
+					}
 				}
-				if (!pluginDetailContainer) {
-					throw new Error('Plugin detail did not render');
+				if (!pluginDetailContainer || !overflowingCodeBlock) {
+					throw new Error('Overflowing plugin detail did not render');
 				}
 				pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
 				await timeout(50);
