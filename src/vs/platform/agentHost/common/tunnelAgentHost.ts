@@ -463,8 +463,11 @@ export interface ITunnelAgentHostService {
 
 	/**
 	 * Enumerate available dev tunnels with agent host support.
-	 * When {@link options.silent} is `true`, uses cached tokens without
-	 * prompting the user. Returns an empty array if no cached token.
+	 * Resolves to an empty array only when no tunnels should authoritatively be
+	 * exposed, such as after successful empty discovery or when discovery is
+	 * disabled. Rejects when discovery cannot complete, including when
+	 * authentication is unavailable. {@link options.silent} suppresses
+	 * authentication prompts but does not convert failures to empty results.
 	 */
 	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
 

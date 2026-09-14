@@ -191,7 +191,7 @@ suite('BrowserTunnelAgentHostService', () => {
 	test('rejects discovery when authentication is unavailable', async () => {
 		const service = createBrowserTunnelService(store, [], async () => []);
 
-		await assert.rejects(service.listTunnels(), /No authentication is available to enumerate tunnels/);
+		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
 	});
 
 	test('rejects SDK tunnel enumeration failures', async () => {

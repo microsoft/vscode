@@ -208,7 +208,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			} else {
 				this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
 			}
-			return [];
+			throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 		}
 
 		const additionalNames = this._configurationService.getValue<string[]>(TunnelAgentHostsSettingId) ?? [];
