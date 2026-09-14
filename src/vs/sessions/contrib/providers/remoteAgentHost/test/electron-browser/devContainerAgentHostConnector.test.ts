@@ -105,7 +105,7 @@ suite('Dev Container Agent Host Connector', () => {
 		);
 	});
 
-	test('waits for recent workspace history and reports unique local folders', async () => {
+	test('reports the disabled setting after resolving unique recent local folders', async () => {
 		const historyLoadState = observableValue<WorkspaceHistoryLoadState>({}, 'loading');
 		const folder = (root: URI) => new class extends mock<ISessionFolder>() {
 			override readonly root = root;
@@ -144,6 +144,7 @@ suite('Dev Container Agent Host Connector', () => {
 				environmentInputs.push(workspaceUris.map(uri => uri.path));
 				return { dockerAvailable: true, devContainerFolderCount: 1 };
 			},
+			new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: false }),
 			telemetryService,
 		);
 		await Promise.resolve();
@@ -161,7 +162,7 @@ suite('Dev Container Agent Host Connector', () => {
 			environmentInputs: [['/first', '/second']],
 			events: [{
 				eventName: 'vscodeAgents.devContainer/environment',
-				data: { dockerAvailable: true, devContainerFolderCount: 1 },
+				data: { dockerAvailable: true, devContainerFolderCount: 1, devContainerEnabled: false },
 			}],
 		});
 	});
@@ -188,6 +189,7 @@ suite('Dev Container Agent Host Connector', () => {
 				calls.push('getEnvironment');
 				return { dockerAvailable: true, devContainerFolderCount: 0 };
 			},
+			new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: false }),
 			telemetryService,
 		);
 

@@ -39,6 +39,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/
 type DevContainerEnvironmentEvent = {
 	dockerAvailable: boolean;
 	devContainerFolderCount: number;
+	devContainerEnabled: boolean;
 };
 
 type DevContainerEnvironmentClassification = {
@@ -46,7 +47,10 @@ type DevContainerEnvironmentClassification = {
 	comment: 'Reports whether the Agents window can resolve Docker and how many recent local folders contain a default Dev Container configuration.';
 	dockerAvailable: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the Docker executable can be resolved from the user shell environment.' };
 	devContainerFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of unique recent local folders containing .devcontainer/devcontainer.json or .devcontainer.json.' };
+	devContainerEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Value of the chat.agentHost.devContainer.enabled setting when the event was emitted.' };
 };
+
+type DevContainerEnvironment = Omit<DevContainerEnvironmentEvent, 'devContainerEnabled'>;
 
 async function hasDevContainerConfiguration(workspaceUri: URI, fileService: IFileService): Promise<boolean> {
 	const configurations = await Promise.all([
@@ -60,7 +64,7 @@ export async function getDevContainerEnvironment(
 	workspaceUris: readonly URI[],
 	fileService: IFileService,
 	mainService: IDevContainerAgentHostMainService,
-): Promise<DevContainerEnvironmentEvent> {
+): Promise<DevContainerEnvironment> {
 	const [dockerAvailable, configurations] = await Promise.all([
 		mainService.isDockerAvailable(),
 		Promise.all(workspaceUris.map(workspaceUri => hasDevContainerConfiguration(workspaceUri, fileService))),
@@ -73,7 +77,8 @@ export async function getDevContainerEnvironment(
 
 export async function reportDevContainerEnvironment(
 	recentWorkspacesService: ISessionsRecentWorkspacesService,
-	getEnvironment: (workspaceUris: readonly URI[]) => Promise<DevContainerEnvironmentEvent>,
+	getEnvironment: (workspaceUris: readonly URI[]) => Promise<DevContainerEnvironment>,
+	configurationService: IConfigurationService,
 	telemetryService: ITelemetryService,
 ): Promise<void> {
 	if (telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
@@ -96,7 +101,10 @@ export async function reportDevContainerEnvironment(
 	const environment = await getEnvironment(workspaceUris);
 	telemetryService.publicLog2<DevContainerEnvironmentEvent, DevContainerEnvironmentClassification>(
 		'vscodeAgents.devContainer/environment',
-		environment,
+		{
+			...environment,
+			devContainerEnabled: configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId),
+		},
 	);
 }
 
@@ -199,7 +207,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
 	}
 
-	getEnvironment(workspaceUris: readonly URI[]): Promise<DevContainerEnvironmentEvent> {
+	getEnvironment(workspaceUris: readonly URI[]): Promise<DevContainerEnvironment> {
 		return getDevContainerEnvironment(workspaceUris, this._fileService, this._mainService);
 	}
 
@@ -324,6 +332,7 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 		@IDevContainerAgentHostService service: IDevContainerAgentHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 	) {
@@ -333,6 +342,7 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 		void reportDevContainerEnvironment(
 			recentWorkspacesService,
 			workspaceUris => connector.getEnvironment(workspaceUris),
+			configurationService,
 			telemetryService,
 		).catch(error => logService.warn('[DevContainerAgentHostConnector] Failed to report Dev Container environment telemetry', error));
 	}
