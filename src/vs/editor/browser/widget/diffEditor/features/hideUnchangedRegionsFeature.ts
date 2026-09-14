@@ -347,9 +347,10 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			const editorLayout = observableCodeEditor(this._editor);
 			this._register(applyStyle(this._nodes.first, { width: editorLayout.layoutInfoContentLeft }));
 			if (this._compactControl) {
-				this._register(applyStyle(this._nodes.lineNumberControl, {
-					left: editorLayout.layoutInfo.map(info => info.lineNumbersLeft),
-					width: editorLayout.layoutInfo.map(info => info.lineNumbersWidth),
+				this._register(autorun(reader => {
+					const layoutInfo = editorLayout.layoutInfo.read(reader);
+					this._nodes.lineNumberControl.style.left = `${layoutInfo.lineNumbersLeft}px`;
+					this._nodes.lineNumberControl.style.width = `${layoutInfo.lineNumbersWidth}px`;
 				}));
 			}
 		} else {
@@ -524,7 +525,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 						}, [
 							renderIcon(icon),
 							'\u00a0',
-							h('span.breadcrumb-label', undefined, item.name).root,
+							h('span.breadcrumb-label', [item.name]).root,
 							...(i === items.length - 1
 								? []
 								: [renderIcon(Codicon.chevronRight)]
