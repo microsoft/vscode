@@ -35,7 +35,7 @@ import { ProjectBoardState } from '../../browser/projectBoardState.js';
 import { IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
 class TestChat extends mock<IChat>() {
 	override readonly title = observableValue('title', this.name);
@@ -519,7 +519,7 @@ suite('ProjectBoardService', () => {
 			options: Array.from(preview.querySelectorAll('.chat-question-list-label-title'), element => element.textContent),
 			optionDescriptions: Array.from(preview.querySelectorAll('.chat-question-list-label-desc'), element => element.textContent),
 			controls: preview.querySelectorAll('input, textarea, button, [role="listbox"]').length,
-			described: container.querySelector('.project-board-card')?.getAttribute('aria-describedby') === preview.id,
+			described: container.querySelector('.project-board-card')?.getAttribute('aria-describedby')?.split(' ').includes(preview.id),
 		}, {
 			title: 'Layout', message: 'Choose a layout', description: 'Choose what to build first.', details: 'accessibility',
 			options: ['List', 'Grid'], optionDescriptions: ['Dense scan', 'Visual overview'], controls: 0, described: true,
@@ -565,6 +565,7 @@ suite('ProjectBoardService', () => {
 			attention: cell().querySelector('.project-board-attention')?.textContent,
 		});
 		assert.deepStrictEqual(snapshot(), { cards: 3, more: '+5 more', attention: '1 Needs Input' });
+		assert.ok(cell().querySelector('.project-board-recency-warning')?.textContent?.includes('5 hidden chats'));
 		chats[6].isArchived.set(true, undefined);
 		assert.deepStrictEqual(snapshot(), { cards: 3, more: '+4 more', attention: '1 Needs Input' });
 		chats[6].isArchived.set(false, undefined);
@@ -728,6 +729,35 @@ suite('ProjectBoardService', () => {
 			h.metadata.set({ kind: 'ready', prompt: 'A prompt without a known timestamp', context: [] }, undefined);
 			assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
 			assert.ok(h.container.textContent?.includes('Recency unavailable'));
+		});
+
+		test('PB-07 loaded overflow chats reorder on submission without loading hidden transcripts', async () => {
+			const chats = Array.from({ length: 4 }, (_, i) => new TestChat(`Recency ${i}`));
+			const h = createBoard(mainWindow.document, chats);
+			const request = (timestamp: number) => new class extends mock<ChatRequestModel>() {
+				override readonly requestTimestamp = timestamp;
+			}();
+			const models = chats.map((chat, i) => new class extends mock<IChatModel>() {
+				override readonly sessionResource = chat.resource;
+				override readonly lastRequestObs = observableValue<ChatRequestModel | undefined>('request', request((i + 1) * 1000));
+				override get lastRequest() { return this.lastRequestObs.get(); }
+				override readonly onDidChange = Event.None;
+			}());
+			h.loadedModels.set(models, undefined);
+			await h.service.open();
+			for (const chat of chats) {
+				const card = [...h.container.querySelectorAll('.project-board-card')].find(element => element.querySelector('h4')?.textContent === chat.title.get())!;
+				const dataTransfer = new mainWindow.DataTransfer();
+				card.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer }));
+				h.container.querySelector('[aria-label="General, P0"]')!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			}
+			const titles = () => [...h.container.querySelectorAll('[aria-label="General, P0"] h4')].map(element => element.textContent);
+			assert.deepStrictEqual(titles(), ['Recency 3', 'Recency 2', 'Recency 1']);
+			models[0].lastRequestObs.set(request(5000), undefined);
+			assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Recency 2']);
+			chats[2].title.set('Agent update', undefined);
+			chats[2].isRead.set(true, undefined);
+			assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Agent update']);
 		});
 	});
 });
