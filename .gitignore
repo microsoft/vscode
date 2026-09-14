@@ -54,3 +54,8 @@ dist
 .v[0-9]*/
 # Local agent validation evidence
 .agent-validation/
+
+# Local HydraFusion design reference
+/HYDRAFUSION-UNDERSTANDING.local.md
+/HYDRAFUSION-UI-REVIEW.local.md
+/HYDRAFUSION-UI-REVIEW-PROMPT.local.md

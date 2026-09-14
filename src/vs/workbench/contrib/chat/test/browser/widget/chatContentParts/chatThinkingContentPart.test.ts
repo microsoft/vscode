@@ -760,6 +760,127 @@ suite('ChatThinkingContentPart', () => {
 				collapsedInert: true,
 			});
 		});
+
+		test('collapsible fixed scrolling starts open and can collapse while streaming', async () => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.FixedScrollingCollapsible);
+			const content = createThinkingPart('**Reviewing the implementation**\n\nChecking the affected command registration.');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			const contentList = part.domNode.querySelector<HTMLElement>('.chat-thinking-collapsible');
+			const scrollable = part.domNode.querySelector<HTMLElement>('.monaco-scrollable-element');
+			assert.ok(button);
+			assert.ok(contentList);
+			assert.ok(scrollable);
+			Object.defineProperty(contentList, 'scrollHeight', { configurable: true, value: 400 });
+			part.setupThinkingContainer(createThinkingPart('*Intermediate output (may change)*\n\nA provisional result.', 'draft-output'));
+
+			assert.deepStrictEqual({
+				hasCollapsibleModeClass: part.domNode.classList.contains('chat-thinking-fixed-mode-collapsible'),
+				startsExpanded: !part.domNode.classList.contains('chat-used-context-collapsed'),
+				ariaExpanded: button.ariaExpanded,
+				title: button.textContent?.trim(),
+			}, {
+				hasCollapsibleModeClass: true,
+				startsExpanded: true,
+				ariaExpanded: 'true',
+				title: 'Reviewing the implementation',
+			});
+
+			button.click();
+			assert.deepStrictEqual({
+				isCollapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+				collapsedHeight: scrollable.style.maxHeight,
+				collapsedInert: scrollable.inert,
+			}, {
+				isCollapsed: true,
+				collapsedHeight: '0px',
+				collapsedInert: true,
+			});
+
+			button.click();
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			assert.deepStrictEqual({
+				isExpanded: !part.domNode.classList.contains('chat-used-context-collapsed'),
+				expandedHeight: scrollable.style.maxHeight,
+				expandedInert: scrollable.inert,
+			}, {
+				isExpanded: true,
+				expandedHeight: '200px',
+				expandedInert: false,
+			});
+
+			part.finalizeTitleIfDefault();
+			assert.deepStrictEqual({
+				completionCollapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+				completionHeight: scrollable.style.maxHeight,
+				completionInert: scrollable.inert,
+			}, {
+				completionCollapsed: true,
+				completionHeight: '0px',
+				completionInert: true,
+			});
+		});
+
+		test('collapsible fixed scrolling can start collapsed and expand while streaming', async () => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.FixedScrollingCollapsibleCollapsed);
+			const content = createThinkingPart('**Reviewing the implementation**\n\nChecking the affected command registration.');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			const contentList = part.domNode.querySelector<HTMLElement>('.chat-thinking-collapsible');
+			const scrollable = part.domNode.querySelector<HTMLElement>('.monaco-scrollable-element');
+			assert.ok(button);
+			assert.ok(contentList);
+			assert.ok(scrollable);
+			Object.defineProperty(contentList, 'scrollHeight', { configurable: true, value: 400 });
+
+			assert.deepStrictEqual({
+				startsCollapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+				title: button.textContent?.trim(),
+				ariaExpanded: button.ariaExpanded,
+				bodyHeight: scrollable.style.maxHeight,
+				bodyInert: scrollable.inert,
+			}, {
+				startsCollapsed: true,
+				title: 'Reviewing the implementation',
+				ariaExpanded: 'false',
+				bodyHeight: '0px',
+				bodyInert: true,
+			});
+
+			button.click();
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			assert.deepStrictEqual({
+				isExpanded: !part.domNode.classList.contains('chat-used-context-collapsed'),
+				ariaExpanded: button.ariaExpanded,
+				bodyHeight: scrollable.style.maxHeight,
+				bodyInert: scrollable.inert,
+			}, {
+				isExpanded: true,
+				ariaExpanded: 'true',
+				bodyHeight: '200px',
+				bodyInert: false,
+			});
+		});
 	});
 
 	suite('Thinking content updates', () => {

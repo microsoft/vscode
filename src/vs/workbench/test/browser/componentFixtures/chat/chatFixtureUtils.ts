@@ -109,7 +109,7 @@ export class FixtureMenuService implements IMenuService {
 		}
 		items.push(item);
 	}
-	createMenu(id: MenuId): IMenu {
+	private createActions(id: MenuId): [string, MenuItemAction[]][] {
 		const actions: [string, MenuItemAction[]][] = [];
 		for (const item of this._items.get(id.id) ?? []) {
 			const group = item.group ?? '';
@@ -120,9 +120,13 @@ export class FixtureMenuService implements IMenuService {
 			}
 			entry[1].push(new MenuItemAction(item.command, item.alt, {}, undefined, undefined, this._contextKeyService, this._commandService));
 		}
+		return actions;
+	}
+	createMenu(id: MenuId): IMenu {
+		const actions = this.createActions(id);
 		return { onDidChange: Event.None, dispose() { }, getActions: () => actions };
 	}
-	getMenuActions() { return []; }
+	getMenuActions(id: MenuId) { return this.createActions(id); }
 	getMenuContexts() { return new Set<string>(); }
 	resetHiddenStates() { }
 }

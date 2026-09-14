@@ -1,0 +1,136 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.hydrafusion-demo-fixture {
+	box-sizing: border-box;
+	width: min(980px, calc(100vw - var(--vscode-spacing-size80)));
+	padding: var(--vscode-spacing-size60);
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.hydrafusion-demo {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+}
+
+.hydrafusion-demo-heading h2,
+.hydrafusion-demo-heading p {
+	margin: 0;
+}
+
+.hydrafusion-demo-heading h2 {
+	font-size: var(--vscode-chat-font-size-body-l);
+}
+
+.hydrafusion-demo-heading > p {
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	line-height: 1.45;
+}
+
+.hydrafusion-demo-heading .hydrafusion-demo-assumption {
+	margin-top: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size60);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-textLink-foreground);
+}
+
+.hydrafusion-demo-controls {
+	display: grid;
+	grid-template-columns: minmax(130px, 0.8fr) minmax(180px, 1fr) minmax(230px, 1.3fr) minmax(110px, 0.7fr) minmax(130px, 0.8fr);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+	overflow: hidden;
+}
+
+.hydrafusion-demo-control-group {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	padding: var(--vscode-spacing-size60);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	gap: var(--vscode-spacing-size40);
+}
+
+.hydrafusion-demo-control-group:first-child {
+	border-left: 0;
+}
+
+.hydrafusion-demo-control-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.hydrafusion-demo-control-choices {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size20);
+}
+
+.hydrafusion-demo-button.monaco-button {
+	min-height: var(--vscode-spacing-size120);
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: 0;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	text-align: left;
+}
+
+.hydrafusion-demo-button.monaco-button:hover,
+.hydrafusion-demo-button.monaco-button:focus-visible {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.hydrafusion-demo-button.monaco-button.active {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.hydrafusion-demo-view {
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.hydrafusion-demo-render-host {
+	position: relative;
+	width: 780px;
+	max-width: 100%;
+	margin: 0 auto;
+}
+
+.hydrafusion-demo-render-host .interactive-response > .value > .chat-thinking-box {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+@media (max-width: 700px) {
+	.hydrafusion-demo-fixture {
+		width: calc(100vw - var(--vscode-spacing-size40));
+		padding: var(--vscode-spacing-size40);
+	}
+
+	.hydrafusion-demo-controls {
+		grid-template-columns: 1fr;
+	}
+
+	.hydrafusion-demo-control-group,
+	.hydrafusion-demo-control-group:first-child {
+		border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+		border-left: 0;
+	}
+
+	.hydrafusion-demo-control-group:first-child {
+		border-top: 0;
+	}
+}

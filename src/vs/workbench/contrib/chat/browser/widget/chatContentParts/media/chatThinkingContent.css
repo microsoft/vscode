@@ -109,7 +109,7 @@
 		opacity: 1;
 	}
 
-	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
+	> .chat-used-context-label .monaco-button.monaco-icon-button {
 
 		.codicon.codicon-circle-filled-compact {
 			display: none;
@@ -134,6 +134,19 @@
 		}
 	}
 
+	&.chat-thinking-active.chat-thinking-fixed-mode-collapsible:not(.chat-used-context-collapsed):has(.chat-thinking-streaming) > .chat-used-context-label::after {
+		position: absolute;
+		top: calc(100% - 1px);
+		left: 0;
+		width: 4px;
+		height: 17px;
+		border-left: 1px solid var(--vscode-chat-requestBorder);
+		border-bottom: 1px solid var(--vscode-chat-requestBorder);
+		border-bottom-left-radius: var(--vscode-cornerRadius-small);
+		content: '';
+		pointer-events: none;
+	}
+
 	/* shimmer animation stuffs */
 	.chat-thinking-spinner-item .chat-thinking-spinner-label {
 		background: linear-gradient(90deg,
@@ -153,19 +166,6 @@
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
 		overflow: visible;
 		max-height: none;
-	}
-
-	/* Curved connector from the header to the first thinking item */
-	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
-		content: '';
-		position: absolute;
-		left: 3px;
-		top: 100%;
-		height: 16px;
-		width: 5px;
-		border-left: 1px solid var(--vscode-chat-requestBorder);
-		border-bottom: 1px solid var(--vscode-chat-requestBorder);
-		border-bottom-left-radius: 5px;
 	}
 
 	.monaco-button.hidden,
@@ -360,6 +360,22 @@
 			}
 		}
 
+		&:not(.chat-thinking-streaming) {
+
+			.chat-thinking-tool-wrapper,
+			.chat-thinking-item.markdown-content,
+			.chat-thinking-spinner-item {
+
+				&::before {
+					mask-image: none;
+				}
+
+				.chat-thinking-icon {
+					display: none;
+				}
+			}
+		}
+
 		.chat-thinking-spinner-item {
 			padding: 6px 12px 6px 24px;
 			font-size: var(--vscode-chat-font-size-body-s);
@@ -428,8 +444,8 @@
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
 
-	/* Hide the header/collapse button while streaming — it reappears when chat-thinking-streaming is removed */
-	&:has(.chat-thinking-streaming) > .chat-used-context-label {
+	/* The standard fixed preview has no live header; the collapsible variant keeps its toggle visible. */
+	&:not(.chat-thinking-fixed-mode-collapsible):has(.chat-thinking-streaming) > .chat-used-context-label {
 		display: none;
 	}
 
@@ -478,7 +494,8 @@
 		}
 	}
 
-	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming,
+	&.chat-thinking-fixed-mode-collapsible:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
 		max-height: 200px;
 		overflow: hidden;
 		display: block;
@@ -524,6 +541,39 @@
 		}
 	}
 
+	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
+		margin-left: 0px;
+		padding-left: 0px;
+
+		.chat-tool-invocation-part {
+			padding-left: 13px;
+		}
+
+		.chat-thinking-spinner-item,
+		.chat-thinking-item.markdown-content,
+		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown,
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
+			padding-left: 19px;
+		}
+
+		.chat-used-context.chat-hook-outcome-blocked,
+		.chat-used-context.chat-hook-outcome-warning {
+			padding-left: 15px;
+		}
+
+		.chat-thinking-tool-wrapper,
+		.chat-thinking-item.markdown-content,
+		.chat-thinking-spinner-item {
+			&::before {
+				left: 5.5px;
+			}
+
+			> .chat-thinking-icon {
+				left: 0px;
+			}
+		}
+	}
+
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
 		max-height: none;
 		overflow: visible;
@@ -533,6 +583,54 @@
 	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element:has(.chat-thinking-streaming) {
 		overflow: visible;
 		height: auto;
+	}
+
+	&.chat-thinking-fixed-mode-collapsible {
+		&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming,
+		&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
+			margin-left: 5px;
+
+			.chat-tool-invocation-part {
+				padding-left: var(--vscode-spacing-size160);
+			}
+
+			.chat-thinking-spinner-item,
+			.chat-thinking-item.markdown-content,
+			.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown,
+			.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
+				padding-left: var(--vscode-spacing-size240);
+			}
+
+			.chat-used-context.chat-hook-outcome-blocked,
+			.chat-used-context.chat-hook-outcome-warning {
+				padding-left: var(--vscode-spacing-size200);
+			}
+
+			.chat-thinking-tool-wrapper,
+			.chat-thinking-item.markdown-content,
+			.chat-thinking-spinner-item {
+				&::before {
+					left: 11.5px;
+				}
+
+				> .chat-thinking-icon {
+					left: 6px;
+				}
+			}
+		}
+
+		&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-thinking-streaming) {
+			display: block;
+			max-height: 0px !important;
+			opacity: 0;
+			overflow: hidden;
+			pointer-events: none;
+		}
+
+		&:not(.chat-used-context-collapsed) > .monaco-scrollable-element:has(.chat-thinking-streaming) {
+			opacity: 1;
+			overflow: hidden;
+		}
 	}
 
 	.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
