@@ -523,7 +523,7 @@ export class LanguageModelToolExtensionSource implements vscode.LanguageModelToo
 }
 
 export class LanguageModelToolMCPSource implements vscode.LanguageModelToolMCPSource {
-	constructor(public readonly label: string, public readonly name: string, public readonly instructions: string | undefined) { }
+	constructor(public readonly label: string, public readonly name: string, public readonly instructions: string | undefined, public readonly collectionId: string, public readonly definitionId: string) { }
 }
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
