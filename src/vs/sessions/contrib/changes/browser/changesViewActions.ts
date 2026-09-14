@@ -390,8 +390,8 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,
@@ -419,8 +419,8 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,

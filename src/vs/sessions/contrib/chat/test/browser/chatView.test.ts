@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,15 +24,35 @@ import { ISession, SessionStatus } from '../../../../services/sessions/common/se
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
+import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
+import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards workspace acknowledgement only from a new-session widget', () => {
+		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			selectWorkspace: (folder: URI, options?: ISelectWorkspaceOptions) => {
+				calls.push({ folder, options });
+				return 'applied';
+			},
+		});
+		const results = [undefined, Object.create(NewChatInSessionWidget.prototype), widget].map(_widget => {
+			const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget });
+			return view.selectWorkspace(URI.file('/requested'), { isDefault: true });
+		});
+		assert.deepStrictEqual({ results, calls }, {
+			results: ['notReady', 'notReady', 'applied'],
+			calls: [{ folder: URI.file('/requested'), options: { isDefault: true } }],
+		});
+	});
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
@@ -679,6 +700,42 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps the side-chat request origin opaque over the chat background', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
+		const appendOrigin = (part: HTMLElement) => {
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			return dom.append(chatView, dom.$('.chat-request-origin'));
+		};
+		const backgroundPart = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+		const origin = appendOrigin(backgroundPart);
+		const delegationOrigin = appendOrigin(backgroundPart);
+		delegationOrigin.classList.add('delegation');
+		const plainOrigin = appendOrigin(dom.append(workbench, dom.$('.part.sessionspart')));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const style = dom.getWindow(origin).getComputedStyle(origin);
+		const delegationStyle = dom.getWindow(delegationOrigin).getComputedStyle(delegationOrigin);
+		const plainStyle = dom.getWindow(plainOrigin).getComputedStyle(plainOrigin);
+		assert.deepStrictEqual({
+			backgroundColor: style.backgroundColor,
+			backgroundImage: style.backgroundImage,
+			delegationBackgroundColor: delegationStyle.backgroundColor,
+			delegationBackgroundImage: delegationStyle.backgroundImage,
+			plainBackgroundColor: plainStyle.backgroundColor,
+			plainBackgroundImage: plainStyle.backgroundImage,
+		}, {
+			backgroundColor: 'rgb(32, 32, 32)',
+			backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			delegationBackgroundColor: 'rgba(0, 0, 0, 0)',
+			delegationBackgroundImage: 'none',
+			plainBackgroundColor: 'rgba(255, 255, 255, 0.3)',
+			plainBackgroundImage: 'none',
+		});
+	});
+
 	test('keeps request attachment pills opaque over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
@@ -939,6 +996,7 @@ suite('Sessions - Chat View', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0.08)');
+		workbench.style.setProperty('--vscode-button-secondaryHoverBackground', 'rgba(0, 0, 0, 0.16)');
 		workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
 		workbench.style.setProperty('--vscode-commandCenter-inactiveBorder', '#606060');
@@ -952,11 +1010,15 @@ suite('Sessions - Chat View', () => {
 		const newChatContainer = dom.append(newChatWidget, dom.$('.new-chat-widget-container'));
 		const bottomContainer = dom.append(newChatContainer, dom.$('.new-chat-bottom-container'));
 		const bottomAction = dom.append(bottomContainer, dom.$('.action-label'));
+		const combinedBottomAction = dom.append(bottomContainer, dom.$('.action-label.agent-host-mode-permissions-trigger'));
+		combinedBottomAction.setAttribute('data-mode-permissions-picker-open', 'true');
 		const workspacePickerSlot = dom.append(newChatContainer, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		const workspacePill = dom.append(workspacePickerSlot, dom.$('.action-label'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 		const secondaryAction = dom.append(secondaryToolbar, dom.$('.action-label'));
+		const combinedSecondaryAction = dom.append(secondaryToolbar, dom.$('.action-label.agent-host-mode-permissions-trigger'));
+		combinedSecondaryAction.setAttribute('data-mode-permissions-picker-open', 'true');
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const newSessionView = dom.append(part, dom.$('.session-view'));
 		const newSessionViewContent = dom.append(newSessionView, dom.$('.session-view-content'));
@@ -980,8 +1042,10 @@ suite('Sessions - Chat View', () => {
 
 		const newChatStyle = dom.getWindow(newChatContent).getComputedStyle(newChatContent);
 		const bottomActionStyle = dom.getWindow(bottomAction).getComputedStyle(bottomAction);
+		const combinedBottomActionStyle = dom.getWindow(combinedBottomAction).getComputedStyle(combinedBottomAction);
 		const workspacePillStyle = dom.getWindow(workspacePill).getComputedStyle(workspacePill);
 		const secondaryActionStyle = dom.getWindow(secondaryAction).getComputedStyle(secondaryAction);
+		const combinedSecondaryActionStyle = dom.getWindow(combinedSecondaryAction).getComputedStyle(combinedSecondaryAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
 		const productionBottomActionStyle = dom.getWindow(productionBottomAction).getComputedStyle(productionBottomAction);
 		assert.deepStrictEqual({
@@ -991,11 +1055,13 @@ suite('Sessions - Chat View', () => {
 			bottomActionBorderColor: bottomActionStyle.borderColor,
 			bottomActionBorderStyle: bottomActionStyle.borderStyle,
 			bottomActionBorderRadius: bottomActionStyle.borderRadius,
+			combinedBottomActionBackgroundImage: combinedBottomActionStyle.backgroundImage,
 			workspacePillBackgroundColor: workspacePillStyle.backgroundColor,
 			secondaryActionBackgroundColor: secondaryActionStyle.backgroundColor,
 			secondaryActionBackgroundImage: secondaryActionStyle.backgroundImage,
 			secondaryActionBorderColor: secondaryActionStyle.borderColor,
 			secondaryActionBorderStyle: secondaryActionStyle.borderStyle,
+			combinedSecondaryActionBackgroundImage: combinedSecondaryActionStyle.backgroundImage,
 			contextUsageBackgroundColor: contextUsageStyle.backgroundColor,
 			contextUsageBackgroundImage: contextUsageStyle.backgroundImage,
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
@@ -1016,11 +1082,13 @@ suite('Sessions - Chat View', () => {
 			bottomActionBorderColor: 'rgb(128, 128, 128)',
 			bottomActionBorderStyle: 'solid',
 			bottomActionBorderRadius: '4px',
+			combinedBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16))',
 			workspacePillBackgroundColor: 'rgb(255, 255, 255)',
 			secondaryActionBackgroundColor: 'rgb(255, 255, 255)',
 			secondaryActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			secondaryActionBorderColor: 'rgb(128, 128, 128)',
 			secondaryActionBorderStyle: 'solid',
+			combinedSecondaryActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16))',
 			contextUsageBackgroundColor: 'rgb(255, 255, 255)',
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
@@ -1627,6 +1695,52 @@ suite('Sessions - Chat View', () => {
 			inProgress: false,
 			needsInput: false,
 			completed: true,
+		});
+	});
+
+	test('recognizes an unmodified Shift+Tab as the chat-pills focus shortcut', () => {
+		const base = { keyCode: KeyCode.Tab, shiftKey: true, ctrlKey: false, metaKey: false, altKey: false };
+		assert.deepStrictEqual({
+			shiftTab: isFocusChatPillsKeyDown(base),
+			plainTab: isFocusChatPillsKeyDown({ ...base, shiftKey: false }),
+			ctrlShiftTab: isFocusChatPillsKeyDown({ ...base, ctrlKey: true }),
+			metaShiftTab: isFocusChatPillsKeyDown({ ...base, metaKey: true }),
+			altShiftTab: isFocusChatPillsKeyDown({ ...base, altKey: true }),
+			otherKey: isFocusChatPillsKeyDown({ ...base, keyCode: KeyCode.Escape }),
+		}, {
+			shiftTab: true,
+			plainTab: false,
+			ctrlShiftTab: false,
+			metaShiftTab: false,
+			altShiftTab: false,
+			otherKey: false,
+		});
+	});
+
+	test('only cancels the chat input keydown when the pills accept focus', () => {
+		const handleKeyDown = (event: { keyCode: KeyCode; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean; preventDefault(): void; stopPropagation(): void }, focusFirst: () => boolean) => {
+			if (isFocusChatPillsKeyDown(event) && focusFirst()) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		};
+		const fire = (shiftKey: boolean, focusFirstResult: boolean) => {
+			const calls: string[] = [];
+			handleKeyDown(
+				{ keyCode: KeyCode.Tab, shiftKey, ctrlKey: false, metaKey: false, altKey: false, preventDefault: () => calls.push('preventDefault'), stopPropagation: () => calls.push('stopPropagation') },
+				() => focusFirstResult,
+			);
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			matchingAndFocused: fire(true, true),
+			matchingButNoPills: fire(true, false),
+			nonMatching: fire(false, true),
+		}, {
+			matchingAndFocused: ['preventDefault', 'stopPropagation'],
+			matchingButNoPills: [],
+			nonMatching: [],
 		});
 	});
 
