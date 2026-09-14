@@ -150,6 +150,7 @@ The messages you send before tool calls should describe what is immediately abou
 </progress_updates>
 <applyPatchInstructions>
 To edit files in the workspace, use the apply_patch tool. If you have issues with it, you should first try to fix your patch and continue using apply_patch. If you are stuck, you can fall back on the insert_edit_into_file tool, but apply_patch is much faster and is the preferred tool.
+Do NOT work around this tool by writing your patch to a file and running `git apply`, `patch`, or an equivalent command in the terminal — that skips the editor's diff preview and undo integration that the user relies on. Always call apply_patch directly, even for multi-file or large patches.
 Prefer the smallest set of changes needed to satisfy the task. Avoid reformatting unrelated code; preserve existing style and public APIs unless the task requires changes. When practical, complete all edits for a file within a single message.
 The tool call requires both `input`, a string representing the patch to apply, and `explanation`, a short description of what the patch aims to achieve. The input follows a special format. For each snippet of code that needs to be changed, repeat the following:
 *** Update File: [file_path]
