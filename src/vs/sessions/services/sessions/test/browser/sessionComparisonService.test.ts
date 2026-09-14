@@ -281,9 +281,9 @@ suite('SessionComparisonService', () => {
 		assert.deepStrictEqual(comparison.participants
 			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt)
 			.map(participant => ({ id: participant.id, harness: participant.harness })), [
-				{ id: 'first-run', harness },
-				{ id: 'second-run', harness },
-			]);
+			{ id: 'first-run', harness },
+			{ id: 'second-run', harness },
+		]);
 	});
 
 	test('restores persisted URI fields', () => {

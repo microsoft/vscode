@@ -92,9 +92,9 @@ export class SessionComparisonSetupDialog extends Disposable {
 					? localize('sessionComparisonSetup.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.")
 					: !hasHarnesses
 						? localize('sessionComparisonSetup.noAvailableAgents', "No agents that support worktree isolation are available.")
-					: count < 2
-						? localize('sessionComparisonSetup.minimumSelection', "Add at least two attempts.")
-						: hasPrompt ? '' : localize('sessionComparisonSetup.promptRequired', "Enter a prompt to run the attempts.");
+						: count < 2
+							? localize('sessionComparisonSetup.minimumSelection', "Add at least two attempts.")
+							: hasPrompt ? '' : localize('sessionComparisonSetup.promptRequired', "Enter a prompt to run the attempts.");
 			}
 		};
 

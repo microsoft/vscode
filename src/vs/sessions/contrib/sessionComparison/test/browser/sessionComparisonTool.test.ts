@@ -34,7 +34,7 @@ suite('SessionComparisonTool', () => {
 			description: tool.getToolData().modelDescription,
 		}, {
 			referenceName: 'readAttemptComparison',
-			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed-file evidence status, change summaries, authoritative worktree locations, and exact targets for get_session_context. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
+			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed-file evidence status, change summaries, authoritative worktree locations, and exact targets for get_session_context. Terminal commands start in the Judge or synthesis worktree, so explicitly cd to an attempt\'s listed workingDirectory in every command that inspects or validates it. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
 		});
 	});
 
@@ -82,8 +82,96 @@ suite('SessionComparisonTool', () => {
 				changedFilesStatus: 'available',
 				changedFilesTruncated: false,
 			}],
-			next: 'Review every attempt diff in its authoritative worktree. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not inspect another checkout, discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in its authoritative worktree. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
 		});
+	});
+
+	test('accepts validation categories that do not apply', async () => {
+		const comparison = stubComparison();
+		let submitted: ISessionComparisonVerdict | undefined;
+		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+			getComparison: () => comparison,
+			submitVerdict: (_comparisonId, verdict) => submitted = verdict,
+		}));
+
+		const result = await invoke(tool, {
+			comparisonId: comparison.id,
+			recommendedParticipantId: 'attempt',
+			explanation: 'No implementation changes were needed.',
+			conflicts: [],
+			attempts: [{
+				participantId: 'attempt',
+				summary: 'Completed the requested inspection without changing code.',
+				validation: {
+					tests: SessionComparisonValidationState.NotApplicable,
+					build: SessionComparisonValidationState.NotApplicable,
+					lint: SessionComparisonValidationState.NotApplicable,
+					diagnostics: SessionComparisonValidationState.NotApplicable,
+				},
+				validationSource: {
+					tests: SessionComparisonValidationSource.NotApplicable,
+					build: SessionComparisonValidationSource.NotApplicable,
+					lint: SessionComparisonValidationSource.NotApplicable,
+					diagnostics: SessionComparisonValidationSource.NotApplicable,
+				},
+				unresolvedIssues: [],
+				notableDifferences: [],
+			}],
+		}, judgeResource);
+
+		assert.deepStrictEqual({
+			result: JSON.parse(getText(result)),
+			validation: submitted?.attempts[0].validation,
+			validationSource: submitted?.attempts[0].validationSource,
+		}, {
+			result: { status: 'submitted', comparisonId: 'comparison' },
+			validation: {
+				tests: SessionComparisonValidationState.NotApplicable,
+				build: SessionComparisonValidationState.NotApplicable,
+				lint: SessionComparisonValidationState.NotApplicable,
+				diagnostics: SessionComparisonValidationState.NotApplicable,
+			},
+			validationSource: {
+				tests: SessionComparisonValidationSource.NotApplicable,
+				build: SessionComparisonValidationSource.NotApplicable,
+				lint: SessionComparisonValidationSource.NotApplicable,
+				diagnostics: SessionComparisonValidationSource.NotApplicable,
+			},
+		});
+	});
+
+	test('explains inconsistent not applicable validation provenance', async () => {
+		const comparison = stubComparison();
+		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+			getComparison: () => comparison,
+		}));
+
+		const result = await invoke(tool, {
+			comparisonId: comparison.id,
+			recommendedParticipantId: 'attempt',
+			explanation: 'No implementation changes were needed.',
+			conflicts: [],
+			attempts: [{
+				participantId: 'attempt',
+				summary: 'Completed the requested inspection without changing code.',
+				validation: {
+					tests: SessionComparisonValidationState.NotApplicable,
+					build: SessionComparisonValidationState.NotApplicable,
+					lint: SessionComparisonValidationState.NotApplicable,
+					diagnostics: SessionComparisonValidationState.NotApplicable,
+				},
+				validationSource: {
+					tests: SessionComparisonValidationSource.Unavailable,
+					build: SessionComparisonValidationSource.NotApplicable,
+					lint: SessionComparisonValidationSource.NotApplicable,
+					diagnostics: SessionComparisonValidationSource.NotApplicable,
+				},
+				unresolvedIssues: [],
+				notableDifferences: [],
+			}],
+		}, judgeResource);
+
+		assert.strictEqual(getText(result), 'A notApplicable validation result must use notApplicable as its validation source, and vice versa.');
 	});
 
 	test('records automatic review evidence provenance in the verdict', async () => {
@@ -207,7 +295,7 @@ function stubAttemptSession(): ISession {
 	});
 }
 
-async function invoke(tool: ReadSessionComparisonTool, parameters: Record<string, unknown>, sessionResource: URI): Promise<IToolResult> {
+async function invoke(tool: ReadSessionComparisonTool | CompleteSessionComparisonTool, parameters: Record<string, unknown>, sessionResource: URI): Promise<IToolResult> {
 	return tool.invoke({
 		callId: 'call',
 		toolId: 'tool',

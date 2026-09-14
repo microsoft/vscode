@@ -24,12 +24,14 @@ export const enum SessionComparisonValidationState {
 	Passed = 'passed',
 	Failed = 'failed',
 	NotRun = 'notRun',
+	NotApplicable = 'notApplicable',
 	Unknown = 'unknown',
 }
 
 export const enum SessionComparisonValidationSource {
 	AttemptReport = 'attemptReport',
 	JudgeRun = 'judgeRun',
+	NotApplicable = 'notApplicable',
 	Unavailable = 'unavailable',
 }
 

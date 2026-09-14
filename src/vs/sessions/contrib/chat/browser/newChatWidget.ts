@@ -1124,11 +1124,11 @@ export class NewChatWidget extends Disposable {
 					: undefined;
 				const resolvedModelId = resolution?.kind === 'available' ? resolution.model.identifier : undefined;
 				return type ? {
-						providerId: harness.providerId,
-						sessionTypeId: harness.sessionTypeId,
-						label: type.sessionType.label,
-						modelId: resolvedModelId,
-						modelLabel: resolution?.kind === 'available' ? resolution.model.metadata.name : undefined,
+					providerId: harness.providerId,
+					sessionTypeId: harness.sessionTypeId,
+					label: type.sessionType.label,
+					modelId: resolvedModelId,
+					modelLabel: resolution?.kind === 'available' ? resolution.model.metadata.name : undefined,
 				} : undefined;
 			};
 			const attempts = this._comparisonAttempts.get().flatMap(attempt => {

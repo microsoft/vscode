@@ -48,7 +48,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.readTool.displayName', "Read Attempt Comparison"),
 			userDescription: localize('sessionComparison.readTool.userDescription', "Read the attempts and evidence for an active comparison"),
-			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed-file evidence status, change summaries, authoritative worktree locations, and exact targets for get_session_context. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
+			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt, changed-file evidence status, change summaries, authoritative worktree locations, and exact targets for get_session_context. Terminal commands start in the Judge or synthesis worktree, so explicitly cd to an attempt\'s listed workingDirectory in every command that inspects or validates it. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff and run missing targeted validation when needed. It does not return full transcripts or submit a verdict.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -132,7 +132,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			originalTask: comparison.prompt,
 			baseBranch: comparison.branch,
 			attempts,
-			next: 'Review every attempt diff in its authoritative worktree. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and do not modify any attempt. Do not inspect another checkout, discover sessions, guess references, or create sessions.',
+			next: 'Review every attempt diff in its authoritative worktree. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
 		}));
 	}
 }
@@ -151,7 +151,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.tool.displayName', "Complete Attempt Comparison"),
 			userDescription: localize('sessionComparison.tool.userDescription', "Submit the judge's structured attempt comparison"),
-			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this exactly once after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Record whether each validation result came from the attempt report, a Judge run, or was unavailable. The recommended participant must be one of the comparison attempts. This persists an advisory verdict; synthesis only starts through an explicit user action.',
+			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Record whether each validation result came from the attempt report, a Judge run, was unavailable, or was not applicable. Use notApplicable for both validation state and source when a category genuinely does not apply. The recommended participant must be one of the comparison attempts. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -233,7 +233,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const input = parseInput(invocation.parameters);
 		if (!input) {
-			return toolError('The comparison verdict input is invalid.');
+			return toolError('The comparison verdict input is invalid. Every attempt requires tests, build, lint, and diagnostics values in both validation and validationSource. Use notApplicable for both values when a category does not apply.');
 		}
 		const comparison = this.comparisonService.getComparison(input.comparisonId);
 		if (!comparison) {
@@ -250,6 +250,11 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			|| input.attempts.some(attempt => !attemptIds.has(attempt.participantId))
 			|| new Set(input.attempts.map(attempt => attempt.participantId)).size !== input.attempts.length) {
 			return toolError('The verdict must recommend an attempt and include exactly one finding for every attempt.');
+		}
+		if (input.attempts.some(attempt => validationKinds.some(kind =>
+			(attempt.validation[kind] === SessionComparisonValidationState.NotApplicable)
+			!== (attempt.validationSource?.[kind] === SessionComparisonValidationSource.NotApplicable)))) {
+			return toolError('A notApplicable validation result must use notApplicable as its validation source, and vice versa.');
 		}
 
 		const verdict: ISessionComparisonVerdict = {
@@ -368,10 +373,12 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 function validationStateSchema(): IJSONSchema {
 	return {
 		type: 'string',
+		description: 'Use passed or failed for a known result, notRun when applicable validation was not run, notApplicable when the category does not apply, or unknown when the result cannot be determined.',
 		enum: [
 			SessionComparisonValidationState.Passed,
 			SessionComparisonValidationState.Failed,
 			SessionComparisonValidationState.NotRun,
+			SessionComparisonValidationState.NotApplicable,
 			SessionComparisonValidationState.Unknown,
 		],
 	};
@@ -380,9 +387,11 @@ function validationStateSchema(): IJSONSchema {
 function validationSourceSchema(): IJSONSchema {
 	return {
 		type: 'string',
+		description: 'Use attemptReport, judgeRun, unavailable, or notApplicable. notApplicable must be paired with a notApplicable validation result.',
 		enum: [
 			SessionComparisonValidationSource.AttemptReport,
 			SessionComparisonValidationSource.JudgeRun,
+			SessionComparisonValidationSource.NotApplicable,
 			SessionComparisonValidationSource.Unavailable,
 		],
 	};
@@ -400,14 +409,18 @@ function isValidationState(value: unknown): value is SessionComparisonValidation
 	return value === SessionComparisonValidationState.Passed
 		|| value === SessionComparisonValidationState.Failed
 		|| value === SessionComparisonValidationState.NotRun
+		|| value === SessionComparisonValidationState.NotApplicable
 		|| value === SessionComparisonValidationState.Unknown;
 }
 
 function isValidationSource(value: unknown): value is SessionComparisonValidationSource {
 	return value === SessionComparisonValidationSource.AttemptReport
 		|| value === SessionComparisonValidationSource.JudgeRun
+		|| value === SessionComparisonValidationSource.NotApplicable
 		|| value === SessionComparisonValidationSource.Unavailable;
 }
+
+const validationKinds = ['tests', 'build', 'lint', 'diagnostics'] as const;
 
 function toolResult(value: string): IToolResult {
 	return { content: [{ kind: 'text', value }] };

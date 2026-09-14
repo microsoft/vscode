@@ -461,7 +461,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	private _getJudgeHarness(comparison: ISessionComparison): ISessionComparisonHarness | undefined {
 		return comparison.judgeHarness
 			?? comparison.participants.find(participant =>
-			participant.role === SessionComparisonParticipantRole.Coordinator)?.harness
+				participant.role === SessionComparisonParticipantRole.Coordinator)?.harness
 			?? comparison.participants.find(participant =>
 				participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)?.harness;
 	}
