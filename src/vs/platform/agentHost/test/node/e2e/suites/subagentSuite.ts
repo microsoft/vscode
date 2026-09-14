@@ -321,7 +321,14 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
 				child = snapshot.snapshot?.state as ChatState | undefined;
 				if (child?.activeTurn || child?.turns.length !== expectedTurnCount || child.turns.some(turn => turn.state !== TurnState.Complete)) {
-					throw new Error(`retained child has not completed ${expectedTurnCount} turns`);
+					throw new Error(`retained child has not completed ${expectedTurnCount} turns: ${JSON.stringify({
+						activeTurn: child?.activeTurn,
+						turns: child?.turns.map(turn => ({
+							id: turn.id,
+							state: turn.state,
+							response: markdownText({ turns: [turn] }).trim(),
+						})),
+					})}`);
 				}
 			}, 50, 100);
 			assert.ok(child);
