@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OpenAI, Raw } from '@vscode/prompt-tsx';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatLocation } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IChatMLFetcher } from '../../../chat/common/chatMLFetcher';
+import { ChatFetchResponseType } from '../../../chat/common/commonTypes';
 
 import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
@@ -24,6 +27,7 @@ import { NullExperimentationService } from '../../../telemetry/common/nullExperi
 import { TestLogService } from '../../../testing/common/testLogService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { ITokenizerProvider } from '../../../tokenizer/node/tokenizer';
+import { AutoChatEndpoint } from '../autoChatEndpoint';
 import { ChatEndpoint } from '../chatEndpoint';
 import { CopilotChatEndpoint } from '../copilotChatEndpoint';
 
@@ -98,6 +102,88 @@ const createNonAnthropicModelMetadata = (family: string): IChatModelInformation 
 			max_context_window_tokens: 12288
 		}
 	}
+});
+
+describe('AutoChatEndpoint - Model Rejections', () => {
+	function createAutoEndpoint(mockServices: ReturnType<typeof createMockServices>, onModelRejected: () => void) {
+		const wrapped = new CopilotChatEndpoint(
+			createNonAnthropicModelMetadata('gpt-4o'),
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			mockServices.authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService,
+		);
+		return new AutoChatEndpoint(
+			wrapped, 'auto-token', 0, { low: 0, high: 0 }, onModelRejected,
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			mockServices.authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService,
+		);
+	}
+
+	it.each([
+		[ChatFetchResponseType.BadRequest, 'unsupported model', true],
+		[ChatFetchResponseType.NotFound, 'model not found', true],
+		[ChatFetchResponseType.Failed, 'Unauthorized', false],
+		[ChatFetchResponseType.Failed, 'Forbidden', false],
+		[ChatFetchResponseType.Failed, 'Server error', false],
+		[ChatFetchResponseType.NetworkError, 'network unavailable', false],
+		[ChatFetchResponseType.Canceled, 'canceled', false],
+	] as const)('handles %s (%s) without retrying the model call', async (type, reason, invalidates) => {
+		const mockServices = createMockServices();
+		const response = { type, reason, requestId: 'request', serverRequestId: undefined };
+		const fetchOne = vi.fn<IChatMLFetcher['fetchOne']>().mockResolvedValue(response);
+		mockServices.chatMLFetcher = { ...mockServices.chatMLFetcher, fetchOne };
+		const onModelRejected = vi.fn();
+		const endpoint = createAutoEndpoint(mockServices, onModelRejected);
+
+		const result = await endpoint.makeChatRequest('auto-rejection', [], undefined, CancellationToken.None, ChatLocation.Panel);
+
+		expect({ result, calls: fetchOne.mock.calls.length, invalidations: onModelRejected.mock.calls.length }).toEqual({
+			result: response,
+			calls: 1,
+			invalidations: invalidates ? 1 : 0,
+		});
+	});
+
+	it('invalidates a rate-limited selection without retrying the model call', async () => {
+		const mockServices = createMockServices();
+		const fetchOne = vi.fn<IChatMLFetcher['fetchOne']>().mockResolvedValue({
+			type: ChatFetchResponseType.RateLimited,
+			reason: 'rate limited',
+			requestId: 'request',
+			serverRequestId: undefined,
+			retryAfter: undefined,
+			rateLimitKey: 'model',
+			isAuto: true,
+		});
+		mockServices.chatMLFetcher = { ...mockServices.chatMLFetcher, fetchOne };
+		const onModelRejected = vi.fn();
+		const endpoint = createAutoEndpoint(mockServices, onModelRejected);
+
+		await endpoint.makeChatRequest('auto-rejection', [], undefined, CancellationToken.None, ChatLocation.Panel);
+
+		expect({ calls: fetchOne.mock.calls.length, invalidations: onModelRejected.mock.calls.length }).toEqual({ calls: 1, invalidations: 1 });
+	});
 });
 
 describe('CopilotChatEndpoint - Reasoning Properties', () => {

@@ -29,6 +29,19 @@ export interface AutoV2Response {
 	selected_model: AutoV2SelectedModel;
 	hydra_scores?: Record<string, number>;
 	discounted_costs?: Record<string, number>;
+	multi_turn_mode?: 'model_cards' | 'hydra_rl';
+	hydra_rl_multi_turn?: AutoV2HydraRlMultiTurnResponse;
+}
+
+export interface AutoV2HydraRlMultiTurnRequest {
+	state_token?: string;
+	advance?: boolean;
+}
+
+export interface AutoV2HydraRlMultiTurnResponse {
+	state_token: string;
+	skip_turns?: number;
+	decision?: string;
 }
 
 /** Multi-turn routing state. Logged server-side only; does not affect routing. */
@@ -71,6 +84,7 @@ export class AutoV2Fetcher {
 		options: {
 			hasImage?: boolean;
 			multiTurn?: AutoV2MultiTurnState;
+			hydraRlMultiTurn?: AutoV2HydraRlMultiTurnRequest;
 			conversationId?: string;
 			vscodeRequestId?: string;
 			/** Routing profile for the session. Omitted lets the server pick its own default. */
@@ -84,6 +98,9 @@ export class AutoV2Fetcher {
 		}
 		if (options.multiTurn) {
 			requestBody.multi_turn = options.multiTurn;
+		}
+		if (options.hydraRlMultiTurn) {
+			requestBody.hydra_rl_multi_turn = options.hydraRlMultiTurn;
 		}
 		if (options.tier) {
 			requestBody.tier = options.tier;
@@ -121,6 +138,16 @@ export class AutoV2Fetcher {
 		if (!result.selected_model?.id) {
 			throw new AutoV2Error('Auto response did not contain a selected model', response.status);
 		}
+		const hydraRlState = result.hydra_rl_multi_turn;
+		if (hydraRlState !== undefined && (
+			typeof hydraRlState !== 'object' || hydraRlState === null ||
+			typeof hydraRlState.state_token !== 'string' || !hydraRlState.state_token.trim() ||
+			(hydraRlState.skip_turns !== undefined && (
+				!Number.isInteger(hydraRlState.skip_turns) || hydraRlState.skip_turns < 0 || hydraRlState.skip_turns > 7
+			))
+		)) {
+			throw new AutoV2Error('Auto response contained invalid Hydra-RL multi-turn state', response.status);
+		}
 		this._logService.trace(`[AutoV2Fetcher] Selected model: ${result.selected_model.id} (tier: ${options.tier ?? 'server default'}, e2e_latency_ms: ${e2eLatencyMs}, expires_at: ${result.expires_at})`);
 
 		this._requestLogger.addEntry({
@@ -156,7 +183,9 @@ export class AutoV2Fetcher {
 				"scoreReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for reasoning. -1 if not present in the response." },
 				"scoreCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for code generation. -1 if not present in the response." },
 				"scoreDebugging": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for debugging. -1 if not present in the response." },
-				"scoreToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for tool use. -1 if not present in the response." }
+				"scoreToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for tool use. -1 if not present in the response." },
+				"hydraRlMultiTurnActive": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "1 when the server returned valid Hydra-RL controller state; 0 otherwise. Does not report client capability as activation." },
+				"hydraRlSkipTurns": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of subsequent user turns authorized to reuse the selection. -1 when Hydra-RL controller state is absent." }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.autoV2Decision',
@@ -172,6 +201,8 @@ export class AutoV2Fetcher {
 				scoreCodeGen: result.hydra_scores?.code_gen ?? -1,
 				scoreDebugging: result.hydra_scores?.debugging ?? -1,
 				scoreToolUse: result.hydra_scores?.tool_use ?? -1,
+				hydraRlMultiTurnActive: hydraRlState ? 1 : 0,
+				hydraRlSkipTurns: hydraRlState ? hydraRlState.skip_turns ?? 0 : -1,
 			}
 		);
 

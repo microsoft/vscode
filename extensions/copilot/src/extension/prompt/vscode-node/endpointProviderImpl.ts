@@ -120,6 +120,10 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 			return this.getChatEndpoint('copilot-utility');
 		}
 
+		if ('model' in requestOrFamilyOrModel && model.id !== AutoChatEndpoint.pseudoModelId && model.id !== 'copilot-utility' && model.id !== 'copilot-utility-small') {
+			this._autoModeService.invalidateRouterCache(requestOrFamilyOrModel, 'modelChange');
+		}
+
 		if (model.id !== 'copilot-utility' && model.id !== 'copilot-utility-small') {
 			const mainAgentBYOKModel = model.vendor !== 'copilot' ? model : undefined;
 			const mainAgentModelChanged = this._mainAgentBYOKModel?.vendor !== mainAgentBYOKModel?.vendor
@@ -143,6 +147,9 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 				// the `try` and failing the whole request.
 				return await this._autoModeService.resolveAutoModeEndpoint(requestOrFamilyOrModel as ChatRequest, allEndpoints);
 			} catch {
+				if ('model' in requestOrFamilyOrModel) {
+					this._autoModeService.invalidateRouterCache(requestOrFamilyOrModel, 'modelChange');
+				}
 				return this.getChatEndpoint('copilot-utility');
 			}
 		}

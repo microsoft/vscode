@@ -6,6 +6,7 @@
 import { RequestType } from '@vscode/copilot-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRequest } from 'vscode';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../../vscodeTypes';
@@ -20,7 +21,8 @@ import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { defaultAutoModeTier } from '../../common/autoModeTiers';
 import { ICAPIClientService } from '../../common/capiClient';
-import { AutomodeService } from '../automodeService';
+import { AutomodeService, type IAutoModeRoutingRequest } from '../automodeService';
+import { AutoV2Fetcher } from '../autoV2Fetcher';
 
 function createMockHeaders(entries: Record<string, string> = {}): { get(name: string): string | null } {
 	const lower: Record<string, string> = {};
@@ -170,6 +172,356 @@ describe('AutomodeService', () => {
 		vi.useRealTimers();
 	});
 
+	describe('Hydra-RL transport', () => {
+		it('advertises capability and returns opaque state without logging it', async () => {
+			const state = { state_token: 'opaque-controller-token', skip_turns: 7, decision: 'future-decision' };
+			mockAuto(autoResponse('gpt-4o-mini', { multi_turn_mode: 'hydra_rl', hydra_rl_multi_turn: state }));
+			const requestLogger = new NullRequestLogger();
+			const logEntry = vi.spyOn(requestLogger, 'addEntry');
+			const fetcher = new AutoV2Fetcher(mockCAPIClientService, mockAuthService, mockLogService, mockTelemetryService, requestLogger);
+
+			const response = await fetcher.getAutoDecision('first turn', { hydraRlMultiTurn: {} });
+
+			expect({ bodies: autoRequestBodies(), state: response.hydra_rl_multi_turn }).toEqual({
+				bodies: [{ prompt: 'first turn', hydra_rl_multi_turn: {} }],
+				state,
+			});
+			expect(JSON.stringify([logEntry.mock.calls, mockTelemetryService.sendMSFTTelemetryEvent.mock.calls, (mockLogService.trace as ReturnType<typeof vi.fn>).mock.calls])).not.toContain(state.state_token);
+		});
+
+		it('echoes state without advancing on token renewal', async () => {
+			const fetcher = new AutoV2Fetcher(mockCAPIClientService, mockAuthService, mockLogService, mockTelemetryService, new NullRequestLogger());
+			await fetcher.getAutoDecision('current turn', { hydraRlMultiTurn: { state_token: 'opaque-controller-token', advance: false } });
+
+			expect(autoRequestBodies()).toEqual([{ prompt: 'current turn', hydra_rl_multi_turn: { state_token: 'opaque-controller-token', advance: false } }]);
+		});
+
+		it.each([false, true])('reports server activation, not capability: active=%s', async active => {
+			mockAuto(autoResponse('gpt-4o-mini', {
+				multi_turn_mode: 'hydra_rl',
+				hydra_rl_multi_turn: active ? { state_token: 'opaque-controller-token' } : undefined,
+			}));
+			const fetcher = new AutoV2Fetcher(mockCAPIClientService, mockAuthService, mockLogService, mockTelemetryService, new NullRequestLogger());
+			await fetcher.getAutoDecision('turn', { hydraRlMultiTurn: {} });
+
+			expect(mockTelemetryService.sendMSFTTelemetryEvent).toHaveBeenCalledWith('automode.autoV2Decision', expect.anything(), expect.objectContaining({
+				hydraRlMultiTurnActive: active ? 1 : 0,
+				hydraRlSkipTurns: active ? 0 : -1,
+			}));
+		});
+
+		it.each([
+			null,
+			{},
+			{ state_token: ' ' },
+			{ state_token: 123 },
+			{ state_token: 'opaque', skip_turns: -1 },
+			{ state_token: 'opaque', skip_turns: 8 },
+			{ state_token: 'opaque', skip_turns: 0.5 },
+			{ state_token: 'opaque', skip_turns: '1' },
+		])('rejects malformed controller state: %j', async state => {
+			mockAuto(autoResponse('gpt-4o-mini', { hydra_rl_multi_turn: state }));
+			const fetcher = new AutoV2Fetcher(mockCAPIClientService, mockAuthService, mockLogService, mockTelemetryService, new NullRequestLogger());
+
+			await expect(fetcher.getAutoDecision('turn', { hydraRlMultiTurn: {} })).rejects.toThrow('invalid Hydra-RL multi-turn state');
+		});
+	});
+
+	describe('Hydra-RL multi-turn routing', () => {
+		function route(turn: number, overrides: Partial<IAutoModeRoutingRequest> = {}) {
+			return automodeService.resolveAutoModeEndpoint({
+				id: `turn-${turn}`,
+				prompt: 'same prompt',
+				sessionId: 'hydra-session',
+				location: ChatLocation.Panel,
+				...overrides,
+			}, [mockChatEndpoint, createEndpoint('gpt-4o', 'OpenAI')]);
+		}
+
+		function mockHydra(skipTurns: number, stateToken = 'opaque-anchor', selectedModel = 'gpt-4o-mini') {
+			mockAuto(autoResponse(selectedModel, {
+				multi_turn_mode: 'hydra_rl',
+				hydra_rl_multi_turn: { state_token: stateToken, skip_turns: skipTurns },
+			}));
+		}
+
+		beforeEach(() => {
+			automodeService = createService();
+		});
+
+		it.each([0, 1, 3, 7])('skips exactly %i subsequent user turns', async skipTurns => {
+			mockHydra(skipTurns);
+			await route(0);
+			for (let turn = 1; turn <= skipTurns; turn++) {
+				await route(turn);
+			}
+			expect(autoCalls()).toHaveLength(1);
+
+			mockHydra(0, 'opaque-upgrade', 'gpt-4o');
+			const selected = await route(skipTurns + 1);
+			await route(skipTurns + 1);
+			expect({ model: selected.model, bodies: autoRequestBodies() }).toEqual({
+				model: 'gpt-4o',
+				bodies: [
+					{ prompt: 'same prompt', hydra_rl_multi_turn: { advance: true } },
+					{ prompt: 'same prompt', hydra_rl_multi_turn: { state_token: 'opaque-anchor', advance: true } },
+				],
+			});
+		});
+
+		it('does not consume skips on duplicate resolutions or ancillary requests', async () => {
+			mockHydra(2);
+			await route(0);
+			await Promise.all([route(1), route(1), route(1)]);
+			await route(1, { id: undefined, prompt: 'ancillary work' });
+			await route(1, { id: 'empty-request', prompt: '' });
+			await route(2);
+			expect(autoCalls()).toHaveLength(1);
+
+			await route(3);
+			expect(autoCalls()).toHaveLength(2);
+			expect(mockTelemetryService.sendMSFTTelemetryEvent.mock.calls
+				.filter(call => call[0] === 'automode.hydraRlMultiTurnSkip')
+				.map(call => ({ requestId: call[1].vscodeRequestId, skipRemaining: call[2].skipRemaining })))
+				.toEqual([{ requestId: 'turn-1', skipRemaining: 1 }, { requestId: 'turn-2', skipRemaining: 0 }]);
+		});
+
+		it('serializes distinct turns while deduplicating the same checkpoint', async () => {
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation(() =>
+				Promise.resolve(makeAutoResponse(autoResponse('gpt-4o-mini', {
+					hydra_rl_multi_turn: { state_token: `opaque-${autoCalls().length}`, skip_turns: 0 },
+				})))
+			);
+			await route(0);
+			await Promise.all([route(1), route(1), route(2)]);
+
+			expect(autoRequestBodies().map(body => body.hydra_rl_multi_turn)).toEqual([
+				{ advance: true },
+				{ state_token: 'opaque-1', advance: true },
+				{ state_token: 'opaque-2', advance: true },
+			]);
+		});
+
+		it('does not coalesce distinct user turns while negotiating on a cold conversation', async () => {
+			mockHydra(0);
+			await Promise.all([route(0), route(0), route(1)]);
+
+			expect(autoRequestBodies().map(body => body.hydra_rl_multi_turn)).toEqual([
+				{ advance: true },
+				{ state_token: 'opaque-anchor', advance: true },
+			]);
+		});
+
+		it('reanchors when the selected Auto tier changes', async () => {
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTiersEnabled, true);
+			mockHydra(7);
+			await route(0, { modelConfiguration: { tier: 'efficiency' } });
+			await route(1, { modelConfiguration: { tier: 'intelligence' } });
+
+			expect(autoRequestBodies().map(body => ({ tier: body.tier, state: body.hydra_rl_multi_turn }))).toEqual([
+				{ tier: 'efficiency', state: { advance: true } },
+				{ tier: 'intelligence', state: { advance: true } },
+			]);
+		});
+
+		it('reanchors when the cached model cannot serve an image', async () => {
+			mockHydra(7);
+			await route(0);
+			mockHydra(7, 'opaque-vision', 'vision-model');
+			await automodeService.resolveAutoModeEndpoint({
+				id: 'turn-1',
+				prompt: 'describe this',
+				sessionId: 'hydra-session',
+				references: [{ value: { mimeType: 'image/png' } }],
+			}, [createEndpoint('vision-model', 'OpenAI', { supportsVision: true })]);
+
+			expect(autoRequestBodies().at(-1)).toEqual({ prompt: 'describe this', has_image: true, hydra_rl_multi_turn: { advance: true } });
+		});
+
+		it('renews an expiring session without refilling the consumed skip window', async () => {
+			vi.useFakeTimers();
+			mockAuto(autoResponse('gpt-4o-mini', {
+				expires_at: Math.floor(Date.now() / 1000) + 600,
+				hydra_rl_multi_turn: { state_token: 'opaque-anchor', skip_turns: 3 },
+			}));
+			await route(0);
+			vi.setSystemTime(Date.now() + 301_000);
+			mockHydra(3, 'opaque-renewed');
+			await route(1);
+			await route(1);
+			await route(2);
+			await route(3);
+			expect(autoCalls()).toHaveLength(2);
+
+			await route(4);
+			expect(autoRequestBodies().map(body => body.hydra_rl_multi_turn)).toEqual([
+				{ advance: true },
+				{ state_token: 'opaque-anchor', advance: false },
+				{ state_token: 'opaque-renewed', advance: true },
+			]);
+		});
+
+		it('returns to sticky routing when the server stops returning controller state', async () => {
+			mockHydra(0);
+			await route(0);
+			mockAuto(autoResponse('gpt-4o-mini'));
+			await route(1);
+			await route(2);
+			await route(3);
+			expect(autoCalls()).toHaveLength(2);
+
+			automodeService.invalidateRouterCache({ prompt: 'same prompt', sessionId: 'hydra-session' });
+			mockHydra(0, 'opaque-new-anchor');
+			await route(4);
+			expect(autoRequestBodies().at(-1)?.hydra_rl_multi_turn).toEqual({ advance: true });
+		});
+
+		it('preserves controller state after a transient routing failure', async () => {
+			mockHydra(0);
+			await route(0);
+			mockAuto({ error: 'server_error' }, 503);
+			await route(1);
+			await route(1);
+			mockHydra(0, 'opaque-next');
+			await route(2);
+
+			expect(autoRequestBodies().map(body => body.hydra_rl_multi_turn)).toEqual([
+				{ advance: true },
+				{ state_token: 'opaque-anchor', advance: true },
+				{ state_token: 'opaque-anchor', advance: true },
+			]);
+		});
+
+		it('reanchors after leaving Auto without changing legacy sticky sessions', async () => {
+			mockAuto(autoResponse('gpt-4o-mini'));
+			await route(0);
+			automodeService.invalidateRouterCache({ prompt: '', sessionId: 'hydra-session' }, 'modelChange');
+			await route(1);
+			expect(autoCalls()).toHaveLength(1);
+
+			automodeService.invalidateRouterCache({ prompt: '', sessionId: 'hydra-session' });
+			mockHydra(7);
+			await route(2);
+			automodeService.invalidateRouterCache({ prompt: '', sessionId: 'hydra-session' }, 'modelChange');
+			await route(3);
+			expect({ calls: autoCalls().length, state: autoRequestBodies().at(-1)?.hydra_rl_multi_turn }).toEqual({ calls: 3, state: { advance: true } });
+		});
+
+		it('does not fall back to a model that rejected an active Hydra session', async () => {
+			mockHydra(7);
+			await route(0);
+			const rejectModel: () => void = (mockInstantiationService.createInstance as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[5];
+			rejectModel();
+			mockAuto({ error: 'server_error' }, 503);
+			await expect(route(1)).rejects.toThrow();
+			mockHydra(7, 'opaque-recovered', 'gpt-4o');
+			await route(2);
+
+			expect(autoRequestBodies().map(body => body.hydra_rl_multi_turn)).toEqual([{ advance: true }, { advance: true }, { advance: true }]);
+		});
+
+		it('ignores a late rejection from a replaced endpoint', async () => {
+			mockHydra(0);
+			await route(0);
+			const rejectOldModel: () => void = (mockInstantiationService.createInstance as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[5];
+			mockHydra(7, 'opaque-upgraded', 'gpt-4o');
+			await route(1);
+			rejectOldModel();
+			await route(2);
+
+			expect(autoCalls()).toHaveLength(2);
+		});
+
+		it('retries rejected controller state once without the token', async () => {
+			mockHydra(0);
+			await route(0);
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>)
+				.mockResolvedValueOnce(makeAutoResponse('Invalid Hydra-RL multi-turn state', 400))
+				.mockResolvedValueOnce(makeAutoResponse(autoResponse('gpt-4o', {
+					hydra_rl_multi_turn: { state_token: 'opaque-reanchored', skip_turns: 0 },
+				})));
+			const result = await route(1);
+			await route(1);
+
+			expect({ model: result.model, states: autoRequestBodies().map(body => body.hydra_rl_multi_turn) }).toEqual({
+				model: 'gpt-4o',
+				states: [{ advance: true }, { state_token: 'opaque-anchor', advance: true }, { advance: true }],
+			});
+		});
+
+		it('bounds rejected-state retries and leaves a fresh retry available', async () => {
+			mockHydra(0);
+			await route(0);
+			mockAuto('Bad request', 400);
+			await route(1);
+			expect(autoCalls()).toHaveLength(3);
+			mockHydra(0, 'opaque-recovered');
+			await route(2);
+
+			expect({ calls: autoCalls().length, state: autoRequestBodies().at(-1)?.hydra_rl_multi_turn }).toEqual({ calls: 4, state: { advance: true } });
+		});
+
+		it.each(['compaction', 'authentication', 'disposal'])('clears controller state on %s', async reset => {
+			mockHydra(7);
+			await route(0);
+			if (reset === 'compaction') {
+				automodeService.invalidateRouterCache({ prompt: 'same prompt', sessionId: 'hydra-session' });
+			} else if (reset === 'authentication') {
+				onDidAuthenticationChangeEmitter.fire();
+			} else {
+				automodeService.dispose();
+				automodeService = createService();
+			}
+			await route(1);
+
+			expect(autoRequestBodies().map(body => body.hydra_rl_multi_turn)).toEqual([{ advance: true }, { advance: true }]);
+		});
+
+		it('does not restore state invalidated while a checkpoint was in flight', async () => {
+			mockHydra(0);
+			await route(0);
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+				started.complete();
+				return response.p;
+			});
+			const pending = route(1);
+			await started.p;
+			automodeService.invalidateRouterCache({ prompt: 'same prompt', sessionId: 'hydra-session' });
+			response.complete(makeAutoResponse(autoResponse('gpt-4o-mini', {
+				hydra_rl_multi_turn: { state_token: 'opaque-stale', skip_turns: 7 },
+			})));
+			await pending;
+			await route(2);
+
+			expect(autoRequestBodies().at(-1)?.hydra_rl_multi_turn).toEqual({ advance: true });
+		});
+
+		it('rejects in-flight and queued controller updates across an account change', async () => {
+			mockHydra(0);
+			await route(0);
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+				started.complete();
+				return response.p;
+			});
+			const pending = route(1);
+			await started.p;
+			const queued = route(2);
+			onDidAuthenticationChangeEmitter.fire();
+			response.complete(makeAutoResponse(autoResponse('gpt-4o-mini', {
+				hydra_rl_multi_turn: { state_token: 'opaque-other-account', skip_turns: 7 },
+			})));
+			await expect(pending).rejects.toThrow('no longer signed in');
+			await expect(queued).rejects.toThrow('no longer signed in');
+			await route(3);
+
+			expect({ calls: autoCalls().length, state: autoRequestBodies().at(-1)?.hydra_rl_multi_turn }).toEqual({ calls: 3, state: { advance: true } });
+		});
+	});
+
 	describe('resolveAutoModeEndpoint', () => {
 		it('resolves the model from /auto', async () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
@@ -224,7 +576,7 @@ describe('AutomodeService', () => {
 				sessionId: 'session-slash-command',
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect({ model: result.model, bodies: autoRequestBodies() }).toEqual({ model: 'gpt-4o', bodies: [{ prompt: '/tests' }] });
+			expect({ model: result.model, bodies: autoRequestBodies() }).toEqual({ model: 'gpt-4o', bodies: [{ prompt: '/tests', hydra_rl_multi_turn: { advance: false } }] });
 		});
 
 		// The conversation only keys the session cache, so a request without one
@@ -253,7 +605,7 @@ describe('AutomodeService', () => {
 				references: [{ value: { mimeType: 'image/png', data: createPngBytes(4, 4) } }],
 			} as unknown as ChatRequest, [visionEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'describe this', has_image: true }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'describe this', has_image: true, hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		it('reuses the resolved endpoint for later turns in the same conversation', async () => {
@@ -615,7 +967,7 @@ describe('AutomodeService', () => {
 				modelConfiguration: { tier: defaultAutoModeTier },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'inline turn', tier: 'fast' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'inline turn', tier: 'fast', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		it('honors an explicit tier selection on inline surfaces', async () => {
@@ -631,7 +983,7 @@ describe('AutomodeService', () => {
 				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'intelligence' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'intelligence', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		it('sends the tier picked in the model configuration', async () => {
@@ -647,7 +999,7 @@ describe('AutomodeService', () => {
 				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'intelligence' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'intelligence', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		it('falls back to the default tier when the configured tier is not user selectable', async () => {
@@ -663,7 +1015,7 @@ describe('AutomodeService', () => {
 				modelConfiguration: { tier: 'fast' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'balance' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'test prompt', tier: 'balance', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		it('re-routes the conversation when the tier changes', async () => {
@@ -721,7 +1073,7 @@ describe('AutomodeService', () => {
 				sessionId: 'session-override-fast',
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'fast' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'fast', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		it('ignores an unrecognized tier override', async () => {
@@ -740,7 +1092,7 @@ describe('AutomodeService', () => {
 				modelConfiguration: { tier: 'intelligence' },
 			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		it('announces tier support from the effective setting, not a separate experiment lookup', async () => {
@@ -833,8 +1185,8 @@ describe('AutomodeService', () => {
 
 			expect({ bodies: autoRequestBodies(), supported: automodeService.areAutoModeTiersSupported() }).toEqual({
 				bodies: [
-					{ prompt: 'test prompt' },
-					{ prompt: 'test prompt' },
+					{ prompt: 'test prompt', hydra_rl_multi_turn: { advance: false } },
+					{ prompt: 'test prompt', hydra_rl_multi_turn: { advance: false } },
 				],
 				supported: false,
 			});
@@ -853,7 +1205,7 @@ describe('AutomodeService', () => {
 				sessionId: 'session-override-tiers-off',
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		// The override is a raw string setting, so a config left on a retired name by an
@@ -870,7 +1222,7 @@ describe('AutomodeService', () => {
 				sessionId: 'session-override-retired',
 			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
 
-			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'efficiency' }]);
+			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'efficiency', hydra_rl_multi_turn: { advance: false } }]);
 		});
 
 		// A picker value stored before the rename can be restored unfiltered while its model's
