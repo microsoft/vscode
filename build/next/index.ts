@@ -21,6 +21,7 @@ import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
+import { optimizeSvgFiles } from './svg.ts';
 
 const globAsync = promisify(glob);
 
@@ -1030,6 +1031,9 @@ ${tslib}`,
 		});
 	}
 
+	// Finish emitted assets and copied resources before packaging computes integrity data.
+	await optimizeSvgFiles(outDirPath, doMinify);
+
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }
 
@@ -1166,7 +1170,7 @@ Options for 'transpile':
 	--exclude-tests    Exclude test files from transpilation
 
 Options for 'bundle':
-	--minify           Minify the output bundles
+	--minify           Minify the output bundles and SVG assets
 	--nls              Process NLS (localization) strings
 	--mangle-privates  Convert native #private fields to regular properties
 	--out <dir>        Output directory (default: out-vscode)
