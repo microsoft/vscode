@@ -216,41 +216,44 @@ suite('MultiDiffEditorWidget', () => {
 		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const([documentItem, secondDocumentItem]) }));
 		await waitForState(viewModel.items, items => items.length === 2);
 		widget.setViewModel(viewModel);
-		widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
-		await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
-		viewModel.items.get()[1].collapsed.set(true, undefined);
-		const header = widget.getRootElement().querySelector<HTMLElement>('.multiDiffEntry .header')!;
-		assert.strictEqual(header.classList.contains('shadow'), false);
-		widget.setViewState({ scrollState: { top: 10, left: 0 } });
-		assert.strictEqual(header.classList.contains('shadow'), true);
-		widget.setViewState({ scrollState: { top: 0, left: 0 } });
-		assert.strictEqual(header.classList.contains('shadow'), false);
-		widget.setViewState({ scrollState: { top: 10, left: 0 } });
+		try {
+			widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
+			await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
+			viewModel.items.get()[1].collapsed.set(true, undefined);
+			const header = widget.getRootElement().querySelector<HTMLElement>('.multiDiffEntry .header')!;
+			assert.strictEqual(header.classList.contains('shadow'), false);
+			widget.setViewState({ scrollState: { top: 10, left: 0 } });
+			assert.strictEqual(header.classList.contains('shadow'), true);
+			widget.setViewState({ scrollState: { top: 0, left: 0 } });
+			assert.strictEqual(header.classList.contains('shadow'), false);
+			widget.setViewState({ scrollState: { top: 10, left: 0 } });
 
-		const control = widget.getActiveControl()!;
-		control.getModifiedEditor().setSelection({ startLineNumber: 1, startColumn: 7, endLineNumber: 1, endColumn: 12 });
-		control.getModifiedEditor().focus();
-		const previousRoot = widget.getRootElement();
-		const previousState = widget.getViewState();
+			const control = widget.getActiveControl()!;
+			control.getModifiedEditor().setSelection({ startLineNumber: 1, startColumn: 7, endLineNumber: 1, endColumn: 12 });
+			control.getModifiedEditor().focus();
+			const previousRoot = widget.getRootElement();
+			const previousState = widget.getViewState();
 
-		widget.setVariant('cards');
+			widget.setVariant('cards');
 
-		const currentRoot = widget.getRootElement();
-		const currentControl = widget.getActiveControl()!;
-		assert.deepStrictEqual({
-			rootWasReplaced: currentRoot !== previousRoot,
-			oldRootWasDisposed: !previousRoot.isConnected,
-			hasCardsVariant: currentRoot.classList.contains('multiDiffEditor-card'),
-			viewState: widget.getViewState(),
-			modifiedEditorHasFocus: currentControl.getModifiedEditor().hasTextFocus(),
-		}, {
-			rootWasReplaced: true,
-			oldRootWasDisposed: true,
-			hasCardsVariant: true,
-			viewState: previousState,
-			modifiedEditorHasFocus: true,
-		});
-		widget.setViewModel(undefined);
+			const currentRoot = widget.getRootElement();
+			const currentControl = widget.getActiveControl()!;
+			assert.deepStrictEqual({
+				rootWasReplaced: currentRoot !== previousRoot,
+				oldRootWasDisposed: !previousRoot.isConnected,
+				hasCardsVariant: currentRoot.classList.contains('multiDiffEditor-card'),
+				viewState: widget.getViewState(),
+				modifiedEditorHasFocus: currentControl.getModifiedEditor().hasTextFocus(),
+			}, {
+				rootWasReplaced: true,
+				oldRootWasDisposed: true,
+				hasCardsVariant: true,
+				viewState: previousState,
+				modifiedEditorHasFocus: true,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
 	});
 
 	test('models bottom padding as trailing scroll content', () => {

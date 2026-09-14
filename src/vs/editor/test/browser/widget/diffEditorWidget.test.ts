@@ -48,7 +48,11 @@ suite('DiffEditorWidget2', () => {
 				renderGutterMenu: false,
 				useInlineViewWhenSpaceIsLimited: false,
 				hideUnchangedRegions: { enabled: true, contextLineCount: 2, minimumLineCount: 4 },
-			}, { variant: 'compact' }));
+			}, {
+				variant: 'compact',
+				originalEditor: { contributions: [] },
+				modifiedEditor: { contributions: [] },
+			}));
 			const model = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
 			widget.layout(new Dimension(800, 500));
 			widget.setDiffModel(model);

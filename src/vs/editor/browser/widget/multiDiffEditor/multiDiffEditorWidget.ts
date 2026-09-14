@@ -92,8 +92,8 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._widgetImplDisposable.value = newImpl;
 		newImpl.setPreserveFocusOnLoad(true);
 		transaction(tx => {
-			newImpl.setViewState(viewState, tx);
 			this._viewModel.set(viewModel, tx);
+			newImpl.setViewState(viewState, tx);
 		});
 		if (focusedEditor === 'original') {
 			newImpl.activeControl.get()?.getOriginalEditor().focus();
