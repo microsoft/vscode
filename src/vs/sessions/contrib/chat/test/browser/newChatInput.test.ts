@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -20,7 +21,7 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { FileThemeIcon, FolderThemeIcon } from '../../../../../platform/theme/common/themeService.js';
 import { IFileLabelOptions } from '../../../../../workbench/browser/labels.js';
-import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/newChatInput.js';
+import { hasSendableNewChatContent, INewChatInputDraft, INewChatInputDraftState, isNewChatInputDraftUnchanged, NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
@@ -51,6 +52,7 @@ const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototyp
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
 interface IDraftStateHarness {
+	readonly options?: { readonly draft?: INewChatInputDraft };
 	readonly storageService: {
 		get(key: string, scope: unknown): string | undefined;
 		store(key: string, value: string, scope: unknown, target: unknown): void;
@@ -281,6 +283,7 @@ suite('NewChatInputWidget', () => {
 			},
 		];
 		const saveHarness: IUpdateAndSaveDraftStateHarness = {
+			options: {},
 			storageService,
 			_sending: false,
 			_editor: { getModel: () => ({ getValue: () => '' }) },
@@ -324,6 +327,7 @@ suite('NewChatInputWidget', () => {
 			store: (_key, value) => stored = value,
 		};
 		const harness: IUpdateAndSaveDraftStateHarness = {
+			options: {},
 			storageService,
 			_sending: false,
 			_editor: { getModel: () => ({ getValue: () => 'Fix this after reload' }) },
@@ -353,6 +357,7 @@ suite('NewChatInputWidget', () => {
 			store: (_key, value) => stored = value,
 		};
 		const harness: IUpdateAndSaveDraftStateHarness = {
+			options: {},
 			storageService,
 			_sending: true,
 			_editor: { getModel: () => ({ getValue: () => editorValue }) },
@@ -392,6 +397,45 @@ suite('NewChatInputWidget', () => {
 			'Issue...',
 			'Pull Request...',
 		]);
+	});
+
+	test('saves a host-owned draft without writing the new-session storage key', () => {
+		const state = observableValue<INewChatInputDraftState>('reviewDraft', { inputText: '', attachments: [] });
+		const attachment = toPasteVariableEntry('Review context', 'Review this result', { id: 'review-context' });
+		const writes: string[] = [];
+		const harness: IDraftStateHarness = {
+			options: { draft: { state, save: value => state.set(value, undefined) } },
+			storageService: {
+				get: () => undefined,
+				store: key => writes.push(key),
+			},
+			_draftState: { inputText: 'Explain this change', attachments: [attachment] },
+		};
+
+		saveState.call(harness);
+
+		assert.deepStrictEqual({ draft: state.get(), writes }, {
+			draft: { inputText: 'Explain this change', attachments: [attachment] },
+			writes: [],
+		});
+	});
+
+	test('only clears an unchanged host draft after a send completes', () => {
+		const attachment = toPasteVariableEntry('First result', 'First', { id: 'first' });
+		const nextAttachment = toPasteVariableEntry('Second result', 'Second', { id: 'second' });
+		const sent: INewChatInputDraftState = { inputText: 'Review this', attachments: [attachment] };
+
+		assert.deepStrictEqual({
+			same: isNewChatInputDraftUnchanged({ ...sent, attachments: [attachment] }, sent),
+			changedText: isNewChatInputDraftUnchanged({ ...sent, inputText: 'A new thought' }, sent),
+			addedContext: isNewChatInputDraftUnchanged({ ...sent, attachments: [attachment, nextAttachment] }, sent),
+			removedContext: isNewChatInputDraftUnchanged({ ...sent, attachments: [] }, sent),
+		}, {
+			same: true,
+			changedText: false,
+			addedContext: false,
+			removedContext: false,
+		});
 	});
 
 	test('enables send after restoring an unchanged retained input model', () => {

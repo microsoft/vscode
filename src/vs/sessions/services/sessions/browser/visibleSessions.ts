@@ -568,8 +568,9 @@ export class VisibleSessions extends Disposable {
 		// Dispose wrappers for sessions that are no longer part of the grid so
 		// the model does not leak entries from a previous (e.g. transient
 		// new-session) state.
+		const visibleIds = new Set(this._visibleList);
 		for (const existingId of [...this._wrappers.keys()]) {
-			if (!this._visibleList.includes(existingId)) {
+			if (!visibleIds.has(existingId)) {
 				this._wrappers.deleteAndDispose(existingId);
 			}
 		}

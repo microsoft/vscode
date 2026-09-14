@@ -12,6 +12,7 @@ import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js'
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { Emitter, Event } from '../../../../common/event.js';
+import { timeout } from '../../../../common/async.js';
 import { SetMap } from '../../../../common/map.js';
 import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -69,6 +70,13 @@ suite('ObjectTree', function () {
 
 			tree = new ObjectTree<number>('test', container, delegate, [renderer], { filter: { filter: (el) => filter(el) } });
 			tree.layout(200);
+		});
+
+		test('disposing a focused tree cancels deferred active-node notifications', async () => {
+			tree.setChildren(null, [{ element: 1 }]);
+			tree.setFocus([1]);
+			tree.dispose();
+			await timeout(0);
 		});
 
 		test('should be able to navigate', () => {

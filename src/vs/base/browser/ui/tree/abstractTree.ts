@@ -26,6 +26,7 @@ import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { SetMap } from '../../../common/map.js';
 import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
+import { onUnexpectedError } from '../../../common/errors.js';
 import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
@@ -3426,7 +3427,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				}
 
 				activeNodesEmitter.fire([...set.values()]);
-			});
+			}).catch(onUnexpectedError);
 		}));
 
 		this.onDidChangeActiveNodesRelay.input = activeNodesEmitter.event;

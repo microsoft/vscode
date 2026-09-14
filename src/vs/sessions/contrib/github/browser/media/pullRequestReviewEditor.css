@@ -1,0 +1,122 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-pull-request-review-editor {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.sessions-pull-request-review-editor > .pull-request-review-toolbar {
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-toolbar .actions-container {
+	gap: var(--vscode-spacing-size120);
+}
+
+.sessions-pull-request-review-editor > .monaco-scrollable-element {
+	flex: 1;
+	min-height: 0;
+}
+
+.sessions-pull-request-review-editor .pull-request-review-content {
+	box-sizing: border-box;
+	height: 100%;
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+	overflow-wrap: anywhere;
+	line-height: 1.5;
+}
+
+.sessions-pull-request-review-editor .pull-request-review-content:focus-visible,
+.sessions-pull-request-review-editor .pull-request-review-markdown a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.sessions-pull-request-review-editor .pull-request-review-title {
+	margin: var(--vscode-spacing-size80) 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.sessions-pull-request-review-editor h2,
+.sessions-pull-request-review-editor h3 {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.sessions-pull-request-review-editor p {
+	margin: 0 0 var(--vscode-spacing-size80);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-identity,
+.sessions-pull-request-review-editor .pull-request-review-state,
+.sessions-pull-request-review-editor .pull-request-review-notice,
+.sessions-pull-request-review-editor .pull-request-review-thread-state,
+.sessions-pull-request-review-editor .pull-request-review-status {
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-identity,
+.sessions-pull-request-review-editor .pull-request-review-notice,
+.sessions-pull-request-review-editor .pull-request-review-thread-state {
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-section {
+	margin-top: var(--vscode-spacing-size240);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-thread {
+	margin-top: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-author {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-list {
+	margin: 0;
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-list > li {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-status.error {
+	color: var(--vscode-errorForeground);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-markdown {
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-markdown pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	padding: var(--vscode-spacing-size120);
+	background: var(--vscode-textCodeBlock-background);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.sessions-pull-request-review-editor .pull-request-review-markdown a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}

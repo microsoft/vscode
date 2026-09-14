@@ -10,6 +10,8 @@ import { computePullRequestIcon, type ChatPullRequestState, type IPullRequestIco
 export { computePullRequestIcon, type IPullRequestIconStatus };
 
 export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
+/** Opens a native, read-only review editor for an IGitHubPullRequestRef, with optional IEditorOptions and PreferredGroup arguments. */
+export const OPEN_PULL_REQUEST_REVIEW_ACTION_ID = 'sessions.openPullRequestReview';
 export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
 
 //#region Session Context

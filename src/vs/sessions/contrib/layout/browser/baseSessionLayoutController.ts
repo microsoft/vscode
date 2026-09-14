@@ -105,6 +105,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	protected readonly activeSessionResourceObs;
 	protected readonly multipleSessionsVisibleObs;
+	private readonly _sessionForLayout;
 
 	/**
 	 * `> 0` while the controller is restoring a session's layout on a session
@@ -200,22 +201,28 @@ export abstract class BaseLayoutController extends Disposable {
 		// [B4] Persist on shutdown.
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
 
+		this._sessionForLayout = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, previous) =>
+			this._sessionsService.isSessionBoardVisible.read(reader) ? previous : this._sessionsService.activeSession.read(reader));
+
 		// All session-switch logic is observable-driven.
 		this.activeSessionResourceObs = derivedOpts<URI | undefined>({
 			equalsFn: isEqual
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionForLayout.read(reader);
 			return activeSession?.resource;
 		});
 
 		this.multipleSessionsVisibleObs = derived<boolean>(reader => {
-			return this._sessionsService.visibleSessions.read(reader).length > 1;
+			return this._sessionsService.isSessionBoardVisible.read(reader) || this._sessionsService.visibleSessions.read(reader).length > 1;
 		});
 
 		// [B5] When multiple sessions are visible, drop per-session view/panel state
 		// for each visible session (editor working sets are preserved). This ensures
 		// the default visibility logic runs again after collapsing back to one session.
 		this._register(autorun(reader => {
+			if (this._sessionsService.isSessionBoardVisible.read(reader)) {
+				return;
+			}
 			const visibleSessions = this._sessionsService.visibleSessions.read(reader);
 			if (visibleSessions.length <= 1) {
 				return;
@@ -330,8 +337,11 @@ export abstract class BaseLayoutController extends Disposable {
 		// [B2] The active session updates before the workspace folders do; hold back
 		// the new session until the folders reflect its working directory.
 		const activeSessionForWorkingSet = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, lastValue) => {
+			if (this._sessionsService.isSessionBoardVisible.read(reader)) {
+				return lastValue;
+			}
 			const workspaceFolders = workspaceFoldersObs.read(reader);
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionForLayout.read(reader);
 			const activeSessionWorkspaceUri = activeSession?.workspace.read(reader)?.folders[0]?.workingDirectory;
 
 			if (
@@ -353,15 +363,8 @@ export abstract class BaseLayoutController extends Disposable {
 		// deliberately except themselves from the modal part), so their tabs
 		// still need to be captured/restored per session in that mode.
 
-		// [B2] Save the outgoing session's working set eagerly on the raw active
-		// session change, not on the workspace-gated `activeSessionForWorkingSet`
-		// derive below. The derive lags while the incoming session's workspace
-		// resolves, and autoruns driven by the raw active session (e.g. the
-		// single-pane managed-tabs sync) async-close the outgoing session's docked
-		// editors during that window. Saving here synchronously — before those
-		// closes run — captures which editor was active (e.g. the Changes tab) so it
-		// is restored active on return.
-		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+		// [B2] Capture before the workspace-gated restore can replace the outgoing editors.
+		this._register(runOnChange(this._sessionForLayout, (session, previousSession) => {
 			if (
 				previousSession
 				&& !isEqual(previousSession.resource, session?.resource)
@@ -694,8 +697,8 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _saveState(): void {
-		const activeSession = this._sessionsService.activeSession.get();
-		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
+		const activeSession = this._sessionForLayout.get();
+		const multipleVisible = this.multipleSessionsVisibleObs.get();
 
 		// [B4] Capture current state for the active session (skip multiple-visible and untitled).
 		if (activeSession && !multipleVisible && activeSession.status.read(undefined) !== SessionStatus.Untitled) {

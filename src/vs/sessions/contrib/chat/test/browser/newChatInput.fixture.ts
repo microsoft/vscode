@@ -13,7 +13,7 @@ import { IHistoryService } from '../../../../../workbench/services/history/commo
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, ServiceRegistration } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -67,28 +67,18 @@ const petPlatformNotification: IChatInputNotification = {
 	autoDismissOnMessage: false,
 };
 
-/**
- * Renders the real {@link NewChatInputWidget} inside the production DOM ancestry
- * (`.new-chat-in-session > .new-chat-widget-container.revealed > .new-chat-widget-content`)
- * so the `chatInput.css` / `newChatInSession.css` rules apply. The sessions-specific
- * services its pickers depend on are mocked here.
- */
-async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
-	const { container, disposableStore } = context;
-	const { value, selection, subSessionTip, notification, gettingStartedTip, pet } = fixtureOptions;
-
-	// Sprite sheets are resolved against the file root.
-	if (pet) {
-		configureChatPetFixtureFileRoot(disposableStore);
-	}
-	const chatPetService = pet ? disposableStore.add(new FixtureChatPetService({ enabled: true })) : undefined;
-
-	const instantiationService = createEditorServices(disposableStore, {
+export function createNewChatInputFixtureServices(context: ComponentFixtureContext, options: {
+	readonly notification?: IChatInputNotification;
+	readonly chatPetService?: IChatPetService;
+	readonly additionalServices?: (registration: ServiceRegistration) => void;
+} = {}) {
+	const { disposableStore } = context;
+	return createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			registerChatFixtureServices(reg, { notification });
-			if (chatPetService) {
-				reg.defineInstance(IChatPetService, chatPetService);
+			registerChatFixtureServices(reg, { notification: options.notification });
+			if (options.chatPetService) {
+				reg.defineInstance(IChatPetService, options.chatPetService);
 			}
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override readonly onShow = Event.None;
@@ -159,8 +149,20 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly isPreparingModel = false;
 				override readonly isDownloadingModel = false;
 			}());
+			options.additionalServices?.(reg);
 		},
 	});
+}
+
+async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
+	const { container, disposableStore } = context;
+	const { value, selection, subSessionTip, notification, gettingStartedTip, pet } = fixtureOptions;
+
+	if (pet) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
+	const chatPetService = pet ? disposableStore.add(new FixtureChatPetService({ enabled: true })) : undefined;
+	const instantiationService = createNewChatInputFixtureServices(context, { notification, chatPetService });
 
 	container.style.width = '600px';
 	container.style.height = pet ? `${PET_FIXTURE_HEIGHT}px` : '160px';

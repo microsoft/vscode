@@ -13,11 +13,14 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
+import { BaseLayoutController, ISessionViewState } from '../../browser/baseSessionLayoutController.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
-class TestBaseLayoutController extends BaseLayoutController { }
+class TestBaseLayoutController extends BaseLayoutController {
+	getViewState(resource: URI): ISessionViewState | undefined { return this._viewStateBySession.get(resource); }
+	getPanelVisibility(resource: URI): boolean | undefined { return this._panelVisibilityBySession.get(resource); }
+}
 
 /** Mirrors the single-pane panel model: workbench-level visibility, per-session view. */
 class TestWorkbenchPanelLayoutController extends BaseLayoutController {
@@ -334,6 +337,45 @@ suite('BaseLayoutController', () => {
 		const entry = JSON.parse(stored!).find((e: any) => e.sessionResource === 'session:1');
 		assert.ok(entry, 'session 1 entry should be persisted');
 		assert.strictEqual(entry.editorPartHidden, undefined, 'editor part hidden state must not be captured while multiple sessions are visible');
+	});
+
+	test('the board preserves regular layout state and does not switch its editor working set during review', async () => {
+		const session = makeSession(URI.parse('session:board-origin'));
+		const reviewed = makeSession(URI.parse('session:board-review'));
+		const viewState = { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: 'files' };
+		const controller = createController({
+			workspaceFolders: [{ uri: URI.file('/repo') }],
+			layoutState: [{ sessionResource: session.resource.toString(), viewState }],
+		});
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		await timeout(0);
+
+		harness.applyWorkingSetCalls = [];
+		harness.saveWorkingSetCalls = [];
+		harness.setPartHiddenCalls = [];
+		harness.boardVisibleObs.set(true, undefined);
+		harness.visibleSessionsObs.set([session, reviewed], undefined);
+		harness.activeSessionObs.set(reviewed, undefined);
+		await timeout(0);
+
+		const duringReview = {
+			viewState: controller.getViewState(session.resource),
+			panelVisible: controller.getPanelVisibility(session.resource),
+			applies: [...harness.applyWorkingSetCalls],
+			saves: [...harness.saveWorkingSetCalls],
+			visibilityChanges: [...harness.setPartHiddenCalls],
+		};
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
+		harness.boardVisibleObs.set(false, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ duringReview, appliesAfterReturn: harness.applyWorkingSetCalls }, {
+			duringReview: { viewState, panelVisible: true, applies: [], saves: [], visibilityChanges: [] },
+			appliesAfterReturn: [],
+		});
 	});
 
 	test('[B2] restores the working set on switch without forcing the editor part visible in modal mode', async () => {

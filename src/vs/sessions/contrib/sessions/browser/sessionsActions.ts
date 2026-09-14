@@ -34,13 +34,15 @@ import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workben
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext, SessionsBoardVisibleContext, SessionReviewVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsBoardService } from '../../../services/sessions/browser/sessionsBoardService.js';
+import { ISessionReviewService } from '../../../services/sessions/browser/sessionReviewService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -370,13 +372,25 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsService = accessor.get(ISessionsService);
-		sessionsPartService.focusSession(sessionsService.activeSession.get());
+		if (sessionsService.sessionReview.get()) {
+			accessor.get(ISessionReviewService).focusReply();
+		} else if (sessionsService.isSessionBoardVisible.get()) {
+			accessor.get(ISessionsBoardService).activeView.get()?.focusSession(sessionsService.activeSession.get()?.sessionId);
+		} else {
+			sessionsPartService.focusSession(sessionsService.activeSession.get());
+		}
 	}
 });
 
 function withActiveSessionView(accessor: ServicesAccessor, action: (view: NonNullable<ReturnType<ISessionsPartService['getSessionView']>>) => void): void {
 	const sessionsService = accessor.get(ISessionsService);
-	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get()?.sessionId);
+	if (sessionsService.sessionReview.get()) {
+		return;
+	}
+	const sessionId = sessionsService.activeSession.get()?.sessionId;
+	const view = sessionsService.isSessionBoardVisible.get()
+		? accessor.get(ISessionsBoardService).activeView.get()?.getSessionView(sessionId)
+		: accessor.get(ISessionsPartService).getSessionView(sessionId);
 	if (view) {
 		action(view);
 	}
@@ -501,7 +515,7 @@ for (let index = 0; index < 9; index++) {
 				keybinding: {
 					weight: KeybindingWeight.SessionsContrib,
 					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
-					when: IsSessionsWindowContext,
+					when: ContextKeyExpr.and(IsSessionsWindowContext, SessionReviewVisibleContext.negate()),
 				},
 			});
 		}
@@ -509,8 +523,8 @@ for (let index = 0; index < 9; index++) {
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
-
-			const visible = sessionsService.visibleSessions.get();
+			const board = accessor.get(ISessionsBoardService).activeView.get();
+			const visible = board?.sessions ?? sessionsService.visibleSessions.get();
 			const targetIndex = isLast ? visible.length - 1 : index;
 			if (targetIndex < 0 || targetIndex >= visible.length) {
 				return;
@@ -518,7 +532,8 @@ for (let index = 0; index < 9; index++) {
 
 			const session = visible[targetIndex];
 			sessionsService.setActive(session);
-			sessionsPartService.focusSession(session);
+			if (board) { board.focusSession(session?.sessionId); }
+			else { sessionsPartService.focusSession(session); }
 		}
 	});
 }
@@ -1637,12 +1652,12 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate(), SessionsBoardVisibleContext.negate()),
 			}, {
 				id: Menus.SessionBarToolbar,
 				group: 'secondary/4_pin',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), SessionsBoardVisibleContext.negate()),
 			}],
 		});
 	}
@@ -1666,7 +1681,7 @@ MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
 	},
 	group: '1_view',
 	order: 1,
-	when: SessionIsCreatedContext,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionsBoardVisibleContext.negate()),
 });
 
 registerAction2(class RenameSessionHeaderAction extends Action2 {
@@ -1712,12 +1727,12 @@ registerAction2(class CloseSessionAction extends Action2 {
 			icon: Codicon.close,
 			menu: [{
 				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+				when: ContextKeyExpr.and(SessionsBoardVisibleContext.negate(), ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext)),
 				group: 'secondary/4_pin',
 				order: 30,
 			}, {
 				id: Menus.SessionHeaderContext,
-				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+				when: ContextKeyExpr.and(SessionsBoardVisibleContext.negate(), ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext)),
 				group: '1_view',
 				order: 2,
 			}],
@@ -1755,7 +1770,10 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
-		accessor.get(ISessionsService).setActive(session);
+		const sessionsService = accessor.get(ISessionsService);
+		if (!sessionsService.isSessionBoardVisible.get()) {
+			sessionsService.setActive(session);
+		}
 	}
 });
 

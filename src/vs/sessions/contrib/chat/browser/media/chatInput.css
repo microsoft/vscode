@@ -18,6 +18,48 @@
 	z-index: 1;
 }
 
+.new-chat-input-container.embedded {
+	display: block;
+	max-width: none;
+	margin-top: 0;
+}
+
+.new-chat-bottom-container.embedded {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	margin-top: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.new-chat-bottom-container.embedded .new-chat-controls-container,
+.new-chat-bottom-container.embedded .new-chat-repo-config-container {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+}
+
+.new-chat-bottom-container.embedded .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size40);
+	flex-wrap: wrap;
+}
+
+.new-chat-bottom-container.embedded .action-label {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-icon-foreground);
+}
+
+.new-chat-bottom-container.embedded .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: auto;
+	height: auto;
+}
+
 /* The tip sits in the input's notice slot, attached to the top of the input. */
 .new-chat-input-container > .chat-getting-started-tip-container {
 	width: 100%;

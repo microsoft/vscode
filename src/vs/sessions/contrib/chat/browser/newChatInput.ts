@@ -6,6 +6,7 @@
 import './media/chatInput.css';
 import './media/chatInputMobile.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -14,6 +15,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import type { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
@@ -208,9 +210,18 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 });
 
-interface IDraftState {
-	inputText: string;
-	attachments: readonly IChatRequestVariableEntry[];
+export interface INewChatInputDraftState {
+	readonly inputText: string;
+	readonly attachments: readonly IChatRequestVariableEntry[];
+}
+
+export interface INewChatInputDraft {
+	readonly state: IObservable<INewChatInputDraftState>;
+	save(state: INewChatInputDraftState): void;
+}
+
+export function isNewChatInputDraftUnchanged(current: INewChatInputDraftState, previous: INewChatInputDraftState): boolean {
+	return current.inputText === previous.inputText && equals(current.attachments, previous.attachments);
 }
 
 export function hasSendableNewChatContent(query: string, attachments: readonly IChatRequestVariableEntry[], hasAdditionalSendContent = false): boolean {
@@ -482,10 +493,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _updateAttachmentOffset: (() => void) | undefined;
 
 	// Input state
-	private _draftState: IDraftState | undefined = {
+	private _draftState: INewChatInputDraftState | undefined = {
 		inputText: '',
 		attachments: [],
 	};
+	private _applyingDraft = false;
 
 	// Input history
 	private readonly _history: ChatHistoryNavigator;
@@ -504,8 +516,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			hasAdditionalSendContent?: IObservable<boolean>;
 			loading: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
+			/** A host-owned draft, independent of the new-session composer's storage. */
+			draft?: INewChatInputDraft;
+			/** Embedded inputs are visible without the new-session reveal and centering host. */
+			layoutMode?: 'centered' | 'embedded';
 			minEditorHeight?: number;
+			maxEditorHeight?: IObservable<number>;
 			placeholder?: string;
+			accessibilityVerbositySetting?: AccessibilityVerbositySettingId;
 			renderSendButton?: boolean;
 			renderRepositoryControls?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
@@ -585,7 +603,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateAndSaveDraftState();
 			this._updateSendButtonState();
-			this.focus();
+			if (!this._applyingDraft) {
+				this.focus();
+			}
 		}));
 		this._register(autorun(reader => {
 			this._canSendRequest.read(reader);
@@ -605,6 +625,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	render(parent: HTMLElement, root: HTMLElement): void {
 		// Input slot, and the stack the notices, prompt options and input area sit in.
 		const chatInputContainer = dom.append(parent, dom.$(`.new-chat-input-container.${chatInputStackClass}`));
+		const embedded = this.options.layoutMode === 'embedded';
+		chatInputContainer.classList.toggle('embedded', embedded);
 
 		// Overflow widget DOM node at the top level so the suggest widget
 		// is not clipped by any overflow:hidden ancestor.
@@ -706,24 +728,26 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
 		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
 		this._contextAttachments.renderAttachedContext(attachedContextContainer);
-		const updateAttachmentOffset = () => {
-			if (isPhoneLayout(this.layoutService)) {
+		if (!embedded) {
+			const updateAttachmentOffset = () => {
+				if (isPhoneLayout(this.layoutService)) {
+					parent.style.removeProperty('top');
+					return;
+				}
+				parent.style.top = `${-attachRow.getBoundingClientRect().height / 2}px`;
+			};
+			this._updateAttachmentOffset = updateAttachmentOffset;
+			const attachmentResizeObserver = this._register(new dom.DisposableResizeObserver(
+				'NewChatInputWidget.attachments',
+				updateAttachmentOffset,
+				dom.getWindow(attachRow),
+			));
+			this._register(attachmentResizeObserver.observe(attachRow));
+			this._register(toDisposable(() => {
+				this._updateAttachmentOffset = undefined;
 				parent.style.removeProperty('top');
-				return;
-			}
-			parent.style.top = `${-attachRow.getBoundingClientRect().height / 2}px`;
-		};
-		this._updateAttachmentOffset = updateAttachmentOffset;
-		const attachmentResizeObserver = this._register(new dom.DisposableResizeObserver(
-			'NewChatInputWidget.attachments',
-			updateAttachmentOffset,
-			dom.getWindow(attachRow),
-		));
-		this._register(attachmentResizeObserver.observe(attachRow));
-		this._register(toDisposable(() => {
-			this._updateAttachmentOffset = undefined;
-			parent.style.removeProperty('top');
-		}));
+			}));
+		}
 		this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => undefined, {
 			get attachments() { return contextAttachments.attachments; },
 			addAttachments: (entries: readonly IChatRequestVariableEntry[]) => contextAttachments.addAttachments(...entries),
@@ -766,6 +790,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
+		newChatBottomContainer.classList.toggle('embedded', embedded);
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		const sessionControlsContainer = this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
 		this._register(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService));
@@ -810,8 +835,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 		this._secondaryPickerResponsiveLayout.layout();
 
-		// Restore draft input state from storage
-		this._restoreState();
+		if (this.options.draft) {
+			this._register(autorun(reader => this._applyDraft(this.options.draft!.state.read(reader))));
+		} else {
+			this._restoreState();
+		}
 
 		// The composer is a stack, and was just added to its host's stack. Hosts
 		// often dock a notice - the sub-session tip, a feedback banner - before
@@ -849,7 +877,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Editor ---
 
 	private _getAriaLabel(): string {
-		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.SessionsChat);
+		const verbose = this.configurationService.getValue<boolean>(this.options.accessibilityVerbositySetting ?? AccessibilityVerbositySettingId.SessionsChat);
 		if (verbose) {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			return kbLabel
@@ -897,7 +925,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
-		const uri = URI.from({ scheme: Schemas.sessionsChatInput, path: `input-${Date.now()}` });
+		const uri = URI.from({ scheme: Schemas.sessionsChatInput, path: `input-${generateUuid()}` });
 		const textModel = this.modelService.createModel('', null, uri, true);
 		this._holdInputModelReference(uri, textModel);
 
@@ -964,7 +992,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// Update aria label when accessibility verbosity setting changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.SessionsChat)) {
+			if (e.affectsConfiguration(this.options.accessibilityVerbositySetting ?? AccessibilityVerbositySettingId.SessionsChat)) {
 				this._editor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
 		}));
@@ -1045,19 +1073,26 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		updateHistoryNavigationEnablement();
 
 		let previousHeight = -1;
-		this._register(this._editor.onDidContentSizeChange(e => {
-			if (!e.contentHeightChanged) {
-				return;
-			}
+		const updateEditorHeight = (maximumHeight: number) => {
 			const contentHeight = this._editor.getContentHeight();
-			const clampedHeight = Math.min(MAX_EDITOR_HEIGHT, Math.max(this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT, contentHeight));
+			const minimumHeight = this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT;
+			const clampedHeight = Math.min(maximumHeight, Math.max(minimumHeight, contentHeight));
 			if (clampedHeight === previousHeight) {
 				return;
 			}
 			previousHeight = clampedHeight;
 			this._editorContainer.style.height = `${clampedHeight}px`;
 			this._editor.layout();
+		};
+		this._register(this._editor.onDidContentSizeChange(e => {
+			if (e.contentHeightChanged) {
+				updateEditorHeight(this.options.maxEditorHeight?.get() ?? MAX_EDITOR_HEIGHT);
+			}
 		}));
+		const maximumHeight = this.options.maxEditorHeight;
+		if (maximumHeight) {
+			this._register(autorun(reader => updateEditorHeight(maximumHeight.read(reader))));
+		}
 
 		// Slash commands
 		this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
@@ -1477,7 +1512,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _updateAndSaveDraftState(): void {
-		if (this._sending) {
+		if (this._sending || this._applyingDraft) {
 			return;
 		}
 		this._updateDraftState();
@@ -1503,7 +1538,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	private _toHistoryEntry(draft: IDraftState): IChatModelInputState {
+	private _toHistoryEntry(draft: INewChatInputDraftState): IChatModelInputState {
 		return {
 			...draft,
 			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
@@ -1576,11 +1611,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			: undefined;
 		const request = query;
 		const notificationContext = this._getNotificationContext();
+		const scopedDraft = this.options.draft?.state.get();
 
 		if (this._draftState) {
 			this._history.append(this._toHistoryEntry(this._draftState));
 		}
-		this._clearDraftState();
+		if (!this.options.draft) {
+			this._clearDraftState();
+		}
 
 		this._sending = true;
 		this._editor.updateOptions({ readOnly: true });
@@ -1593,18 +1631,31 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			if (!sent) {
 				return false;
 			}
+			if (this._store.isDisposed) {
+				if (scopedDraft && isNewChatInputDraftUnchanged(this.options.draft!.state.get(), scopedDraft)) {
+					this.options.draft!.save({ inputText: '', attachments: [] });
+				}
+				return true;
+			}
 			this.chatInputNotificationService.handleMessageSent(notificationContext);
-			this._contextAttachments.clear();
-			this._editor.getModel()?.setValue('');
+			if (!scopedDraft || isNewChatInputDraftUnchanged(this.options.draft!.state.get(), scopedDraft)) {
+				this._contextAttachments.clear();
+				this._editor.getModel()?.setValue('');
+			}
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 			return false;
 		} finally {
 			this._sending = false;
-			this._editor.updateOptions({ readOnly: false });
-			this._updateDraftState();
-			this._updateSendButtonState();
-			this._updateInputLoadingState();
+			if (!this._store.isDisposed) {
+				this._editor.updateOptions({ readOnly: false });
+				this._updateDraftState();
+				if (this.options.draft) {
+					this.saveState();
+				}
+				this._updateSendButtonState();
+				this._updateInputLoadingState();
+			}
 		}
 		return sent;
 	}
@@ -1645,13 +1696,29 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateSendButtonState();
 	}
 
-	private _getDraftState(): IDraftState | undefined {
+	private _applyDraft(draft: INewChatInputDraftState): void {
+		this._applyingDraft = true;
+		try {
+			if (this._editor.getValue() !== draft.inputText) {
+				this._editor.getModel()?.setValue(draft.inputText);
+			}
+			if (!equals(this._contextAttachments.attachments, draft.attachments)) {
+				this._contextAttachments.setAttachments(draft.attachments);
+			}
+			this._draftState = draft;
+			this._updateSendButtonState();
+		} finally {
+			this._applyingDraft = false;
+		}
+	}
+
+	private _getDraftState(): INewChatInputDraftState | undefined {
 		const raw = this.storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
 		if (!raw) {
 			return undefined;
 		}
 		try {
-			return parse(raw) as IDraftState;
+			return parse(raw) as INewChatInputDraftState;
 		} catch {
 			return undefined;
 		}
@@ -1664,6 +1731,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	saveState(): void {
 		if (this._draftState) {
+			if (this.options.draft) {
+				this.options.draft.save(this._draftState);
+				return;
+			}
 			const state = {
 				...this._draftState,
 				attachments: this._draftState.attachments.map(IChatRequestVariableEntry.toExport),

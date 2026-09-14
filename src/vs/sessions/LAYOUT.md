@@ -31,7 +31,7 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
 
-The Sessions Part contains its own horizontal grid. Its leaves are not workbench editor groups.
+The Sessions Part contains its own horizontal grid. Its session surfaces are not workbench editor groups.
 
 ## Grid behavior
 
@@ -55,6 +55,20 @@ Each visible session has one Sessions-owned view. The view presents the active c
 The Sessions Part renders that model. It does not create a second active-session store.
 
 Multiple visible sessions share the available Sessions Part width. Opening, closing, and reordering views operate through `ISessionsService`.
+
+### Sessions board
+
+The board is a contributed `AbstractCustomView`, hosted by the existing Custom View Grid rather than by a second workbench or a replacement editor group. `ISessionsService` supplies the non-archived, committed session catalog while it is open and retains the regular visible-session arrangement for restoration. The Sessions Part does not bind the board's catalog to its ordinary chat grid. Saving while the board is open persists the regular arrangement, not a chat column for every card.
+
+Cards show provider-neutral metadata and a lightweight native input. A card creates the existing `SessionView` only after explicit expansion. Native input drafts are shared through `ISessionInputDraftService`, so compact cards and review composers do not acquire chat models merely to display or edit a draft. Custom collections reuse `ISessionGroupsService`; saved board-view preferences belong to `ISessionsBoardService`.
+
+### Session review
+
+Review uses the native modal editor part and its sidebar-content extension point. It does not create an editor group in an arbitrary DOM container or move workbench-owned DOM. The sidebar hosts the existing Sessions composer, bound to one session's selected chat. The modal's optional adaptive placement keeps that same composer below the editor when a side-by-side layout cannot fit. Conversation and artifact catalog inputs are registered editor panes; artifacts use native resource editors, changes use the existing changes editor, and pull requests use a read-only native review editor with an explicit external-open action.
+
+`ISessionsService.sessionReview` owns the requested session and review section. The editor integration owns the native modal's lifetime and current result selection. Changing the selected result does not change the draft's references; Discuss adds explicit references through the draft service. Sending captures the owning session and chat before asynchronous work and delegates execution to `ISessionsManagementService`.
+
+The board remains mounted behind the modal, and its controls are retained so native modal closing can restore the initiating focus. The normal session grid and other workbench parts remain under the existing custom-view visibility contract. Opening, changing, or closing review does not archive, delete, or stop a session.
 
 ## Editor presentation
 

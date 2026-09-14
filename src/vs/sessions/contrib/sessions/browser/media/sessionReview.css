@@ -1,0 +1,370 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-review-sidebar {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size160);
+	overflow: hidden;
+}
+
+.session-review-header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+}
+
+.session-review-context-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.session-review-context {
+	height: 100%;
+	overflow: hidden;
+}
+
+.session-review-navigation {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.session-review-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.session-review-heading > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-review-heading h2 {
+	margin: 0;
+	min-width: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-review-status,
+.session-review-summary {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-review-metadata {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+}
+
+.session-review-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	white-space: nowrap;
+}
+
+.session-review-status .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.session-review-status.needs-input { color: var(--vscode-list-warningForeground); }
+.session-review-status.in-progress { color: var(--vscode-progressBar-background); }
+.session-review-status.failed { color: var(--vscode-errorForeground); }
+
+.session-review-summary,
+.session-review-selected-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-review-sidebar .action-label {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-review-sidebar .action-label.session-review-action {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-review-action-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-review-action-count {
+	margin-left: auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	font-variant-numeric: tabular-nums;
+}
+
+.session-review-action > .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.session-review-navigation .action-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-review-sections {
+	flex-shrink: 0;
+	margin-top: var(--vscode-spacing-size240);
+}
+
+.session-review-sections .monaco-action-bar .actions-container {
+	display: flex;
+	gap: var(--vscode-spacing-size20);
+}
+
+.session-review-sections .monaco-action-bar.vertical .actions-container {
+	flex-direction: column;
+	align-items: stretch;
+	width: 100%;
+}
+
+.session-review-sections .monaco-action-bar .action-item {
+	display: flex;
+	min-width: 0;
+	margin: 0;
+}
+
+.session-review-sections .monaco-action-bar.vertical .action-item {
+	width: 100%;
+}
+
+.session-review-sections .monaco-action-bar.vertical .action-label {
+	justify-content: flex-start;
+}
+
+.session-review-sections .monaco-action-bar .action-label {
+	width: 100%;
+	box-sizing: border-box;
+	min-height: 32px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.session-review-sections .monaco-action-bar .action-label.checked {
+	color: var(--vscode-list-inactiveSelectionForeground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
+.session-review-selected {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	flex-shrink: 0;
+	padding-bottom: var(--vscode-spacing-size160);
+}
+
+.session-review-selected-title {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-review-selected-label {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-review-selected-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.session-review-selected-row > .session-review-selected-label {
+	flex: 1;
+	min-width: 0;
+}
+
+.session-review-selected-actions {
+	flex-shrink: 0;
+}
+
+.session-review-reply {
+	margin-top: auto;
+	min-width: 0;
+	flex-shrink: 0;
+}
+
+.session-review-reply-hint {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	margin-top: var(--vscode-spacing-size60);
+}
+
+.session-review-reply-title {
+	margin-bottom: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-review-composer {
+	min-width: 0;
+}
+
+.session-review-sidebar [hidden] {
+	display: none;
+}
+
+.session-review-sidebar.compact {
+	padding: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-review-sidebar.compact .session-review-header {
+	flex-direction: row;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+}
+
+.session-review-sidebar.compact .session-review-context-scroll {
+	flex: 0 1 auto;
+}
+
+.session-review-sidebar.compact .session-review-context {
+	height: auto;
+	max-height: 104px;
+}
+
+.session-review-sidebar.compact .session-review-sections {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.session-review-sidebar.compact .session-review-navigation {
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.session-review-sidebar.compact .session-review-metadata,
+.session-review-sidebar.compact .session-review-selected-title,
+.session-review-sidebar.compact .session-review-reply-title,
+.session-review-sidebar.compact .session-review-reply-hint,
+.session-review-sidebar.compact .session-review-sections .session-review-action > .codicon {
+	display: none;
+}
+
+.session-review-sidebar.compact .session-review-sections .actions-container {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.session-review-sidebar.compact .session-review-sections .action-label {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.session-review-sidebar.compact .session-review-selected {
+	border-top: 0;
+	padding-top: 0;
+	padding-bottom: var(--vscode-spacing-size80);
+}
+
+.session-review-sidebar.compact .session-review-selected-label {
+	flex: 1;
+	min-width: 0;
+}
+
+.session-review-content-editor {
+	height: 100%;
+	width: 100%;
+	min-height: 0;
+	overflow: hidden;
+	background-color: var(--vscode-activeSessionView-background);
+}
+
+.session-review-artifact-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	box-sizing: border-box;
+	height: 100%;
+}
+
+.session-review-artifact-label {
+	min-width: 0;
+	flex: 1;
+}
+
+.session-review-artifact-row .monaco-icon-label {
+	max-width: 100%;
+}
+
+.session-review-empty {
+	color: var(--vscode-descriptionForeground);
+	padding: var(--vscode-spacing-size240);
+}
+
+.session-review-catalog {
+	display: flex;
+	flex-direction: column;
+	padding: var(--vscode-spacing-size240);
+	box-sizing: border-box;
+	gap: var(--vscode-spacing-size200);
+}
+
+.session-review-catalog-header {
+	flex-shrink: 0;
+}
+
+.session-review-catalog-header h2 {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-review-catalog-header p {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+}
+
+.session-review-catalog-tree {
+	flex: 1;
+	min-height: 0;
+}
+
+.session-review-catalog-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120) 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-review-catalog-empty p {
+	margin: 0;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-review-catalog [hidden] {
+	display: none;
+}

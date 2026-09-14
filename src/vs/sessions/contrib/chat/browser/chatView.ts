@@ -198,6 +198,8 @@ export class ChatView extends AbstractChatView {
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
+	private _inputVisible = true;
+	private _chatReadOnly = false;
 	/** Whether this view occupies the first group in the session's chat grid. */
 	private readonly _isPrimaryObs = observableValue(this, false);
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
@@ -479,7 +481,10 @@ export class ChatView extends AbstractChatView {
 		// non-Full interactivity is treated as read-only here (hidden chats are
 		// filtered out of the visible model before they reach a ChatView).
 		this._interactiveDisposable.value = autorun(reader => {
-			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+			const readOnly = chat.interactivity.read(reader) !== ChatInteractivity.Full;
+			this._chatReadOnly = readOnly;
+			this._widget.setReadOnly(readOnly);
+			this._widget.setInputVisible(this._inputVisible && !readOnly);
 		});
 
 		// Skip loading if we're already showing this chat
@@ -749,6 +754,11 @@ export class ChatView extends AbstractChatView {
 		this._isVisible = visible;
 		this._widget.setVisible(visible);
 		this._isVisibleObs.set(visible, undefined);
+	}
+
+	override setInputVisible(visible: boolean): void {
+		this._inputVisible = visible;
+		this._widget.setInputVisible(visible && !this._chatReadOnly);
 	}
 }
 

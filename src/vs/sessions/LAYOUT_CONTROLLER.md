@@ -49,6 +49,8 @@ When more than one session is visible at once (the Sessions Part grid shows seve
 
 This guarantees that after collapsing back to a single session the **default visibility logic** (§3.2) runs again instead of restoring stale single-session state. Editor working sets are *not* cleared — they survive multi-session mode.
 
+The session board is a custom-view presentation, not a multi-column chat grid. While it is open, the layout controller retains the regular presentation's active session and suspends session-driven part and working-set changes. Its metadata catalog does not clear per-session layout records; review editors belong to the native modal part instead.
+
 ---
 
 ## 3. Auxiliary Bar

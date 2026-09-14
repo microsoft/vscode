@@ -138,9 +138,9 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		});
 	}
 
-	override async clearInput(): Promise<void> {
+	override clearInput(): void {
 		this._logger.log('editor clear input');
-		await super.clearInput();
+		super.clearInput();
 		this._contentOverlay?.updateResource(undefined);
 		this._multiDiffEditorWidget!.setViewModel(undefined);
 	}

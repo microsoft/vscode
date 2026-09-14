@@ -19,6 +19,7 @@ import { GitHubService, IGitHubService } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
 import './pullRequestActions.js';
+import './pullRequestReviewEditor.js';
 import './createSessionFromPullRequestAction.js';
 import './issueActions.js';
 

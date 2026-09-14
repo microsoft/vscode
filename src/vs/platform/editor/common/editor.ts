@@ -365,7 +365,7 @@ export interface IModalEditorPartOptions {
 	readonly navigation?: IModalEditorNavigation;
 
 	/**
-	 * Optional sidebar content to render on the left side of the
+	 * Optional sidebar content to render beside or below the
 	 * modal editor. The caller provides a render callback that
 	 * receives a container element and a layout callback, and
 	 * returns a disposable to clean up when the modal closes.
@@ -407,14 +407,27 @@ export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorO
 }
 
 /**
- * Modal sidebar supports rendering custom content in a sidebar next to the main editor content.
+ * Modal sidebar supports rendering custom content beside or below the main editor content.
  */
 export interface IModalEditorSidebar {
 
 	/**
+	 * Defaults to `left`. `auto` moves below the editor when the preferred
+	 * sidebar width and 400px of editor content cannot fit inside the modal.
+	 */
+	readonly placement?: 'left' | 'bottom' | 'auto';
+
+	/**
 	 * Sidebar width set by the user via resizing, if any.
+	 * Used for left placement and retained across automatic placement changes.
 	 */
 	readonly sidebarWidth?: number;
+
+	/**
+	 * Preferred positive, finite height in pixels for bottom placement (default 240, minimum 160 when space permits).
+	 * Clamped to the available space and remembered only for this modal's lifetime.
+	 */
+	readonly sidebarHeight?: number;
 
 	/**
 	 * Whether the sidebar is hidden.

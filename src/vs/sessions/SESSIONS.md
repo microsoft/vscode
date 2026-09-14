@@ -63,12 +63,19 @@ The view service:
 - opens sessions and chats;
 - presents new-session and peer-chat composers;
 - owns session navigation, focus, and visible-session restoration.
+- owns the optional board's catalog-backed visible sessions, the requested review session/section, and the regular arrangement restored when the board closes.
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
 
 ### Scoped session context
 
 Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
+
+### Input drafts
+
+`ISessionInputDraftService` owns lightweight Sessions input drafts keyed by chat resource. Reading or editing an unloaded draft does not acquire a chat model. When a native model is already loaded, the service shares text and attachments through its public `IInputModel` state; pending local edits are handed to that model when it is created. Model listeners have model-scoped lifetimes. Canonical session replacement rebinds the main-chat draft, including existing draft handles, to the replacement resource.
+
+Compact board inputs and the review composer use that shared draft contract. The existing Sessions composer accepts a host-owned draft instead of using the new-session composer's private storage. Explicit result references remain in the draft until removed or successfully sent; changing the viewed artifact, diff, or pull request does not replace them.
 
 ## Domain model
 

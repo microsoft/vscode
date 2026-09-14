@@ -581,8 +581,10 @@ export class FixtureTextModelService extends mock<ITextModelService>() {
 			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
 		}
 		return {
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			object: { textEditorModel: model } as IResolvedTextEditorModel,
+			object: new class extends mock<IResolvedTextEditorModel>() {
+				constructor(override readonly textEditorModel: ITextModel) { super(); }
+				override isReadonly(): boolean { return false; }
+			}(model),
 			dispose() { },
 		};
 	}

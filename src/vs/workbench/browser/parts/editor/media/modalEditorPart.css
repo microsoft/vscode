@@ -53,6 +53,24 @@
 			grid-column: 2;
 			grid-row: 2;
 		}
+
+		&.sidebar-bottom {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-rows: auto minmax(0, 1fr) auto;
+
+			> .content {
+				grid-column: 1;
+			}
+
+			> .modal-editor-sidebar {
+				grid-column: 1;
+				grid-row: 3;
+				min-width: 0;
+				min-height: 0;
+				border-right: 0;
+				border-top: var(--vscode-strokeThickness, 1px) solid var(--vscode-sideBarSectionHeader-border, var(--vscode-editorWidget-border, transparent));
+			}
+		}
 	}
 
 	> .content {

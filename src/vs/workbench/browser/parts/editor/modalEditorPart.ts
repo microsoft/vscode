@@ -53,8 +53,10 @@ const MODAL_SNAP_THRESHOLD = 20;
 const MODAL_MAXIMIZED_PADDING = 16;
 const MODAL_SIDEBAR_MIN_WIDTH = 160;
 const MODAL_SIDEBAR_DEFAULT_WIDTH = 260;
+const MODAL_SIDEBAR_MIN_HEIGHT = 160;
+const MODAL_SIDEBAR_DEFAULT_HEIGHT = 240;
 const MODAL_SIDEBAR_PADDING = 8; // matches CSS padding on sidebar container
-const MODAL_SIDEBAR_BORDER_RIGHT = 1; // matches CSS border-right on sidebar container
+const MODAL_SIDEBAR_BORDER_WIDTH = 1; // matches the separator border on the sidebar container
 
 const defaultModalEditorAllowableCommands = new Set([
 
@@ -126,12 +128,16 @@ interface IModalEditorSidebarController {
 	readonly onDidResize: Event<void>;
 
 	getWidth(): number;
+	getHeight(): number;
+	getPreferredWidth(): number;
+	getPlacement(): 'left' | 'bottom';
 	hasCustomWidth(): boolean;
 	clampWidth(modalWidth: number): void;
 
 	isVisible(): boolean;
 	setVisible(visible: boolean): void;
 
+	prepareLayout(width: number, height: number, minimumEditorHeight: number): void;
 	layout(height: number): void;
 	updateContent(content: IModalEditorSidebar): void;
 }
@@ -152,6 +158,9 @@ export class ModalEditorPart {
 	}
 
 	async create(options?: IModalEditorPartOptions): Promise<ICreateModalEditorPartResult> {
+		if (options?.sidebar?.sidebarHeight !== undefined && (!Number.isFinite(options.sidebar.sidebarHeight) || options.sidebar.sidebarHeight <= 0)) {
+			throw new Error(localize('invalidModalSidebarHeight', "The modal sidebar height must be a positive finite number."));
+		}
 		const disposables = new DisposableStore();
 
 		// Modal container
@@ -204,7 +213,8 @@ export class ModalEditorPart {
 		const resizableElement = new ResizableHTMLElement();
 		disposables.add(toDisposable(() => resizableElement.dispose()));
 		resizableElement.domNode.classList.add('modal-editor-resizable');
-		const effectiveMinWidth = MODAL_MIN_WIDTH + (options?.sidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
+		const sidebarRequiresColumn = options?.sidebar && (options.sidebar.placement ?? 'left') === 'left';
+		const effectiveMinWidth = MODAL_MIN_WIDTH + (sidebarRequiresColumn ? MODAL_SIDEBAR_MIN_WIDTH : 0);
 		resizableElement.minSize = new Dimension(effectiveMinWidth, MODAL_MIN_HEIGHT);
 		modalElement.appendChild(resizableElement.domNode);
 
@@ -268,13 +278,11 @@ export class ModalEditorPart {
 		// Toolbar
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
-		// Sidebar
-		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, modalContextKeyService, disposables);
-		if (sidebarResult) {
-			if (sidebarResult.isVisible()) {
-				editorPartContainer.classList.add('has-sidebar');
-			}
-			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
+		// Bottom-capable sidebars follow the editor in focus order without reparenting rendered content.
+		const sidebarAfterEditor = options?.sidebar?.placement === 'bottom' || options?.sidebar?.placement === 'auto';
+		const initialSidebar = sidebarAfterEditor ? undefined : this.createSidebar(editorPartContainer, headerElement, options?.sidebar, modalContextKeyService, disposables);
+		if (initialSidebar?.isVisible()) {
+			editorPartContainer.classList.add('has-sidebar');
 		}
 
 		// Create the editor part (scoped to the modal context key service so that
@@ -291,6 +299,12 @@ export class ModalEditorPart {
 		));
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
+
+		const sidebarResult = initialSidebar ?? (sidebarAfterEditor ? this.createSidebar(editorPartContainer, headerElement, options?.sidebar, modalContextKeyService, disposables) : undefined);
+		if (sidebarResult) {
+			editorPartContainer.classList.toggle('has-sidebar', sidebarResult.isVisible());
+			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
+		}
 
 		disposables.add(Event.once(editorPart.onWillClose)(() => disposables.dispose()));
 		const pendingBubbleCloseEvents = new WeakSet<KeyboardEvent>();
@@ -327,15 +341,21 @@ export class ModalEditorPart {
 				hide(navigationContainer);
 			}
 		}), editorPart.navigation));
+		const updateSidebarToggleIcon = () => {
+			const icon = sidebarResult?.getPlacement() === 'bottom'
+				? (editorPart.sidebarHidden ? Codicon.layoutPanelOff : Codicon.layoutPanel)
+				: (editorPart.sidebarHidden ? Codicon.layoutSidebarLeftOff : Codicon.layoutSidebarLeft);
+			sidebarToggleAction.class = ThemeIcon.asClassName(icon);
+		};
 		if (sidebarResult) {
 			disposables.add(Event.runAndSubscribe(sidebarResult.onDidResize, () => {
 				if (sidebarResult.isVisible()) {
-					editorPart.sidebarWidth = sidebarResult.hasCustomWidth() ? sidebarResult.getWidth() : undefined;
+					editorPart.sidebarWidth = sidebarResult.hasCustomWidth() ? sidebarResult.getPreferredWidth() : undefined;
 				}
 			}));
 			disposables.add(editorPart.onDidToggleSidebar(() => {
 				sidebarResult.setVisible(!editorPart.sidebarHidden);
-				sidebarToggleAction.class = ThemeIcon.asClassName(editorPart.sidebarHidden ? Codicon.layoutSidebarLeftOff : Codicon.layoutSidebarLeft);
+				updateSidebarToggleIcon();
 				layoutModal();
 			}));
 		}
@@ -458,12 +478,20 @@ export class ModalEditorPart {
 		const layout = (sizeChanged: boolean) => {
 			const { width: modalWidth, height: modalHeight } = resizableElement.size;
 			const { top: topPx, left: leftPx } = resizableElement.domNode.style;
-			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
 			const headerHeight = headerElement.offsetHeight;
+			sidebarResult?.prepareLayout(
+				modalWidth - MODAL_BORDER_SIZE,
+				modalHeight - MODAL_BORDER_SIZE - headerHeight,
+				sidebarAfterEditor ? Math.max(0, ...editorPart.groups.map(group => group.minimumHeight)) : 0,
+			);
+			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
+			const sidebarHeight = sidebarResult?.getHeight() ?? 0;
+			const editorHeight = modalHeight - MODAL_BORDER_SIZE - headerHeight - sidebarHeight;
+			updateSidebarToggleIcon();
 
 			editorPart.layout(
 				Math.max(0, modalWidth - MODAL_BORDER_SIZE - sidebarWidth),
-				modalHeight - MODAL_BORDER_SIZE - headerHeight,
+				sidebarAfterEditor ? Math.max(0, editorHeight) : editorHeight,
 				parseFloat(topPx) + MODAL_BORDER_WIDTH + headerHeight,
 				parseFloat(leftPx) + MODAL_BORDER_WIDTH + sidebarWidth,
 			);
@@ -705,6 +733,14 @@ export class ModalEditorPart {
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
 
+			if (sidebarAfterEditor) {
+				const maximumWidth = editorPart.maximized ? width : containerDimension.width;
+				const maximumHeight = editorPart.maximized ? height : availableHeight;
+				resizableElement.minSize = new Dimension(Math.min(MODAL_MIN_WIDTH, maximumWidth), Math.min(MODAL_MIN_HEIGHT, maximumHeight));
+				width = Math.max(width, resizableElement.minSize.width);
+				height = Math.max(height, resizableElement.minSize.height);
+			}
+
 			// On first layout, clamp sidebar width if it would leave the editor too narrow
 			if (isFirstLayout) {
 				isFirstLayout = false;
@@ -769,11 +805,25 @@ export class ModalEditorPart {
 		}
 
 		let sidebarWidth = content.sidebarWidth && content.sidebarWidth > 0 ? content.sidebarWidth : MODAL_SIDEBAR_DEFAULT_WIDTH;
+		let preferredSidebarHeight = content.sidebarHeight ?? MODAL_SIDEBAR_DEFAULT_HEIGHT;
+		let sidebarHeight = preferredSidebarHeight;
 		let customWidth = content.sidebarWidth !== undefined && content.sidebarWidth > 0;
 		let visible = !content.sidebarHidden;
+		const requestedPlacement = content.placement ?? 'left';
+		let placement: 'left' | 'bottom' = requestedPlacement === 'bottom' ? 'bottom' : 'left';
+		let layoutWidth = 0;
+		let layoutHeight = 0;
+		let minimumEditorHeight = 0;
 
 		const sidebarContainer = append(container, $('div.modal-editor-sidebar.show-file-icons'));
-		sidebarContainer.style.width = `${sidebarWidth}px`;
+		const updateContainerStyles = () => {
+			container.classList.toggle('sidebar-bottom', placement === 'bottom');
+			sidebarContainer.style.width = placement === 'left' ? `${sidebarWidth}px` : '';
+			if (requestedPlacement !== 'left') {
+				sidebarContainer.style.height = placement === 'bottom' ? `${sidebarHeight}px` : '';
+			}
+		};
+		updateContainerStyles();
 		setVisibility(visible, sidebarContainer);
 
 		// Context key service scoped to the sidebar container, descending from the
@@ -791,48 +841,78 @@ export class ModalEditorPart {
 		// (the compact-header variant is 40px, the default header is 33px). The
 		// constant only applies before the header has been laid out.
 		const getHeaderHeight = () => (headerElement.offsetHeight || MODAL_HEADER_HEIGHT);
-		const sash = disposables.add(new Sash(container, {
-			getVerticalSashLeft: () => sidebarWidth,
-			getVerticalSashTop: () => getHeaderHeight(),
-			getVerticalSashHeight: () => (container.clientHeight - getHeaderHeight()),
-		}, { orientation: Orientation.VERTICAL }));
-		if (!visible) {
-			sash.state = SashState.Disabled;
-		}
-
 		const onDidResizeEmitter = disposables.add(new Emitter<void>());
+		const sashDisposables = disposables.add(new DisposableStore());
+		let sash: Sash;
 
-		let sashStartWidth: number | undefined;
-		disposables.add(sash.onDidStart(() => sashStartWidth = sidebarWidth));
-		disposables.add(sash.onDidEnd(() => sashStartWidth = undefined));
-		disposables.add(sash.onDidChange(e => {
-			if (sashStartWidth === undefined) {
-				return;
+		const getPlacement = (width: number): 'left' | 'bottom' =>
+			requestedPlacement === 'bottom' || (requestedPlacement === 'auto' && width < sidebarWidth + MODAL_MIN_WIDTH) ? 'bottom' : 'left';
+		const clampHeight = (height: number) => {
+			const maximumHeight = Math.max(0, layoutHeight - Math.min(minimumEditorHeight, layoutHeight / 2));
+			return Math.min(maximumHeight, Math.max(MODAL_SIDEBAR_MIN_HEIGHT, height));
+		};
+
+		const createSash = () => {
+			sashDisposables.clear();
+			sash = sashDisposables.add(placement === 'bottom'
+				? new Sash(container, {
+					getHorizontalSashTop: () => getHeaderHeight() + layoutHeight - sidebarHeight,
+					getHorizontalSashLeft: () => 0,
+					getHorizontalSashWidth: () => layoutWidth,
+				}, { orientation: Orientation.HORIZONTAL })
+				: new Sash(container, {
+					getVerticalSashLeft: () => sidebarWidth,
+					getVerticalSashTop: () => getHeaderHeight(),
+					getVerticalSashHeight: () => (container.clientHeight - getHeaderHeight()),
+				}, { orientation: Orientation.VERTICAL }));
+			if (!visible) {
+				sash.state = SashState.Disabled;
 			}
 
-			const delta = e.currentX - e.startX;
-			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
-			sidebarWidth = Math.min(maxWidth, Math.max(MODAL_SIDEBAR_MIN_WIDTH, sashStartWidth + delta));
-			customWidth = true;
-			sidebarContainer.style.width = `${sidebarWidth}px`;
-			sash.layout();
-			onDidResizeEmitter.fire();
-		}));
-		disposables.add(sash.onDidReset(() => {
-			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
-			sidebarWidth = Math.min(maxWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
-			customWidth = false;
-			sidebarContainer.style.width = `${sidebarWidth}px`;
-			sash.layout();
-			onDidResizeEmitter.fire();
-		}));
+			let sashStartSize: number | undefined;
+			sashDisposables.add(sash.onDidStart(() => sashStartSize = placement === 'bottom' ? sidebarHeight : sidebarWidth));
+			sashDisposables.add(sash.onDidEnd(() => sashStartSize = undefined));
+			sashDisposables.add(sash.onDidChange(e => {
+				if (sashStartSize === undefined) {
+					return;
+				}
+				if (placement === 'bottom') {
+					sidebarHeight = clampHeight(sashStartSize - (e.currentY - e.startY));
+					preferredSidebarHeight = sidebarHeight;
+				} else {
+					const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+					sidebarWidth = Math.min(maxWidth, Math.max(MODAL_SIDEBAR_MIN_WIDTH, sashStartSize + (e.currentX - e.startX)));
+					customWidth = true;
+				}
+				updateContainerStyles();
+				sash.layout();
+				onDidResizeEmitter.fire();
+			}));
+			sashDisposables.add(sash.onDidReset(() => {
+				if (placement === 'bottom') {
+					preferredSidebarHeight = MODAL_SIDEBAR_DEFAULT_HEIGHT;
+					sidebarHeight = clampHeight(preferredSidebarHeight);
+				} else {
+					const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+					sidebarWidth = Math.min(maxWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
+					customWidth = false;
+				}
+				updateContainerStyles();
+				sash.layout();
+				onDidResizeEmitter.fire();
+			}));
+		};
+		createSash();
 
 		return {
 			onDidResize: onDidResizeEmitter.event,
-			getWidth: () => visible ? sidebarWidth : 0,
+			getWidth: () => visible && placement === 'left' ? sidebarWidth : 0,
+			getHeight: () => visible && placement === 'bottom' ? sidebarHeight : 0,
+			getPreferredWidth: () => sidebarWidth,
+			getPlacement: () => placement,
 			hasCustomWidth: () => customWidth,
 			clampWidth: (modalWidth: number) => {
-				if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
+				if (getPlacement(modalWidth - MODAL_BORDER_SIZE) === 'left' && sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
 					sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
 					customWidth = false;
 					sidebarContainer.style.width = `${sidebarWidth}px`;
@@ -848,11 +928,29 @@ export class ModalEditorPart {
 				sash.state = visible ? SashState.Enabled : SashState.Disabled;
 				onDidResizeEmitter.fire();
 			},
+			prepareLayout: (width, height, editorMinimumHeight) => {
+				if (requestedPlacement === 'left') {
+					return;
+				}
+				layoutWidth = width;
+				layoutHeight = height;
+				minimumEditorHeight = editorMinimumHeight;
+				sidebarHeight = clampHeight(preferredSidebarHeight);
+				const nextPlacement = getPlacement(width);
+				if (placement !== nextPlacement) {
+					placement = nextPlacement;
+					createSash();
+				}
+				updateContainerStyles();
+			},
 			layout: (height: number) => {
 				if (visible) {
-					onDidLayoutEmitter.fire({
+					onDidLayoutEmitter.fire(placement === 'bottom' ? {
+						height: Math.max(0, sidebarHeight - MODAL_SIDEBAR_PADDING * 2 - MODAL_SIDEBAR_BORDER_WIDTH),
+						width: Math.max(0, layoutWidth - MODAL_SIDEBAR_PADDING * 2),
+					} : {
 						height: height - MODAL_SIDEBAR_PADDING * 2,
-						width: sidebarWidth - MODAL_SIDEBAR_PADDING * 2 - MODAL_SIDEBAR_BORDER_RIGHT
+						width: sidebarWidth - MODAL_SIDEBAR_PADDING * 2 - MODAL_SIDEBAR_BORDER_WIDTH,
 					});
 				}
 				sash.layout();

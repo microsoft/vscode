@@ -69,6 +69,8 @@ export const enum AccessibilityVerbositySettingId {
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	SessionsBoard = 'accessibility.verbosity.sessionsBoard',
+	SessionReview = 'accessibility.verbosity.sessionReview',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -214,6 +216,14 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
 			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionsBoard]: {
+			description: localize('verbosity.sessionsBoard', "Provide information about accessibility help for navigating and resizing live chats in the Sessions board."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionReview]: {
+			description: localize('verbosity.sessionReview', "Provide information about reviewing session results and replying without leaving the native review editor."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChanges]: {
