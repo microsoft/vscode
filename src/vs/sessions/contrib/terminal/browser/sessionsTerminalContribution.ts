@@ -840,9 +840,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	/**
-	 * Restores the given background terminals in parent-first order based on
-	 * `parentTerminalId`, handles split relationship restoration, and applies
-	 * `_pendingBeforeTerminalIds` repositioning when restoring before an anchor terminal.
+	 * Restores background terminals to the foreground, preserving split terminal layout and ordering.
 	 */
 	private async _restoreBackgroundTerminals(terminals: ITerminalInstance[]): Promise<void> {
 		const toShow = [...terminals];

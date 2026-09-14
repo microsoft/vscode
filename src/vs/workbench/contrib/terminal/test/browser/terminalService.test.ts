@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fail, strictEqual } from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -91,6 +91,7 @@ suite('Workbench - TerminalService', () => {
 				target: TerminalLocation.Panel,
 				shellLaunchConfig: {},
 				onDisposed: parentDisposalEmitter.event,
+				onIconChanged: Event.None,
 				detachFromElement: () => { }
 			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
 
@@ -99,6 +100,7 @@ suite('Workbench - TerminalService', () => {
 				target: TerminalLocation.Panel,
 				shellLaunchConfig: { parentTerminalId: 1 },
 				onDisposed: splitDisposalEmitter.event,
+				onIconChanged: Event.None,
 				detachFromElement: () => { }
 			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
 
@@ -162,6 +164,7 @@ suite('Workbench - TerminalService', () => {
 				target: TerminalLocation.Panel,
 				shellLaunchConfig: { parentTerminalId: 1 },
 				onDisposed: splitDisposalEmitter.event,
+				onIconChanged: Event.None,
 				detachFromElement: () => { }
 			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
 
