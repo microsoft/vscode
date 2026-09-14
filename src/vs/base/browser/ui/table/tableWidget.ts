@@ -253,6 +253,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		this.list.rerender();
 	}
 
+	updateElementHeight(index: number, size?: number): void {
+		this.list.updateElementHeight(index, size);
+	}
+
 	row(index: number): TRow {
 		return this.list.element(index);
 	}

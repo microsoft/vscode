@@ -60,13 +60,7 @@ class SessionsTableDelegate implements ITableVirtualDelegate<IAgentsDashboardSes
 	constructor(private readonly view: AgentsDashboardCustomView) { }
 
 	getHeight(row: IAgentsDashboardSessionRow): number {
-		if (!this.view.isChatActivityExpanded(row.session)) {
-			return SESSION_ROW_HEIGHT;
-		}
-		return Math.max(
-			SESSION_EXPANDED_ROW_MIN_HEIGHT,
-			SESSION_ACTIVITY_FIXED_HEIGHT + Math.min(row.chatCount, MAX_SESSION_ACTIVITY_LANES) * SESSION_ACTIVITY_LANE_HEIGHT,
-		);
+		return getSessionRowHeight(row, this.view.isChatActivityExpanded(row.session));
 	}
 }
 
@@ -116,6 +110,16 @@ class SessionColumnRenderer implements ITableRenderer<IAgentsDashboardSessionRow
 	disposeTemplate(templateData: ISessionCellTemplateData): void {
 		templateData.hover.dispose();
 	}
+}
+
+function getSessionRowHeight(row: IAgentsDashboardSessionRow, expanded: boolean): number {
+	if (!expanded) {
+		return SESSION_ROW_HEIGHT;
+	}
+	return Math.max(
+		SESSION_EXPANDED_ROW_MIN_HEIGHT,
+		SESSION_ACTIVITY_FIXED_HEIGHT + Math.min(row.chatCount, MAX_SESSION_ACTIVITY_LANES) * SESSION_ACTIVITY_LANE_HEIGHT,
+	);
 }
 
 interface ISessionWorkingDirectoriesCellTemplateData {
@@ -168,6 +172,10 @@ interface ISessionMetricCellTemplateData {
 	readonly detail: HTMLElement;
 }
 
+interface ISessionCreditsCellTemplateData extends ISessionMetricCellTemplateData {
+	readonly actionBar: ActionBar;
+}
+
 abstract class SessionMetricColumnRenderer implements ITableRenderer<IAgentsDashboardSessionRow, ISessionMetricCellTemplateData> {
 	abstract readonly templateId: string;
 
@@ -193,17 +201,44 @@ class SessionSizeColumnRenderer extends SessionMetricColumnRenderer {
 	}
 }
 
-class SessionCreditsColumnRenderer extends SessionMetricColumnRenderer {
+class SessionCreditsColumnRenderer implements ITableRenderer<IAgentsDashboardSessionRow, ISessionCreditsCellTemplateData> {
 	static readonly TEMPLATE_ID = SESSION_ROW_TEMPLATE_ID + '.credits';
 	readonly templateId = SessionCreditsColumnRenderer.TEMPLATE_ID;
 
-	renderElement(row: IAgentsDashboardSessionRow, index: number, templateData: ISessionMetricCellTemplateData): void {
+	constructor(private readonly view: AgentsDashboardCustomView) { }
+
+	renderTemplate(container: HTMLElement): ISessionCreditsCellTemplateData {
+		const cell = DOM.append(container, $('.agents-dashboard-cell.agents-dashboard-cell-metric.agents-dashboard-cell-credits'));
+		const value = DOM.append(cell, $('.agents-dashboard-metric-value'));
+		const detail = DOM.append(cell, $('.agents-dashboard-metric-detail'));
+		const actionBar = new ActionBar(cell);
+		return { container: cell, value, detail, actionBar };
+	}
+
+	renderElement(row: IAgentsDashboardSessionRow, index: number, templateData: ISessionCreditsCellTemplateData): void {
+		templateData.actionBar.clear();
+		templateData.container.classList.toggle('missing', row.credits === undefined);
 		templateData.value.textContent = row.credits === undefined
 			? '—'
 			: row.creditsPartial
 				? localize('agentsDashboard.partialCredits', "{0} partial", formatCopilotCredits(row.credits))
 				: formatCopilotCredits(row.credits);
 		templateData.detail.textContent = '';
+		if (row.credits === undefined) {
+			const calculateCreditsLabel = localize('agentsDashboard.calculateCredits', "Calculate Credits");
+			templateData.actionBar.push({
+				id: 'agentsDashboard.calculateCredits',
+				label: calculateCreditsLabel,
+				class: ThemeIcon.asClassName(Codicon.graphLine),
+				enabled: true,
+				tooltip: calculateCreditsLabel,
+				run: () => this.view.calculateCredits(row.session),
+			}, { icon: true, label: false });
+		}
+	}
+
+	disposeTemplate(templateData: ISessionCreditsCellTemplateData): void {
+		templateData.actionBar.dispose();
 	}
 }
 
@@ -267,17 +302,6 @@ class SessionActionsColumnRenderer implements ITableRenderer<IAgentsDashboardSes
 			tooltip: openLabel,
 			run: () => this.view.revealSession(row.session.resource),
 		}];
-		if (row.credits === undefined) {
-			const calculateCreditsLabel = localize('agentsDashboard.calculateCredits', "Calculate Credits");
-			actions.push({
-				id: 'agentsDashboard.calculateCredits',
-				label: calculateCreditsLabel,
-				class: ThemeIcon.asClassName(Codicon.graphLine),
-				enabled: true,
-				tooltip: calculateCreditsLabel,
-				run: () => this.view.calculateCredits(row.session),
-			});
-		}
 		actions.push({
 			id: archiveCommandId,
 			label: archiveAction.title.value,
@@ -582,9 +606,9 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 				{
 					label: '',
 					tooltip: localize('agentsDashboard.column.actions', "Actions"),
-					weight: 0.09,
-					minimumWidth: 112,
-					maximumWidth: 128,
+					weight: 0.07,
+					minimumWidth: 88,
+					maximumWidth: 104,
 					templateId: SessionActionsColumnRenderer.TEMPLATE_ID,
 					project(row: IAgentsDashboardSessionRow) { return row; },
 				},
@@ -593,7 +617,7 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 				this.instantiationService.createInstance(SessionColumnRenderer, this),
 				this.instantiationService.createInstance(SessionWorkingDirectoriesColumnRenderer),
 				this.instantiationService.createInstance(SessionSizeColumnRenderer),
-				this.instantiationService.createInstance(SessionCreditsColumnRenderer),
+				this.instantiationService.createInstance(SessionCreditsColumnRenderer, this),
 				this.instantiationService.createInstance(SessionStatusColumnRenderer),
 				this.instantiationService.createInstance(SessionActionsColumnRenderer, this),
 			],
@@ -829,13 +853,18 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 
 	toggleChatActivity(session: ISession): void {
 		const expanded = this.isChatActivityExpanded(session);
+		const previousIndex = this.visibleSessionRows.findIndex(row => row.session.sessionId === this.selectedChatActivitySession?.sessionId);
 		this.selectedChatActivitySession = expanded ? undefined : session;
 		this.refreshSessionRows();
+		if (previousIndex >= 0) {
+			this.sessionsTable.updateElementHeight(previousIndex, SESSION_ROW_HEIGHT);
+		}
 		if (!expanded) {
 			const title = session.title.get() || localize('agentsDashboard.chatActivity.untitledSession', "Untitled session");
 			status(localize('agentsDashboard.chatActivity.opened', "Expanded chat activity for {0}", title));
 			const index = this.visibleSessionRows.findIndex(row => row.session.sessionId === session.sessionId);
 			if (index >= 0) {
+				this.sessionsTable.updateElementHeight(index, getSessionRowHeight(this.visibleSessionRows[index], true));
 				this.sessionsTable.reveal(index);
 				this.sessionsTable.setFocus([index]);
 				this.sessionsTable.domFocus();
@@ -847,8 +876,12 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 		if (!this.selectedChatActivitySession) {
 			return;
 		}
+		const index = this.visibleSessionRows.findIndex(row => row.session.sessionId === this.selectedChatActivitySession!.sessionId);
 		this.selectedChatActivitySession = undefined;
 		this.refreshSessionRows();
+		if (index >= 0) {
+			this.sessionsTable.updateElementHeight(index, SESSION_ROW_HEIGHT);
+		}
 	}
 
 	renderChatActivity(container: HTMLElement, session: ISession): void {
