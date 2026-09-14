@@ -61,7 +61,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -3566,11 +3566,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}]
 				: renderSessionChildren(groupItem.sessions, sectionId, groupItem.group.name, !this.hasFindPattern && this.workspaceGroupCapped);
 			const visibleGroupSessions = groupChildren.map(child => child.element).filter(isSessionItem);
-			if (visibleGroupSessions.length > 1) {
-				for (let index = 0; index < visibleGroupSessions.length; index++) {
+			const connectorSessions = groupItem.comparison
+				? visibleGroupSessions.filter(session => this.renderedComparisonAttemptLabels.has(session.sessionId))
+				: visibleGroupSessions;
+			if (connectorSessions.length > 1) {
+				for (let index = 0; index < connectorSessions.length; index++) {
 					this.renderedGroupConnectorPositions.set(
-						visibleGroupSessions[index].sessionId,
-						index === 0 ? 'first' : index === visibleGroupSessions.length - 1 ? 'last' : 'middle',
+						connectorSessions[index].sessionId,
+						index === 0 ? 'first' : index === connectorSessions.length - 1 ? 'last' : 'middle',
 					);
 				}
 			}
@@ -4706,7 +4709,8 @@ export function sortSessions(sessions: ISession[], sorting: SessionsSorting, get
 }
 
 function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: ISession[], sorting: SessionsSorting, getSortKey: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
-	const participantOrder = (session: ISession) => comparison.participants.findIndex(participant => participant.sessionResource && isEqual(participant.sessionResource, session.resource));
+	const participants = getSessionComparisonParticipantsInDisplayOrder(comparison.participants);
+	const participantOrder = (session: ISession) => participants.findIndex(participant => participant.sessionResource && isEqual(participant.sessionResource, session.resource));
 	return sortSessions(sessions, sorting, getSortKey).sort((a, b) => {
 		const aIndex = participantOrder(a);
 		const bIndex = participantOrder(b);

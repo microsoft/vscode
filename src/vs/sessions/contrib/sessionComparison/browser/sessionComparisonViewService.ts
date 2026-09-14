@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const ISessionComparisonViewService = createDecorator<ISessionComparisonViewService>('sessionComparisonViewService');
@@ -30,7 +30,7 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 		if (!comparison) {
 			throw new Error(localize('sessionComparison.missing', "This comparison is no longer available."));
 		}
-		const sessions = comparison.participants.flatMap(participant => {
+		const sessions = getSessionComparisonParticipantsInDisplayOrder(comparison.participants).flatMap(participant => {
 			if (!participant.sessionResource) {
 				return [];
 			}

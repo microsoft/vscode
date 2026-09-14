@@ -29,7 +29,7 @@ Each comparison has one visible Sessions group containing all of its participant
 - **Judge:** uses the harness and model selected in comparison setup, starts after at least two successfully launched attempts reach a terminal state, and submits one structured verdict.
 - **Synthesis:** optional new attempt using the recommended or selected attempt's harness. It never mutates an original attempt.
 
-The comparison service creates attempts directly and adds each launched participant to the ordinary Sessions group. It reconciles every participant back into that group as provider catalogs hydrate, so attempts, the Judge, and synthesis cannot fall back into separate workspace sections after a reload. It does not create a model-backed coordinator: orchestration is deterministic service behavior, and no model participant may create a second session tree.
+The comparison service creates attempts directly and adds each launched participant to the ordinary Sessions group. The group displays the Judge and synthesis first, followed by attempts in their stable launch order; only attempts use connector decoration. It reconciles every participant back into that group as provider catalogs hydrate, so attempts, the Judge, and synthesis cannot fall back into separate workspace sections after a reload. It does not create a model-backed coordinator: orchestration is deterministic service behavior, and no model participant may create a second session tree.
 
 ## Lifecycle invariants
 

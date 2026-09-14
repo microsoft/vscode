@@ -253,7 +253,7 @@ export class NewChatWidget extends Disposable {
 			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),
 			() => this._hasEnoughSessionsForFirstRunNotices(),
 		);
-		const comparisonDescription = localize('runMultipleAgents.description', "Compares results and lets you synthesize the best concepts.");
+		const comparisonDescription = localize('runMultipleAgents.description', "Compares results and lets you synthesize the best concepts");
 
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,

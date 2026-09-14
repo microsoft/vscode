@@ -127,6 +127,25 @@ export function getSessionComparisonAttemptLabel(participant: ISessionComparison
 	return localize('sessionComparison.attemptTitle', "Attempt {0}: {1}", index + 1, harnessLabel);
 }
 
+export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {
+	const rolePriority = (role: SessionComparisonParticipantRole): number => {
+		switch (role) {
+			case SessionComparisonParticipantRole.Judge:
+				return 0;
+			case SessionComparisonParticipantRole.Synthesis:
+				return 1;
+			case SessionComparisonParticipantRole.Attempt:
+				return 2;
+			default:
+				return 3;
+		}
+	};
+	return participants
+		.map((participant, index) => ({ participant, index }))
+		.sort((a, b) => rolePriority(a.participant.role) - rolePriority(b.participant.role) || a.index - b.index)
+		.map(({ participant }) => participant);
+}
+
 export function getSessionComparisonFileKey(resource: URI, folders: readonly ISessionFolder[]): string {
 	const matchingFolders = folders
 		.map((folder, index) => ({ folder, index }))

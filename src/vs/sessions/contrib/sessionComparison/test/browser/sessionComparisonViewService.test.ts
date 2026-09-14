@@ -63,14 +63,14 @@ suite('Session comparison chat grid', () => {
 		return { service, comparisons, opened };
 	}
 
-	test('opens attempts, Judge, and synthesis in participant order', async () => {
+	test('opens Judge, synthesis, and attempts in display order', async () => {
 		const fixture = setup();
 		await fixture.service.open('comparison');
 		assert.deepStrictEqual(fixture.opened, [[
-			'attempt-0',
-			'attempt-1',
 			'judge-2',
 			'synthesis-3',
+			'attempt-0',
+			'attempt-1',
 		]]);
 	});
 
@@ -86,9 +86,9 @@ suite('Session comparison chat grid', () => {
 		}], undefined);
 		await fixture.service.open('comparison');
 		assert.deepStrictEqual(fixture.opened, [[
-			'attempt-0',
 			'judge-2',
 			'synthesis-3',
+			'attempt-0',
 		]]);
 	});
 

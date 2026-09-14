@@ -2007,6 +2007,7 @@ suite('Sessions - SessionsList', () => {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress });
+			const synthesis = createTestSession('Synthesis', { resourceId: 'synthesis', status: SessionStatus.InProgress });
 			const comparison: ISessionComparison = {
 				id: 'comparison-1',
 				groupId: group.id,
@@ -2034,9 +2035,15 @@ suite('Sessions - SessionsList', () => {
 						harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: 'Claude Opus 5' },
 						sessionResource: judge.session.resource,
 					},
+					{
+						id: 'synthesis',
+						role: SessionComparisonParticipantRole.Synthesis,
+						harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: 'Claude Opus 5' },
+						sessionResource: synthesis.session.resource,
+					},
 				],
 			};
-			const sessions = [attempt2.session, judge.session, attempt1.session];
+			const sessions = [attempt2.session, synthesis.session, judge.session, attempt1.session];
 			const memberships = new Map(sessions.map(session => [session.sessionId, group.id]));
 			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison] });
 			const container = harness.createContainer();
@@ -2046,14 +2053,16 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(400, 400);
-			return { attempt1, attempt2, judge, container, harness };
+			return { attempt1, attempt2, judge, synthesis, container, harness };
 		}
 
-		test('renders a focal parent and compact attempts in participant order', () => {
+		test('renders Judge and synthesis before connected compact attempts', () => {
 			const { attempt1, attempt2, container } = renderComparison();
 			const parent = container.querySelector<HTMLElement>('.session-comparison-group');
 			const attempts = [...container.querySelectorAll<HTMLElement>('.session-comparison-attempt')];
-			const judge = container.querySelector<HTMLElement>('.session-comparison-participant:not(.session-comparison-attempt)');
+			const participants = [...container.querySelectorAll<HTMLElement>('.session-comparison-participant')];
+			const independentParticipants = participants.filter(participant => !participant.classList.contains('session-comparison-attempt'));
+			const judge = independentParticipants.find(participant => participant.querySelector('.session-title')?.textContent === 'Judge');
 			assert.ok(parent && judge);
 
 			assert.deepStrictEqual({
@@ -2063,6 +2072,7 @@ suite('Sessions - SessionsList', () => {
 					layersIcon: parent.querySelector('.session-section-icon')?.classList.contains('codicon-layers'),
 					ariaLabel: parent.closest('.monaco-list-row')?.getAttribute('aria-label'),
 				},
+				order: participants.map(participant => participant.querySelector('.session-title')?.textContent),
 				attempts: attempts.map(attempt => ({
 					title: attempt.querySelector('.session-title')?.textContent,
 					status: attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent,
@@ -2075,8 +2085,9 @@ suite('Sessions - SessionsList', () => {
 					title: judge.querySelector('.session-title')?.textContent,
 					inProgress: judge.classList.contains('in-progress'),
 					hasProgressIndicator: judge.querySelector('.session-icon')?.childElementCount === 1,
-					connectorVisibility: mainWindow.getComputedStyle(judge.querySelector<HTMLElement>('.session-icon')!).visibility,
+					connector: judge.getAttribute('data-session-group-connector'),
 				},
+				independentParticipantConnectors: independentParticipants.map(participant => participant.getAttribute('data-session-group-connector')),
 			}, {
 				parent: {
 					title: 'Improve the picker',
@@ -2084,11 +2095,13 @@ suite('Sessions - SessionsList', () => {
 					layersIcon: true,
 					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
 				},
+				order: ['Judge', 'Synthesis', 'Attempt 1: Copilot · Claude Opus 5', 'Attempt 2: Codex · GPT-5'],
 				attempts: [
 					{ title: 'Attempt 1: Copilot · Claude Opus 5', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
 					{ title: 'Attempt 2: Codex · GPT-5', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
 				],
-				judge: { title: 'Judge', inProgress: true, hasProgressIndicator: true, connectorVisibility: 'visible' },
+				judge: { title: 'Judge', inProgress: true, hasProgressIndicator: true, connector: null },
+				independentParticipantConnectors: [null, null],
 			});
 
 			attempt1.status.set(SessionStatus.Completed, undefined);
