@@ -3827,6 +3827,87 @@ suite('Sessions - SessionsList', () => {
 				},
 			});
 		});
+
+		test('keeps hover context hidden outside active keyboard focus', () => {
+			const session = createTestSession('Pinned compact session', { workspaceLabel: 'vscode' }).session;
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(500, 400);
+
+			const item = container.querySelector<HTMLElement>('.session-item');
+			const description = item?.querySelector<HTMLElement>('.session-compact-hover-description');
+			assert.ok(item);
+			assert.ok(description);
+			item.classList.add('pinned');
+			const display = () => mainWindow.getComputedStyle(description).display;
+			const pinnedAtRest = display();
+
+			assert.ok(list.reveal(session.resource));
+			list.focus();
+			const withKeyboardFocus = display();
+
+			const outside = mainWindow.document.createElement('button');
+			container.appendChild(outside);
+			outside.focus();
+			const afterBlur = display();
+
+			assert.deepStrictEqual({ pinnedAtRest, withKeyboardFocus, afterBlur }, {
+				pinnedAtRest: 'none',
+				withKeyboardFocus: 'flex',
+				afterBlur: 'none',
+			});
+		});
+
+		test('refreshes compact presentation across phone layout transitions', () => {
+			const session = createTestSession('Responsive compact session', {
+				workspaceLabel: 'vscode',
+				changesSummary: { files: 2, additions: 12, deletions: 3 },
+			}).session;
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			const contextKeyService = harness.instantiationService.get(IContextKeyService);
+			const phoneLayout = IsPhoneLayoutContext.bindTo(contextKeyService);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => !IsPhoneLayoutContext.getValue(contextKeyService),
+				onSessionOpen: () => { },
+			}));
+			list.layout(500, 400);
+
+			const readPresentation = () => {
+				const item = container.querySelector<HTMLElement>('.session-item');
+				const row = item?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(item);
+				assert.ok(row);
+				return {
+					compactClass: list.element.classList.contains('compact'),
+					height: row.style.height,
+					hasDetails: !!item.querySelector('.session-details-icon'),
+					diff: item.querySelector('.session-diff')?.textContent,
+				};
+			};
+
+			const desktop = readPresentation();
+			phoneLayout.set(true);
+			const phone = readPresentation();
+			phoneLayout.set(false);
+			const desktopAgain = readPresentation();
+
+			assert.deepStrictEqual({ desktop, phone, desktopAgain }, {
+				desktop: { compactClass: true, height: '30px', hasDetails: false, diff: undefined },
+				phone: { compactClass: false, height: '78px', hasDetails: true, diff: '+12-3' },
+				desktopAgain: { compactClass: true, height: '30px', hasDetails: false, diff: undefined },
+			});
+		});
 	});
 
 	suite('computeReorderSortChanges', () => {
