@@ -160,7 +160,6 @@ The same flow serves novices and contributors without a persona selector. It tak
 
 ## Out of Scope
 
-- Windows and Linux desktop support for the hackathon MVP.
 - VS Code for the Web, browser-only workbenches, remote windows, containers, Codespaces, and SSH-specific diagnostic paths.
 - Automatic detection of frustration signals or unsolicited Issue Wizard launch suggestions.
 - A language-model tool that lets any agent start Issue Wizard on the user's behalf; the explicit command and skill bootstrap are sufficient for the MVP.
