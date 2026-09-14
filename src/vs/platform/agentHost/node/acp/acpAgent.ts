@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -13,11 +13,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostAcpAgentConfiguration, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata } from '../../common/agentService.js';
+import { type AgentChatMigrationResult, type AgentChatOperationContext, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams } from '../../common/agent.js';
+import { type AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { type IAgentHostAcpAgentConfiguration } from '../../common/agentService.js';
 import { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AgentSelection, MessageAttachment, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, ChatAction, SessionAction } from '../../common/state/sessionActions.js';
-import { ChatInputAnswer, ChatInputResponseKind, ClientPluginCustomization, MessageKind, parseChatUri, ResponsePart, ResponsePartKind, ToolCallConfirmationReason, ToolCallResult, ToolCallStatus, ToolResultContent, ToolResultContentType, Turn, TurnState } from '../../common/state/sessionState.js';
+import { ChatInputAnswer, ChatInputResponseKind, ClientPluginCustomization, createErrorResponsePart, isDefaultChatUri, MessageKind, parseChatUri, ResponsePart, ResponsePartKind, ToolCallConfirmationReason, ToolCallResult, ToolCallStatus, ToolResultContent, ToolResultContentType, Turn, TurnState } from '../../common/state/sessionState.js';
 import { AcpConnection } from './acpConnection.js';
 
 type AcpActiveSession = import('@agentclientprotocol/sdk').ActiveSession;
@@ -85,7 +87,7 @@ interface AcpSessionState {
 	modifiedAt: number;
 	summary: string | undefined;
 	configOptions: readonly AcpSessionConfigOption[];
-	chat: URI | undefined;
+	readonly chat: URI;
 	activeTurn: AcpActiveTurn | undefined;
 	readonly turns: Turn[];
 }
@@ -131,9 +133,14 @@ function mapPermissionKind(kind: AcpToolKind | undefined): 'shell' | 'write' | '
 
 export class AcpAgent extends Disposable implements IAgent {
 	readonly id: AgentProvider;
+	readonly agentHostCapabilities = { workspaceConversion: false } as const;
 
-	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
+	readonly onDidChatProgress = this._onDidChatProgress.event;
+	readonly onDidMaterializeChat = Event.None;
+	readonly onDidChangeChatData = Event.None;
+	readonly onDidSpawnChat = Event.None;
+	readonly onDidDiscoverChats = Event.None;
 
 	private readonly _models;
 	readonly models;
@@ -175,11 +182,17 @@ export class AcpAgent extends Disposable implements IAgent {
 		return [];
 	}
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		if (config?.fork) {
-			throw new Error(localize('acp.session.forkUnsupported', "ACP sessions do not support forking."));
+	private async _createDefaultChat(chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		if (!isDefaultChatUri(chat)) {
+			throw new Error(localize('acp.chat.multipleUnsupported', "ACP sessions do not support additional chats."));
 		}
-		const workingDirectories = config?.workingDirectories;
+		if (options?.fork || options?.importConversation) {
+			throw new Error(localize('acp.chat.forkUnsupported', "ACP sessions do not support forking or importing conversations."));
+		}
+		if (options?.agent) {
+			throw new Error(localize('acp.agent.changeUnsupported', "ACP sessions do not support custom agent selection."));
+		}
+		const workingDirectories = options?.workingDirectories;
 		if (!workingDirectories || workingDirectories.length !== 1) {
 			throw new Error(localize('acp.session.singleWorkingDirectory', "ACP sessions require exactly one working directory."));
 		}
@@ -188,7 +201,11 @@ export class AcpAgent extends Disposable implements IAgent {
 			throw new Error(localize('acp.session.localWorkingDirectory', "ACP sessions require a local file working directory."));
 		}
 
-		const session = config.session ?? AgentSession.uri(this.id, generateUuid());
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(localize('acp.chat.invalid', "ACP chat must be associated with an Agent Host session."));
+		}
+		const session = URI.parse(parsed.session);
 		const sessionKey = session.toString();
 		if (this._sessions.has(sessionKey)) {
 			throw new Error(localize('acp.session.exists', "ACP session already exists."));
@@ -204,7 +221,7 @@ export class AcpAgent extends Disposable implements IAgent {
 			modifiedAt: now,
 			summary: undefined,
 			configOptions: activeSession.newSessionResponse.configOptions ?? [],
-			chat: undefined,
+			chat,
 			activeTurn: undefined,
 			turns: [],
 		};
@@ -212,8 +229,8 @@ export class AcpAgent extends Disposable implements IAgent {
 		this._sessionsByAcpId.set(activeSession.sessionId, state);
 		this._refreshModelCatalog();
 		try {
-			if (config?.model && config.model.id !== 'default') {
-				await this._changeModel(state, config.model);
+			if (options?.model && options.model.id !== 'default') {
+				await this._changeModel(state, options.model);
 			}
 		} catch (error) {
 			try {
@@ -225,58 +242,47 @@ export class AcpAgent extends Disposable implements IAgent {
 		}
 		this._logService.info(`[Agent Rosetta:${this._configuration.id}] Created ACP session ${activeSession.sessionId}.`);
 		return {
-			session,
 			project: { uri: workingDirectory, displayName: basename(workingDirectory) },
 			resolvedWorkingDirectory: workingDirectory,
 		};
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+	async resolveChatConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
 	}
 
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+	async chatConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return { items: [] };
 	}
 
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(state => this._metadata(state));
-	}
-
-	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
-		const state = this._getSession(session);
-		return state ? this._metadata(state) : undefined;
-	}
-
-	async getSessionMessages(resource: URI): Promise<readonly Turn[]> {
-		return this._getSession(resource)?.turns ?? [];
+	listChatsToMigrate(): Promise<AgentChatMigrationResult> {
+		return Promise.resolve([]);
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			throw new Error(localize('acp.chat.multipleUnsupported', "ACP sessions do not support additional chats."));
-		},
-		fork: (_chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			throw new Error(localize('acp.chat.forkUnsupported', "ACP chats do not support forking."));
-		},
-		disposeChat: (_chat: URI): Promise<void> => Promise.resolve(),
-		sendMessage: (chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> => {
+		createChat: (chat: URI, _context: AgentChatOperationContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => this._createDefaultChat(chat, options),
+		disposeChat: (chat: URI, _context: AgentChatOperationContext): Promise<void> => this.disposeSession(chat),
+		releaseChat: (_chat: URI, _context: AgentChatOperationContext): Promise<void> => Promise.resolve(),
+		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, _clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, _context?: URI | IAgentChatContext): Promise<void> => {
+			const workingDirectories = URI.isUri(workingDirectoriesOrDirectory)
+				? [workingDirectoriesOrDirectory]
+				: workingDirectoriesOrDirectory;
 			return this._sendMessage(chat, prompt, workingDirectories, attachments, turnId);
 		},
-		abort: (chat: URI): Promise<void> => this._abort(chat),
-		changeModel: (_chat: URI, model: ModelSelection): Promise<void> => {
+		abort: (chat: URI, _context: AgentChatOperationContext): Promise<void> => this._abort(chat),
+		changeModel: (_chat: URI, model: ModelSelection, _context: AgentChatOperationContext): Promise<void> => {
 			if (model.id === 'default') {
 				return Promise.resolve();
 			}
 			return this._changeModel(this._requireSession(_chat), model);
 		},
-		changeAgent: (_chat: URI, agent: AgentSelection | undefined): Promise<void> => {
+		changeAgent: (_chat: URI, agent: AgentSelection | undefined, _context: AgentChatOperationContext): Promise<void> => {
 			if (agent) {
 				throw new Error(localize('acp.agent.changeUnsupported', "ACP sessions do not support custom agent selection."));
 			}
 			return Promise.resolve();
 		},
-		getMessages: (chat: URI): Promise<readonly Turn[]> => this.getSessionMessages(chat),
+		getMessages: (chat: URI, _context: AgentChatOperationContext): Promise<readonly Turn[]> => Promise.resolve(this._getSession(chat)?.turns ?? []),
 	};
 
 	private async _sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments: readonly MessageAttachment[] | undefined, turnId: string | undefined): Promise<void> {
@@ -301,7 +307,6 @@ export class AcpAgent extends Disposable implements IAgent {
 			tools: new Map(),
 			abortRequested: false,
 		};
-		state.chat = chat;
 		state.activeTurn = activeTurn;
 		state.modifiedAt = Date.now();
 		state.summary ??= truncate(prompt.replace(/\s+/g, ' ').trim(), 80);
@@ -687,7 +692,7 @@ export class AcpAgent extends Disposable implements IAgent {
 	}
 
 	private _emitToolPendingConfirmation(chat: URI, turn: AcpActiveTurn, tool: AcpToolState): void {
-		this._onDidSessionProgress.fire({
+		this._onDidChatProgress.fire({
 			kind: 'pending_confirmation',
 			chat,
 			state: {
@@ -768,11 +773,11 @@ export class AcpAgent extends Disposable implements IAgent {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration,
-			error: {
+			part: createErrorResponsePart({
 				errorType: 'acp',
 				message: resolved.message,
 				stack: resolved.stack,
-			},
+			}),
 		});
 		this._recordTurn(state, turn, TurnState.Error, duration, resolved);
 		state.activeTurn = undefined;
@@ -785,6 +790,13 @@ export class AcpAgent extends Disposable implements IAgent {
 			id: part.id,
 			content: part.content,
 		}));
+		if (error) {
+			responseParts.push(createErrorResponsePart({
+				errorType: 'acp',
+				message: error.message,
+				stack: error.stack,
+			}));
+		}
 		state.turns.push({
 			id: turn.id,
 			startedAt: turn.startedAt,
@@ -793,7 +805,6 @@ export class AcpAgent extends Disposable implements IAgent {
 			responseParts,
 			usage: undefined,
 			state: turnState,
-			error: error ? { errorType: 'acp', message: error.message, stack: error.stack } : undefined,
 		});
 	}
 
@@ -829,21 +840,52 @@ export class AcpAgent extends Disposable implements IAgent {
 			state.activeSession.dispose();
 			this._sessions.delete(state.session.toString());
 			this._sessionsByAcpId.delete(state.activeSession.sessionId);
-			this._activeClients.delete(state.session.toString());
+			this._activeClients.delete(state.chat.toString());
 			this._refreshModelCatalog();
 		}
 	}
 
-	async authenticate(_resource: string, _token: string): Promise<boolean> {
+	async authenticate(_resource: string, _token: string, _expiresIn?: number): Promise<boolean> {
 		return false;
 	}
 
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
-		const sessionKey = this._requireSession(session).session.toString();
-		let clients = this._activeClients.get(sessionKey);
+	async getChatMetadata(chat: URI, _context: AgentChatOperationContext, _providerData?: string): Promise<IAgentChatMetadata | undefined> {
+		const state = this._getSession(chat);
+		return state ? {
+			chat,
+			startTime: state.createdAt,
+			modifiedTime: state.modifiedAt,
+			project: { uri: state.workingDirectory, displayName: basename(state.workingDirectory) },
+			summary: state.summary,
+			workingDirectories: [state.workingDirectory],
+		} : undefined;
+	}
+
+	async materializeChat(chat: URI, _context: AgentChatOperationContext, _providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+		if (!this._getSession(chat)) {
+			throw new Error(localize('acp.chat.restoreUnsupported', "ACP sessions cannot be restored after the Agent Host restarts."));
+		}
+	}
+
+	async setWorkingDirectory(_chat: URI, _context: AgentChatOperationContext, _workingDirectory: URI): Promise<void> {
+		throw new Error(localize('acp.session.workingDirectoryChanged', "The ACP session working directory cannot be changed after creation."));
+	}
+
+	async getChatCustomizations(_chat: URI, _context: AgentChatOperationContext): Promise<readonly ClientPluginCustomization[]> {
+		return [];
+	}
+
+	getInheritedChatConfig(_config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		return undefined;
+	}
+
+	getOrCreateActiveClient(chat: URI, _context: AgentChatOperationContext, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+		this._requireSession(chat);
+		const chatKey = chat.toString();
+		let clients = this._activeClients.get(chatKey);
 		if (!clients) {
 			clients = new Map();
-			this._activeClients.set(sessionKey, clients);
+			this._activeClients.set(chatKey, clients);
 		}
 		const existing = clients.get(client.clientId);
 		if (existing) {
@@ -864,14 +906,11 @@ export class AcpAgent extends Disposable implements IAgent {
 		return activeClient;
 	}
 
-	removeActiveClient(session: URI, clientId: string): void {
-		const state = this._getSession(session);
-		if (state) {
-			this._activeClients.get(state.session.toString())?.delete(clientId);
-		}
+	removeActiveClient(chat: URI, _context: AgentChatOperationContext, clientId: string): void {
+		this._activeClients.get(chat.toString())?.delete(clientId);
 	}
 
-	onClientToolCallComplete(_session: URI, _chat: URI, _toolCallId: string, _result: ToolCallResult): void {
+	onClientToolCallComplete(_chat: URI, _toolCallId: string, _result: ToolCallResult, _context?: IAgentChatContext): void {
 		this._logService.warn(`[Agent Rosetta:${this._configuration.id}] Ignoring unsupported client tool completion.`);
 	}
 
@@ -883,17 +922,6 @@ export class AcpAgent extends Disposable implements IAgent {
 				this._logService.error(`[Agent Rosetta:${this._configuration.id}] Failed to close ACP session ${state.activeSession.sessionId}.`, error);
 			}
 		}
-	}
-
-	private _metadata(state: AcpSessionState): IAgentSessionMetadata {
-		return {
-			session: state.session,
-			startTime: state.createdAt,
-			modifiedTime: state.modifiedAt,
-			project: { uri: state.workingDirectory, displayName: basename(state.workingDirectory) },
-			summary: state.summary,
-			workingDirectories: [state.workingDirectory],
-		};
 	}
 
 	private _getSession(resource: URI): AcpSessionState | undefined {
@@ -910,7 +938,7 @@ export class AcpAgent extends Disposable implements IAgent {
 	}
 
 	private _emitAction(resource: URI, action: SessionAction | ChatAction): void {
-		this._onDidSessionProgress.fire({ kind: 'action', resource, action });
+		this._onDidChatProgress.fire({ kind: 'action', resource, action });
 	}
 
 	override dispose(): void {

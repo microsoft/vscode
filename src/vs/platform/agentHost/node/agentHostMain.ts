@@ -191,7 +191,7 @@ async function startAgentHost(): Promise<void> {
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
 		for (const configuration of parseAcpAgentConfigurations(process.env[AgentHostAcpAgentsEnvVar], logService)) {
-			providerService.registerProvider(disposables.add(instantiationService.createInstance(AcpAgent, configuration)));
+			providerService.registerProvider(instantiationService.createInstance(AcpAgent, configuration));
 		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);

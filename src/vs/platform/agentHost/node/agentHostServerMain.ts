@@ -270,7 +270,7 @@ async function main(): Promise<void> {
 			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
 		}
 		for (const configuration of parseAcpAgentConfigurations(process.env[AgentHostAcpAgentsEnvVar], logService)) {
-			providerService.registerProvider(disposables.add(instantiationService.createInstance(AcpAgent, configuration)));
+			providerService.registerProvider(instantiationService.createInstance(AcpAgent, configuration));
 			log(`ACP agent registered: ${configuration.id}`);
 		}
 	}
