@@ -10,6 +10,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -88,6 +89,7 @@ suite('Issue Wizard Launch Command', () => {
 		completionSkillUri?: URI;
 		completionSkillSyncedUri?: URI;
 		provideSkillCompletion?: boolean;
+		skillCompletionUnavailableAttempts?: number;
 		openSessionReturns?: boolean;
 		aiHidden?: boolean;
 		collectScreenshot?: () => Promise<readonly IChatRequestVariableEntry[] | undefined>;
@@ -184,7 +186,7 @@ suite('Issue Wizard Launch Command', () => {
 			override getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[] { return contributions; }
 			override async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams): Promise<IChatInputCompletionsResult | undefined> {
 				completionRequests.push({ sessionResource, params });
-				if (options?.provideSkillCompletion === false) {
+				if (options?.provideSkillCompletion === false || completionRequests.length <= (options?.skillCompletionUnavailableAttempts ?? 0)) {
 					return { items: [] };
 				}
 				const completionSkillUri = options?.completionSkillUri ?? defaultSkillUri;
@@ -446,18 +448,19 @@ suite('Issue Wizard Launch Command', () => {
 		});
 	});
 
-	test('reports a user-visible failure when Agent Host cannot resolve the bundled skill invocation', async () => {
+	test('reports a user-visible failure when Agent Host cannot resolve the bundled skill invocation', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
 		setupServices({ provideSkillCompletion: false });
 		await runCommand();
 
-		assert.deepStrictEqual({ acceptedRequests, attachedContext, notifications }, {
+		assert.deepStrictEqual({ completionRequestCount: completionRequests.length, acceptedRequests, attachedContext, notifications }, {
+			completionRequestCount: 200,
 			acceptedRequests: [],
 			attachedContext: [],
 			notifications: { warn: [], error: ['Issue Wizard failed to start: The bundled Issue Wizard skill could not be invoked by Agent Host.'] },
 		});
-	});
+	}));
 
-	test('rejects a same-named workspace skill that shadows the bundled skill', async () => {
+	test('rejects a same-named workspace skill that shadows the bundled skill', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
 		setupServices({ completionSkillUri: URI.file('/workspace/.github/skills/issue-wizard/SKILL.md') });
 		await runCommand();
 
@@ -466,7 +469,7 @@ suite('Issue Wizard Launch Command', () => {
 			attachedContext: [],
 			notifications: { warn: [], error: ['Issue Wizard failed to start: The bundled Issue Wizard skill could not be invoked by Agent Host.'] },
 		});
-	});
+	}));
 
 	test('invokes the bundled skill through its materialized Agent Host copy', async () => {
 		setupServices({ completionSkillUri: defaultMaterializedSkillUri, completionSkillSyncedUri: defaultSyncedSkillUri });
@@ -477,6 +480,21 @@ suite('Issue Wizard Launch Command', () => {
 			notifications: { warn: [], error: [] },
 		});
 	});
+
+	test('waits through a cold Agent Host skill materialization before bootstrapping', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+		setupServices({
+			completionSkillUri: defaultMaterializedSkillUri,
+			completionSkillSyncedUri: defaultSyncedSkillUri,
+			skillCompletionUnavailableAttempts: 199,
+		});
+		await runCommand();
+
+		assert.deepStrictEqual({ completionRequestCount: completionRequests.length, acceptedRequests, notifications }, {
+			completionRequestCount: 200,
+			acceptedRequests: [{ query: '/issue-wizard Help me troubleshoot a VS Code issue.', attachmentIds: [defaultMaterializedSkillUri.toString()] }],
+			notifications: { warn: [], error: [] },
+		});
+	}));
 
 	test('does not collect a screenshot outside an active Issue Wizard session', async () => {
 		setupServices();

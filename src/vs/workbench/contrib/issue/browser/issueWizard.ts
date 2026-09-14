@@ -30,7 +30,7 @@ import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAgentHostActiveClientService } from '../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
-import { IChatSessionsService, isLocalAgentHostTarget } from '../../chat/common/chatSessionsService.js';
+import { IChatInputCompletionItem, IChatSessionsService, isLocalAgentHostTarget } from '../../chat/common/chatSessionsService.js';
 import { PromptsType } from '../../chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../chat/common/promptSyntax/service/promptsService.js';
 import { IIssueWizardIntakeService, IIssueWizardScreenshotAnnotationService, IssueWizardIntakeService, IssueWizardScreenshotAnnotationService } from './issueWizardIntakeService.js';
@@ -41,6 +41,9 @@ export const ISSUE_WIZARD_COMMAND_ID = 'workbench.action.help.troubleshootWithIs
 export const ISSUE_WIZARD_ADD_SCREENSHOT_COMMAND_ID = 'workbench.action.issueWizard.addHighlightedScreenshot';
 export const IssueWizardCaptureBarActiveContext = new RawContextKey<boolean>('issueWizardCaptureBarActive', false, localize('issueWizardCaptureBarActive', "Whether the Issue Wizard screenshot bar owns capture"));
 const ISSUE_WIZARD_SLASH_COMMAND = 'issue-wizard';
+const ISSUE_WIZARD_SKILL_COMPLETION_TIMEOUT = 10_000;
+const ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY = 50;
+const ISSUE_WIZARD_SKILL_COMPLETION_ATTEMPTS = Math.ceil(ISSUE_WIZARD_SKILL_COMPLETION_TIMEOUT / ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY);
 
 /**
  * Optional context supplied by an Issue Wizard entry point.
@@ -176,20 +179,27 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 				throw new Error(localize('issueWizard.error.skillUnavailable', "The bundled Issue Wizard skill could not be loaded."));
 			}
 			const slashCommand = `/${ISSUE_WIZARD_SLASH_COMMAND}`;
-			const completionResult = await this.chatSessionsService.provideChatInputCompletions(session.sessionResource, {
-				text: slashCommand,
-				offset: slashCommand.length,
-			}, CancellationToken.None);
-			const skillCompletion = completionResult?.items.find(item =>
-				item.attachment.kind === 'skill'
-				&& isEqual(
-					this.agentHostActiveClientService.getOrigin(item.attachment.syncedUri ?? item.attachment.uri)?.uri ?? item.attachment.uri,
-					issueWizardSkill.uri,
-				)
-				&& item.insertText.trimEnd() === slashCommand
-				&& item.attachment.displayName === issueWizardSkill.name
-				&& item.attachment.description === issueWizardSkill.description
-			);
+			let skillCompletion: IChatInputCompletionItem | undefined;
+			for (let attempt = 0; attempt < ISSUE_WIZARD_SKILL_COMPLETION_ATTEMPTS; attempt++) {
+				const completionResult = await this.chatSessionsService.provideChatInputCompletions(session.sessionResource, {
+					text: slashCommand,
+					offset: slashCommand.length,
+				}, CancellationToken.None);
+				skillCompletion = completionResult?.items.find(item =>
+					item.attachment.kind === 'skill'
+					&& isEqual(
+						this.agentHostActiveClientService.getOrigin(item.attachment.syncedUri ?? item.attachment.uri)?.uri ?? item.attachment.uri,
+						issueWizardSkill.uri,
+					)
+					&& item.insertText.trimEnd() === slashCommand
+					&& item.attachment.displayName === issueWizardSkill.name
+					&& item.attachment.description === issueWizardSkill.description
+				);
+				if (skillCompletion || attempt === ISSUE_WIZARD_SKILL_COMPLETION_ATTEMPTS - 1) {
+					break;
+				}
+				await timeout(ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY);
+			}
 			if (!skillCompletion || skillCompletion.attachment.kind !== 'skill') {
 				throw new Error(localize('issueWizard.error.skillInvocationUnavailable', "The bundled Issue Wizard skill could not be invoked by Agent Host."));
 			}
