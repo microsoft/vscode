@@ -1435,21 +1435,27 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('filtering replaces a submenu trigger with matching child items', () => {
+	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
 				action('local'),
 				{
 					...action('remote'),
-					filterItems: [action('Remote Alpha'), action('Remote Beta')],
+					filterItems: [action('Alpha'), action('Beta')],
 					submenuActions: [toAction({ id: 'alpha', label: 'Remote Alpha', run: () => { } })],
 				},
 			],
 		});
 
 		typeFilter(widget, 'alpha');
+		const childMatch = getVisibleRowText(widget);
+		typeFilter(widget, 'remote');
+		const parentMatch = getVisibleRowText(widget);
 
-		assert.deepStrictEqual(getVisibleRowText(widget), ['Remote Alpha']);
+		assert.deepStrictEqual({ childMatch, parentMatch }, {
+			childMatch: ['Alpha'],
+			parentMatch: ['Alpha', 'Beta'],
+		});
 	});
 
 	test('submenu hover labels preserve literal markdown characters', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

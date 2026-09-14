@@ -506,7 +506,10 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuFocusFilterOnOpen: unifiedRemoteItem?.submenuOptions?.focusFilterOnOpen,
 				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
 			},
-			unifiedFilteredRemoteItems: unifiedRemoteItem?.filterItems?.map(item => item.label),
+			unifiedFilteredRemoteItems: unifiedRemoteItem?.filterItems?.map(item => ({
+				label: item.label,
+				ariaLabel: item.item?.ariaLabel,
+			})),
 			unifiedSubmenu: unifiedRemoteActions instanceof SubmenuAction
 				? unifiedRemoteActions.actions.map(action => ({
 					label: action.label,
@@ -532,11 +535,11 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuWidth: 180,
 			},
 			unifiedFilteredRemoteItems: [
-				'Manage Provider agenthost-tunnel-one',
-				'Manage Provider agenthost-tunnel-two',
-				'Manage Provider agenthost-tunnel-idle',
-				'Manage Provider agenthost-ssh',
-				'Manage Provider agenthost-wsl',
+				{ label: 'Manage Provider agenthost-tunnel-one', ariaLabel: 'Provider agenthost-tunnel-one, Online · 1 active session' },
+				{ label: 'Manage Provider agenthost-tunnel-two', ariaLabel: 'Provider agenthost-tunnel-two, Online · 2 active sessions' },
+				{ label: 'Manage Provider agenthost-tunnel-idle', ariaLabel: 'Provider agenthost-tunnel-idle, Online' },
+				{ label: 'Manage Provider agenthost-ssh', ariaLabel: 'Provider agenthost-ssh, Online · 1 active session' },
+				{ label: 'Manage Provider agenthost-wsl', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
 			],
 			unifiedSubmenu: [
 				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },

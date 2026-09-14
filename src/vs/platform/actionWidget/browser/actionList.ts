@@ -1401,7 +1401,7 @@ export class ActionListWidget<T> extends Disposable {
 				}
 
 				if (item.filterItems) {
-					const matchingFilterItems = item.filterItems.filter(matchesFilter);
+					const matchingFilterItems = matchesFilter(item) ? item.filterItems : item.filterItems.filter(matchesFilter);
 					if (matchingFilterItems.length > 0) {
 						hasMatchingActionInSection = true;
 						filteredSectionItems.push(...matchingFilterItems);

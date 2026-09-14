@@ -1747,7 +1747,7 @@ export class WorkspacePicker extends Disposable {
 						label: submenuAction.label,
 						description: submenuAction.tooltip || undefined,
 						group: { title: '', icon: extended.icon },
-						item: { run: () => action.run() },
+						item: { run: () => action.run(), ariaLabel: extended.ariaLabel },
 						onRemove: extended.onRemove,
 					});
 				} else {
