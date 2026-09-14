@@ -48,6 +48,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { SEMANTIC_DIFF_TOOL_NAME } from '../../../../../platform/agentHost/common/semanticDiff.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
 import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
@@ -117,7 +118,7 @@ import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentP
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEditContentPart.js';
-import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolInvocationPart, shouldRenderSemanticDiffResult } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -278,7 +279,7 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 
 function isResponseOutcomeTool(part: IChatRendererContent): boolean {
 	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-		&& (part.toolSpecificData?.kind === 'sessionCreated' || part.toolSpecificData?.kind === 'generatedImage');
+		&& (part.toolSpecificData?.kind === 'sessionCreated' || part.toolSpecificData?.kind === 'generatedImage' || shouldRenderSemanticDiffResult(part));
 }
 
 function getSessionCreatedOutcomeLink(part: IChatRendererContent): string | undefined {
@@ -446,7 +447,7 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 
 export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
 	return (part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized')
-		|| (!toolInvocationHasMcpAppData(part) && !(isParentSubagentTool(part) && isActiveSubagentToolInvocation(part)));
+		|| (!toolInvocationHasMcpAppData(part) && !shouldRenderSemanticDiffResult(part) && !(isParentSubagentTool(part) && isActiveSubagentToolInvocation(part)));
 }
 
 export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number): number {
@@ -3399,6 +3400,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// Keep classification results outside thinking even before their structured data arrives.
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+			&& (part.toolId === SEMANTIC_DIFF_TOOL_NAME || part.toolSpecificData?.kind === 'semanticDiff')) {
+			return false;
+		}
+
 		// only pin terminal tools based on settings
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
 		const isContributedTerminalToolInvocation = element
@@ -4219,7 +4226,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 
 		const currentState = toolInvocation.state.get();
-		if (toolInvocationHasMcpAppData(toolInvocation)) {
+		if (toolInvocationHasMcpAppData(toolInvocation) || shouldRenderSemanticDiffResult(toolInvocation)) {
 			moveConfirmationWidgetOutOfThinking();
 			return;
 		}
@@ -4243,7 +4250,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disposable = autorun(reader => {
 			const state = toolInvocation.state.read(reader);
 			toolInvocation.toolSpecificDataKind.read(reader);
-			if (toolInvocationHasMcpAppData(toolInvocation)) {
+			if (toolInvocationHasMcpAppData(toolInvocation) || shouldRenderSemanticDiffResult(toolInvocation)) {
 				if (didMoveToolOut) {
 					return;
 				}

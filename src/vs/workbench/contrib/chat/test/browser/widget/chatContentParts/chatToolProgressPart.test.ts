@@ -13,6 +13,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../../../base/commo
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -223,6 +224,8 @@ suite('ChatToolProgressSubPart', () => {
 				setTodos() { },
 				migrateTodos() { },
 			} satisfies IChatTodoListService,
+			new TestAccessibilityService(),
+			mockConfigurationService,
 		));
 	}
 
@@ -465,6 +468,8 @@ suite('ChatToolProgressSubPart', () => {
 				setTodos() { },
 				migrateTodos() { },
 			} satisfies IChatTodoListService,
+			new TestAccessibilityService(),
+			mockConfigurationService,
 		));
 		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
 

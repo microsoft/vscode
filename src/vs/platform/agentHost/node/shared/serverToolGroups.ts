@@ -8,6 +8,7 @@ import { createSessionServerToolGroup, type ISessionServerToolAccessor } from '.
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
+import { semanticDiffServerToolGroup } from './semanticDiffServerTool.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -31,6 +32,7 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
 		createSessionServerToolGroup(sessionAccessor),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
+		semanticDiffServerToolGroup,
 	];
 }
 

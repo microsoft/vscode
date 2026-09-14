@@ -11,6 +11,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { SEMANTIC_DIFF_TOOL_NAME, serializeSemanticDiffToolResult } from '../../../../../../platform/agentHost/common/semanticDiff.js';
+import { createSemanticDiffExample } from '../../../../../../platform/agentHost/test/common/semanticDiffFixtures.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
@@ -140,6 +142,105 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 suite('stateToProgressAdapter', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('semantic diff classification', () => {
+		function completed(overrides?: Partial<ICompletedToolCall>): ICompletedToolCall {
+			return createCompletedToolCall({
+				toolName: SEMANTIC_DIFF_TOOL_NAME,
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify(createSemanticDiffExample()) }],
+				...overrides,
+			});
+		}
+
+		for (const transport of ['receipt', 'legacyOffload'] as const) {
+			test(`${transport} restores validated cards in live completion and history`, () => {
+				const report = createSemanticDiffExample();
+				const tc = completed({
+					toolInput: JSON.stringify({ schemaVersion: 1, analysis: report.analysis }),
+					content: [{
+						type: ToolResultContentType.Text,
+						text: transport === 'receipt'
+							? serializeSemanticDiffToolResult(report)
+							: 'Output too large to read at once (27.3 KB). Saved to: /not-read/classification.json\nPreview: ...',
+					}],
+				});
+				const live = toolCallStateToInvocation(createToolCallState({ toolName: SEMANTIC_DIFF_TOOL_NAME }));
+				finalizeToolInvocation(live, tc);
+				const history = completedToolCallToSerialized(tc, undefined, URI.file('/'), 'local');
+				const failed = completedToolCallToSerialized(completed({ ...tc, status: ToolCallStatus.Completed, success: false }), undefined, URI.file('/'), 'local');
+				const expected = { kind: 'semanticDiff', result: { ok: true, report } };
+				assert.deepStrictEqual({
+					live: live.toolSpecificData,
+					history: history.toolSpecificData,
+					failed: failed.toolSpecificData?.kind === 'semanticDiff',
+				}, { live: expected, history: expected, failed: false });
+			});
+		}
+
+		test('live completion and restored history carry the same validated cards without raw JSON', () => {
+			const live = toolCallStateToInvocation(createToolCallState({ toolName: SEMANTIC_DIFF_TOOL_NAME }));
+			const pendingKind = live.toolSpecificData?.kind;
+			finalizeToolInvocation(live, completed());
+			const restored = completedToolCallToSerialized(completed(), undefined, URI.file('/'), 'local');
+			const expected = { kind: 'semanticDiff', result: { ok: true, report: createSemanticDiffExample() } };
+			assert.deepStrictEqual({
+				pendingCards: pendingKind === 'semanticDiff',
+				live: live.toolSpecificData,
+				liveRawDetails: IChatToolInvocation.resultDetails(live),
+				restored: restored.toolSpecificData,
+				restoredRawDetails: restored.resultDetails,
+			}, {
+				pendingCards: false,
+				live: expected,
+				liveRawDetails: undefined,
+				restored: expected,
+				restoredRawDetails: undefined,
+			});
+		});
+
+		test('handles a provider transport prefix without treating client or external MCP tools as server tools', () => {
+			const cases = [
+				completed({ toolName: `mcp__vscode__${SEMANTIC_DIFF_TOOL_NAME}` }),
+				completed({ contributor: { kind: ToolCallContributorKind.Client, clientId: 'client' } }),
+				completed({ contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'external-server' } }),
+				completed({ toolName: 'different_tool' }),
+				completed({ success: false }),
+			];
+			assert.deepStrictEqual(cases.map(tc =>
+				completedToolCallToSerialized(tc, undefined, URI.file('/'), 'local').toolSpecificData?.kind === 'semanticDiff'
+			), [true, false, false, false, false]);
+		});
+
+		test('cancelled tools never publish completed cards', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState({ toolName: SEMANTIC_DIFF_TOOL_NAME }));
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: 'tc-1',
+				toolName: SEMANTIC_DIFF_TOOL_NAME,
+				displayName: 'Classify Diff Hunks',
+				invocationMessage: 'Classifying diff hunks',
+				reason: ToolCallCancellationReason.Skipped,
+			});
+			assert.strictEqual(invocation.toolSpecificData?.kind === 'semanticDiff', false);
+		});
+
+		test('invalid, missing, unsupported and forged output produce explicit invalid-result data', () => {
+			const report = createSemanticDiffExample();
+			const outputs = [
+				'not JSON',
+				undefined,
+				JSON.stringify({ ...report, schemaVersion: 99 }),
+				JSON.stringify({ ...report, summary: { ...report.summary, additions: 999 } }),
+				JSON.stringify({ ...report, status: 'partial' }),
+			];
+			assert.deepStrictEqual(outputs.map(text => {
+				const data = completedToolCallToSerialized(completed({
+					content: text === undefined ? [] : [{ type: ToolResultContentType.Text, text }],
+				}), undefined, URI.file('/'), 'local').toolSpecificData;
+				return data?.kind === 'semanticDiff' && !data.result.ok;
+			}), outputs.map(() => true));
+		});
+	});
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([
