@@ -1077,21 +1077,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				descriptionDisposable.clear();
 				timeDisposable.clear();
 
-				const isWorktree = getSessionWorkspaceKind(workspace, element.worktreePending?.read(reader)) === SessionWorkspaceKind.Worktree;
-				if (isWorktree) {
-					const worktreeIcon = DOM.append(template.detailsRow, $('span.session-details-icon'));
-					DOM.append(worktreeIcon, $(`span${ThemeIcon.asCSSSelector(Codicon.worktreeCompact)}`));
-				}
 				if (workspaceBadgeLabel) {
 					DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, workspaceBadgeLabel));
-				}
-				if (diffStats) {
-					if (isWorktree) {
-						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-					}
-					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
-					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${diffStats.insertions}`;
-					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${diffStats.deletions}`;
 				}
 				return;
 			}

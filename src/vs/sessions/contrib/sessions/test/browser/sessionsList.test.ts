@@ -3150,7 +3150,7 @@ suite('Sessions - SessionsList', () => {
 
 	suite('compact presentation', () => {
 
-		test('uses a single line with worktree and diff metadata and preserves the accessible label', () => {
+		test('uses a title-only row with workspace context on hover and preserves the accessible label', () => {
 			const session = createTestSession('Implement compact view', {
 				workspaceLabel: 'vscode',
 				changesSummary: { files: 2, additions: 12, deletions: 3 },
@@ -3198,11 +3198,11 @@ suite('Sessions - SessionsList', () => {
 					compactClass: true,
 					height: '30px',
 					workspace: undefined,
-					hasWorktreeIcon: true,
-					hasMetadataSeparator: true,
+					hasWorktreeIcon: false,
+					hasMetadataSeparator: false,
 					hasHoverWorktreeIcon: false,
 					hoverDescription: 'vscode',
-					diff: '+12-3',
+					diff: undefined,
 					time: undefined,
 					ariaLabel: 'Implement compact view, updated now, State: Completed, in vscode',
 				},

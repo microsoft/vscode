@@ -440,7 +440,7 @@
 
 		.session-main {
 			display: grid;
-			grid-template-columns: minmax(0, 1fr) minmax(0, 40%);
+			grid-template-columns: minmax(0, 1fr);
 			align-items: center;
 		}
 
@@ -450,10 +450,7 @@
 		}
 
 		.session-details-row {
-			margin-left: var(--vscode-spacing-size80);
-			justify-content: flex-end;
-			line-height: var(--vscode-spacing-size160);
-			max-height: var(--vscode-spacing-size160);
+			display: none;
 		}
 
 		.session-approval-row,
@@ -487,9 +484,6 @@
 			}
 		}
 
-		.session-details-row {
-			display: none;
-		}
 	}
 
 	.monaco-list-row[aria-expanded="true"] .session-item:not(.quick-chat)::after {
