@@ -19,12 +19,16 @@ import {
 	observableWorkbenchMultiDiffEditorVariant,
 } from '../../common/multiDiffEditor.js';
 
+// Capture registration before configuration-registry tests clear the shared registry.
+const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+const registeredVariantSetting = configurationProperties[multiDiffEditorExperimentalVariantSetting];
+const registeredLineNumberSetting = configurationProperties['diffEditor.hideOriginalLineNumbers'];
+
 suite('MultiDiffEditorConfiguration', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers the experimental variant setting', () => {
-		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-			.getConfigurationProperties()[multiDiffEditorExperimentalVariantSetting];
+		const property = registeredVariantSetting;
 
 		assert.deepStrictEqual({
 			type: property.type,
@@ -50,8 +54,7 @@ suite('MultiDiffEditorConfiguration', () => {
 	});
 
 	test('registers original line number visibility as an inheritable setting', () => {
-		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-			.getConfigurationProperties()['diffEditor.hideOriginalLineNumbers'];
+		const property = registeredLineNumberSetting;
 
 		assert.deepStrictEqual({
 			type: property.type,
