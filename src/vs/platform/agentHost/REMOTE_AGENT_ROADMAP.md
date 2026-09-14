@@ -8,6 +8,9 @@ target architecture and release gates; it does not define a public API.
 For the one-page coworker handoff and ownership split, start with
 [REMOTE_AGENT_WORK_SPLIT.md](./REMOTE_AGENT_WORK_SPLIT.md).
 
+Person 1's focused implementation sequence is in
+[REMOTE_AGENT_CONNECTIVITY_ROADMAP.md](./REMOTE_AGENT_CONNECTIVITY_ROADMAP.md).
+
 ## Outcome
 
 An Agent Host can act as an AHP client to other Agent Hosts and contribute
@@ -79,6 +82,10 @@ Hosts, not only hidden in UI.
 
 Recommended experimental defaults: both controls off.
 
+Use distinct persisted Agent Host runtime keys under a remote-agents namespace,
+edited through AHP root configuration. A runtime managed setting can force the
+master feature off; tunnel discovery inherits that effective state.
+
 | Remote hosts | Tunnel discovery | Behavior |
 | --- | --- | --- |
 | Off | Either | No outbound discovery, connection, reconnect, provider admission, or remote-session tool execution. Inbound AHP and local providers remain available. |
@@ -101,6 +108,8 @@ Runtime rules:
 - Runtime-owned security/permission decisions remain in the runtime managed
   settings model. Do not add a new editor setting merely to mirror an SDK
   policy.
+- Activate the feature through one shared path used by both the normal Agent
+  Host process and the standalone server.
 
 ## Tunnel authentication
 
@@ -140,15 +149,46 @@ Required auth work:
 
 - Add a lifetime-owned host-feature protected-resource/credential-consumer seam.
   Do not create a fake `IAgent` to receive a tunnel token.
+- Advertise separate GitHub and Microsoft protected-resource IDs so the resource
+  identifies the issuer without extending `authenticate`.
 - Ensure active requirements are visible to late and reconnecting clients.
-- Bind credentials unambiguously to an issuer; do not infer issuer from a token.
+- Re-emit the optional requirement after initialize/reconnect because the
+  protocol notification is not replayed.
 - Reuse tunnel sign-in, not the Copilot onboarding fallback.
 - Cover both the workbench and Agents Window AHP client integrations.
 - Handle expiry, sign-out, empty-token revocation, disablement, stale completion,
   dismissal, and deduplicated retry.
 
+The MVP supports one active issuer/account. A new token for the same issuer
+replaces the old token without account-identity lookup; a second issuer is
+rejected until the first is cleared. The accepted token is host-owned in memory
+until expiry, revocation, disablement, or process exit, even if its supplying
+client disconnects. Expiry or revocation closes dependent connections.
+
 Credentials must not appear in target descriptors, provider data, prompts,
 tool results, or logs, and must not be forwarded automatically to B/C.
+
+## Tunnel discovery behavior
+
+Follow the current VS Code client:
+
+- Enumerate account-associated tunnels with the `vscode-server-launcher` label,
+  supported protocol version, and connect-scoped access.
+- Cache and auto-connect every eligible non-dismissed tunnel when enabled; do
+  not add a separate allowlist.
+- Preserve dismissal and auto-connect suppression.
+- Suppress the Agent Host's own hosted tunnel using identity supplied at
+  bootstrap.
+- Refresh on startup, auth changes, relevant setting changes, and an explicit
+  generic AHP root refresh request. Do not poll periodically.
+- Remove a target and its providers/catalog entries immediately when a
+  successful refresh no longer returns it.
+- Keep fixed WebSocket endpoints as test/developer scaffolding only.
+
+The stable target identity is the tunnel address, not a gateway endpoint
+instance. Persist the current `editor`/`dedicated` preference per tunnel. Ask the
+connected client when that choice is required, and allow background dedicated
+host creation where the current client does.
 
 ## Shared connection contract
 
@@ -157,7 +197,7 @@ The two workstreams agree on this boundary before parallel implementation.
 Person 1 supplies:
 
 - stable target and connector identities;
-- a stable initialized AHP client identity;
+- a random AHP client identity persisted per target across A restarts;
 - negotiated capabilities and root/provider catalog state;
 - requests, subscriptions, actions, and notifications;
 - observable connecting/connected/reconnecting/closed state;
@@ -195,6 +235,7 @@ Initial constraints:
 
 - Admitted configured targets and authorized tunnel-discovered targets only.
 - No arbitrary model-supplied URLs.
+- Fixed endpoints are test-only; tunnels are the first user-facing source.
 - Sessions created through A only; no bulk import of downstream sessions.
 - Workspace-less single-chat sessions for the first vertical slice.
 - No transparent co-authoring, peer/fork parity, or arbitrary IDE-tool
@@ -222,6 +263,9 @@ cancellation or generation fencing.
 effect; live disable stops owned work and ignores late results while local
 providers and inbound AHP remain available.
 
+The normal Agent Host process and standalone server use one shared activation
+path.
+
 ### 2. Headless AHP client core - Person 1
 
 Separate protocol initialization, requests, subscriptions, action delivery, and
@@ -239,6 +283,9 @@ kind rather than implementing SSH.
 **Done when:** adding/removing a target kind requires no `RemoteAgent` changes and
 no new central transport branch.
 
+The fixed WebSocket target used here is test/developer scaffolding, not a public
+runtime setting.
+
 ### 4. Fixed Node endpoint - Person 1
 
 Create a Node transport over the headless client and connect to a scripted AHP
@@ -253,8 +300,8 @@ Using a fake connection, contribute one adapter per target/provider pair and
 define unavailable/withdrawn behavior.
 
 **Done when:** local `copilot`, B's `copilot`, and C's `copilot` remain distinct;
-enable/discovery transitions do not duplicate providers; persisted sessions
-remain represented when a provider is unavailable.
+enable/discovery transitions do not duplicate providers; a tunnel removed by a
+successful discovery refresh removes its target and provider catalog entries.
 
 ### 6. One remote-backed chat - Person 2
 
@@ -280,6 +327,10 @@ and optional sign-in path.
 decline; late clients, disablement, expiry, revocation, and concurrent
 challenges behave correctly.
 
+Use issuer-specific resources, one active issuer/account, same-issuer token
+replacement, and in-memory-only credential retention. Re-emit the optional
+requirement to each new or reconnected client.
+
 ### 9. Tunnel discovery and automatic connection - Person 1
 
 Use existing tunnel enumeration/relay machinery behind the discovery control.
@@ -288,6 +339,11 @@ Missing auth pauses discovery rather than looking like an empty catalog.
 **Done when:** an authorized scripted tunnel contributes providers; discovery
 disable stops future admission without breaking explicit targets; master disable
 closes A's connections.
+
+Discovery runs on startup, auth/settings changes, and an explicit generic AHP
+root refresh command, not on a timer. Match current client behavior for
+dismissal, self-host suppression, tunnel identity, location preference, and
+background dedicated-host creation.
 
 ### 10. Persist backing and relay interactions - Person 2
 

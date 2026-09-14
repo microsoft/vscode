@@ -8,6 +8,9 @@ Planning branch:
 Start here. The detailed design and acceptance criteria are in
 [REMOTE_AGENT_ROADMAP.md](./REMOTE_AGENT_ROADMAP.md).
 
+Person 1's focused implementation sequence is in
+[REMOTE_AGENT_CONNECTIVITY_ROADMAP.md](./REMOTE_AGENT_CONNECTIVITY_ROADMAP.md).
+
 ## Goal
 
 Make an Agent Host act as an AHP client to other Agent Hosts and contribute each
@@ -53,6 +56,7 @@ credentials.
 Own the path from a target description to an authenticated, initialized AHP
 connection.
 
+- [Person 1 mini-roadmap](./REMOTE_AGENT_CONNECTIVITY_ROADMAP.md)
 - Host controls and activation/deactivation lifetime.
 - Headless AHP client extraction.
 - Node transport and fixed-endpoint connection.
