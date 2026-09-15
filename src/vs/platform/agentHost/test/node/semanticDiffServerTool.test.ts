@@ -109,6 +109,24 @@ suite('Semantic Diff Server Tool', () => {
 		].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)), []);
 	});
 
+	test('prompt and schema classify changed imports as supporting without demoting mixed logic or tests', () => {
+		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		assert.deepStrictEqual({
+			missingPromptClauses: [
+				'Always classify changed import statements as supporting',
+				'type-only imports, side-effect imports, and multi-line import declarations',
+				'whether in production, test, or generated files',
+				'not unchanged imports in hunk context or non-import code that uses imported symbols',
+				'An import-only hunk has changeType: supporting and no secondaryChangeTypes',
+				'keep logic or test primary and include supporting in secondaryChangeTypes',
+				'do not split or duplicate a hunk to isolate its imports',
+				'Recheck import edits before submission',
+			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
+			schemaImportOnly: schema.includes('Import-only hunks are supporting'),
+			schemaMixedImports: schema.includes('supporting in secondaryChangeTypes while logic or test stays primary'),
+		}, { missingPromptClauses: [], schemaImportOnly: true, schemaMixedImports: true });
+	});
+
 	test('prompt and group schema request an evidence-based paragraph about the logical unit', () => {
 		const analysisDescription = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
 		assert.deepStrictEqual({

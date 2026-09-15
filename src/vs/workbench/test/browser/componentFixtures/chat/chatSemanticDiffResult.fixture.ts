@@ -29,7 +29,7 @@ function renderResult({ container, disposableStore, theme, fileIconTheme }: Comp
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, fileIconTheme, additionalServices: registerChatFixtureServices });
 	disposableStore.add(instantiationService.get(ILanguageService).registerLanguage({ id: 'javascript', extensions: ['.js'] }));
 	disposableStore.add(instantiationService.get(ILanguageService).registerLanguage({ id: 'json', extensions: ['.json'] }));
-	const part = disposableStore.add(instantiationService.createInstance(ChatSemanticDiffResultSubPart, invocation, data, {}, false));
+	const part = disposableStore.add(instantiationService.createInstance(ChatSemanticDiffResultSubPart, invocation, data, {}, false, undefined));
 	container.appendChild(part.domNode);
 	if (options.expanded) {
 		part.domNode.querySelector<HTMLElement>('.semantic-diff-group-toggle')?.click();

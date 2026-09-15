@@ -29,6 +29,9 @@ import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvid
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { CheckoutBlockedByLocalChangesError } from '../../common/agentHostGitService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { ISemanticDiffFile, ISemanticDiffHunk } from '../../common/semanticDiff.js';
+import { projectSemanticDiffFiles, resolveSemanticDiffFile } from '../../common/semanticDiffProjection.js';
+import { readSemanticDiffSource } from '../../node/semanticDiffSource.js';
 
 class TestLogService extends NullLogService {
 	readonly warnings: string[] = [];
@@ -542,6 +545,48 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		const blob = await svc!.showBlob(URI.file(dir), ref, 'a.txt');
 		assert.ok(blob);
 		assert.strictEqual(blob.toString(), 'original\n');
+	});
+
+	(hasGit ? test : test.skip)('semantic diff source validates pinned hunks and projects one group without reading the working tree', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		const middle = Array.from({ length: 12 }, (_, index) => `// context ${index}\n`).join('');
+		const original = `export const mode = "old";\n${middle}export const value = 1;\n`;
+		const modified = `export const mode = "new";\nexport const extra = true;\n${middle}export const value = 2;\n`;
+		await fs.writeFile(join(dir, 'file.ts'), original);
+		run('add', '.');
+		run('commit', '-q', '-m', 'baseline');
+		const baseRevision = run('rev-parse', 'HEAD').toString().trim();
+		await fs.writeFile(join(dir, 'file.ts'), modified);
+		run('add', '.');
+		run('commit', '-q', '-m', 'classified changes');
+		const targetRevision = run('rev-parse', 'HEAD').toString().trim();
+		await fs.writeFile(join(dir, 'file.ts'), 'This live working-tree content must not be read.\n');
+		await fs.writeFile(join(dir, '.gitattributes'), 'file.ts diff=external\n');
+		run('config', 'diff.external', 'false');
+		run('config', 'diff.external.textconv', 'false');
+		run('config', 'diff.context', '100');
+		run('config', 'color.ui', 'always');
+		const beforeStatus = run('status', '--porcelain').toString();
+		const file: ISemanticDiffFile = { id: 'file', path: 'file.ts', oldPath: null, status: 'modified', contentKind: 'text' };
+		const classification = { changeType: 'logic', secondaryChangeTypes: [], summary: 'Change behavior.', groupReason: 'Implements the intent.', typeReason: 'Changes behavior.', groupConfidence: 'high', typeConfidence: 'high', uncertainty: null } as const;
+		const hunks: ISemanticDiffHunk[] = [
+			{ id: 'h1', fileId: file.id, oldRange: { start: 1, count: 4 }, newRange: { start: 1, count: 5 }, additions: 2, deletions: 1, classification: { ...classification, secondaryChangeTypes: [], groupId: 'first' } },
+			{ id: 'h2', fileId: file.id, oldRange: { start: 11, count: 4 }, newRange: { start: 12, count: 4 }, additions: 1, deletions: 1, classification: { ...classification, secondaryChangeTypes: [], groupId: 'second' } },
+		];
+		const repository = URI.file(dir);
+		const repositories = await readSemanticDiffSource({ kind: 'repositories', sessionUri: 'copilot:/source-test' }, [repository], svc!);
+		assert.ok(repositories.kind === 'repositories');
+		const source = await readSemanticDiffSource({ kind: 'file', sessionUri: 'copilot:/source-test', repositoryUri: repositories.repositories[0], baseRevision, targetRevision, file }, [repository], svc!);
+		assert.ok(source.kind === 'file');
+		const verified = resolveSemanticDiffFile(file, hunks, source.original, source.modified, source.patch);
+		const projection = projectSemanticDiffFiles([verified], 'second', new Set(['logic']));
+		assert.deepStrictEqual({
+			original: source.original,
+			target: source.modified,
+			projected: projection[0].modified,
+			checkoutUnchanged: run('status', '--porcelain').toString() === beforeStatus,
+		}, { original, target: modified, projected: original.replace('value = 1', 'value = 2'), checkoutUnchanged: true });
 	});
 });
 

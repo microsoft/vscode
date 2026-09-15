@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -354,7 +355,7 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
-	test('preserves expanded height when a collapsed template is recycled', async () => {
+	test('preserves expanded height and editor overlay lifetime when a collapsed template is recycled', async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -393,10 +394,27 @@ suite('MultiDiffEditorWidget', () => {
 			documents: ValueWithChangeEvent.const(documentItems),
 		};
 		const container = document.createElement('div');
+		const overlayModels = new Map<DiffEditorWidget, string[]>();
+		const disposedOverlays: DiffEditorWidget[] = [];
 		const widget = instantiationService.createInstance(
 			MultiDiffEditorWidget,
 			container,
-			{} satisfies IWorkbenchUIElementFactory,
+			{
+				createDiffEditorOverlay: editor => {
+					assert.ok(!overlayModels.has(editor), 'An editor gets one overlay across model changes');
+					const models: string[] = [];
+					overlayModels.set(editor, models);
+					const overlayStore = new DisposableStore();
+					overlayStore.add(editor.onDidChangeModel(() => {
+						const model = editor.getModel();
+						if (model) {
+							models.push(model.modified.uri.toString());
+						}
+					}));
+					overlayStore.add(toDisposable(() => disposedOverlays.push(editor)));
+					return overlayStore;
+				},
+			} satisfies IWorkbenchUIElementFactory,
 			{ variant: 'noCardsNonCompact' },
 		);
 		widget.layout(new Dimension(800, 200));
@@ -427,12 +445,14 @@ suite('MultiDiffEditorWidget', () => {
 				cachedFirstItemHeight,
 				firstObservedLastItemHeight: observedLastItemHeights[0],
 				restoredFirstItemHeight: widget.getLayoutDebugState().get().items[0].verticalState.contentHeight,
+				overlayRebound: [...overlayModels.values()].some(models => new Set(models).size > 1),
 			}, {
 				firstItemHasTemplate: true,
 				firstItemHeight: 2000,
 				cachedFirstItemHeight: 2000,
 				firstObservedLastItemHeight: 500,
 				restoredFirstItemHeight: 2000,
+				overlayRebound: true,
 			});
 		} finally {
 			observer.dispose();
@@ -443,6 +463,8 @@ suite('MultiDiffEditorWidget', () => {
 				documentItem.dispose();
 			}
 		}
+		assert.deepStrictEqual(new Set(disposedOverlays), new Set(overlayModels.keys()));
+		assert.strictEqual(disposedOverlays.length, overlayModels.size);
 	});
 });
 

@@ -16,10 +16,16 @@ import { formatSemanticDiffRange, getSemanticDiffChangeTypeLabel, getSemanticDif
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { FileKind } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
+import { TextOnlyMenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../../files/browser/views/explorerView.js';
 import { IChatSemanticDiffData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { ISemanticDiffCardSource, ISemanticDiffEditorRequest, SemanticDiffCardMenu } from '../../../../common/semanticDiffEditor.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatSemanticDiffResult.css';
@@ -124,8 +130,10 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		readonly data: IChatSemanticDiffData,
 		stateOwner: object,
 		announceCompletion: boolean,
+		private readonly sourceContext: ISemanticDiffCardSource | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(toolInvocation);
 		this._register(createFileIconThemableTreeContainerScope(this.domNode, themeService));
@@ -244,6 +252,27 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 			localize('semanticDiff.groupDisclosureWithFiles', "{0}, {1} {2}, {3}", group.title, fileCount(files.length), lineCounts, hunkCount(hunks.length)),
 			false,
 		);
+		if (this.sourceContext) {
+			const actions = dom.append(card, dom.$('.semantic-diff-card-actions'));
+			const scopedContext = this._register(this.contextKeyService.createScoped(actions));
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
+			const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, SemanticDiffCardMenu, {
+				menuOptions: { shouldForwardArgs: true },
+				actionViewItemProvider: (action, options) => action instanceof MenuItemAction
+					? scopedInstantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, options)
+					: undefined,
+			}));
+			toolbar.context = { ...this.sourceContext, groupId: group.id, report } satisfies ISemanticDiffEditorRequest;
+			const updateVisibility = () => {
+				const hidden = toolbar.getItemsLength() === 0;
+				if (actions.hidden !== hidden) {
+					actions.hidden = hidden;
+					this._onDidChangeHeight.fire();
+				}
+			};
+			this._register(toolbar.onDidChangeMenuItems(updateVisibility));
+			updateVisibility();
+		}
 	}
 
 	private renderFiles(parent: HTMLElement, report: ISemanticDiffReport, groupId: string | null, files: readonly IFileProjection[]): void {

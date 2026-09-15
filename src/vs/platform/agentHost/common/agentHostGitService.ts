@@ -368,7 +368,7 @@ export interface IAgentHostGitService {
 	 * the given working directory. Returns `undefined` when the blob does
 	 * not exist or the directory is not a git work tree.
 	 */
-	showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
+	showBlob(workingDirectory: URI, ref: string, repoRelativePath: string, options?: { readonly allowLazyFetch?: boolean }): Promise<VSBuffer | undefined>;
 
 	// ---- Checkpoint plumbing (used by IAgentHostCheckpointService) -------
 
@@ -402,7 +402,7 @@ export interface IAgentHostGitService {
 	 * or `revParse(repo, '<commit>^{tree}')`. Returns `undefined` when the
 	 * ref does not exist.
 	 */
-	revParse(repositoryRoot: URI, expression: string): Promise<string | undefined>;
+	revParse(repositoryRoot: URI, expression: string, options?: { readonly allowLazyFetch?: boolean }): Promise<string | undefined>;
 
 	/**
 	 * Lists refs matching `pattern` (a `git for-each-ref` glob such as
@@ -451,7 +451,7 @@ export interface IAgentHostGitService {
 	/** Reads bounded facts needed before computing an expensive branch diff. */
 	getBranchDiffSafetyInfo(workingDirectory: URI, baselineCommit: string): Promise<IBranchDiffSafetyInfo | undefined>;
 	/** Computes a unified patch for paths between immutable tree-ish values. */
-	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<IDiffPatchResult | undefined>;
+	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number; readonly canonical?: boolean; readonly allowLazyFetch?: boolean }): Promise<IDiffPatchResult | undefined>;
 }
 
 function getBranchPriority(branch: string, currentBranch: string | undefined, defaultBranch: string | undefined): number {

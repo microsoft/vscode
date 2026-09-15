@@ -5,16 +5,24 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { Event as CommonEvent } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
-import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { buildSemanticDiffReport, formatSemanticDiffReport, ISemanticDiffAnalysis, ISemanticDiffReport, validateSemanticDiffReport } from '../../../../../../../platform/agentHost/common/semanticDiff.js';
 import { createSemanticDiffExample } from '../../../../../../../platform/agentHost/test/common/semanticDiffFixtures.js';
+import { IMenuService, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getToolSpecificDataDescription } from '../../../../browser/accessibility/chatResponseAccessibleView.js';
 import { ChatSemanticDiffResultSubPart, projectSemanticDiffGroups } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSemanticDiffResultSubPart.js';
 import { shouldRenderSemanticDiffResult } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { IChatSemanticDiffData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { ISemanticDiffCardSource, SemanticDiffCardMenu } from '../../../../common/semanticDiffEditor.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatSemanticDiffResultSubPart', () => {
@@ -29,7 +37,7 @@ suite('ChatSemanticDiffResultSubPart', () => {
 	function render(report = createSemanticDiffExample(), owner: object = {}, toolCallId = 'classification'): ChatSemanticDiffResultSubPart {
 		const data: IChatSemanticDiffData = { kind: 'semanticDiff', result: { ok: true, report } };
 		const invocation = upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', toolCallId, isComplete: true, toolSpecificData: data });
-		const part = store.add(workbenchInstantiationService(undefined, store).createInstance(ChatSemanticDiffResultSubPart, invocation, data, owner, false));
+		const part = store.add(workbenchInstantiationService(undefined, store).createInstance(ChatSemanticDiffResultSubPart, invocation, data, owner, false, undefined));
 		dom.append(document.body, part.domNode);
 		store.add(toDisposable(() => part.domNode.remove()));
 		return part;
@@ -55,6 +63,43 @@ suite('ChatSemanticDiffResultSubPart', () => {
 
 	teardown(() => {
 		document.getSelection()?.removeAllRanges();
+	});
+
+	test('Open Group Diff forwards the owning result and selected group without toggling the card', async () => {
+		const commandId = 'semanticDiff.test.open';
+		const title = 'Test Group Diff Action';
+		store.add(MenuRegistry.appendMenuItem(SemanticDiffCardMenu, { command: { id: commandId, title }, group: 'navigation' }));
+		const instantiationService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new class extends MockContextKeyService {
+				override contextMatchesRules() { return true; }
+			}()),
+		}, store);
+		const called = new DeferredPromise<unknown>();
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override readonly onWillExecuteCommand = CommonEvent.None;
+			override readonly onDidExecuteCommand = CommonEvent.None;
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+				assert.strictEqual(id, commandId);
+				await called.complete(args[0]);
+				return undefined as T;
+			}
+		}());
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const report = createSemanticDiffExample();
+		const data: IChatSemanticDiffData = { kind: 'semanticDiff', result: { ok: true, report } };
+		const invocation = upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', toolCallId: 'tool', isComplete: true, toolSpecificData: data });
+		const source: ISemanticDiffCardSource = { sessionResource: URI.parse('agent-host-copilot:/owner'), responseId: 'response', toolCallId: 'tool' };
+		const part = store.add(instantiationService.createInstance(ChatSemanticDiffResultSubPart, invocation, data, {}, false, source));
+		dom.append(document.body, part.domNode);
+		store.add(toDisposable(() => part.domNode.remove()));
+		const card = part.domNode.querySelectorAll<HTMLElement>('.semantic-diff-card')[1];
+		const action = [...card.querySelectorAll<HTMLElement>('.semantic-diff-card-actions .action-label')].find(element => element.textContent === title);
+		assert.ok(action);
+		action.click();
+		assert.deepStrictEqual({
+			request: await called.p,
+			expanded: button(card, '.semantic-diff-group-toggle').getAttribute('aria-expanded'),
+		}, { request: { ...source, groupId: report.analysis.groups[1].id, report }, expanded: 'false' });
 	});
 
 	test('projects the exact example by intent, preserving order and per-group counts', () => {
@@ -426,7 +471,7 @@ suite('ChatSemanticDiffResultSubPart', () => {
 			toolSpecificData: errorData,
 			resultDetails: { input: '', output: [], isError: true },
 		});
-		const part = store.add(workbenchInstantiationService(undefined, store).createInstance(ChatSemanticDiffResultSubPart, invocation, errorData, {}, false));
+		const part = store.add(workbenchInstantiationService(undefined, store).createInstance(ChatSemanticDiffResultSubPart, invocation, errorData, {}, false, undefined));
 		assert.deepStrictEqual({
 			showError: shouldRenderSemanticDiffResult(invocation),
 			showSuccess: shouldRenderSemanticDiffResult({ ...invocation, toolSpecificData: { kind: 'semanticDiff', result: { ok: true, report: createSemanticDiffExample() } } }),

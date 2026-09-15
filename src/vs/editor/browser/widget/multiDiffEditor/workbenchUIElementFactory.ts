@@ -8,6 +8,7 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { IAction } from '../../../../base/common/actions.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 
 /**
  * Which of a multi-diff entry's two file-path labels is being created: the
@@ -27,6 +28,9 @@ export const enum MultiDiffEditorItemLabelKind {
  */
 export interface IWorkbenchUIElementFactory {
 	createResourceLabel?(element: HTMLElement, kind: MultiDiffEditorItemLabelKind, accessoryContainer: HTMLElement): IResourceLabel;
+
+	/** Creates an overlay owned by the embedded editor's lifetime, including when its model is recycled. */
+	createDiffEditorOverlay?(editor: DiffEditorWidget): IDisposable;
 
 	/** Handles a middle-click on an entry header. Returns whether the event was handled. */
 	handleHeaderMiddleClick?(resource: URI): boolean;

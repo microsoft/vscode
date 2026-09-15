@@ -5,6 +5,11 @@ by the calling model. The model inspects Git using its existing tools; this tool
 does not collect changes, call another model, open an editor, or modify files.
 Intent grouping and change type are independent. Tests stay with the behavior
 they cover, and one file can contribute different hunks to different groups.
+The prompt classifies import-statement edits as Supporting, even in test or
+generated files. Import-only hunks have no secondary types. Mixed hunks retain
+Logic/Test as primary and Supporting as secondary; unchanged imports in context
+do not affect classification. This is model guidance, not content-based server
+enforcement: the validation tool does not receive source text.
 
 ## Automated checks
 
@@ -33,6 +38,29 @@ live/history transport, errors, and renderer interactions.
 For contract changes, use `npm run typecheck-client` unless the build watch task
 already supplies current type diagnostics. Use `npm run valid-layers-check` after
 changing imports or module ownership.
+
+## Verify import classification with a live model
+
+Use a fresh classification after restarting the development agent host as described
+below. Existing reports retain their originally submitted classifications.
+
+Include these cases in a disposable repository, keeping separate cases far enough
+apart to remain distinct Git hunks with the documented context options:
+
+| Changed lines | Expected classification |
+|---|---|
+| Add, remove, reorder, or rewrite imports in a production file | Supporting only |
+| Change module paths, aliases, type-only imports, side-effect imports, or multi-line import declarations | Supporting only; explain behavioral consequences if present |
+| Change only imports in a test or generated file | Supporting only, not Test or Generated |
+| Change imports and production logic in one hunk | Logic primary, Supporting secondary |
+| Change imports and test assertions in one hunk | Test primary, Supporting secondary |
+| Change logic with unchanged imports in hunk context | Logic; unchanged imports do not add Supporting |
+
+Run the walkthrough prompt below and inspect the submitted hunk classifications.
+Verify that actual Git ranges are preserved, no hunk is split or duplicated, and
+each import hunk stays in its intent group rather than a separate imports group.
+Automated prompt tests protect this guidance; only live-model inspection assesses
+whether a particular classification follows it.
 
 ## Inspect the renderer without an LLM
 
@@ -182,5 +210,78 @@ No card or file interaction should open an editor, rerun Git, or invoke a model.
 - “Complete” describes only the submitted classification inventory. Source
   metadata is agent-reported, not independently checked against Git. It does not
   mean code was reviewed, approved, safe to skip, or still current.
-- Editor navigation, code diffs, viewed checkboxes, review-progress persistence,
-  and automatic working-tree refresh are intentionally outside this stage.
+- The classification tool itself does not open editors. The Agents Window's
+  separate **Open Group Diff** action supports the pinned comparisons described below.
+  Viewed checkboxes, review-progress persistence, editing/staging, and automatic
+  working-tree refresh remain outside this stage.
+
+## Test the semantic group editor
+
+Use a newly classified historical PR or another `commitRange` report with full
+base/head commit IDs. The Git repository must belong to the owning agent-host
+session and contain those objects. Use the classifier's canonical diff options
+(`--unified=3 --inter-hunk-context=0 --no-ext-diff --no-textconv --no-color
+--find-renames --src-prefix=a/ --dst-prefix=b/`) so submitted hunk boundaries can
+be verified against Git.
+
+1. In the Agents Window, activate **Open Group Diff** on an intent card.
+   Card statistics still only toggle its file list, and file rows still reveal
+   inline classifications.
+2. If the owning session has several repositories, select the correct one.
+   The display-only repository label is not used as a filesystem path.
+3. Check that the new read-only editor shows one diff entry per file, containing
+   only this group's hunks. Another group's edits in the same file must not appear.
+   Diffs always render inline, even at wide editor sizes or after changing filters.
+4. Toggle Logic, Test, Supporting, and Generated as available. Mixed-type hunks
+   follow their primary type only. The default shows the highest-priority type
+   present, plus Unclassified if present. Enable every type to reveal all group
+   hunks; there is no separate Show All action.
+   Each type's badge shows its group-wide primary-type hunk count, including while
+   unchecked. The default categorical palette is Logic purple, Test teal,
+   Supporting brown, Generated blue, and Unclassified gray. Red/green remain
+   reserved for the native added/deleted highlights and `+N -M` totals.
+   Themes can override `semanticDiff.logicForeground`, `semanticDiff.testForeground`,
+   `semanticDiff.supportingForeground`, `semanticDiff.generatedForeground`, and
+   `semanticDiff.unclassifiedForeground` independently of diff colors.
+   Badges use the same small corner radius as the Changes tab, not circular pills.
+   Check that only changed lines have matching type markers; unchanged hunk context
+   must not be decorated. Removed and added lines share the far-left gutter,
+   forming a continuous bar across adjacent changed rows of the same type, never
+   on a surviving unchanged line. Hover a marker or added code for its type and summary.
+   Native `+`/`-` gutter signs are hidden. Secondary types
+   must not duplicate markers or badge counts, and hidden hunks must lose markers.
+   Check inserted/deleted functions adjacent to blank lines: marker boundaries
+   must match the native diff highlights, even when Git chooses a different
+   equivalent alignment. Component fixtures **InsertedFunction** and
+   **DeletedFunction** cover this case. Toggle the filter off/on to check it again.
+   Use **ContextLines** and **WrappedReplacement** to check continuous bars across
+   replacements, including wrapped removed/added lines and gaps for unchanged context.
+5. Turn every filter off and check the explicit empty-filter state. Restore a
+   type and confirm that the toolbar keeps focus and the file diffs return.
+6. Open the same group again to check reuse; open another group to check independent
+   filter and view state. Close/reopen or reload to exercise editor restoration.
+7. The editor header contains only the filter toolbar. Inspect source metadata,
+   filtered-projection information and canonical hunk ranges in Accessible View.
+   Loading, source errors, and empty-filter messages appear in the editor body.
+   The modified
+   text is the baseline plus selected edits, not necessarily the complete target
+   file. Its line numbers must not be treated as target-file coordinates.
+8. Try an unavailable revision, a mismatched hunk range, and a working-tree report.
+   Each must show a clear error, not current workspace content or an empty success.
+9. Open Accessibility Help and Accessible View in the editor. Check filter
+   navigation, hidden totals, source/projection information, and selected content.
+
+The editor does not fetch missing Git objects, change branches, or invoke an LLM.
+Source reads use Git's `--no-lazy-fetch` option; an older Git that lacks this
+option must be updated. UTF-8 source is currently bounded to 1 MiB per file side
+and per patch, with a 16 MiB resolved-source budget per group. Staged/working-tree
+reports are not opened until immutable snapshot support is available.
+
+Focused checks:
+
+```sh
+./scripts/test.sh --runGlob '**/*[sS]emanticDiff*.test.js' --reporter dot
+./scripts/test-integration.sh \
+  --run src/vs/platform/agentHost/test/node/agentHostGitService.integrationTest.ts \
+  --grep 'semantic diff source'
+```

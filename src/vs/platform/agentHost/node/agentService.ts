@@ -49,6 +49,8 @@ import { AgentConfigurationService, getEffectiveWorkingDirectories } from './age
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
+import { parseSemanticDiffSourceRequest, SEMANTIC_DIFF_SOURCE_SCHEME, SemanticDiffSourceRequest } from '../common/semanticDiffSource.js';
+import { readSemanticDiffSource } from './semanticDiffSource.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -6511,6 +6513,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async resourceRead(uri: URI, encoding: ContentEncoding = ContentEncoding.Utf8): Promise<ResourceReadResult> {
+		if (uri.scheme === SEMANTIC_DIFF_SOURCE_SCHEME) {
+			return this._fetchSemanticDiffSourceContent(parseSemanticDiffSourceRequest(uri));
+		}
 		const editAttributionRequest = parseEditAttributionResource(uri);
 		if (editAttributionRequest?.kind === 'prepare') {
 			const prepared = await this.prepareEditAttributionFlush(editAttributionRequest.params);
@@ -7087,6 +7092,28 @@ export class AgentService extends Disposable implements IAgentService {
 				encoding: ContentEncoding.Utf8,
 				contentType: 'text/plain',
 			};
+		} finally {
+			if (!wasRestored && this._stateManager.getSessionState(owningSession.toString())) {
+				void this._sessionResidency.reconcile();
+			}
+		}
+	}
+
+	private async _fetchSemanticDiffSourceContent(request: SemanticDiffSourceRequest): Promise<ResourceReadResult> {
+		if (!this._gitService) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, localize('semanticDiff.gitUnavailable', "The Git service is unavailable for semantic diffs."));
+		}
+		const sessionUri = parseChatUri(request.sessionUri)?.session ?? request.sessionUri;
+		const owningSession = resolveAgentHostSession(URI.parse(sessionUri));
+		const wasRestored = !!this._stateManager.getSessionState(owningSession.toString());
+		try {
+			if (!wasRestored) {
+				await this.restoreSession(owningSession);
+			}
+			const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, request.sessionUri)
+				?? getEffectiveWorkingDirectories(this._stateManager, owningSession.toString()) ?? [];
+			const result = await readSemanticDiffSource(request, workingDirectories.map(directory => URI.parse(directory)), this._gitService);
+			return { data: JSON.stringify(result), encoding: ContentEncoding.Utf8, contentType: 'application/json' };
 		} finally {
 			if (!wasRestored && this._stateManager.getSessionState(owningSession.toString())) {
 				void this._sessionResidency.reconcile();

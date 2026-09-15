@@ -71,7 +71,7 @@ const definitions: Record<string, IJSONSchema> = {
 			},
 			changeType: {
 				...nullable(reference('changeType')),
-				description: 'The best-supported primary change type. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
+				description: 'The best-supported primary change type. Import-only hunks are supporting, including imports in test or generated files. Changed imports mixed with non-import logic or test edits contribute supporting in secondaryChangeTypes while logic or test stays primary; unchanged imports in context do not count. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
 			},
 			secondaryChangeTypes: { ...array('changeType', 3), uniqueItems: true },
 			summary: text(160), groupReason: reference('reason'), typeReason: reference('reason'),

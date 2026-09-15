@@ -30,6 +30,10 @@
 	position: relative;
 }
 
+.chat-semantic-diff .semantic-diff-card-actions {
+	margin-top: var(--vscode-spacing-size80);
+}
+
 .chat-semantic-diff .semantic-diff-card::before {
 	content: '';
 	position: absolute;

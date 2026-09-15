@@ -333,6 +333,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.toolInvocation.kind === 'toolInvocation'
 				&& this.accessibilityService.isScreenReaderOptimized()
 				&& this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates),
+				isResponseVM(this.context.element) ? {
+					sessionResource: this.context.element.sessionResource,
+					responseId: this.context.element.id,
+					toolCallId: this.toolInvocation.toolCallId,
+				} : undefined,
 			);
 		}
 

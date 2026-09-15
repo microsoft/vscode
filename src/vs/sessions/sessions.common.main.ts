@@ -481,6 +481,7 @@ import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
+import './contrib/semanticDiff/browser/semanticDiff.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';
 import './contrib/github/browser/github.contribution.js';

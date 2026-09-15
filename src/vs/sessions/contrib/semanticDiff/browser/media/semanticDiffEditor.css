@@ -1,0 +1,144 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.semantic-diff-editor {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	color: var(--vscode-editor-foreground);
+	background: var(--vscode-editor-background);
+}
+
+.semantic-diff-editor .semantic-diff-toolbar {
+	flex: none;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
+.semantic-diff-editor .semantic-diff-status {
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-descriptionForeground);
+	padding: var(--vscode-spacing-size160);
+	overflow-wrap: anywhere;
+}
+
+.semantic-diff-editor .semantic-diff-toolbar .actions-container {
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.semantic-diff-editor .semantic-diff-toolbar .checkbox-action-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size20);
+	height: 24px;
+
+	.monaco-checkbox {
+		font-size: 14px !important;
+		height: 16px !important;
+		width: 16px !important;
+	}
+}
+
+.semantic-diff-editor .semantic-diff-toolbar .checkbox-label {
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.semantic-diff-editor .semantic-diff-type-logic {
+	--semantic-diff-type-color: var(--vscode-semanticDiff-logicForeground);
+}
+
+.semantic-diff-editor .semantic-diff-type-test {
+	--semantic-diff-type-color: var(--vscode-semanticDiff-testForeground);
+}
+
+.semantic-diff-editor .semantic-diff-type-supporting {
+	--semantic-diff-type-color: var(--vscode-semanticDiff-supportingForeground);
+}
+
+.semantic-diff-editor .semantic-diff-type-generated {
+	--semantic-diff-type-color: var(--vscode-semanticDiff-generatedForeground);
+}
+
+.semantic-diff-editor .semantic-diff-type-unclassified {
+	--semantic-diff-type-color: var(--vscode-semanticDiff-unclassifiedForeground);
+}
+
+.semantic-diff-editor .semantic-diff-filter-count .monaco-count-badge {
+	color: var(--semantic-diff-type-color);
+	background-color: color-mix(in srgb, var(--semantic-diff-type-color) 8%, var(--vscode-editor-background));
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	min-width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: normal;
+}
+
+.semantic-diff-editor .editorContainer {
+	position: relative;
+}
+
+.semantic-diff-editor .semantic-diff-gutter {
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: var(--vscode-spacing-size40);
+	z-index: 1;
+	pointer-events: none;
+}
+
+.semantic-diff-editor .semantic-diff-gutter > .gutter {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.semantic-diff-editor .semantic-diff-hunk-decoration {
+	position: absolute;
+	width: 100%;
+	border-left: var(--vscode-spacing-size40) solid var(--semantic-diff-type-color);
+	box-sizing: border-box;
+	pointer-events: auto;
+}
+
+.semantic-diff-editor .semantic-diff-body {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	position: relative;
+}
+
+.semantic-diff-editor .semantic-diff-content {
+	position: absolute;
+	inset: 0;
+}
+
+.semantic-diff-editor .semantic-diff-file-stats {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	white-space: nowrap;
+	margin: 0 var(--vscode-spacing-size80);
+}
+
+.semantic-diff-editor .semantic-diff-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.semantic-diff-editor .semantic-diff-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+.semantic-diff-editor:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

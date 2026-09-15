@@ -138,6 +138,9 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				update
 			),
 		}));
+		if (this._workbenchUIElementFactory.createDiffEditorOverlay) {
+			this._register(this._workbenchUIElementFactory.createDiffEditorOverlay(this.editor));
+		}
 		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
 		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
 		this.isBinaryFilePlaceholderFocused = observableValue(this, false);

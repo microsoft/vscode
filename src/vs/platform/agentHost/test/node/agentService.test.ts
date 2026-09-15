@@ -58,6 +58,7 @@ import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
+import { semanticDiffSourceUri } from '../../common/semanticDiffSource.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -1744,6 +1745,31 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await localService.createSession({ provider: 'copilot', workingDirectories: [...workingDirectories] });
 			return { service: localService, session };
 		}
+
+		test('semantic diff resources resolve only the owning session repositories', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const repoB = URI.file('/workspace/repoB');
+			const reads: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [repoB.toString(), repoB]]), reads);
+			gitService.revParse = async (_repository, expression) => expression.replace(/\^\{commit\}$/, '');
+			gitService.getDiffPatchBetweenRefs = async () => ({ patch: 'patch', tooLarge: false });
+			const { service: localService, session } = await createBlobSession(gitService, [repoA, repoB]);
+			const repositories = await localService.resourceRead(semanticDiffSourceUri({ kind: 'repositories', sessionUri: buildDefaultChatUri(session.toString()) }));
+			const source = await localService.resourceRead(semanticDiffSourceUri({
+				kind: 'file', sessionUri: session.toString(), repositoryUri: repoB.toString(),
+				baseRevision: 'a'.repeat(40), targetRevision: 'b'.repeat(40),
+				file: { id: 'f', path: 'src/a.ts', oldPath: null, status: 'modified', contentKind: 'text' },
+			}));
+			assert.deepStrictEqual({
+				repositories: JSON.parse(repositories.data),
+				source: JSON.parse(source.data),
+				readRoots: reads.map(read => read.workingDirectory),
+			}, {
+				repositories: { kind: 'repositories', repositories: [repoA.toString(), repoB.toString()] },
+				source: { kind: 'file', original: 'blob:src/a.ts', modified: 'blob:src/a.ts', patch: 'patch' },
+				readRoots: [repoB.toString(), repoB.toString()],
+			});
+		});
 
 		test('git-blob resolves against the containing repo root of a NON-primary folder (multi-root)', async () => {
 			const repoA = URI.file('/workspace/repoA');

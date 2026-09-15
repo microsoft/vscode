@@ -737,13 +737,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return toWorktreeIncludeEntries(repositoryRoot, matchedFiles, collapsedDirectories);
 	}
 
-	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
+	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string, options?: { readonly allowLazyFetch?: boolean }): Promise<VSBuffer | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		const args = ['show', `${ref}:${repoRelativePath}`];
+		const args = [...(options?.allowLazyFetch === false ? ['--no-lazy-fetch'] : []), 'show', `${ref}:${repoRelativePath}`];
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
 
 		// Callers only get `undefined`, which surfaces as "git blob not found"
@@ -844,8 +844,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		});
 	}
 
-	async revParse(repositoryRoot: URI, expression: string): Promise<string | undefined> {
-		const out = await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', expression]);
+	async revParse(repositoryRoot: URI, expression: string, options?: { readonly allowLazyFetch?: boolean }): Promise<string | undefined> {
+		const out = await this._runGit(repositoryRoot, [...(options?.allowLazyFetch === false ? ['--no-lazy-fetch'] : []), 'rev-parse', '--verify', '--quiet', expression]);
 		return out?.trim() || undefined;
 	}
 
@@ -963,7 +963,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		};
 	}
 
-	async getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<{ readonly patch: string | undefined; readonly tooLarge: boolean } | undefined> {
+	async getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number; readonly canonical?: boolean; readonly allowLazyFetch?: boolean }): Promise<{ readonly patch: string | undefined; readonly tooLarge: boolean } | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
@@ -973,7 +973,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return { patch: '', tooLarge: false };
 		}
 		try {
-			const patch = await this._runGit(repositoryRoot, ['diff', '--patch', '--no-ext-diff', '--find-renames', '--diff-filter=ADMR', options.fromRef, options.toRef, '--', ...paths], { maxBuffer: options.maxBuffer, throwOnError: true });
+			const canonicalOptions = options.canonical ? ['--no-textconv', '--no-color', '--unified=3', '--inter-hunk-context=0', '--src-prefix=a/', '--dst-prefix=b/'] : [];
+			const patch = await this._runGit(repositoryRoot, [...(options.allowLazyFetch === false ? ['--no-lazy-fetch'] : []), 'diff', '--patch', '--no-ext-diff', '--find-renames', '--diff-filter=ADMR', ...canonicalOptions, options.fromRef, options.toRef, '--', ...paths], { maxBuffer: options.maxBuffer, throwOnError: true });
 			return patch === undefined ? undefined : { patch, tooLarge: false };
 		} catch (error) {
 			if (isMaxBufferError(error)) {

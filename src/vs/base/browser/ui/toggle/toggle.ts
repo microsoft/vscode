@@ -438,6 +438,7 @@ export interface ICheckboxActionViewItemOptions extends IActionViewItemOptions {
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
 	protected readonly toggle: Checkbox;
+	protected label: HTMLElement | undefined;
 	private cssClass?: string;
 
 	constructor(context: unknown, action: IAction, options: ICheckboxActionViewItemOptions) {
@@ -452,7 +453,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		this.element.classList.add('checkbox-action-item');
 		this.element.appendChild(this.toggle.domNode);
 		if ((<IActionViewItemOptions>this.options).label && this._action.label) {
-			const label = this.element.appendChild($('span.checkbox-label', undefined, this._action.label));
+			const label = this.label = this.element.appendChild($('span.checkbox-label', undefined, this._action.label));
 			// Focus the checkbox when the (non-focusable) label is clicked, mirroring
 			// native `<label>` behavior. This is done on mousedown, with the default
 			// prevented, so focus does not first land on a focusable ancestor.
