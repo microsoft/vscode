@@ -286,11 +286,11 @@ class TypeScriptChangeClassifier {
 				classifications.push('structural');
 			}
 			if (entity.bodyRange !== undefined && this.intersects(entity.bodyRange, bucket.span)) {
-				classifications.push('algorithmic');
+				classifications.push('code');
 			}
 		}
 		if (classifications.length === 0) {
-			classifications.push(entity.bodyRange === undefined ? 'structural' : 'algorithmic');
+			classifications.push(entity.bodyRange === undefined ? 'structural' : 'code');
 		}
 		return { bucket, entity, classifications };
 	}

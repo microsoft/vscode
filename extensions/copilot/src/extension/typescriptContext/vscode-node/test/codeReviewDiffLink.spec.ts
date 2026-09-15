@@ -54,7 +54,7 @@ suite('Code review diff links', () => {
 				path: ['Reader', 'listen'],
 				range: { start: 20, end: 30 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: 24, end: 25 },
 				}],

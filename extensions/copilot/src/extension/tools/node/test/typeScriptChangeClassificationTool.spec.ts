@@ -26,6 +26,7 @@ suite('TypeScript change classification tool', () => {
 			'mapped to the modified AST',
 			'direct modified and original arrays',
 			'always render the joined entity path as a Markdown link',
+			'Code addition, Code change, or Code deletion',
 		];
 		assert.deepStrictEqual({
 			registered: ToolRegistry.getTools().some(tool => tool.toolName === ToolName.TypeScriptChangeClassification),
@@ -55,7 +56,7 @@ suite('TypeScript change classification tool', () => {
 							range: { start: 1, end: 2 },
 						},
 						{
-							classifications: ['algorithmic'],
+							classifications: ['code'],
 							changeType: 'changed',
 							range: { start: 2, end: 4 },
 						},

@@ -79,7 +79,7 @@ suite('TypeScript 6 code review service', () => {
 				path: ['Calculator', 'calculate'],
 				range: { start: 2, end: 5 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: 3, end: 4 },
 				}],

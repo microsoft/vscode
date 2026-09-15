@@ -91,7 +91,7 @@ export interface TypeScriptMetricsResult {
 	entities: TypeScriptMetricEntity[];
 }
 
-export type TypeScriptChangeClassification = 'algorithmic' | 'structural';
+export type TypeScriptChangeClassification = 'code' | 'structural';
 
 export interface TypeScriptModifiedChangeInput {
 	content?: string;
@@ -635,7 +635,7 @@ export namespace TypeScriptChangeClassificationResponse {
 			&& Array.isArray(bucket.changes)
 			&& bucket.changes.every((change: TypeScriptClassifiedModifiedLines | TypeScriptClassifiedOriginalLines) =>
 				Array.isArray(change.classifications)
-				&& change.classifications.every((classification: TypeScriptChangeClassification) => classification === 'algorithmic' || classification === 'structural')
+				&& change.classifications.every((classification: TypeScriptChangeClassification) => classification === 'code' || classification === 'structural')
 				&& typeof change.range?.start === 'number'
 				&& typeof change.range.end === 'number'
 				&& (original ? change.changeType === 'deleted' : change.changeType === 'added' || change.changeType === 'changed'))

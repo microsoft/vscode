@@ -32,7 +32,7 @@ export interface TypeScriptMetricsResult {
 	readonly entities: readonly TypeScriptMetricEntity[];
 }
 
-export type TypeScriptChangeClassification = 'algorithmic' | 'structural';
+export type TypeScriptChangeClassification = 'code' | 'structural';
 
 export interface TypeScriptModifiedChangeInput {
 	/**

@@ -28,7 +28,7 @@ suite('TypeScript 7 change classifier', () => {
 		await api.close();
 	});
 
-	test('classifies algorithmic and mixed callable buckets', async () => {
+	test('classifies code and mixed callable buckets', async () => {
 		const bodyLine = lineAt(source, 'this.result += x;');
 		const signatureLine = lineAt(source, 'public add(x: number): Calculator');
 
@@ -69,7 +69,7 @@ suite('TypeScript 7 change classifier', () => {
 				path: ['Calculator', 'add'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: bodyLine, end: bodyLine + 1 },
 				}],
@@ -79,7 +79,7 @@ suite('TypeScript 7 change classifier', () => {
 				path: ['Calculator', 'add'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['structural', 'algorithmic'],
+					classifications: ['structural', 'code'],
 					changeType: 'changed',
 					range: { start: signatureLine, end: bodyLine + 1 },
 				}],
@@ -95,7 +95,7 @@ suite('TypeScript 7 change classifier', () => {
 						range: { start: signatureLine, end: signatureLine + 1 },
 					},
 					{
-						classifications: ['algorithmic'],
+						classifications: ['code'],
 						changeType: 'added',
 						range: { start: bodyLine, end: bodyLine + 1 },
 					},
@@ -143,7 +143,7 @@ suite('TypeScript 7 change classifier', () => {
 				changed: [],
 				deleted: [{ start: propertyLine, end: propertyLine + 1 }],
 			}),
-			algorithmic: await classify({
+			code: await classify({
 				added: [],
 				changed: [],
 				deleted: [{ start: bodyLine, end: bodyLine + 1 }],
@@ -164,12 +164,12 @@ suite('TypeScript 7 change classifier', () => {
 					range: { start: propertyLine, end: propertyLine + 1 },
 				}],
 			}],
-			algorithmic: [{
+			code: [{
 				kind: 'method',
 				path: ['Calculator', 'add'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'deleted',
 					range: { start: bodyLine, end: bodyLine + 1 },
 				}],
@@ -209,7 +209,7 @@ suite('TypeScript 7 change classifier', () => {
 				path: ['State', 'get state'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: 2, end: 3 },
 				}],
@@ -219,7 +219,7 @@ suite('TypeScript 7 change classifier', () => {
 				path: ['State', 'set state'],
 				range: { start: 4, end: 7 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: 5, end: 6 },
 				}],

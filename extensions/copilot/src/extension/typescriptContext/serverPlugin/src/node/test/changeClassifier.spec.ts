@@ -65,7 +65,7 @@ suite('TypeScript 6 change classifier', () => {
 				path: ['Calculator', 'calculate'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: 2, end: 3 },
 				}],
@@ -75,7 +75,7 @@ suite('TypeScript 6 change classifier', () => {
 				path: ['Calculator', 'calculate'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['structural', 'algorithmic'],
+					classifications: ['structural', 'code'],
 					changeType: 'changed',
 					range: { start: 1, end: 3 },
 				}],
@@ -91,7 +91,7 @@ suite('TypeScript 6 change classifier', () => {
 						range: { start: 1, end: 2 },
 					},
 					{
-						classifications: ['algorithmic'],
+						classifications: ['code'],
 						changeType: 'added',
 						range: { start: 2, end: 3 },
 					},
@@ -207,7 +207,7 @@ suite('TypeScript 6 change classifier', () => {
 				changed: [],
 				deleted: [{ start: 2, end: 5 }],
 			}),
-			algorithmic: classify(source, {
+			code: classify(source, {
 				added: [],
 				changed: [],
 				deleted: [{ start: 3, end: 4 }],
@@ -223,12 +223,12 @@ suite('TypeScript 6 change classifier', () => {
 					range: { start: 2, end: 5 },
 				}],
 			}],
-			algorithmic: [{
+			code: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
 				range: { start: 2, end: 5 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'deleted',
 					range: { start: 3, end: 4 },
 				}],
@@ -258,7 +258,7 @@ suite('TypeScript 6 change classifier', () => {
 				path: ['State', 'get state'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: 2, end: 3 },
 				}],
@@ -268,7 +268,7 @@ suite('TypeScript 6 change classifier', () => {
 				path: ['State', 'set state'],
 				range: { start: 4, end: 7 },
 				changes: [{
-					classifications: ['algorithmic'],
+					classifications: ['code'],
 					changeType: 'changed',
 					range: { start: 5, end: 6 },
 				}],
