@@ -81,6 +81,18 @@ export function getSessionComparisonWorkspaceError(branch: string | undefined, h
 	return undefined;
 }
 
+/** Selects the provider permission that corresponds to the current bulk-checkbox state. */
+export function selectSessionComparisonPermission(permissionOptions: readonly ISessionPermissionOption[], currentPermissionId: string | undefined, bulkState: boolean | 'mixed'): ISessionPermissionOption | undefined {
+	const selected = bulkState === true
+		? permissionOptions.find(option => option.isAllowAll && !option.locked)
+		: bulkState === false
+			? permissionOptions.find(option => option.isDefault && !option.locked)
+			: permissionOptions.find(option => option.id === currentPermissionId && !option.locked);
+	return selected
+		?? permissionOptions.find(option => option.isDefault && !option.locked)
+		?? permissionOptions.find(option => !option.locked);
+}
+
 const SESSION_COMPARISON_DIALOG_WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
 const SESSION_COMPARISON_DIALOG_HEIGHT_STORAGE_KEY = 'sessions.comparisonSetupDialog.height';
 const SESSION_COMPARISON_EVALUATOR_DEFAULTS_STORAGE_KEY = 'sessions.comparisonSetupDialog.evaluatorDefaults';
@@ -598,9 +610,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 					const selected = harnesses[index];
 					if (selected) {
 						const nextPermissionOptions = getPermissionOptions(selected);
-						const nextPermission = nextPermissionOptions.find(option => option.id === harness.permissionId && !option.locked)
-							?? nextPermissionOptions.find(option => option.isDefault && !option.locked)
-							?? nextPermissionOptions.find(option => !option.locked);
+						const nextPermission = selectSessionComparisonPermission(nextPermissionOptions, harness.permissionId, bulkPermissionCheckbox.checked);
 						onChange(nextPermission ? applyPermission(selected, nextPermission) : selected);
 						if (harness.permissionId && nextPermission?.id !== harness.permissionId) {
 							status(unavailablePermissionMessage);
@@ -795,10 +805,16 @@ export class SessionComparisonSetupDialog extends Disposable {
 			addButton.label = localize('sessionComparisonSetup.addAttempt', "Add attempt");
 			addButton.enabled = harnesses.length > 0;
 			rowsDisposables.add(addButton.onDidClick(() => {
-				const harness = attempts.at(-1)?.harness ?? harnesses[0];
-				if (!harness) {
+				const baseHarness = attempts.at(-1)?.harness ?? harnesses[0];
+				if (!baseHarness) {
 					return;
 				}
+				const permission = selectSessionComparisonPermission(
+					getPermissionOptions(baseHarness),
+					baseHarness.permissionId,
+					bulkPermissionCheckbox.checked,
+				);
+				const harness = permission ? applyPermission(baseHarness, permission) : baseHarness;
 				const attempt = { id: generateUuid(), harness };
 				attempts = [...attempts, attempt];
 				renderRows(attempt.id);

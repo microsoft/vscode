@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { getSessionComparisonWorkspaceError, SessionComparisonDialogResizeController, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
+import { getSessionComparisonWorkspaceError, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
 import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
 
 const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
@@ -54,6 +54,40 @@ suite('SessionComparisonDialogResizeController', () => {
 		}, {
 			width: `${Math.floor(mainWindow.innerWidth * 0.9)}px`,
 			height: '480px',
+		});
+	});
+
+	suite('SessionComparisonPermissions', () => {
+		const options = [{
+			id: 'default',
+			label: 'Default',
+			description: 'Default permissions.',
+			isDefault: true,
+		}, {
+			id: 'assisted',
+			label: 'Assisted',
+			description: 'Assisted permissions.',
+		}, {
+			id: 'allowAll',
+			label: 'Allow all',
+			description: 'Allow all permissions.',
+			isAllowAll: true,
+		}];
+
+		test('selects provider permissions from checked, unchecked, and mixed bulk state', () => {
+			assert.deepStrictEqual({
+				checked: selectSessionComparisonPermission(options, 'default', true)?.id,
+				unchecked: selectSessionComparisonPermission(options, 'allowAll', false)?.id,
+				mixed: selectSessionComparisonPermission(options, 'assisted', 'mixed')?.id,
+				mixedMissing: selectSessionComparisonPermission(options, 'missing', 'mixed')?.id,
+				lockedAllowAll: selectSessionComparisonPermission(options.map(option => option.isAllowAll ? { ...option, locked: true } : option), 'default', true)?.id,
+			}, {
+				checked: 'allowAll',
+				unchecked: 'default',
+				mixed: 'assisted',
+				mixedMissing: 'default',
+				lockedAllowAll: 'default',
+			});
 		});
 	});
 
