@@ -1,6 +1,6 @@
 # Agent Project Board contributor setup
 
-This guide targets `copilot/vscode/agent-project-board-phase-1`, not upstream `main`. The [design and scenario contract](agent-project-board-spec.md) describes the implemented P0/P1 prototype and optional P2 scope.
+This guide targets the shared feature branch `bryanchen-d/agents-board-view`, not upstream `main`. Keep day-to-day work on personal topic branches. The [design and scenario contract](agent-project-board-spec.md) describes the implemented P0/P1 prototype and optional P2 scope.
 
 Windows PowerShell is the validated native setup. On macOS/Linux, follow the [upstream build prerequisites](https://github.com/microsoft/vscode/wiki/How-to-Contribute) and use the corresponding `.sh` launch/test scripts; native behavior on those platforms still needs verification.
 
@@ -9,7 +9,7 @@ Windows PowerShell is the validated native setup. On macOS/Linux, follow the [up
 For a new checkout:
 
 ```powershell
-git clone --filter=blob:none --single-branch --branch copilot/vscode/agent-project-board-phase-1 https://github.com/microsoft/vscode.git vscode-project-board
+git clone --filter=blob:none --single-branch --branch bryanchen-d/agents-board-view https://github.com/microsoft/vscode.git vscode-project-board
 Set-Location .\vscode-project-board
 git switch -c your-name/board-change
 ```
@@ -17,7 +17,7 @@ git switch -c your-name/board-change
 Alternatively, from an existing VS Code checkout:
 
 ```powershell
-git fetch origin copilot/vscode/agent-project-board-phase-1
+git fetch origin bryanchen-d/agents-board-view
 git worktree add ..\vscode.worktrees\project-board -b your-name/board-change FETCH_HEAD
 Set-Location ..\vscode.worktrees\project-board
 ```
@@ -158,6 +158,21 @@ If the isolated instance reports an empty hardware keyboard map and letter short
 
 Choose a bounded scenario, reproduce the issue and add a failing test at the actual boundary before fixing it. Preserve all existing green gates, normal approval policies and published-session ownership.
 
-Use your own topic branch/fork and follow the [upstream contribution process](https://github.com/microsoft/vscode/wiki/How-to-Contribute). Coordinate whether a contribution targets this shared feature branch or upstream main; do not force-push the shared prototype branch.
+Use your own topic branch/fork and follow the [upstream contribution process](https://github.com/microsoft/vscode/wiki/How-to-Contribute). Coordinate feature contributions against `bryanchen-d/agents-board-view`; upstream-main integration is a separate step. Do not force-push the shared feature branch.
 
 Include the scenario IDs, tested revision, commands/counts, platform, exercised providers, native evidence and known gaps in your handoff. Never commit profiles, tokens, transcripts, debug captures or generated build output.
+
+### Maintainer integration without switching the working tree
+
+Bryan's existing worktree stays on `copilot/vscode/agent-project-board-phase-1`; `origin/bryanchen-d/agents-board-view` is the shared integration target. The working branch tracks that shared branch for incoming changes.
+
+After committing a validated change on the working branch:
+
+```powershell
+git fetch origin
+git merge --no-edit origin/bryanchen-d/agents-board-view
+# Resolve any conflicts and run the relevant regression gates before publishing.
+git push origin HEAD:refs/heads/bryanchen-d/agents-board-view
+```
+
+This integrates other contributors' changes locally before advancing the shared branch, without checking it out or renaming the working branch. Use the explicit push target because the local and shared branch names differ. If another contributor advances the remote, fetch, merge and validate again; never force-push past their commits. Contributors without write access should use a pull request targeting the shared branch.
