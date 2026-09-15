@@ -1625,6 +1625,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	private boardWindow: IAuxiliaryWindow | undefined;
 	private boardView: ProjectBoardView | undefined;
 	private customView: ProjectBoardView | undefined;
+	private focusedView: { readonly view: ProjectBoardView; readonly window: Window } | undefined;
 	private opening: Promise<void> | undefined;
 	private readonly boardDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly chatWindows: ProjectBoardChatWindows;
@@ -1662,14 +1663,16 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 			logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
 		});
-		this.boardView = view;
 		this.customView = view;
+		const rememberFocus = () => { this.focusedView = { view, window: getWindow(container) }; };
+		const focusListener = addDisposableListener(container, EventType.FOCUS_IN, rememberFocus);
 		return {
-			focus: () => view.focus(),
+			focus: () => { rememberFocus(); view.focus(); },
 			layout: (width, height) => view.layout(width, height),
 			dispose: () => {
-				if (this.boardView === view) {
-					this.boardView = undefined;
+				focusListener.dispose();
+				if (this.focusedView?.view === view) {
+					this.focusedView = undefined;
 				}
 				if (this.customView === view) {
 					this.customView = undefined;
@@ -1696,11 +1699,14 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	}
 
 	getAccessibleContent(): string {
-		return this.boardView?.getAccessibleContent() ?? localize('projectBoard.accessibleUnavailable', "Kanban is not currently open.");
+		return (this.customView ?? this.boardView)?.getAccessibleContent() ?? localize('projectBoard.accessibleUnavailable', "Kanban is not currently open.");
 	}
 
 	private async focusBoardWindow(): Promise<void> {
 		if (this.boardWindow) {
+			if (this.boardView) {
+				this.focusedView = { view: this.boardView, window: this.boardWindow.window };
+			}
 			await this.hostService.focus(this.boardWindow.window);
 		}
 	}
@@ -1709,12 +1715,11 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		try {
 			const resource = await this.chatWindows.closeActiveSession(windowId);
 			if (resource) {
-				if (this.boardWindow) {
-					await this.focusBoardWindow();
-				} else {
-					await this.hostService.focus(mainWindow);
-				}
-				this.boardView?.focusChat(resource);
+				const target = this.focusedView
+					?? (this.boardWindow && this.boardView ? { view: this.boardView, window: this.boardWindow.window } : undefined)
+					?? (this.customView ? { view: this.customView, window: mainWindow } : undefined);
+				await this.hostService.focus(target?.window ?? mainWindow);
+				target?.view.focusChat(resource);
 			}
 		} catch (error) {
 			this.logService.error('[ProjectBoard] Failed to close session view', error);
@@ -1751,9 +1756,15 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 				logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
 			}));
 			this.boardView = view;
+			store.add(addDisposableListener(window.content, EventType.FOCUS_IN, () => {
+				this.focusedView = { view, window: boardWindow.window };
+			}));
 			store.add(toDisposable(() => {
 				if (this.boardView === view) {
 					this.boardView = undefined;
+				}
+				if (this.focusedView?.view === view) {
+					this.focusedView = undefined;
 				}
 			}));
 		} catch (error) {
