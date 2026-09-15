@@ -710,6 +710,63 @@ suite('CodexAgent createChat', () => {
 		});
 	});
 
+	test('workspace hook trust: cold resume reloads when hooks appear after resume', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-late-resume');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hook-trust-late-resume');
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'hook-trust-late-resume-thread';
+		entry.needsResume = true;
+		entry.hasNativeHistory = undefined;
+		agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+		setWorkspaceTrust(agent, [folder]);
+
+		const resuming = agent['_resumeSession'](entry);
+		const providerRead = await readNextRequest(peer.outbound);
+		peer.push({
+			id: providerRead.id,
+			result: {
+				thread: {
+					id: entry.threadId,
+					cwd: folder.fsPath,
+					modelProvider: 'vscode-proxy',
+					historyMode: 'legacy',
+					turns: [],
+				},
+			},
+		});
+		const initialHooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, initialHooks, folder.fsPath, []);
+		const initialResume = await readNextRequest(peer.outbound);
+		peer.push({ id: initialResume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+		const refreshedHooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, refreshedHooks, folder.fsPath);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const trustedResume = await readNextRequest(peer.outbound);
+		peer.push({ id: trustedResume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+		await resuming;
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+
+		assert.deepStrictEqual({
+			methods: [providerRead, initialHooks, initialResume, refreshedHooks, unsubscribe, trustedResume].map(request => request.method),
+			initialTrust: initialResume.params.config?.['hooks.state'],
+			trust: trustedResume.params.config?.['hooks.state'],
+		}, {
+			methods: ['thread/read', 'hooks/list', 'thread/resume', 'hooks/list', 'thread/unsubscribe', 'thread/resume'],
+			initialTrust: undefined,
+			trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
+		});
+	});
+
 	test('workspace hook trust: hooks/list failure continues without an overlay', async () => {
 		const logService = new RecordingLogService();
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, logService });
@@ -852,25 +909,57 @@ suite('CodexAgent createChat', () => {
 		await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
 		setWorkspaceTrust(agent, [folder]);
 		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
-		const unsubscribe = await readNextRequest(peer.outbound);
-		peer.push({ id: unsubscribe.id, result: {} });
 		const hooks = await readNextRequest(peer.outbound);
 		respondToHooksList(peer, hooks, folder.fsPath);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'trusted-thread', cwd: folder.fsPath } } });
 		const turn = await readNextRequest(peer.outbound);
 		peer.push({ id: turn.id, result: {} });
 		await sending;
 		assert.deepStrictEqual({
-			methods: [prewarm, unsubscribe, hooks, start, turn].map(request => request.method),
+			methods: [prewarm, hooks, unsubscribe, start, turn].map(request => request.method),
 			prewarmTrust: prewarm.params.config?.['hooks.state'],
 			trust: start.params.config?.['hooks.state'],
 			thread: turn.params.threadId,
 		}, {
-			methods: ['thread/start', 'thread/unsubscribe', 'hooks/list', 'thread/start', 'turn/start'],
+			methods: ['thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'turn/start'],
 			prewarmTrust: undefined,
 			trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
 			thread: 'trusted-thread',
+		});
+	});
+
+	test('workspace hook trust: failed post-start discovery does not restart the thread', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-post-start-failure');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hooks');
+		const context = { configurationResource: session, resource: chat };
+		setWorkspaceTrust(agent, [folder]);
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const initialHooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, initialHooks, folder.fsPath, []);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'original-thread', cwd: folder.fsPath } } });
+		await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
+
+		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+		const refreshedHooks = await readNextRequest(peer.outbound);
+		peer.push({ id: refreshedHooks.id, error: { code: -32603, message: 'hooks unavailable' } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			methods: [initialHooks, start, refreshedHooks, turn].map(request => request.method),
+			thread: turn.params.threadId,
+		}, {
+			methods: ['hooks/list', 'thread/start', 'hooks/list', 'turn/start'],
+			thread: 'original-thread',
 		});
 	});
 
