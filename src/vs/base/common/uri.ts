@@ -675,14 +675,14 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			// <user>@<auth>
 			const userinfo = authority.substr(0, idx);
 			authority = authority.substr(idx + 1);
-			idx = userinfo.lastIndexOf(':');
+			idx = userinfo.indexOf(':');
 			if (idx === -1) {
 				res += encoder(userinfo, false, false);
 			} else {
 				// <user>:<pass>@<auth>
 				res += encoder(userinfo.substr(0, idx), false, false);
 				res += ':';
-				res += encoder(userinfo.substr(idx + 1), false, true);
+				res += encoder(userinfo.substr(idx + 1), false, false);
 			}
 			res += '@';
 		}
