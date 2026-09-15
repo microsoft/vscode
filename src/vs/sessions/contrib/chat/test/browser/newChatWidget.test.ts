@@ -1265,11 +1265,11 @@ suite('NewChatWidget', () => {
 		const configuredAttempts: readonly ISessionComparisonAttemptConfiguration[] = [
 			{
 				id: 'first-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One' },
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'high' } },
 			},
 			{
 				id: 'second-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One' },
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'xhigh' } },
 			},
 		];
 		let comparisonOptions: IStartSessionComparisonOptions | undefined;

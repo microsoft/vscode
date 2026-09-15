@@ -616,12 +616,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
 		}
+		if (options?.modelConfiguration && !options.modelId) {
+			throw new Error('Session model configuration requires a model identifier.');
+		}
+		if (options?.modelConfiguration && provider.supportsModelConfigurationForCreation !== true) {
+			throw new Error(`Sessions provider '${provider.id}' does not support model configuration during session creation.`);
+		}
 		const automationConfiguration = sessionTemplate
 			? { sessionTemplate }
 			: options?.automationConfiguration;
 		return {
 			metadata: options?.metadata,
 			...(options?.createdBySession ? { createdBySession: options.createdBySession } : {}),
+			...(options?.modelId && options.modelConfiguration ? {
+				modelId: options.modelId,
+				modelConfiguration: options.modelConfiguration,
+			} : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}

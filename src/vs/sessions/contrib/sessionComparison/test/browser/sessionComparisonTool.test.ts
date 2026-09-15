@@ -53,7 +53,14 @@ suite('SessionComparisonTool', () => {
 	});
 
 	test('returns bounded evidence and exact session context targets to the Judge', async () => {
-		const comparison = stubComparison();
+		const base = stubComparison();
+		const comparison: ISessionComparison = {
+			...base,
+			participants: base.participants.map(participant => participant.role === SessionComparisonParticipantRole.Attempt ? {
+				...participant,
+				harness: { ...participant.harness, modelConfiguration: { thinkingLevel: 'high' } },
+			} : participant),
+		};
 		const session = stubAttemptSession();
 		const workingDirectory = URI.file('/workspace').fsPath;
 		const tool = new ReadSessionComparisonTool(
@@ -80,8 +87,8 @@ suite('SessionComparisonTool', () => {
 			baseBranch: 'main',
 			attempts: [{
 				attemptNumber: 1,
-				label: 'Attempt 1: Copilot · Claude',
-				harness: { agent: 'Copilot', model: 'Claude' },
+				label: 'Attempt 1: Copilot · Claude · High',
+				harness: { agent: 'Copilot', model: 'Claude', reasoningEffort: 'high' },
 				status: SessionStatus.Completed,
 				sessionContextTarget: 'agent-host-session://copilot/attempt',
 				worktree: {

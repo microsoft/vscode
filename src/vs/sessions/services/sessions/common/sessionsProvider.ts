@@ -55,6 +55,10 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly metadata?: Record<string, unknown>;
 	/** Session that created this session, when it should be presented as a child. */
 	readonly createdBySession?: ISessionCreationReference;
+	/** Initial model identifier selected for the draft. */
+	readonly modelId?: string;
+	/** Model-specific primitive values applied only to this draft. */
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
@@ -277,6 +281,8 @@ export interface ISessionsProvider {
 
 	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
+	/** Whether model-specific configuration can be scoped to a newly created draft. */
+	readonly supportsModelConfigurationForCreation?: boolean;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 

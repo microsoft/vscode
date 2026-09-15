@@ -122,6 +122,7 @@ export class ModelPickerWidget extends Disposable {
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 	private _minimal: IObservable<boolean> | undefined;
+	private _contextViewLayer: number | undefined;
 	private _workspaceTrustInitialized = false;
 	private _activatingAfterTrust = false;
 	private readonly _activatingTimer = this._register(new MutableDisposable());
@@ -185,6 +186,7 @@ export class ModelPickerWidget extends Disposable {
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
 			dismissCacheBreakHint: () => this.dismissCacheBreakHint(),
+			getContextViewLayer: () => this._contextViewLayer,
 		});
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
@@ -264,6 +266,10 @@ export class ModelPickerWidget extends Disposable {
 			this._domNode?.classList.toggle('minimal', isMinimal);
 			this._renderLabel();
 		}));
+	}
+
+	setContextViewLayer(contextViewLayer: number | undefined): void {
+		this._contextViewLayer = contextViewLayer;
 	}
 
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
@@ -486,7 +492,7 @@ export class ModelPickerWidget extends Disposable {
 			}
 		});
 		this._nameButton?.setAttribute('aria-expanded', 'true');
-		picker.show(anchor, context);
+		picker.show(anchor, context, this._contextViewLayer);
 	}
 
 	show(anchor?: HTMLElement): void {
@@ -684,7 +690,8 @@ export class ModelPickerWidget extends Disposable {
 			undefined,
 			[],
 			getModelPickerAccessibilityProvider(!unavailable),
-			listOptions
+			listOptions,
+			this._contextViewLayer,
 		);
 	}
 

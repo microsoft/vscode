@@ -10,6 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatUsageSummary } from '../../../../workbench/contrib/chat/common/chatUsage.js';
+import { getReasoningEffortLabel, isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 
 export const enum SessionComparisonParticipantRole {
 	Coordinator = 'coordinator',
@@ -39,6 +40,7 @@ export interface ISessionComparisonHarness {
 	readonly label: string;
 	readonly modelId?: string;
 	readonly modelLabel?: string;
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 }
 
 export interface ISessionComparisonAttemptConfiguration {
@@ -148,9 +150,17 @@ export interface ISessionComparisonService {
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
 export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
-	return participant.harness.modelLabel
-		? localize('sessionComparison.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
-		: participant.harness.label;
+	return getSessionComparisonHarnessDisplayLabel(participant.harness);
+}
+
+export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness): string {
+	const harnessLabel = harness.modelLabel
+		? localize('sessionComparison.harnessAndModel', "{0} · {1}", harness.label, harness.modelLabel)
+		: harness.label;
+	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
+	return typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
+		? localize('sessionComparison.harnessModelAndEffort', "{0} · {1}", harnessLabel, getReasoningEffortLabel(reasoningEffort))
+		: harnessLabel;
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {

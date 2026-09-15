@@ -11,12 +11,13 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonHarnessDisplayLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
 const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
@@ -122,12 +123,14 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			const sessionContextTarget = session && invokingSession && invokingSession.providerId === session.providerId
 				? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
 				: undefined;
+			const reasoningEffort = participant.harness.modelConfiguration?.[ReasoningEffortConfigKey];
 			return {
 				attemptNumber: index + 1,
-				label: `Attempt ${index + 1}: ${participant.harness.label}${participant.harness.modelLabel ? ` · ${participant.harness.modelLabel}` : ''}`,
+				label: `Attempt ${index + 1}: ${getSessionComparisonHarnessDisplayLabel(participant.harness)}`,
 				harness: {
 					agent: participant.harness.label,
 					model: participant.harness.modelLabel ?? 'Default',
+					reasoningEffort: typeof reasoningEffort === 'string' ? reasoningEffort : 'default',
 				},
 				status: session?.status.get() ?? 'unavailable',
 				launchError: participant.launchError,

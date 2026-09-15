@@ -268,6 +268,42 @@ suite('SessionComparisonService', () => {
 		]);
 	});
 
+	test('passes independent reasoning efforts to attempts, Judge, and synthesis', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+		const base = startOptions();
+		const comparison = await service.startComparison({
+			...base,
+			judgeHarness: { ...base.judgeHarness, modelConfiguration: { thinkingLevel: 'max' } },
+			attempts: [
+				{ ...base.attempts[0], harness: { ...base.attempts[0].harness, modelConfiguration: { thinkingLevel: 'high' } } },
+				{ ...base.attempts[1], harness: { ...base.attempts[1].harness, modelConfiguration: { thinkingLevel: 'xhigh' } } },
+			],
+		});
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		service.submitVerdict(comparison.id, verdict(attempts[1].id, attempts.map(attempt => attempt.id)));
+		await service.synthesize(comparison.id);
+
+		assert.deepStrictEqual(sessionsManagementService.createCalls.map(call => ({
+			title: call.options.title,
+			modelConfiguration: call.createOptions?.modelConfiguration,
+		})), [
+			{ title: 'One · High', modelConfiguration: { thinkingLevel: 'high' } },
+			{ title: 'Two · Extra High', modelConfiguration: { thinkingLevel: 'xhigh' } },
+			{ title: `Judge: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'max' } },
+			{ title: `Synthesis: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'xhigh' } },
+		]);
+	});
+
 	test('preserves unique attempt identifiers for repeated harness and model configurations', async () => {
 		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));

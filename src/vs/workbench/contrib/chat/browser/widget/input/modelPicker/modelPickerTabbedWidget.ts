@@ -96,6 +96,7 @@ export class TabbedModelPicker extends Disposable {
 
 	private _context: ITabbedModelPickerContext | undefined;
 	private _anchor: HTMLElement | undefined;
+	private _contextViewLayer: number | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
@@ -131,12 +132,13 @@ export class TabbedModelPicker extends Disposable {
 		this._widget.hide();
 	}
 
-	show(anchor: HTMLElement, context: ITabbedModelPickerContext): void {
+	show(anchor: HTMLElement, context: ITabbedModelPickerContext, contextViewLayer?: number): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
 		}
 		this._anchor = anchor;
 		this._context = context;
+		this._contextViewLayer = contextViewLayer;
 		if (context.selectedModelId && !this._isAutoSelected(context)) {
 			this._lastExplicitModelId = context.selectedModelId;
 		}
@@ -169,6 +171,7 @@ export class TabbedModelPicker extends Disposable {
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
 			showCheckedItemHover: !this._isAutoSelected(context),
+			contextViewLayer: this._contextViewLayer,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
 			// Recomputed on every render so a tab switch reflects the current Auto state.

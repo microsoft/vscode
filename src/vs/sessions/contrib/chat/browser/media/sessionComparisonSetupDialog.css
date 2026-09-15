@@ -146,6 +146,41 @@
 	width: 100%;
 }
 
+.session-comparison-setup-model-picker {
+	box-sizing: border-box;
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	height: 28px;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-dropdown-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+}
+
+.session-comparison-setup-model-picker .action-label.model-picker-split {
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	height: 100%;
+	border-radius: inherit;
+}
+
+.session-comparison-setup-model-picker .action-label.model-picker-split .model-picker-section {
+	height: 100%;
+}
+
+.session-comparison-setup-model-picker .action-label.model-picker-split .model-picker-name {
+	flex: 1 1 auto;
+}
+
+.session-comparison-setup-model-picker .action-label.model-picker-split .model-picker-config {
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-dropdown-border, transparent);
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
 .session-comparison-setup-add {
 	align-self: flex-start;
 	margin-top: var(--vscode-spacing-size40);

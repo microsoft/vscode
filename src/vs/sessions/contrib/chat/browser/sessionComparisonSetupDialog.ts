@@ -10,18 +10,25 @@ import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Button, IButton } from '../../../../base/browser/ui/button/button.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { createModelConfigurationActions, ILanguageModelChatMetadataAndIdentifier, IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonHarnessDisplayLabel, ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../services/sessions/common/sessionComparison.js';
+import { isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatInput.js';
 
 export interface ISessionComparisonSetupContext {
@@ -50,6 +57,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 	constructor(
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
@@ -177,6 +185,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				modelAriaLabel: string,
 				unavailableAgentMessage: string,
 				unavailableModelMessage: string,
+				unavailableModelConfigurationMessage: string,
 				onChange: (harness: ISessionComparisonHarness) => void,
 			): SelectBox | undefined => {
 				const harnessIndex = harnesses.findIndex(harness =>
@@ -195,9 +204,27 @@ export class SessionComparisonSetupDialog extends Disposable {
 				const provider = this.sessionsProvidersService.getProvider(harness.providerId);
 				const models = provider?.getModelsSnapshotForCreation?.(context.workspace, harness.sessionTypeId).models ?? [];
 				if (harness.modelId && !models.some(model => model.identifier === harness.modelId)) {
-					harness = { ...harness, modelId: undefined, modelLabel: undefined };
+					harness = { ...harness, modelId: undefined, modelLabel: undefined, modelConfiguration: undefined };
 					onChange(harness);
 					status(unavailableModelMessage);
+				}
+				const selectedModel = harness.modelId ? models.find(model => model.identifier === harness.modelId) : undefined;
+				const reasoningEffortSchema = provider?.supportsModelConfigurationForCreation
+					? selectedModel?.metadata.configurationSchema?.properties?.[ReasoningEffortConfigKey]
+					: undefined;
+				const selectedReasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
+				const hasValidSelectedReasoningEffort = typeof selectedReasoningEffort === 'string'
+					&& isReasoningEffortLevel(selectedReasoningEffort)
+					&& reasoningEffortSchema?.enum?.includes(selectedReasoningEffort) === true;
+				if (selectedReasoningEffort !== undefined && !hasValidSelectedReasoningEffort) {
+					const modelConfiguration = { ...harness.modelConfiguration };
+					delete modelConfiguration[ReasoningEffortConfigKey];
+					harness = {
+						...harness,
+						modelConfiguration: Object.keys(modelConfiguration).length > 0 ? modelConfiguration : undefined,
+					};
+					onChange(harness);
+					status(unavailableModelConfigurationMessage);
 				}
 
 				const agentField = dom.append(container, dom.$('.session-comparison-setup-field'));
@@ -230,37 +257,94 @@ export class SessionComparisonSetupDialog extends Disposable {
 					}
 				}));
 
-				const modelOptions = [
-					{ text: localize('sessionComparisonSetup.defaultModel', "Auto") },
-					...models.map(model => ({ text: model.metadata.name, detail: model.metadata.detail })),
-				];
-				const selectedModelIndex = harness.modelId
-					? Math.max(0, models.findIndex(model => model.identifier === harness.modelId) + 1)
-					: 0;
 				const modelField = dom.append(container, dom.$('.session-comparison-setup-field'));
-				dom.append(modelField, dom.$('span.session-comparison-setup-field-label')).textContent =
+				const modelFieldLabel = dom.append(modelField, dom.$('span.session-comparison-setup-field-label'));
+				modelFieldLabel.textContent =
 					localize('sessionComparisonSetup.model', "Model");
-				const modelSelect = rowsDisposables.add(new SelectBox(
-					modelOptions,
-					selectedModelIndex,
-					this.contextViewService,
-					defaultSelectBoxStyles,
-					{
-						ariaLabel: modelAriaLabel,
-						useCustomDrawn: true,
-						contextViewLayer: 1,
+				modelField.setAttribute('role', 'group');
+				modelField.setAttribute('aria-label', modelAriaLabel);
+				const pickerModels = provider?.supportsModelConfigurationForCreation
+					? models
+					: models.map(model => ({
+						...model,
+						metadata: { ...model.metadata, configurationSchema: undefined },
+					}));
+				const autoModel = pickerModels.find(model => model.metadata.id === 'auto');
+				const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>(
+					rowsDisposables,
+					harness.modelId ? pickerModels.find(model => model.identifier === harness.modelId) : autoModel,
+				);
+				const configurationChanged = rowsDisposables.add(new Emitter<string>());
+				const modelConfiguration: IModelConfigurationAccess = {
+					getModelConfiguration: modelId => harness.modelId === modelId
+						? harness.modelConfiguration as IStringDictionary<unknown> | undefined
+						: undefined,
+					setModelConfiguration: async (modelId, values) => {
+						const model = pickerModels.find(candidate => candidate.identifier === modelId);
+						if (!model || provider?.supportsModelConfigurationForCreation !== true) {
+							throw new Error('The selected provider does not support model configuration during session creation.');
+						}
+						const nextConfiguration: Record<string, string | number | boolean | null> = { ...harness.modelConfiguration };
+						for (const [key, value] of Object.entries(values)) {
+							if (typeof value === 'string' || typeof value === 'boolean' || value === null
+								|| typeof value === 'number' && Number.isFinite(value)) {
+								nextConfiguration[key] = value;
+							} else {
+								throw new Error('Session model configuration must contain only JSON primitive values.');
+							}
+						}
+						harness = {
+							...harness,
+							modelId,
+							modelLabel: model.metadata.name,
+							modelConfiguration: nextConfiguration,
+						};
+						currentModel.set(model, undefined);
+						onChange(harness);
+						configurationChanged.fire(modelId);
 					},
+					getModelConfigurationActions: modelId => {
+						const model = pickerModels.find(candidate => candidate.identifier === modelId);
+						return createModelConfigurationActions(
+							model?.metadata.configurationSchema,
+							modelConfiguration.getModelConfiguration(modelId) ?? {},
+							(key, value) => void modelConfiguration.setModelConfiguration(modelId, { [key]: value }),
+						);
+					},
+					onDidChange: configurationChanged.event,
+				};
+				const modelPickerDelegate: IModelPickerDelegate = {
+					currentModel,
+					modelConfiguration,
+					setModel: model => {
+						const isAuto = model.metadata.id === 'auto';
+						harness = {
+							...harness,
+							modelId: isAuto ? undefined : model.identifier,
+							modelLabel: isAuto ? undefined : model.metadata.name,
+							modelConfiguration: undefined,
+						};
+						currentModel.set(model, undefined);
+						onChange(harness);
+					},
+					getModels: () => [...pickerModels],
+					getPresentationOptions: () => ({
+						useGroupedModelPicker: true,
+						showFeatured: false,
+						showUnavailableFeatured: false,
+						showManageModelsAction: false,
+						showAutoModel: true,
+						showModelIcon: true,
+					}),
+					isCacheWarm: () => false,
+				};
+				const modelPicker = rowsDisposables.add(this.instantiationService.createInstance(
+					ModelPickerActionItem,
+					{ id: `sessionComparison.modelPicker.${generateUuid()}`, label: '', enabled: true, class: undefined, tooltip: '', run: async () => { } },
+					modelPickerDelegate,
+					{ compact: constObservable(false), contextViewLayer: 1 },
 				));
-				modelSelect.render(dom.append(modelField, dom.$('.session-comparison-setup-select')));
-				modelSelect.setEnabled(modelOptions.length > 1);
-				rowsDisposables.add(modelSelect.onDidSelect(({ index }) => {
-					const model = index === 0 ? undefined : models[index - 1];
-					onChange({
-						...harness,
-						modelId: model?.identifier,
-						modelLabel: model?.metadata.name,
-					});
-				}));
+				modelPicker.render(dom.append(modelField, dom.$('.session-comparison-setup-model-picker')));
 				return agentSelect;
 			};
 
@@ -296,6 +380,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 					localize('sessionComparisonSetup.modelForAttempt', "Model for attempt {0}", index + 1),
 					localize('sessionComparisonSetup.agentReset', "The agent for attempt {0} is no longer available. The first available agent will be used.", index + 1),
 					localize('sessionComparisonSetup.modelReset', "The selected model for attempt {0} is no longer available. The agent default will be used.", index + 1),
+					localize('sessionComparisonSetup.modelConfigurationReset', "The selected model configuration for attempt {0} is no longer supported. The model defaults will be used.", index + 1),
 					harness => attempts[index] = { id: attempt.id, harness },
 				);
 
@@ -330,10 +415,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 			const evaluationSummary = dom.append(evaluation, dom.$('summary.session-comparison-setup-evaluation-summary'));
 			dom.append(evaluationSummary, dom.$('span.session-comparison-setup-label')).textContent =
 				localize('sessionComparisonSetup.evaluation', "Evaluation");
-			const judgeLabel = judgeHarness.modelLabel
-				? localize('sessionComparisonSetup.judgeHarnessAndModel', "{0} · {1}", judgeHarness.label, judgeHarness.modelLabel)
+			const getJudgeLabel = (): string => judgeHarness.modelId
+				? getSessionComparisonHarnessDisplayLabel(judgeHarness)
 				: localize('sessionComparisonSetup.judgeHarnessAuto', "{0} · Auto", judgeHarness.label);
-			dom.append(evaluationSummary, dom.$('span.session-comparison-setup-evaluation-value')).textContent = judgeLabel;
+			const judgeValue = dom.append(evaluationSummary, dom.$('span.session-comparison-setup-evaluation-value'));
+			judgeValue.textContent = getJudgeLabel();
 			const judgeRow = dom.append(evaluation, dom.$('.session-comparison-setup-judge'));
 			judgeRow.setAttribute('role', 'group');
 			judgeRow.setAttribute('aria-label', localize('sessionComparisonSetup.judgeConfiguration', "Judge configuration"));
@@ -346,7 +432,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 				localize('sessionComparisonSetup.modelForJudge', "Model for the Judge"),
 				localize('sessionComparisonSetup.judgeAgentReset', "The Judge agent is no longer available. The first available agent will be used."),
 				localize('sessionComparisonSetup.judgeModelReset', "The selected Judge model is no longer available. The agent default will be used."),
-				harness => judgeHarness = harness,
+				localize('sessionComparisonSetup.judgeModelConfigurationReset', "The selected Judge model configuration is no longer supported. The model defaults will be used."),
+				harness => {
+					judgeHarness = harness;
+					judgeValue.textContent = getJudgeLabel();
+				},
 			);
 			rowsDisposables.add(dom.addDisposableListener(evaluation, 'toggle', () => {
 				evaluationExpanded = evaluation.open;
@@ -370,11 +460,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 					cancelId: 1,
 					type: 'none',
 					extraClasses: ['session-comparison-setup-dialog'],
-					isExternalFocusAllowed: target => !!target.closest('.monaco-select-box-dropdown-container'),
+					isExternalFocusAllowed: target => !!target.closest('.context-view, .monaco-select-box-dropdown-container'),
 					buttonStyles: defaultButtonStyles,
 					checkboxStyles: defaultCheckboxStyles,
 					inputBoxStyles: defaultInputBoxStyles,
-					dialogStyles: defaultDialogStyles,
+					dialogStyles: { ...defaultDialogStyles, textLinkForeground: undefined },
 					buttonOptions: [{
 						styleButton: button => {
 							confirmButton = button;

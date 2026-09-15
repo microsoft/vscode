@@ -3737,6 +3737,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const selectedTargetModels: [string, URI, string, ChatModelSource][] = [];
 		const selectedTargetAgents: [string, string, string][] = [];
 		let targetMetadata: Record<string, unknown> | undefined;
+		let targetModelConfiguration: Pick<ISessionsProviderCreateSessionOptions, 'modelId' | 'modelConfiguration'> | undefined;
 		const sourceAgentUri = 'file:///home/user/project/.github/agents/reviewer.agent.md';
 		const targetAgent: AgentCustomization = {
 			type: CustomizationType.Agent,
@@ -3754,6 +3755,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createNewSession(workspaceUri: URI, _sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 				assert.strictEqual(workspaceUri.toString(), remoteWorkspace.toString());
 				targetMetadata = options?.metadata;
+				targetModelConfiguration = {
+					modelId: options?.modelId,
+					modelConfiguration: options?.modelConfiguration,
+				};
 				assert.ok(state.replacement);
 				return state.replacement;
 			}
@@ -3789,6 +3794,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 					desiredModelResolution: { kind: 'notRequested' } as const,
 					modelTarget: 'remote-devcontainer-copilot',
 				};
+			}
+			override getModelsSnapshotForCreation() {
+				return this.getModelsSnapshot();
 			}
 			override setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 				selectedTargetModels.push([sessionId, chatResource, modelId, source]);
@@ -3833,7 +3841,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 		state.provider = provider;
-		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
+			modelId: sourceModelId,
+			modelConfiguration: { thinkingLevel: 'high' },
+		});
 		const sourceBackendSession = AgentSession.uri(provider.sessionTypes[0].id, AgentSession.id(source.resource));
 		await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
 		await timeout(0);
@@ -3849,7 +3860,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		};
 		state.replacement = replacement;
 
-		provider.setModel(source.sessionId, source.mainChat.get().resource, sourceModelId, ChatModelSource.Chosen);
 		provider.setAgent(source.sessionId, { uri: sourceAgentUri, name: 'Reviewer' });
 		provider.setDevContainerEnabled(source.sessionId, true);
 		const prepared = await provider.prepareNewSession(source.sessionId, CancellationToken.None, 'Fix the issue');
@@ -3863,6 +3873,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: prepared.session.sessionId,
 			transferredConfig,
 			selectedTargetModels,
+			targetModelConfiguration,
 			selectedTargetAgents,
 			createdWorktree: agentHost.createDetachedWorktreeCalls.map(call => ({ session: call.session.toString(), prompt: call.prompt })),
 			targetMetadata,
@@ -3879,6 +3890,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: replacement.sessionId,
 			transferredConfig: [['isolation', 'folder'], ['mode', 'interactive']],
 			selectedTargetModels: [[replacement.sessionId, replacementResource, targetModelId, ChatModelSource.Chosen]],
+			targetModelConfiguration: {
+				modelId: targetModelId,
+				modelConfiguration: { thinkingLevel: 'high' },
+			},
 			selectedTargetAgents: [[replacement.sessionId, targetAgent.uri, targetAgent.name]],
 			createdWorktree: [{ session: sourceBackendSession.toString(), prompt: 'Fix the issue' }],
 			targetMetadata: {
@@ -4954,6 +4969,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eagerModel: { id: 'model', config: { thinkingLevel: 'low' } },
 			captured: { thinkingLevel: 'low', futureOption: true },
 			sent: [{ model: modelId, configuration: { thinkingLevel: 'low' } }],
+			sharedWrites: [],
+		});
+	});
+
+	test('Draft-scoped model options reach eager creation and the first request without changing global defaults', async () => {
+		const modelId = 'agent-host-copilotcli:model';
+		const metadata: ILanguageModelChatMetadata = {
+			...createTestLanguageModel('model'),
+			targetChatSessionType: 'agent-host-copilotcli',
+			configurationSchema: {
+				type: 'object',
+				properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' } },
+			},
+		};
+		const sent: IChatSendRequestOptions[] = [];
+		const sharedWrites: Record<string, unknown>[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: [modelId],
+			lookupLanguageModel: () => metadata,
+			languageModelsService: {
+				getModelConfiguration: () => ({ thinkingLevel: 'medium' }),
+				setModelConfiguration: async (_modelId, values) => { sharedWrites.push(values); },
+			},
+			sendRequest: async (_resource, _message, options) => {
+				if (options) {
+					sent.push(options);
+				}
+				return { kind: 'rejected', reason: 'Test request captured' };
+			},
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
+			modelId,
+			modelConfiguration: { thinkingLevel: 'high' },
+		});
+		const chat = await provider.createNewChat(session.sessionId);
+		await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /Test request captured/);
+
+		assert.deepStrictEqual({
+			eagerModel: agentHost.createSessionConfigs[0]?.model,
+			sent: sent.map(options => ({ model: options.userSelectedModelId, configuration: options.userSelectedModelConfiguration })),
+			sharedWrites,
+		}, {
+			eagerModel: { id: 'model', config: { thinkingLevel: 'high' } },
+			sent: [{ model: modelId, configuration: { thinkingLevel: 'high' } }],
 			sharedWrites: [],
 		});
 	});

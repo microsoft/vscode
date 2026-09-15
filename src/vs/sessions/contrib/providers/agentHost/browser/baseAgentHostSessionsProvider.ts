@@ -1960,6 +1960,10 @@ interface INewSessionConstructionContext {
 	readonly initialConfigValues?: Record<string, unknown>;
 	/** Provider-owned Automation values restored before the first configuration resolution. */
 	readonly initialSessionTemplate?: IAutomationSessionTemplate;
+	/** Model selected specifically for this draft. */
+	readonly initialModelId?: string;
+	/** Model-specific primitive values scoped specifically to this draft. */
+	readonly initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	/**
 	 * Optional property schemas to seed into the new session's config before its
 	 * first {@link NewSession.resolveConfig} round-trip. Carried over from the
@@ -2124,7 +2128,17 @@ class NewSession extends Disposable {
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, ctx.initialSessionTemplate));
+		const initialSessionTemplate = ctx.initialSessionTemplate;
+		const initialModelId = ctx.initialModelId ?? initialSessionTemplate?.modelId;
+		if (ctx.initialModelConfiguration && !initialModelId) {
+			throw new Error('Session model configuration requires a model identifier.');
+		}
+		const initialModelConfiguration = ctx.initialModelConfiguration
+			?? (initialSessionTemplate?.modelId === initialModelId ? initialSessionTemplate?.modelConfiguration : undefined);
+		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, initialModelId ? {
+			modelId: initialModelId,
+			...(initialModelConfiguration !== undefined ? { modelConfiguration: initialModelConfiguration } : {}),
+		} : undefined));
 		const workspaceUri = ctx.workspace?.folders[0]?.root;
 		this._kind = sessionKind(!!ctx.quickChat);
 		if (this._kind.requiresWorkspace && !workspaceUri) {
@@ -2140,7 +2154,7 @@ class NewSession extends Disposable {
 		this._activeClientScope = ctx.activeClientScope;
 		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
-		this._initialSessionTemplate = ctx.initialSessionTemplate;
+		this._initialSessionTemplate = initialSessionTemplate;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
@@ -2154,7 +2168,7 @@ class NewSession extends Disposable {
 		this._workspace = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		const checkpoints = observableValue(this, undefined);
-		this._selectedModelId = ctx.initialSessionTemplate?.modelId;
+		this._selectedModelId = initialModelId;
 		this._selectedAgent = ctx.initialSessionTemplate?.agent ? { uri: ctx.initialSessionTemplate.agent.uri, name: '' } : undefined;
 		this._modelId = observableValue<string | undefined>(this, this._selectedModelId);
 		this._modelSource = observableValue<ChatModelSource | undefined>(this, this._selectedModelId ? ChatModelSource.Chosen : undefined);
@@ -2550,7 +2564,7 @@ class NewSession extends Disposable {
 				await connection.createSession({
 					provider: this.agentProvider,
 					session: backendUri,
-					...(this._initialSessionTemplate?.modelId ? { model: this.getSelectedModel() } : {}),
+					...(this._selectedModelId ? { model: this.getSelectedModel() } : {}),
 					workingDirectories: this.workspaceUri ? [this.workspaceUri] : undefined,
 					config: this._config?.values,
 					_meta: this._initialMetadata,
@@ -2735,6 +2749,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly usesCombinedNewSessionConfigPicker = true;
+	readonly supportsModelConfigurationForCreation = true;
 	readonly supportsAutomationSessionConfiguration = true;
 
 	get order(): number { return 0; }
@@ -3575,6 +3590,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				})
 				: options?.metadata,
 			options?.automationConfiguration,
+			options?.modelId,
+			options?.modelConfiguration,
 		);
 	}
 
@@ -3610,6 +3627,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				})
 				: options?.metadata,
 			options?.automationConfiguration,
+			options?.modelId,
+			options?.modelConfiguration,
 		);
 	}
 
@@ -3618,7 +3637,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * given session type. Shared by {@link createNewSession} (workspace-bound)
 	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
 	 */
-	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>, initialAutomationConfiguration?: IAutomationSessionConfiguration): ISession {
+	private _createDraftSession(
+		sessionType: ISessionType,
+		workspace: ISessionWorkspace | undefined,
+		quickChat: boolean,
+		initialMetadata?: Record<string, unknown>,
+		initialAutomationConfiguration?: IAutomationSessionConfiguration,
+		initialModelId?: string,
+		initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
+	): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -3648,6 +3675,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				logService: this._logService,
 				initialConfigValues,
 				initialSessionTemplate,
+				initialModelId,
+				initialModelConfiguration,
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata,
 				instantiationService: this._instantiationService,

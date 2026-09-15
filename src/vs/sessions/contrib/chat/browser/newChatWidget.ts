@@ -1142,6 +1142,7 @@ export class NewChatWidget extends Disposable {
 					label: type.sessionType.label,
 					modelId: resolvedModelId,
 					modelLabel: resolution?.kind === 'available' ? resolution.model.metadata.name : undefined,
+					modelConfiguration: resolvedModelId ? harness.modelConfiguration : undefined,
 				} : undefined;
 			};
 			const attempts = this._comparisonAttempts.get().flatMap(attempt => {

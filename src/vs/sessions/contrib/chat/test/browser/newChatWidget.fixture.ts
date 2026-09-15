@@ -19,6 +19,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
@@ -356,6 +357,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		},
 	});
 	await instantiationService.get(IConfigurationService).updateValue(COMPARE_AGENTS_ENABLED_SETTING, true);
+	if (openComparisonSetup) {
+		await instantiationService.get(IConfigurationService).updateValue(TABBED_MODEL_PICKER_SETTING_ID, true);
+	}
 
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
@@ -508,8 +512,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionComparisonSetup: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['A focused, narrow Run and Compare Agents dialog opens with the current prompt, a compact “Starting from vscode · main” summary, and the note that each attempt runs in an isolated worktree and nothing is applied automatically. Two aligned attempt rows are visible by default with Agent and Model custom-drawn pickers. Remove actions are absent while only the required two attempts exist, Add attempt is a quiet inline action, Evaluation is collapsed with its selected Judge summarized, and the primary action reads Run 2 attempts.'],
-		render: context => renderNewChatWidget(context, { height: 760, withWorkspace: true, withAutoModel: true, openComparisonSetup: true, comparisonPrompt: 'Implement the issue and include focused tests.' }),
+		expectedVisualDescriptions: ['A focused, narrow Run and Compare Agents dialog opens with the current prompt, a compact “Starting from vscode · main” summary, and the note that each attempt runs in an isolated worktree and nothing is applied automatically. Two aligned attempt rows are visible by default with Agent selectors and the shared VS Code model picker, which uses the experimental provider-tab experience for model effort and context configuration. Remove actions are absent while only the required two attempts exist, Add attempt is a quiet inline action, Evaluation is collapsed with its selected Judge summarized, and the primary action reads Run 2 attempts.'],
+		render: context => renderNewChatWidget(context, { height: 760, withWorkspace: true, withConfiguredModel: true, openComparisonSetup: true, comparisonPrompt: 'Implement the issue and include focused tests.' }),
 	}),
 	NewSessionGitHubContextPicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
@@ -665,6 +669,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 			},
 		];
 		override readonly supportsLocalWorkspaces = true;
+		override readonly supportsModelConfigurationForCreation = true;
 
 		override getSessions(): ISession[] {
 			return [];
@@ -741,11 +746,11 @@ function createFixtureConfiguredModel(): ILanguageModelChatMetadataAndIdentifier
 			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
 			configurationSchema: {
 				properties: {
-					effort: {
+					thinkingLevel: {
 						type: 'string',
 						group: 'navigation',
-						enum: ['low', 'medium', 'high'],
-						enumItemLabels: ['Low', 'Medium', 'Max'],
+						enum: ['low', 'medium', 'high', 'xhigh', 'max'],
+						enumItemLabels: ['Low', 'Medium', 'High', 'Extra High', 'Max'],
 						default: 'high',
 					},
 					context: {

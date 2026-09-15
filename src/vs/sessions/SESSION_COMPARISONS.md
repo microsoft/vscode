@@ -11,7 +11,7 @@ Session comparisons run the same task through multiple Sessions providers and pr
 | Concern | Owner |
 |---|---|
 | Comparison records, participant lifecycle, and selection | `ISessionComparisonService` |
-| Attempt and Judge harness/provider-local model selection | new-session composer |
+| Attempt and Judge harness/provider-local model and reasoning-effort selection | new-session composer |
 | Session creation, model resolution, and worktree isolation | Sessions provider through `ISessionsManagementService` |
 | Attempt evidence and user actions | Judge chat result and comparison parent grid |
 | Bounded attempt manifest | `readAttemptComparison` tool |
@@ -25,16 +25,16 @@ The Sessions group service persists the comparison's session membership so the h
 
 Each comparison has one visible Sessions group containing all of its participants:
 
-- **Attempt:** one uniquely identified setup entry with one selected harness, one provider-local model selection, and one isolated worktree. Multiple attempts may use the same harness and model.
-- **Judge:** uses the harness and model selected in comparison setup, starts after at least two successfully launched attempts reach a terminal state, and submits one structured verdict.
-- **Synthesis:** optional new attempt using the recommended or selected attempt's harness. It never mutates an original attempt.
+- **Attempt:** one uniquely identified setup entry with one selected harness, one provider-local model selection, an optional model-supported reasoning effort, and one isolated worktree. Multiple attempts may use the same harness and model with different efforts.
+- **Judge:** uses the harness, model, and optional reasoning effort selected in comparison setup, starts after at least two successfully launched attempts reach a terminal state, and submits one structured verdict.
+- **Synthesis:** optional new attempt using the recommended or selected attempt's harness, model, and reasoning effort. It never mutates an original attempt.
 
 The comparison service creates attempts directly and adds each launched participant to the ordinary Sessions group. The group displays the Judge and synthesis first, followed by attempts in their stable launch order; only attempts use connector decoration. It reconciles every participant back into that group as provider catalogs hydrate, so attempts, the Judge, and synthesis cannot fall back into separate workspace sections after a reload. It does not create a model-backed coordinator: orchestration is deterministic service behavior, and no model participant may create a second session tree.
 
 ## Lifecycle invariants
 
-1. The prompt, attachments, workspace, branch, permission level, and Judge harness/model are frozen at launch. The prompt and attachments are shared across attempts, and each attempt independently selects a model advertised by its harness provider.
-2. Every harness must support worktree configuration. Model identifiers remain provider-local and are never matched across providers by identifier or display name.
+1. The prompt, attachments, workspace, branch, permission level, and Judge harness/model/effort are frozen at launch. The prompt and attachments are shared across attempts, and each attempt independently selects a model and optional supported reasoning effort advertised by its harness provider.
+2. Every harness must support worktree configuration. Model identifiers remain provider-local and are never matched across providers by identifier or display name. Reasoning effort is stored as model configuration and is offered only when the provider can scope that configuration to the new draft.
 3. Attempts launch concurrently. One launch failure is recorded without deleting successful attempts. If fewer than two attempts launch, comparison setup fails and any successful sessions remain available outside the comparison group. Opening the comparison parent presents every available participant session in participant order in a tiled Sessions grid, including attempts, the Judge, and synthesis when they exist.
 4. The Judge calls `readAttemptComparison` once to obtain the original task, successful participants, worktree locations, changed files, change summaries, and exact provider-owned transcript targets. Because terminal commands start in the Judge worktree, it explicitly changes to the manifest's exact attempt working directory for every command that inspects or validates that attempt. It reviews every attempt's diff, calls the existing `get_session_context` tool with those exact targets to inspect validation claims or other focused transcript evidence, and runs missing targeted validation when needed. It records whether each validation result came from the attempt report, a Judge run, unavailable evidence, or did not apply, then successfully calls `completeAttemptComparison`. A rejected invalid verdict may be corrected and retried, but a successful verdict is not resubmitted. It does not discover sessions, guess references, create sessions, or modify attempts.
 5. After the Judge submits a verdict, its chat remains open and presents the winning attempt, supporting evidence, strong points from other attempts, and actions to focus the winner or start synthesis. Focusing the winner records a preference and opens its session without automatically opening its Changes editor; it does not apply changes to the user's working tree.
@@ -52,7 +52,7 @@ Both comparison tools are registered as ordinary workbench language-model tools 
 
 ```mermaid
 flowchart TD
-	Composer[New-session composer] --> Setup[Compare agents setup<br/>Prompt + N attempt agent/models + Judge agent/model]
+	Composer[New-session composer] --> Setup[Compare agents setup<br/>Prompt + N attempt agent/model/effort selections<br/>Judge agent/model/effort]
 	Setup -->|Run Attempts| Service[SessionComparisonService<br/>Create comparison record and Sessions group]
 
 	subgraph Group[One comparison group]
