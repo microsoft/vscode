@@ -2256,6 +2256,22 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
 	}));
 
+	test('initialize with platform-specific all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const platformOverride = isLinux ? '[linux]' : isMacintosh ? '[osx]' : '[windows]';
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({
+			'configurationService.profiles.applicationSetting2': 'applicationValue',
+			'configurationService.profiles.testSetting2': 'userValue',
+			[platformOverride]: {
+				[APPLY_ALL_PROFILES_SETTING]: ['configurationService.profiles.testSetting2']
+			}
+		})));
+
+		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+	}));
+
 	test('update all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);

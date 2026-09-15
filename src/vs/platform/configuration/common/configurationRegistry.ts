@@ -1019,6 +1019,9 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 	private updateOverridePropertyPatternKey(): void {
 		for (const overrideIdentifier of this.overrideIdentifiers.values()) {
+			if (isPlatformOverrideIdentifier(overrideIdentifier)) {
+				continue;
+			}
 			const overrideIdentifierProperty = `[${overrideIdentifier}]`;
 			const resourceLanguagePropertiesSchema: IJSONSchema = {
 				type: 'object',
@@ -1044,13 +1047,13 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 			errorMessage: nls.localize('overrideSettings.errorMessage', "This setting does not support per-language configuration."),
 			$ref: resourceLanguageSettingsSchemaId,
 		};
-		allSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
-		applicationSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
-		applicationMachineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
-		machineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
-		machineOverridableSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
-		windowSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
-		resourceSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		allSettings.patternProperties[LANGUAGE_OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		applicationSettings.patternProperties[LANGUAGE_OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		applicationMachineSettings.patternProperties[LANGUAGE_OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		machineSettings.patternProperties[LANGUAGE_OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		machineOverridableSettings.patternProperties[LANGUAGE_OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		windowSettings.patternProperties[LANGUAGE_OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		resourceSettings.patternProperties[LANGUAGE_OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		this._onDidSchemaChange.fire();
 	}
 
@@ -1080,6 +1083,12 @@ const OVERRIDE_IDENTIFIER_PATTERN = `\\[([^\\]]+)\\]`;
 const OVERRIDE_IDENTIFIER_REGEX = new RegExp(OVERRIDE_IDENTIFIER_PATTERN, 'g');
 export const OVERRIDE_PROPERTY_PATTERN = `^(${OVERRIDE_IDENTIFIER_PATTERN})+$`;
 export const OVERRIDE_PROPERTY_REGEX = new RegExp(OVERRIDE_PROPERTY_PATTERN);
+export const PLATFORM_OVERRIDE_IDENTIFIERS = ['windows', 'osx', 'linux'] as const;
+export const LANGUAGE_OVERRIDE_PROPERTY_PATTERN = `^(?!.*\\[\\s*(?:${PLATFORM_OVERRIDE_IDENTIFIERS.join('|')})\\s*\\])(${OVERRIDE_IDENTIFIER_PATTERN})+$`;
+
+export function isPlatformOverrideIdentifier(identifier: string): boolean {
+	return (PLATFORM_OVERRIDE_IDENTIFIERS as readonly string[]).includes(identifier);
+}
 
 export function overrideIdentifiersFromKey(key: string): string[] {
 	const identifiers: string[] = [];
