@@ -545,7 +545,7 @@ export class VisibleSessions extends Disposable {
 	 * @param activeIndex Index into `slots` of the slot that should be active,
 	 * or `-1` for none.
 	 */
-	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number): void {
+	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number, tx?: ITransaction): void {
 		this._visibleList = [];
 		this._stickyIds.clear();
 
@@ -585,10 +585,15 @@ export class VisibleSessions extends Disposable {
 			? activeId
 			: lastNonStickySlot;
 
-		transaction(tsx => {
+		const updateObservables = (tsx: ITransaction) => {
 			this._setActiveSession(activeWrapper, false, tsx);
 			this._refresh(tsx);
-		});
+		};
+		if (tx) {
+			updateObservables(tx);
+		} else {
+			transaction(updateObservables);
+		}
 	}
 
 	/**

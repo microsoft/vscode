@@ -164,6 +164,9 @@ export interface ISessionsService {
 	/** Returns the existing visible sessions to their ordinary horizontal presentation. */
 	resetSessionGridLayout(): void;
 
+	/** Replaces every visible slot with the given session without recording the removed slots as closed. */
+	showOnlySession(session: ISession): void;
+
 	/**
 	 * Observable for the currently active session as {@link IActiveSession},
 	 * or `undefined` for the new-session (empty) slot.
@@ -971,6 +974,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	resetSessionGridLayout(): void {
 		this._gridLayout.set('columns', undefined);
+	}
+
+	showOnlySession(session: ISession): void {
+		const sticky = this._visibility.getSlot(session.sessionId)?.sticky ?? false;
+		transaction(tx => {
+			this._gridLayout.set('columns', tx);
+			this._visibility.restoreGrid([{ session, sticky }], 0, tx);
+		});
 	}
 
 	private async _openSession(sessionResource: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {

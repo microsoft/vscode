@@ -51,6 +51,7 @@ suite('Session comparison grid controller', () => {
 		const sessionGridLayout = observableValue<SessionGridLayout>('sessionGridLayout', initialLayout);
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		const closed: Array<string | undefined> = [];
+		const shownOnly: string[] = [];
 		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const partVisibility = new Map<Parts, boolean>([
 			[Parts.EDITOR_PART, true],
@@ -72,6 +73,12 @@ suite('Session comparison grid controller', () => {
 			}
 			override resetSessionGridLayout(): void {
 				resetCount++;
+				sessionGridLayout.set('columns', undefined);
+			}
+			override showOnlySession(session: ISession): void {
+				shownOnly.push(session.sessionId);
+				visibleSessions.set([session as IActiveSession], undefined);
+				activeSession.set(session as IActiveSession, undefined);
 				sessionGridLayout.set('columns', undefined);
 			}
 		}());
@@ -97,7 +104,7 @@ suite('Session comparison grid controller', () => {
 			}
 		}());
 		store.add(instantiationService.createInstance(SessionComparisonGridController));
-		return { judge, attempt, focused, activeSession, visibleSessions, sessionGridLayout, comparisons, closed, hiddenParts, partVisibility, onDidChangePartVisibility, get resetCount() { return resetCount; } };
+		return { judge, attempt, focused, activeSession, visibleSessions, sessionGridLayout, comparisons, closed, shownOnly, hiddenParts, partVisibility, onDidChangePartVisibility, get resetCount() { return resetCount; } };
 	}
 
 	test('keeps the whole side pane hidden while an attempt comparison grid is visible', () => {
@@ -119,9 +126,10 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
 		fixture.focused.fire('judge');
 
-		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, {
-			closed: ['attempt'],
-			resetCount: 1,
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, {
+			shownOnly: ['judge'],
+			closed: [],
+			resetCount: 0,
 		});
 
 		fixture.partVisibility.set(Parts.EDITOR_PART, true);
@@ -135,9 +143,10 @@ suite('Session comparison grid controller', () => {
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
 
-		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, {
-			closed: ['attempt'],
-			resetCount: 1,
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, {
+			shownOnly: ['judge'],
+			closed: [],
+			resetCount: 0,
 		});
 	});
 
@@ -146,16 +155,17 @@ suite('Session comparison grid controller', () => {
 		await Promise.resolve();
 		fixture.focused.fire('attempt');
 
-		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, { shownOnly: [], closed: [], resetCount: 0 });
 	});
 
 	test('collapses a comparison Judge from an ordinary multi-session columns layout', () => {
 		const fixture = setup('columns');
 		fixture.focused.fire('judge');
 
-		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, {
-			closed: ['attempt'],
-			resetCount: 1,
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, {
+			shownOnly: ['judge'],
+			closed: [],
+			resetCount: 0,
 		});
 	});
 
@@ -165,6 +175,6 @@ suite('Session comparison grid controller', () => {
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
 
-		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, { shownOnly: [], closed: [], resetCount: 0 });
 	});
 });

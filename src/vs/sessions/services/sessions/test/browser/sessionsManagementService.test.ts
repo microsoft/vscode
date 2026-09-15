@@ -4560,6 +4560,27 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('showOnlySession replaces visible slots without recording them as closed', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view, canReopen } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			view.toggleSessionStickiness(sessionA);
+			await view.openSession(sessionB.resource);
+			view.showOnlySession(sessionB);
+
+			assert.deepStrictEqual({
+				grid: grid(view),
+				layout: view.sessionGridLayout.get(),
+				canReopen: canReopen(),
+			}, {
+				grid: { visible: ['B'], sticky: [false], active: 'B' },
+				layout: 'columns',
+				canReopen: false,
+			});
+		});
+
 		test('a session pushed out of the grid takes its slot back', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA')]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);

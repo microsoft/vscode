@@ -86,17 +86,12 @@ export class SessionComparisonGridController extends Disposable implements IWork
 	private _isolateJudge(sessionId: string): void {
 		const visibleSessions = this.sessionsService.visibleSessions.get();
 		const judgeSession = visibleSessions.find(session => session?.sessionId === sessionId);
-		if (this._getJudgeSessionId(judgeSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
+		if (!judgeSession || this._getJudgeSessionId(judgeSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
 			return;
 		}
 		this._isolatedJudgeSessionId = sessionId;
 		this._keepSidePaneHidden = true;
-		for (const session of visibleSessions) {
-			if (session?.sessionId !== sessionId) {
-				this.sessionsService.closeSession(session);
-			}
-		}
-		this.sessionsService.resetSessionGridLayout();
+		this.sessionsService.showOnlySession(judgeSession);
 		this._hideSidePane();
 	}
 
