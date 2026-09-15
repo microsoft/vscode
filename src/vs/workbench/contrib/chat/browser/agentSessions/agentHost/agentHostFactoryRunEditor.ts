@@ -11,13 +11,15 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { raceTimeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../../base/common/date.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { defaultGenerator } from '../../../../../../base/common/idGenerator.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { ISessionFactoryRun, ISessionFactoryRunAgent, ISessionFactoryRunPhase, readSessionFactoryRuns, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
+import { ISessionFactoryRun, ISessionFactoryRunAgent, ISessionFactoryRunPhase, isSessionFactoryRunTerminal, readSessionFactoryRuns, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { buildSubagentChatUri, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -32,7 +34,7 @@ import { IEditorGroup } from '../../../../../services/editor/common/editorGroups
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import type { IOpenSubagentChatContext } from '../../widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostFactoryRunEditorInput } from './agentHostFactoryRunEditorInput.js';
-import { describeFactoryRun, formatFactoryCredits, formatFactoryDuration, getFactoryRunPhaseStatusLabel, getFactoryRunStatusIcon, getFactoryRunStatusLabel, selectDefaultFactoryRunPhase } from './agentHostFactoryRunPresentation.js';
+import { formatFactoryCredits, formatFactoryDuration, getFactoryRunPhasePresentation, getFactoryRunStatusIcon, getFactoryRunStatusLabel, selectDefaultFactoryRunPhase } from './agentHostFactoryRunPresentation.js';
 
 const $ = DOM.$;
 
@@ -48,8 +50,12 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private readonly inputDisposables = this._register(new MutableDisposable<DisposableStore>());
-	/** Phase the user picked; cleared when the input changes so each run opens on its own default. */
-	private readonly selectedPhaseId = observableValue<string | undefined>(this, undefined);
+	/** Undefined follows execution, null collapses all rows, and an id pins inspection. */
+	private readonly selectedPhaseId = observableValue<string | null | undefined>(this, undefined);
+	private readonly phaseDetailId = defaultGenerator.nextId();
+	private readonly focusTargets = new Map<string, HTMLElement>();
+	private readonly detailsElements = new Map<string, HTMLDetailsElement>();
+	private readonly expandedDetails = new Set<string>();
 
 	constructor(
 		group: IEditorGroup,
@@ -75,6 +81,8 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		const disposables = new DisposableStore();
 		this.inputDisposables.value = disposables;
 		this.selectedPhaseId.set(undefined, undefined);
+		this.detailsElements.clear();
+		this.expandedDetails.clear();
 
 		const resolutionChanged = observableSignalFromEvent(this, this.connectionsService.onDidChangeSessionResolution);
 		const resolution = derived(this, reader => {
@@ -117,17 +125,36 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 			const selected = this.selectedPhaseId.read(reader);
 			const chats = agentChats.read(reader);
 			const currentResolution = resolution.read(reader);
+			const activeElement = container.ownerDocument.activeElement;
+			const focusId = DOM.isHTMLElement(activeElement) && container.contains(activeElement) ? activeElement.dataset.factoryFocusId : undefined;
+			const scrollTop = container.scrollTop;
+			for (const [id, details] of this.detailsElements) {
+				if (details.open) {
+					this.expandedDetails.add(id);
+				} else {
+					this.expandedDetails.delete(id);
+				}
+			}
+			this.detailsElements.clear();
+			this.focusTargets.clear();
 			DOM.clearNode(container);
 			if (!current) {
 				this.renderUnavailable(container, input);
 				return;
 			}
-			this.renderRun(container, current, selected, { sessionResource: input.sessionResource, resolution: currentResolution, agentChats: chats });
+			this.renderRun(container, current, selected, { sessionResource: input.sessionResource, resolution: currentResolution, agentChats: chats, store: reader.store });
+			if (focusId) {
+				const target = this.focusTargets.get(focusId);
+				(target ?? container).focus({ preventScroll: true });
+			}
+			container.scrollTop = scrollTop;
 		}));
 	}
 
 	override clearInput(): void {
 		this.inputDisposables.clear();
+		this.focusTargets.clear();
+		this.detailsElements.clear();
 		if (this.container) {
 			DOM.clearNode(this.container);
 		}
@@ -140,7 +167,12 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 	}
 
 	override layout(): void {
-		// The editor is a scrolling document; the flex layout in CSS handles size.
+		// The table adapts to the editor width without moving the user's viewport.
+	}
+
+	private trackFocus(element: HTMLElement, id: string): void {
+		element.dataset.factoryFocusId = id;
+		this.focusTargets.set(id, element);
 	}
 
 	private renderUnavailable(container: HTMLElement, input: AgentHostFactoryRunEditorInput): void {
@@ -149,11 +181,12 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		DOM.append(empty, $('p', undefined, localize('agentHostFactoryRun.unavailable', "This factory run is not available. The session may not be connected, or the run may have been removed.")));
 	}
 
-	private renderRun(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | undefined, context: IFactoryRunRenderContext): void {
+	private renderRun(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | null | undefined, context: IFactoryRunRenderContext): void {
 		this.renderHeader(container, run);
-		this.renderOutcome(container, run);
-		this.renderUsage(container, run);
+		this.renderInterruption(container, run);
 		this.renderPhases(container, run, selectedPhaseId, context);
+		this.renderOutcome(container, run);
+		this.renderRunDetails(container, run);
 	}
 
 	private renderHeader(container: HTMLElement, run: ISessionFactoryRun): void {
@@ -161,46 +194,76 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		const titleRow = DOM.append(header, $('.agent-host-factory-run-title-row'));
 		DOM.append(titleRow, $('h1.agent-host-factory-run-title', undefined, run.factoryName));
 		const status = DOM.append(titleRow, $(`.agent-host-factory-run-status.status-${run.status}`));
-		DOM.append(status, renderIcon(getFactoryRunStatusIcon(run.status)));
 		DOM.append(status, $('span', undefined, getFactoryRunStatusLabel(run.status)));
-		const timing = run.completedAt ?? run.startedAt ?? run.createdAt;
-		DOM.append(status, $('span.agent-host-factory-run-status-time', undefined, fromNow(timing, true)));
-		if (run.description) {
-			DOM.append(header, $('p.agent-host-factory-run-description', undefined, run.description));
+		const reached = run.phases.filter(phase => phase.status === SessionFactoryRunPhaseStatus.Active || phase.status === SessionFactoryRunPhaseStatus.Completed).length;
+		const phases = localize('agentHostFactoryRun.phasesReached', "{0} of {1} phases reached", reached, run.phases.length);
+		const agents = run.totalSpawnedAgentCount === 1
+			? localize('agentHostFactoryRun.oneAgent', "1 agent")
+			: localize('agentHostFactoryRun.agentCount', "{0} agents", run.totalSpawnedAgentCount);
+		DOM.append(header, $('p.agent-host-factory-run-summary', undefined, localize('agentHostFactoryRun.executionSummary', "{0} · {1} · {2} · {3} credits · {4}", phases, agents, formatFactoryDuration(run.usage.activeMs), formatFactoryCredits(run.usage.aiCredits), fromNow(run.completedAt ?? run.updatedAt, true))));
+	}
+
+	private renderInterruption(container: HTMLElement, run: ISessionFactoryRun): void {
+		const outcome = run.outcome;
+		const interrupted = run.status === SessionFactoryRunStatus.Halted || run.status === SessionFactoryRunStatus.Cancelled || run.status === SessionFactoryRunStatus.Error;
+		if (!interrupted && !outcome?.error && !outcome?.reason && !outcome?.limitReached) {
+			return;
 		}
-		const summary = DOM.append(header, $('p.agent-host-factory-run-summary'));
-		summary.textContent = describeFactoryRun(run);
+		const banner = DOM.append(container, $('.agent-host-factory-run-interruption'));
+		DOM.append(banner, renderIcon(getFactoryRunStatusIcon(interrupted ? run.status : SessionFactoryRunStatus.Error))).setAttribute('aria-hidden', 'true');
+		const body = DOM.append(banner, $('.agent-host-factory-run-interruption-body'));
+		const reason = outcome?.error ?? outcome?.reason ?? (run.status === SessionFactoryRunStatus.Halted
+			? localize('agentHostFactoryRun.halted', "Run halted")
+			: run.status === SessionFactoryRunStatus.Cancelled
+				? localize('agentHostFactoryRun.cancelled', "Run cancelled")
+				: localize('agentHostFactoryRun.stopped', "Run stopped"));
+		DOM.append(body, $('p.agent-host-factory-run-outcome-message', undefined, reason));
+		if (outcome?.reason && outcome.reason !== reason) {
+			DOM.append(body, $('p.agent-host-factory-run-outcome-note', undefined, outcome.reason));
+		}
+		if (interrupted) {
+			const cancelledCount = run.agents.filter(agent => agent.status === 'cancelled').length;
+			const unreachedCount = run.phases.filter(phase => phase.status === SessionFactoryRunPhaseStatus.Pending).length;
+			const cancelled = cancelledCount === 1
+				? localize('agentHostFactoryRun.oneCancelled', "1 agent cancelled")
+				: localize('agentHostFactoryRun.cancelledCount', "{0} agents cancelled", cancelledCount);
+			const unreached = unreachedCount === 1
+				? localize('agentHostFactoryRun.oneUnreached', "1 phase not reached")
+				: localize('agentHostFactoryRun.unreachedCount', "{0} phases not reached", unreachedCount);
+			DOM.append(body, $('p.agent-host-factory-run-outcome-note', undefined, localize('agentHostFactoryRun.interruptionCounts', "{0} · {1}", cancelled, unreached)));
+		}
+		if (outcome?.limitReached) {
+			DOM.append(body, $('p.agent-host-factory-run-outcome-note', undefined, localize('agentHostFactoryRun.limitReached', "Stopped at the {0} limit. Resume the run to continue from its journal.", outcome.limitReached)));
+		}
 	}
 
 	private renderOutcome(container: HTMLElement, run: ISessionFactoryRun): void {
-		const outcome = run.outcome;
-		if (!outcome) {
+		if (run.outcome?.resultText === undefined) {
 			return;
 		}
 		const section = this.renderSection(container, localize('agentHostFactoryRun.outcome', "Outcome"));
-		if (outcome.error) {
-			const error = DOM.append(section, $('.agent-host-factory-run-outcome-message.is-error'));
-			DOM.append(error, renderIcon(Codicon.error));
-			DOM.append(error, $('span', undefined, outcome.error));
+		DOM.append(section, $('pre.agent-host-factory-run-result', undefined, run.outcome.resultText));
+		if (run.outcome.resultTruncated) {
+			DOM.append(section, $('p.agent-host-factory-run-outcome-note', undefined, localize('agentHostFactoryRun.resultTruncated', "The result was truncated for display.")));
 		}
-		if (outcome.limitReached) {
-			DOM.append(section, $('p.agent-host-factory-run-outcome-note', undefined, localize('agentHostFactoryRun.limitReached', "Stopped at the {0} limit. Resume the run to continue from its journal.", outcome.limitReached)));
+	}
+
+	private renderRunDetails(container: HTMLElement, run: ISessionFactoryRun): void {
+		const details = DOM.append(container, $<HTMLDetailsElement>('details.agent-host-factory-run-details'));
+		details.open = this.expandedDetails.has('run-details');
+		this.detailsElements.set('run-details', details);
+		const summary = DOM.append(details, $('summary', undefined, localize('agentHostFactoryRun.details', "Run Details")));
+		this.trackFocus(summary, 'run-details');
+		if (run.description) {
+			DOM.append(details, $('p.agent-host-factory-run-muted', undefined, run.description));
 		}
-		if (outcome.reason) {
-			DOM.append(section, $('p.agent-host-factory-run-outcome-note', undefined, outcome.reason));
-		}
-		if (outcome.resultText !== undefined) {
-			const result = DOM.append(section, $('pre.agent-host-factory-run-result'));
-			result.textContent = outcome.resultText;
-			if (outcome.resultTruncated) {
-				DOM.append(section, $('p.agent-host-factory-run-outcome-note', undefined, localize('agentHostFactoryRun.resultTruncated', "The result was truncated for display.")));
-			}
-		}
+		this.renderUsage(details, run);
+		DOM.append(details, $('p.agent-host-factory-run-muted', undefined, localize('agentHostFactoryRun.availableData', "Credits are reported for the whole run. Per-phase costs and checkpoint boundaries are not available.")));
 	}
 
 	private renderUsage(container: HTMLElement, run: ISessionFactoryRun): void {
 		const section = this.renderSection(container, localize('agentHostFactoryRun.usage', "Usage"));
-		const grid = DOM.append(section, $('.agent-host-factory-run-usage'));
+		const grid = DOM.append(section, $('dl.agent-host-factory-run-usage'));
 		const noLimit = localize('agentHostFactoryRun.noLimit', "No limit");
 		const limitLabel = (value: string | undefined) => value === undefined ? noLimit : value;
 		const cards: { readonly title: string; readonly used: string; readonly limit: string }[] = [
@@ -227,101 +290,170 @@ export class AgentHostFactoryRunEditor extends EditorPane {
 		];
 		for (const card of cards) {
 			const element = DOM.append(grid, $('.agent-host-factory-run-usage-card'));
-			DOM.append(element, $('.agent-host-factory-run-usage-title', undefined, card.title));
-			DOM.append(element, $('.agent-host-factory-run-usage-value', undefined, localize('agentHostFactoryRun.usage.value', "{0} used · {1}", card.used, card.limit)));
+			DOM.append(element, $('dt.agent-host-factory-run-usage-title', undefined, card.title));
+			const value = DOM.append(element, $('dd.agent-host-factory-run-usage-value'));
+			DOM.append(value, $('strong', undefined, card.used));
+			DOM.append(value, $('span.agent-host-factory-run-muted', undefined, localize('agentHostFactoryRun.usage.limit', " / {0}", card.limit)));
 		}
 	}
 
-	private renderPhases(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | undefined, context: IFactoryRunRenderContext): void {
-		const section = this.renderSection(container, localize('agentHostFactoryRun.phases', "Phases"));
-		const layout = DOM.append(section, $('.agent-host-factory-run-phases'));
-		const list = DOM.append(layout, $('.agent-host-factory-run-phase-list'));
-		list.setAttribute('role', 'listbox');
-		list.setAttribute('aria-label', localize('agentHostFactoryRun.phases', "Phases"));
-		const selected = run.phases.find(phase => phase.id === selectedPhaseId) ?? selectDefaultFactoryRunPhase(run);
-
+	private renderPhases(container: HTMLElement, run: ISessionFactoryRun, selectedPhaseId: string | null | undefined, context: IFactoryRunRenderContext): void {
+		const section = DOM.append(container, $('section.agent-host-factory-run-section'));
 		if (run.phases.length === 0) {
-			DOM.append(list, $('p.agent-host-factory-run-muted', undefined, localize('agentHostFactoryRun.noPhases', "This factory declares no phases.")));
+			DOM.append(section, $('p.agent-host-factory-run-muted', undefined, localize('agentHostFactoryRun.noPhases', "This factory declares no phases.")));
+			this.renderPhaseDetail(section, run, undefined, context);
+			return;
 		}
+		if (run.status === SessionFactoryRunStatus.Running) {
+			const toolbar = DOM.append(section, $('.agent-host-factory-run-workflow-toolbar'));
+			const follow = DOM.append(toolbar, $('button.agent-host-factory-run-follow', { type: 'button' }, localize('agentHostFactoryRun.followActive', "Follow Active Phase")));
+			this.trackFocus(follow, 'follow');
+			follow.setAttribute('aria-pressed', String(selectedPhaseId === undefined));
+			context.store.add(DOM.addDisposableListener(follow, DOM.EventType.CLICK, () => this.selectedPhaseId.set(undefined, undefined)));
+		}
+		const table = DOM.append(section, $('table.agent-host-factory-run-table'));
+		table.setAttribute('aria-label', localize('agentHostFactoryRun.phaseTable', "Phases, agent counts, and active execution durations"));
+		const columns = DOM.append(table, $('colgroup'));
+		DOM.append(columns, $('col.phase-column'));
+		DOM.append(columns, $('col.agents-column'));
+		DOM.append(columns, $('col.duration-column'));
+		const header = DOM.append(DOM.append(table, $('thead')), $('tr'));
+		for (const label of [
+			localize('agentHostFactoryRun.phaseColumn', "Phase"),
+			localize('agentHostFactoryRun.agents', "Agents"),
+			localize('agentHostFactoryRun.durationColumn', "Duration"),
+		]) {
+			DOM.append(header, $('th', { scope: 'col' }, label));
+		}
+		const defaultPhase = selectDefaultFactoryRunPhase(run);
+		const selected = selectedPhaseId === null ? undefined : run.phases.find(phase => phase.id === selectedPhaseId)
+			?? (defaultPhase?.status === SessionFactoryRunPhaseStatus.Active || defaultPhase?.status === SessionFactoryRunPhaseStatus.Completed ? defaultPhase : undefined);
+		const maxDuration = run.phases.reduce((max, phase) => Math.max(max, phase.activeMs), 1);
 		run.phases.forEach((phase, index) => {
-			const item = DOM.append(list, $(`.agent-host-factory-run-phase.status-${phase.status}`));
-			item.setAttribute('role', 'option');
-			item.tabIndex = 0;
-			const isSelected = phase.id === selected?.id;
-			item.classList.toggle('is-selected', isSelected);
-			item.setAttribute('aria-selected', String(isSelected));
+			const presentation = getFactoryRunPhasePresentation(run, phase);
+			const expanded = phase.id === selected?.id;
+			const group = DOM.append(table, $(`tbody.agent-host-factory-run-phase-group.status-${presentation.state}`));
+			group.classList.toggle('is-expanded', expanded);
+			const row = DOM.append(group, $('tr.agent-host-factory-run-phase-row'));
+			const heading = DOM.append(row, $('th', { scope: 'row' }));
+			const item = DOM.append(heading, $('button.agent-host-factory-run-phase', { type: 'button' }));
+			item.id = `${this.phaseDetailId}-${index}`;
+			const detailId = `${item.id}-detail`;
+			this.trackFocus(item, `phase:${phase.id}`);
+			item.setAttribute('aria-expanded', String(expanded));
+			if (expanded) {
+				item.setAttribute('aria-controls', detailId);
+			}
 			const ordinal = phase.ordinal ?? index;
-			DOM.append(item, $('.agent-host-factory-run-phase-title', undefined, localize('agentHostFactoryRun.phaseTitle', "{0}. {1}", ordinal + 1, phase.title)));
-			const detail = phase.totalAgentCount === 1
-				? localize('agentHostFactoryRun.phaseDetailSingle', "1 agent · {0}", formatFactoryDuration(phase.activeMs))
-				: localize('agentHostFactoryRun.phaseDetail', "{0} agents · {1}", phase.totalAgentCount, formatFactoryDuration(phase.activeMs));
-			DOM.append(item, $('.agent-host-factory-run-phase-meta', undefined, detail));
-			DOM.append(item, $('.agent-host-factory-run-phase-status', undefined, getFactoryRunPhaseStatusLabel(phase.status)));
-			const select = () => this.selectedPhaseId.set(phase.id, undefined);
-			this.inputDisposables.value?.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, select));
-			this.inputDisposables.value?.add(DOM.addDisposableListener(item, DOM.EventType.KEY_DOWN, event => {
-				if (event.key === 'Enter' || event.key === ' ') {
-					event.preventDefault();
-					select();
+			item.setAttribute('aria-label', localize('agentHostFactoryRun.phaseAccessibleLabel', "{0}. {1}, {2}", ordinal + 1, phase.title, presentation.label));
+			const twistie = DOM.append(item, renderIcon(expanded ? Codicon.chevronDown : Codicon.chevronRight));
+			twistie.classList.add('agent-host-factory-run-phase-twistie');
+			twistie.setAttribute('aria-hidden', 'true');
+			DOM.append(item, renderIcon(presentation.icon)).setAttribute('aria-hidden', 'true');
+			DOM.append(item, $('span.agent-host-factory-run-phase-title', undefined, localize('agentHostFactoryRun.phaseRowTitle', "{0} · {1}", ordinal + 1, phase.title)));
+			if (presentation.state === 'active' || presentation.state === 'partial') {
+				DOM.append(item, $('span.agent-host-factory-run-phase-status', undefined, presentation.label));
+			}
+			if (phase.status === SessionFactoryRunPhaseStatus.Pending || phase.status === SessionFactoryRunPhaseStatus.Skipped) {
+				DOM.append(row, $('td.agent-host-factory-run-unreached', { colspan: '2' }, presentation.label));
+			} else {
+				DOM.append(row, $('td.agent-host-factory-run-phase-agents', undefined, String(phase.totalAgentCount)));
+				const duration = DOM.append(DOM.append(row, $('td')), $('.agent-host-factory-run-duration'));
+				DOM.append(duration, $('span.agent-host-factory-run-duration-value', undefined, formatFactoryDuration(phase.activeMs)));
+				const track = DOM.append(duration, $('.agent-host-factory-run-duration-track', { 'aria-hidden': 'true' }));
+				const bar = DOM.append(track, $('.agent-host-factory-run-duration-bar'));
+				bar.style.width = `${Math.max(0, phase.activeMs) / maxDuration * 100}%`;
+			}
+			context.store.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, () => this.selectedPhaseId.set(expanded ? null : phase.id, undefined)));
+			context.store.add(DOM.addDisposableListener(item, DOM.EventType.KEY_DOWN, event => {
+				let targetIndex: number;
+				switch (event.key) {
+					case 'ArrowDown': targetIndex = (index + 1) % run.phases.length; break;
+					case 'ArrowUp': targetIndex = (index - 1 + run.phases.length) % run.phases.length; break;
+					case 'Home': targetIndex = 0; break;
+					case 'End': targetIndex = run.phases.length - 1; break;
+					default: return;
 				}
+				event.preventDefault();
+				this.focusTargets.get(`phase:${run.phases[targetIndex].id}`)?.focus();
 			}));
+			if (expanded) {
+				const detailRow = DOM.append(group, $('tr'));
+				const detail = DOM.append(detailRow, $('td.agent-host-factory-run-phase-detail', { colspan: '3' }));
+				detail.id = detailId;
+				const content = DOM.append(detail, $('.agent-host-factory-run-phase-content'));
+				content.setAttribute('role', 'region');
+				content.setAttribute('aria-labelledby', item.id);
+				this.renderPhaseDetail(content, run, phase, context);
+			}
 		});
-
-		const detailPane = DOM.append(layout, $('.agent-host-factory-run-phase-detail'));
-		this.renderPhaseDetail(detailPane, run, selected, context);
 	}
 
 	private renderPhaseDetail(container: HTMLElement, run: ISessionFactoryRun, phase: ISessionFactoryRunPhase | undefined, context: IFactoryRunRenderContext): void {
-		const heading = DOM.append(container, $('.agent-host-factory-run-detail-heading'));
-		if (phase) {
-			DOM.append(heading, $('h3', undefined, phase.title));
-			DOM.append(heading, $('span.agent-host-factory-run-detail-status', undefined, getFactoryRunPhaseStatusLabel(phase.status)));
-			if (phase.detail) {
-				DOM.append(container, $('p.agent-host-factory-run-muted', undefined, phase.detail));
-			}
-		} else {
-			DOM.append(heading, $('h3', undefined, localize('agentHostFactoryRun.activity', "Activity")));
+		if (phase?.detail) {
+			DOM.append(container, $('p.agent-host-factory-run-muted', undefined, phase.detail));
+		}
+		if (phase?.status === SessionFactoryRunPhaseStatus.Pending) {
+			DOM.append(container, $('p.agent-host-factory-run-empty-phase', undefined, isSessionFactoryRunTerminal(run.status)
+				? localize('agentHostFactoryRun.phaseUnreached', "This phase was not reached before the run ended.")
+				: localize('agentHostFactoryRun.phaseNotStarted', "This phase has not started. Agents and progress will appear here when it is reached.")));
+			return;
+		}
+		if (phase?.status === SessionFactoryRunPhaseStatus.Skipped) {
+			DOM.append(container, $('p.agent-host-factory-run-empty-phase', undefined, localize('agentHostFactoryRun.phaseSkipped', "This phase was skipped.")));
+			return;
 		}
 
 		const agents = phase ? run.agents.filter(agent => agent.phaseId === phase.id) : run.agents;
-		DOM.append(container, $('h4', undefined, localize('agentHostFactoryRun.agents', "Agents")));
 		if (agents.length === 0) {
-			DOM.append(container, $('p.agent-host-factory-run-muted', undefined, phase && phase.status === SessionFactoryRunPhaseStatus.Pending
-				? localize('agentHostFactoryRun.noAgentsYet', "No agents have started in this phase yet.")
+			DOM.append(container, $('p.agent-host-factory-run-muted', undefined, run.status === SessionFactoryRunStatus.Running
+				? localize('agentHostFactoryRun.noAgentsYet', "No agents have started yet. The factory may be working directly.")
 				: localize('agentHostFactoryRun.noAgents', "No agents ran in this phase.")));
 		}
+		const agentList = DOM.append(container, $('.agent-host-factory-run-agents'));
 		for (const agent of agents) {
 			const chatResource = context.agentChats.get(agent.agentId);
-			const row = DOM.append(container, $('.agent-host-factory-run-agent'));
-			const name = DOM.append(row, chatResource ? $('button.agent-host-factory-run-agent-name.is-openable') : $('.agent-host-factory-run-agent-name'));
-			DOM.append(name, renderIcon(Codicon.agent));
-			DOM.append(name, $('span', undefined, agent.label));
+			const row = DOM.append(agentList, $('.agent-host-factory-run-agent'));
+			row.dataset.status = agent.status;
+			const meta = DOM.append(row, $('.agent-host-factory-run-agent-meta'));
+			const icon = agent.status === 'cancelled' || agent.status === 'failed' || agent.status === 'error'
+				? Codicon.close
+				: agent.status === 'completed' ? Codicon.check : Codicon.agent;
+			DOM.append(meta, renderIcon(icon)).setAttribute('aria-hidden', 'true');
+			DOM.append(meta, $('span.agent-host-factory-run-agent-name', undefined, agent.label));
 			if (agent.model) {
-				DOM.append(name, $('span.agent-host-factory-run-muted', undefined, agent.model));
+				DOM.append(meta, $('span', undefined, agent.model));
+			}
+			DOM.append(meta, $('span.agent-host-factory-run-agent-state', undefined, agent.status));
+			if (agent.activeMs > 0) {
+				DOM.append(meta, $('span', undefined, formatFactoryDuration(agent.activeMs)));
+			}
+			const activity = DOM.append(row, $('.agent-host-factory-run-agent-activity'));
+			if (agent.activity) {
+				DOM.append(activity, $('span.agent-host-factory-run-muted', undefined, agent.activity));
 			}
 			if (chatResource) {
-				name.setAttribute('aria-label', localize('agentHostFactoryRun.openAgent', "Open {0} chat", agent.label));
-				name.title = localize('agentHostFactoryRun.openAgentTooltip', "Open the chat for this agent");
-				DOM.append(name, renderIcon(Codicon.linkExternal));
-				this.inputDisposables.value?.add(DOM.addDisposableListener(name, DOM.EventType.CLICK, event => {
-					event.preventDefault();
-					void this.openAgentChat(chatResource, context, agent);
+				const link = DOM.append(activity, $('button.agent-host-factory-run-agent-trace', { type: 'button' }, localize('agentHostFactoryRun.viewTrace', "View Trace")));
+				this.trackFocus(link, `agent:${agent.agentId}`);
+				link.setAttribute('aria-label', localize('agentHostFactoryRun.viewAgentTrace', "View Trace for {0}", agent.label));
+				DOM.append(link, renderIcon(Codicon.linkExternal)).setAttribute('aria-hidden', 'true');
+				context.store.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => {
+					void this.openAgentChat(chatResource, context, agent).catch(onUnexpectedError);
 				}));
 			}
-			const meta = DOM.append(row, $('.agent-host-factory-run-agent-meta'));
-			if (agent.activity && run.status === SessionFactoryRunStatus.Running) {
-				DOM.append(meta, $('span.agent-host-factory-run-muted', undefined, agent.activity));
-			}
-			DOM.append(meta, $('span', undefined, agent.status));
 		}
 
-		const progress = phase ? run.progress.filter(line => line.phaseId === phase.id) : run.progress;
-		DOM.append(container, $('h4', undefined, localize('agentHostFactoryRun.progress', "Progress")));
+		const progress = run.progress.filter(line => line.kind === 'log' && (!phase || line.phaseId === phase.id));
 		if (progress.length === 0) {
-			DOM.append(container, $('p.agent-host-factory-run-muted', undefined, localize('agentHostFactoryRun.noProgress', "No progress has been logged.")));
 			return;
 		}
-		const log = DOM.append(container, $('ol.agent-host-factory-run-progress'));
+		const details = DOM.append(container, $<HTMLDetailsElement>('details.agent-host-factory-run-progress-details'));
+		const progressId = `progress:${phase?.id ?? 'run'}`;
+		details.open = this.expandedDetails.has(progressId);
+		this.detailsElements.set(progressId, details);
+		const summary = DOM.append(details, $('summary', undefined, localize('agentHostFactoryRun.progressCount', "Progress ({0})", progress.length)));
+		this.trackFocus(summary, progressId);
+		const log = DOM.append(details, $('ol.agent-host-factory-run-progress'));
 		for (const line of progress) {
 			DOM.append(log, $(`li.kind-${line.kind}`, undefined, line.text));
 		}
@@ -365,6 +497,7 @@ interface IFactoryRunRenderContext {
 	readonly resolution: IAgentHostSessionResolution | undefined;
 	/** Subagent chat resource per factory `agentId`, for every agent the runtime launched under a tool-call id. */
 	readonly agentChats: ReadonlyMap<string, string>;
+	readonly store: DisposableStore;
 }
 
 /** How long to wait for the host to restore a subagent chat before opening it regardless. */

@@ -4,310 +4,424 @@
  *--------------------------------------------------------------------------------------------*/
 
 .agent-host-factory-run-editor {
+	container-type: inline-size;
 	height: 100%;
 	overflow-y: auto;
-	padding: 20px 28px 40px;
+	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size400);
 	box-sizing: border-box;
 	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
 	outline: none;
 }
 
+.agent-host-factory-run-editor > * {
+	max-width: 1200px;
+	margin-inline: auto;
+}
+
 .agent-host-factory-run-editor h1,
-.agent-host-factory-run-editor h2,
-.agent-host-factory-run-editor h3,
-.agent-host-factory-run-editor h4 {
+.agent-host-factory-run-editor h2 {
 	margin: 0;
-	font-weight: 600;
-}
-
-.agent-host-factory-run-empty {
-	max-width: 560px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.agent-host-factory-run-header {
-	max-width: 960px;
-	margin-bottom: 8px;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .agent-host-factory-run-title-row {
 	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 16px;
+	align-items: center;
 	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size120);
 }
 
 .agent-host-factory-run-title {
-	font-size: 20px;
-	line-height: 1.3;
+	font-size: var(--vscode-fontSize-heading1);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
 }
 
 .agent-host-factory-run-status {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	font-size: var(--vscode-fontSize-body1);
+	background: var(--vscode-editorWidget-background);
 }
 
-.agent-host-factory-run-status.status-completed .codicon {
-	color: var(--vscode-testing-iconPassed);
+.agent-host-factory-run-status.status-halted,
+.agent-host-factory-run-status.status-cancelled,
+.agent-host-factory-run-status.status-error,
+.agent-host-factory-run-agent[data-status="cancelled"] .agent-host-factory-run-agent-state,
+.agent-host-factory-run-agent[data-status="failed"] .agent-host-factory-run-agent-state,
+.agent-host-factory-run-agent[data-status="error"] .agent-host-factory-run-agent-state {
+	color: var(--vscode-errorForeground);
+	background: color-mix(in srgb, var(--vscode-errorForeground) 14%, var(--vscode-editor-background));
 }
 
-.agent-host-factory-run-status.status-error .codicon {
-	color: var(--vscode-testing-iconFailed);
+.agent-host-factory-run-status.status-completed,
+.agent-host-factory-run-agent[data-status="completed"] .agent-host-factory-run-agent-state {
+	color: color-mix(in srgb, var(--vscode-charts-green) 70%, var(--vscode-foreground));
+	background: color-mix(in srgb, var(--vscode-charts-green) 14%, var(--vscode-editor-background));
 }
 
-.agent-host-factory-run-status.status-halted .codicon,
-.agent-host-factory-run-status.status-cancelled .codicon {
-	color: var(--vscode-testing-iconSkipped);
+.agent-host-factory-run-status.status-running,
+.agent-host-factory-run-agent[data-status="running"] .agent-host-factory-run-agent-state,
+.status-active .agent-host-factory-run-phase-status,
+.status-partial .agent-host-factory-run-phase-status {
+	color: color-mix(in srgb, var(--vscode-charts-yellow) 70%, var(--vscode-foreground));
+	background: color-mix(in srgb, var(--vscode-charts-yellow) 14%, var(--vscode-editor-background));
 }
 
-.agent-host-factory-run-status-time::before {
-	content: '·';
-	margin-right: 6px;
-}
-
-.agent-host-factory-run-description,
 .agent-host-factory-run-summary {
-	margin: 6px 0 0;
-	font-size: 13px;
+	margin: var(--vscode-spacing-size60) 0 0;
+	line-height: 1.6;
 	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-interruption {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size200);
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-errorForeground) 9%, var(--vscode-editor-background));
+	color: var(--vscode-errorForeground);
+}
+
+.agent-host-factory-run-interruption > .codicon {
+	margin-top: var(--vscode-spacing-size20);
+	flex-shrink: 0;
+}
+
+.agent-host-factory-run-interruption-body {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	min-width: 0;
+	line-height: 1.5;
+}
+
+.agent-host-factory-run-outcome-message,
+.agent-host-factory-run-outcome-note {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-interruption .agent-host-factory-run-outcome-note::before {
+	content: '·';
+	margin-right: var(--vscode-spacing-size80);
 }
 
 .agent-host-factory-run-section {
-	max-width: 960px;
-	margin-top: 22px;
+	margin-top: var(--vscode-spacing-size320);
 }
 
 .agent-host-factory-run-section-title {
-	font-size: 13px;
-	margin-bottom: 8px;
+	font-size: var(--vscode-fontSize-heading3);
 }
 
-.agent-host-factory-run-muted {
-	margin: 4px 0;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-/* ---- Outcome ---- */
-.agent-host-factory-run-outcome-message {
+.agent-host-factory-run-workflow-toolbar {
 	display: flex;
-	align-items: flex-start;
-	gap: 6px;
-	font-size: 13px;
-	margin-bottom: 6px;
+	justify-content: flex-end;
+	margin-bottom: var(--vscode-spacing-size40);
 }
 
-.agent-host-factory-run-outcome-message.is-error .codicon {
-	color: var(--vscode-testing-iconFailed);
-	margin-top: 2px;
-}
-
-.agent-host-factory-run-outcome-note {
-	margin: 4px 0 8px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.agent-host-factory-run-result {
-	margin: 0;
-	padding: 10px 12px;
-	max-height: 280px;
-	overflow: auto;
-	white-space: pre-wrap;
-	word-break: break-word;
-	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
-	background: var(--vscode-textCodeBlock-background);
-	border: 1px solid var(--vscode-widget-border, transparent);
-	border-radius: 4px;
-}
-
-/* ---- Usage ---- */
-.agent-host-factory-run-usage {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px;
-}
-
-.agent-host-factory-run-usage-card {
-	padding: 10px 12px;
-	border-radius: 4px;
-	background: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-widget-border, transparent);
-}
-
-.agent-host-factory-run-usage-title {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: 4px;
-}
-
-.agent-host-factory-run-usage-value {
-	font-size: 13px;
-}
-
-/* ---- Phases ---- */
-.agent-host-factory-run-phases {
-	display: grid;
-	grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-	gap: 12px;
-	align-items: start;
-}
-
-.agent-host-factory-run-phase-list {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.agent-host-factory-run-phase {
-	padding: 8px 10px;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-widget-border, transparent);
-	background: var(--vscode-editorWidget-background);
-	cursor: pointer;
-	outline-offset: -1px;
-}
-
-.agent-host-factory-run-phase:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.agent-host-factory-run-phase:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-}
-
-.agent-host-factory-run-phase.is-selected {
-	background: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
-}
-
-.agent-host-factory-run-phase-title {
-	font-size: 13px;
-	font-weight: 600;
-}
-
-.agent-host-factory-run-phase-meta,
-.agent-host-factory-run-phase-status {
-	font-size: 11px;
-	opacity: 0.85;
-	margin-top: 2px;
-}
-
-.agent-host-factory-run-phase.status-active .agent-host-factory-run-phase-status {
-	color: var(--vscode-charts-blue);
-}
-
-.agent-host-factory-run-phase.is-selected .agent-host-factory-run-phase-status {
-	color: inherit;
-}
-
-.agent-host-factory-run-phase-detail {
-	padding: 10px 14px;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-widget-border, transparent);
-	background: var(--vscode-editorWidget-background);
-	min-width: 0;
-}
-
-.agent-host-factory-run-detail-heading {
-	display: flex;
-	align-items: baseline;
-	gap: 8px;
-	margin-bottom: 4px;
-}
-
-.agent-host-factory-run-detail-heading h3 {
-	font-size: 14px;
-}
-
-.agent-host-factory-run-detail-status {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.agent-host-factory-run-phase-detail h4 {
-	font-size: 12px;
-	margin: 12px 0 6px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.agent-host-factory-run-agent {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	padding: 4px 0;
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
-	font-size: 13px;
-}
-
-.agent-host-factory-run-agent:last-of-type {
-	border-bottom: none;
-}
-
-.agent-host-factory-run-agent-name,
-.agent-host-factory-run-agent-meta {
+.agent-host-factory-run-follow,
+.agent-host-factory-run-agent-trace {
 	display: inline-flex;
 	align-items: center;
-	gap: 8px;
-	min-width: 0;
-}
-
-/* Agents with a chat render as a button that opens it; keep the row's typography. */
-button.agent-host-factory-run-agent-name {
-	padding: 2px 6px;
-	margin-left: -6px;
+	gap: var(--vscode-spacing-size40);
 	border: none;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	background: transparent;
 	color: var(--vscode-textLink-foreground);
 	font: inherit;
 	cursor: pointer;
 }
 
-button.agent-host-factory-run-agent-name:hover {
+.agent-host-factory-run-follow {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-host-factory-run-follow[aria-pressed="true"] {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-host-factory-run-follow:hover,
+.agent-host-factory-run-agent-trace:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	text-decoration: underline;
 }
 
-button.agent-host-factory-run-agent-name:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-button.agent-host-factory-run-agent-name > .codicon-link-external {
-	font-size: 12px;
-	opacity: 0.7;
-}
-
-.agent-host-factory-run-agent-name > span:first-of-type {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.agent-host-factory-run-agent-meta {
-	flex-shrink: 0;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.agent-host-factory-run-progress {
-	margin: 0;
-	padding-left: 18px;
-	font-size: 12px;
+.agent-host-factory-run-table {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: collapse;
 	line-height: 1.5;
 }
 
-.agent-host-factory-run-progress li.kind-phase {
-	font-weight: 600;
-	list-style: none;
-	margin-left: -18px;
-	margin-top: 4px;
+.agent-host-factory-run-table .agents-column {
+	width: 80px;
+}
+
+.agent-host-factory-run-table .duration-column {
+	width: 220px;
+}
+
+.agent-host-factory-run-table thead {
+	color: var(--vscode-descriptionForeground);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-panel-border);
+}
+
+.agent-host-factory-run-table th,
+.agent-host-factory-run-table td {
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size60);
+	text-align: start;
+	font-weight: var(--vscode-fontWeight-regular);
+	vertical-align: top;
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-phase-group {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
+.agent-host-factory-run-table .agent-host-factory-run-phase-row > th {
+	padding-left: 0;
+}
+
+.agent-host-factory-run-phase {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: 100%;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: inherit;
+	text-align: start;
+	font: inherit;
+	cursor: pointer;
+}
+
+.agent-host-factory-run-phase:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.agent-host-factory-run-phase > .codicon {
+	flex-shrink: 0;
+}
+
+.agent-host-factory-run-phase-twistie {
+	opacity: 0;
+}
+
+.agent-host-factory-run-phase:hover .agent-host-factory-run-phase-twistie,
+.agent-host-factory-run-phase:focus-visible .agent-host-factory-run-phase-twistie,
+.is-expanded .agent-host-factory-run-phase-twistie {
+	opacity: 1;
+}
+
+.agent-host-factory-run-phase-title {
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-phase-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.status-completed .agent-host-factory-run-phase > .codicon:not(.agent-host-factory-run-phase-twistie) {
+	color: var(--vscode-charts-green);
+}
+
+.status-active .agent-host-factory-run-phase > .codicon:not(.agent-host-factory-run-phase-twistie),
+.status-partial .agent-host-factory-run-phase > .codicon:not(.agent-host-factory-run-phase-twistie) {
+	color: var(--vscode-charts-yellow);
+}
+
+.status-completed .agent-host-factory-run-phase-row {
+	background: color-mix(in srgb, var(--vscode-charts-green) 3%, transparent);
+}
+
+.status-active .agent-host-factory-run-phase-row,
+.status-partial .agent-host-factory-run-phase-row {
+	background: color-mix(in srgb, var(--vscode-charts-yellow) 6%, transparent);
+}
+
+.status-unreached,
+.status-pending,
+.status-skipped {
+	.agent-host-factory-run-phase,
+	.agent-host-factory-run-unreached {
+		color: var(--vscode-descriptionForeground);
+	}
+}
+
+.agent-host-factory-run-duration {
+	display: grid;
+	grid-template-columns: 8ch minmax(0, 1fr);
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	font-variant-numeric: tabular-nums;
+}
+
+.agent-host-factory-run-duration-track {
+	min-width: 0;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background: color-mix(in srgb, var(--vscode-descriptionForeground) 10%, transparent);
+}
+
+.agent-host-factory-run-duration-bar {
+	height: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background: var(--vscode-charts-green);
+}
+
+.status-active .agent-host-factory-run-duration-bar,
+.status-partial .agent-host-factory-run-duration-bar {
+	background: var(--vscode-charts-yellow);
+}
+
+.agent-host-factory-run-table .agent-host-factory-run-phase-detail {
+	padding: 0 var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size360);
+}
+
+.agent-host-factory-run-agent + .agent-host-factory-run-agent {
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.agent-host-factory-run-agent-meta,
+.agent-host-factory-run-agent-activity {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-agent-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.agent-host-factory-run-agent-state {
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-host-factory-run-agent-activity {
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.agent-host-factory-run-agent[data-status="cancelled"] .agent-host-factory-run-agent-meta > .codicon,
+.agent-host-factory-run-agent[data-status="failed"] .agent-host-factory-run-agent-meta > .codicon,
+.agent-host-factory-run-agent[data-status="error"] .agent-host-factory-run-agent-meta > .codicon {
+	color: var(--vscode-errorForeground);
+}
+
+.agent-host-factory-run-agent[data-status="completed"] .agent-host-factory-run-agent-meta > .codicon {
+	color: var(--vscode-charts-green);
+}
+
+.agent-host-factory-run-agent[data-status="running"] .agent-host-factory-run-agent-meta > .codicon {
+	color: var(--vscode-charts-yellow);
+}
+
+.agent-host-factory-run-muted,
+.agent-host-factory-run-empty-phase {
+	margin: var(--vscode-spacing-size40) 0;
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-details,
+.agent-host-factory-run-progress-details {
+	margin-top: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-host-factory-run-details > summary,
+.agent-host-factory-run-progress-details > summary {
+	width: fit-content;
+	padding: var(--vscode-spacing-size40) 0;
+	cursor: pointer;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-host-factory-run-usage {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size160);
+}
+
+.agent-host-factory-run-usage-title {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-host-factory-run-usage-value {
+	margin: var(--vscode-spacing-size40) 0;
+	color: var(--vscode-foreground);
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-progress {
+	margin: var(--vscode-spacing-size40) 0;
+	padding-left: var(--vscode-spacing-size200);
+	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+
+.agent-host-factory-run-result {
+	margin: var(--vscode-spacing-size80) 0;
+	padding: var(--vscode-spacing-size120);
+	max-height: 280px;
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	background: var(--vscode-textCodeBlock-background);
+}
+
+.agent-host-factory-run-editor button:focus-visible,
+.agent-host-factory-run-editor summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+@container (max-width: 600px) {
+	.agent-host-factory-run-table .agents-column {
+		width: 60px;
+	}
+
+	.agent-host-factory-run-table .duration-column {
+		width: 96px;
+	}
+
+	.agent-host-factory-run-duration-track {
+		display: none;
+	}
+
+	.agent-host-factory-run-duration {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.agent-host-factory-run-usage {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+.monaco-reduce-motion .agent-host-factory-run-editor .codicon-modifier-spin {
+	animation: none;
 }

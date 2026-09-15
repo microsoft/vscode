@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { ISessionFactoryRun, ISessionFactoryRunPhase, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
+import { ISessionFactoryRun, ISessionFactoryRunPhase, isSessionFactoryRunTerminal, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
 
 const spinningIcon = ThemeIcon.modify(Codicon.loading, 'spin');
 
@@ -39,6 +39,35 @@ export function getFactoryRunPhaseStatusLabel(status: SessionFactoryRunPhaseStat
 		case SessionFactoryRunPhaseStatus.Completed: return localize('factoryRun.phase.completed', "Completed");
 		case SessionFactoryRunPhaseStatus.Skipped: return localize('factoryRun.phase.skipped', "Skipped");
 	}
+}
+
+export function getFactoryRunPhaseStatusIcon(status: SessionFactoryRunPhaseStatus): ThemeIcon {
+	switch (status) {
+		case SessionFactoryRunPhaseStatus.Pending: return Codicon.circleLarge;
+		case SessionFactoryRunPhaseStatus.Active: return spinningIcon;
+		case SessionFactoryRunPhaseStatus.Completed: return Codicon.check;
+		case SessionFactoryRunPhaseStatus.Skipped: return Codicon.circleSlash;
+	}
+}
+
+/** Phase observations outlive execution; an active observation is not live after the run stops. */
+export function getFactoryRunPhasePresentation(run: ISessionFactoryRun, phase: ISessionFactoryRunPhase): { state: string; label: string; icon: ThemeIcon } {
+	if (isSessionFactoryRunTerminal(run.status)) {
+		if (phase.status === SessionFactoryRunPhaseStatus.Active) {
+			return { state: 'partial', label: localize('factoryRun.phase.partial', "Partial"), icon: Codicon.warning };
+		}
+		if (phase.status === SessionFactoryRunPhaseStatus.Pending) {
+			const label = run.status === SessionFactoryRunStatus.Halted
+				? localize('factoryRun.phase.notReachedHalted', "Not reached — run halted")
+				: run.status === SessionFactoryRunStatus.Cancelled
+					? localize('factoryRun.phase.notReachedCancelled', "Not reached — run cancelled")
+					: run.status === SessionFactoryRunStatus.Error
+						? localize('factoryRun.phase.notReachedError', "Not reached — run failed")
+						: localize('factoryRun.phase.notReached', "Not reached");
+			return { state: 'unreached', label, icon: Codicon.circleSlash };
+		}
+	}
+	return { state: phase.status, label: getFactoryRunPhaseStatusLabel(phase.status), icon: getFactoryRunPhaseStatusIcon(phase.status) };
 }
 
 /** Compact duration such as `2m 23s` or `1h 4m`, or `-` when nothing has elapsed. */
