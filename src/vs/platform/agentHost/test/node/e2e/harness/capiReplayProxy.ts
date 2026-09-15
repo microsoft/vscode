@@ -999,7 +999,11 @@ export class CapiReplayProxy {
 	}
 
 	private _expandReplayPlaceholders(text: string): string {
-		let result = replaceAll(text, CAPI_PLACEHOLDER, this.url);
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, placeholder, value);
+		}
+		result = replaceAll(result, CAPI_PLACEHOLDER, this.url);
 		if (result.includes(COPIED_PLUGIN_DIR_PLACEHOLDER)) {
 			const directories = [...this._replayPluginDirectories];
 			if (directories.length !== 1) {
@@ -1038,9 +1042,6 @@ export class CapiReplayProxy {
 		}
 		if (this._options.userName) {
 			result = replaceAll(result, USER_PLACEHOLDER, this._options.userName);
-		}
-		for (const [placeholder, value] of this._replayPlaceholderValues) {
-			result = replaceAll(result, placeholder, value);
 		}
 		return result;
 	}

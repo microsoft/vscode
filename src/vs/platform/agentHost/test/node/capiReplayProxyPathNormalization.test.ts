@@ -77,9 +77,13 @@ suite('CapiReplayProxy path normalization', () => {
 	test('normalizes compacted shell output paths and rebinds them from live requests', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-shell-output-'));
 		const fixturePath = join(directory, 'capture.yaml');
+		const homeDir = '/tmp/host-home';
+		const workDir = '/tmp/workspace';
 		const paths = [
 			'/tmp/with spaces/original-output-1234567890123-0123456789abcdef0123456789abcdef.txt',
 			'C:\\Users\\test user\\Temp\\original-output-1234567890124-abcdef0123456789abcdef0123456789.txt',
+			`${homeDir}/output/original-output-1234567890125-0123456789abcdef0123456789abcdef.txt`,
+			`${workDir}/output/original-output-1234567890126-abcdef0123456789abcdef0123456789.txt`,
 		];
 		const request = (path: string) => JSON.stringify({
 			model: 'claude-sonnet-5',
@@ -103,7 +107,7 @@ suite('CapiReplayProxy path normalization', () => {
 			await recorder.stop();
 			const fixture = readFileSync(fixturePath, 'utf8');
 			assert.ok(fixture.includes('${shell_output_0}') && !fixture.includes('original-output-'));
-			const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+			const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', homeDir, workDir, userName: 'test user' });
 			try {
 				const url = await replay.start();
 				for (const path of paths) {
