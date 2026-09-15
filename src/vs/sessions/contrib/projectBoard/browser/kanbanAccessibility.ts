@@ -34,7 +34,7 @@ class KanbanAccessibilityHelp implements IAccessibleViewImplementation {
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const content = [
 			localize('kanban.help.overview', "You are in the Kanban view. Chats are arranged first in Unassigned, then in cells by area and priority."),
-			localize('kanban.help.navigation', "Use Tab to move among board controls and cards. With a card focused, use the arrow keys to move between cards, Enter or Space to open the chat, Escape to close its standalone window, and Control or Command Shift M to choose a board cell."),
+			localize('kanban.help.navigation', "Use Tab to move among board controls and cards. With a card focused, use the arrow keys to move between cards, Enter or Space to open the chat, Escape to close its standalone window, and Control or Command Shift M to choose a board cell. Tab to a card's Delete button to permanently delete its backing session or discard its draft."),
 			localize('kanban.help.editing', "Use the row and column controls to rename, reorder, add, or remove board axes. Drag a card onto a cell to move it."),
 			localize('kanban.help.accessibleView', "Use Open Accessible View to read all current board cells and chats as text."),
 		].join('\n');
