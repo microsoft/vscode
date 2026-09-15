@@ -441,7 +441,7 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 	 */
 	protected get itemModifierClass(): string | undefined { return undefined; }
 	protected get buttonModifierClass(): string | undefined { return undefined; }
-	protected get buttonOptions(): { readonly supportIcons?: boolean } { return {}; }
+	protected get buttonOptions(): { readonly supportIcons?: boolean; readonly secondary?: boolean } { return {}; }
 
 	override render(container: HTMLElement): void {
 		this.element = container;
@@ -545,8 +545,12 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 /** The default `icon + label` rendering for chat pill actions. */
 export class ChatPillActionViewItem extends ChatPillActionViewItemBase {
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary = true) {
 		super(context, action, options);
+	}
+
+	protected override get buttonOptions(): { readonly secondary: boolean } {
+		return { secondary: this.secondary };
 	}
 
 	protected override renderContent(): void {

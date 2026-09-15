@@ -7,12 +7,16 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
+import { Menus } from '../../../browser/menus.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { KanbanCustomViewFocusContext } from '../../../common/contextkeys.js';
-import { KANBAN_CUSTOM_VIEW_ID } from '../../../common/projectBoard.js';
+import { KANBAN_CUSTOM_VIEW_ID, KANBAN_NEW_SESSION_COMMAND_ID } from '../../../common/projectBoard.js';
 import { IProjectBoardService, IProjectBoardView } from './projectBoardService.js';
 import './kanbanAccessibility.js';
 
@@ -57,12 +61,20 @@ export class KanbanCustomViewContribution extends Disposable {
 
 	constructor(
 		@ICustomViewService customViewService: ICustomViewService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
 		this._register(customViewService.registerCustomView({
 			id: KANBAN_CUSTOM_VIEW_ID,
 			ctor: new SyncDescriptor(KanbanCustomView),
+			actions: { style: 'buttonBar', menuId: Menus.CustomViewKanban },
 			horizontalScrolling: true,
+		}));
+		this._register(actionViewItemService.register(Menus.CustomViewKanban, KANBAN_NEW_SESSION_COMMAND_ID, (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(ChatPillActionViewItem, undefined, action, options, false);
 		}));
 	}
 }

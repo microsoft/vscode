@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { OPEN_AGENT_PROJECT_BOARD_COMMAND_ID } from '../../../../../platform/window/common/window.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -25,7 +27,8 @@ import { KanbanCustomViewContribution } from '../../browser/kanbanView.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { KANBAN_CUSTOM_VIEW_ID } from '../../../../common/projectBoard.js';
+import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_CUSTOM_VIEW_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { Menus } from '../../../../browser/menus.js';
 import '../../browser/projectBoard.contribution.js';
 
 suite('Project Board Agents routing', () => {
@@ -104,10 +107,17 @@ suite('Project Board Agents routing', () => {
 	test('registers Kanban as a restorable Sessions custom view', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		let registered: ICustomViewDescriptor | undefined;
+		let primaryActionId: string | undefined;
 		instantiationService.stub(ICustomViewService, upcastPartial<ICustomViewService>({
 			activeCustomView: constObservable(undefined),
 			registerCustomView: descriptor => {
 				registered = descriptor;
+				return { dispose() { } };
+			},
+		}));
+		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({
+			register: (_menu, commandId) => {
+				primaryActionId = commandId instanceof MenuId ? commandId.id : commandId;
 				return { dispose() { } };
 			},
 		}));
@@ -117,12 +127,81 @@ suite('Project Board Agents routing', () => {
 			id: registered?.id,
 			hasConstructor: !!registered?.ctor,
 			actions: registered?.actions,
+			primaryActionId,
 			horizontalScrolling: registered?.horizontalScrolling,
 		}, {
 			id: KANBAN_CUSTOM_VIEW_ID,
 			hasConstructor: true,
-			actions: undefined,
+			actions: { style: 'buttonBar', menuId: Menus.CustomViewKanban },
+			primaryActionId: KANBAN_NEW_SESSION_COMMAND_ID,
 			horizontalScrolling: true,
 		});
+	});
+
+	test('contributes Kanban header buttons and settings menu in display order', () => {
+		const headerItems = MenuRegistry.getMenuItems(Menus.CustomViewKanban);
+		const actions = headerItems.filter(isIMenuItem).map(item => ({
+			id: item.command.id,
+			group: item.group,
+			order: item.order,
+		}));
+		const settings = headerItems.find(isISubmenuItem);
+		const settingActions = MenuRegistry.getMenuItems(Menus.CustomViewKanbanSettings)
+			.filter(isIMenuItem)
+			.map(item => item.command.id);
+
+		assert.deepStrictEqual({
+			actions,
+			settings: settings && {
+				menu: settings.submenu,
+				icon: settings.icon,
+				group: settings.group,
+				order: settings.order,
+			},
+			settingActions,
+		}, {
+			actions: [
+				{ id: KANBAN_ADD_ROW_COMMAND_ID, group: 'navigation', order: 1 },
+				{ id: KANBAN_ADD_COLUMN_COMMAND_ID, group: 'navigation', order: 2 },
+				{ id: KANBAN_TOGGLE_ARCHIVED_COMMAND_ID, group: 'navigation', order: 3 },
+				{ id: KANBAN_NEW_SESSION_COMMAND_ID, group: 'navigation', order: 4 },
+			],
+			settings: {
+				menu: Menus.CustomViewKanbanSettings,
+				icon: Codicon.settingsGear,
+				group: 'navigation',
+				order: 5,
+			},
+			settingActions: [
+				'projectBoard.settings.stateDuration',
+				'projectBoard.settings.credits',
+				'projectBoard.settings.lastPrompt',
+				'projectBoard.settings.modelDetails',
+				'projectBoard.settings.permissionDetails',
+			],
+		});
+	});
+
+	test('routes Kanban header actions to the embedded project board', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const calls: string[] = [];
+		instantiationService.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({
+			addAxis: async kind => { calls.push(`add:${kind}`); },
+			toggleArchived: () => { calls.push('archived'); },
+			createSession: async () => { calls.push('session'); },
+			toggleDisplayOption: key => { calls.push(`display:${key}`); },
+		}));
+
+		for (const id of [
+			KANBAN_ADD_ROW_COMMAND_ID,
+			KANBAN_ADD_COLUMN_COMMAND_ID,
+			KANBAN_TOGGLE_ARCHIVED_COMMAND_ID,
+			KANBAN_NEW_SESSION_COMMAND_ID,
+			'projectBoard.settings.credits',
+		]) {
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		}
+
+		assert.deepStrictEqual(calls, ['add:row', 'add:column', 'archived', 'session', 'display:showCredits']);
 	});
 });

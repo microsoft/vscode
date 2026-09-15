@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { localize2 } from '../../../../nls.js';
 import { IProjectBoardService } from './projectBoardService.js';
@@ -19,8 +19,162 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { KanbanCustomViewContribution } from './kanbanView.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Menus } from '../../../browser/menus.js';
+import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../common/projectBoard.js';
+import { KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
 
 registerWorkbenchContribution2(KanbanCustomViewContribution.ID, KanbanCustomViewContribution, WorkbenchPhase.BlockRestore);
+
+registerAction2(class AddKanbanRowAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_ADD_ROW_COMMAND_ID,
+			title: localize2('projectBoard.addRow', "Add Row"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, KanbanBoardEditableContext),
+			menu: [{ id: Menus.CustomViewKanban, group: 'navigation', order: 1 }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IProjectBoardService).addAxis('row');
+	}
+});
+
+registerAction2(class AddKanbanColumnAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_ADD_COLUMN_COMMAND_ID,
+			title: localize2('projectBoard.addColumn', "Add Column"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, KanbanBoardEditableContext),
+			menu: [{ id: Menus.CustomViewKanban, group: 'navigation', order: 2 }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IProjectBoardService).addAxis('column');
+	}
+});
+
+registerAction2(class ToggleKanbanArchivedAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_TOGGLE_ARCHIVED_COMMAND_ID,
+			title: localize2('projectBoard.showArchived', "Show Archived"),
+			precondition: ChatContextKeys.enabled,
+			toggled: KanbanShowArchivedContext,
+			menu: [{ id: Menus.CustomViewKanban, group: 'navigation', order: 3 }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleArchived();
+	}
+});
+
+registerAction2(class NewKanbanSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_NEW_SESSION_COMMAND_ID,
+			title: localize2('projectBoard.createSession', "New Session"),
+			precondition: ChatContextKeys.enabled,
+			menu: [{ id: Menus.CustomViewKanban, group: 'navigation', order: 4 }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IProjectBoardService).createSession();
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.CustomViewKanban, {
+	submenu: Menus.CustomViewKanbanSettings,
+	title: localize2('projectBoard.displaySettings', "Board Display Settings"),
+	icon: Codicon.settingsGear,
+	group: 'navigation',
+	order: 5,
+	when: KanbanBoardEditableContext,
+});
+
+registerAction2(class ToggleKanbanStateDurationAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.stateDuration',
+			title: localize2('projectBoard.showStateDuration', "Show Time in State"),
+			precondition: KanbanBoardEditableContext,
+			toggled: KanbanShowStateDurationContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 1 }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleDisplayOption('showStateDuration');
+	}
+});
+
+registerAction2(class ToggleKanbanCreditsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.credits',
+			title: localize2('projectBoard.showCredits', "Show AI Credits"),
+			precondition: KanbanBoardEditableContext,
+			toggled: KanbanShowCreditsContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 2 }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleDisplayOption('showCredits');
+	}
+});
+
+registerAction2(class ToggleKanbanLastPromptAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.lastPrompt',
+			title: localize2('projectBoard.showLastPrompt', "Show Last Prompt"),
+			precondition: KanbanBoardEditableContext,
+			toggled: KanbanShowLastPromptContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 3 }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleDisplayOption('showLastPrompt');
+	}
+});
+
+registerAction2(class ToggleKanbanModelDetailsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.modelDetails',
+			title: localize2('projectBoard.showModelDetails', "Show Model Details"),
+			precondition: KanbanBoardEditableContext,
+			toggled: KanbanShowModelDetailsContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 4 }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleDisplayOption('showModelDetails');
+	}
+});
+
+registerAction2(class ToggleKanbanPermissionDetailsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.permissionDetails',
+			title: localize2('projectBoard.showPermissionDetails', "Show Agent & Permissions"),
+			precondition: KanbanBoardEditableContext,
+			toggled: KanbanShowPermissionDetailsContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 5 }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleDisplayOption('showPermissionDetails');
+	}
+});
 
 registerAction2(class OpenProjectBoardAction extends Action2 {
 	constructor() {
