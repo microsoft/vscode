@@ -13713,12 +13713,12 @@ suite('CopilotAgent', () => {
 					plugins: await activeClient.getRestartReason({
 						tools: [],
 						plugins: [{ format: PluginFormat.Copilot, hooks: [], mcpServers: [], skills: [], agents: [], instructions: [] }],
-						get mcpServers() {
+						get mcpServers(): IActiveClientSnapshot['mcpServers'] {
 							throw new Error('A plugin change must skip the MCP comparison');
 						},
 					}),
 					mcpServers: await activeClient.getRestartReason({
-						get tools() {
+						get tools(): IActiveClientSnapshot['tools'] {
 							throw new Error('An MCP change must skip the tool comparison');
 						},
 						plugins: [],
@@ -13892,10 +13892,10 @@ suite('CopilotAgent', () => {
 			const previousSession: IRefreshSessionStub = {
 				...refreshSessionStub([oldSecondary]),
 				requiresRestartAfterWorkingDirectoryChange: true,
-				get requiresMcpLaunchConfigurationRefresh() {
+				get requiresMcpLaunchConfigurationRefresh(): boolean {
 					throw new Error('A working-directory change must skip the MCP refresh flag');
 				},
-				get requiresControlPlaneResync() {
+				get requiresControlPlaneResync(): boolean {
 					throw new Error('A working-directory change must skip the control-plane refresh flag');
 				},
 			};
@@ -13996,7 +13996,7 @@ suite('CopilotAgent', () => {
 			previousSession.requiresRestartAfterWorkingDirectoryChange = true;
 			previousSession.appliedSnapshot = {
 				tools: [],
-				get plugins() {
+				get plugins(): IActiveClientSnapshot['plugins'] {
 					throw new Error('A working-directory change must skip structural comparisons');
 				},
 				mcpServers: {},
