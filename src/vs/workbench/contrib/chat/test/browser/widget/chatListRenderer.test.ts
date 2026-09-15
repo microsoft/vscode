@@ -1374,6 +1374,82 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	for (const incremental of [false, true]) {
+		test(`explicit Thinking section breaks create a new group without a transcript row (incremental=${incremental})`, () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.FixedScrollingCollapsible);
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const request = model.addRequest({
+				text: 'Review',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 6), new Range(1, 1, 1, 7), 'Review')],
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer, {} as ChatEditorOptions, {},
+				{
+					getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+					currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+				},
+				undefined, viewModel,
+			));
+			let template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			const snapshot = () => {
+				const thinking = [...new Set(template.renderedParts)].filter(part => part instanceof ChatThinkingContentPart);
+				return {
+					groups: thinking.length,
+					rows: thinking.map(part => part.domNode.querySelectorAll('.chat-thinking-item.markdown-content').length),
+					active: thinking.map(part => part.getIsActive()),
+				};
+			};
+
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'routing', value: '**Choosing a workflow**' });
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'routing-details', value: '' });
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'routing-explanation', value: 'Routing explanation' });
+			renderer.renderElement(node, 0, template);
+			const internalSeparator = snapshot();
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'routing-boundary', value: '', sectionBreak: true });
+			renderer.renderElement(node, 0, template);
+			const afterBoundary = snapshot();
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'implementation', value: '**Implementing**' });
+			renderer.renderElement(node, 0, template);
+			const nextSection = snapshot();
+			renderer.disposeTemplate(template);
+			dom.clearNode(container);
+			template = renderer.renderTemplate(container);
+			renderer.renderElement(node, 0, template);
+			const restored = snapshot();
+
+			assert.deepStrictEqual({
+				internalSeparator,
+				afterBoundary,
+				nextSection,
+				restored,
+			}, {
+				internalSeparator: { groups: 1, rows: [2], active: [true] },
+				afterBoundary: { groups: 1, rows: [2], active: [false] },
+				nextSection: { groups: 2, rows: [2, 1], active: [false, true] },
+				restored: { groups: 2, rows: [2, 1], active: [false, true] },
+			});
+		});
+	}
+
 	test('keeps deferred edit markdown inside its collapsed thinking group', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);

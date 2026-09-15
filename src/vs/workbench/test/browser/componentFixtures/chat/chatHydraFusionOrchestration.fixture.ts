@@ -7,6 +7,7 @@ import './chatHydraFusionOrchestration.fixture.css';
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { HoverWidget } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -20,6 +21,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 type HydraFusionPrototypeId = 'solo' | 'cascade' | 'critique';
 type ThinkingDetail = 'activityOnly' | 'reasoningAndDrafts';
+type ModelDisplay = 'hidden' | 'inline' | 'hover';
 
 interface IHydraFusionThinkingRow {
 	readonly label: string;
@@ -56,6 +58,11 @@ interface IHydraFusionStage {
 	readonly rows: readonly IHydraFusionThinkingRow[];
 	readonly tools?: readonly IHydraFusionTool[];
 	readonly toolDetails?: 'full' | 'summary';
+	readonly continuation?: {
+		readonly title: string;
+		readonly completedTitle: string;
+		readonly summary: string;
+	};
 	readonly phaseEnd?: boolean;
 	readonly complete?: boolean;
 	readonly finalResponse?: string;
@@ -69,7 +76,8 @@ interface IHydraFusionPrototype {
 	readonly prompt: string;
 	readonly stages: readonly IHydraFusionStage[];
 	readonly defaultStage: number;
-	readonly usageDetails: string;
+	readonly usageAics: string;
+	readonly models: readonly string[];
 }
 
 interface IHydraFusionDemoState {
@@ -77,7 +85,7 @@ interface IHydraFusionDemoState {
 	stage: number;
 	playAll: boolean;
 	detail: ThinkingDetail;
-	showModels: boolean;
+	modelDisplay: ModelDisplay;
 	startCollapsed: boolean;
 }
 
@@ -116,7 +124,8 @@ const soloPrototype: IHydraFusionPrototype = {
 	completedTitle: 'Reviewed 6 files',
 	prompt,
 	defaultStage: 1,
-	usageDetails: 'HydraFusion Research Preview • Example usage: 1.3 AICs across 1 model phase',
+	usageAics: '1.3 AICs',
+	models: ['GPT-5.6 Sol'],
 	stages: [
 		{
 			id: 'choosing',
@@ -125,7 +134,7 @@ const soloPrototype: IHydraFusionPrototype = {
 			completedTitle: 'Selected Single workflow',
 			presentation: 'orchestration',
 			description: 'HydraFusion is loading and validating the workflow plan for this turn.',
-			outcome: 'Using Single: one solver will implement and verify the change.',
+			outcome: '',
 			phaseEnd: true,
 			rows: [
 				{
@@ -260,7 +269,7 @@ const soloPrototype: IHydraFusionPrototype = {
 			completedTitle: 'Published the selected response',
 			presentation: 'orchestration',
 			description: 'HydraFusion is replaying the selected staged result into the ordinary chat turn.',
-			outcome: 'The selected Single response is ready.',
+			outcome: '',
 			phaseEnd: true,
 			rows: [
 				{
@@ -311,7 +320,8 @@ const cascadePrototype: IHydraFusionPrototype = {
 	completedTitle: 'Completed 9 steps in 1m 08s',
 	prompt,
 	defaultStage: 3,
-	usageDetails: 'HydraFusion Research Preview • Example usage: 4.1 AICs across 3 model phases',
+	usageAics: '4.1 AICs',
+	models: ['GPT-5.6 Luna', 'GPT-5.6 Sol'],
 	stages: [
 		{
 			id: 'choosing',
@@ -320,7 +330,7 @@ const cascadePrototype: IHydraFusionPrototype = {
 			completedTitle: 'Selected Cascade workflow',
 			presentation: 'orchestration',
 			description: 'HydraFusion is loading and validating the workflow plan for this turn.',
-			outcome: 'Using Cascade: implement first, check quality, and repair only if needed.',
+			outcome: '',
 			phaseEnd: true,
 			rows: [
 				{
@@ -394,11 +404,16 @@ const cascadePrototype: IHydraFusionPrototype = {
 			id: 'delegating',
 			label: 'Subagent check',
 			title: 'Checking registration details with a subagent',
-			completedTitle: 'Completed the main pass',
+			completedTitle: 'Prepared a focused subagent check',
 			model: 'GPT-5.6 Luna',
 			phaseEnd: true,
 			description: 'The first solver is using ordinary VS Code subagent delegation for a bounded read-only check. This is not HydraFusion escalation.',
-			outcome: 'The main pass implemented the command and confirmed the surrounding command, context-key, and keybinding conventions.',
+			outcome: 'The main pass implemented the command, and the subagent confirmed the surrounding command, context-key, and keybinding conventions.',
+			continuation: {
+				title: 'Finishing the main pass after the subagent check',
+				completedTitle: 'Completed the main pass',
+				summary: 'The subagent confirmed the neighboring registration conventions, so the root solver can finish its implementation summary before the quality gate begins.',
+			},
 			rows: [
 				{
 					label: 'Plan',
@@ -495,7 +510,7 @@ const cascadePrototype: IHydraFusionPrototype = {
 			completedTitle: 'Published the selected repair response',
 			presentation: 'orchestration',
 			description: 'HydraFusion is replaying the selected repair result into the ordinary chat turn.',
-			outcome: 'The selected repair response is ready.',
+			outcome: '',
 			phaseEnd: true,
 			rows: [
 				{
@@ -550,7 +565,8 @@ const critiquePrototype: IHydraFusionPrototype = {
 	completedTitle: 'Completed 8 steps in 56s',
 	prompt,
 	defaultStage: 2,
-	usageDetails: 'HydraFusion Research Preview • Example usage: 3.4 AICs across 3 model phases',
+	usageAics: '3.4 AICs',
+	models: ['GPT-5.6 Luna', 'GPT-5.6 Terra'],
 	stages: [
 		{
 			id: 'choosing',
@@ -559,7 +575,7 @@ const critiquePrototype: IHydraFusionPrototype = {
 			completedTitle: 'Selected Critique workflow',
 			presentation: 'orchestration',
 			description: 'HydraFusion is loading and validating the workflow plan for this turn.',
-			outcome: 'Using Critique: draft first, review independently, and revise once if needed.',
+			outcome: '',
 			phaseEnd: true,
 			rows: [
 				{
@@ -709,7 +725,7 @@ const critiquePrototype: IHydraFusionPrototype = {
 			completedTitle: 'Published the selected revision response',
 			presentation: 'orchestration',
 			description: 'HydraFusion is replaying the selected revision result into the ordinary chat turn.',
-			outcome: 'The selected revision response is ready.',
+			outcome: '',
 			phaseEnd: true,
 			rows: [
 				{
@@ -794,16 +810,21 @@ const detailOptions: readonly IButtonOption<ThinkingDetail>[] = [
 	},
 ];
 
-const modelOptions: readonly IButtonOption<boolean>[] = [
+const modelOptions: readonly IButtonOption<ModelDisplay>[] = [
 	{
-		value: false,
+		value: 'hidden',
 		label: 'Hide models',
 		description: 'Keep constituent model names out of phase summaries.',
 	},
 	{
-		value: true,
+		value: 'inline',
 		label: 'Show models',
 		description: 'Show simulated constituent models from the current reference policy. Actual server-authored routes can vary.',
+	},
+	{
+		value: 'hover',
+		label: 'Show on hover',
+		description: 'Keep model names out of phase summaries and list the distinct models when the usage count is hovered or focused.',
 	},
 ];
 
@@ -864,6 +885,102 @@ function createDraftText(stage: IHydraFusionStage): string | undefined {
 		: undefined;
 }
 
+function getModelCountLabel(prototype: IHydraFusionPrototype): string {
+	return `${prototype.models.length} ${prototype.models.length === 1 ? 'model' : 'models'} used`;
+}
+
+function getUsageDetails(prototype: IHydraFusionPrototype): string {
+	return `HydraFusion Research Preview • Example usage: ${prototype.usageAics} • ${getModelCountLabel(prototype)}`;
+}
+
+function setupModelUsageDetails(
+	renderHost: HTMLElement,
+	renderStore: DisposableStore,
+	prototype: IHydraFusionPrototype,
+	modelDisplay: ModelDisplay,
+): void {
+	const targetStore = renderStore.add(new MutableDisposable<DisposableStore>());
+	const apply = () => {
+		const details = renderHost.querySelector<HTMLElement>('.interactive-response .chat-response-model-details');
+		if (!details || details.dataset.hydrafusionModelDisplay === modelDisplay) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		targetStore.value = store;
+		details.dataset.hydrafusionModelDisplay = modelDisplay;
+		const countLabel = getModelCountLabel(prototype);
+		const count = dom.$('span.hydrafusion-model-count', undefined, countLabel);
+		details.replaceChildren(
+			document.createTextNode(`HydraFusion Research Preview • Example usage: ${prototype.usageAics} • `),
+			count,
+		);
+
+		if (modelDisplay !== 'hover') {
+			return;
+		}
+
+		count.classList.add('hydrafusion-model-count-hover-target');
+		count.tabIndex = 0;
+		count.ariaLabel = `${countLabel}. ${prototype.models.join(', ')}`;
+		const hover = store.add(new HoverWidget(true));
+		hover.containerDomNode.classList.add('workbench-hover', 'hydrafusion-model-usage-hover');
+		dom.append(hover.contentsDomNode, dom.$('.hydrafusion-model-usage-hover-title', undefined, 'Models used'));
+		const list = dom.append(hover.contentsDomNode, dom.$('ul.hydrafusion-model-usage-hover-list'));
+		for (const model of prototype.models) {
+			dom.append(list, dom.$('li', undefined, model));
+		}
+		hover.onContentsChanged();
+
+		let hideHandle: number | undefined;
+		const cancelHide = () => {
+			if (hideHandle !== undefined) {
+				dom.getWindow(renderHost).clearTimeout(hideHandle);
+				hideHandle = undefined;
+			}
+		};
+		const hide = () => {
+			cancelHide();
+			hover.containerDomNode.remove();
+		};
+		const scheduleHide = () => {
+			cancelHide();
+			hideHandle = dom.getWindow(renderHost).setTimeout(hide, 100);
+		};
+		const show = () => {
+			cancelHide();
+			if (!count.isConnected) {
+				return;
+			}
+			const targetWindow = dom.getWindow(renderHost);
+			const targetRect = count.getBoundingClientRect();
+			hover.containerDomNode.style.position = 'fixed';
+			hover.containerDomNode.style.visibility = 'hidden';
+			const hoverHost = renderHost.closest<HTMLElement>('.monaco-workbench') ?? targetWindow.document.body;
+			hoverHost.appendChild(hover.containerDomNode);
+			hover.onContentsChanged();
+			const hoverRect = hover.containerDomNode.getBoundingClientRect();
+			const left = Math.min(targetRect.left, targetWindow.innerWidth - hoverRect.width - 4);
+			const top = Math.max(4, targetRect.top - hoverRect.height - 6);
+			hover.containerDomNode.style.left = `${Math.max(4, left)}px`;
+			hover.containerDomNode.style.top = `${top}px`;
+			hover.containerDomNode.style.visibility = 'visible';
+		};
+
+		store.add(dom.addDisposableListener(count, dom.EventType.MOUSE_ENTER, show));
+		store.add(dom.addDisposableListener(count, dom.EventType.MOUSE_LEAVE, scheduleHide));
+		store.add(dom.addDisposableListener(count, dom.EventType.FOCUS, show));
+		store.add(dom.addDisposableListener(count, dom.EventType.BLUR, scheduleHide));
+		store.add(dom.addDisposableListener(hover.containerDomNode, dom.EventType.MOUSE_ENTER, cancelHide));
+		store.add(dom.addDisposableListener(hover.containerDomNode, dom.EventType.MOUSE_LEAVE, scheduleHide));
+		store.add({ dispose: hide });
+	};
+	const observer = new MutationObserver(apply);
+	observer.observe(renderHost, { childList: true, subtree: true });
+	renderStore.add({ dispose: () => observer.disconnect() });
+	apply();
+}
+
 function getToolCallId(prototype: IHydraFusionPrototype, stage: IHydraFusionStage, tool: IHydraFusionTool): string {
 	return `hydrafusion-${prototype.id}-${stage.id}-${tool.id}`;
 }
@@ -874,6 +991,7 @@ function createToolAssistantPart(
 	tool: IHydraFusionTool,
 	completed = tool.completed,
 	includeDetails = true,
+	startedAtOffsetMs?: number,
 ): IFixtureAssistantPart {
 	const toolCallId = getToolCallId(prototype, stage, tool);
 	if (tool.kind === 'subagent') {
@@ -885,6 +1003,7 @@ function createToolAssistantPart(
 			completed,
 			durationMs: tool.durationMs,
 			credits: tool.credits,
+			startedAtOffsetMs,
 			delayMs: 720,
 		};
 	}
@@ -909,6 +1028,16 @@ function appendSeparator(parts: IFixtureAssistantPart[], id: string, delayMs = 4
 		kind: 'thinking',
 		id,
 		text: '',
+		delayMs,
+	});
+}
+
+function appendSectionBreak(parts: IFixtureAssistantPart[], id: string, delayMs = 440): void {
+	parts.push({
+		kind: 'thinking',
+		id,
+		text: '',
+		sectionBreak: true,
 		delayMs,
 	});
 }
@@ -952,7 +1081,8 @@ function appendStageParts(
 
 	for (const tool of stage.tools ?? []) {
 		const completed = options.toolMode === 'completed' ? true : options.toolMode === 'animate' ? false : tool.completed;
-		parts.push(createToolAssistantPart(prototype, stage, tool, completed, stage.toolDetails !== 'summary'));
+		const startedAtOffsetMs = options.toolMode === 'stage' ? tool.durationMs : undefined;
+		parts.push(createToolAssistantPart(prototype, stage, tool, completed, stage.toolDetails !== 'summary', startedAtOffsetMs));
 		if (options.toolMode === 'animate') {
 			parts.push({
 				kind: 'toolCompletion',
@@ -964,13 +1094,31 @@ function appendStageParts(
 		}
 	}
 
-	if (options.includeOutcome && stage.phaseEnd) {
+	if (stage.continuation && (options.toolMode === 'completed' || options.toolMode === 'animate')) {
+		const continuationText = detail === 'reasoningAndDrafts'
+			? [`**${stage.continuation.title}**`, '', stage.continuation.summary].join('\n')
+			: `**${stage.continuation.title}**`;
 		parts.push({
-			kind: 'markdown',
-			text: stage.outcome,
+			kind: 'thinking',
+			id: `hydrafusion-${prototype.id}-${stage.id}-continuation`,
+			text: continuationText,
+			generatedTitle: stage.continuation.completedTitle,
 			streamText: options.streamText,
-			delayMs: 600,
+			delayMs: 560,
 		});
+	}
+
+	if (options.includeOutcome && stage.phaseEnd) {
+		if (stage.outcome) {
+			parts.push({
+				kind: 'markdown',
+				text: stage.outcome,
+				streamText: options.streamText,
+				delayMs: 600,
+			});
+		} else {
+			appendSectionBreak(parts, `hydrafusion-${prototype.id}-${stage.id}-section-break`, 520);
+		}
 	} else if (options.includeOutcome && options.trailingSeparator !== false) {
 		appendSeparator(parts, `hydrafusion-${prototype.id}-${stage.id}-next-separator`, 520);
 	}
@@ -1014,7 +1162,7 @@ function createMessage(prototype: IHydraFusionPrototype, stageIndex: number, det
 		initialAssistant,
 		assistant,
 		responseComplete: stage.complete === true,
-		details: prototype.usageDetails,
+		details: getUsageDetails(prototype),
 		streaming: {
 			initialDelayMs: 500,
 			partDelayMs: 520,
@@ -1052,7 +1200,7 @@ function createAutoplayMessage(prototype: IHydraFusionPrototype, detail: Thinkin
 		user: prototype.prompt,
 		assistant,
 		responseComplete: true,
-		details: prototype.usageDetails,
+		details: getUsageDetails(prototype),
 		streaming: {
 			initialDelayMs: 600,
 			partDelayMs: 560,
@@ -1075,9 +1223,10 @@ async function renderHydraFusionPreview(
 		container: renderHost,
 		disposableStore: renderStore,
 	};
+	const showModelsInline = state.modelDisplay === 'inline';
 	const message = state.playAll
-		? createAutoplayMessage(prototype, state.detail, state.showModels)
-		: createMessage(prototype, state.stage, state.detail, state.showModels);
+		? createAutoplayMessage(prototype, state.detail, showModelsInline)
+		: createMessage(prototype, state.stage, state.detail, showModelsInline);
 
 	await renderChatWidget(childContext, {
 		messages: [message],
@@ -1093,24 +1242,7 @@ async function renderHydraFusionPreview(
 		collapsedToolsStyle: CollapsedToolsDisplayMode.WithThinking,
 		agentHostSession: true,
 		responseFooterAction: true,
-		onRendered: () => {
-			const response = renderHost.querySelector<HTMLElement>('.interactive-response');
-			if (!response) {
-				return;
-			}
-			const updateCompletedHoverTreatment = () => {
-				if (
-					!response.classList.contains('chat-response-loading')
-					&& response.classList.contains('chat-most-recent-response')
-				) {
-					response.classList.remove('chat-most-recent-response');
-				}
-			};
-			const observer = new MutationObserver(updateCompletedHoverTreatment);
-			observer.observe(response, { attributes: true, attributeFilter: ['class'] });
-			renderStore.add({ dispose: () => observer.disconnect() });
-			updateCompletedHoverTreatment();
-		},
+		onRendered: () => setupModelUsageDetails(renderHost, renderStore, prototype, state.modelDisplay),
 	});
 
 }
@@ -1125,7 +1257,7 @@ async function renderHydraFusionPrototype(context: ComponentFixtureContext): Pro
 		stage: cascadePrototype.defaultStage,
 		playAll: false,
 		detail: 'reasoningAndDrafts',
-		showModels: false,
+		modelDisplay: 'hidden',
 		startCollapsed: false,
 	};
 	const currentRender = disposableStore.add(new MutableDisposable<DisposableStore>());
@@ -1213,8 +1345,8 @@ async function renderHydraFusionPrototype(context: ComponentFixtureContext): Pro
 		addControlGroup(
 			'Models',
 			modelOptions,
-			value => state.showModels === value,
-			value => { state.showModels = value; },
+			value => state.modelDisplay === value,
+			value => { state.modelDisplay = value; },
 			'hydrafusion-demo-model-controls',
 		);
 		addControlGroup(

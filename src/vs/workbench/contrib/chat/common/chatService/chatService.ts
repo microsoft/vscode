@@ -613,6 +613,12 @@ export interface IChatThinkingPart {
 	kind: 'thinking';
 	value?: string | string[];
 	id?: string;
+	/**
+	 * Ends the current visible Thinking group without rendering an additional
+	 * transcript row. Empty Thinking parts without this flag remain internal
+	 * separators within the current group.
+	 */
+	sectionBreak?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;

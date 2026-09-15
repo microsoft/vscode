@@ -57,6 +57,40 @@
 	gap: var(--vscode-spacing-size40);
 }
 
+.hydrafusion-model-count-hover-target {
+	cursor: help;
+	text-decoration: underline dotted;
+	text-underline-offset: 2px;
+}
+
+.hydrafusion-model-count-hover-target:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.monaco-hover.hydrafusion-model-usage-hover {
+	z-index: 1000;
+	max-width: 280px;
+}
+
+.hydrafusion-model-usage-hover .monaco-hover-content {
+	padding: 8px 10px;
+}
+
+.hydrafusion-model-usage-hover-title {
+	margin-bottom: 4px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.hydrafusion-model-usage-hover-list {
+	margin: 0;
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.hydrafusion-model-usage-hover-list li + li {
+	margin-top: 2px;
+}
+
 .hydrafusion-demo-control-group:first-child {
 	border-left: 0;
 }

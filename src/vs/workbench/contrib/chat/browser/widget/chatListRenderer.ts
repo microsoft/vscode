@@ -3697,10 +3697,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
 		try {
-			// if we get an empty thinking part, mark thinking as finished
+			// Empty thinking parts can separate rows inside a group or explicitly
+			// finish the current visible Thinking group.
 			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : content.value === '')) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-				lastThinking?.resetId();
+				if (content.sectionBreak) {
+					this.finalizeCurrentThinkingPart(context, templateData);
+				} else {
+					const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+					lastThinking?.resetId();
+				}
 				return this.renderNoContent(other => content.kind === other.kind);
 			}
 

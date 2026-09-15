@@ -172,6 +172,10 @@ function createEditorOpenSubagentAction(action: IAction, chatWidgetService: ICha
 	return proxy;
 }
 
+interface IOpenSubagentChatActionViewItemOptions extends IActionViewItemOptions {
+	readonly showElapsedOnly?: boolean;
+}
+
 class OpenSubagentChatAction extends Action2 {
 	constructor() {
 		super({
@@ -251,7 +255,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	constructor(
 		context: unknown,
 		action: IAction,
-		options: IActionViewItemOptions,
+		options: IOpenSubagentChatActionViewItemOptions,
 		openInEditor: boolean = false,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -265,7 +269,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	) {
 		super(context, openInEditor ? createEditorOpenSubagentAction(action, chatWidgetService, notificationService) : createOpenSubagentAction(action), options);
 		this._sourceAction = action;
-		this._showElapsedOnly = openInEditor;
+		this._showElapsedOnly = options.showElapsedOnly ?? openInEditor;
 		if (this._action instanceof Action) {
 			this._register(this._action);
 		}

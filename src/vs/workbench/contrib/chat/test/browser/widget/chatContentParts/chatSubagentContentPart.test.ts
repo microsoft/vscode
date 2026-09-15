@@ -1084,11 +1084,16 @@ suite('ChatSubagentContentPart', () => {
 					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
 					parentSessionResource: 'agent-host-copilotcli:/session',
 					title: 'Review correctness risks',
+					isActive: false,
+					startedAt: 1000,
+					duration: 3000,
 				},
 				action,
-				{},
+				{ showElapsedOnly: false },
 				true,
 			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
 
 			await viewItem.action.run({
 				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
@@ -1100,10 +1105,12 @@ suite('ChatSubagentContentPart', () => {
 				scheme: openedResource.scheme,
 				path: openedResource.path,
 				fragment: openedResource.fragment,
+				duration: container.querySelector('.chat-subagent-pill-duration')?.textContent,
 			}, {
 				scheme: 'agent-host-copilotcli',
 				path: '/session',
 				fragment: 'subagent/tool-call',
+				duration: 'Worked for 3s',
 			});
 		});
 

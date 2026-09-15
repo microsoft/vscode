@@ -14,6 +14,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { buildSubagentChatUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IMenuItem, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -72,6 +73,7 @@ export type IFixtureAssistantPart = ({
 	readonly text: string;
 	readonly generatedTitle?: string;
 	readonly reasoningDurationMs?: number;
+	readonly sectionBreak?: boolean;
 } | {
 	readonly kind: 'autoModeResolution';
 	readonly resolved?: { readonly id: string; readonly name: string };
@@ -119,6 +121,7 @@ export type IFixtureAssistantPart = ({
 	readonly completed?: boolean;
 	readonly durationMs?: number;
 	readonly credits?: number;
+	readonly startedAtOffsetMs?: number;
 } | {
 	readonly kind: 'toolCompletion';
 	readonly toolCallId: string;
@@ -280,7 +283,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					override readonly onDidChange = Event.None;
 					override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
 						return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
-							? (action, actionOptions, service) => service.createInstance(OpenSubagentChatActionViewItem, undefined, action, actionOptions, false)
+							? (action, actionOptions, service) => service.createInstance(OpenSubagentChatActionViewItem, undefined, action, { ...actionOptions, showElapsedOnly: false }, true)
 							: undefined;
 					}
 				}());
@@ -335,6 +338,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override getWidgetBySessionResource() { return widgetHolder.current; }
 				override getWidgetsByLocations() { return []; }
 				override register() { return { dispose() { } }; }
+				override async openSession(resource: URI) {
+					// Component Explorer has no editor group, so record the native
+					// target and let interaction tests assert the dispatched URI.
+					container.dataset.openedChat = resource.toString();
+					return undefined;
+				}
 			}());
 
 			if (isAgentHostSession) {
@@ -441,6 +450,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				value: part.text,
 				generatedTitle: part.generatedTitle,
 				reasoningDurationMs: part.reasoningDurationMs,
+				sectionBreak: part.sectionBreak,
 			});
 		} else if (part.kind === 'autoModeResolution') {
 			model.acceptResponseProgress(request, {
@@ -538,10 +548,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				isActive: !part.completed,
 				hasStarted: true,
 				isChatAvailable: true,
-				chatResource: URI.from({ scheme: 'ahp-chat', path: `/${part.toolCallId}` }).toString(),
+				chatResource: buildSubagentChatUri(model.sessionResource, part.toolCallId).toString(),
 				duration: part.completed ? part.durationMs : undefined,
 				credits: part.credits,
-				startedAt: part.durationMs ? Date.now() - part.durationMs : undefined,
+				startedAt: part.completed ? undefined : Date.now() - (part.startedAtOffsetMs ?? 0),
 			};
 			const toolInvocation = new ChatToolInvocation(
 				{
