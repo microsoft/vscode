@@ -71,17 +71,13 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		workbenchAssignmentService: {
 			getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
 		};
-		extensionService: { whenInstalledExtensionsRegistered(): Promise<boolean> };
-		configurationService: { reloadConfiguration(target: ConfigurationTarget): Promise<void> };
-		logService: NullLogService;
 		environmentService: { isSessionsWindow: boolean };
-		updateDefaults(): Promise<void>;
 		processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
 	};
 
 	// Builds the contribution without running its constructor so that `processExperimentalSettings`
 	// can be driven directly, resolving treatments from the given (mutable) record.
-	function createTestContribution(treatments: Record<string, string | number | boolean | undefined>): TestContribution {
+	function createTestContribution(treatments: Record<string, string | undefined>): TestContribution {
 		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
 		contribution.processedExperimentalSettings = new Set();
 		contribution.autoExperimentalSettings = new Set();
@@ -91,9 +87,6 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		contribution.workbenchAssignmentService = {
 			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
 		};
-		contribution.extensionService = { whenInstalledExtensionsRegistered: async () => true };
-		contribution.configurationService = { reloadConfiguration: async () => { } };
-		contribution.logService = new NullLogService();
 		contribution.environmentService = { isSessionsWindow: false };
 		return contribution;
 	}
@@ -122,44 +115,6 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			}
 		}
 	};
-
-	test('applies experiment defaults to hidden settings', async () => {
-		const hiddenSetting = 'test.hiddenExperimentalSetting';
-		const hiddenConfiguration: IConfigurationNode = {
-			id: 'test.hiddenExperimentalSettings',
-			type: 'object',
-			properties: {
-				[hiddenSetting]: {
-					type: 'number',
-					default: 15_000,
-					included: false,
-					experiment: {
-						mode: 'startup',
-						name: 'testHiddenExperimentalSetting',
-					},
-				},
-			},
-		};
-		const contribution = createTestContribution({ testHiddenExperimentalSetting: 25_000 });
-		configurationRegistry.registerConfiguration(hiddenConfiguration);
-
-		try {
-			await contribution.updateDefaults();
-
-			assert.deepStrictEqual({
-				visible: configurationRegistry.getConfigurationProperties()[hiddenSetting],
-				hiddenDefault: configurationRegistry.getExcludedConfigurationProperties()[hiddenSetting].default,
-			}, {
-				visible: undefined,
-				hiddenDefault: 25_000,
-			});
-		} finally {
-			if (contribution.registeredExperimentalDefaults.size) {
-				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
-			}
-			configurationRegistry.deregisterConfigurations([hiddenConfiguration]);
-		}
-	});
 
 	test('replaces and removes auto-refetched overrides without changing other experiment defaults', async () => {
 		const treatments: Record<string, string | undefined> = {

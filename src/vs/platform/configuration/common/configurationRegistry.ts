@@ -415,11 +415,11 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	private readonly policyReferenceConfigurations: Map<PolicyName, Set<string>>;
 	private readonly agentHostSyncConfigurations: Map<string, IAgentHostConfigurationSync>;
 	/**
-	 * Setting keys per node that were hidden with `included: false`.
-	 * Registration deletes those keys from the node's `properties`, so
-	 * deregistration has no other way to find them.
+	 * Agent-host-mirrored setting keys per node that were hidden with
+	 * `included: false`. Registration deletes those keys from the node's
+	 * `properties`, so deregistration has no other way to find them.
 	 */
-	private readonly excludedConfigurationKeys = new Map<IConfigurationNode, Set<string>>();
+	private readonly excludedAgentHostSyncKeys = new Map<IConfigurationNode, Set<string>>();
 	private readonly excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>;
 	private readonly resourceLanguageSettingsSchema: IJSONSchema;
 	private readonly overrideIdentifiers = new Set<string>();
@@ -536,11 +536,6 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
 						this.updateSchema(key, property);
-					} else {
-						const excludedProperty = this.excludedConfigurationProperties[key];
-						if (excludedProperty) {
-							this.updatePropertyDefaultValue(key, excludedProperty);
-						}
 					}
 				}
 
@@ -606,11 +601,6 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
 						this.updateSchema(key, property);
-					} else {
-						const excludedProperty = this.excludedConfigurationProperties[key];
-						if (excludedProperty) {
-							this.updatePropertyDefaultValue(key, excludedProperty);
-						}
 					}
 				}
 				bucket.add(key);
@@ -681,7 +671,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	}
 
 	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: unknown, valuesSource: ConfigurationDefaultSource | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
-		const property = this.configurationProperties[propertyKey] ?? this.excludedConfigurationProperties[propertyKey];
+		const property = this.configurationProperties[propertyKey];
 		const existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
 		let source: ConfigurationDefaultValueSource | undefined = valuesSource;
 
@@ -769,28 +759,15 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		const deregisterConfiguration = (configuration: IConfigurationNode) => {
 			// Properties hidden with `included: false` are stripped from
 			// `configuration.properties` at registration time, so the loop below
-			// cannot see them. Clean them from the side table recorded at exclusion.
-			const excludedKeys = this.excludedConfigurationKeys.get(configuration);
-			if (excludedKeys) {
-				for (const key of excludedKeys) {
+			// cannot see them. Clean their mirroring entries from the side table
+			// recorded when they were excluded.
+			const excludedSyncKeys = this.excludedAgentHostSyncKeys.get(configuration);
+			if (excludedSyncKeys) {
+				for (const key of excludedSyncKeys) {
 					bucket.add(key);
-					const property = this.excludedConfigurationProperties[key];
-					if (property?.policy?.name) {
-						this.policyConfigurations.delete(property.policy.name);
-					}
 					this.agentHostSyncConfigurations.delete(key);
-					if (property?.policyReference?.name) {
-						const refs = this.policyReferenceConfigurations.get(property.policyReference.name);
-						if (refs) {
-							refs.delete(key);
-							if (refs.size === 0) {
-								this.policyReferenceConfigurations.delete(property.policyReference.name);
-							}
-						}
-					}
-					delete this.excludedConfigurationProperties[key];
 				}
-				this.excludedConfigurationKeys.delete(configuration);
+				this.excludedAgentHostSyncKeys.delete(configuration);
 			}
 			if (configuration.properties) {
 				for (const key in configuration.properties) {
@@ -876,15 +853,6 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 				if (excluded) {
 					this.excludedConfigurationProperties[key] = properties[key];
-					let excludedKeys = this.excludedConfigurationKeys.get(configuration);
-					if (!excludedKeys) {
-						excludedKeys = new Set<string>();
-						this.excludedConfigurationKeys.set(configuration, excludedKeys);
-					}
-					excludedKeys.add(key);
-					if (properties[key].experiment) {
-						bucket.add(key);
-					}
 					if (policyName) {
 						this.policyConfigurations.set(policyName, key);
 						bucket.add(key);
@@ -897,6 +865,14 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 						// Hidden settings still mirror to the agent host; the bucket
 						// entry is what makes the change observable to the syncer.
 						bucket.add(key);
+						// `delete properties[key]` below erases the only link back to
+						// this node, so remember the key for deregistration.
+						let excludedSyncKeys = this.excludedAgentHostSyncKeys.get(configuration);
+						if (!excludedSyncKeys) {
+							excludedSyncKeys = new Set<string>();
+							this.excludedAgentHostSyncKeys.set(configuration, excludedSyncKeys);
+						}
+						excludedSyncKeys.add(key);
 					}
 					delete properties[key];
 				} else {

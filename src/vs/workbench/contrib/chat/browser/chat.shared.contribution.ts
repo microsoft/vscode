@@ -1682,9 +1682,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.copilot.skillCharBudget', "Maximum number of characters available for skill descriptions in the Copilot SDK system message."),
 			default: DEFAULT_COPILOT_SKILL_CHAR_BUDGET,
 			minimum: 1,
-			included: false,
 			experiment: { mode: 'startup' },
-			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
 			agentHost: {
 				key: CopilotCliConfigKey.SkillCharBudget,
 				transform: value => normalizeSkillCharBudget(typeof value === 'number' ? value : undefined),
