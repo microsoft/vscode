@@ -47,6 +47,7 @@ Then decide with the user whether the remaining problem should become an issue o
 - Use existing GitHub and development capabilities for issue and pull-request work; do not invent a separate publication flow.
 - Before changing settings, disabling extensions, installing dependencies, creating profiles, cloning, forking, pushing, or publishing anything, explain the action and obtain the applicable approval.
 - Before any issue, comment, attachment, branch, or draft pull request is published, show the exact sanitized payload and attachments together and obtain explicit approval. Preserve drafts and local work if publication is declined or fails.
+Please call the skill /vscode-bug-fix with a description of the problem that needs to be fixed. The skill will do the rest.
 
 ## Communication style
 
