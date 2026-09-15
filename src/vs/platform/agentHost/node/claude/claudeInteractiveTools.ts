@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ConfirmationOptionKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ToolCallStatus, type ChatInputOption, type ChatInputQuestion, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
+import type { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputOption, type ChatInputQuestion } from '../../common/state/protocol/state.js';
 import type { ChatInputAnswer } from '../../common/state/sessionState.js';
-import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 
 /**
  * Pure projections between the Claude SDK's interactive built-in tool
@@ -23,27 +26,129 @@ import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 // #region ExitPlanMode
 
 /**
- * Build the {@link ToolCallPendingConfirmationState} card body for the
- * `ExitPlanMode` confirmation. Custom Approve / Deny buttons (no "Allow
- * in this Session") so the approval is never remembered — each plan
- * must be approved on its own merit. Mirrors the production extension's
- * `exitPlanModeHandler.ts`.
+ * Stable action ids offered by the `ExitPlanMode` plan review. Each
+ * maps onto the {@link ClaudePermissionMode} the session continues in
+ * once the plan is approved.
  */
-export function buildExitPlanModeConfirmationState(input: Record<string, unknown>, toolUseID: string): ToolCallPendingConfirmationState {
-	const plan = typeof input.plan === 'string' ? input.plan : '';
-	return {
-		status: ToolCallStatus.PendingConfirmation,
-		toolCallId: toolUseID,
-		toolName: 'ExitPlanMode',
-		displayName: getClaudeToolDisplayName('ExitPlanMode'),
-		invocationMessage: { markdown: plan },
-		toolInput: JSON.stringify(input),
-		confirmationTitle: localize('claude.exitPlanMode.title', "Ready to code?"),
-		options: [
-			{ id: 'approve', label: localize('claude.exitPlanMode.approve', "Approve"), kind: ConfirmationOptionKind.Approve },
-			{ id: 'deny', label: localize('claude.exitPlanMode.deny', "Deny"), kind: ConfirmationOptionKind.Deny },
-		],
-	};
+export const enum ExitPlanModeAction {
+	Approve = 'approve',
+	ApproveAcceptEdits = 'approveAcceptEdits',
+	ApproveBypass = 'approveBypass',
+}
+
+const EXIT_PLAN_MODE_ACTION_MODES: Record<string, ClaudePermissionMode> = {
+	[ExitPlanModeAction.Approve]: 'default',
+	[ExitPlanModeAction.ApproveAcceptEdits]: 'acceptEdits',
+	[ExitPlanModeAction.ApproveBypass]: 'bypassPermissions',
+};
+
+/**
+ * Derive the plan-review question id from the request id — shared by
+ * {@link buildExitPlanModeReviewRequest} and the answer decode in the
+ * canUseTool bridge so the two stay in sync.
+ */
+export function exitPlanModeQuestionId(requestId: string): string {
+	return requestId + '-action';
+}
+
+/**
+ * Build the `ExitPlanMode` plan-review request. Carries the
+ * {@link ChatInputRequestWithPlanReview.planReview} payload so the
+ * workbench renders the docked plan-review widget (the same one the
+ * Copilot agent drives) instead of a plain confirmation card.
+ * `planUri`, when a plan-file write was observed, lets the widget
+ * open the plan document for inline comments.
+ */
+export function buildExitPlanModeReviewRequest(planContent: string, planUri: URI | undefined, requestId: string): ChatInputRequestWithPlanReview {
+	const questionId = exitPlanModeQuestionId(requestId);
+	const title = localize('claude.exitPlanMode.title', "Ready to code?");
+	const options: ChatInputOption[] = [
+		{
+			id: ExitPlanModeAction.Approve,
+			label: localize('claude.exitPlanMode.approve', "Approve"),
+			description: localize('claude.exitPlanMode.approveDescription', "Approve the plan and continue, approving each action manually."),
+		},
+		{
+			id: ExitPlanModeAction.ApproveAcceptEdits,
+			label: localize('claude.exitPlanMode.approveAcceptEdits', "Approve & Auto-Edit"),
+			description: localize('claude.exitPlanMode.approveAcceptEditsDescription', "Auto-accept file edits for the rest of this session. Other tools still prompt for approval."),
+		},
+		{
+			id: ExitPlanModeAction.ApproveBypass,
+			label: localize('claude.exitPlanMode.approveBypass', "Approve & Bypass Approvals"),
+			description: localize('claude.exitPlanMode.approveBypassDescription', "Skip approval prompts for the rest of this session."),
+		},
+	];
+	return withChatInputRequestPurpose<ChatInputRequestWithPlanReview>({
+		id: requestId,
+		planReview: {
+			title,
+			content: planContent,
+			actions: options.map((option, idx) => ({
+				id: option.id,
+				label: option.label,
+				...(option.description !== undefined ? { description: option.description } : {}),
+				...(idx === 0 ? { default: true } : {}),
+			})),
+			canProvideFeedback: true,
+			answerQuestionId: questionId,
+			...(planUri !== undefined ? { planUri: planUri.toString() } : {}),
+		},
+		questions: [{
+			kind: ChatInputQuestionKind.SingleSelect,
+			id: questionId,
+			title,
+			message: localize('claude.exitPlanMode.question', "How would you like to proceed?"),
+			required: true,
+			options,
+			allowFreeformInput: true,
+		}],
+	}, ChatInputRequestPurpose.PlanReview);
+}
+
+/** Decoded outcome of an `ExitPlanMode` plan-review answer. */
+export type ExitPlanModeAnswer =
+	| { readonly kind: 'approved'; readonly mode: ClaudePermissionMode }
+	| { readonly kind: 'feedback'; readonly feedback: string }
+	| { readonly kind: 'declined' };
+
+/**
+ * Decode the workbench answer for an `ExitPlanMode` review. Mirrors
+ * the Copilot agent's `_resolveExitPlanMode`: any non-accept resolves
+ * to `declined`; freeform feedback wins over a selected action (the
+ * SDK cannot attach a note to an `allow` result, so feedback flows
+ * back as a deny and Claude revises the plan); an approved action
+ * maps to the permission mode the session continues in, with unknown
+ * ids clamped to the default action's mode.
+ */
+export function resolveExitPlanModeAnswer(
+	response: ChatInputResponseKind,
+	answers: Record<string, ChatInputAnswer> | undefined,
+	questionId: string,
+): ExitPlanModeAnswer {
+	if (response !== ChatInputResponseKind.Accept) {
+		return { kind: 'declined' };
+	}
+	const answer = answers?.[questionId];
+	if (!answer || answer.state === ChatInputAnswerState.Skipped) {
+		return { kind: 'declined' };
+	}
+	const value = answer.value;
+	let selectedAction: string | undefined;
+	let feedback: string | undefined;
+	if (value.kind === ChatInputAnswerValueKind.Selected) {
+		selectedAction = value.value;
+		feedback = value.freeformValues?.find(v => v.trim().length > 0)?.trim();
+	} else if (value.kind === ChatInputAnswerValueKind.Text) {
+		feedback = value.value.trim() || undefined;
+	} else {
+		return { kind: 'declined' };
+	}
+	if (feedback) {
+		return { kind: 'feedback', feedback };
+	}
+	const mode = selectedAction !== undefined ? EXIT_PLAN_MODE_ACTION_MODES[selectedAction] : undefined;
+	return { kind: 'approved', mode: mode ?? EXIT_PLAN_MODE_ACTION_MODES[ExitPlanModeAction.Approve] };
 }
 
 // #endregion

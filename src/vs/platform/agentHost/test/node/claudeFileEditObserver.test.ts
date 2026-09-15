@@ -16,6 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -52,6 +53,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
+		[INativeEnvironmentService, { userHome: URI.file('/home/testuser') } as INativeEnvironmentService],
 		[IEditArcReporterService, {
 			_serviceBrand: undefined,
 			reportEdit: async (params: IEditArcReporterLaunchParams) => {
@@ -113,6 +115,22 @@ suite('ClaudeFileEditObserver', () => {
 			arcMode: 'plan',
 			clientContext,
 		});
+	});
+
+	test('records the most recent plan-file write for the ExitPlanMode review', () => {
+		const { observer } = createObserver(disposables);
+
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'tu-p1', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan-a.md', content: '# a' } },
+			{ type: 'tool_use', id: 'tu-p2', name: 'Write', input: { file_path: '/work/notes.md', content: 'not a plan' } },
+			{ type: 'tool_use', id: 'tu-p3', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/nested/deep.md', content: 'nested' } },
+		]));
+		assert.strictEqual(observer.lastPlanFileUri?.toString(), URI.file('/home/testuser/.claude/plans/plan-a.md').toString());
+
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'tu-p4', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan-b.md', content: '# b' } },
+		]));
+		assert.strictEqual(observer.lastPlanFileUri?.toString(), URI.file('/home/testuser/.claude/plans/plan-b.md').toString());
 	});
 
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {

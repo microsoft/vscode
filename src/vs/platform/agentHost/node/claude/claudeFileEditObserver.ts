@@ -5,6 +5,9 @@
 
 import type { PermissionMode, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
@@ -43,6 +46,13 @@ export class ClaudeFileEditObserver extends Disposable {
 
 	private readonly _editTracker: FileEditTracker;
 
+	/** `~/.claude/plans` — the directory Claude Code writes plan documents to. */
+	private readonly _planDirUri: URI;
+	/** Most recent plan-file write observed on the message stream, if any. */
+	private _lastPlanFileUri: URI | undefined;
+
+	get lastPlanFileUri(): URI | undefined { return this._lastPlanFileUri; }
+
 	/**
 	 * Maps SDK `tool_use_id` → file path + raw tool input + model
 	 * captured when the SDK yields the assistant `tool_use` block in
@@ -62,8 +72,10 @@ export class ClaudeFileEditObserver extends Disposable {
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
 		super();
+		this._planDirUri = URI.joinPath(environmentService.userHome, '.claude', 'plans');
 		// Own the DB reference for this observer's lifetime so
 		// {@link FileEditTracker.takeCompletedEdit}'s `storeFileEdit` write
 		// has a live database. Disposed first — ahead of any owning
@@ -97,6 +109,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
+			this._recordPlanFileCandidate(filePath);
 			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext });
 			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
@@ -138,6 +151,23 @@ export class ClaudeFileEditObserver extends Disposable {
 			} catch (err) {
 				this._logService.warn(`[ClaudeFileEditObserver] file edit tracking failed for ${tracked.filePath}: ${err}`);
 			}
+		}
+	}
+
+	/**
+	 * Track the most recent plan-file write (a `.md` directly inside
+	 * `~/.claude/plans/`) so the `ExitPlanMode` review can surface the
+	 * plan document. The SDK no longer carries the plan text on the
+	 * `ExitPlanMode` input; the plan-file write observed on the message
+	 * stream is the only reliable signal.
+	 */
+	private _recordPlanFileCandidate(filePath: string): void {
+		if (!filePath.toLowerCase().endsWith('.md')) {
+			return;
+		}
+		const candidate = URI.file(filePath);
+		if (extUriBiasedIgnorePathCase.isEqual(URI.joinPath(candidate, '..'), this._planDirUri)) {
+			this._lastPlanFileUri = candidate;
 		}
 	}
 
