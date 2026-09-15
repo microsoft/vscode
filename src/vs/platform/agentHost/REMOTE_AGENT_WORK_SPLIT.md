@@ -124,7 +124,16 @@ Likely primary files:
 - [node/shared/sessionServerTools.ts](./node/shared/sessionServerTools.ts)
 - Protocol and provider tests under [test/](./test)
 
-## Shared contract to settle before parallel coding
+## Shared contract and current handoff status
+
+The headless AHP client extraction is complete. Person 2 can begin provider
+catalog and workspace-less chat work against a local fake of the proposed
+connection contract.
+
+Person 2 is not fully unblocked yet and must not depend directly on
+`AgentHostProtocolClientCore`. The full handoff occurs when Person 1's target
+contribution boundary supplies the stable connection interface and fake
+implementation.
 
 Person 1 delivers one lifetime-owned connection per admitted target:
 
@@ -141,14 +150,26 @@ explicit disposal ownership
 Person 2 consumes only that contract. It must not depend on tunnel SDK types,
 credential storage, discovery state, or renderer services.
 
-Agree on these details together:
+Agreed contract decisions:
 
-1. Target and endpoint identity formats.
-2. Connection ownership and disposal.
-3. Provider withdrawal versus temporary unavailability.
-4. Capability and authentication metadata passed to the adapter.
-5. Which bootstrap/interface files each person owns.
-6. Disconnect, deletion, and remote-session release semantics.
+1. Person 1 publishes a stable target handle when a target is admitted. Person 2
+   does not receive or depend directly on `AgentHostProtocolClientCore`.
+2. The external tunnel target identity remains `tunnel:<tunnelId>`, matching the
+   current client. Person 1 uses a separate account-aware internal key for
+   ownership and deduplication.
+3. Person 1 owns the handle, protocol client, transport, reconnect behavior, and
+   disposal. Person 2 borrows the handle and never reconnects or disposes it.
+4. The handle survives reconnects and atomically swaps its current initialized
+   `IAgentConnection` when a recreated client becomes ready.
+5. Person 2 registers providers only after the current connection initializes
+   and exposes the authoritative root provider/model catalog.
+6. Transient disconnects retain the handle and providers as unavailable.
+   Operations without a current connection fail immediately with a typed
+   unavailable error rather than being queued or retried by Person 2.
+7. Authoritative discovery removal, explicit removal, or master-feature disable
+   disposes the handle and withdraws providers.
+8. Handle disposal never deletes or cancels local or downstream sessions. Their
+   backing remains available for restoration if the target returns.
 
 Use the existing `IAgentConnection` and `IRemoteAgentHostProtocolClient` surfaces
 as starting points. Do not add a second request/subscription abstraction unless

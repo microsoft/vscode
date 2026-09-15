@@ -83,6 +83,11 @@ the user's `editor` or `dedicated` preference per tunnel, matching the current
 client. A reconnect may select a different concrete endpoint while retaining the
 same tunnel identity.
 
+For compatibility with the current client, expose a tunnel target as
+`tunnel:<tunnelId>`. Use a separate account-aware internal key for ownership and
+deduplication so future multi-account support does not change the external
+target identity.
+
 ### Gateway selection and connection
 
 - When a protocol-v6 tunnel needs an `editor` versus `dedicated` decision, ask
@@ -98,11 +103,41 @@ same tunnel identity.
 - Reuse the existing reconnect/replay implementation. Do not create a second AHP
   protocol stack.
 
+### Connection handoff
+
+- Publish one stable target handle as soon as a target is admitted.
+- Person 1's connectivity service owns the handle, protocol client, transport,
+  reconnect behavior, and disposal. Person 2 only borrows the handle.
+- Keep the handle stable across reconnects and atomically replace its current
+  `IAgentConnection` after a newly created client initializes.
+- Leave the current connection empty until initialization and the authoritative
+  root provider/model catalog are ready. Person 2 registers providers only from
+  that initialized catalog.
+- Retain the handle and its providers as unavailable during transient
+  disconnects and reconnects. Operations attempted without a current connection
+  fail immediately with a typed unavailable error; Person 2 does not retry.
+- Dispose the handle when the target is authoritatively removed, explicitly
+  removed, or the master feature is disabled. Disposal withdraws providers and
+  connectivity but does not delete or cancel local or downstream sessions.
+- Do not expose `AgentHostProtocolClientCore`, transport types, tunnel SDK
+  objects, credentials, gateway addresses, or discovery internals through the
+  handoff.
+
 ## Pull request sequence
 
 Each change should remain independently reviewable and testable.
 
-### PR 1: Extract the headless AHP client core
+Current prototype status:
+
+- [x] PR 1: headless AHP client core.
+- [ ] PR 2: runtime controls and shared activation.
+- [ ] PR 3: target contribution boundary and complete Person 2 handoff.
+
+Person 2 can begin fake-backed provider and chat work now, but must not depend
+directly on `AgentHostProtocolClientCore`. The stable connection interface and
+fake implementation remain the PR 3 handoff checkpoint.
+
+### PR 1: Extract the headless AHP client core - complete
 
 Move transport-neutral initialization, request/response correlation,
 subscriptions, action delivery, capabilities, and reconnect bookkeeping out of
