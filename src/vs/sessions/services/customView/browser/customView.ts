@@ -28,6 +28,8 @@ export interface ICustomViewDescriptor {
 	readonly ctor: SyncDescriptor<AbstractCustomView>;
 
 	readonly actions?: ICustomViewActions;
+
+	readonly horizontalScrolling?: boolean;
 }
 
 /**
