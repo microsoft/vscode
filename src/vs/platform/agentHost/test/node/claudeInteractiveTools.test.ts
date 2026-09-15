@@ -88,11 +88,15 @@ suite('claudeInteractiveTools', () => {
 			}
 		});
 
-		test('clamps an unknown action id to the default action mode', () => {
-			const resolved = resolveExitPlanModeAnswer(ChatInputResponseKind.Accept, {
-				[questionId]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'bogus' } },
-			}, questionId);
-			assert.deepStrictEqual(resolved, { kind: 'approved', mode: 'default' });
+		test('clamps unknown and prototype-polluting action ids to the default action mode', () => {
+			// Inherited object properties must not resolve as a "mode" for
+			// client-provided ids.
+			for (const id of ['bogus', 'constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+				const resolved = resolveExitPlanModeAnswer(ChatInputResponseKind.Accept, {
+					[questionId]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: id } },
+				}, questionId);
+				assert.deepStrictEqual(resolved, { kind: 'approved', mode: 'default' }, id);
+			}
 		});
 
 		test('freeform feedback wins over a selected action', () => {

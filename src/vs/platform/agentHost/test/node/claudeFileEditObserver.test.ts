@@ -161,6 +161,44 @@ suite('ClaudeFileEditObserver', () => {
 		});
 	});
 
+	test('accepts plan files under CLAUDE_CONFIG_DIR when the override is set', async () => {
+		const previous = process.env['CLAUDE_CONFIG_DIR'];
+		process.env['CLAUDE_CONFIG_DIR'] = URI.file('/custom/claude-config').fsPath;
+		try {
+			const { observer, mapperState } = createObserver(disposables);
+
+			observer.observeAssistant(assistantMessage([
+				{ type: 'tool_use', id: 'tu-c1', name: 'Write', input: { file_path: '/custom/claude-config/plans/plan.md', content: '# c' } },
+			]));
+			await observer.observeUser(userMessage([
+				{ type: 'tool_result', tool_use_id: 'tu-c1', content: 'ok' },
+			]), 'turn-1', mapperState);
+			const custom = observer.lastPlanFileUri;
+
+			// The default location stays accepted alongside the override.
+			observer.observeAssistant(assistantMessage([
+				{ type: 'tool_use', id: 'tu-c2', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan.md', content: '# d' } },
+			]));
+			await observer.observeUser(userMessage([
+				{ type: 'tool_result', tool_use_id: 'tu-c2', content: 'ok' },
+			]), 'turn-1', mapperState);
+
+			assert.deepStrictEqual({
+				custom: custom?.toString(),
+				fallback: observer.lastPlanFileUri?.toString(),
+			}, {
+				custom: URI.file('/custom/claude-config/plans/plan.md').toString(),
+				fallback: URI.file('/home/testuser/.claude/plans/plan.md').toString(),
+			});
+		} finally {
+			if (previous === undefined) {
+				delete process.env['CLAUDE_CONFIG_DIR'];
+			} else {
+				process.env['CLAUDE_CONFIG_DIR'] = previous;
+			}
+		}
+	});
+
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {
 		const { observer, mapperState } = createObserver(disposables);
 

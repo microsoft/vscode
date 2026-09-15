@@ -46,8 +46,15 @@ export class ClaudeFileEditObserver extends Disposable {
 
 	private readonly _editTracker: FileEditTracker;
 
-	/** `~/.claude/plans` — the directory Claude Code writes plan documents to. */
-	private readonly _planDirUri: URI;
+	/**
+	 * The directories Claude Code may write plan documents to. Native
+	 * (BYO-Anthropic) sessions inherit `CLAUDE_CONFIG_DIR` from the agent
+	 * host's environment (see `buildSubprocessEnv`), relocating plans to
+	 * `$CLAUDE_CONFIG_DIR/plans`; proxied sessions strip that variable and
+	 * use the `~/.claude/plans` default. Both locations are accepted since
+	 * the observer does not know the session's transport.
+	 */
+	private readonly _planDirUris: readonly URI[];
 	/** Plan-file writes staged at `tool_use` time, awaiting their `tool_result`. */
 	private readonly _pendingPlanFiles = new Map<string, URI>();
 	/** Most recent successfully-completed plan-file write, if any. */
@@ -77,7 +84,11 @@ export class ClaudeFileEditObserver extends Disposable {
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
 		super();
-		this._planDirUri = URI.joinPath(environmentService.userHome, '.claude', 'plans');
+		const configDir = process.env['CLAUDE_CONFIG_DIR'];
+		this._planDirUris = [
+			...(configDir ? [URI.joinPath(URI.file(configDir), 'plans')] : []),
+			URI.joinPath(environmentService.userHome, '.claude', 'plans'),
+		];
 		// Own the DB reference for this observer's lifetime so
 		// {@link FileEditTracker.takeCompletedEdit}'s `storeFileEdit` write
 		// has a live database. Disposed first — ahead of any owning
@@ -180,7 +191,8 @@ export class ClaudeFileEditObserver extends Disposable {
 			return;
 		}
 		const candidate = URI.file(filePath);
-		if (extUriBiasedIgnorePathCase.isEqual(URI.joinPath(candidate, '..'), this._planDirUri)) {
+		const parent = URI.joinPath(candidate, '..');
+		if (this._planDirUris.some(dir => extUriBiasedIgnorePathCase.isEqual(parent, dir))) {
 			this._pendingPlanFiles.set(toolUseId, candidate);
 		}
 	}

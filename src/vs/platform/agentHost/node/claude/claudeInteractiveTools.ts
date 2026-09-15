@@ -36,11 +36,14 @@ export const enum ExitPlanModeAction {
 	ApproveBypass = 'approveBypass',
 }
 
-const EXIT_PLAN_MODE_ACTION_MODES: Record<string, ClaudePermissionMode> = {
-	[ExitPlanModeAction.Approve]: 'default',
-	[ExitPlanModeAction.ApproveAcceptEdits]: 'acceptEdits',
-	[ExitPlanModeAction.ApproveBypass]: 'bypassPermissions',
-};
+// A Map, not a plain object: the looked-up action id is client-provided,
+// and object indexing would resolve inherited properties (`constructor`,
+// `__proto__`, ...) instead of falling through to the default mode.
+const EXIT_PLAN_MODE_ACTION_MODES = new Map<string, ClaudePermissionMode>([
+	[ExitPlanModeAction.Approve, 'default'],
+	[ExitPlanModeAction.ApproveAcceptEdits, 'acceptEdits'],
+	[ExitPlanModeAction.ApproveBypass, 'bypassPermissions'],
+]);
 
 /**
  * Derive the plan-review question id from the request id — shared by
@@ -161,7 +164,8 @@ export function resolveExitPlanModeAnswer(
 	if (!selectedAction) {
 		return { kind: 'declined' };
 	}
-	return { kind: 'approved', mode: EXIT_PLAN_MODE_ACTION_MODES[selectedAction] ?? EXIT_PLAN_MODE_ACTION_MODES[ExitPlanModeAction.Approve] };
+	// Unknown or malformed ids clamp to the default action's mode.
+	return { kind: 'approved', mode: EXIT_PLAN_MODE_ACTION_MODES.get(selectedAction) ?? 'default' };
 }
 
 // #endregion
