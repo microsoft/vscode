@@ -4,8 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { incrementFileName } from '../../browser/fileActions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { deleteFileHandler, incrementFileName, moveFileToTrashHandler } from '../../browser/fileActions.js';
+import { IExplorerService } from '../../browser/files.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
+
+suite('Files - Delete', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function runDelete(permanently: boolean): Promise<{ confirmationCount: number; bulkEditCount: number }> {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({ explorer: { confirmDelete: false } })
+		}, disposables);
+		const fileService = instantiationService.get(IFileService);
+		const configurationService = instantiationService.get(IConfigurationService);
+		const filesConfigurationService = instantiationService.get(IFilesConfigurationService);
+		const root = new ExplorerItem(URI.file('/workspace'), fileService, configurationService, filesConfigurationService, undefined, true);
+		const file = new ExplorerItem(URI.file('/workspace/file.txt'), fileService, configurationService, filesConfigurationService, root, false);
+		let confirmationCount = 0;
+		let bulkEditCount = 0;
+
+		instantiationService.stub(IExplorerService, {
+			getContext: () => [file],
+			applyBulkEdit: async () => { bulkEditCount++; }
+		});
+		instantiationService.stub(IDialogService, {
+			confirm: async () => {
+				confirmationCount++;
+				return { confirmed: false };
+			}
+		});
+
+		await instantiationService.invokeFunction(permanently ? deleteFileHandler : moveFileToTrashHandler);
+
+		return { confirmationCount, bulkEditCount };
+	}
+
+	test('explorer.confirmDelete only suppresses move to trash confirmation', async () => {
+		assert.deepStrictEqual({
+			moveToTrash: await runDelete(false),
+			deletePermanently: await runDelete(true)
+		}, {
+			moveToTrash: { confirmationCount: 0, bulkEditCount: 1 },
+			deletePermanently: { confirmationCount: 1, bulkEditCount: 0 }
+		});
+	});
+});
 
 suite('Files - Increment file name simple', () => {
 
