@@ -25,7 +25,6 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 				enabled: { type: 'boolean', description: 'Whether Agent Merge should monitor and act on the pull request for this session using its existing options.' },
 			},
 			required: ['enabled'],
-			additionalProperties: false,
 		},
 		annotations: { readOnlyHint: false },
 	},
