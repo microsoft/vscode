@@ -155,6 +155,8 @@ suite('Agent Host E2E — Copilot prompts', function () {
 		});
 	}
 
+	// The rendered Windows system message has separate PowerShell-only sections,
+	// so keep this prompt-shape assertion on the same POSIX scope as the snapshots.
 	(process.platform === 'win32' ? test.skip : test)('skill character budget includes 24 skills instead of 14', async function () {
 		this.timeout(120_000);
 

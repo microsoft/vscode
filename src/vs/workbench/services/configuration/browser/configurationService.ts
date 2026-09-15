@@ -1378,7 +1378,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		this.logService.trace('ConfigurationService#updateDefaults: begin');
 		try {
 			// Check for experiments
-			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()), false);
+			await this.processExperimentalSettings([
+				...Object.keys(this.configurationRegistry.getConfigurationProperties()),
+				...Object.keys(this.configurationRegistry.getExcludedConfigurationProperties()),
+			], false);
 		} finally {
 			// Invalidate defaults cache after extensions have registered
 			// and after the experiments have been resolved to prevent
@@ -1393,9 +1396,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		const removedDefaults: IConfigurationDefaults[] = [];
 		const addedDefaults: IConfigurationDefaults[] = [];
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
+		const excludedProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
-			const schema = allProperties[property];
+			const schema = allProperties[property] ?? excludedProperties[property];
 			if (!schema?.experiment) {
 				const registeredDefault = this.registeredExperimentalDefaults.get(property);
 				if (registeredDefault) {

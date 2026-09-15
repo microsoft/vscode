@@ -95,7 +95,7 @@ export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
 
 /** Floors valid skill character budgets and returns the default for invalid values. */
 export function normalizeSkillCharBudget(value: number | undefined): number {
-	return value !== undefined && Number.isFinite(value) && value > 0 ? Math.floor(value) : DEFAULT_COPILOT_SKILL_CHAR_BUDGET;
+	return value !== undefined && Number.isFinite(value) && value >= 1 ? Math.floor(value) : DEFAULT_COPILOT_SKILL_CHAR_BUDGET;
 }
 
 /** Floors valid tool-search thresholds and returns the default for invalid values. */

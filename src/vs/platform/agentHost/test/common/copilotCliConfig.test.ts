@@ -28,8 +28,8 @@ suite('copilotCliConfig', () => {
 
 	test('normalizeSkillCharBudget floors valid values and defaults invalid values', () => {
 		assert.deepStrictEqual(
-			[30_000.9, 1, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeSkillCharBudget),
-			[30_000, 1, 15_000, 15_000, 15_000, 15_000, 15_000]
+			[30_000.9, 1, 0.5, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeSkillCharBudget),
+			[30_000, 1, 15_000, 15_000, 15_000, 15_000, 15_000, 15_000]
 		);
 	});
 
