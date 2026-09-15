@@ -80,6 +80,32 @@ export class ToggleUseInlineViewWhenSpaceIsLimited extends Action2 {
 
 const diffEditorCategory: ILocalizedString = localize2('diffEditor', "Diff Editor");
 
+export class ToggleDiffSideBySide extends Action2 {
+	constructor() {
+		super({
+			id: 'diffEditor.toggleDiffSideBySide',
+			title: localize2('toggleDiffSideBySide', 'Toggle Inline View'),
+			icon: Codicon.splitHorizontal,
+			toggled: EditorContextKeys.diffEditorInlineMode.toNegated(),
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
+			f1: true,
+			category: diffEditorCategory,
+			menu: {
+				when: ContextKeyExpr.has('isInDiffEditor'),
+				id: MenuId.EditorTitle,
+				order: 21,
+				group: 'navigation',
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		configurationService.updateValue('diffEditor.renderSideBySide', newValue);
+	}
+}
+
 export class SwitchSide extends EditorAction2 {
 	constructor() {
 		super({
