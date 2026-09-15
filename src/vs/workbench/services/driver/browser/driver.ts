@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea, getTopLeftOffset, isHTMLDivElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
+import { getClientArea, getTopLeftOffset, getWindowById, isHTMLDivElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { language, locale } from '../../../../base/common/platform.js';
@@ -17,6 +17,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from '../common/driver.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IHostService } from '../../host/browser/host.js';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
 
 export class BrowserWindowDriver implements IWindowDriver {
@@ -25,8 +26,17 @@ export class BrowserWindowDriver implements IWindowDriver {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IHostService private readonly hostService: IHostService,
 	) {
+	}
+
+	async focusWindow(windowId: number): Promise<void> {
+		const target = getWindowById(windowId);
+		if (!target) {
+			throw new Error(`Cannot focus unknown window ${windowId}`);
+		}
+		await this.hostService.focus(target.window);
 	}
 
 	async getLogs(): Promise<ILogFile[]> {
