@@ -15185,6 +15185,40 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('does not restore a rejected exact session after recovering with a broader session', async () => {
+			const account = { id: 'account-1', label: 'Account 1' };
+			const exactSession = { id: 'exact-session', scopes: ['read:user'], accessToken: 'stale-token', account };
+			const broaderSession = { id: 'broader-session', scopes: ['read:user', 'repo'], accessToken: 'fresh-token', account };
+			const authService: Partial<IAuthenticationService> = {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: (async (_providerId: string, scopes?: ReadonlyArray<string>) => scopes ? [exactSession] : [exactSession, broaderSession]) as IAuthenticationService['getSessions'],
+			};
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, authService);
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(protectedResource(), AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(protectedResource(), AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 1 });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'stale-token' },
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'stale-token' },
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'fresh-token' },
+				],
+			});
+		});
+
 		test('forwards and records the post-sign-in token when authentication repopulates the cache during setup', async () => {
 			const tokenRef = { current: 'tok-1' };
 			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
