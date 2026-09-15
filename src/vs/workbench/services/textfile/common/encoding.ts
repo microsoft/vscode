@@ -416,6 +416,8 @@ export function toCanonicalName(enc: string): string {
 			return 'x-mac-roman';
 		case 'utf8bom':
 			return 'utf8';
+		case 'gb2312':
+			return 'gbk';
 		default: {
 			const m = enc.match(/windows(\d+)/);
 			if (m) {
