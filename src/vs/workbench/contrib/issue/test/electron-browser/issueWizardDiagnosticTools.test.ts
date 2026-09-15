@@ -38,6 +38,7 @@ import {
 	IssueWizardDiagnosticToolsContribution,
 	SEARCH_VSCODE_LOGS_TOOL_ID,
 	SearchVSCodeLogsTool,
+	SearchVSCodeLogsToolData,
 } from '../../electron-browser/issueWizardDiagnosticTools.js';
 import { IIssueDiagnosticsService, IIssueLogSearchResult, IssueDiagnosticsService } from '../../electron-browser/issueDiagnosticsService.js';
 
@@ -299,6 +300,48 @@ suite('Issue Wizard Diagnostic Tools', () => {
 		});
 	});
 
+	test('defaults log searches to ten results', async () => {
+		const diagnosticsService = createDiagnosticsService({
+			channels: new Map([['rendererLog', {
+				label: 'Window',
+				value: [
+					'ERROR 1',
+					'ERROR 2',
+					'ERROR 3',
+					'ERROR 4',
+					'ERROR 5',
+					'ERROR 6',
+					'ERROR 7',
+					'ERROR 8',
+					'ERROR 9',
+					'ERROR 10',
+					'ERROR 11',
+				].join('\n'),
+			}]]),
+		});
+
+		const result = await diagnosticsService.searchLogs({ query: 'error' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			matches: result.matches.map(match => match.text),
+			matchLimitReached: result.matchLimitReached,
+		}, {
+			matches: [
+				'ERROR 11',
+				'ERROR 10',
+				'ERROR 9',
+				'ERROR 8',
+				'ERROR 7',
+				'ERROR 6',
+				'ERROR 5',
+				'ERROR 4',
+				'ERROR 3',
+				'ERROR 2',
+			],
+			matchLimitReached: true,
+		});
+	});
+
 	test('waits for an output channel refresh before searching', async () => {
 		const diagnosticsService = createDiagnosticsService({
 			channels: new Map([['rendererLog', {
@@ -381,16 +424,19 @@ suite('Issue Wizard Diagnostic Tools', () => {
 				name: toolData.toolReferenceName,
 				canRequestPreApproval: toolData.canRequestPreApproval,
 				runsInWorkspace: toolData.runsInWorkspace,
+				serialSearches: SearchVSCodeLogsToolData.modelDescription.includes('one at a time'),
 			},
 			confirmation: prepared?.confirmationMessages && {
 				hasTitle: !!prepared.confirmationMessages.title,
 				hasMessage: !!prepared.confirmationMessages.message,
 				allowAutoConfirm: prepared.confirmationMessages.allowAutoConfirm,
+				explainsSessionApproval: typeof prepared.confirmationMessages.message === 'string'
+					&& prepared.confirmationMessages.message.includes('subsequent searches'),
 			},
 			result: result.content[0].kind === 'text' ? JSON.parse(result.content[0].value) : undefined,
 		}, {
-			tool: { name: 'searchVSCodeLogs', canRequestPreApproval: true, runsInWorkspace: false },
-			confirmation: { hasTitle: true, hasMessage: true, allowAutoConfirm: true },
+			tool: { name: 'searchVSCodeLogs', canRequestPreApproval: true, runsInWorkspace: false, serialSearches: true },
+			confirmation: { hasTitle: true, hasMessage: true, allowAutoConfirm: true, explainsSessionApproval: true },
 			result: { sources: [{ id: 'output:rendererLog', label: 'Window', kind: 'output' }] },
 		});
 	});

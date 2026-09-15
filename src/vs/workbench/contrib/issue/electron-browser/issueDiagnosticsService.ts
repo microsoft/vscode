@@ -23,7 +23,7 @@ import { formatIssueReporterVersion } from '../common/issueReporterUtil.js';
 const MAX_LOG_SOURCES = 100;
 const MAX_SEARCH_SOURCES = 50;
 const MAX_SEARCH_RESULTS = 50;
-const DEFAULT_SEARCH_RESULTS = 20;
+const DEFAULT_SEARCH_RESULTS = 10;
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_OUTPUT_LINES = 5_000;
 const MAX_SCANNED_LINE_LENGTH = 64 * 1024;

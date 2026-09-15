@@ -36,7 +36,7 @@ export const SearchVSCodeLogsToolData: IToolData = {
 	toolReferenceName: 'searchVSCodeLogs',
 	displayName: localize('issueWizard.searchVSCodeLogs.displayName', "Search VS Code Logs"),
 	userDescription: localize('issueWizard.searchVSCodeLogs.userDescription', "Discover or search this run's VS Code logs and Output channels."),
-	modelDescription: 'Discovers and performs a bounded, case-insensitive literal search of the current VS Code run logs and registered Output channels. Omit query to list valid source IDs, then search only the most relevant sources. Never ask the user to locate or paste logs when this tool can retrieve the evidence.',
+	modelDescription: 'Discover and perform a bounded, case-insensitive literal search of the current VS Code run logs and registered Output channels. Omit query to list valid source IDs, then search only the most relevant sources. Start with at most 10 results. Never ask the user to locate or paste logs when this tool can retrieve the evidence. Invoke this tool only one at a time and wait for each result before starting another search so a session approval covers subsequent searches.',
 	source: ToolDataSource.Internal,
 	canBeReferencedInPrompt: true,
 	runsInWorkspace: false,
@@ -59,8 +59,8 @@ export const SearchVSCodeLogsToolData: IToolData = {
 				type: 'integer',
 				minimum: 1,
 				maximum: 50,
-				default: 20,
-				description: localize('issueWizard.searchVSCodeLogs.maxResults', "Maximum number of matching log lines to return."),
+				default: 10,
+				description: localize('issueWizard.searchVSCodeLogs.maxResults', "Maximum number of matching log lines to return. Start with 10 or fewer and increase only when a scoped search reaches the limit."),
 			},
 		},
 		additionalProperties: false,
@@ -129,7 +129,7 @@ export class SearchVSCodeLogsTool implements IToolImpl {
 				title: searching
 					? localize('issueWizard.searchVSCodeLogs.confirmSearchTitle', "Allow VS Code logs to be searched?")
 					: localize('issueWizard.searchVSCodeLogs.confirmListTitle', "Allow VS Code log sources to be listed?"),
-				message: localize('issueWizard.searchVSCodeLogs.confirmMessage', "Logs can contain file paths, repository names, extension output, and other sensitive information. Only bounded source names or matching lines are returned."),
+				message: localize('issueWizard.searchVSCodeLogs.confirmMessage', "Logs can contain file paths, repository names, extension output, and other sensitive information. Only bounded source names or matching lines are returned. Choose the session approval option to let subsequent searches run without another prompt."),
 				allowAutoConfirm: true,
 			},
 		};
