@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -44,6 +45,7 @@ suite('Session comparison chat grid', () => {
 		};
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		const opened: string[][] = [];
+		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override comparisons = comparisons;
@@ -59,19 +61,30 @@ suite('Session comparison chat grid', () => {
 				opened.push(targets.map(session => session.sessionId));
 			}
 		}());
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override setPartHidden(hidden: boolean, part: Parts): void {
+				hiddenParts.push({ hidden, part });
+			}
+		}());
 		const service = instantiationService.createInstance(SessionComparisonViewService);
-		return { service, comparisons, opened };
+		return { service, comparisons, opened, hiddenParts };
 	}
 
 	test('opens Judge, synthesis, and attempts in display order', async () => {
 		const fixture = setup();
 		await fixture.service.open('comparison');
-		assert.deepStrictEqual(fixture.opened, [[
-			'judge-2',
-			'synthesis-3',
-			'attempt-0',
-			'attempt-1',
-		]]);
+		assert.deepStrictEqual({
+			opened: fixture.opened,
+			hiddenParts: fixture.hiddenParts,
+		}, {
+			opened: [[
+				'judge-2',
+				'synthesis-3',
+				'attempt-0',
+				'attempt-1',
+			]],
+			hiddenParts: [{ hidden: true, part: Parts.EDITOR_PART }],
+		});
 	});
 
 	test('skips participants without an available session', async () => {
@@ -85,11 +98,17 @@ suite('Session comparison chat grid', () => {
 			} : participant),
 		}], undefined);
 		await fixture.service.open('comparison');
-		assert.deepStrictEqual(fixture.opened, [[
-			'judge-2',
-			'synthesis-3',
-			'attempt-0',
-		]]);
+		assert.deepStrictEqual({
+			opened: fixture.opened,
+			hiddenParts: fixture.hiddenParts,
+		}, {
+			opened: [[
+				'judge-2',
+				'synthesis-3',
+				'attempt-0',
+			]],
+			hiddenParts: [{ hidden: true, part: Parts.EDITOR_PART }],
+		});
 	});
 
 	test('reports when no participant session is available', async () => {
@@ -102,6 +121,6 @@ suite('Session comparison chat grid', () => {
 			})),
 		}], undefined);
 		await assert.rejects(() => fixture.service.open('comparison'), /No comparison sessions are available/);
-		assert.deepStrictEqual(fixture.opened, []);
+		assert.deepStrictEqual({ opened: fixture.opened, hiddenParts: fixture.hiddenParts }, { opened: [], hiddenParts: [] });
 	});
 });
