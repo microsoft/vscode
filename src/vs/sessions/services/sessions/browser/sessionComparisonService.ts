@@ -103,7 +103,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		};
 		this._addComparison(comparison);
 
-		const attemptPromises = options.attempts.map(async (attempt, index) => {
+		const attemptPromises = options.attempts.map(async (attempt, index): Promise<ISessionComparisonParticipant> => {
 			const harness = attempt.harness;
 			const participant = {
 				id: attempt.id,
