@@ -6,7 +6,7 @@
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import ts from 'typescript/lib/tsserverlibrary';
+import type ts from 'typescript/lib/tsserverlibrary';
 import { ITestingServicesAccessor } from '../../../src/platform/test/node/services';
 import { TestingCacheSalts } from '../../base/salts';
 import { CacheScope } from '../../base/simulationContext';
@@ -14,6 +14,7 @@ import { REPO_ROOT } from '../../base/stest';
 import { TS_SERVER_DIAGNOSTICS_PROVIDER_CACHE_SALT } from '../../cacheSalt';
 import { cleanTempDirWithRetry, createTempDir } from '../stestUtil';
 import { IFile, ITSDiagnosticRelatedInformation, ITestDiagnostic } from './diagnosticsProvider';
+import { getDiagnosticLocation, getDiagnosticMessage } from './tscDiagnostics';
 import { CachingDiagnosticsProvider, setupTemporaryWorkspace } from './utils';
 
 /**
@@ -130,7 +131,6 @@ declare module '*'  {
 	private compileFolder(workspacePath: string, files: { filePath: string; fileName: string; fileContents: string }[]): Promise<ITestDiagnostic[]> {
 		return new Promise<ITestDiagnostic[]>((resolve, reject) => {
 			const results: ITestDiagnostic[] = [];
-
 			const tsserverPath = path.resolve(path.join(REPO_ROOT, 'node_modules/typescript/lib/tsserver.js'));
 			const tsserver = cp.fork(tsserverPath, {
 				cwd: workspacePath,
@@ -182,11 +182,8 @@ declare module '*'  {
 				const kind = resp.command === 'semanticDiagnosticsSync' ? 'semantic' : 'syntactic';
 				const diagResp = resp as ts.server.protocol.SemanticDiagnosticsSyncResponse | ts.server.protocol.SyntacticDiagnosticsSyncResponse;
 				for (const diag of diagResp.body ?? []) {
-					if (typeof diag.start === 'number') {
-						throw new Error(`TODO: Can't handle DiagnosticWithLinePosition right now`);
-					}
-					const regularDiag = diag as ts.server.protocol.Diagnostic;
-					const _relatedInfo: (ITSDiagnosticRelatedInformation | null)[] = (regularDiag.relatedInformation ?? []).map((ri) => {
+					const fileName = seqToFile.get(diagResp.request_seq)!;
+					const _relatedInfo: (ITSDiagnosticRelatedInformation | null)[] = (diag.relatedInformation ?? []).map((ri) => {
 						if (!ri.span) {
 							return null;
 						}
@@ -203,14 +200,11 @@ declare module '*'  {
 						};
 					});
 					const relatedInformation = _relatedInfo.filter((x): x is ITSDiagnosticRelatedInformation => !!x);
+					const location = getDiagnosticLocation(diag, fileName);
 					results.push({
-						file: seqToFile.get(diagResp.request_seq)!,
-						startLine: regularDiag.start.line - 1,
-						startCharacter: regularDiag.start.offset - 1,
-						endLine: regularDiag.end.line - 1,
-						endCharacter: regularDiag.end.offset - 1,
-						message: regularDiag.text,
-						code: regularDiag.code,
+						...location,
+						message: getDiagnosticMessage(diag),
+						code: diag.code,
 						relatedInformation,
 						source: 'ts',
 						kind,
@@ -256,15 +250,19 @@ declare module '*'  {
 					try {
 						handleMessage(JSON.parse(body));
 					} catch (ex) {
-						console.error(ex);
+						reject(ex);
+						tsserver.stdout!.off('data', onStdoutData);
+						tsserver.kill();
+						return;
 					}
 				} while (true);
 			};
 
-			tsserver.stdout!.on('data', (chunk) => {
+			const onStdoutData = (chunk: string) => {
 				stdout += chunk;
 				processStdoutData();
-			});
+			};
+			tsserver.stdout!.on('data', onStdoutData);
 		});
 	}
 }
