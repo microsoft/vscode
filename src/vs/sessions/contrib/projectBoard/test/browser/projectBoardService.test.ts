@@ -11,6 +11,8 @@ import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { toAction } from '../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -20,7 +22,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -75,10 +77,12 @@ suite('ProjectBoardService', () => {
 			override readonly chats = observableValue<readonly IChat[]>('chats', chats);
 			override readonly isArchived = observableValue('archived', false);
 			override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
+			override readonly status = observableValue('sessionStatus', SessionStatus.Untitled);
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
 		}();
 		const state = { focusCount: 0, ownerFocusCount: 0, openCount: 0, disposeCount: 0, createdCount: 0, sessions: chats.length ? [session] : [], navigationError: undefined as Error | undefined };
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
 		const opened: URI[] = [];
 		const openedDrafts: string[] = [];
 		const drafts = observableValue<readonly IProjectBoardDraft[]>('drafts', []);
@@ -100,6 +104,12 @@ suite('ProjectBoardService', () => {
 		const onOpened = store.add(new Emitter<URI>());
 		const errors = store.add(new Emitter<string>());
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const quickInput = { selectedLabel: undefined as string | undefined, labels: [] as string[], inputValues: [] as string[] };
+		const pick = sinon.stub().callsFake((items: IQuickPickItem[]) => {
+			quickInput.labels = items.map(item => item.label);
+			return Promise.resolve(items.find(item => item.label === quickInput.selectedLabel));
+		});
+		instantiationService.stub(IQuickInputService, { pick, input: async () => quickInput.inputValues.shift() });
 		instantiationService.stub(IStorageService, storage);
 		const loadedModels = observableValue<Iterable<IChatModel>>('models', []);
 		instantiationService.stub(IChatService, { chatModels: loadedModels });
@@ -174,6 +184,7 @@ suite('ProjectBoardService', () => {
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
+				override readonly newSession = newSession;
 				override getSessions() { return state.sessions; }
 			}(),
 			instantiationService,
@@ -194,7 +205,16 @@ suite('ProjectBoardService', () => {
 			}(),
 			contextMenu,
 		));
-		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, loadedModels,
+		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, loadedModels, quickInput, pick,
+			async moveViaPicker(label: string, resource?: URI) {
+				quickInput.selectedLabel = label;
+				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
+				const before = pick.callCount;
+				target.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 77, ctrlKey: !isMacintosh, metaKey: isMacintosh, shiftKey: true, bubbles: true, cancelable: true }));
+				assert.strictEqual(pick.callCount, before + 1);
+				await pick.lastCall.returnValue;
+				await Promise.resolve();
+			},
 			closeBoard: () => unload.fire(),
 			get currentContainer() { return auxiliaryWindow?.container ?? container; },
 		};
@@ -222,6 +242,103 @@ suite('ProjectBoardService', () => {
 		chat.title.set('After disposal', undefined);
 		assert.strictEqual(state.disposeCount, 1);
 		assert.strictEqual(container.textContent, rendered);
+	});
+
+	test('PB-02/PB-16 an Agents-created draft appears immediately and becomes one live unassigned chat', async () => {
+		const chat = new TestChat('Agents-created chat');
+		const h = createBoard(mainWindow.document);
+		await h.service.open();
+		h.session.title.set('Agents draft', undefined);
+		h.session.chats.set([chat], undefined);
+		h.newSession.set(h.session, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned h4')?.textContent, 'Agents draft');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-agents-draft').length, 1);
+		assert.strictEqual(h.container.querySelector('[data-chat-resource]'), null, 'Unsent Agents drafts must not load or open a new backend chat');
+		h.state.sessions = [h.session];
+		h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 1);
+		h.newSession.set(undefined, undefined);
+		assert.deepStrictEqual({
+			cards: h.container.querySelectorAll('.project-board-card').length,
+			title: h.container.querySelector('.project-board-unassigned h4')?.textContent,
+			resource: h.container.querySelector('[data-chat-resource]')?.getAttribute('data-chat-resource'),
+			ownedDrafts: h.drafts.get().length,
+			opened: h.opened.length,
+			read: chat.isRead.get(),
+		}, { cards: 1, title: 'Agents-created chat', resource: chat.resource.toString(), ownedDrafts: 0, opened: 0, read: false });
+	});
+
+	test('PB-02 discarding an Agents draft removes its preview without deleting or opening another session', async () => {
+		const h = createBoard(mainWindow.document);
+		await h.service.open();
+		h.newSession.set(h.session, undefined);
+		assert.strictEqual(h.container.querySelectorAll('.project-board-agents-draft').length, 1);
+		h.newSession.set(undefined, undefined);
+		assert.deepStrictEqual({
+			cards: h.container.querySelectorAll('.project-board-card').length,
+			ownedDrafts: h.drafts.get().length,
+			opened: h.opened.length,
+		}, { cards: 0, ownedDrafts: 0, opened: 0 });
+	});
+
+	test('PB-03 card context menus do not enumerate cells; keyboard movement uses a searchable picker', async () => {
+		const chat = new TestChat('Keyboard movement');
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+		h.container.querySelector('.project-board-card')!.dispatchEvent(event);
+		assert.strictEqual(h.contextMenu.delegate, undefined);
+		assert.strictEqual(event.defaultPrevented, false);
+		for (const key of [{ keyCode: 121, shiftKey: true }, { keyCode: 93 }]) {
+			const event = new mainWindow.KeyboardEvent('keydown', { ...key, bubbles: true, cancelable: true });
+			h.container.querySelector('.project-board-card')!.dispatchEvent(event);
+			assert.strictEqual(event.defaultPrevented, false);
+		}
+		assert.strictEqual(h.contextMenu.delegate, undefined);
+		assert.strictEqual(h.pick.callCount, 0);
+		await h.moveViaPicker('General, P1');
+		assert.deepStrictEqual(h.quickInput.labels, ['Unassigned', 'General, P0', 'General, P1', 'General, P2', 'General, P3']);
+		assert.strictEqual(h.container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Keyboard movement');
+		await h.moveViaPicker('Unassigned');
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned h4')?.textContent, 'Keyboard movement');
+		h.quickInput.selectedLabel = undefined;
+		await h.moveViaPicker('Cancel picker');
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned h4')?.textContent, 'Keyboard movement');
+		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-03 a destination picker rejects a chat removed while it was open', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Removed during selection')]);
+		await h.service.open();
+		const pending = new DeferredPromise<IQuickPickItem | undefined>();
+		h.pick.callsFake(() => pending.p);
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		const moving = h.moveViaPicker('General, P1');
+		h.state.sessions = [];
+		h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+		await pending.complete(h.pick.lastCall.args[0][2]);
+		await moving;
+		assert.deepStrictEqual(errors, ['The chat could not be moved on the project board.']);
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
+		h.state.sessions = [h.session];
+		h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
+		assert.ok(h.container.querySelector('.project-board-unassigned h4'));
+	});
+
+	test('PB-03/PB-13 closing the board cancels its destination picker without moving a chat', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Cancelled movement')]);
+		await h.service.open();
+		const pending = new DeferredPromise<IQuickPickItem | undefined>();
+		h.pick.callsFake(() => pending.p);
+		const moving = h.moveViaPicker('General, P1');
+		h.closeBoard();
+		await Promise.resolve();
+		assert.strictEqual(h.pick.lastCall.args[2].isCancellationRequested, true);
+		await pending.complete(h.pick.lastCall.args[0][2]);
+		await moving;
+		await h.service.open();
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-unassigned h4')?.textContent, 'Cancelled movement');
 	});
 
 	test('PB-13 close/reopen preserves placements, resets expansion and releases the old view', async () => {
@@ -265,8 +382,7 @@ suite('ProjectBoardService', () => {
 		const h = createBoard(mainWindow.document, [chat]);
 		h.metadata.set({ kind: 'ready', prompt: 'Known prompt', submittedAt: 1000, context: [] }, undefined);
 		await h.service.open();
-		h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true }));
-		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.move.general.p1')!.run();
+		await h.moveViaPicker('General, P1');
 		for (const connection of [
 			{ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown },
 			{ kind: 'reconnecting' },
@@ -425,25 +541,20 @@ suite('ProjectBoardService', () => {
 	test('PB-03 preserves keyboard focus across movement and live updates', async () => {
 		const { document } = createBoardDocument();
 		const chat = new TestChat('child');
-		const { service, container, contextMenu, opened } = createBoard(document, [chat]);
+		const h = createBoard(document, [chat]);
+		const { service, container, opened } = h;
 		await service.open();
 		const card = container.querySelector<HTMLElement>('.project-board-card')!;
 		card.focus();
-		card.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
-		assert.ok(contextMenu.delegate);
-		assert.strictEqual(contextMenu.delegate.domForShadowRoot, container, 'Card menus must be hosted in the board window');
-		assert.strictEqual(contextMenu.delegate.getActions().find(action => action.checked)?.id, 'projectBoard.move.unassigned');
-		await contextMenu.delegate.getActions().find(action => action.id === 'projectBoard.move.general.p1')!.run();
-		contextMenu.delegate.onHide?.(false);
+		await h.moveViaPicker('General, P1');
+		assert.strictEqual(h.pick.lastCall.args[1].activeItem.label, 'Unassigned');
 		assert.strictEqual(document.activeElement, container.querySelector('.project-board-card'));
 		assert.strictEqual(container.querySelector('.project-board-card-group[aria-label="General, P1"] h4')!.textContent, 'child');
 		chat.status.set(SessionStatus.NeedsInput, undefined);
 		assert.strictEqual(document.activeElement, container.querySelector('.project-board-card'));
 		assert.strictEqual(container.querySelector('.project-board-card-status-label')!.textContent, 'Needs Input');
-		container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-		assert.strictEqual(contextMenu.delegate.getActions().find(action => action.checked)?.id, 'projectBoard.move.general.p1');
-		await contextMenu.delegate.getActions().find(action => action.id === 'projectBoard.move.unassigned')!.run();
-		contextMenu.delegate.onHide?.(false);
+		await h.moveViaPicker('Unassigned');
+		assert.strictEqual(h.pick.lastCall.args[1].activeItem.label, 'General, P1');
 		assert.strictEqual(container.querySelector('.project-board-unassigned h4')!.textContent, 'child');
 		assert.strictEqual(container.querySelectorAll('.project-board-card').length, 1);
 		assert.strictEqual(chat.isRead.get(), false);
@@ -453,7 +564,8 @@ suite('ProjectBoardService', () => {
 	test('PB-05 background updates do not reclaim focus from the opened chat window', async () => {
 		const { document, nativeFocus } = createBoardDocument();
 		const chat = new TestChat('Focus handoff');
-		const { service, container, contextMenu } = createBoard(document, [chat]);
+		const h = createBoard(document, [chat]);
+		const { service, container } = h;
 		await service.open();
 		let restoredFocus = 0;
 		store.add(addDisposableListener(container, 'focusin', () => restoredFocus++));
@@ -476,12 +588,15 @@ suite('ProjectBoardService', () => {
 		nativeFocus.returns(true);
 		const card = container.querySelector<HTMLElement>('.project-board-card')!;
 		card.focus();
-		card.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const pendingPick = new DeferredPromise<IQuickPickItem | undefined>();
+		h.pick.callsFake(() => pendingPick.p);
+		card.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 77, ctrlKey: !isMacintosh, metaKey: isMacintosh, shiftKey: true, bubbles: true, cancelable: true }));
 		card.blur();
 		restoredFocus = 0;
 		nativeFocus.returns(false);
-		contextMenu.delegate!.onHide?.(false);
-		assert.strictEqual(restoredFocus, 0, 'Closing a background context menu must not steal focus');
+		await pendingPick.complete(undefined);
+		await Promise.resolve();
+		assert.strictEqual(restoredFocus, 0, 'Closing a background destination picker must not steal focus');
 
 		nativeFocus.returns(true);
 		container.querySelector<HTMLElement>('.project-board-card')!.focus();
@@ -811,10 +926,10 @@ suite('ProjectBoardService', () => {
 
 	test('PB-09 Show Archived restores hidden chat and owner placements without marking read', async () => {
 		const chat = new TestChat('Archived placement');
-		const { service, container, session, contextMenu } = createBoard(mainWindow.document, [chat]);
+		const h = createBoard(mainWindow.document, [chat]);
+		const { service, container, session } = h;
 		await service.open();
-		container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-		await contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.move.general.p1')!.run();
+		await h.moveViaPicker('General, P1');
 		for (const archived of [chat.isArchived, session.isArchived]) {
 			archived.set(true, undefined);
 			assert.strictEqual(container.querySelectorAll('.project-board-card').length, 0);
@@ -846,160 +961,159 @@ suite('ProjectBoardService', () => {
 		}, {
 			label: 'example/project#12', opened: [], openedContext: ['https://github.com/example/project/pull/12'], read: false,
 		});
+	});
 
-		test('PB-06/PB-10 edited axes and placements survive reconstruction and cancelled deletion retains archived placements', async () => {
-			const storage = store.add(new InMemoryStorageService());
-			const chat = new TestChat('Persistent card');
-			const first = createBoard(mainWindow.document, [chat], storage);
-			const labels = ['Engineering', 'Product'];
-			first.instantiationService.stub(IQuickInputService, { input: async () => labels.shift() });
-			let confirmations = 0;
-			first.instantiationService.stub(IDialogService, { confirm: async confirmation => {
+	test('PB-06/PB-10 edited axes and placements survive reconstruction and cancelled deletion retains archived placements', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const chat = new TestChat('Persistent card');
+		const first = createBoard(mainWindow.document, [chat], storage);
+		first.quickInput.inputValues.push('Engineering', 'Product');
+		let confirmations = 0;
+		first.instantiationService.stub(IDialogService, {
+			confirm: async confirmation => {
 				assert.ok(confirmation.detail?.toString().includes('1 chat placements'));
 				confirmations++;
 				return { confirmed: false };
-			} });
-			await first.service.open();
-			first.container.querySelector<HTMLElement>('[data-board-control="add-row"]')!.click();
-			await Promise.resolve();
-			const axis = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Engineering')!;
-			assert.ok(axis());
-			first.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true }));
-			await first.contextMenu.delegate!.getActions().find(action => action.label === 'Move to Engineering, P0')!.run();
-			axis().click();
-			assert.strictEqual(first.contextMenu.delegate!.domForShadowRoot, first.container, 'Axis menus must be hosted in the board window');
-			await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.rename')!.run();
-			const renamed = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
-			assert.strictEqual(first.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
-			renamed().click();
-			await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.previous')!.run();
-			assert.strictEqual(first.container.querySelector('.project-board-row-heading')?.textContent, 'Product');
-			chat.isArchived.set(true, undefined);
-			renamed().click();
-			await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.delete')!.run();
-			assert.strictEqual(confirmations, 1);
-			assert.ok(renamed());
-			first.service.dispose();
-			const restored = createBoard(mainWindow.document, [chat], storage);
-			restored.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-			await restored.service.open();
-			restored.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
-			assert.strictEqual(restored.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
-			const product = [...restored.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
-			product.click();
-			await restored.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.delete')!.run();
-			assert.strictEqual(restored.container.querySelector('.project-board-unassigned h4')?.textContent, 'Persistent card');
-			assert.strictEqual(chat.isRead.get(), false);
-		});
-
-		test('PB-06 unavailable placed chats retain an explicit removable placeholder while hidden workers stay hidden', async () => {
-			const chat = new TestChat('Temporarily missing');
-			const h = createBoard(mainWindow.document, [chat]);
-			await h.service.open();
-			h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true }));
-			await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.move.general.p0')!.run();
-			chat.interactivity.set(ChatInteractivity.Hidden, undefined);
-			assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
-			chat.interactivity.set(ChatInteractivity.Full, undefined);
-			h.state.sessions = [];
-			h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
-			assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] .project-board-card-unavailable h4')?.textContent, 'Unavailable Chat');
-			h.state.sessions = [h.session];
-			h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
-			assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] h4')?.textContent, 'Temporarily missing');
-			h.state.sessions = [];
-			h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
-			h.container.querySelector<HTMLElement>('.project-board-card-unavailable .monaco-button')!.click();
-			assert.strictEqual(h.container.querySelectorAll('.project-board-card-unavailable').length, 0);
-		});
-
-		test('PB-06 corrupt storage remains untouched until Reset Board is explicitly confirmed', async () => {
-			const storage = store.add(new InMemoryStorageService());
-			storage.store(ProjectBoardState.STORAGE_KEY, '{broken', StorageScope.PROFILE, StorageTarget.MACHINE);
-			const h = createBoard(mainWindow.document, [], storage);
-			let confirmed = false;
-			h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed }) });
-			await h.service.open();
-			assert.ok(h.container.querySelector('.project-board-storage-error'));
-			assert.strictEqual(h.container.querySelector('[data-board-control="add-row"]')?.getAttribute('aria-disabled'), 'true');
-			h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
-			await Promise.resolve();
-			assert.strictEqual(storage.get(ProjectBoardState.STORAGE_KEY, StorageScope.PROFILE), '{broken');
-			confirmed = true;
-			h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
-			await Promise.resolve();
-			assert.strictEqual(h.container.querySelector('.project-board-storage-error'), null);
-			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-column-heading')].map(element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
-		});
-
-		test('PB-10 rerender preserves the auxiliary context-view host for subsequent menus', async () => {
-			const chat = new TestChat('Menu owner');
-			const h = createBoard(mainWindow.document, [chat]);
-			await h.service.open();
-			const contextHost = mainWindow.document.createElement('div');
-			contextHost.className = 'context-view-host';
-			h.container.appendChild(contextHost);
-			chat.title.set('Updated menu owner', undefined);
-			assert.strictEqual(contextHost.parentElement, h.container);
-			assert.strictEqual(h.container.querySelectorAll('.project-board').length, 1);
-		});
-
-		test('PB-07/PB-11 last prompt and submission time are explicit and metadata previews stay bounded', async () => {
-			const chats = Array.from({ length: 17 }, (_, index) => new TestChat(`Prompt ${index.toString().padStart(2, '0')}`));
-			const h = createBoard(mainWindow.document, chats);
-			h.metadata.set({ kind: 'ready', prompt: 'A submitted prompt', submittedAt: 1000, context: [] }, undefined);
-			await h.service.open();
-			assert.strictEqual(h.container.querySelectorAll('[data-submitted-at="1000"]').length, 16);
-			assert.ok(h.container.textContent?.includes('Metadata preview limit reached'));
-			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent), [...Array(16).fill('A submitted prompt'), 'Prompt unavailable']);
-			chats[0].title.set('Agent-updated title', undefined);
-			chats[0].isRead.set(true, undefined);
-			assert.strictEqual(h.container.querySelector('[data-submitted-at]')?.getAttribute('data-submitted-at'), '1000');
-			h.metadata.set({ kind: 'ready', prompt: 'A prompt without a known timestamp', context: [] }, undefined);
-			assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
-			assert.ok(h.container.textContent?.includes('Recency unavailable'));
-		});
-
-		test('PB-11 empty prompt metadata is informational rather than an agent failure warning', async () => {
-			const h = createBoard(mainWindow.document, [new TestChat('Empty request')]);
-			h.metadata.set({ kind: 'ready', submittedAt: 1000, context: [], message: 'The latest request has no stored prompt text.' }, undefined);
-			await h.service.open();
-			assert.deepStrictEqual({
-				prompt: h.container.querySelector('.project-board-card-prompt')?.textContent,
-				note: h.container.querySelector('.project-board-card-metadata-note')?.textContent,
-				warnings: h.container.querySelectorAll('.project-board-card-warning').length,
-			}, {
-				prompt: 'No prompt text', note: 'The latest request has no stored prompt text.', warnings: 0,
-			});
-		});
-
-		test('PB-07 loaded overflow chats reorder on submission without loading hidden transcripts', async () => {
-			const chats = Array.from({ length: 4 }, (_, i) => new TestChat(`Recency ${i}`));
-			const h = createBoard(mainWindow.document, chats);
-			const request = (timestamp: number) => new class extends mock<ChatRequestModel>() {
-				override readonly requestTimestamp = timestamp;
-			}();
-			const models = chats.map((chat, i) => new class extends mock<IChatModel>() {
-				override readonly sessionResource = chat.resource;
-				override readonly lastRequestObs = observableValue<ChatRequestModel | undefined>('request', request((i + 1) * 1000));
-				override get lastRequest() { return this.lastRequestObs.get(); }
-				override readonly onDidChange = Event.None;
-			}());
-			h.loadedModels.set(models, undefined);
-			await h.service.open();
-			for (const chat of chats) {
-				const card = [...h.container.querySelectorAll('.project-board-card')].find(element => element.querySelector('h4')?.textContent === chat.title.get())!;
-				const dataTransfer = new mainWindow.DataTransfer();
-				card.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer }));
-				h.container.querySelector('[aria-label="General, P0"]')!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
 			}
-			const titles = () => [...h.container.querySelectorAll('[aria-label="General, P0"] h4')].map(element => element.textContent);
-			assert.deepStrictEqual(titles(), ['Recency 3', 'Recency 2', 'Recency 1']);
-			models[0].lastRequestObs.set(request(5000), undefined);
-			assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Recency 2']);
-			chats[2].title.set('Agent update', undefined);
-			chats[2].isRead.set(true, undefined);
-			assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Agent update']);
 		});
+		await first.service.open();
+		first.container.querySelector<HTMLElement>('[data-board-control="add-row"]')!.click();
+		await Promise.resolve();
+		const axis = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Engineering')!;
+		assert.ok(axis());
+		await first.moveViaPicker('Engineering, P0');
+		axis().click();
+		assert.strictEqual(first.contextMenu.delegate!.domForShadowRoot, first.container, 'Axis menus must be hosted in the board window');
+		await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.rename')!.run();
+		const renamed = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
+		assert.strictEqual(first.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
+		renamed().click();
+		await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.previous')!.run();
+		assert.strictEqual(first.container.querySelector('.project-board-row-heading')?.textContent, 'Product');
+		chat.isArchived.set(true, undefined);
+		renamed().click();
+		await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.delete')!.run();
+		assert.strictEqual(confirmations, 1);
+		assert.ok(renamed());
+		first.service.dispose();
+		const restored = createBoard(mainWindow.document, [chat], storage);
+		restored.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		await restored.service.open();
+		restored.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+		assert.strictEqual(restored.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
+		const product = [...restored.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
+		product.click();
+		await restored.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.delete')!.run();
+		assert.strictEqual(restored.container.querySelector('.project-board-unassigned h4')?.textContent, 'Persistent card');
+		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-06 unavailable placed chats retain an explicit removable placeholder while hidden workers stay hidden', async () => {
+		const chat = new TestChat('Temporarily missing');
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		await h.moveViaPicker('General, P0');
+		chat.interactivity.set(ChatInteractivity.Hidden, undefined);
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		h.state.sessions = [];
+		h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+		assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] .project-board-card-unavailable h4')?.textContent, 'Unavailable Chat');
+		h.state.sessions = [h.session];
+		h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
+		assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] h4')?.textContent, 'Temporarily missing');
+		h.state.sessions = [];
+		h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+		h.container.querySelector<HTMLElement>('.project-board-card-unavailable .monaco-button')!.click();
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card-unavailable').length, 0);
+	});
+
+	test('PB-06 corrupt storage remains untouched until Reset Board is explicitly confirmed', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		storage.store(ProjectBoardState.STORAGE_KEY, '{broken', StorageScope.PROFILE, StorageTarget.MACHINE);
+		const h = createBoard(mainWindow.document, [], storage);
+		let confirmed = false;
+		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed }) });
+		await h.service.open();
+		assert.ok(h.container.querySelector('.project-board-storage-error'));
+		assert.strictEqual(h.container.querySelector('[data-board-control="add-row"]')?.getAttribute('aria-disabled'), 'true');
+		h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
+		await Promise.resolve();
+		assert.strictEqual(storage.get(ProjectBoardState.STORAGE_KEY, StorageScope.PROFILE), '{broken');
+		confirmed = true;
+		h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
+		await Promise.resolve();
+		assert.strictEqual(h.container.querySelector('.project-board-storage-error'), null);
+		assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-column-heading')].map(element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
+	});
+
+	test('PB-10 rerender preserves the auxiliary context-view host for subsequent menus', async () => {
+		const chat = new TestChat('Menu owner');
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		const contextHost = mainWindow.document.createElement('div');
+		contextHost.className = 'context-view-host';
+		h.container.appendChild(contextHost);
+		chat.title.set('Updated menu owner', undefined);
+		assert.strictEqual(contextHost.parentElement, h.container);
+		assert.strictEqual(h.container.querySelectorAll('.project-board').length, 1);
+	});
+
+	test('PB-07/PB-11 last prompt and submission time are explicit and metadata previews stay bounded', async () => {
+		const chats = Array.from({ length: 17 }, (_, index) => new TestChat(`Prompt ${index.toString().padStart(2, '0')}`));
+		const h = createBoard(mainWindow.document, chats);
+		h.metadata.set({ kind: 'ready', prompt: 'A submitted prompt', submittedAt: 1000, context: [] }, undefined);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelectorAll('[data-submitted-at="1000"]').length, 16);
+		assert.ok(h.container.textContent?.includes('Metadata preview limit reached'));
+		assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent), [...Array(16).fill('A submitted prompt'), 'Prompt unavailable']);
+		chats[0].title.set('Agent-updated title', undefined);
+		chats[0].isRead.set(true, undefined);
+		assert.strictEqual(h.container.querySelector('[data-submitted-at]')?.getAttribute('data-submitted-at'), '1000');
+		h.metadata.set({ kind: 'ready', prompt: 'A prompt without a known timestamp', context: [] }, undefined);
+		assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
+		assert.ok(h.container.textContent?.includes('Recency unavailable'));
+	});
+
+	test('PB-11 empty prompt metadata is informational rather than an agent failure warning', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Empty request')]);
+		h.metadata.set({ kind: 'ready', submittedAt: 1000, context: [], message: 'The latest request has no stored prompt text.' }, undefined);
+		await h.service.open();
+		assert.deepStrictEqual({
+			prompt: h.container.querySelector('.project-board-card-prompt')?.textContent,
+			note: h.container.querySelector('.project-board-card-metadata-note')?.textContent,
+			warnings: h.container.querySelectorAll('.project-board-card-warning').length,
+		}, {
+			prompt: 'No prompt text', note: 'The latest request has no stored prompt text.', warnings: 0,
+		});
+	});
+
+	test('PB-07 loaded overflow chats reorder on submission without loading hidden transcripts', async () => {
+		const chats = Array.from({ length: 4 }, (_, i) => new TestChat(`Recency ${i}`));
+		const h = createBoard(mainWindow.document, chats);
+		const request = (timestamp: number) => new class extends mock<ChatRequestModel>() {
+			override readonly requestTimestamp = timestamp;
+		}();
+		const models = chats.map((chat, i) => new class extends mock<IChatModel>() {
+			override readonly sessionResource = chat.resource;
+			override readonly lastRequestObs = observableValue<ChatRequestModel | undefined>('request', request((i + 1) * 1000));
+			override get lastRequest() { return this.lastRequestObs.get(); }
+			override readonly onDidChange = Event.None;
+		}());
+		h.loadedModels.set(models, undefined);
+		await h.service.open();
+		for (const chat of chats) {
+			const card = [...h.container.querySelectorAll('.project-board-card')].find(element => element.querySelector('h4')?.textContent === chat.title.get())!;
+			const dataTransfer = new mainWindow.DataTransfer();
+			card.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer }));
+			h.container.querySelector('[aria-label="General, P0"]')!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		}
+		const titles = () => [...h.container.querySelectorAll('[aria-label="General, P0"] h4')].map(element => element.textContent);
+		assert.deepStrictEqual(titles(), ['Recency 3', 'Recency 2', 'Recency 1']);
+		models[0].lastRequestObs.set(request(5000), undefined);
+		assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Recency 2']);
+		chats[2].title.set('Agent update', undefined);
+		chats[2].isRead.set(true, undefined);
+		assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Agent update']);
 	});
 });
