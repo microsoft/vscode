@@ -406,7 +406,12 @@ class ModelSemanticColoring extends Disposable {
 				// 1. Adjust incoming semantic tokens
 				// 2. Request them again
 				for (const change of pendingChanges) {
-					for (const area of result) {
+					for (const area of result.tokens) {
+						for (const singleChange of change.changes) {
+							area.applyEdit(singleChange.range, singleChange.text);
+						}
+					}
+					for (const area of result.fontTokens) {
 						for (const singleChange of change.changes) {
 							area.applyEdit(singleChange.range, singleChange.text);
 						}
@@ -414,7 +419,7 @@ class ModelSemanticColoring extends Disposable {
 				}
 			}
 
-			this._model.tokenization.setSemanticTokens(result, true);
+			this._model.tokenization.setSemanticTokens(result.tokens, true, result.fontTokens, result.fontTokenMap);
 		} else {
 			this._model.tokenization.setSemanticTokens(null, true);
 		}

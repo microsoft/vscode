@@ -18,7 +18,7 @@ import { TextModel } from '../textModel.js';
 import { TextModelPart } from '../textModelPart.js';
 import { AbstractSyntaxTokenBackend, AttachedViews } from './abstractSyntaxTokenBackend.js';
 import { TreeSitterSyntaxTokenBackend } from './treeSitter/treeSitterSyntaxTokenBackend.js';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelFontTokensChangedEvent } from '../../textModelEvents.js';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelFontTokensChangedEvent, IFontTokenOption } from '../../textModelEvents.js';
 import { ITokenizationTextModelPart } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { SparseMultilineTokens } from '../../tokens/sparseMultilineTokens.js';
@@ -27,9 +27,13 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { TokenizerSyntaxTokenBackend } from './tokenizerSyntaxTokenBackend.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { AnnotationsUpdate, IAnnotationUpdate } from './annotations.js';
+import { OffsetRange } from '../../core/ranges/offsetRange.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore;
+	private readonly _onDidChangeSemanticFontTokens: Emitter<IModelFontTokensChangedEvent> = this._register(new Emitter<IModelFontTokensChangedEvent>());
+	public readonly onDidChangeSemanticFontTokens: Event<IModelFontTokensChangedEvent> = this._onDidChangeSemanticFontTokens.event;
 
 	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent>;
 	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent>;
@@ -133,6 +137,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	public handleDidChangeContent(e: IModelContentChangedEvent): void {
 		if (e.isFlush) {
 			this._semanticTokens.flush();
+			this._onDidChangeSemanticFontTokens.fire({ changes: AnnotationsUpdate.create([{ range: new OffsetRange(0, this._textModel.getValueLength()), annotation: undefined }]) });
 		} else if (!e.isEolChange) { // We don't have to do anything on an EOL change
 			for (const c of e.changes) {
 				const [eolCount, firstLineLength, lastLineLength] = countEOL(c.text);
@@ -222,8 +227,16 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 	// #region Semantic Tokens
 
-	public setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void {
+	public setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean, fontTokens: SparseMultilineTokens[] | null = null, fontTokenMap: readonly IFontTokenOption[] = []): void {
 		this._semanticTokens.set(tokens, isComplete, this._textModel);
+
+		const fontUpdates: IAnnotationUpdate<IFontTokenOption>[] = [
+			{ range: new OffsetRange(0, this._textModel.getValueLength()), annotation: undefined }
+		];
+		if (fontTokens) {
+			fontUpdates.push(...this._toFontTokenAnnotations(fontTokens, fontTokenMap));
+		}
+		this._onDidChangeSemanticFontTokens.fire({ changes: AnnotationsUpdate.create(fontUpdates) });
 
 		this._emitModelTokensChangedEvent({
 			semanticTokensApplied: tokens !== null,
@@ -239,13 +252,21 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return !this._semanticTokens.isEmpty();
 	}
 
-	public setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[]): void {
+	public setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[], fontTokens: SparseMultilineTokens[] | null = null, fontTokenMap: readonly IFontTokenOption[] = []): void {
 		if (this.hasCompleteSemanticTokens()) {
 			return;
 		}
 		const changedRange = this._textModel.validateRange(
 			this._semanticTokens.setPartial(range, tokens)
 		);
+
+		const fontUpdates: IAnnotationUpdate<IFontTokenOption>[] = [
+			{ range: new OffsetRange(this._textModel.getOffsetAt(changedRange.getStartPosition()), this._textModel.getOffsetAt(changedRange.getEndPosition())), annotation: undefined }
+		];
+		if (fontTokens) {
+			fontUpdates.push(...this._toFontTokenAnnotations(fontTokens, fontTokenMap));
+		}
+		this._onDidChangeSemanticFontTokens.fire({ changes: AnnotationsUpdate.create(fontUpdates) });
 
 		this._emitModelTokensChangedEvent({
 			semanticTokensApplied: true,
@@ -256,6 +277,34 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 				},
 			],
 		});
+	}
+
+	private _toFontTokenAnnotations(fontTokens: SparseMultilineTokens[], fontTokenMap: readonly IFontTokenOption[]): IAnnotationUpdate<IFontTokenOption>[] {
+		const result: IAnnotationUpdate<IFontTokenOption>[] = [];
+		for (const area of fontTokens) {
+			for (let lineNumber = area.startLineNumber; lineNumber <= area.endLineNumber; lineNumber++) {
+				const lineTokens = area.getLineTokens(lineNumber);
+				if (!lineTokens) {
+					continue;
+				}
+				for (let i = 0; i < lineTokens.getCount(); i++) {
+					const fontToken = fontTokenMap[lineTokens.getMetadata(i)];
+					if (!fontToken?.fontFamily) {
+						continue;
+					}
+					const startColumn = Math.min(lineTokens.getStartCharacter(i) + 1, this._textModel.getLineMaxColumn(lineNumber));
+					const endColumn = Math.min(lineTokens.getEndCharacter(i) + 1, this._textModel.getLineMaxColumn(lineNumber));
+					if (endColumn <= startColumn) {
+						continue;
+					}
+					result.push({
+						range: new OffsetRange(this._textModel.getOffsetAt(new Position(lineNumber, startColumn)), this._textModel.getOffsetAt(new Position(lineNumber, endColumn))),
+						annotation: fontToken,
+					});
+				}
+			}
+		}
+		return result;
 	}
 
 	// #endregion
