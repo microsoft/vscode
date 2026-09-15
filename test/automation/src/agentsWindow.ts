@@ -118,10 +118,54 @@ export class AgentsWindow {
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 	}
 
-	async selectDevContainer(): Promise<void> {
+	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await this.quickaccess.runCommand('workbench.action.sessions.connectViaSSH', { keepOpen: true });
+		await this.fillQuickInput('Connect via SSH', `${options.username}@${options.host}:${options.port}`);
+		await page.locator('.quick-input-widget:visible').getByText('Password', { exact: true }).click();
+		await this.fillQuickInput('SSH Password', options.password);
+		await this.fillQuickInput('Name Remote', options.name);
+		const trustDialog = page.locator('.monaco-dialog-box').filter({ hasText: 'The authenticity of host' });
+		await trustDialog.getByText(options.fingerprint, { exact: false }).waitFor({ timeout: 30_000 });
+		await trustDialog.getByRole('button', { name: 'Connect', exact: true }).click();
+		await this.selectRemoteFolder(options.name, workspacePath);
+	}
+
+	async connectTunnelHost(name: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await this.quickaccess.runCommand('workbench.action.sessions.connectViaTunnel', { keepOpen: true });
+		await page.locator('.quick-input-widget:visible .quick-input-list .monaco-list-row').filter({
+			has: page.getByText(name, { exact: true }),
+		}).click({ timeout: 120_000 });
+		await this.selectRemoteFolder(name, workspacePath);
+	}
+
+	private async fillQuickInput(title: string, value: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
+		const input = widget.locator('.quick-input-box input');
+		await input.fill(value, { timeout: 30_000 });
+		await input.press('Enter');
+	}
+
+	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator('.quick-input-widget:visible').filter({
+			has: page.locator('.quick-input-title', { hasText: `Select Folder on ${hostName}` }),
+		});
+		const input = widget.locator('.quick-input-box input');
+		await widget.locator('.quick-input-list .monaco-list-row').first().waitFor({ timeout: 30_000 });
+		await input.fill(workspacePath.replace(/\\/g, '/') + '/', { timeout: 120_000 });
+		await widget.getByText('.devcontainer', { exact: true }).waitFor({ timeout: 30_000 });
+		await widget.locator('.quick-input-progress[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 30_000 });
+		await input.press('Enter');
+		await widget.waitFor({ state: 'hidden', timeout: 30_000 });
+		await page.locator(WORKSPACE_PICKER).filter({ hasText: hostName }).waitFor({ timeout: 30_000 });
+	}
+
+	async selectDevContainer(workspaceLabel?: string): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const picker = page.locator(WORKSPACE_PICKER).first();
-		const workspaceRow = page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
 		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
 		const deadline = Date.now() + 120_000;
 		let lastError: unknown;
@@ -132,6 +176,15 @@ export class AgentsWindow {
 			}
 			try {
 				await picker.click();
+				if (workspaceLabel) {
+					const remoteRow = page.locator('.action-widget .sessions-new-chat-picker-list .monaco-list-row.action[aria-label="Remote"]');
+					if (await remoteRow.isVisible()) {
+						await remoteRow.locator('.action-list-submenu-indicator.has-submenu').click();
+					}
+				}
+				const workspaceRow = workspaceLabel
+					? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
+					: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
 				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
 				await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
 				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
