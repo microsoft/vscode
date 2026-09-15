@@ -151,7 +151,9 @@ export class ProjectBoardMetadata extends Disposable {
 		const submittedAt = getSubmittedAt(request);
 		const context = this._context(request);
 		const message = !prompt
-			? localize('projectBoard.metadata.emptyPrompt', "Submitted request has no prompt text.")
+			? context.length
+				? localize('projectBoard.metadata.contextOnly', "The latest request has attached context but no stored prompt text.")
+				: localize('projectBoard.metadata.emptyPrompt', "The latest request has no stored prompt text.")
 			: submittedAt === undefined
 				? localize('projectBoard.metadata.unknownTime', "Last submitted prompt time unavailable.")
 				: undefined;
