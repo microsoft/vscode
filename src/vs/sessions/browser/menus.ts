@@ -59,6 +59,10 @@ export const Menus = {
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
 	/** Context menu for the Automations sidebar shortcut. */
 	AutomationsContext: new MenuId('SessionsAutomationsContext'),
+	/** Header actions of the Kanban custom view. */
+	CustomViewKanban: new MenuId('SessionsCustomViewKanban'),
+	/** Display settings of the Kanban custom view. */
+	CustomViewKanbanSettings: new MenuId('SessionsCustomViewKanbanSettings'),
 	/** Context menu actions for an Automation definition card. */
 	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */

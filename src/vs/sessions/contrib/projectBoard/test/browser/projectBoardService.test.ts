@@ -271,6 +271,24 @@ suite('ProjectBoardService', () => {
 		assert.ok(state.focusCount > firstFocusCount);
 	});
 
+	test('embedded board leaves header actions to the custom view chrome', () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Embedded')]);
+		const embeddedContainer = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(embeddedContainer);
+		store.add(toDisposable(() => embeddedContainer.remove()));
+		store.add(h.service.createView(embeddedContainer));
+
+		assert.deepStrictEqual({
+			hasBoard: !!embeddedContainer.querySelector('.project-board'),
+			hasInlineHeader: !!embeddedContainer.querySelector('.project-board-header'),
+			inlineControls: embeddedContainer.querySelectorAll('[data-board-control="add-row"], [data-board-control="add-column"], [data-board-control="show-archived"], [data-board-control="new-session"], [data-board-control="settings"]').length,
+		}, {
+			hasBoard: true,
+			hasInlineHeader: false,
+			inlineControls: 0,
+		});
+	});
+
 	test('PB-18 top-right settings independently toggle metrics and restore across board reopen', async () => {
 		const { document } = createBoardDocument();
 		const chat = new TestChat('Metrics');
