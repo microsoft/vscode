@@ -33,7 +33,7 @@ credentials, and C remains authoritative for its provider execution.
 | --- | --- |
 | [`IAgent` and `IAgentChats`](./common/agent.ts) | The provider seam is already chat-addressed and supports opaque backing, progress, history, interactions, and capabilities. It does not represent a whole remote host. |
 | [`IAgentHostProviderService`](./node/agentHostProviderService.ts) | Provides the normal provider catalog and session association. Dynamic withdrawal/temporary unavailability needs an explicit design. |
-| [`AgentHostProtocolClient`](./browser/agentHostProtocolClient.ts) | Already implements AHP initialization, requests, subscriptions, actions, versioning, and reconnect behavior. Renderer/workbench dependencies must be separated before Node reuse. |
+| [`AgentHostProtocolClientCore`](./common/agentHostProtocolClient.ts) and [`AgentHostProtocolClient`](./browser/agentHostProtocolClient.ts) | The headless core implements AHP initialization, requests, subscriptions, actions, versioning, and reconnect behavior. The browser adapter retains workbench configuration, trust, telemetry, and resource integration. |
 | [`IRemoteAgentHostConnectionFactory`](./common/remoteAgentHostService.ts) | Useful prior art for target entries, factories, connection ownership, and observable availability. The current target-kind union is closed over built-ins. |
 | [Tunnel discovery](./node/tunnelAgentHostService.ts) | Existing tunnel enumeration and relay machinery should be reused rather than reimplemented inside `RemoteAgent`. |
 | [Optional AHP protected resources](./common/state/protocol/common/state.ts) | `required: false` already models optional tunnel authentication. Host-feature credential routing and the correct client sign-in path are still needed. |

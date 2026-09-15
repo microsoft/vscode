@@ -80,6 +80,7 @@ Person 1 owns transport replay and reconnect state. This work must not depend on
 
 Likely primary files:
 
+- [common/agentHostProtocolClient.ts](./common/agentHostProtocolClient.ts)
 - [browser/agentHostProtocolClient.ts](./browser/agentHostProtocolClient.ts)
 - [common/remoteAgentHostService.ts](./common/remoteAgentHostService.ts)
 - [node/tunnelAgentHostService.ts](./node/tunnelAgentHostService.ts)
