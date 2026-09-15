@@ -758,32 +758,59 @@ suite('SessionArchiveNudge', () => {
 		}, { archivesBeforeTourFinished: 0, nativeActions: 0, targets: [session], released: 'released' });
 	});
 
-	test('does not archive when onboarding aborts and allows a retry', async () => {
+	for (const outcome of [OnboardingOutcome.Aborted, OnboardingOutcome.Dismissed]) {
+		test(`archives when onboarding is ${outcome} and allows the introduction to retry later`, async () => {
+			const session = createSession();
+			const context = setup([session], true, undefined, true);
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			context.onboarding.setResult(Promise.resolve(outcome));
+			await nudge.options.get()!.onArchive();
+			assert.deepStrictEqual({
+				targets: context.archiveTargets,
+				archived: session.isArchived.get(),
+				visible: !!nudge.options.get(),
+				released: context.onboarding.events.at(-1),
+			}, { targets: [session], archived: true, visible: false, released: 'released' });
+
+			context.reloadService();
+			context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Completed));
+			await context.service.showArchiveOnboarding(createSession('another'));
+			assert.strictEqual(context.onboarding.payloads.length, 2);
+		});
+	}
+
+	test('still reports archive failures after onboarding aborts', async () => {
 		const context = setup(undefined, true, undefined, true);
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
 		context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Aborted));
-		await assert.rejects(nudge.options.get()!.onArchive(), /introduction was interrupted/);
-		assert.deepStrictEqual(context.archiveTargets, []);
-		context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Completed));
-		await nudge.options.get()!.onArchive();
-		assert.deepStrictEqual({ tours: context.onboarding.payloads.length, targets: context.archiveTargets.length }, { tours: 2, targets: 1 });
+		context.setArchiveError(new Error('Archive failed'));
+		await assert.rejects(nudge.options.get()!.onArchive(), /Archive failed/);
+		assert.deepStrictEqual({
+			targets: context.archiveTargets.length,
+			visible: !!nudge.options.get(),
+			events: context.events,
+			released: context.onboarding.events.at(-1),
+		}, { targets: 1, visible: true, events: [], released: 'released' });
 	});
 
-	test('revalidates the session after onboarding instead of archiving a stale suggestion', async () => {
-		const session = createSession();
-		const context = setup([session], true, undefined, true);
-		context.setPullRequest(1, GitHubPullRequestState.Merged);
-		const nudge = context.createNudge();
-		const finish = new DeferredPromise<OnboardingOutcome>();
-		context.onboarding.setResult(finish.p);
-		const archive = nudge.options.get()!.onArchive();
-		await context.onboarding.started;
-		session.status.set(SessionStatus.InProgress, undefined);
-		finish.complete(OnboardingOutcome.Completed);
-		await assert.rejects(archive, /no longer available/);
-		assert.deepStrictEqual(context.archiveTargets, []);
-	});
+	for (const outcome of [OnboardingOutcome.Completed, OnboardingOutcome.Aborted, OnboardingOutcome.Dismissed]) {
+		test(`revalidates the session after onboarding is ${outcome} instead of archiving a stale suggestion`, async () => {
+			const session = createSession();
+			const context = setup([session], true, undefined, true);
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			const finish = new DeferredPromise<OnboardingOutcome>();
+			context.onboarding.setResult(finish.p);
+			const archive = nudge.options.get()!.onArchive();
+			await context.onboarding.started;
+			session.status.set(SessionStatus.InProgress, undefined);
+			finish.complete(outcome);
+			await assert.rejects(archive, /no longer available/);
+			assert.deepStrictEqual(context.archiveTargets, []);
+		});
+	}
 
 	test('coalesces concurrent onboarding requests', async () => {
 		const context = setup(undefined, true, undefined, true);
