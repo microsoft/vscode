@@ -456,8 +456,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 		}
 
-		const firstLineNumber =
-		startLineNumber;
+		const firstLineNumber = startLineNumber;
 
 		// ignore empty or ignored lines
 		while (startLineNumber < range.endLineNumber) {
