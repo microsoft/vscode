@@ -11,7 +11,7 @@ import { DomEmitter } from '../../../base/browser/event.js';
 import { Color } from '../../../base/common/color.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
-import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable, dispose, DisposableStore, MutableDisposable, setDisposableTracker, DisposableTracker, DisposableInfo } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -65,6 +65,9 @@ import { IAgentHostEnablementService } from '../../../platform/agentHost/common/
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../common/contributions.js';
+
+const screencastModeEnabledSetting = 'workbench.screencastMode.enabled';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -130,29 +133,41 @@ interface IScreencastKeyboardOptions {
 	readonly showSingleEditorCursorMoves?: boolean;
 }
 
-class ToggleScreencastModeAction extends Action2 {
+export class ScreencastModeContribution extends Disposable implements IWorkbenchContribution {
 
-	static disposable: IDisposable | undefined;
+	static readonly ID = 'workbench.contrib.screencastMode';
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleScreencastMode',
-			title: localize2('toggle screencast mode', 'Toggle Screencast Mode'),
-			category: Categories.Developer,
-			f1: true
-		});
+	private readonly activeScreencastMode = this._register(new MutableDisposable<IDisposable>());
+
+	constructor(
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+	) {
+		super();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(screencastModeEnabledSetting)) {
+				this.update();
+			}
+		}));
+		this.update();
 	}
 
-	run(accessor: ServicesAccessor): void {
-		if (ToggleScreencastModeAction.disposable) {
-			ToggleScreencastModeAction.disposable.dispose();
-			ToggleScreencastModeAction.disposable = undefined;
-			return;
+	private update(): void {
+		if (this.configurationService.getValue<boolean>(screencastModeEnabledSetting)) {
+			if (!this.activeScreencastMode.value) {
+				this.activeScreencastMode.value = this.enable();
+			}
+		} else {
+			this.activeScreencastMode.clear();
 		}
+	}
 
-		const layoutService = accessor.get(ILayoutService);
-		const configurationService = accessor.get(IConfigurationService);
-		const keybindingService = accessor.get(IKeybindingService);
+	private enable(): IDisposable {
+		const layoutService = this.layoutService;
+		const configurationService = this.configurationService;
+		const keybindingService = this.keybindingService;
 
 		const disposables = new DisposableStore();
 
@@ -403,7 +418,7 @@ class ToggleScreencastModeAction extends Action2 {
 			clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 		}));
 
-		ToggleScreencastModeAction.disposable = disposables;
+		return disposables;
 	}
 
 	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: unknown; isBubble: boolean } {
@@ -427,6 +442,23 @@ class ToggleScreencastModeAction extends Action2 {
 		}
 
 		return undefined;
+	}
+}
+
+class ToggleScreencastModeAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.toggleScreencastMode',
+			title: localize2('toggle screencast mode', 'Toggle Screencast Mode'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(screencastModeEnabledSetting, !configurationService.getValue<boolean>(screencastModeEnabledSetting));
 	}
 }
 
@@ -1409,6 +1441,7 @@ class SyncAccountPolicyAction extends Action2 {
 }
 
 // --- Actions Registration
+registerWorkbenchContribution2(ScreencastModeContribution.ID, ScreencastModeContribution, WorkbenchPhase.AfterRestored);
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
@@ -1432,6 +1465,11 @@ configurationRegistry.registerConfiguration({
 	title: localize('screencastModeConfigurationTitle', "Screencast Mode"),
 	type: 'object',
 	properties: {
+		'workbench.screencastMode.enabled': {
+			type: 'boolean',
+			default: false,
+			description: localize('screencastMode.enabled', "Controls whether Screencast Mode is enabled.")
+		},
 		'screencastMode.verticalOffset': {
 			type: 'number',
 			default: 20,
