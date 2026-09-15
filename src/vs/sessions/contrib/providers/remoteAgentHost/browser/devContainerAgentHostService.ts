@@ -14,7 +14,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { getEntryAddress, getEntryTypeConfig, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -372,7 +372,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		const provider = store.add(this._createProvider({
 			address,
 			name,
-			devContainerWorktreeScope: key,
+			devContainerWorktreeScope: getComparisonKey(fromAgentHostUri(workspaceUri)),
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)
 				: undefined,

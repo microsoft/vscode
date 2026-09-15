@@ -11,12 +11,13 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -490,10 +491,39 @@ suite('Dev Container Agent Host Service', () => {
 			id: provider.id,
 			status: provider instanceof TestProvider ? provider.status : undefined,
 			remoteWorktree: provider instanceof TestProvider && !!provider.config.resolveDevContainerWorktreeConnection,
+			worktreeScope: provider instanceof TestProvider ? provider.config.devContainerWorktreeScope : undefined,
 		})), sources.map(source => ({
 			id: `agenthost-${agentHostAuthority(devContainerAddress(source))}`,
 			status: RemoteAgentHostConnectionStatus.disconnected,
 			remoteWorktree: true,
+			worktreeScope: getComparisonKey(URI.file('/source')),
+		})));
+	});
+
+	test('restores host-native worktree scopes without losing Windows or UNC URI identity', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const nativeWorkspaces = [
+			URI.from({ scheme: Schemas.file, path: '/c:/Worktrees/project' }),
+			URI.from({ scheme: Schemas.file, authority: 'server', path: '/share/project' }),
+		];
+		const sources = nativeWorkspaces.map(workspace => toAgentHostUri(workspace, agentHostAuthority('ssh:windows')));
+		storageService.store('devContainerAgentHost.connections', JSON.stringify(sources.map(workspace => ({
+			workspaceUri: workspace.toString(),
+			name: 'Windows Dev Container',
+		}))), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providersService = store.add(new TestSessionsProvidersService());
+		store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			providersService,
+			storageService,
+		));
+		assert.deepStrictEqual(providersService.getProviders().map(provider => provider instanceof TestProvider ? {
+			id: provider.id,
+			scope: provider.config.devContainerWorktreeScope,
+		} : undefined), nativeWorkspaces.map((workspace, index) => ({
+			id: `agenthost-${agentHostAuthority(devContainerAddress(sources[index]))}`,
+			scope: getComparisonKey(workspace),
 		})));
 	});
 
@@ -521,9 +551,11 @@ suite('Dev Container Agent Host Service', () => {
 		assert.deepStrictEqual({
 			connection: remoteService.stagedEntry?.connection,
 			remoteWorktree: !!service.provider?.config.resolveDevContainerWorktreeConnection,
+			worktreeScope: service.provider?.config.devContainerWorktreeScope,
 		}, {
 			connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority: 'ssh-remote+server' },
 			remoteWorktree: true,
+			worktreeScope: getComparisonKey(URI.file('/project')),
 		});
 		await target.release();
 	});
