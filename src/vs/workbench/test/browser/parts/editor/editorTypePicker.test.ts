@@ -8,9 +8,12 @@ import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorInputWithDiffResources } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { createEditorTypeActions, getAvailableEditorTypes } from '../../../../browser/parts/editor/editorTypePicker.js';
 import { EditorMatchRuleSource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetEditorMatchesOptions, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -120,6 +123,34 @@ suite('Editor Type Picker', () => {
 			hidden: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor'],
 			active: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor', 'test.markdownPreview'],
 		});
+	});
+
+	test('untitled custom editor exposes available editor ids', () => {
+		const resource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+		const input = disposables.add(new class extends EditorInput {
+			override get typeId(): string { return 'test.customEditorInput'; }
+			override get editorId(): string { return 'test.customEditor'; }
+			override get resource(): URI { return resource; }
+			override getName(): string { return 'test'; }
+		}());
+		const editorResolverService = new class extends mock<IEditorResolverService>() {
+			override getEditors(): RegisteredEditorInfo[] {
+				return [
+					editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
+					editor('test.customEditor', RegisteredEditorPriority.default),
+				];
+			}
+		};
+		let availableEditorIds = '';
+		const contextKey = new class extends mock<IContextKey<string>>() {
+			override set(value: string): void {
+				availableEditorIds = value;
+			}
+		};
+
+		applyAvailableEditorIds(contextKey, input, editorResolverService);
+
+		assert.strictEqual(availableEditorIds, `${DEFAULT_EDITOR_ASSOCIATION.id},test.customEditor`);
 	});
 
 	test('exclusive matches suppress the editor type picker', () => {
