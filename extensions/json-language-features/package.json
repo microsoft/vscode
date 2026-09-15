@@ -135,6 +135,7 @@
             "https://raw.githubusercontent.com/devcontainers/spec/": true,
             "https://www.schemastore.org/": true,
             "https://json.schemastore.org/": true,
+            "https://spec.openapis.org/": true,
             "https://json-schema.org/": true,
             "https://developer.microsoft.com/json-schemas/": true
           },
