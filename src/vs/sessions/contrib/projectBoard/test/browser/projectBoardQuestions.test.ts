@@ -58,8 +58,14 @@ suite('ProjectBoardQuestionPreview', () => {
 			override readonly response = response;
 		}(), undefined);
 		const state = { acquired: 0, released: 0 };
+		const notifications: { requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }[] = [];
 		const chatService = new class extends mock<IChatService>() {
 			override readonly onDidReceiveQuestionCarouselAnswer = answers.event;
+			override notifyQuestionCarouselAnswer(requestId: string, resolveId: string, result: IChatQuestionAnswers | undefined): void {
+				const notification = { requestId, resolveId, answers: result };
+				notifications.push(notification);
+				answers.fire(notification);
+			}
 			override acquireExistingSession(resource: URI) {
 				assert.strictEqual(resource, chat.resource);
 				state.acquired++;
@@ -68,8 +74,61 @@ suite('ProjectBoardQuestionPreview', () => {
 			override async acquireOrLoadSession(): Promise<never> { throw new Error('Must reuse the existing model'); }
 		}();
 		const logService = store.add(new NullLogService());
-		return { chat, model, response, state, changed, disposed, answers, chatService, logService };
+		return { chat, model, response, state, changed, disposed, answers, chatService, logService, notifications };
 	}
+
+	test('PB-15 answering uses the exact pending request, backend values and one shared completion', () => {
+		const h = setupPreview();
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'choice', type: 'singleSelect', title: 'Choose',
+			options: [{ id: 'shown', label: 'Displayed choice', value: 'backend-value' }],
+		}], false, 'resolve-choice');
+		h.response.updateContent(carousel);
+		const preview = createPreview(h.chat, h.chatService, h.logService);
+		const pending = preview.questionCarousels.get()[0];
+		assert.ok(preview.submit(pending, new Map([['choice', { selectedValue: 'backend-value' }]])));
+		assert.strictEqual(preview.submit(pending, new Map([['choice', { freeformValue: 'Duplicate' }]])), false);
+		assert.deepStrictEqual({
+			notifications: h.notifications, data: carousel.data, settled: carousel.completion.isSettled,
+			pending: preview.questionCarousels.get().length, read: h.chat.isRead.get(),
+		}, {
+			notifications: [{ requestId: 'request', resolveId: 'resolve-choice', answers: { choice: { selectedValue: 'backend-value' } } }],
+			data: { choice: { selectedValue: 'backend-value' } }, settled: true, pending: 0, read: false,
+		});
+	});
+
+	test('PB-15 custom answers and skip use the provider answer channel, stale and disposed requests cannot submit', () => {
+		const h = setupPreview();
+		const custom = new ChatQuestionCarouselData([{ id: 'text', type: 'text', title: 'Custom answer' }], true, 'custom');
+		h.response.updateContent(custom);
+		const preview = createPreview(h.chat, h.chatService, h.logService);
+		assert.ok(preview.submit(preview.questionCarousels.get()[0], new Map([['text', 'My answer']])));
+		const next = new ChatQuestionCarouselData([{ id: 'next', type: 'text', title: 'Next answer' }], true, 'next');
+		h.response.updateContent(next);
+		const pending = preview.questionCarousels.get()[0];
+		h.answers.fire({ requestId: 'request', resolveId: 'next', answers: { next: 'Answered in the chat' } });
+		assert.strictEqual(preview.submit(pending, new Map([['next', 'Stale board answer']])), false);
+		const skipped = new ChatQuestionCarouselData([{ id: 'skip', type: 'text', title: 'Skip' }], true, 'skip');
+		h.response.updateContent(skipped);
+		assert.ok(preview.submit(preview.questionCarousels.get()[0], undefined));
+		const disposed = new ChatQuestionCarouselData([{ id: 'disposed', type: 'text', title: 'Disposed' }], true, 'disposed');
+		h.response.updateContent(disposed);
+		const last = preview.questionCarousels.get()[0];
+		preview.dispose();
+		assert.strictEqual(preview.submit(last, new Map([['disposed', 'Too late']])), false);
+		assert.deepStrictEqual(h.notifications, [
+			{ requestId: 'request', resolveId: 'custom', answers: { text: 'My answer' } },
+			{ requestId: 'request', resolveId: 'skip', answers: undefined },
+		]);
+	});
+
+	test('PB-15 truncated or unresolvable forms never become partial interactive forms', () => {
+		const h = setupPreview();
+		h.response.updateContent(new ChatQuestionCarouselData(Array.from({ length: 9 }, (_, i) => ({ id: String(i), type: 'text', title: 'Too many questions' })), true));
+		const preview = createPreview(h.chat, h.chatService, h.logService);
+		assert.strictEqual(preview.questionCarousels.get().length, 0);
+		assert.ok(preview.preview.get().kind === 'ready');
+	});
 
 	test('projects the actual question and display-ordered options without answering or marking read', () => {
 		const { chat, response, chatService, logService } = setupPreview();

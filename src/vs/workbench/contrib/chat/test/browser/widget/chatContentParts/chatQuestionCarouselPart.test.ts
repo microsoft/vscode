@@ -64,6 +64,29 @@ suite('ChatQuestionCarouselPart', () => {
 		submittedAnswers = null;
 	});
 
+	test('standalone hosts retain input when a stale or failed submission is rejected', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		let accepted = false;
+		const carousel = createMockCarousel([{ id: 'custom', type: 'text', title: 'Answer' }]);
+		widget = store.add(instantiationService.createInstance(ChatQuestionCarouselPart, carousel, undefined, {
+			shouldAutoFocus: false,
+			onSubmit: () => accepted,
+		}));
+		mainWindow.document.body.appendChild(widget.domNode);
+		const input = widget.domNode.querySelector('input')!;
+		input.value = 'Keep my answer';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.chat-question-submit-button')!.click();
+		assert.deepStrictEqual({
+			sameInput: widget.domNode.querySelector('input') === input,
+			text: input.value,
+			used: widget.domNode.classList.contains('chat-question-carousel-used'),
+		}, { sameInput: true, text: 'Keep my answer', used: false });
+		accepted = true;
+		widget.domNode.querySelector<HTMLElement>('.chat-question-submit-button')!.click();
+		assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'));
+	});
+
 	suite('Basic Rendering', () => {
 		test('renders carousel container with proper structure', () => {
 			const carousel = createMockCarousel([

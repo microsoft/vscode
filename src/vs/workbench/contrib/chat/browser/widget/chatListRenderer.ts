@@ -59,6 +59,7 @@ import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/m
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
+import { submitChatQuestionCarousel } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
@@ -4916,27 +4917,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const carouselKey = carousel.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 
 		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
-			if (carousel.isUsed) {
+			if (!submitChatQuestionCarousel(carousel, responseId, answers, this.chatService)) {
 				// Voice can answer the same form, so a queued click may land after it
 				// has been submitted. Applying it would replace the spoken answer and
 				// notify the extension twice.
 				return;
 			}
-			// Mark the carousel as used and store the answers
-			const answersRecord: IChatQuestionAnswers | undefined = answers ? Object.fromEntries(answers) : undefined;
-			carousel.data = answersRecord ?? {};
-			carousel.isUsed = true;
-			if (carousel instanceof ChatQuestionCarouselData) {
-				carousel.draftAnswers = undefined;
-				carousel.draftCurrentIndex = undefined;
-				carousel.completion.complete({ answers: answersRecord });
-			}
-
-			// Notify the extension about the carousel answers to resolve the deferred promise
-			if (isResponseVM(context.element) && carousel.resolveId) {
-				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, answersRecord);
-			}
-
 			// Remove from pending carousels
 			this.removeCarouselFromTracking(context, part);
 
@@ -4973,7 +4959,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 
-			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
+			const part: ChatQuestionCarouselPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus: false,
 				onSubmit: async (answers) => handleSubmit(answers, part)
 			});
@@ -4982,14 +4968,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Render the active carousel in the input part (above the input box, not while editing)
 		const isEditing = !!this.viewModel?.editing;
-		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
+		const part: ChatQuestionCarouselPart | undefined = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
 			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});
 
 		// If we couldn't render in the input part, fall back to inline rendering
 		if (!part) {
-			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
+			const fallbackPart: ChatQuestionCarouselPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus,
 				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
 			});
