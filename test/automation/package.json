@@ -11,9 +11,10 @@
   "scripts": {
     "compile": "npm run copy-driver-definition && node ../../node_modules/typescript/bin/tsc6",
     "benchmark:story": "npm run compile && node out/benchmark/storyCli.js",
+    "benchmark:story-pack": "node --experimental-strip-types tools/build-story-pack.mts",
     "benchmark:empty-workbench": "npm run compile && node out/benchmark/emptyWorkbenchColdStartCli.js",
     "benchmark:window-resize": "npm run compile && node out/benchmark/windowResizeCli.js",
-    "test": "npm run compile && node --test out/benchmark/benchmarkStory.test.js",
+    "test": "npm run compile && node --test out/benchmark/benchmarkStory.test.js out/benchmark/storyPack.test.js",
     "watch": "npm-run-all2 -lp watch-driver-definition watch-tsc",
     "watch-tsc": "node ../../node_modules/typescript/bin/tsc6 --watch --preserveWatchOutput",
     "copy-driver-definition": "node tools/copy-driver-definition.js",

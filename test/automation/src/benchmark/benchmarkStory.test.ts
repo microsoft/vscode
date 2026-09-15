@@ -307,7 +307,7 @@ function createFakeCode(
 		shutdown: overrides.shutdown ?? (async () => ({ status: 'clean', exitCode: 0, signal: null })),
 		driver: {
 			waitForElement: async () => clock.advance(),
-			getElectronProcessVersions: async () => ({ electron: '46.0.0', chrome: '146.0.0', node: '24.0.0', v8: '14.6' }),
+			getElectronProcessVersions: async () => ({ appName: 'Code - OSS', appVersion: '1.2.3', electron: '46.0.0', chrome: '146.0.0', node: '24.0.0', v8: '14.6' }),
 			setElectronWindowBounds: overrides.setElectronWindowBounds ?? (async () => clock.advance()),
 			getElectronWindowBounds: overrides.getElectronWindowBounds ?? (async () => ({ x: 80, y: 80, width: 1200, height: 800 })),
 			settleRendererAnimationFrames: overrides.settleRendererAnimationFrames ?? (async () => clock.advance()),

@@ -100,7 +100,7 @@ export interface BenchmarkStoryResult {
 export interface BenchmarkStoryCode {
 	readonly driver: {
 		waitForElement(selector: string, options?: { timeout?: number }): Promise<void>;
-		getElectronProcessVersions(): Promise<{ electron?: string; chrome?: string; node?: string; v8?: string } | undefined>;
+		getElectronProcessVersions(): Promise<{ appName?: string; appVersion?: string; electron?: string; chrome?: string; node?: string; v8?: string } | undefined>;
 		setElectronWindowBounds(bounds: ElectronWindowBounds): Promise<void>;
 		getElectronWindowBounds(): Promise<ElectronWindowBounds>;
 		settleRendererAnimationFrames(count: number): Promise<void>;
@@ -315,7 +315,10 @@ export async function runBenchmarkStory(
 		await recordPhase('workbenchRestored', () => code!.whenWorkbenchRestored());
 		const versions = await waitFor(code.driver.getElectronProcessVersions(), 'Electron metadata');
 		let metadata: BenchmarkStoryResult['metadata'] = {
-			app: appMetadata,
+			app: {
+				name: versions?.appName ?? appMetadata?.name,
+				version: versions?.appVersion ?? appMetadata?.version
+			},
 			electron: versions?.electron,
 			chromium: versions?.chrome,
 			node: versions?.node,

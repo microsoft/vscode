@@ -105,12 +105,14 @@ export class PlaywrightDriver {
 		return this._currentPage;
 	}
 
-	async getElectronProcessVersions(): Promise<{ electron?: string; chrome?: string; node?: string; v8?: string } | undefined> {
+	async getElectronProcessVersions(): Promise<{ appName?: string; appVersion?: string; electron?: string; chrome?: string; node?: string; v8?: string } | undefined> {
 		if (!('windows' in this.application)) {
 			return undefined;
 		}
 
-		return (this.application as playwright.ElectronApplication).evaluate(() => ({
+		return (this.application as playwright.ElectronApplication).evaluate(({ app }) => ({
+			appName: app.getName(),
+			appVersion: app.getVersion(),
 			electron: process.versions.electron,
 			chrome: process.versions.chrome,
 			node: process.versions.node,

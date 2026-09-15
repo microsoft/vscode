@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": 1,
+  "pack": {
+    "id": "vscode-electron",
+    "version": "1.0.0"
+  },
+  "runner": {
+    "argv": [
+      "node",
+      "runner.js"
+    ]
+  },
+  "stories": [
+    {
+      "name": "vscode.empty-workbench.cold-start",
+      "description": "Launch a fresh isolated empty VS Code workbench and wait for the restored lifecycle and restored workbench contributions.",
+      "defaultTimeoutMs": 120000,
+      "requiredPhases": [
+        "electronLaunch",
+        "firstWindow",
+        "didFinishLoad",
+        "monacoWorkbench",
+        "workbenchRestored",
+        "shutdown"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "capabilities": [
+        "appExecutable",
+        "isolatedProfile",
+        "cleanShutdown",
+        "node>=24",
+        "electronStartupTracing",
+        "v8Flags"
+      ],
+      "recommendedProbes": [
+        "perfetto:electron-startup",
+        "trace_processor:electron_startup"
+      ]
+    },
+    {
+      "name": "vscode.window-resize",
+      "description": "Launch a restored isolated empty VS Code workbench and execute a fixed sequence of BrowserWindow resize operations.",
+      "defaultTimeoutMs": 120000,
+      "requiredPhases": [
+        "electronLaunch",
+        "firstWindow",
+        "didFinishLoad",
+        "monacoWorkbench",
+        "workbenchRestored",
+        "resizeWarmup",
+        "resizeMeasure",
+        "shutdown"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "capabilities": [
+        "appExecutable",
+        "isolatedProfile",
+        "cleanShutdown",
+        "node>=24",
+        "browserWindowResize",
+        "electronStartupTracing"
+      ],
+      "recommendedProbes": [
+        "perfetto:electron-startup",
+        "trace_processor:electron_startup"
+      ],
+      "traceInterval": {
+        "startMark": "vscode.window-resize.measure.start",
+        "endMark": "vscode.window-resize.measure.end"
+      }
+    }
+  ]
+}

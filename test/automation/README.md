@@ -67,3 +67,45 @@ Every result includes a top-level `shutdown` object:
 The status is one of `clean`, `timeout`, `forced`, `crash`, or `error`. A valid successful result always has `shutdown.status: "clean"`; forced, timed-out, or failed cleanup changes the overall result to failure. Launch/readiness timeout is bounded by `timeoutMs`; cleanup has a separate 20-second bound so an expired measurement deadline cannot prevent process-tree cleanup.
 
 The story-specific compatibility entry points remain available at `out\benchmark\emptyWorkbenchColdStartCli.js` and `out\benchmark\windowResizeCli.js`; both delegate to the generic CLI.
+
+## Standalone Story Pack
+
+Build a distributable story pack without committing generated output:
+
+```powershell
+npm --prefix test\automation run benchmark:story-pack
+```
+
+The default output is `.build\vscode-benchmark-story-pack`. Pass `-- --out <absolute-directory>` to choose another location. The generated layout is:
+
+```text
+manifest.json
+runner.js
+runner.js.map
+package.json
+package-lock.json
+node_modules/
+```
+
+`manifest.json` is generated from `test\automation\story-pack\manifest.json` and declares pack `vscode-electron@1.0.0`, protocol v1, the two story descriptors, ordered phases, Windows support, recommended probe hints, and resize trace marks. Crossbench or another language-neutral consumer executes the `runner.argv` array and appends `--request`, `--result`, and `--log`.
+
+The pack requires Node.js 24 or newer on `PATH`. Its Playwright and supporting runtime dependencies are pinned and installed inside the pack. After generation, the pack can be copied outside the checkout and does not require VS Code sources, `out\main.js`, or repository `node_modules`.
+
+Standalone runs should pass `appExecutable` for an already-built VS Code or Code OSS executable:
+
+```json
+{
+	"schemaVersion": 1,
+	"story": "vscode.empty-workbench.cold-start",
+	"runId": "packaged-run-1",
+	"appExecutable": "C:\\Program Files\\Microsoft VS Code\\Code.exe",
+	"userDataDir": "C:\\benchmark\\profile",
+	"extensionsDir": "C:\\benchmark\\extensions",
+	"artifactsDir": "C:\\benchmark\\artifacts",
+	"timeoutMs": 120000,
+	"env": {},
+	"launchArgs": []
+}
+```
+
+The target application must contain and deliberately enable VS Code's gated smoke-test automation driver when launched with `--enable-smoke-test-driver`. The driver remains disabled during normal application launches. A production or downstream build that removes the driver cannot be benchmarked by this pack; the pack is intentionally distributed separately as a CI benchmark artifact rather than shipped in the application.
