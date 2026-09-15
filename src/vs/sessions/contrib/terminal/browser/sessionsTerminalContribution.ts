@@ -682,8 +682,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				mostRecent = instance;
 			}
 		}
-		if (mostRecent) {
-			this._terminalService.setActiveInstance(mostRecent);
+		let targetInstance = mostRecent;
+		if (!targetInstance && (toShow.length > 0 || toHide.length > 0)) {
+			targetInstance = foreground.find(instance =>
+				!this._standaloneTerminalIds.has(instance.instanceId) &&
+				(trackedTerminalIds.has(instance.instanceId) || forceForegroundTerminalIds.includes(instance.instanceId))
+			) ?? foreground.find(instance => !this._standaloneTerminalIds.has(instance.instanceId));
+		}
+		if (targetInstance) {
+			this._terminalService.setActiveInstance(targetInstance);
 		}
 	}
 

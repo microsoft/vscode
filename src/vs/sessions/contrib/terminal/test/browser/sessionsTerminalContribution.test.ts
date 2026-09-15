@@ -1873,6 +1873,29 @@ suite('SessionsTerminalContribution', () => {
 		assert.ok(backgroundedInstances.has(2), 'session 2 terminal should be backgrounded when session 1 is active');
 	});
 
+	test('updates active terminal when switching between sessions with existing terminals without command history', async () => {
+		const cwdA = URI.file('/session-a');
+		const cwdB = URI.file('/session-b');
+		const sessionA = makeAgentSession({ sessionId: 'test:session-a', worktree: cwdA, providerType: AgentSessionProviders.Background });
+		const sessionB = makeAgentSession({ sessionId: 'test:session-b', worktree: cwdB, providerType: AgentSessionProviders.Background });
+
+		activeSessionObs.set(sessionA, undefined);
+		await tick();
+		assert.strictEqual(activeInstanceSet.at(-1), 1, 'terminal 1 should be active for session A');
+
+		activeSessionObs.set(sessionB, undefined);
+		await tick();
+		assert.strictEqual(activeInstanceSet.at(-1), 2, 'terminal 2 should be active for session B');
+
+		activeSessionObs.set(sessionA, undefined);
+		await tick();
+		assert.strictEqual(activeInstanceSet.at(-1), 1, 'terminal 1 should become active when switching back to session A');
+
+		activeSessionObs.set(sessionB, undefined);
+		await tick();
+		assert.strictEqual(activeInstanceSet.at(-1), 2, 'terminal 2 should become active when switching back to session B');
+	});
+
 	// --- Most-recent-command active terminal selection ---
 
 	test('sets the terminal with the most recent command as active after visibility update', async () => {
