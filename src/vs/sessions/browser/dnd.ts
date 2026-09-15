@@ -5,6 +5,7 @@
 
 import { URI } from '../../base/common/uri.js';
 import { stringHash } from '../../base/common/hash.js';
+import { hasKey } from '../../base/common/types.js';
 import { DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
 
 /**
@@ -28,6 +29,39 @@ export class DraggedSessionIdentifier {
 		readonly sessionId: string,
 		readonly resource: URI,
 	) { }
+}
+
+/** Serializable session identity carried by {@link SessionsDataTransfers.SESSION}. */
+export interface IDraggedSession {
+	readonly sessionId: string;
+	readonly resource: string;
+}
+
+type SessionDragDataCandidate = {
+	readonly sessionId: unknown;
+	readonly resource: unknown;
+} | {
+	readonly sessionId?: never;
+	readonly resource?: never;
+};
+
+/** Reads a session identity from a drop event. */
+export function getSessionDragData(e: DragEvent): IDraggedSession | undefined {
+	const raw = e.dataTransfer?.getData(SessionsDataTransfers.SESSION);
+	if (!raw) {
+		return undefined;
+	}
+
+	try {
+		const parsed: SessionDragDataCandidate | null = JSON.parse(raw);
+		if (typeof parsed === 'object' && parsed !== null && hasKey(parsed, { sessionId: true, resource: true })
+			&& typeof parsed.sessionId === 'string' && typeof parsed.resource === 'string') {
+			return { sessionId: parsed.sessionId, resource: parsed.resource };
+		}
+	} catch {
+		// Ignore malformed drag payloads.
+	}
+	return undefined;
 }
 
 /**

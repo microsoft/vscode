@@ -55,6 +55,15 @@ export class ProjectBoardState extends Disposable {
 		});
 	}
 
+	setAutoIncludeSessions(enabled: boolean): void {
+		this.mutate(configuration => {
+			if (typeof enabled !== 'boolean') {
+				throw new Error(localize('projectBoard.invalidAutoIncludeSessions', "The auto-include sessions option is invalid."));
+			}
+			return { ...configuration, autoIncludeSessions: enabled };
+		});
+	}
+
 	reset(): void {
 		try {
 			this.save(defaultConfiguration());
@@ -65,19 +74,24 @@ export class ProjectBoardState extends Disposable {
 	}
 
 	moveCard(cardId: string, placement: IProjectBoardPlacement | undefined): void {
+		this.moveCards([cardId], placement);
+	}
+
+	moveCards(cardIds: readonly string[], placement: IProjectBoardPlacement | undefined): void {
 		this.mutate(configuration => {
-			if (!isIdentifier(cardId)) {
+			if (!cardIds.length || cardIds.some(cardId => !isIdentifier(cardId))) {
 				throw new Error(localize('projectBoard.invalidCardId', "A card must have a nonempty ID."));
 			}
 			if (placement) {
 				this.axis(configuration, 'row', placement.rowId);
 				this.axis(configuration, 'column', placement.columnId);
 			}
+			const movedCardIds = new Set(cardIds);
 			return {
 				...configuration,
 				placements: [
-					...configuration.placements.filter(candidate => candidate.cardId !== cardId),
-					...(placement ? [{ cardId, rowId: placement.rowId, columnId: placement.columnId }] : []),
+					...configuration.placements.filter(candidate => !movedCardIds.has(candidate.cardId)),
+					...(placement ? [...movedCardIds].map(cardId => ({ cardId, rowId: placement.rowId, columnId: placement.columnId })) : []),
 				],
 			};
 		});
@@ -220,6 +234,7 @@ function defaultConfiguration(): IProjectBoardConfiguration {
 			{ id: 'p3', label: localize('projectBoard.p3', "P3") },
 		],
 		placements: [],
+		autoIncludeSessions: true,
 	};
 }
 
@@ -229,6 +244,7 @@ function freezeConfiguration(configuration: IProjectBoardConfiguration): IProjec
 		rows: Object.freeze(configuration.rows.map(axis => Object.freeze({ ...axis }))),
 		columns: Object.freeze(configuration.columns.map(axis => Object.freeze({ ...axis }))),
 		placements: Object.freeze(configuration.placements.map(placement => Object.freeze({ ...placement }))),
+		autoIncludeSessions: configuration.autoIncludeSessions,
 		...(configuration.display ? { display: Object.freeze({ ...configuration.display }) } : {}),
 	});
 }
@@ -245,8 +261,11 @@ function hasKeys(value: unknown, keys: readonly string[], optionalKeys: readonly
 
 function parseConfiguration(raw: string): IProjectBoardConfiguration {
 	const value: unknown = JSON.parse(raw);
-	if ((!hasKeys(value, ['version', 'rows', 'columns', 'placements']) && !hasKeys(value, ['version', 'rows', 'columns', 'placements', 'display'])) || value.version !== 1) {
+	if (!hasKeys(value, ['version', 'rows', 'columns', 'placements'], ['autoIncludeSessions', 'display']) || value.version !== 1) {
 		throw new Error(localize('projectBoard.invalidVersion', "The saved board format or version is not supported."));
+	}
+	if (Object.hasOwn(value, 'autoIncludeSessions') && typeof value.autoIncludeSessions !== 'boolean') {
+		throw new Error(localize('projectBoard.invalidSavedAutoIncludeSessions', "The saved auto-include sessions option is invalid."));
 	}
 	let display: IProjectBoardDisplayOptions | undefined;
 	if (Object.hasOwn(value, 'display')) {
@@ -292,5 +311,12 @@ function parseConfiguration(raw: string): IProjectBoardConfiguration {
 		cardIds.add(placement.cardId);
 		placements.push({ cardId: placement.cardId, rowId: placement.rowId, columnId: placement.columnId });
 	}
-	return { version: 1, rows: value.rows, columns: value.columns, placements, ...(display ? { display } : {}) };
+	return {
+		version: 1,
+		rows: value.rows,
+		columns: value.columns,
+		placements,
+		autoIncludeSessions: value.autoIncludeSessions !== false,
+		...(display ? { display } : {}),
+	};
 }

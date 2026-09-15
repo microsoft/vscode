@@ -55,6 +55,7 @@ export class ProjectBoardModel {
 	private frozenOrder: Map<string, number> | undefined;
 	private _rows = projectBoardRows;
 	private _columns = projectBoardColumns;
+	private autoIncludeSessions = true;
 
 	get rows(): readonly IProjectBoardAxis[] { return this._rows; }
 	get columns(): readonly IProjectBoardAxis[] { return this._columns; }
@@ -63,6 +64,7 @@ export class ProjectBoardModel {
 	updateConfiguration(configuration: IProjectBoardConfiguration): void {
 		this._rows = configuration.rows;
 		this._columns = configuration.columns;
+		this.autoIncludeSessions = configuration.autoIncludeSessions;
 		this.placements.clear();
 		for (const placement of configuration.placements) {
 			this.placements.set(placement.cardId, { rowId: placement.rowId, columnId: placement.columnId });
@@ -174,6 +176,9 @@ export class ProjectBoardModel {
 	}
 
 	getUnassignedCards(showArchived = false): readonly IProjectBoardCard[] {
+		if (!this.autoIncludeSessions) {
+			return [];
+		}
 		return this.sortCards(this._cards.filter(card => (showArchived || !card.archived) && !this.placements.has(card.id)));
 	}
 
