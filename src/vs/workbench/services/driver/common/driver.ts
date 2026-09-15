@@ -33,6 +33,7 @@ export interface ILogFile {
 }
 
 export interface IWindowDriver {
+	focusWindow(windowId: number): Promise<void>;
 	setValue(selector: string, text: string): Promise<void>;
 	isActiveElement(selector: string): Promise<boolean>;
 	getElements(selector: string, recursive: boolean): Promise<IElement[]>;
