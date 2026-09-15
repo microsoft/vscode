@@ -434,7 +434,6 @@ export class SessionsChatBackgroundReplica extends Disposable {
 		this.viewport.appendChild(this.element);
 		this.container.prepend(this.viewport);
 		this._register(toDisposable(() => this.viewport.remove()));
-		this.layout();
 
 		this.renderer = this._register(new SessionsChatBackgroundRenderer(this.element));
 
@@ -449,10 +448,15 @@ export class SessionsChatBackgroundReplica extends Disposable {
 
 	setBackground(background: ISessionsChatBackground | undefined): void {
 		this.viewport.hidden = !background;
+		this.layout();
 		this.renderer.setBackground(background);
 	}
 
 	layout(): void {
+		if (this.viewport.hidden) {
+			return;
+		}
+
 		const sourceBounds = this.source.getBoundingClientRect();
 		const containerBounds = this.container.getBoundingClientRect();
 		this.element.style.left = `${sourceBounds.left - containerBounds.left}px`;

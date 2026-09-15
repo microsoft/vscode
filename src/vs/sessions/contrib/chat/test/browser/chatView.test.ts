@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -36,6 +37,8 @@ import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	test('forwards workspace acknowledgement only from a new-session widget', () => {
 		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
@@ -1445,6 +1448,56 @@ suite('Sessions - Chat View', () => {
 				topLeft: 'block',
 				sticky: 'block',
 			},
+		});
+	});
+
+	test('does not measure a hidden background replica', () => {
+		const { store, stickyContainer, source } = createBackgroundReplicaHost({ kind: 'codicons' });
+		const sourceBounds = sinon.spy(source, 'getBoundingClientRect');
+		const stickyBounds = sinon.spy(stickyContainer, 'getBoundingClientRect');
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+
+		replica.layout();
+		replica.setBackground(undefined);
+		replica.layout();
+
+		assert.deepStrictEqual({ source: sourceBounds.callCount, sticky: stickyBounds.callCount }, { source: 0, sticky: 0 });
+	});
+
+	test('realigns a background replica before rendering after hidden resizes', () => {
+		const background = { kind: 'codicons' } as const;
+		const { store, part, stickyContainer, source, sourceRenderer } = createBackgroundReplicaHost(background);
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(background);
+		replica.setBackground(undefined);
+
+		part.style.width = '720px';
+		part.style.height = '480px';
+		stickyContainer.style.left = '60px';
+		stickyContainer.style.top = '30px';
+		replica.layout();
+		const sourceBounds = sinon.spy(source, 'getBoundingClientRect');
+		const stickyBounds = sinon.spy(stickyContainer, 'getBoundingClientRect');
+		sourceRenderer.setBackground(background);
+		replica.setBackground(background);
+		const { viewport, replica: replicaElement } = getBackgroundReplicaElements(stickyContainer);
+
+		assert.deepStrictEqual({
+			measurements: { source: sourceBounds.callCount, sticky: stickyBounds.callCount },
+			hidden: viewport?.hidden,
+			left: replicaElement?.style.left,
+			top: replicaElement?.style.top,
+			width: replicaElement?.style.width,
+			height: replicaElement?.style.height,
+			iconCountMatches: source.querySelectorAll('.codicon').length === replicaElement?.querySelectorAll('.codicon').length,
+		}, {
+			measurements: { source: 1, sticky: 1 },
+			hidden: false,
+			left: '-60px',
+			top: '-30px',
+			width: '720px',
+			height: '480px',
+			iconCountMatches: true,
 		});
 	});
 
