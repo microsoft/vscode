@@ -116,27 +116,11 @@ jobs:
         shell: pwsh
         run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
 
-      - name: Download Electron
+      - name: Setup Electron
         if: ${{ inputs.electron_tests || inputs.remote_tests }}
-        shell: pwsh
-        run: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-
-          for ($i = 1; $i -le 3; $i++) {
-            try {
-              exec { npm run electron -- ${{ env.VSCODE_ARCH }} }
-              break
-            }
-            catch {
-              if ($i -eq 3) {
-                Write-Error "Download failed after 3 attempts"
-                throw
-              }
-              Write-Host "Download failed attempt $i, retrying..."
-              Start-Sleep -Seconds 2
-            }
-          }
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

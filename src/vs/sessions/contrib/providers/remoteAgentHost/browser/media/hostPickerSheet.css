@@ -241,13 +241,28 @@
 
 .host-picker-sheet-empty {
 	display: flex;
-	flex-direction: column;
 	align-items: center;
-	gap: 4px;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
 	padding: 16px;
 	color: var(--vscode-descriptionForeground);
 	font-size: 13px;
 	text-align: center;
+}
+
+.host-picker-sheet-diagnostics {
+	width: 44px;
+	height: 44px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.host-picker-sheet-diagnostics:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.host-picker-sheet-diagnostics:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 /* --- Footer (always-visible re-discover action) ---------------------- */

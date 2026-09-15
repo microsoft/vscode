@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ITunnelAgentHostService, type ICachedTunnel, type ITunnelInfo, type TunnelAutoConnectMode } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostService, type ICachedTunnel, type ITunnelInfo, type ITunnelVisibility, type TunnelAutoConnectMode } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -104,6 +104,10 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._delegate.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._delegate.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

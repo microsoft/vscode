@@ -504,6 +504,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
 				submenuFilterPlaceholder: unifiedRemoteItem?.submenuOptions?.filterPlaceholder,
 				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
+				openSubmenuOnClick: unifiedRemoteItem?.openSubmenuOnClick,
 			},
 			unifiedSubmenu: unifiedRemoteActions instanceof SubmenuAction
 				? unifiedRemoteActions.actions.map(action => ({
@@ -527,6 +528,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuFilter: true,
 				submenuFilterPlaceholder: 'Search Remote',
 				submenuWidth: 180,
+				openSubmenuOnClick: true,
 			},
 			unifiedSubmenu: [
 				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },

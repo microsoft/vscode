@@ -415,14 +415,15 @@ suite('ModernUIContribution', () => {
 
 	test('supports isolated notification and dialog presentation', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench modern-ui modern-ui-notifications-dialogs nostatusbar';
+		root.className = 'monaco-workbench modern-ui modern-ui-notifications-dialogs';
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-spacing-size60', '6px');
 		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-spacing-size360', '36px');
 		root.style.setProperty('--vscode-cornerRadius-large', '8px');
 		root.style.setProperty('--modern-ui-notifications-inline-inset', '12px');
-		root.style.setProperty('--modern-ui-notifications-block-end-inset', '20px');
 		root.style.setProperty('--modern-ui-notifications-block-start-inset', '24px');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
@@ -439,6 +440,8 @@ suite('ModernUIContribution', () => {
 		const toast = appendElement(toastContainer, 'notification-toast');
 		const toastList = appendElement(toast, 'notifications-list-container');
 		const toastRow = appendElement(toastList, 'monaco-list-row');
+		const lastToastContainer = appendElement(notificationsToasts, 'notification-toast-container');
+		const lastToast = appendElement(lastToastContainer, 'notification-toast');
 		const dialog = appendElement(root, 'monaco-dialog-box');
 
 		const targetWindow = getWindow(root);
@@ -450,6 +453,7 @@ suite('ModernUIContribution', () => {
 		const topNotificationsToastsStyle = targetWindow.getComputedStyle(topNotificationsToasts);
 		const toastStyle = targetWindow.getComputedStyle(toast);
 		const toastRowStyle = targetWindow.getComputedStyle(toastRow);
+		const lastToastStyle = targetWindow.getComputedStyle(lastToast);
 		const dialogStyle = targetWindow.getComputedStyle(dialog);
 
 		assert.deepStrictEqual({
@@ -464,21 +468,25 @@ suite('ModernUIContribution', () => {
 			notificationsToastsRadius: notificationsToastsStyle.borderRadius,
 			topNotificationsToastsTop: topNotificationsToastsStyle.top,
 			toastRadius: toastStyle.borderRadius,
+			toastMarginBottom: toastStyle.marginBottom,
+			lastToastMarginBottom: lastToastStyle.marginBottom,
 			toastRowRadius: toastRowStyle.borderRadius,
 			dialogPadding: dialogStyle.padding,
 			dialogMinWidth: dialogStyle.minWidth,
 		}, {
 			notificationPadding: '6px 2px',
 			notificationsCenterRight: '12px',
-			notificationsCenterBottom: '20px',
+			notificationsCenterBottom: '36px',
 			notificationsCenterRadius: '8px',
 			centerRowRadius: '0px 0px 8px 8px',
 			topNotificationsCenterTop: '24px',
 			notificationsToastsRight: '8px',
-			notificationsToastsBottom: '16px',
+			notificationsToastsBottom: '32px',
 			notificationsToastsRadius: '8px',
 			topNotificationsToastsTop: '20px',
 			toastRadius: '8px',
+			toastMarginBottom: '0px',
+			lastToastMarginBottom: '4px',
 			toastRowRadius: '8px',
 			dialogPadding: '4px',
 			dialogMinWidth: '440px',

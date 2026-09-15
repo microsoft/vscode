@@ -34,7 +34,7 @@ export function runEsbuildTranspile(outDir: string, excludeTests: boolean): Prom
 	});
 }
 
-export function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target: 'desktop' | 'server' | 'server-web' = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
+export function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target: 'desktop' | 'server' | 'server-web' | 'web' = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const scriptPath = path.join(root, 'build/next/index.ts');
 		const args = [scriptPath, 'bundle', '--out', outDir, '--target', target];
