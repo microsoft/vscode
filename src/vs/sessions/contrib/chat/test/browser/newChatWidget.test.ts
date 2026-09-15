@@ -142,6 +142,7 @@ const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype,
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const configureComparison = Reflect.get(NewChatWidget.prototype, '_configureComparison') as (this: IConfigureComparisonHarness) => Promise<void>;
 const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession) => string | undefined;
+const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_shouldShowComparisonAction') as (this: IComparisonActionVisibilityHarness) => boolean;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -254,6 +255,11 @@ interface IGetComparisonBranchHarness {
 			getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 		} | undefined;
 	};
+}
+
+interface IComparisonActionVisibilityHarness extends IGetComparisonBranchHarness {
+	readonly _compareAgentsEnabled: IObservable<boolean>;
+	_getComparisonBranch(session?: ISession): string | undefined;
 }
 
 interface IRenderSessionTypePickerHarness {
@@ -1355,6 +1361,39 @@ suite('NewChatWidget', () => {
 		}));
 
 		assert.strictEqual(workspacePickerOpened, 1);
+	});
+
+	test('hides comparison action when selected folder has no git repository', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_session: constObservable(session),
+			_workspacePicker: { selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
 	test('uses the workspace branch while Agent Host creation config is unresolved', () => {

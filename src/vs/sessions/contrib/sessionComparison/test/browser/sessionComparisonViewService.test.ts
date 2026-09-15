@@ -11,11 +11,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionComparisonViewService } from '../../browser/sessionComparisonViewService.js';
 
-suite('Session comparison chat grid', () => {
+suite('Session comparison navigation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup() {
@@ -25,9 +26,11 @@ suite('Session comparison chat grid', () => {
 			SessionComparisonParticipantRole.Judge,
 			SessionComparisonParticipantRole.Synthesis,
 		];
+		const statuses = roles.map((role, index) => observableValue(`${role}-${index}-status`, SessionStatus.Completed));
 		const sessions = roles.map((role, index) => upcastPartial<IActiveSession>({
 			sessionId: `${role}-${index}`,
 			resource: URI.parse(`test:///${role}-${index}`),
+			status: statuses[index],
 		}));
 		const comparison: ISessionComparison = {
 			id: 'comparison',
@@ -44,7 +47,8 @@ suite('Session comparison chat grid', () => {
 			})),
 		};
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
-		const opened: string[][] = [];
+		const openedSessions: string[] = [];
+		const openedGrids: string[][] = [];
 		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
@@ -57,8 +61,11 @@ suite('Session comparison chat grid', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override async openSession(resource: URI): Promise<void> {
+				openedSessions.push(sessions.find(session => session.resource.toString() === resource.toString())!.sessionId);
+			}
 			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<void> {
-				opened.push(targets.map(session => session.sessionId));
+				openedGrids.push(targets.map(session => session.sessionId));
 			}
 		}());
 		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
@@ -67,22 +74,19 @@ suite('Session comparison chat grid', () => {
 			}
 		}());
 		const service = instantiationService.createInstance(SessionComparisonViewService);
-		return { service, comparisons, opened, hiddenParts };
+		return { service, comparisons, statuses, openedSessions, openedGrids, hiddenParts };
 	}
 
-	test('opens Judge, synthesis, and attempts in display order', async () => {
+	test('opens the Judge when it is available and synthesis is not running', async () => {
 		const fixture = setup();
 		await fixture.service.open('comparison');
 		assert.deepStrictEqual({
-			opened: fixture.opened,
+			openedSessions: fixture.openedSessions,
+			openedGrids: fixture.openedGrids,
 			hiddenParts: fixture.hiddenParts,
 		}, {
-			opened: [[
-				'judge-2',
-				'synthesis-3',
-				'attempt-0',
-				'attempt-1',
-			]],
+			openedSessions: ['judge-2'],
+			openedGrids: [],
 			hiddenParts: [
 				{ hidden: true, part: Parts.EDITOR_PART },
 				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
@@ -90,26 +94,39 @@ suite('Session comparison chat grid', () => {
 		});
 	});
 
-	test('skips participants without an available session', async () => {
+	test('opens a running synthesis ahead of the Judge', async () => {
+		const fixture = setup();
+		fixture.statuses[3].set(SessionStatus.InProgress, undefined);
+		await fixture.service.open('comparison');
+		assert.deepStrictEqual({
+			openedSessions: fixture.openedSessions,
+			openedGrids: fixture.openedGrids,
+		}, {
+			openedSessions: ['synthesis-3'],
+			openedGrids: [],
+		});
+	});
+
+	test('opens available attempts in the grid before the Judge exists', async () => {
 		const fixture = setup();
 		fixture.comparisons.set([{
 			...fixture.comparisons.get()[0],
-			participants: fixture.comparisons.get()[0].participants.map((participant, index) => index === 1 ? {
-				...participant,
-				sessionResource: undefined,
-				launchError: 'Failed to start',
-			} : participant),
+			participants: fixture.comparisons.get()[0].participants
+				.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt)
+				.map((participant, index) => index === 1 ? {
+					...participant,
+					sessionResource: undefined,
+					launchError: 'Failed to start',
+				} : participant),
 		}], undefined);
 		await fixture.service.open('comparison');
 		assert.deepStrictEqual({
-			opened: fixture.opened,
+			openedSessions: fixture.openedSessions,
+			openedGrids: fixture.openedGrids,
 			hiddenParts: fixture.hiddenParts,
 		}, {
-			opened: [[
-				'judge-2',
-				'synthesis-3',
-				'attempt-0',
-			]],
+			openedSessions: [],
+			openedGrids: [['attempt-0']],
 			hiddenParts: [
 				{ hidden: true, part: Parts.EDITOR_PART },
 				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
@@ -127,6 +144,14 @@ suite('Session comparison chat grid', () => {
 			})),
 		}], undefined);
 		await assert.rejects(() => fixture.service.open('comparison'), /No comparison sessions are available/);
-		assert.deepStrictEqual({ opened: fixture.opened, hiddenParts: fixture.hiddenParts }, { opened: [], hiddenParts: [] });
+		assert.deepStrictEqual({
+			openedSessions: fixture.openedSessions,
+			openedGrids: fixture.openedGrids,
+			hiddenParts: fixture.hiddenParts,
+		}, {
+			openedSessions: [],
+			openedGrids: [],
+			hiddenParts: [],
+		});
 	});
 });

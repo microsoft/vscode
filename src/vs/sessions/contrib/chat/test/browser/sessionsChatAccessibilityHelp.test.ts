@@ -119,12 +119,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			disabled: disabledContent.includes('activate Execute Parallel Agents'),
 			enabled: enabledProvider.provideContent().includes('activate Execute Parallel Agents'),
 			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
-			judgeFocus: enabledProvider.provideContent().includes('Focusing the Judge pane closes the other comparison panes'),
+			latestStep: enabledProvider.provideContent().includes('follow the latest available step'),
 		}, {
 			disabled: false,
 			enabled: true,
 			effort: true,
-			judgeFocus: true,
+			latestStep: true,
 		});
 	});
 });

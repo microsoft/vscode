@@ -286,11 +286,7 @@ export class NewChatWidget extends Disposable {
 					label: localize('runMultipleAgents.label', "Execute Parallel Agents..."),
 					description: comparisonDescription,
 					icon: Codicon.layers,
-					isVisible: () => {
-						const session = this._session.get();
-						const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
-						return this._compareAgentsEnabled.get() && provider !== undefined && isAgentHostProvider(provider);
-					},
+					isVisible: () => this._shouldShowComparisonAction(),
 					run: () => void this._configureComparison(),
 				},
 			},
@@ -931,6 +927,10 @@ export class NewChatWidget extends Disposable {
 		}
 		const workspace = session.workspace.get() ?? this._workspacePicker.selectedResolved?.workspace;
 		return workspace?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
+	}
+
+	private _shouldShowComparisonAction(): boolean {
+		return this._compareAgentsEnabled.get() && this._getComparisonBranch() !== undefined;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
