@@ -94,7 +94,7 @@ export class CustomViewNode extends Disposable {
 		scrollContent.appendChild(this._contentEl);
 
 		this._scrollable = this._register(new DomScrollableElement(scrollContent, {
-			horizontal: ScrollbarVisibility.Hidden,
+			horizontal: descriptor.horizontalScrolling ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}));
