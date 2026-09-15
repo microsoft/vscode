@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { localize2 } from '../../../../../nls.js';
+import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
+import { IEditorPartOptions } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
@@ -17,10 +23,41 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../sessi
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
+// eslint-disable-next-line local/code-import-patterns
+import { Menus } from '../../../../../sessions/browser/menus.js';
+// eslint-disable-next-line local/code-import-patterns
+import { CLOSE_CHAT_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+
+const closeChatAction = {
+	id: CLOSE_CHAT_COMMAND_ID,
+	title: localize2('sessions.fixture.closeChat', "Close Chat"),
+	icon: Codicon.close,
+};
+
+class ChatTabFixtureMenuService extends mock<IMenuService>() {
+
+	constructor(
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		super();
+	}
+
+	override createMenu(id: typeof Menus.SessionChatTab): IMenu {
+		const actions = id === Menus.SessionChatTab
+			? [new MenuItemAction(closeChatAction, undefined, undefined, undefined, undefined, this.contextKeyService, this.commandService)]
+			: [];
+		return {
+			onDidChange: Event.None,
+			dispose: () => { },
+			getActions: () => actions.length ? [['navigation', actions]] : [],
+		};
+	}
+}
 
 // ============================================================================
 // Mock helpers
@@ -79,13 +116,16 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 // Render helper
 // ============================================================================
 
-function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, startEditing = false, sessionTitle = 'Session'): void {
+function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, startEditing = false, sessionTitle = 'Session', partOptions: Partial<IEditorPartOptions> = {}, showTabAction = false, focusAction = false): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
+			if (showTabAction) {
+				reg.define(IMenuService, ChatTabFixtureMenuService);
+			}
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override async renameChat() { }
 				override async deleteChat() { }
@@ -98,19 +138,29 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 			}());
 			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 				override readonly onDidChangeEditorPartOptions = Event.None;
-				override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
+				override readonly partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, ...partOptions };
 			}());
 		},
 	});
 
 	container.style.width = '360px';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
-	container.classList.add('chat-groups-view', 'single-group');
+	container.classList.add('modern-ui-tabs');
+	const groupContainer = document.createElement('div');
+	groupContainer.classList.add('session-view', 'modern-ui-editor-tab-group', 'modern-ui-editor-tab-group-active');
+	const chatGroupContainer = document.createElement('div');
+	chatGroupContainer.classList.add('chat-groups-view', 'single-group');
+	groupContainer.appendChild(chatGroupContainer);
+	container.appendChild(groupContainer);
 
 	const session = createMockSession(chats, activeChat, sessionTitle);
 	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar, undefined));
 	bar.setGroup(createMockDelegate(session, chats, activeChat));
-	container.appendChild(bar.element);
+	chatGroupContainer.appendChild(bar.element);
+
+	if (focusAction) {
+		ctx.focus(bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label')!);
+	}
 
 	if (startEditing) {
 		// Reveal the inline rename input on the active (non-main) tab by
@@ -118,6 +168,12 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 		const tabs = bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab');
 		tabs[tabs.length - 1]?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 	}
+}
+
+function renderTabActionSettings(ctx: ComponentFixtureContext, tabActionLocation: IEditorPartOptions['tabActionLocation'], tabActionReserveSpace: boolean): void {
+	const main = createMockChat({ title: 'Main chat' });
+	const second = createMockChat({ title: 'Investigate notebook integration test' });
+	renderBar(ctx, [main, second], second, false, 'Session', { tabActionLocation, tabActionReserveSpace }, true, !tabActionReserveSpace);
 }
 
 // ============================================================================
@@ -132,6 +188,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			const second = createMockChat({ title: 'Fix login bug' });
 			renderBar(ctx, [main, second], second);
 		},
+	}),
+
+	TabActionsRightReserved: defineComponentFixture({
+		render: ctx => renderTabActionSettings(ctx, 'right', true),
+		expectedVisualDescriptions: ['The close action appears on the right in a persistent reserved column.'],
+	}),
+
+	TabActionsRightOverlay: defineComponentFixture({
+		render: ctx => renderTabActionSettings(ctx, 'right', false),
+		expectedVisualDescriptions: ['The focused close action overlays the right edge without reserving label space.'],
+	}),
+
+	TabActionsLeftReserved: defineComponentFixture({
+		render: ctx => renderTabActionSettings(ctx, 'left', true),
+		expectedVisualDescriptions: ['The close action appears on the left in a persistent reserved column.'],
+	}),
+
+	TabActionsLeftOverlay: defineComponentFixture({
+		render: ctx => renderTabActionSettings(ctx, 'left', false),
+		expectedVisualDescriptions: ['The focused close action overlays the left edge without reserving label space.'],
 	}),
 
 	MixedStatuses: defineComponentFixture({

@@ -149,9 +149,13 @@ export class ChatCompositeBar extends Disposable {
 		super();
 
 		this._container = $('.chat-composite-bar.session-chat-tabs-bar');
-		const updateCompactHeight = () => this._container.classList.toggle('compact-height', this._editorGroupsService.partOptions.tabHeight === 'compact');
-		updateCompactHeight();
-		this._register(this._editorGroupsService.onDidChangeEditorPartOptions(updateCompactHeight));
+		const updateEditorTabOptions = () => {
+			const options = this._editorGroupsService.partOptions;
+			this._container.classList.toggle('compact-height', options.tabHeight === 'compact');
+			this._container.classList.toggle('tab-actions-left', options.tabActionLocation === 'left');
+			this._container.classList.toggle('tab-actions-reserve-space', options.tabActionReserveSpace);
+		};
+		updateEditorTabOptions();
 
 		// Tabs row — only shown when the group has multiple chats or is split out.
 		this._tabsRow = $('.chat-composite-bar-tabs-row');
@@ -207,6 +211,11 @@ export class ChatCompositeBar extends Disposable {
 			this._revealActiveTab();
 		}));
 		this._register(resizeObserver.observe(this._tabsContainer));
+		this._register(this._editorGroupsService.onDidChangeEditorPartOptions(() => {
+			updateEditorTabOptions();
+			this._updateScrollDimensions();
+			this._revealActiveTab();
+		}));
 
 		// Report actual height changes without forcing measurement on every layout.
 		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', entries => {
@@ -389,6 +398,13 @@ export class ChatCompositeBar extends Disposable {
 				toolbarOptions: { primaryGroup: () => true },
 			}));
 			tabToolbar.context = { session, chat };
+			const updateHasTabActions = () => tab.classList.toggle('has-tab-actions', (tabToolbar?.getItemsLength() ?? 0) > 0);
+			updateHasTabActions();
+			this._tabDisposables.add(tabToolbar.onDidChangeMenuItems(() => {
+				updateHasTabActions();
+				this._updateScrollDimensions();
+				this._revealActiveTab();
+			}));
 		}
 
 		this._tabsContainer.appendChild(tab);
