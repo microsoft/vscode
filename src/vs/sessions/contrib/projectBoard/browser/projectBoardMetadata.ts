@@ -8,13 +8,14 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { equals } from '../../../../base/common/objects.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { IChatModel, IChatRequestModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 
 export const projectBoardMetadataLimits = Object.freeze({
@@ -30,6 +31,8 @@ export interface IProjectBoardContext {
 	readonly label: string;
 	readonly uri: URI;
 }
+
+export type IProjectBoardInputConfiguration = Pick<IChatModelInputState, 'selectedModel' | 'modelConfiguration' | 'mode' | 'permissionLevel'>;
 
 /** Preserves unknown usage instead of treating an unsupported provider as zero cost. */
 function getProjectBoardCredits(model: IChatModel, reader?: IReader): number | undefined {
@@ -114,6 +117,13 @@ export class ProjectBoardMetadata extends Disposable {
 	readonly credits: IObservable<number | undefined> = this._credits;
 	private readonly _creditsError = observableValue<string | undefined>(this, undefined);
 	readonly creditsError: IObservable<string | undefined> = this._creditsError;
+	private readonly includeConfiguration = observableValue(this, false);
+	private readonly _configuration = observableValue<IProjectBoardInputConfiguration | undefined>(this, undefined);
+	readonly configuration: IObservable<IProjectBoardInputConfiguration | undefined> = this._configuration;
+
+	setIncludeConfiguration(enabled: boolean): void {
+		this.includeConfiguration.set(enabled, undefined);
+	}
 
 	setIncludeCredits(enabled: boolean): void {
 		this.includeCredits.set(enabled, undefined);
@@ -156,6 +166,7 @@ export class ProjectBoardMetadata extends Disposable {
 	private _observe(model: IChatModel): void {
 		const changed = observableSignalFromEvent(this, model.onDidChange);
 		this._modelStore.add(model.onDidDispose(() => {
+			this._configuration.set(undefined, undefined);
 			this._credits.set(undefined, undefined);
 			this._unavailable(localize('projectBoard.metadata.modelDisposed', "Last submitted prompt unavailable because the conversation was closed."));
 			this._modelStore.dispose();
@@ -191,6 +202,16 @@ export class ProjectBoardMetadata extends Disposable {
 					this._logService.error('[ProjectBoardMetadata] Could not read AI credits', error);
 					this._creditsError.set(message, undefined);
 				}
+			}
+		}));
+		this._modelStore.add(autorun(reader => {
+			const input = this.includeConfiguration.read(reader) ? model.inputModel.state.read(reader) : undefined;
+			const configuration = input ? {
+				selectedModel: input.selectedModel, modelConfiguration: input.modelConfiguration,
+				mode: input.mode, permissionLevel: input.permissionLevel,
+			} : undefined;
+			if (!equals(this._configuration.read(undefined), configuration)) {
+				this._configuration.set(configuration, undefined);
 			}
 		}));
 	}
