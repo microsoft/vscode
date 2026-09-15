@@ -677,6 +677,7 @@ async function forceAuthenticationInteractively(
 	throwIfAuthenticationStale(options);
 	const scopes = resource.scopes_supported ?? [];
 	const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
+		telemetrySource: 'agentHost',
 		forceSignInDialog: true,
 		additionalScopes: scopes,
 		dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
