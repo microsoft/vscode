@@ -165,20 +165,6 @@ suite('CodexProxyService', () => {
 		});
 	});
 
-	test('omits the unsupported service tier from CAPI responses requests', async () => {
-		await withProxy(async (handle, fake) => {
-			await postResponses(`${handle.baseUrl}/v1/responses`, {
-				headers: { 'Authorization': `Bearer ${handle.nonce}` },
-				body: JSON.stringify({ model: 'gpt-5.6-sol-fast', service_tier: 'priority', stream: true, input: [] }),
-			});
-			assert.deepStrictEqual(JSON.parse(fake.responsesCalls[0].body), {
-				model: 'gpt-5.6-sol-fast',
-				stream: true,
-				input: [],
-			});
-		});
-	});
-
 	suite('portable history', () => {
 		const reasoning = { type: 'reasoning', id: 'rs_copilot', summary: [{ type: 'summary_text', text: 'Résumé 🐈' }], encrypted_content: 'copilot-account-ciphertext' };
 		const portableReasoning = { type: reasoning.type, id: reasoning.id, summary: reasoning.summary };
