@@ -23,6 +23,7 @@ import {
 	isTunnelNotFoundError,
 	type ICachedTunnel,
 	type ITunnelInfo,
+	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -364,6 +365,10 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

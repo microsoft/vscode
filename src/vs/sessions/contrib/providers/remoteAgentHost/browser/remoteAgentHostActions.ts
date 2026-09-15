@@ -45,6 +45,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { runServerUpgrade } from './remoteHostOptions.js';
+import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
@@ -849,6 +850,7 @@ async function promptToConnectViaTunnel(
 	options: { showBackButton?: boolean } = {},
 ): Promise<'back' | void> {
 	const tunnelService = accessor.get(ITunnelAgentHostService);
+	const diagnosticsService = accessor.get(IConnectionDiagnosticsService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const notificationService = accessor.get(INotificationService);
 	const authenticationService = accessor.get(IAuthenticationService);
@@ -920,7 +922,7 @@ async function promptToConnectViaTunnel(
 	tunnelPicker.show();
 
 	try {
-		tunnels = await tunnelService.listTunnels();
+		tunnels = await diagnosticsService.trackDiscovery('interactive', () => tunnelService.listTunnels());
 	} catch (err) {
 		store.dispose();
 		notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
@@ -1000,7 +1002,7 @@ async function promptToConnectViaTunnel(
 				tunnels = tunnels.filter(tunnel => tunnel.tunnelId !== event.item.tunnel.tunnelId);
 				updateTunnelPickerItems();
 				try {
-					tunnels = await tunnelService.listTunnels();
+					tunnels = await diagnosticsService.trackDiscovery('afterDelete', () => tunnelService.listTunnels());
 				} catch (err) {
 					notificationService.error(localize('tunnelRefreshAfterDeleteFailed', "Deleted dev tunnel '{0}', but failed to refresh dev tunnels: {1}", event.item.tunnel.name, err instanceof Error ? err.message : String(err)));
 					return;
