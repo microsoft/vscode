@@ -29,7 +29,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ISessionComparisonAttemptConfiguration, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionComparisonSetupContext, ISessionComparisonSetupResult, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
+import { ISessionComparisonSetupContext, ISessionComparisonSetupResult, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -227,6 +227,9 @@ interface IConfigureComparisonHarness {
 		value: IDisposable | undefined;
 		clear(): void;
 	};
+	readonly _onDidChangeComparisonWorkspace: {
+		readonly event: Event<ISessionComparisonWorkspaceChange>;
+	};
 	readonly sessionsManagementService: {
 		getSessionTypesForFolder(workspace: URI): readonly {
 			readonly providerId: string;
@@ -249,6 +252,7 @@ interface IConfigureComparisonHarness {
 	};
 	_getComparisonBranch(session: ISession | undefined): string | undefined;
 	_getComparisonBranches(session: ISession, selectedBranch: string): Promise<readonly string[]>;
+	_getComparisonWorkspace(preferredBranch?: string): Promise<ISessionComparisonWorkspaceChange | undefined>;
 }
 
 interface IGetComparisonBranchHarness {
@@ -1368,6 +1372,7 @@ suite('NewChatWidget', () => {
 			},
 			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'agent' })),
 			_comparisonBranch: { get: () => undefined, set: () => { } },
+			_getComparisonWorkspace: async () => undefined,
 			_getComparisonBranch: () => undefined,
 		}));
 
@@ -1473,6 +1478,7 @@ suite('NewChatWidget', () => {
 			_comparisonJudgeHarness: judgeHarness,
 			_comparisonBranch: comparisonBranch,
 			_comparisonSetupDialog: dialogSlot,
+			_onDidChangeComparisonWorkspace: { event: Event.None },
 			sessionsManagementService: {
 				getSessionTypesForFolder: () => [{
 					providerId: harnessSelection.providerId,
@@ -1495,6 +1501,12 @@ suite('NewChatWidget', () => {
 			},
 			_getComparisonBranch: () => 'main',
 			_getComparisonBranches: async () => ['main', 'feature/comparison'],
+			_getComparisonWorkspace: async preferredBranch => ({
+				workspace,
+				branch: preferredBranch ?? 'main',
+				branches: ['main', 'feature/comparison'],
+				defaultHarness: harnessSelection,
+			}),
 		});
 
 		assert.deepStrictEqual({
@@ -1569,6 +1581,7 @@ suite('NewChatWidget', () => {
 			_comparisonJudgeHarness: judgeHarness,
 			_comparisonBranch: comparisonBranch,
 			_comparisonSetupDialog: dialogSlot,
+			_onDidChangeComparisonWorkspace: { event: Event.None },
 			sessionsManagementService: { getSessionTypesForFolder: () => [] },
 			instantiationService: {
 				createInstance: () => ({
@@ -1582,6 +1595,12 @@ suite('NewChatWidget', () => {
 			},
 			_getComparisonBranch: () => 'main',
 			_getComparisonBranches: async (_session, selectedBranch) => [selectedBranch, 'feature/first', 'feature/second'],
+			_getComparisonWorkspace: async preferredBranch => ({
+				workspace,
+				branch: preferredBranch ?? 'main',
+				branches: [preferredBranch ?? 'main', 'feature/first', 'feature/second'],
+				defaultHarness: undefined,
+			}),
 		};
 
 		await configureComparison.call(harness);

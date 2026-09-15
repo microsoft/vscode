@@ -118,7 +118,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Execute Parallel Agents'),
 			enabled: enabledProvider.provideContent().includes('activate Execute Parallel Agents'),
-			branch: enabledProvider.provideContent().includes('Choose the base branch'),
+			workspaceAndBranch: enabledProvider.provideContent().includes('Choose the workspace and base branch'),
 			permissions: enabledProvider.provideContent().includes('provider-specific Permissions selection'),
 			bulkPermissions: enabledProvider.provideContent().includes('Allow all permissions for every participant'),
 			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
@@ -126,7 +126,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, {
 			disabled: false,
 			enabled: true,
-			branch: true,
+			workspaceAndBranch: true,
 			permissions: true,
 			bulkPermissions: true,
 			effort: true,

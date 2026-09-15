@@ -85,11 +85,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.session-comparison-setup-context-value {
-	color: var(--vscode-foreground);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
 .session-comparison-setup-bulk-permissions {
 	display: grid;
 	grid-template-columns: auto 1fr;
@@ -111,6 +106,47 @@
 .session-comparison-setup-branch-picker-slot {
 	display: inline-flex;
 	min-width: 0;
+}
+
+.session-comparison-setup-context-summary .sessions-chat-workspace-picker {
+	display: inline-flex;
+	min-width: 0;
+}
+
+.session-comparison-setup-context-summary .sessions-chat-workspace-picker .action-label {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.session-comparison-setup-context-summary .sessions-chat-workspace-picker .action-label:hover,
+.session-comparison-setup-context-summary .sessions-chat-workspace-picker .action-label[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-comparison-setup-context-summary .sessions-chat-workspace-picker .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.session-comparison-setup-context-summary .sessions-chat-workspace-picker .sessions-chat-dropdown-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-setup-context-summary .sessions-chat-workspace-picker .codicon {
+	flex: 0 0 auto;
 }
 
 .session-comparison-setup-branch-picker-trigger {

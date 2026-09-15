@@ -14,8 +14,8 @@ import { Button, IButton } from '../../../../base/browser/ui/button/button.js';
 import { TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -39,19 +39,27 @@ import { BranchPicker } from './branchPicker.js';
 
 export interface ISessionComparisonSetupContext {
 	readonly workspace: URI;
-	readonly workspaceLabel: string;
 	readonly branch: string;
 	readonly branches: readonly string[];
+	readonly renderWorkspacePicker: (container: HTMLElement) => IDisposable;
+	readonly onDidChangeWorkspace: Event<ISessionComparisonWorkspaceChange>;
 	readonly attachedContextCount: number;
 	readonly prompt: string;
 	readonly setPrompt: (prompt: string) => void;
+}
+
+export interface ISessionComparisonWorkspaceChange {
+	readonly workspace: URI;
+	readonly branch: string | undefined;
+	readonly branches: readonly string[];
+	readonly defaultHarness: ISessionComparisonHarness | undefined;
 }
 
 export interface ISessionComparisonSetupResult {
 	readonly confirmed: boolean;
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
 	readonly judgeHarness: ISessionComparisonHarness;
-	readonly branch: string;
+	readonly branch: string | undefined;
 }
 
 function harnessKey(providerId: string, sessionTypeId: string): string {
@@ -269,26 +277,28 @@ export class SessionComparisonSetupDialog extends Disposable {
 		let confirmButton: IButton | undefined;
 		let validationElement: HTMLElement | undefined;
 		let prompt = context.prompt;
-		let branch = context.branch;
+		let workspace = context.workspace;
+		let branch: string | undefined = context.branch;
+		let branches = context.branches;
 		let judgeHarness = initialJudgeHarness;
 		let evaluationExpanded = false;
 		let renderedEvaluation: HTMLDetailsElement | undefined;
 
-		const getHarnesses = (): readonly ISessionComparisonHarness[] => this.sessionsManagementService.getSessionTypesForFolder(context.workspace)
+		const getHarnesses = (): readonly ISessionComparisonHarness[] => this.sessionsManagementService.getSessionTypesForFolder(workspace)
 			.filter(({ sessionType }) => sessionType.supportsWorktreeConfiguration)
 			.map(({ providerId, sessionType }) => ({
 				providerId,
 				sessionTypeId: sessionType.id,
 				label: sessionType.label,
 			}));
-		const getHarnessIcon = (harness: ISessionComparisonHarness) => this.sessionsManagementService.getSessionTypesForFolder(context.workspace)
+		const getHarnessIcon = (harness: ISessionComparisonHarness) => this.sessionsManagementService.getSessionTypesForFolder(workspace)
 			.find(({ providerId, sessionType }) =>
 				providerId === harness.providerId && sessionType.id === harness.sessionTypeId)?.sessionType.icon ?? Codicon.terminal;
 
 		const updateValidation = (): void => {
 			const count = attempts.length;
 			const hasPrompt = prompt.trim().length > 0;
-			const hasWorktreeBase = context.branch !== undefined;
+			const hasWorktreeBase = branch !== undefined;
 			const hasHarnesses = getHarnesses().length > 0;
 			if (confirmButton) {
 				confirmButton.enabled = count >= 2 && hasPrompt && hasWorktreeBase && hasHarnesses;
@@ -337,7 +347,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			}));
 			const contextSummary = dom.append(content, dom.$('.session-comparison-setup-context-summary'));
 			dom.append(contextSummary, dom.$('span')).textContent = localize('sessionComparisonSetup.startingFrom', "Starting from");
-			dom.append(contextSummary, dom.$('span.session-comparison-setup-context-value')).textContent = context.workspaceLabel;
+			rowsDisposables.add(context.renderWorkspacePicker(contextSummary));
 			const separator = dom.append(contextSummary, dom.$('span.session-comparison-setup-context-separator'));
 			separator.setAttribute('aria-hidden', 'true');
 			separator.textContent = '·';
@@ -354,13 +364,13 @@ export class SessionComparisonSetupDialog extends Disposable {
 				},
 			}));
 			const updateBranchPicker = (): void => {
-				const branches = context.branches.includes(branch) ? context.branches : [branch, ...context.branches];
+				const availableBranches = branch && !branches.includes(branch) ? [branch, ...branches] : branches;
 				branchPicker.update({
-					label: branch,
-					branches: branches.map(candidate => ({ name: candidate, selected: candidate === branch })),
-					status: branches.length > 0 ? 'ready' : 'empty',
-					canOpen: branches.length > 1,
-					showChevron: branches.length > 1,
+					label: branch ?? localize('sessionComparisonSetup.branchUnavailable', "No branch"),
+					branches: availableBranches.map(candidate => ({ name: candidate, selected: candidate === branch })),
+					status: availableBranches.length > 0 ? 'ready' : 'empty',
+					canOpen: availableBranches.length > 1,
+					showChevron: availableBranches.length > 1,
 				});
 			};
 			branchPicker.render(contextSummary);
@@ -510,7 +520,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 						status(unavailablePermissionMessage);
 					}
 				}
-				const models = provider?.getModelsSnapshotForCreation?.(context.workspace, harness.sessionTypeId).models ?? [];
+				const models = provider?.getModelsSnapshotForCreation?.(workspace, harness.sessionTypeId).models ?? [];
 				if (harness.modelId && !models.some(model => model.identifier === harness.modelId)) {
 					harness = { ...harness, modelId: undefined, modelLabel: undefined, modelConfiguration: undefined };
 					onChange(harness);
@@ -818,6 +828,22 @@ export class SessionComparisonSetupDialog extends Disposable {
 			validationElement.setAttribute('aria-live', 'polite');
 			updateValidation();
 		};
+
+		disposables.add(context.onDidChangeWorkspace(change => {
+			workspace = change.workspace;
+			branch = change.branch;
+			branches = change.branches;
+			if (change.defaultHarness) {
+				attempts = [
+					{ id: generateUuid(), harness: change.defaultHarness },
+					{ id: generateUuid(), harness: change.defaultHarness },
+				];
+				judgeHarness = change.defaultHarness;
+			} else {
+				attempts = [];
+			}
+			renderRows();
+		}));
 
 		try {
 			const dialog = disposables.add(new Dialog(

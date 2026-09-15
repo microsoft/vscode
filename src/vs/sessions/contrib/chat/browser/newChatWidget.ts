@@ -9,7 +9,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -64,7 +64,7 @@ import { COMPARE_AGENTS_ENABLED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
-import { SessionComparisonSetupDialog } from './sessionComparisonSetupDialog.js';
+import { ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from './sessionComparisonSetupDialog.js';
 
 // #region --- New Chat Widget ---
 
@@ -112,6 +112,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _comparisonJudgeHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
 	private readonly _comparisonBranch = observableValue<string | undefined>(this, undefined);
 	private readonly _comparisonSetupDialog = this._register(new MutableDisposable<SessionComparisonSetupDialog>());
+	private readonly _onDidChangeComparisonWorkspace = this._register(new Emitter<ISessionComparisonWorkspaceChange>());
 
 	/**
 	 * Tracks whether the workspace picker is currently rendered (vs replaced by
@@ -335,6 +336,13 @@ export class NewChatWidget extends Disposable {
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
+			if (this._comparisonSetupDialog.value) {
+				const comparisonWorkspace = await this._getComparisonWorkspace();
+				if (comparisonWorkspace) {
+					this._onDidChangeComparisonWorkspace.fire(comparisonWorkspace);
+				}
+				return;
+			}
 			this._newChatInput.focus();
 		}));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
@@ -946,6 +954,38 @@ export class NewChatWidget extends Disposable {
 		return [...new Set([selectedBranch, ...branches].filter(branch => branch.trim().length > 0))];
 	}
 
+	private _getComparisonDefaultHarness(workspace: URI, session: IActiveSession): ISessionComparisonHarness | undefined {
+		const currentType = this.sessionsManagementService.getSessionTypesForFolder(workspace).find(({ providerId, sessionType }) =>
+			providerId === session.providerId && sessionType.id === session.sessionType);
+		const defaultPermission = currentType
+			? this.sessionsProvidersService.getProvider(currentType.providerId)?.getPermissionOptionsForCreation?.(currentType.sessionType.id).find(option => option.isDefault && !option.locked)
+			: undefined;
+		return currentType ? {
+			providerId: currentType.providerId,
+			sessionTypeId: currentType.sessionType.id,
+			label: currentType.sessionType.label,
+			modelId: this._newChatInput.selectedModelState.get().currentModel?.identifier,
+			modelLabel: this._newChatInput.selectedModelState.get().currentModel?.metadata.name,
+			permissionId: defaultPermission?.id,
+			permissionLabel: defaultPermission?.label,
+		} : undefined;
+	}
+
+	private async _getComparisonWorkspace(preferredBranch?: string): Promise<ISessionComparisonWorkspaceChange | undefined> {
+		const workspace = this._workspacePicker.selectedFolderUri;
+		const session = this._session.get();
+		if (!workspace || !session) {
+			return undefined;
+		}
+		const branch = preferredBranch ?? this._getComparisonBranch(session);
+		return {
+			workspace,
+			branch,
+			branches: branch ? await this._getComparisonBranches(session, branch) : [],
+			defaultHarness: this._getComparisonDefaultHarness(workspace, session),
+		};
+	}
+
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
@@ -960,32 +1000,16 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _configureComparison(): Promise<void> {
-		const workspace = this._workspacePicker.selectedFolderUri;
-		if (!workspace) {
+		const comparisonWorkspace = await this._getComparisonWorkspace(this._comparisonBranch.get());
+		if (!comparisonWorkspace) {
 			this._workspacePicker.showPicker();
 			return;
 		}
-		const session = this._session.get();
-		const branch = this._comparisonBranch.get() ?? (session ? this._getComparisonBranch(session) : undefined);
+		const { workspace, branch, branches, defaultHarness: currentHarness } = comparisonWorkspace;
 		if (!branch) {
 			this._workspacePicker.showPicker();
 			return;
 		}
-		const branches = session ? await this._getComparisonBranches(session, branch) : [branch];
-		const currentType = session && this.sessionsManagementService.getSessionTypesForFolder(workspace).find(({ providerId, sessionType }) =>
-			providerId === session.providerId && sessionType.id === session.sessionType);
-		const defaultPermission = currentType
-			? this.sessionsProvidersService.getProvider(currentType.providerId)?.getPermissionOptionsForCreation?.(currentType.sessionType.id).find(option => option.isDefault && !option.locked)
-			: undefined;
-		const currentHarness = currentType ? {
-			providerId: currentType.providerId,
-			sessionTypeId: currentType.sessionType.id,
-			label: currentType.sessionType.label,
-			modelId: this._newChatInput.selectedModelState.get().currentModel?.identifier,
-			modelLabel: this._newChatInput.selectedModelState.get().currentModel?.metadata.name,
-			permissionId: defaultPermission?.id,
-			permissionLabel: defaultPermission?.label,
-		} : undefined;
 		const retainedAttempts = this._comparisonAttempts.get();
 		const initialAttempts = retainedAttempts.length >= 2
 			? retainedAttempts
@@ -1004,9 +1028,19 @@ export class NewChatWidget extends Disposable {
 		try {
 			const result = await setupDialog.show({
 				workspace,
-				workspaceLabel: this._workspacePicker.selectedResolved?.workspace.label ?? basename(workspace),
 				branch,
 				branches,
+				renderWorkspacePicker: container => this._workspacePicker.renderAdditionalTrigger(container, {
+					label: localize('sessionComparisonSetup.workspace', "Workspace"),
+					ariaLabel: localize('sessionComparisonSetup.workspaceAriaLabel', "Choose the workspace for this comparison"),
+					tooltip: () => this._workspacePicker.selectedResolved?.workspace.label ?? localize('sessionComparisonSetup.workspaceTooltip', "Choose the workspace for this comparison"),
+					icon: Codicon.project,
+					reflectsWorkspace: true,
+					attachesContext: false,
+					contextViewLayer: 1,
+					hideNoWorkspaceOption: true,
+				}),
+				onDidChangeWorkspace: this._onDidChangeComparisonWorkspace.event,
 				attachedContextCount: this._newChatInput.attachments.length,
 				prompt: this._newChatInput.getInputValue(),
 				setPrompt: prompt => this._newChatInput.setInputValue(prompt),
