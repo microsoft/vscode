@@ -5,7 +5,6 @@
 
 import { promises as fsp } from 'fs';
 import { homedir } from 'os';
-import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { tokenizeSSHPathList } from '../common/sshConfigParsing.js';
 
@@ -13,7 +12,8 @@ async function isKnownHostsFile(path: string): Promise<boolean> {
 	try {
 		return (await fsp.stat(path.replace(/^~/, homedir()))).isFile();
 	} catch (error) {
-		if (error instanceof Error && hasKey(error, { code: true }) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+		const code = (error as NodeJS.ErrnoException).code;
+		if (code === 'ENOENT' || code === 'ENOTDIR') {
 			return false;
 		}
 		throw error;
