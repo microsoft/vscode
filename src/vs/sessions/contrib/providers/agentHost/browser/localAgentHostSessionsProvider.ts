@@ -251,6 +251,8 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			}
 		}));
 
+		const reinitializationListeners = this._register(new DisposableStore());
+		this._attachConnectionReinitializationListeners(this._agentHostService, reinitializationListeners);
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
 			connectionListeners.clear();

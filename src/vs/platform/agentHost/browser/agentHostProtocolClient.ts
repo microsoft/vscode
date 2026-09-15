@@ -264,6 +264,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
 	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
 	readonly onDidScheduleReconnect = this._onDidScheduleReconnect.event;
+	private readonly _onWillReinitialize = this._register(new Emitter<void>());
+	readonly onWillReinitialize = this._onWillReinitialize.event;
+	private readonly _onDidReinitialize = this._register(new Emitter<void>());
+	readonly onDidReinitialize = this._onDidReinitialize.event;
 
 	/**
 	 * Discriminated state union. Read via narrowing (`_state.kind === ...`);
@@ -304,6 +308,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * re-snapshotted would keep serving pre-restart state forever.
 	 */
 	private readonly _subscriptionsAwaitingRestore = new Set<string>();
+	private _reinitializePending = false;
 
 	/**
 	 * Set while an authentication-restore pass is in flight, cleared only once
@@ -806,13 +811,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 
-			const subscriptions = this._subscriptionManager.currentSubscriptionUris().map(u => u.toString());
-			// Always include the always-live root state alongside getSubscription-managed entries.
-			if (!subscriptions.includes(ROOT_STATE_URI)) {
-				subscriptions.unshift(ROOT_STATE_URI);
-			}
 			const lastSeenServerSeq = this._serverSeq;
-			const { result, freshInitialize } = await this._reconnectOrInitialize(lastSeenServerSeq, subscriptions);
+			const { result, freshInitialize } = await this._reconnectOrInitialize(lastSeenServerSeq, this._currentReconnectSubscriptions());
 
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
@@ -860,6 +860,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._resetLivenessTimers();
 			this._transitionTo({ kind: AgentHostClientState.Connected });
 			gate.complete();
+			if (this._reinitializePending) {
+				this._reinitializePending = false;
+				this._onDidReinitialize.fire();
+			}
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
 		} catch (err) {
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
@@ -906,19 +910,31 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
+		if (!this._reinitializePending) {
+			this._reinitializePending = true;
+			this._onWillReinitialize.fire();
+		}
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
 			protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
-			initialSubscriptions: subscriptions,
+			initialSubscriptions: this._currentReconnectSubscriptions(),
 		}, { bypassReconnectGate: true });
 		this._applyInitializeResult(initializeResult, false);
 		return {
 			result: { type: ReconnectResultType.Snapshot, snapshots: initializeResult.snapshots ?? [] },
 			freshInitialize: true,
 		};
+	}
+
+	private _currentReconnectSubscriptions(): string[] {
+		const subscriptions = this._subscriptionManager.currentSubscriptionUris().map(uri => uri.toString());
+		if (!subscriptions.includes(ROOT_STATE_URI)) {
+			subscriptions.unshift(ROOT_STATE_URI);
+		}
+		return subscriptions;
 	}
 
 	/**
