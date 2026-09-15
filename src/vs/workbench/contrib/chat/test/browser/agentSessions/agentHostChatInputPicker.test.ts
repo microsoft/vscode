@@ -454,8 +454,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			surface: surface.className, label: mode.label, icon: `codicon codicon-${mode.icon.id}-compact`,
 			fontSize: '12px', width: 12, height: 12,
 			triggerHeight: surface.buttonHeight,
-			labelTransform: 'matrix(1, 0, 0, 1, 0, 1)',
-			permissionTransform: 'matrix(1, 0, 0, 1, 0, 1)',
+			labelTransform: 'none',
+			permissionTransform: 'none',
 			buttonHeights: [surface.buttonHeight, surface.buttonHeight],
 			buttonPadding: ['0px 4px', '0px 4px'],
 			contentInsets: [{ left: 4, right: 4 }, { left: 4, right: 4 }],
@@ -516,7 +516,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				padding: '0px 6px',
 				radius: '4px',
 				icon: { width: 12, height: 12, fontSize: '12px', lineHeight: '12px' },
-				labelTransform: 'matrix(1, 0, 0, 1, 0, 1)',
+				labelTransform: 'none',
 			}))));
 	});
 

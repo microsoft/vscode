@@ -568,6 +568,10 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private showWorkingSpinner(): void {
+		if (this.context.suppressProgressShimmer && !this.context.element.isComplete) {
+			this.removeWorkingSpinner();
+			return;
+		}
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.style.display = '';
 		} else {

@@ -1422,6 +1422,7 @@ export interface IChatMcpAuthenticationRequired {
 	readonly kind: 'mcpAuthenticationRequired';
 	readonly sessionResource: UriComponents;
 	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	/** Set by the producer before publishing the empty server list on completion. */
 	isUsed: boolean;
 }
 

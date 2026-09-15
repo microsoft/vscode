@@ -155,6 +155,7 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
+	isActive?: boolean;
 }
 
 

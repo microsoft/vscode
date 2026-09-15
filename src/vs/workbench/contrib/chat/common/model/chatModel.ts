@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -1019,6 +1019,17 @@ export class Response extends AbstractResponse implements IDisposable {
 			}));
 			this._responseParts.push(progress);
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'mcpAuthenticationRequired') {
+			this._responseParts.push(progress);
+			let initialUpdate = true;
+			registerAutorunSelfDisposable(this._store, reader => {
+				progress.servers.read(reader);
+				this._contentChanged(initialUpdate ? quiet : false);
+				initialUpdate = false;
+				if (progress.isUsed) {
+					reader.dispose();
+				}
+			});
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
 			this._handleExternalToolInvocationUpdate(progress);
 			this._contentChanged(quiet);

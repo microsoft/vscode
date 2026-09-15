@@ -3778,7 +3778,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					surfaced.add(server.id);
 					ownedIds.add(server.id);
 				}
-				part.servers.set(servers.filter(server => ownedIds.has(server.id)), undefined);
+				const remainingServers = servers.filter(server => ownedIds.has(server.id));
+				if (part.servers.read(undefined).length > 0 && remainingServers.length === 0) {
+					part.isUsed = true;
+				}
+				part.servers.set(remainingServers, undefined);
 			});
 		}));
 	}

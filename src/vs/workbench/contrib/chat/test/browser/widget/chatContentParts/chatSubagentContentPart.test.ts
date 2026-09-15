@@ -45,7 +45,7 @@ import { IActionViewItemFactory, IActionViewItemService } from '../../../../../.
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration, ChatProgressAnimation } from '../../../../common/constants.js';
 import { formatCompactSubagentDuration, getSubagentEditorResource, IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition, shouldShowSubagentModel } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 
 class TestOpenChatActionViewItem extends ActionViewItem {
@@ -413,6 +413,22 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	suite('Basic rendering', () => {
+		test('expanded subagents omit their working row when the parent owns progress', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			const snapshots = [false, true].map(suppressProgressShimmer => {
+				const part = createPart(createMockToolInvocation(), { ...createMockRenderContext(), suppressProgressShimmer });
+				getCollapseButton(part)?.click();
+				return {
+					workingRows: part.domNode.querySelectorAll('.chat-thinking-spinner-item').length,
+					hasPrompt: part.domNode.textContent?.includes('Test prompt'),
+				};
+			});
+			assert.deepStrictEqual(snapshots, [
+				{ workingRows: 1, hasPrompt: true },
+				{ workingRows: 0, hasPrompt: true },
+			]);
+		});
+
 		test('should create subagent part with correct classes', () => {
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
@@ -712,6 +728,28 @@ suite('ChatSubagentContentPart', () => {
 				hasWorkingIcon: true,
 				ariaLabel: 'Open Subagent. Subagent is working',
 			});
+		});
+
+		test('persistent progress leaves rich subagent pill activity unchanged', () => {
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session',
+				isActive: true,
+			};
+			const snapshots = [false, true].map(enabled => {
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+				const action = store.add(new Action('openSubagent', 'Open Subagent'));
+				const viewItem = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, false));
+				const container = mainWindow.document.createElement('div');
+				viewItem.render(container);
+				return {
+					spinners: container.querySelectorAll('.monaco-pixel-spinner').length,
+					genericWorkingVisible: !container.querySelector('.chat-subagent-pill-active-tool')?.classList.contains('hidden')
+						&& container.querySelector('.chat-subagent-pill-active-tool-label')?.textContent === 'Working on it...',
+					ariaWorking: container.getAttribute('aria-label')?.includes('Subagent is working'),
+				};
+			});
+			assert.deepStrictEqual(snapshots, [false, true].map(() => ({ spinners: 1, genericWorkingVisible: true, ariaWorking: true })));
 		});
 
 		test('should clear the busy affordances when the background subagent completes', () => {

@@ -17,6 +17,7 @@ import { ChatTreeItem } from '../../chat.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
@@ -48,6 +49,7 @@ import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js'
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
+import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -393,6 +395,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private toolInvocationCount: number = 0;
 	private appendedItemCount: number = 0;
 	private isActive: boolean = true;
+	private workingProgressIcon: ThemeIcon | undefined;
+	private workingProgressLabel: string | undefined;
+	private readonly workingLogo = this._register(new MutableDisposable<ChatWorkingProgressLogo>());
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 	private allThinkingParts: IChatThinkingPart[] = [];
 	private hookCount: number = 0;
@@ -464,7 +469,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	constructor(
 		content: IChatThinkingPart,
-		context: IChatContentPartRenderContext,
+		private readonly context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		private streamingCompleted: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -669,6 +674,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		if (this.streamingCompleted || this.element.isComplete) {
 			return Codicon.checkCompact;
 		}
+		if (this.workingProgressIcon) {
+			return this.workingProgressIcon;
+		}
 		return !this.fixedScrollingMode && expanded ? Codicon.chevronDownCompact : Codicon.circleFilledCompact;
 	}
 
@@ -688,8 +696,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			this.renderMarkdown(this.currentThinkingValue);
 		}
 
-		if (!this.streamingCompleted && !this.element.isComplete) {
-			const spinner = this.createThinkingSpinnerRow(this.getRandomWorkingMessage(WorkingMessageCategory.Thinking));
+		if (!this.streamingCompleted && !this.element.isComplete && (!this.context.suppressProgressShimmer || this.thinkingDisplayMode === ThinkingDisplayMode.Collapsed)) {
+			const spinner = this.createThinkingSpinnerRow(this.workingProgressLabel ?? this.getRandomWorkingMessage(WorkingMessageCategory.Thinking));
 			this.workingSpinnerElement = spinner.row;
 			this.workingSpinnerLabel = spinner.label;
 			this.wrapper.appendChild(spinner.row);
@@ -1341,10 +1349,11 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		});
 
 		const isAttached = this.workingSpinnerElement.parentNode === this.wrapper;
-		if (hasRunningTerminalTool && isAttached) {
+		const hideSpinner = this.context.suppressProgressShimmer ? !this.workingProgressIcon : hasRunningTerminalTool;
+		if (hideSpinner && isAttached) {
 			this.workingSpinnerElement.remove();
 			this._onDidChangeHeight.fire();
-		} else if (!hasRunningTerminalTool && !isAttached && !this.streamingCompleted && !this.element.isComplete) {
+		} else if (!hideSpinner && !isAttached && !this.streamingCompleted && !this.element.isComplete) {
 			this.wrapper.appendChild(this.workingSpinnerElement);
 			this._onDidChangeHeight.fire();
 		}
@@ -1418,6 +1427,41 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	public getIsActive(): boolean {
 		return this.isActive;
+	}
+
+	get hasActiveProgress(): boolean {
+		return this.isActive && !this.streamingCompleted && !this.element.isComplete && !this.isEffectivelyEmpty();
+	}
+
+	setWorkingProgressIcon(icon: ThemeIcon | undefined, workingLabel?: string): void {
+		const label = icon ? workingLabel : undefined;
+		if (this._store.isDisposed || (this.workingProgressIcon?.id === icon?.id && this.workingProgressIcon?.color?.id === icon?.color?.id && this.workingProgressLabel === label)) {
+			return;
+		}
+		this.workingProgressIcon = icon;
+		this.workingProgressLabel = label;
+		this.domNode.classList.toggle('chat-thinking-progress-owner', !!icon);
+		if (this._collapseButton) {
+			this._collapseButton.icon = this.getThinkingIcon(this.isActive, this.isExpanded());
+			this._collapseButton.iconElement.setAttribute('aria-hidden', 'true');
+			this._collapseButton.iconElement.style.removeProperty('-webkit-text-fill-color');
+			if (icon) {
+				if (!this.workingLogo.value) {
+					this.workingLogo.value = this.instantiationService.createInstance(ChatWorkingProgressLogo, 'stable');
+					this.workingLogo.value.domNode.classList.add('chat-working-logo-compact');
+					this._collapseButton.iconElement.appendChild(this.workingLogo.value.domNode);
+				}
+				if (icon.color) {
+					this.workingLogo.value.domNode.style.color = asCssVariable(icon.color.id);
+				}
+			} else {
+				this.workingLogo.clear();
+			}
+		}
+		if (this.workingSpinnerLabel && label) {
+			this.workingSpinnerLabel.textContent = label;
+		}
+		this.updateWorkingSpinnerVisibility();
 	}
 
 	/**
@@ -1957,7 +2001,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (this.workingSpinnerLabel) {
 			const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
 			const category = isTerminalTool ? WorkingMessageCategory.Terminal : WorkingMessageCategory.Tool;
-			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage(category);
+			this.workingSpinnerLabel.textContent = this.workingProgressLabel ?? this.getRandomWorkingMessage(category);
 		}
 
 		// If expanded or has been expanded once, render immediately
@@ -2570,7 +2614,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (this.workingSpinnerLabel) {
 			const isTerminalTool = item.toolInvocationOrMarkdown && (item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && item.toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
 			const category = isTerminalTool ? WorkingMessageCategory.Terminal : WorkingMessageCategory.Tool;
-			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage(category);
+			this.workingSpinnerLabel.textContent = this.workingProgressLabel ?? this.getRandomWorkingMessage(category);
 		}
 
 		// Handle tool items
@@ -2638,7 +2682,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			}
 
 			if (this.workingSpinnerLabel) {
-				this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage(WorkingMessageCategory.Thinking);
+				this.workingSpinnerLabel.textContent = this.workingProgressLabel ?? this.getRandomWorkingMessage(WorkingMessageCategory.Thinking);
 			}
 		}
 		this.updateDropdownClickability();

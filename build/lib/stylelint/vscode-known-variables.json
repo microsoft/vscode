@@ -89,6 +89,8 @@
 		"--vscode-chat-slashCommandForeground",
 		"--vscode-chat-statusBackground",
 		"--vscode-chat-thinkingShimmer",
+		"--vscode-chat-workingProgressInsidersIconForeground",
+		"--vscode-chat-workingProgressStableIconForeground",
 		"--vscode-agentsChatInput-background",
 		"--vscode-agentsChatInput-border",
 		"--vscode-agentsChatInput-focusBorder",

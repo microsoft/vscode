@@ -3,6 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.interactive-session .interactive-response:not(.chat-persistent-progress) .value .chat-thinking-box.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .monaco-button.monaco-icon-button .chat-thinking-title-shimmer,
+.interactive-session .interactive-response:not(.chat-persistent-progress) .value .chat-thinking-box .chat-thinking-spinner-item .chat-thinking-spinner-label,
+.chat-thinking-progress-owner.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .chat-thinking-title-shimmer,
+.chat-thinking-progress-owner.chat-thinking-active:not(.chat-used-context-collapsed) .chat-thinking-spinner-item .chat-thinking-spinner-label {
+	background: linear-gradient(90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: chat-thinking-shimmer 2s linear infinite;
+	will-change: background-position;
+}
+
+.monaco-reduce-motion .chat-thinking-progress-owner.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .chat-thinking-title-shimmer,
+.monaco-reduce-motion .chat-thinking-progress-owner.chat-thinking-active:not(.chat-used-context-collapsed) .chat-thinking-spinner-item .chat-thinking-spinner-label {
+	animation: none;
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	will-change: auto;
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:not(.chat-thinking-progress-owner) .chat-thinking-spinner-item {
+	display: none;
+}
+
+.chat-thinking-progress-owner > .chat-used-context-label .monaco-button > .codicon-vscode {
+	margin-right: var(--vscode-spacing-size60);
+}
+
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
 	position: relative;
@@ -114,40 +148,6 @@
 		.codicon.codicon-circle-filled-compact {
 			display: none;
 		}
-	}
-
-	&.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .monaco-button.monaco-icon-button {
-
-		.chat-thinking-title-shimmer {
-			background: linear-gradient(90deg,
-					var(--vscode-descriptionForeground) 0%,
-					var(--vscode-descriptionForeground) 30%,
-					var(--vscode-chat-thinkingShimmer) 50%,
-					var(--vscode-descriptionForeground) 70%,
-					var(--vscode-descriptionForeground) 100%);
-			background-size: 400% 100%;
-			background-clip: text;
-			-webkit-background-clip: text;
-			-webkit-text-fill-color: transparent;
-			animation: chat-thinking-shimmer 2s linear infinite;
-			will-change: background-position;
-		}
-	}
-
-	/* shimmer animation stuffs */
-	.chat-thinking-spinner-item .chat-thinking-spinner-label {
-		background: linear-gradient(90deg,
-				var(--vscode-descriptionForeground) 0%,
-				var(--vscode-descriptionForeground) 30%,
-				var(--vscode-chat-thinkingShimmer) 50%,
-				var(--vscode-descriptionForeground) 70%,
-				var(--vscode-descriptionForeground) 100%);
-		background-size: 400% 100%;
-		background-clip: text;
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		animation: chat-thinking-shimmer 2s linear infinite;
-		will-change: background-position;
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {

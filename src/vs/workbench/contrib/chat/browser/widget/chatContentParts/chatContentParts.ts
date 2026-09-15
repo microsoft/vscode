@@ -64,6 +64,8 @@ export interface IChatContentPartRenderContext {
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;
 	readonly contentIndex: number;
+	/** Whether the response-level progress indicator owns progress animation for this render. */
+	readonly suppressProgressShimmer?: boolean;
 	readonly editorPool: EditorPool;
 	readonly codeBlockStartIndex: number;
 	readonly treeStartIndex: number;
