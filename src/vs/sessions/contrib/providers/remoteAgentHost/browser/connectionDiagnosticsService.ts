@@ -6,6 +6,7 @@
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
@@ -16,7 +17,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsSection, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from './connectionDiagnostics.js';
+import { ConnectionHostManagementAction, IConnectionDiagnosticsSection, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState } from './connectionDiagnostics.js';
 
 interface IDiscoveryAttempt {
 	readonly id: number;
@@ -59,6 +60,9 @@ function discoveryFailureDescription(error: unknown): string {
 export class ConnectionDiagnosticsService extends Disposable implements IConnectionDiagnosticsService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidChangeHostManagement = this._register(new Emitter<void>());
+	readonly onDidChangeHostManagement = this._onDidChangeHostManagement.event;
+
 	private readonly _startedAt = Date.now();
 	private readonly _activity: IActivity[] = [];
 	private readonly _connectionStates = new Map<string, string>();
@@ -77,7 +81,13 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 	) {
 		super();
 		this._captureConnections();
-		this._register(this._remoteService.onDidChangeConnections(() => this._captureConnections()));
+		this._register(this._remoteService.onDidChangeConnections(() => {
+			this._captureConnections();
+			this._onDidChangeHostManagement.fire();
+		}));
+		this._register(this._filterService.onDidChange(() => this._onDidChangeHostManagement.fire()));
+		this._register(this._filterService.onDidChangeDiscovering(() => this._onDidChangeHostManagement.fire()));
+		this._register(this._tunnelService.onDidChangeTunnels(() => this._onDidChangeHostManagement.fire()));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration(RemoteAgentHostAutoConnectSettingId)) {
 				this._record(localize('diagnostics.settingsChanged', "Remote host connection settings changed."));
@@ -118,8 +128,84 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 
 	recordHostAction(address: string, action: 'connect' | 'disconnect', userInitiated: boolean): void {
 		this._record(action === 'disconnect'
-			? localize('diagnostics.dismissed', "{0}: disconnect requested; removed from cache and dismissed from automatic discovery.", safeAddress(address))
+			? localize('diagnostics.disconnectedByUser', "{0}: disconnect requested by the user; automatic reconnect suppressed.", safeAddress(address))
 			: localize('diagnostics.connectRequested', "{0}: connection requested ({1}).", safeAddress(address), userInitiated ? localize('diagnostics.user', "user") : localize('diagnostics.automatic', "automatic")));
+	}
+
+	getHostManagementState(): IConnectionHostManagementState {
+		const connections = new Map(this._remoteService.connections.map(connection => [normalizeRemoteAgentHostAddress(connection.address), connection]));
+		const visibility = this._tunnelService.getTunnelVisibility();
+		const cached = new Map(this._tunnelService.getCachedTunnels().map(tunnel => [tunnel.tunnelId, tunnel]));
+		const discovered = new Map(this._discoveredTunnels.map(tunnel => [tunnel.tunnelId, tunnel]));
+		const selectableAddresses = new Set<string>();
+		const hosts: IConnectionHostManagementEntry[] = this._filterService.hosts.map(host => {
+			const address = host.address === undefined ? undefined : normalizeRemoteAgentHostAddress(host.address);
+			if (address) {
+				selectableAddresses.add(address);
+			}
+			const connectionStatus = address ? connections.get(address)?.status.kind : undefined;
+			const status = connectionStatus ?? (host.status === 'connected' ? 'connected' : host.status === 'connecting' ? 'connecting' : 'disconnected');
+			const tunnelId = address?.startsWith(TUNNEL_ADDRESS_PREFIX) ? address.slice(TUNNEL_ADDRESS_PREFIX.length) : undefined;
+			return {
+				id: host.id,
+				label: host.label,
+				address,
+				status,
+				selectable: true,
+				selected: this._filterService.selectedHostId === host.id,
+				hidden: false,
+				autoConnectSuppressed: tunnelId !== undefined && visibility.autoConnectSuppressed.includes(tunnelId),
+				connectable: host.connectable,
+			};
+		});
+		for (const tunnelId of visibility.dismissed) {
+			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+			if (selectableAddresses.has(address)) {
+				continue;
+			}
+			hosts.push({
+				id: address,
+				label: cached.get(tunnelId)?.name ?? discovered.get(tunnelId)?.name ?? tunnelId,
+				address,
+				status: connections.get(address)?.status.kind ?? 'disconnected',
+				selectable: false,
+				selected: false,
+				hidden: true,
+				autoConnectSuppressed: visibility.autoConnectSuppressed.includes(tunnelId),
+				connectable: false,
+			});
+		}
+		return { hosts, isDiscovering: this._filterService.isDiscovering };
+	}
+
+	async runHostAction(hostId: string, action: ConnectionHostManagementAction): Promise<void> {
+		const current = this.getHostManagementState().hosts.find(host => host.id === hostId);
+		if (!current) {
+			throw new Error(localize('connectionDiagnostics.hostNoLongerAvailable', "The host is no longer available."));
+		}
+		if (action === 'restore') {
+			if (!current.hidden || !current.address?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+				throw new Error(localize('connectionDiagnostics.hostNotHidden', "The host is not hidden."));
+			}
+			this._tunnelService.clearTunnelDismissal(current.address.slice(TUNNEL_ADDRESS_PREFIX.length));
+			await this._filterService.rediscover();
+			return;
+		}
+		if (!current.selectable || !current.connectable) {
+			throw new Error(localize('connectionDiagnostics.hostNotManageable', "The host does not have manual connection controls."));
+		}
+		if (action === 'disconnect') {
+			this._filterService.disconnect(current.id);
+			return;
+		}
+		if (current.address?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+			this._tunnelService.clearAutoConnectSuppression(current.address.slice(TUNNEL_ADDRESS_PREFIX.length));
+		}
+		this._filterService.reconnect(current.id);
+	}
+
+	rediscover(): Promise<void> {
+		return this._filterService.rediscover();
 	}
 
 	private _record(detail: string): void {
@@ -188,7 +274,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				{ label: localize('diagnostics.address', "Address"), value: safeAddress(address) },
 				{ label: localize('diagnostics.transport', "Connection type"), value: entry?.connection.type ?? (tunnelId !== undefined ? 'tunnel' : localize('diagnostics.unknown', "Unknown")) },
 				{ label: localize('diagnostics.status', "Connection status"), value: connection?.status.kind ?? localize('diagnostics.notObserved', "No connection entry") },
-				{ label: localize('diagnostics.inPicker', "In host picker"), value: yesNo(!!pickerHost) },
+				{ label: localize('diagnostics.selectableLabel', "Selectable"), value: yesNo(!!pickerHost) },
 				{ label: localize('diagnostics.configured', "Configured"), value: yesNo(!!entry) },
 				{ label: localize('diagnostics.cached', "Cached"), value: yesNo(!!cache) },
 				{ label: localize('diagnostics.discovered', "In last successful discovery"), value: yesNo(!!tunnel) },
@@ -226,7 +312,8 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				entries.push({ label: localize('diagnostics.agents', "Advertised agents"), value: root.agents.map(agent => agent.provider).join(', ') });
 			}
 			hostSections.push({
-				title: localize('diagnostics.hostSummary', "{0} - {1}, {2}", name, connection?.status.kind ?? localize('diagnostics.noConnection', "no connection"), pickerHost ? localize('diagnostics.available', "available") : localize('diagnostics.notInPicker', "not in picker")),
+				title: localize('diagnostics.hostSummary', "{0} - {1}, {2}", name, connection?.status.kind ?? localize('diagnostics.noConnection', "no connection"), pickerHost ? localize('diagnostics.selectable', "selectable") : localize('diagnostics.notSelectable', "not selectable")),
+				hostAddress: address,
 				collapsed: true,
 				entries,
 			});

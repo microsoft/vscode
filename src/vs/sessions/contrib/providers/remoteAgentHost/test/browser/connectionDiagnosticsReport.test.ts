@@ -36,7 +36,7 @@ import { IWorkbenchLayoutService } from '../../../../../../workbench/services/la
 import { AccessibilityVerbositySettingId } from '../../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
+import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
 import { ConnectionDiagnosticsContribution } from '../../browser/connectionDiagnostics.contribution.js';
 import { SessionsChatAccessibilityHelp } from '../../../../chat/browser/sessionsChatAccessibilityHelp.js';
@@ -62,14 +62,19 @@ suite('ConnectionDiagnosticsReport', () => {
 	function createReport(writeText: (text: string) => Promise<void>, download: typeof dom.triggerDownload = () => { }) {
 		const container = dom.$('div');
 		let current = snapshot;
+		let rediscoveries = 0;
 		const service = new class extends mock<IConnectionDiagnosticsService>() {
+			override readonly onDidChangeHostManagement = Event.None;
 			override getSnapshot(): IConnectionDiagnosticsSnapshot { return current; }
+			override getHostManagementState() { return { hosts: [], isDiscovering: false }; }
+			override async runHostAction(): Promise<void> { }
+			override async rediscover(): Promise<void> { rediscoveries++; }
 		}();
 		const clipboard = new class extends mock<IClipboardService>() {
 			override writeText = writeText;
 		}();
 		const report = store.add(new ConnectionDiagnosticsReport(container, snapshot, download, service, clipboard));
-		return { container, report, service, clipboard, update: (next: IConnectionDiagnosticsSnapshot) => { current = next; } };
+		return { container, report, service, clipboard, update: (next: IConnectionDiagnosticsSnapshot) => { current = next; }, rediscoveries: () => rediscoveries };
 	}
 
 	function createContribution(service: IConnectionDiagnosticsService, clipboard: IClipboardService, getContainer: () => HTMLElement, verbosity = false): ConnectionDiagnosticsContribution {
@@ -96,7 +101,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		}, { priorityAboveChat: true, context: 'connectionDiagnosticsFocused' });
 	});
 
-	test('renders facts without a summary or buttons, with client details collapsed at the bottom', () => {
+	test('renders facts without a duplicate host list, with client details collapsed at the bottom', () => {
 		const { container } = createReport(async () => { });
 		assert.deepStrictEqual({
 			headings: Array.from(container.querySelectorAll('h2, summary'), element => element.textContent),
@@ -119,7 +124,7 @@ suite('ConnectionDiagnosticsReport', () => {
 
 	test('copy includes collapsed content and uses the displayed snapshot until refreshed', async () => {
 		const copied: string[] = [];
-		const { container, report, update } = createReport(async text => { copied.push(text); });
+		const { container, report, update, rediscoveries } = createReport(async text => { copied.push(text); });
 		const next = { ...snapshot, text: 'Connected' };
 		update(next);
 		const copy = report.copy();
@@ -128,9 +133,68 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.strictEqual(container.querySelector('[role="status"]')?.textContent, 'Diagnostics copied.');
 		container.querySelector('summary')!.click();
 		assert.strictEqual(container.querySelector('details')?.open, true);
-		report.refresh();
+		await report.refresh();
 		await report.copy();
-		assert.deepStrictEqual({ copied, snapshot: report.getSnapshot() }, { copied: [snapshot.text, next.text], snapshot: next });
+		assert.deepStrictEqual({ copied, snapshot: report.getSnapshot(), rediscoveries: rediscoveries() }, { copied: [snapshot.text, next.text], snapshot: next, rediscoveries: 1 });
+	});
+
+	test('renders live actions beside matching diagnostic host sections', () => {
+		const container = dom.$('div');
+		const actions: string[] = [];
+		const hostSnapshot: IConnectionDiagnosticsSnapshot = {
+			capturedAt: snapshot.capturedAt,
+			sections: [{
+				title: 'Work laptop - connected, selectable',
+				hostAddress: 'tunnel:work',
+				collapsed: true,
+				entries: [{ label: 'Connection status', value: 'Connected' }],
+			}],
+			text: 'Work laptop - connected, selectable\nConnection status: Connected',
+		};
+		const service = new class extends mock<IConnectionDiagnosticsService>() {
+			override readonly onDidChangeHostManagement = Event.None;
+			override getSnapshot(): IConnectionDiagnosticsSnapshot { return hostSnapshot; }
+			override getHostManagementState() {
+				return {
+					hosts: [{
+						id: 'work',
+						label: 'Work laptop',
+						address: 'tunnel:work',
+						status: 'connected' as const,
+						selectable: true,
+						selected: true,
+						hidden: false,
+						autoConnectSuppressed: false,
+						connectable: true,
+					}],
+					isDiscovering: false,
+				};
+			}
+			override async runHostAction(hostId: string, action: ConnectionHostManagementAction): Promise<void> {
+				actions.push(`${hostId}:${action}`);
+			}
+			override async rediscover(): Promise<void> { }
+		}();
+		const report = store.add(new ConnectionDiagnosticsReport(
+			container,
+			hostSnapshot,
+			() => { },
+			service,
+			new class extends mock<IClipboardService>() { },
+		));
+		const hostSection = container.querySelector<HTMLElement>('[data-host-address="tunnel:work"]')!;
+		hostSection.querySelector<HTMLElement>('[aria-label="Disconnect Work laptop"]')!.click();
+		assert.deepStrictEqual({
+			actions,
+			actionContainers: hostSection.querySelectorAll('.connection-diagnostics-host-actions').length,
+			standaloneHostLists: container.querySelectorAll('.connection-diagnostics-hosts').length,
+			snapshot: report.getSnapshot().text,
+		}, {
+			actions: ['work:disconnect'],
+			actionContainers: 1,
+			standaloneHostLists: 0,
+			snapshot: hostSnapshot.text,
+		});
 	});
 
 	test('clipboard failure remains visible without modifying the snapshot', async () => {
@@ -147,7 +211,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		});
 	});
 
-	test('download uses UTF-8 text and a safe timestamped filename for the displayed snapshot', () => {
+	test('download uses UTF-8 text and a safe timestamped filename for the displayed snapshot', async () => {
 		const downloads: { name: string; text: string }[] = [];
 		const { report, update } = createReport(async () => { }, (data, name) => {
 			assert.ok(data instanceof Uint8Array);
@@ -156,7 +220,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		const next = { ...snapshot, capturedAt: '2026-09-14T12:01:02.003Z', text: 'Host: caf\u00e9\nDisconnected' };
 		update(next);
 		report.download();
-		report.refresh();
+		await report.refresh();
 		report.download();
 
 		assert.deepStrictEqual(downloads, [
@@ -228,7 +292,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			disabled: 'true',
 			reverseTabWhilePending: true,
 			forwardTabWhilePending: true,
-			controls: ['Copy Diagnostics', 'Download Diagnostics', 'Refresh', 'Close Connection diagnostics'],
+			controls: ['Copy Diagnostics', 'Download Diagnostics', 'Refresh', 'Close Connection information'],
 			titles: 1,
 			footer: 0,
 		});
@@ -238,6 +302,8 @@ suite('ConnectionDiagnosticsReport', () => {
 		const next = { ...snapshot, text: 'Updated complete snapshot' };
 		update(next);
 		container.querySelector<HTMLButtonElement>('button[aria-label="Refresh"]')!.click();
+		await Promise.resolve();
+		await Promise.resolve();
 		container.querySelector<HTMLButtonElement>('button[aria-label="Download Diagnostics"]')!.click();
 		assert.deepStrictEqual({
 			downloaded,
@@ -249,8 +315,8 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual({ disposeCount, overlays: container.childElementCount }, { disposeCount: 1, overlays: 0 });
 	});
 
-	for (const { hidden, hostCount } of [false, true].flatMap(hidden => [0, 1].map(hostCount => ({ hidden, hostCount })))) {
-		test(`mobile picker exposes diagnostics with ${hostCount} hosts, AI hidden: ${hidden}`, () => {
+	for (const hostCount of [0, 1]) {
+		test(`mobile picker does not duplicate connection information with ${hostCount} hosts`, () => {
 			const container = dom.append(mainWindow.document.body, dom.$('div.monaco-workbench'));
 			store.add(toDisposable(() => container.remove()));
 			const trigger = dom.append(container, dom.$('div'));
@@ -286,9 +352,6 @@ suite('ConnectionDiagnosticsReport', () => {
 						return undefined as T;
 					}
 				}(),
-				new class extends mock<IChatEntitlementService>() {
-					override readonly sentiment = { hidden };
-				}(),
 			));
 			widget.open();
 			const diagnostics = container.querySelector<HTMLElement>('.host-picker-sheet-header .host-picker-sheet-diagnostics');
@@ -297,10 +360,9 @@ suite('ConnectionDiagnosticsReport', () => {
 				diagnostics: diagnostics?.getAttribute('aria-label'),
 			}, {
 				empty: hostCount ? undefined : 'No hosts found yet.',
-				diagnostics: hidden ? undefined : 'Show Connection Diagnostics',
+				diagnostics: undefined,
 			});
-			diagnostics?.click();
-			assert.deepStrictEqual(commands, hidden ? [] : [{ id: ShowConnectionDiagnosticsCommandId, pickerOpen: false }]);
+			assert.deepStrictEqual(commands, []);
 		});
 	}
 
@@ -416,7 +478,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual(copied, [snapshot.text, 'New connection state']);
 	});
 
-	test('desktop host filter always exposes diagnostics beside the connection control', () => {
+	test('desktop host filter separates passive status from connection information', () => {
 		const container = dom.append(mainWindow.document.body, dom.$('div.action-item'));
 		store.add(toDisposable(() => container.remove()));
 		const commands: string[] = [];
@@ -448,15 +510,19 @@ suite('ConnectionDiagnosticsReport', () => {
 			}(),
 		));
 		widget.render(container);
+		const connection = container.querySelector<HTMLElement>('.agent-host-filter-connect');
 		const diagnostics = container.querySelector<HTMLElement>('.agent-host-filter-diagnostics');
+		connection?.click();
 		diagnostics?.click();
 		assert.deepStrictEqual({
-			ariaLabel: diagnostics?.getAttribute('aria-label'),
-			besideConnection: diagnostics?.nextElementSibling?.classList.contains('agent-host-filter-connect'),
+			statusAriaHidden: connection?.getAttribute('aria-hidden'),
+			statusRole: connection?.getAttribute('role'),
+			diagnosticsLabel: diagnostics?.getAttribute('aria-label'),
 			commands,
 		}, {
-			ariaLabel: 'Show Connection Diagnostics',
-			besideConnection: true,
+			statusAriaHidden: 'true',
+			statusRole: null,
+			diagnosticsLabel: 'Open Connection Information',
 			commands: [ShowConnectionDiagnosticsCommandId],
 		});
 	});

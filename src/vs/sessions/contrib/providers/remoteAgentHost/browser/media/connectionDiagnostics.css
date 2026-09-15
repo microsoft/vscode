@@ -7,12 +7,26 @@
 	align-items: center;
 }
 
+.connection-diagnostics-overlay.desktop-layout {
+	justify-content: center;
+	padding: var(--vscode-spacing-size240);
+}
+
 .connection-diagnostics-overlay .mobile-picker-sheet {
 	box-sizing: border-box;
 	width: min(100%, 720px);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border));
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	box-shadow: 0 0 var(--vscode-spacing-size240) var(--vscode-widget-shadow);
+}
+
+.connection-diagnostics-overlay.desktop-layout .mobile-picker-sheet {
+	max-height: min(760px, calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size80)));
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.connection-diagnostics-overlay.phone-layout .mobile-picker-sheet {
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
 .connection-diagnostics-overlay .connection-diagnostics {
@@ -43,6 +57,7 @@
 }
 
 .connection-diagnostics-section {
+	position: relative;
 	margin-top: var(--vscode-spacing-size160);
 }
 
@@ -59,6 +74,26 @@
 	padding: var(--vscode-spacing-size120) 0;
 	margin: 0;
 	cursor: pointer;
+}
+
+.connection-diagnostics-host-section summary {
+	padding-right: var(--vscode-spacing-size400);
+}
+
+.connection-diagnostics-host-actions {
+	position: absolute;
+	top: var(--vscode-spacing-size80);
+	right: 0;
+	z-index: 1;
+}
+
+.connection-diagnostics-host-error {
+	display: block;
+	max-width: 240px;
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
 }
 
 .connection-diagnostics-section p,
