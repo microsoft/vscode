@@ -84,8 +84,21 @@ suite('ProjectBoardService', () => {
 			override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
 			override readonly status = observableValue('sessionStatus', SessionStatus.Untitled);
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
+			override readonly capabilities = observableValue('capabilities', { supportsMultipleChats: true, supportsDelete: true });
 		}();
-		const state = { focusCount: 0, ownerFocusCount: 0, openCount: 0, disposeCount: 0, createdCount: 0, sessions: chats.length ? [session] : [], navigationError: undefined as Error | undefined, closedResource: undefined as URI | undefined };
+		const state = {
+			focusCount: 0,
+			ownerFocusCount: 0,
+			openCount: 0,
+			disposeCount: 0,
+			createdCount: 0,
+			sessions: chats.length ? [session] : [] as ISession[],
+			navigationError: undefined as Error | undefined,
+			deletionError: undefined as Error | undefined,
+			closedResource: undefined as URI | undefined,
+			deletedSessions: [] as ISession[],
+			deletedDrafts: [] as string[],
+		};
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
 		const opened: URI[] = [];
@@ -161,6 +174,11 @@ suite('ProjectBoardService', () => {
 				}
 				openedDrafts.push(id);
 			},
+			async deleteDraft(id: string): Promise<boolean> {
+				state.deletedDrafts.push(id);
+				drafts.set(drafts.get().filter(draft => draft.id !== id), undefined);
+				return true;
+			},
 			async open(card: IProjectBoardCard): Promise<void> {
 				if (state.navigationError) {
 					throw state.navigationError;
@@ -197,6 +215,14 @@ suite('ProjectBoardService', () => {
 				override readonly onDidChangeSessions = sessionsChanged.event;
 				override readonly newSession = newSession;
 				override getSessions() { return state.sessions; }
+				override async deleteSession(deleted: ISession): Promise<void> {
+					if (state.deletionError) {
+						throw state.deletionError;
+					}
+					state.deletedSessions.push(deleted);
+					state.sessions = state.sessions.filter(candidate => candidate !== deleted);
+					sessionsChanged.fire({ added: [], removed: [deleted], changed: [] });
+				}
 			}(),
 			instantiationService,
 			new class extends mock<INotificationService>() {
@@ -216,7 +242,8 @@ suite('ProjectBoardService', () => {
 			}(),
 			contextMenu,
 		));
-		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, includeCredits, loadedModels, quickInput, pick,
+		return {
+			service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, includeCredits, loadedModels, quickInput, pick,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -718,6 +745,71 @@ suite('ProjectBoardService', () => {
 		assert.ok(chats.every(chat => !chat.isRead.get()), 'Navigation itself never marks read');
 	});
 
+	test('session card delete action confirms, deletes the backing session, and does not open the card', async () => {
+		const chat = new TestChat('Delete me');
+		const h = createBoard(mainWindow.document, [chat]);
+		h.instantiationService.stub(IDialogService, {
+			confirm: async confirmation => {
+				assert.deepStrictEqual({
+					message: confirmation.message,
+					detail: confirmation.detail,
+					primaryButton: confirmation.primaryButton,
+				}, {
+					message: 'Are you sure you want to delete this session?',
+					detail: 'This action cannot be undone.',
+					primaryButton: 'Delete',
+				});
+				return { confirmed: true };
+			},
+		});
+		await h.service.open();
+		const button = h.container.querySelector<HTMLElement>('[aria-label="Delete Session"]')!;
+		assert.ok(button.classList.contains('codicon-trash'));
+		const actions = button.parentElement!;
+		assert.ok(actions.classList.contains('project-board-card-actions'));
+		button.focus();
+		assert.strictEqual(mainWindow.getComputedStyle(actions).opacity, '1');
+		const deleted = Event.toPromise(h.sessionsChanged.event);
+		button.click();
+		await deleted;
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			deletedSessions: h.state.deletedSessions,
+			opened: h.opened,
+			cardCount: h.container.querySelectorAll('[data-chat-resource]').length,
+		}, {
+			deletedSessions: [h.session],
+			opened: [],
+			cardCount: 0,
+		});
+	});
+
+	test('session card delete action leaves the card in place when cancelled or deletion fails', async () => {
+		const chat = new TestChat('Keep me');
+		const h = createBoard(mainWindow.document, [chat]);
+		let confirmed = false;
+		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed }) });
+		await h.service.open();
+		const button = () => h.container.querySelector<HTMLElement>('[aria-label="Delete Session"]')!;
+		button().click();
+		await Promise.resolve();
+		assert.deepStrictEqual({ deleted: h.state.deletedSessions.length, cards: h.container.querySelectorAll('[data-chat-resource]').length }, { deleted: 0, cards: 1 });
+
+		confirmed = true;
+		h.state.deletionError = new Error('Delete failed');
+		const notification = Event.toPromise(h.errors.event);
+		button().click();
+		assert.strictEqual(await notification, 'The session could not be deleted.');
+		assert.deepStrictEqual({ deleted: h.state.deletedSessions.length, cards: h.container.querySelectorAll('[data-chat-resource]').length }, { deleted: 0, cards: 1 });
+	});
+
+	test('session card delete action is omitted when the backing provider cannot delete the session', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Read only')]);
+		h.session.capabilities.set({ supportsMultipleChats: true, supportsDelete: false }, undefined);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelector('[aria-label="Delete Session"]'), null);
+	});
+
 	test('PB-16 top-right New Session delegates creation without owner navigation', async () => {
 		const { service, container, state, opened } = createBoard(mainWindow.document.implementation.createHTMLDocument());
 		await service.open();
@@ -762,7 +854,7 @@ suite('ProjectBoardService', () => {
 		drafts.set([draft], undefined);
 		await service.open();
 		const card = container.querySelector<HTMLElement>('.project-board-card-draft')!;
-		assert.strictEqual(card.querySelector('button, .monaco-button'), null);
+		assert.ok(card.querySelector('[aria-label="Delete Session Draft"]')?.classList.contains('codicon-trash'));
 		assert.strictEqual(card.querySelector('.project-board-card-status-icon')!.textContent, '\u270F\uFE0F');
 		assert.strictEqual(card.querySelector('.project-board-card-status-label')!.textContent, 'Draft');
 		assert.strictEqual(card.querySelector('.project-board-card-status-running'), null);
@@ -779,6 +871,25 @@ suite('ProjectBoardService', () => {
 		assert.ok(container.querySelector('.project-board-card-status-running'));
 		assert.deepStrictEqual(openedDrafts, ['draft', 'draft', 'draft']);
 		assert.strictEqual(state.ownerFocusCount, 0);
+	});
+
+	test('PB-16 draft delete action confirms and discards the draft without opening it', async () => {
+		const h = createBoard(mainWindow.document);
+		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		h.drafts.set([{ id: 'draft', resource: URI.parse('test-draft:session'), hasContent: true, submitted: false }], undefined);
+		await h.service.open();
+		h.container.querySelector<HTMLElement>('[aria-label="Delete Session Draft"]')!.click();
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			deletedDrafts: h.state.deletedDrafts,
+			openedDrafts: h.openedDrafts,
+			cardCount: h.container.querySelectorAll('.project-board-card-draft').length,
+		}, {
+			deletedDrafts: ['draft'],
+			openedDrafts: [],
+			cardCount: 0,
+		});
 	});
 
 	test('PB-16 draft card activation surfaces navigation failures', async () => {
@@ -989,13 +1100,16 @@ suite('ProjectBoardService', () => {
 		}
 	});
 
-	test('PB-05 cards have no action controls and double-click opens the exact child', async () => {
+	test('PB-05 cards only have their delete action and double-click opens the exact child', async () => {
 		const main = new TestChat('main');
 		const child = new TestChat('child');
 		const { service, container, opened, onOpened, state } = createBoard(mainWindow.document.implementation.createHTMLDocument(), [main, child]);
 		await service.open();
 		const card = [...container.querySelectorAll<HTMLElement>('.project-board-card')].find(element => element.querySelector('h4')?.textContent === 'child')!;
-		assert.strictEqual(container.querySelectorAll('.project-board-card button, .project-board-card select, .project-board-card .monaco-button, .project-board-card-actions').length, 0);
+		assert.deepStrictEqual({
+			deleteActions: container.querySelectorAll('.project-board-card [aria-label="Delete Session"]').length,
+			otherControls: container.querySelectorAll('.project-board-card button, .project-board-card select, .project-board-card .monaco-button:not([aria-label="Delete Session"])').length,
+		}, { deleteActions: 2, otherControls: 0 });
 		card.click();
 		assert.deepStrictEqual(opened, []);
 		assert.strictEqual(child.isRead.get(), false);
@@ -1054,12 +1168,14 @@ suite('ProjectBoardService', () => {
 		const chat = new TestChat('Question');
 		chat.status.set(SessionStatus.NeedsInput, undefined);
 		const { service, container, questionPreview, opened } = createBoard(mainWindow.document.implementation.createHTMLDocument(), [chat]);
-		questionPreview.set({ kind: 'ready', questions: [{
-			id: 'layout', type: 'singleSelect', title: 'Layout', text: 'Choose a layout', description: 'Choose what to build first.',
-			detailedMessage: 'Consider **accessibility**.',
-			options: [{ id: 'list', label: 'List - Dense scan' }, { id: 'grid', label: 'Grid - Visual overview' }],
-			allowFreeformInput: false, allowSkip: false,
-		}], permissions: [], unsupported: [], truncated: false }, undefined);
+		questionPreview.set({
+			kind: 'ready', questions: [{
+				id: 'layout', type: 'singleSelect', title: 'Layout', text: 'Choose a layout', description: 'Choose what to build first.',
+				detailedMessage: 'Consider **accessibility**.',
+				options: [{ id: 'list', label: 'List - Dense scan' }, { id: 'grid', label: 'Grid - Visual overview' }],
+				allowFreeformInput: false, allowSkip: false,
+			}], permissions: [], unsupported: [], truncated: false
+		}, undefined);
 		await service.open();
 		const preview = container.querySelector('.project-board-card-input')!;
 		assert.deepStrictEqual({
@@ -1102,11 +1218,13 @@ suite('ProjectBoardService', () => {
 		const chat = new TestChat('Interactive question');
 		chat.status.set(SessionStatus.NeedsInput, undefined);
 		const h = createBoard(mainWindow.document, [chat]);
-		h.questionPreview.set({ kind: 'ready', questions: [{
-			id: 'layout', type: 'singleSelect', title: 'Layout', text: 'Choose a layout', description: undefined,
-			options: [{ id: 'list', label: 'List' }, { id: 'grid', label: 'Grid' }],
-			allowFreeformInput: true, allowSkip: false,
-		}], permissions: [], unsupported: [], truncated: false }, undefined);
+		h.questionPreview.set({
+			kind: 'ready', questions: [{
+				id: 'layout', type: 'singleSelect', title: 'Layout', text: 'Choose a layout', description: undefined,
+				options: [{ id: 'list', label: 'List' }, { id: 'grid', label: 'Grid' }],
+				allowFreeformInput: true, allowSkip: false,
+			}], permissions: [], unsupported: [], truncated: false
+		}, undefined);
 		const carousel = new ChatQuestionCarouselData([{
 			id: 'layout', type: 'singleSelect', title: 'Layout', message: 'Choose a layout',
 			options: [{ id: 'list', label: 'List', value: 'list-value' }, { id: 'grid', label: 'Grid', value: 'grid-value' }],
