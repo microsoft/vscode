@@ -22,6 +22,7 @@ import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Context } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -29,7 +30,10 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IsSessionsWindowContext } from '../../../../../../../workbench/common/contextkeys.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
+import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
@@ -412,6 +416,60 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 11 },
 			],
 		});
+	});
+
+	test('standalone chat editors have one owner for each agent host session picker', () => {
+		const sharedPickerIds = [
+			OpenAgentHostModePickerAction.ID,
+			OpenAgentHostAutoApprovePickerAction.ID,
+			OpenAgentHostPermissionModePickerAction.ID,
+			OpenAgentHostCodexApprovalsPickerAction.ID,
+		];
+		const sessionsPickerIds = [
+			'sessions.agentHost.runningSessionModePicker',
+			'sessions.agentHost.runningSessionConfigPicker',
+			'sessions.agentHost.runningSessionPermissionModePicker',
+			'sessions.agentHost.runningSessionCodexApprovalsPicker',
+		];
+		for (const isSessionsWindow of [true, false]) {
+			const parentContext = new Context(0, null);
+			parentContext.setValue(IsSessionsWindowContext.key, isSessionsWindow);
+			const editorContext = new Context(1, parentContext);
+			editorContext.setValue(ChatContextKeys.inChatEditor.key, true);
+			editorContext.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
+			const actions = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
+				.filter(isIMenuItem)
+				.filter(item => sharedPickerIds.includes(item.command.id) || sessionsPickerIds.includes(item.command.id))
+				.filter(item => !item.when || item.when.evaluate(editorContext))
+				.map(item => item.command.id);
+
+			assert.deepStrictEqual(actions.sort(), sharedPickerIds.toSorted(), `isSessionsWindow=${isSessionsWindow}`);
+		}
+	});
+
+	test('running Agents chat retains its session pickers and delegation visibility', () => {
+		const sessionsPickerIds = [
+			'sessions.agentHost.runningSessionModePicker',
+			'sessions.agentHost.runningSessionConfigPicker',
+			'sessions.agentHost.runningSessionPermissionModePicker',
+			'sessions.agentHost.runningSessionCodexApprovalsPicker',
+		];
+		const context = new Context(0, null);
+		context.setValue(IsSessionsWindowContext.key, true);
+		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
+		const visibleActions = () => MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
+			.filter(isIMenuItem)
+			.filter(item => sessionsPickerIds.includes(item.command.id))
+			.filter(item => !item.when || item.when.evaluate(context))
+			.map(item => item.command.id).sort();
+
+		assert.deepStrictEqual(visibleActions(), sessionsPickerIds.toSorted());
+
+		context.setValue(ChatContextKeys.hasPendingDelegationTarget.key, true);
+		assert.deepStrictEqual(visibleActions(), sessionsPickerIds.slice(1).sort());
+
+		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, false);
+		assert.deepStrictEqual(visibleActions(), []);
 	});
 
 	test('picker action view items expose responsive compact state', () => {
