@@ -24,6 +24,7 @@ export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionS
 //#region < --- Kanban Custom View --- >
 
 export const KanbanBoardEditableContext = new RawContextKey<boolean>('kanbanBoardEditable', true, localize('kanbanBoardEditable', "Whether the Kanban board configuration can be edited"));
+export const KanbanAutoIncludeSessionsContext = new RawContextKey<boolean>('kanbanAutoIncludeSessions', true, localize('kanbanAutoIncludeSessions', "Whether sessions are automatically included on the Kanban board"));
 export const KanbanShowArchivedContext = new RawContextKey<boolean>('kanbanShowArchived', false, localize('kanbanShowArchived', "Whether archived chats are shown on the Kanban board"));
 export const KanbanShowStateDurationContext = new RawContextKey<boolean>('kanbanShowStateDuration', false, localize('kanbanShowStateDuration', "Whether time in state is shown on Kanban cards"));
 export const KanbanShowCreditsContext = new RawContextKey<boolean>('kanbanShowCredits', false, localize('kanbanShowCredits', "Whether AI credits are shown on Kanban cards"));
