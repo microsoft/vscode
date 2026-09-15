@@ -396,6 +396,41 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 		});
 	});
 
+	test('the turn a parent resumes into outlives the background spawn that set it', () => {
+		const state = new ClaudeMapperState();
+		const log = new NullLogService();
+		const registry = r();
+		const PARENT = 'toolu_bg_anchor';
+
+		mapSDKMessageToAgentSignals(
+			makeAssistantMessage(SESSION_ID, [
+				{ type: 'tool_use', id: PARENT, name: 'Task', input: { description: 'Audit', subagent_type: 'Explore', prompt: 'go' } },
+			]),
+			SESSION, TURN_ID, state, log, registry,
+		);
+		mapSDKMessageToAgentSignals(
+			{ type: 'system', subtype: 'task_started', task_id: 't1', tool_use_id: PARENT, description: 'bg' } as unknown as SDKMessage,
+			SESSION, TURN_ID, state, log, registry,
+		);
+		const afterStart = registry.resumeTurnId;
+
+		mapSDKMessageToAgentSignals(
+			{ type: 'system', subtype: 'task_notification', task_id: 't1', tool_use_id: PARENT, status: 'completed', output_file: 'o', summary: 's' } as unknown as SDKMessage,
+			SESSION, TURN_ID, state, log, registry,
+		);
+
+		// The parent resumes after completion, so the anchor has to outlive the spawn.
+		assert.deepStrictEqual({
+			afterStart,
+			afterCompletion: registry.resumeTurnId,
+			spawnRemoved: registry.getSpawn(PARENT),
+		}, {
+			afterStart: TURN_ID,
+			afterCompletion: TURN_ID,
+			spawnRemoved: undefined,
+		});
+	});
+
 	// #region focused contract tests on the extracted exports
 
 	test('buildTopLevelSubagentReadyAction omits _meta description/agentName when input fields are missing or wrong-typed; still records the spawn', () => {
