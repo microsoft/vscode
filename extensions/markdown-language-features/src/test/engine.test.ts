@@ -81,7 +81,7 @@ suite('markdown.engine', () => {
 			await setStyle('codeBlock');
 			const engine = createNewMarkdownEngine();
 			const html = (await engine.render(input)).html;
-			assert.match(html, /<pre[^>]*class="[^"]*frontmatter[^"]*"[^>]*>[\s\S]*<\/pre>/);
+			assert.match(html, /<pre class="frontmatter hljs code-line"[^>]*data-line="0"[^>]*>[\s\S]*<\/pre>/);
 			assert.ok(html.includes('title'), `Expected frontmatter content to be rendered. Got: ${html}`);
 			assert.ok(html.includes('<h1 data-line="4"'), `Expected body to render after frontmatter. Got: ${html}`);
 		});
@@ -91,7 +91,7 @@ suite('markdown.engine', () => {
 			const engine = createNewMarkdownEngine();
 			assert.strictEqual(
 				(await engine.render(input)).html,
-				'<table class="frontmatter" title="Frontmatter" data-vscode-context=\'{&quot;webviewSection&quot;:&quot;frontMatter&quot;}\'><tbody><tr><th>title</th><td>Hello</td></tr></tbody></table>\n'
+				'<table class="frontmatter code-line" title="Frontmatter" data-vscode-context=\'{&quot;webviewSection&quot;:&quot;frontMatter&quot;}\' data-line="0" dir="auto"><tbody><tr><th>title</th><td>Hello</td></tr></tbody></table>\n'
 				+ '<h1 data-line="4" class="code-line" dir="auto" id="world">World</h1>\n'
 			);
 		});
@@ -100,22 +100,38 @@ suite('markdown.engine', () => {
 			await setStyle('table');
 			const engine = createNewMarkdownEngine();
 			const html = (await engine.render('---\nfoo: [unclosed\n---\n\n# Body')).html;
-			assert.match(html, /<div class="frontmatter-error"[\s\S]*<\/div>/);
+			assert.match(html, /<div class="frontmatter-error code-line"[^>]*data-line="0"[\s\S]*<\/div>/);
 			assert.ok(html.includes('<h1 data-line="4"'), `Expected body to render after error. Got: ${html}`);
+		});
+
+		test('Preserves diff markers in frontmatter table cells', async () => {
+			await setStyle('table');
+			const engine = createNewMarkdownEngine();
+			const diffInput = '---\ndescription: <span data-diff-start="0"></span>Modified<span data-diff-end="0"></span>\n---\n\n# Header';
+			const html = (await engine.render(diffInput)).html;
+			assert.ok(html.includes('<td><span data-diff-start="0"></span>Modified<span data-diff-end="0"></span></td>'), `Expected diff markers in table cell. Got: ${html}`);
+		});
+
+		test('Preserves diff markers in frontmatter code block', async () => {
+			await setStyle('codeBlock');
+			const engine = createNewMarkdownEngine();
+			const diffInput = '---\ndescription: <span data-diff-start="0"></span>Modified<span data-diff-end="0"></span>\n---\n\n# Header';
+			const html = (await engine.render(diffInput)).html;
+			assert.ok(html.includes('<span data-diff-start="0"></span>Modified<span data-diff-end="0"></span>'), `Expected diff markers in code block. Got: ${html}`);
 		});
 
 		test('Ignores frontmatter that is not at the start of the document', async () => {
 			await setStyle('table');
 			const engine = createNewMarkdownEngine();
 			const html = (await engine.render('# World\n\n---\ntitle: Hello\n---')).html;
-			assert.ok(!html.includes('<table class="frontmatter">'), `Expected no frontmatter table. Got: ${html}`);
+			assert.ok(!html.includes('<table class="frontmatter'), `Expected no frontmatter table. Got: ${html}`);
 		});
 
 		test('Ignores frontmatter without a closing delimiter', async () => {
 			await setStyle('table');
 			const engine = createNewMarkdownEngine();
 			const html = (await engine.render('---\ntitle: Hello\n\n# World')).html;
-			assert.ok(!html.includes('<table class="frontmatter">'), `Expected no frontmatter table. Got: ${html}`);
+			assert.ok(!html.includes('<table class="frontmatter'), `Expected no frontmatter table. Got: ${html}`);
 		});
 	});
 });
