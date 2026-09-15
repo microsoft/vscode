@@ -158,6 +158,18 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			return toolSpecificData.operation === 'created'
 				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
 				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
+		case 'generatedImage': {
+			const details: string[] = [];
+			if (toolSpecificData.configuration) {
+				details.push(localize('generatedImage.configuration', "Uses deployment {0} at {1}", toolSpecificData.configuration.deployment, toolSpecificData.configuration.endpoint));
+			}
+			if (toolSpecificData.outputUri) {
+				details.push(localize('generatedImage.outputUri', "Output file: {0}", toolSpecificData.outputUri));
+			} else if (toolSpecificData.configuration) {
+				details.push(localize('generatedImage.chatOnly', "The generated image stays in chat until it is saved."));
+			}
+			return details.join('. ');
+		}
 		case 'sessionCreated':
 			return toolSpecificData.fullTitle ?? toolSpecificData.label;
 		default:
@@ -165,7 +177,7 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 	}
 }
 
-export function getResultDetailsDescription(resultDetails: ResultDetails | undefined): { input?: string; files?: string[]; isError?: boolean } {
+export function getResultDetailsDescription(resultDetails: ResultDetails | undefined, includeOutputText = false): { input?: string; files?: string[]; isError?: boolean; outputText?: string } {
 	if (!resultDetails) {
 		return {};
 	}
@@ -181,9 +193,19 @@ export function getResultDetailsDescription(resultDetails: ResultDetails | undef
 	}
 
 	if (isToolResultInputOutputDetails(resultDetails)) {
+		const outputTextParts: string[] = [];
+		for (const output of includeOutputText ? resultDetails.output : []) {
+			if (output.type === 'embed' && output.isText === true) {
+				const value = output.value.trim();
+				if (value) {
+					outputTextParts.push(value);
+				}
+			}
+		}
 		return {
 			input: resultDetails.input,
-			isError: resultDetails.isError
+			isError: resultDetails.isError,
+			...(outputTextParts.length ? { outputText: outputTextParts.join('\n') } : {}),
 		};
 	}
 
@@ -222,9 +244,12 @@ export function getToolInvocationA11yDescription(
 	}
 
 	if (isComplete && resultDetails) {
-		const details = getResultDetailsDescription(resultDetails);
+		const details = getResultDetailsDescription(resultDetails, toolSpecificData?.kind === 'generatedImage');
 		if (details.isError) {
 			parts.unshift(localize('errored', "Errored"));
+		}
+		if (toolSpecificData?.kind === 'generatedImage' && details.outputText) {
+			parts.push(details.outputText);
 		}
 		if (details.input && !toolDataDesc) {
 			parts.push(localize('input', "Input: {0}", details.input));

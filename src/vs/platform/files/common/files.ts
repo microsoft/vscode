@@ -412,6 +412,12 @@ export interface IFileOpenForWriteOptions extends IFileUnlockOptions {
 	readonly create: true;
 
 	/**
+	 * Set to `false` to fail when the file already exists. If omitted,
+	 * opening for writing may overwrite an existing file.
+	 */
+	readonly overwrite?: boolean;
+
+	/**
 	 * Open the file in append mode. This will write data to the
 	 * end of the file.
 	 */

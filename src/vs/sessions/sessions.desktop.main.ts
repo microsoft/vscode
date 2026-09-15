@@ -247,6 +247,7 @@ import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contri
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
+import '../workbench/contrib/chat/electron-browser/imageGeneration.contribution.js';
 
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';

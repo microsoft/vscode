@@ -158,6 +158,10 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			SELECT '${AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}', 'true'
 			WHERE EXISTS (SELECT 1 FROM turn_workspace_transition)`,
 	},
+	{
+		version: 13,
+		sql: 'ALTER TABLE session_metadata ADD COLUMN turn_id TEXT REFERENCES turns(id) ON DELETE CASCADE ON UPDATE CASCADE',
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -823,9 +827,13 @@ export class SessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
-	setMetadata(key: string, value: string): Promise<void> {
+	setMetadata(key: string, value: string, turnId?: string): Promise<void> {
 		return this._track(() => this._metadataSequencer.queue(() => this._queueMutation(async db => {
-			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+			const turn = turnId === undefined ? undefined : await dbGet(db, 'SELECT id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
+			if (turnId !== undefined && !turn) {
+				throw new Error('Cannot store metadata for a missing turn');
+			}
+			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value, turn_id) VALUES (?, ?, ?)', [key, value, turn?.id ?? null]);
 		})));
 	}
 

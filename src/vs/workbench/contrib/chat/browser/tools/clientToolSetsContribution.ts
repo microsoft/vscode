@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { GenerateImageToolReferenceName } from '../../../../../platform/agentHost/common/imageGenerationConstants.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { browserChatToolReferenceNames } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -67,6 +68,15 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				],
 			}));
 		}
+
+		this._register(this._registerDynamicToolSet(toolsService, {
+			id: 'vscode-image-generation',
+			referenceName: 'vscodeImageGeneration',
+			icon: Codicon.fileMedia,
+			description: localize('clientToolSet.imageGeneration.description', "Image Generation"),
+			detail: localize('clientToolSet.imageGeneration.detail', "Generate new images in chat and optionally save them as PNG files."),
+			members: [GenerateImageToolReferenceName],
+		}));
 
 		this._register(this._registerDynamicToolSet(toolsService, {
 			id: 'vscode-browser',

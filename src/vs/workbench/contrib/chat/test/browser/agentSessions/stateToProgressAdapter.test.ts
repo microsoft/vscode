@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { CodexImageGenerationToolName, GenerateImageToolReferenceName } from '../../../../../../platform/agentHost/common/imageGenerationConstants.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
@@ -1022,34 +1023,73 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
-		test('image generation in history is marked as a durable image outcome', () => {
-			const turn = createTurn({
-				responseParts: [{
-					kind: ResponsePartKind.ToolCall,
-					toolCall: createCompletedToolCall({
-						toolName: 'image_gen.imagegen',
-						toolInput: '{"prompt":"Draw a fox"}',
-						content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
-					}),
-				} as ToolCallResponsePart],
-			});
+		test('image generation in history preserves generateImage partial failures but keeps Codex success-only', () => {
+			const historyPayload = (toolName: string, success: boolean, summary: string) => {
+				const turn = createTurn({
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: createCompletedToolCall({
+							toolName,
+							success,
+							toolInput: '{"prompt":"Draw a fox"}',
+							content: [
+								{ type: ToolResultContentType.Text, text: summary },
+								{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
+							],
+							...(success ? {} : { error: { message: 'Could not save the file.' } }),
+						}),
+					} as ToolCallResponsePart],
+				});
 
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const serialized = response.parts[0] as IChatToolInvocationSerialized;
-			const details = serialized.resultDetails;
+				const history = turnsToHistory(URI.file('/'), [turn], 'p');
+				const response = history[1];
+				assert.strictEqual(response.type, 'response');
+				if (response.type !== 'response') {
+					return undefined;
+				}
+				const serialized = response.parts[0] as IChatToolInvocationSerialized;
+				const details = serialized.resultDetails;
+				return {
+					toolSpecificData: serialized.toolSpecificData,
+					input: isToolResultInputOutputDetails(details) ? details.input : undefined,
+					output: isToolResultInputOutputDetails(details) ? details.output : undefined,
+					isError: isToolResultInputOutputDetails(details) ? details.isError : undefined,
+				};
+			};
 
-			assert.deepStrictEqual({
-				toolSpecificData: serialized.toolSpecificData,
-				input: isToolResultInputOutputDetails(details) ? details.input : undefined,
-				output: isToolResultInputOutputDetails(details) ? details.output : undefined,
-			}, {
-				toolSpecificData: { kind: 'generatedImage' },
-				input: '{"prompt":"Draw a fox"}',
-				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
-			});
+			assert.deepStrictEqual([
+				historyPayload(CodexImageGenerationToolName, true, 'Saved to: /workspace/fox.png'),
+				historyPayload(CodexImageGenerationToolName, false, 'The image was generated, but could not be saved to /workspace/fox.png.'),
+				historyPayload(GenerateImageToolReferenceName, false, 'The image was generated, but could not be saved to /workspace/fox.png.'),
+			], [
+				{
+					toolSpecificData: { kind: 'generatedImage' },
+					input: '{"prompt":"Draw a fox"}',
+					output: [
+						{ type: 'embed', value: 'Saved to: /workspace/fox.png', isText: true, mimeType: 'text/plain' },
+						{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' },
+					],
+					isError: false,
+				},
+				{
+					toolSpecificData: undefined,
+					input: '{"prompt":"Draw a fox"}',
+					output: [
+						{ type: 'embed', value: 'The image was generated, but could not be saved to /workspace/fox.png.', isText: true, mimeType: 'text/plain' },
+						{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' },
+					],
+					isError: true,
+				},
+				{
+					toolSpecificData: { kind: 'generatedImage' },
+					input: '{"prompt":"Draw a fox"}',
+					output: [
+						{ type: 'embed', value: 'The image was generated, but could not be saved to /workspace/fox.png.', isText: true, mimeType: 'text/plain' },
+						{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' },
+					],
+					isError: true,
+				},
+			]);
 		});
 
 		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {

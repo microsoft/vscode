@@ -318,8 +318,9 @@ export interface ISessionDatabase extends IDisposable {
 
 	/**
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
+	 * An optional owning turn makes the value follow that turn's deletion and fork remapping.
 	 */
-	setMetadata(key: string, value: string): Promise<void>;
+	setMetadata(key: string, value: string, turnId?: string): Promise<void>;
 
 	/**
 	 * Atomically store multiple metadata key-value pairs.

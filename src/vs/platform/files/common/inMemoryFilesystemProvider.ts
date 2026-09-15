@@ -150,6 +150,7 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		let file = this._lookup(resource, true);
 		const write = isFileOpenForWriteOptions(opts);
 		const append = write && !!opts.append;
+		const overwrite = !write || opts.overwrite !== false;
 
 		if (!file) {
 			if (!write) {
@@ -164,6 +165,15 @@ export class InMemoryFileSystemProvider extends Disposable implements
 			this._fireSoon({ type: FileChangeType.ADDED, resource });
 		} else if (file instanceof Directory) {
 			throw createFileSystemProviderError('file is directory', FileSystemProviderErrorCode.FileIsADirectory);
+		} else if (write) {
+			if (!overwrite) {
+				throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+			}
+
+			if (!append) {
+				file.data = new Uint8Array(0);
+				file.size = 0;
+			}
 		}
 
 		if (!file.data) {
