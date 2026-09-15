@@ -640,6 +640,7 @@ suite('Sessions - Chat View', () => {
 			iconTransform: cell.querySelector<HTMLElement>('.codicon')?.style.transform,
 		}));
 		const initialButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const initialCell = cellsBefore.find(cell => cell.style.left === initialButton?.style.left && cell.style.top === initialButton?.style.top);
 		const buttonStyle = initialButton ? dom.getWindow(initialButton).getComputedStyle(initialButton) : undefined;
 		const backgroundStyle = backgroundLayer ? dom.getWindow(backgroundLayer).getComputedStyle(backgroundLayer) : undefined;
 		const initialButtonPosition = `${initialButton?.style.left}:${initialButton?.style.top}`;
@@ -667,6 +668,7 @@ suite('Sessions - Chat View', () => {
 			buttonOpacity: buttonStyle?.opacity,
 			buttonZIndex: buttonStyle?.zIndex,
 			backgroundZIndex: backgroundStyle?.zIndex,
+			visualCellSize: { width: initialCell?.offsetWidth, height: initialCell?.offsetHeight },
 			iconsAriaHidden: cellsAfter.every(cell => cell.ariaHidden === 'true' && cell.querySelector<HTMLElement>('.codicon')?.ariaHidden === 'true'),
 			activationTarget: activationTarget?.className,
 			activationTargetRetained: activationParent ? cellsBefore.includes(activationParent) : false,
@@ -689,6 +691,7 @@ suite('Sessions - Chat View', () => {
 			buttonOpacity: '0',
 			buttonZIndex: '3',
 			backgroundZIndex: '0',
+			visualCellSize: { width: 24, height: 24 },
 			iconsAriaHidden: true,
 			activationTarget: 'sessions-chat-codicon-button-animation',
 			activationTargetRetained: true,

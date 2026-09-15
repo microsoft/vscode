@@ -364,6 +364,8 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 	private createInteractiveCodicon(icon: ThemeIcon): ICodiconCell {
 		const element = $('.sessions-chat-codicon-cell');
 		element.ariaHidden = 'true';
+		element.style.width = `${codiconButtonSize}px`;
+		element.style.height = `${codiconButtonSize}px`;
 		const animationElement = $('.sessions-chat-codicon-button-animation');
 		const iconElement = renderIcon(icon);
 		iconElement.ariaHidden = 'true';
