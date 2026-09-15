@@ -21,7 +21,8 @@
 	box-sizing: border-box;
 	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	pointer-events: none;
-	z-index: 10;
+	/* Sticky transcript rows and their hover controls paint as high as 100. */
+	z-index: 101;
 }
 
 :is(.hc-black, .hc-light).monaco-workbench .part.sessionspart.multiple-sessions-visible .session-view.is-active::after {

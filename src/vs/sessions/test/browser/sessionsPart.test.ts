@@ -235,6 +235,7 @@ suite('Sessions - Sessions Part', () => {
 				right: `${selectedIndicatorStyle.borderRightWidth} ${selectedIndicatorStyle.borderRightStyle} ${selectedIndicatorStyle.borderRightColor}`,
 				bottom: `${selectedIndicatorStyle.borderBottomWidth} ${selectedIndicatorStyle.borderBottomStyle} ${selectedIndicatorStyle.borderBottomColor}`,
 				left: `${selectedIndicatorStyle.borderLeftWidth} ${selectedIndicatorStyle.borderLeftStyle} ${selectedIndicatorStyle.borderLeftColor}`,
+				zIndex: selectedIndicatorStyle.zIndex,
 			};
 			const inactiveStyles = {
 				headerOpacity: mainWindow.getComputedStyle(header).opacity,
@@ -263,6 +264,7 @@ suite('Sessions - Sessions Part', () => {
 					right: '1px solid rgb(0, 122, 204)',
 					bottom: '1px solid rgb(0, 122, 204)',
 					left: '1px solid rgb(0, 122, 204)',
+					zIndex: '101',
 				},
 				highContrastBorderColor: 'rgb(255, 255, 0)',
 				singlePaneBorderWidth: '0px',
