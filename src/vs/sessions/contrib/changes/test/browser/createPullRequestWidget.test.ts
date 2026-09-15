@@ -1288,6 +1288,135 @@ suite('CreatePullRequestWidget', () => {
 		});
 	}
 
+	for (const action of ['Cancel', 'Create PR', 'Send Create PR Message']) {
+		test(`${action} discards previously preserved form content`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			let created = 0;
+			let sent = 0;
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr', prepare: async () => details,
+				prepareChatRequest: async query => ({ query }), create: async () => { created++; },
+			};
+			const options = { sendToChat: async () => { sent++; } };
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			const title = host.querySelector<HTMLInputElement>('input')!;
+			title.value = 'Temporary title';
+			title.dispatchEvent(new Event('input', { bubbles: true }));
+			anchor.parentElement!.click();
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			const restored = host.querySelector<HTMLInputElement>('input')!.value;
+			if (action === 'Cancel') {
+				host.querySelector<HTMLElement>('.create-pr-buttons > .monaco-button')!.click();
+			} else {
+				host.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+				chooseMenuAction(action);
+			}
+			await timeout(0);
+			const closed = !host.querySelector('[role="dialog"]');
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			assert.deepStrictEqual({
+				restored, closed, created, sent,
+				title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, {
+				restored: 'Temporary title', closed: true,
+				created: action === 'Create PR' ? 1 : 0, sent: action === 'Send Create PR Message' ? 1 : 0,
+				title: details.title, description: details.description,
+			});
+		});
+	}
+
+	for (const change of ['creation', 'branchName', 'baseBranchName'] as const) {
+		test(`saved form content is not reused after changing ${change}`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr', prepare: async () => details,
+				prepareChatRequest: async query => ({ query }), create: async () => assert.fail('Must not create'),
+			};
+			const options = { branchName: details.branchName, baseBranchName: details.baseBranchName };
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			const title = host.querySelector<HTMLInputElement>('input')!;
+			title.value = 'Another context';
+			title.dispatchEvent(new Event('input', { bubbles: true }));
+			contextView.close();
+			contextView.show(anchor, change === 'creation' ? { ...creation } : creation, {
+				...options, ...(change === 'creation' ? {} : { [change]: 'another-branch' }),
+			});
+			await timeout(0);
+			const newTitle = host.querySelector<HTMLInputElement>('input')!.value;
+			contextView.close();
+			contextView.show(anchor, creation, options);
+			await timeout(0);
+			assert.deepStrictEqual({
+				newTitle, originalTitle: host.querySelector<HTMLInputElement>('input')!.value,
+			}, {
+				newTitle: details.title, originalTitle: change === 'creation' ? 'Another context' : details.title,
+			});
+		});
+	}
+
+	for (const action of ['create', 'sendToChat'] as const) {
+		test(`failed ${action} preserves text after dismissal and reopening`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			const fail = async () => { throw new Error('Submission failed'); };
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr', prepare: async () => details,
+				prepareChatRequest: async query => ({ query }), create: fail,
+			};
+			contextView.show(anchor, creation, { sendToChat: fail });
+			await timeout(0);
+			const description = host.querySelector<HTMLTextAreaElement>('textarea')!;
+			description.value = 'Keep my edited description';
+			description.dispatchEvent(new Event('input', { bubbles: true }));
+			if (action === 'sendToChat') {
+				host.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+				chooseMenuAction('Send Create PR Message');
+			} else {
+				host.querySelector<HTMLElement>('.create-pr-submit')!.click();
+			}
+			await timeout(0);
+			const errorVisible = !host.querySelector<HTMLElement>('[role="alert"]')!.hidden;
+			anchor.parentElement!.click();
+			contextView.show(anchor, creation);
+			await timeout(0);
+			assert.deepStrictEqual({
+				errorVisible, title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, { errorVisible: true, title: details.title, description: 'Keep my edited description' });
+		});
+	}
+
+	test('reopening refreshes prepared identity and capabilities without replacing saved text', async () => {
+		const { host, anchor, contextView } = createContextView();
+		const context = { workingDirectory: 'file:///repo', repository: details.repository, branchName: details.branchName, baseBranchName: details.baseBranchName };
+		const refreshedContext = { ...context, upstreamBranchName: 'origin/fix/keyboard-navigation' };
+		const submissions: ISessionPullRequestOptions[] = [];
+		let attempts = 0;
+		const creation: ISessionPullRequestCreation = {
+			operationId: 'create-pr', prepareChatRequest: async query => ({ query }),
+			prepare: async () => ++attempts === 1
+				? { ...details, context }
+				: { ...details, context: refreshedContext, autoMergeAllowed: false, description: 'Regenerated description' },
+			create: async options => { submissions.push(options); },
+		};
+		contextView.show(anchor, creation);
+		await timeout(0);
+		contextView.close();
+		contextView.show(anchor, creation);
+		await timeout(0);
+		const autoMergeDisabled = host.querySelector('[role="radio"][aria-label="Auto-Merge"]')!.getAttribute('aria-disabled');
+		host.querySelector<HTMLElement>('.create-pr-submit')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ attempts, autoMergeDisabled, submissions }, {
+			attempts: 2, autoMergeDisabled: 'true',
+			submissions: [{ title: details.title, description: details.description, draft: false, agentMerge: false, expectedContext: refreshedContext }],
+		});
+	});
+
 	for (const outcome of ['success', 'failure'] as const) {
 		test(`creation ${outcome} cannot close or steal focus from a newer form after a session switch`, async () => {
 			const { host, anchor, contextView, errors } = createContextView();
