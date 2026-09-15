@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import { timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly symbolicLinks = new ResourceSet();
 	private readonly statFailures = new ResourceSet();
+	private readonly mtimes = new ResourceMap<number>();
 	private statDelay = 0;
 	activeStats = 0;
 	maxActiveStats = 0;
@@ -44,6 +45,10 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 		this.statFailures.add(resource);
 	}
 
+	setMtime(resource: URI, mtime: number): void {
+		this.mtimes.set(resource, mtime);
+	}
+
 	override async stat(resource: URI): Promise<IStat> {
 		this.statCalls++;
 		this.activeStats++;
@@ -56,7 +61,11 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 				throw new Error('Unavailable test resource');
 			}
 			const stat = await super.stat(resource);
-			return this.symbolicLinks.has(resource) ? { ...stat, type: stat.type | FileType.SymbolicLink } : stat;
+			return {
+				...stat,
+				type: this.symbolicLinks.has(resource) ? stat.type | FileType.SymbolicLink : stat.type,
+				mtime: this.mtimes.get(resource) ?? stat.mtime,
+			};
 		} finally {
 			this.activeStats--;
 		}
@@ -208,7 +217,8 @@ suite('SyncedCustomizationBundler', () => {
 	test('bundles complete SKILL.md directories', async () => {
 		const bundler = createBundler();
 		const skill = await seedFile('/skills/my-skill/SKILL.md', 'skill content');
-		await seedFile('/skills/my-skill/references/notes.md', 'reference content');
+		const referenceSourceUri = await seedFile('/skills/my-skill/references/notes.md', 'reference content');
+		memFs.setMtime(referenceSourceUri, 1);
 		await seedFile('/skills/my-skill/scripts/run.sh', 'script content');
 		await seedFile('/skills/my-skill/assets/templates/default.txt', 'template content');
 		await seedFile('/skills/my-skill/.git/config', 'git metadata');
@@ -238,7 +248,8 @@ suite('SyncedCustomizationBundler', () => {
 			outsideExists: false,
 		});
 
-		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/skills/my-skill/references/notes.md' }), VSBuffer.fromString('updated reference'));
+		await fileService.writeFile(referenceSourceUri, VSBuffer.fromString('updated reference'));
+		memFs.setMtime(referenceSourceUri, 2);
 		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
 		assert.strictEqual((await fileService.readFile(referenceUri)).value.toString(), 'updated reference');
