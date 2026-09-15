@@ -13,7 +13,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -59,10 +59,17 @@ export const IProjectBoardService = createDecorator<IProjectBoardService>('proje
 export interface IProjectBoardService {
 	readonly _serviceBrand: undefined;
 	open(): Promise<void>;
+	createView(container: HTMLElement): IProjectBoardView;
+	getAccessibleContent(): string;
 	closeSession(windowId: number): Promise<void>;
 }
 
-class ProjectBoardView extends Disposable {
+export interface IProjectBoardView extends IDisposable {
+	focus(): void;
+	layout(width: number, height: number): void;
+}
+
+class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly configurationDetails = new Map<string, IProjectBoardConfigurationDetails>();
 	private readonly configurationErrors = new Set<string>();
 
@@ -113,6 +120,7 @@ class ProjectBoardView extends Disposable {
 		private readonly container: HTMLElement,
 		private readonly chatWindows: ProjectBoardChatWindows,
 		private readonly boardState: ProjectBoardState,
+		private readonly showHeader: boolean,
 		services: {
 			sessionsManagementService: ISessionsManagementService;
 			notificationService: INotificationService;
@@ -161,6 +169,37 @@ class ProjectBoardView extends Disposable {
 		const element = (id && this.cardElements.get(id)) || this.createSessionButton?.element;
 		element?.focus({ preventScroll: true });
 		element?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	}
+
+	focus(): void {
+		(this.createSessionButton?.element ?? this.cardElements.values().next().value ?? this.boardElement)?.focus({ preventScroll: true });
+	}
+
+	layout(_width: number, height: number): void {
+		if (this.boardElement) {
+			this.boardElement.style.height = `${height}px`;
+		}
+	}
+
+	getAccessibleContent(): string {
+		const lines = [localize('projectBoard.accessibleTitle', "Kanban")];
+		const appendGroup = (label: string, cards: readonly IProjectBoardCard[]) => {
+			lines.push('', label);
+			if (!cards.length) {
+				lines.push(localize('projectBoard.accessibleEmpty', "No chats"));
+				return;
+			}
+			for (const card of cards) {
+				lines.push(localize('projectBoard.accessibleCard', "{0}, {1}, {2}", card.title, card.sessionTitle, this.getStatusLabel(card)));
+			}
+		};
+		appendGroup(localize('projectBoard.unassigned', "Unassigned"), this.model.getUnassignedCards(this.showArchived));
+		for (const row of this.model.rows) {
+			for (const column of this.model.columns) {
+				appendGroup(localize('projectBoard.cell', "{0}, {1}", row.label, column.label), this.model.getCards(row.id, column.id, this.showArchived));
+			}
+		}
+		return lines.join('\n');
 	}
 
 	private observeSessions(): void {
@@ -415,14 +454,16 @@ class ProjectBoardView extends Disposable {
 
 		const header = document.createElement('header');
 		header.className = 'project-board-header';
-		const heading = document.createElement('div');
-		const title = document.createElement('h1');
-		title.textContent = localize('projectBoard.title', "Agent project board");
-		heading.appendChild(title);
-		const description = document.createElement('p');
-		description.textContent = localize('projectBoard.description', "Arrange live chats by area and priority. Use arrow keys to navigate cards, Enter to open, and Escape to close the chat window.");
-		heading.appendChild(description);
-		header.appendChild(heading);
+		if (this.showHeader) {
+			const heading = document.createElement('div');
+			const title = document.createElement('h1');
+			title.textContent = localize('projectBoard.title', "Agent project board");
+			heading.appendChild(title);
+			const description = document.createElement('p');
+			description.textContent = localize('projectBoard.description', "Arrange live chats by area and priority. Use arrow keys to navigate cards, Enter to open, and Escape to close the chat window.");
+			heading.appendChild(description);
+			header.appendChild(heading);
+		}
 		const tools = document.createElement('div');
 		tools.className = 'project-board-tools';
 		for (const kind of ['row', 'column'] as const) {
@@ -925,7 +966,7 @@ class ProjectBoardView extends Disposable {
 			duration.append(icon, value);
 			describe(duration);
 			store.add(this.hoverService.setupDelayedHover(duration, () => ({
-				content: localize('projectBoard.stateDurationHelp', "{0}\n\nTime in this chat's current state, measured while the board is open. “At least” (≥) means its initial state start is unknown. Output, reading and moving the card do not reset the timer.", this.stateDurations.getLabel(card.id)),
+				content: localize('projectBoard.stateDurationHelp', "{0}\n\nTime in this chat's current state, measured while the board is open. \"At least\" (>=) means its initial state start is unknown. Output, reading and moving the card do not reset the timer.", this.stateDurations.getLabel(card.id)),
 			})));
 			this.durationElements.set(card.id, value);
 			metrics.appendChild(duration);
@@ -1418,6 +1459,28 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		await this.focusBoardWindow();
 	}
 
+	createView(container: HTMLElement): IProjectBoardView {
+		const view = this.instantiationService.createInstance(ProjectBoardView, container, this.chatWindows, this.boardState, false, {
+			sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
+			logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
+		});
+		this.boardView = view;
+		return {
+			focus: () => view.focus(),
+			layout: (width, height) => view.layout(width, height),
+			dispose: () => {
+				if (this.boardView === view) {
+					this.boardView = undefined;
+				}
+				view.dispose();
+			},
+		};
+	}
+
+	getAccessibleContent(): string {
+		return this.boardView?.getAccessibleContent() ?? localize('projectBoard.accessibleUnavailable', "Kanban is not currently open.");
+	}
+
 	private async focusBoardWindow(): Promise<void> {
 		if (this.boardWindow) {
 			await this.hostService.focus(this.boardWindow.window);
@@ -1427,8 +1490,12 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	async closeSession(windowId: number): Promise<void> {
 		try {
 			const resource = await this.chatWindows.closeActiveSession(windowId);
-			if (resource && this.boardWindow) {
-				await this.focusBoardWindow();
+			if (resource) {
+				if (this.boardWindow) {
+					await this.focusBoardWindow();
+				} else {
+					await this.hostService.focus(mainWindow);
+				}
 				this.boardView?.focusChat(resource);
 			}
 		} catch (error) {
@@ -1461,7 +1528,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 				return;
 			}
 			boardWindow.window.document.title = localize('projectBoard.windowTitle', "Agent Project Board");
-			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, boardWindow.container, this.chatWindows, this.boardState, {
+			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, boardWindow.container, this.chatWindows, this.boardState, true, {
 				sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 				logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
 			}));

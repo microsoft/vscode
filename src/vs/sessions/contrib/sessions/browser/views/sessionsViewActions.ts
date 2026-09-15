@@ -44,6 +44,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { KANBAN_CUSTOM_VIEW_ID, MANAGE_KANBAN_COMMAND_ID } from '../../../../common/projectBoard.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
@@ -1363,6 +1364,19 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 			id: 'sessionsView.manageAutomations',
 			title: localize2('manageAutomations', "Manage Automations"),
 			menu: []
+		});
+
+		registerAction2(class ManageKanbanAction extends Action2 {
+			constructor() {
+				super({
+					id: MANAGE_KANBAN_COMMAND_ID,
+					title: localize2('manageKanban', "Manage Kanban"),
+					menu: []
+				});
+			}
+			override run(accessor: ServicesAccessor): void {
+				accessor.get(ICustomViewService).showCustomView(KANBAN_CUSTOM_VIEW_ID);
+			}
 		});
 	}
 	override run(accessor: ServicesAccessor): void {
