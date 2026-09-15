@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ExtensionGalleryResourceType, Flag, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { FilterType, SortBy } from './extensionManagement.js';
@@ -33,6 +34,44 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 		@IProductService protected readonly productService: IProductService,
 	) {
 		super();
+	}
+
+	/**
+	 * Credentials for the marketplace this implementation fronts, set by subclasses that negotiate
+	 * or are handed them. Absent for the default marketplace, which gates nothing.
+	 */
+	protected marketplaceAccessToken: string | undefined;
+	protected marketplaceServiceIndexUrl: string | undefined;
+
+	/**
+	 * The bearer is attached ONLY to an `https` request to the same origin as the service index —
+	 * the endpoint that demanded it and that the token was minted for. A marketplace may serve
+	 * assets from elsewhere (upstreamed extensions come from the public marketplace), and those
+	 * requests must stay anonymous. Fails closed on anything not verifiably that origin.
+	 */
+	async getAuthorizationHeaders(targetUrl: string): Promise<Record<string, string>> {
+		const serviceIndexUrl = this.marketplaceServiceIndexUrl;
+		if (!this.marketplaceAccessToken || !serviceIndexUrl || !this.isSameSecureOrigin(targetUrl, serviceIndexUrl)) {
+			return {};
+		}
+		return { Authorization: `Bearer ${this.marketplaceAccessToken}` };
+	}
+
+	/**
+	 * Deliberately stricter than the neighbouring gallery-resource check, which matches on the
+	 * parent domain: a marketplace can share its parent domain with unrelated tenants, and matching
+	 * on it would hand them the bearer.
+	 */
+	private isSameSecureOrigin(targetUrl: string, baseUrl: string): boolean {
+		try {
+			const target = URI.parse(targetUrl);
+			const base = URI.parse(baseUrl);
+			return target.scheme === 'https'
+				&& base.scheme === 'https'
+				&& target.authority.toLowerCase() === base.authority.toLowerCase();
+		} catch {
+			return false;
+		}
 	}
 
 	async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {

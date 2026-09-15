@@ -133,7 +133,8 @@ function createExtensionGalleryManifestService(): IExtensionGalleryManifestServi
 		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available,
 		onDidChangeExtensionGalleryManifestStatus: Event.None,
 		onDidChangeExtensionGalleryManifest: Event.None,
-		getExtensionGalleryManifest: async () => extensionGalleryManifest
+		getExtensionGalleryManifest: async () => extensionGalleryManifest,
+		getAuthorizationHeaders: async (): Promise<Record<string, string>> => ({})
 	};
 }
 
