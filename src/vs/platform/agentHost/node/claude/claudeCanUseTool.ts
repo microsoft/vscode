@@ -7,6 +7,7 @@ import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-ag
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { localize } from '../../../../nls.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
@@ -257,24 +258,49 @@ async function handleExitPlanMode(
 	const toolUseID = options.toolUseID;
 	const parentToolCallId = resolveSubagentParent(session, options);
 	const planFile = await session.readPlanReview();
+	// The plan-file read is the only await before `requestUserInput`
+	// registers the pending id. An SDK abort during it slips past the
+	// abort handler in `handleCanUseTool` (nothing registered yet) and
+	// would park the request forever, so re-check before registering.
+	if (options.signal.aborted) {
+		return { behavior: 'deny', message: 'SDK aborted the tool request' };
+	}
 	const inlinePlan = typeof input.plan === 'string' && input.plan.trim().length > 0 ? input.plan : undefined;
 	const planContent = planFile?.content ?? inlinePlan ?? localize('claude.exitPlanMode.fallbackContent', "A plan is ready for review.");
 	const answer = await session.requestUserInput(
-		buildExitPlanModeReviewRequest(planContent, planFile?.uri, toolUseID),
+		buildExitPlanModeReviewRequest(planContent, planFile?.uri, toolUseID, isAutoApprovePolicyRestricted(deps.configurationService)),
 		parentToolCallId,
 	);
 	const resolved = resolveExitPlanModeAnswer(answer.response, answer.answers, exitPlanModeQuestionId(toolUseID));
 	switch (resolved.kind) {
-		case 'approved':
+		case 'approved': {
+			// Re-check the policy at persist time: it may have flipped while
+			// the review was open, and the answer may carry an action id the
+			// request never offered.
+			const mode = resolved.mode !== 'default' && isAutoApprovePolicyRestricted(deps.configurationService)
+				? 'default'
+				: resolved.mode;
 			deps.configurationService.updateSessionConfig(deps.configurationResource.toString(), {
-				[ClaudeSessionConfigKey.PermissionMode]: resolved.mode,
+				[ClaudeSessionConfigKey.PermissionMode]: mode,
 			});
 			return { behavior: 'allow', updatedInput: input };
+		}
 		case 'feedback':
 			return { behavior: 'deny', message: claudePlanFeedbackMessage(resolved.feedback) };
 		case 'declined':
 			return { behavior: 'deny', message: CLAUDE_PLAN_DECLINED_MESSAGE };
 	}
+}
+
+/**
+ * Whether the enterprise auto-approve policy forbids switching a
+ * session into an auto-approving mode. Mirrors
+ * `ClaudeAgent.getAutonomousSessionConfig` — non-Copilot agents are
+ * governed by this root-config key rather than managed settings (see
+ * `agentHostManagedSettings.ts`).
+ */
+function isAutoApprovePolicyRestricted(configurationService: IAgentConfigurationService): boolean {
+	return configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true;
 }
 
 /**

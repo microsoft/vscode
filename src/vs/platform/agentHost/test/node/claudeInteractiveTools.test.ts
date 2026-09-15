@@ -33,7 +33,7 @@ suite('claudeInteractiveTools', () => {
 
 		test('carries the plan-review payload with three approve actions', () => {
 			const planUri = URI.file('/home/u/.claude/plans/plan.md');
-			const request = buildExitPlanModeReviewRequest('# step 1', planUri, 'tool_use_42');
+			const request = buildExitPlanModeReviewRequest('# step 1', planUri, 'tool_use_42', false);
 
 			assert.strictEqual(request.id, 'tool_use_42');
 			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.PlanReview);
@@ -48,7 +48,7 @@ suite('claudeInteractiveTools', () => {
 		});
 
 		test('mirrors the actions onto a required single-select question with freeform input; omits planUri when untracked', () => {
-			const request = buildExitPlanModeReviewRequest('plan', undefined, 'req-1');
+			const request = buildExitPlanModeReviewRequest('plan', undefined, 'req-1', false);
 
 			assert.strictEqual(request.planReview?.planUri, undefined);
 			assert.strictEqual(request.questions?.length, 1);
@@ -58,6 +58,15 @@ suite('claudeInteractiveTools', () => {
 			assert.ok(question.kind === ChatInputQuestionKind.SingleSelect);
 			assert.strictEqual(question.allowFreeformInput, true);
 			assert.deepStrictEqual(question.options.map(o => o.id), request.planReview!.actions.map(a => a.id));
+		});
+
+		test('offers only the plain Approve action when the auto-approve policy is restricted', () => {
+			const request = buildExitPlanModeReviewRequest('plan', undefined, 'req-2', true);
+
+			assert.deepStrictEqual(request.planReview?.actions.map(a => a.id), ['approve']);
+			const question = request.questions![0];
+			assert.ok(question.kind === ChatInputQuestionKind.SingleSelect);
+			assert.deepStrictEqual(question.options.map(o => o.id), ['approve']);
 		});
 	});
 
@@ -97,6 +106,20 @@ suite('claudeInteractiveTools', () => {
 				[questionId]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'redo it' } },
 			}, questionId);
 			assert.deepStrictEqual(resolved, { kind: 'feedback', feedback: 'redo it' });
+		});
+
+		test('declines when the accepted answer carries neither a selection nor feedback', () => {
+			const whitespaceText = resolveExitPlanModeAnswer(ChatInputResponseKind.Accept, {
+				[questionId]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: '   ' } },
+			}, questionId);
+			const emptySelection = resolveExitPlanModeAnswer(ChatInputResponseKind.Accept, {
+				[questionId]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: '' } },
+			}, questionId);
+
+			assert.deepStrictEqual({ whitespaceText, emptySelection }, {
+				whitespaceText: { kind: 'declined' },
+				emptySelection: { kind: 'declined' },
+			});
 		});
 
 		test('declines on cancel, decline, skipped, and missing answers', () => {

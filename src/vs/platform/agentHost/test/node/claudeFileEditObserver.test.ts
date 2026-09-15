@@ -117,20 +117,38 @@ suite('ClaudeFileEditObserver', () => {
 		});
 	});
 
-	test('records the most recent plan-file write for the ExitPlanMode review', () => {
-		const { observer } = createObserver(disposables);
+	test('promotes a plan-file write only after its tool_result succeeds', async () => {
+		const { observer, mapperState } = createObserver(disposables);
 
 		observer.observeAssistant(assistantMessage([
 			{ type: 'tool_use', id: 'tu-p1', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan-a.md', content: '# a' } },
 			{ type: 'tool_use', id: 'tu-p2', name: 'Write', input: { file_path: '/work/notes.md', content: 'not a plan' } },
 			{ type: 'tool_use', id: 'tu-p3', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/nested/deep.md', content: 'nested' } },
 		]));
-		assert.strictEqual(observer.lastPlanFileUri?.toString(), URI.file('/home/testuser/.claude/plans/plan-a.md').toString());
+		const beforeResult = observer.lastPlanFileUri;
 
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-p1', content: 'ok' },
+		]), 'turn-1', mapperState);
+		const afterSuccess = observer.lastPlanFileUri;
+
+		// A denied or failed write must not replace the last good plan file.
 		observer.observeAssistant(assistantMessage([
 			{ type: 'tool_use', id: 'tu-p4', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan-b.md', content: '# b' } },
 		]));
-		assert.strictEqual(observer.lastPlanFileUri?.toString(), URI.file('/home/testuser/.claude/plans/plan-b.md').toString());
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-p4', content: 'denied', is_error: true },
+		]), 'turn-1', mapperState);
+
+		assert.deepStrictEqual({
+			beforeResult: beforeResult?.toString(),
+			afterSuccess: afterSuccess?.toString(),
+			afterFailed: observer.lastPlanFileUri?.toString(),
+		}, {
+			beforeResult: undefined,
+			afterSuccess: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
+			afterFailed: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
+		});
 	});
 
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {

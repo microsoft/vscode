@@ -57,9 +57,12 @@ export function exitPlanModeQuestionId(requestId: string): string {
  * workbench renders the docked plan-review widget (the same one the
  * Copilot agent drives) instead of a plain confirmation card.
  * `planUri`, when a plan-file write was observed, lets the widget
- * open the plan document for inline comments.
+ * open the plan document for inline comments. When the enterprise
+ * auto-approve policy is restricted, only the plain Approve action is
+ * offered so the review cannot switch the session into an
+ * auto-approving mode.
  */
-export function buildExitPlanModeReviewRequest(planContent: string, planUri: URI | undefined, requestId: string): ChatInputRequestWithPlanReview {
+export function buildExitPlanModeReviewRequest(planContent: string, planUri: URI | undefined, requestId: string, policyRestricted: boolean): ChatInputRequestWithPlanReview {
 	const questionId = exitPlanModeQuestionId(requestId);
 	const title = localize('claude.exitPlanMode.title', "Ready to code?");
 	const options: ChatInputOption[] = [
@@ -68,17 +71,18 @@ export function buildExitPlanModeReviewRequest(planContent: string, planUri: URI
 			label: localize('claude.exitPlanMode.approve', "Approve"),
 			description: localize('claude.exitPlanMode.approveDescription', "Approve the plan and continue, approving each action manually."),
 		},
-		{
+	];
+	if (!policyRestricted) {
+		options.push({
 			id: ExitPlanModeAction.ApproveAcceptEdits,
 			label: localize('claude.exitPlanMode.approveAcceptEdits', "Approve & Auto-Edit"),
 			description: localize('claude.exitPlanMode.approveAcceptEditsDescription', "Auto-accept file edits for the rest of this session. Other tools still prompt for approval."),
-		},
-		{
+		}, {
 			id: ExitPlanModeAction.ApproveBypass,
 			label: localize('claude.exitPlanMode.approveBypass', "Approve & Bypass Approvals"),
 			description: localize('claude.exitPlanMode.approveBypassDescription', "Skip approval prompts for the rest of this session."),
-		},
-	];
+		});
+	}
 	return withChatInputRequestPurpose<ChatInputRequestWithPlanReview>({
 		id: requestId,
 		planReview: {
@@ -119,7 +123,8 @@ export type ExitPlanModeAnswer =
  * SDK cannot attach a note to an `allow` result, so feedback flows
  * back as a deny and Claude revises the plan); an approved action
  * maps to the permission mode the session continues in, with unknown
- * ids clamped to the default action's mode.
+ * ids clamped to the default action's mode. An accepted answer with
+ * neither a selection nor feedback resolves to `declined`.
  */
 export function resolveExitPlanModeAnswer(
 	response: ChatInputResponseKind,
@@ -147,8 +152,12 @@ export function resolveExitPlanModeAnswer(
 	if (feedback) {
 		return { kind: 'feedback', feedback };
 	}
-	const mode = selectedAction !== undefined ? EXIT_PLAN_MODE_ACTION_MODES[selectedAction] : undefined;
-	return { kind: 'approved', mode: mode ?? EXIT_PLAN_MODE_ACTION_MODES[ExitPlanModeAction.Approve] };
+	// An accepted answer carrying neither a selection nor feedback (e.g.
+	// a whitespace-only freeform submit) is not an approval.
+	if (!selectedAction) {
+		return { kind: 'declined' };
+	}
+	return { kind: 'approved', mode: EXIT_PLAN_MODE_ACTION_MODES[selectedAction] ?? EXIT_PLAN_MODE_ACTION_MODES[ExitPlanModeAction.Approve] };
 }
 
 // #endregion

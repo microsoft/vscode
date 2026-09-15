@@ -7450,6 +7450,40 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		});
 	});
 
+	test('Test 12e — ExitPlanMode: restricted auto-approve policy offers only Approve and clamps the persisted mode', async () => {
+		const { ctx, canUseTool, inputRequests, sessionUri } = await materialize();
+		ctx.configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+
+		const promise = canUseTool('ExitPlanMode', { plan: 'p' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_plan_policy',
+			requestId: 'tu_plan_policy',
+		});
+		await tick();
+
+		// Respond with an action id the restricted request never offered
+		// (a stale or forged client answer); the persisted mode must still
+		// clamp to `default`.
+		const inputRequest = inputRequests.at(-1)! as ChatInputRequestWithPlanReview;
+		ctx.agent.respondToUserInputRequest('tu_plan_policy', ChatInputResponseKind.Accept, {
+			[exitPlanModeQuestionId('tu_plan_policy')]: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'approveBypass' },
+			},
+		});
+		const result = await promise;
+
+		assert.deepStrictEqual({
+			offeredActions: inputRequest.planReview?.actions.map(a => a.id),
+			result,
+			persistedMode: ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'],
+		}, {
+			offeredActions: ['approve'],
+			result: { behavior: 'allow', updatedInput: { plan: 'p' } },
+			persistedMode: 'default',
+		});
+	});
+
 	test('Test 13b — ExitPlanMode: Deny returns deny with production wording, no mode flip', async () => {
 		const { ctx, canUseTool } = await materialize();
 

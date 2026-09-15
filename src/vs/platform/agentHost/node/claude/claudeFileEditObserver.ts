@@ -48,7 +48,9 @@ export class ClaudeFileEditObserver extends Disposable {
 
 	/** `~/.claude/plans` — the directory Claude Code writes plan documents to. */
 	private readonly _planDirUri: URI;
-	/** Most recent plan-file write observed on the message stream, if any. */
+	/** Plan-file writes staged at `tool_use` time, awaiting their `tool_result`. */
+	private readonly _pendingPlanFiles = new Map<string, URI>();
+	/** Most recent successfully-completed plan-file write, if any. */
 	private _lastPlanFileUri: URI | undefined;
 
 	get lastPlanFileUri(): URI | undefined { return this._lastPlanFileUri; }
@@ -109,7 +111,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
-			this._recordPlanFileCandidate(filePath);
+			this._stagePlanFileCandidate(block.id, filePath);
 			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext });
 			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
@@ -142,6 +144,16 @@ export class ClaudeFileEditObserver extends Disposable {
 				continue;
 			}
 			this._editToolPaths.delete(block.tool_use_id);
+			const planCandidate = this._pendingPlanFiles.get(block.tool_use_id);
+			if (planCandidate) {
+				this._pendingPlanFiles.delete(block.tool_use_id);
+				// Promote only when the write actually completed; a denied or
+				// failed write must not surface a stale or nonexistent plan,
+				// and a failed candidate is never retained.
+				if (block.is_error !== true) {
+					this._lastPlanFileUri = planCandidate;
+				}
+			}
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
 				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext);
@@ -155,19 +167,21 @@ export class ClaudeFileEditObserver extends Disposable {
 	}
 
 	/**
-	 * Track the most recent plan-file write (a `.md` directly inside
-	 * `~/.claude/plans/`) so the `ExitPlanMode` review can surface the
-	 * plan document. The SDK no longer carries the plan text on the
-	 * `ExitPlanMode` input; the plan-file write observed on the message
-	 * stream is the only reliable signal.
+	 * Stage a plan-file write (a `.md` directly inside `~/.claude/plans/`)
+	 * so the `ExitPlanMode` review can surface the plan document. The SDK
+	 * no longer carries the plan text on the `ExitPlanMode` input; the
+	 * plan-file write observed on the message stream is the only reliable
+	 * signal. The candidate is promoted to {@link lastPlanFileUri} by
+	 * {@link observeUser} once its `tool_result` confirms the write
+	 * succeeded.
 	 */
-	private _recordPlanFileCandidate(filePath: string): void {
+	private _stagePlanFileCandidate(toolUseId: string, filePath: string): void {
 		if (!filePath.toLowerCase().endsWith('.md')) {
 			return;
 		}
 		const candidate = URI.file(filePath);
 		if (extUriBiasedIgnorePathCase.isEqual(URI.joinPath(candidate, '..'), this._planDirUri)) {
-			this._lastPlanFileUri = candidate;
+			this._pendingPlanFiles.set(toolUseId, candidate);
 		}
 	}
 
