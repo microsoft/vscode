@@ -176,31 +176,21 @@
       },
       {
         "fileMatch": [
-          "arazzo.json",
-          "arazzo.yml",
-          "arazzo.yaml"
+          "arazzo.json"
         ],
         "url": "https://www.schemastore.org/openapi-arazzo-1.X.json"
       },
       {
         "fileMatch": [
           "openapi.json",
-          "openapi.yml",
-          "openapi.yaml",
-          "*.openapi.json",
-          "*.openapi.yml",
-          "*.openapi.yaml"
+          "*.openapi.json"
         ],
         "url": "https://www.schemastore.org/openapi-3.X.json"
       },
       {
         "fileMatch": [
           "overlay.json",
-          "overlay.yml",
-          "overlay.yaml",
-          "*.overlay.json",
-          "*.overlay.yml",
-          "*.overlay.yaml"
+          "*.overlay.json"
         ],
         "url": "https://www.schemastore.org/openapi-overlay-1.X.json"
       }
