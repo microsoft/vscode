@@ -12,7 +12,11 @@ import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun } from
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor } from '../common/agentMerge.js';
+import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { isSessionStatusArchived } from '../common/state/sessionState.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentMergeCIEvidence, AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciEvidenceMetadata, ciFailureExcerpt, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from './agentMergeCIEvidence.js';
 import { AgentMergeCIRequest, IAgentMergeToolAccessor, parseAgentMergeCIRequest } from './shared/agentMergeServerTools.js';
 
@@ -44,6 +48,8 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		private readonly _getTurnContext: (session: string) => IAgentMergeTurnContext | undefined,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._register(toDisposable(() => this._abort.abort(new Error('Agent Merge tools disposed.'))));
@@ -51,6 +57,34 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	isEnabled(): boolean {
 		return this._isFeatureEnabled();
+	}
+
+	setEnabled(session: string, enabled: boolean): string {
+		if (!this.isEnabled()) {
+			throw new Error('Agent Merge is disabled in the host configuration.');
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (!state) {
+			throw new Error(`Cannot update Agent Merge for unknown session: ${session}`);
+		}
+		if (enabled && isSessionStatusArchived(state.status)) {
+			throw new Error('Cannot enable Agent Merge for an archived session.');
+		}
+		const values = this._configurationService.getSessionConfigValues(session);
+		if (!values) {
+			throw new Error('Cannot update Agent Merge before session configuration is available.');
+		}
+		const current = readAgentMergeSessionState(values);
+		if (current?.enabled !== enabled) {
+			this._configurationService.updateSessionConfig(session, {
+				[SessionConfigKey.AgentMerge]: {
+					enabled,
+					...(current?.overrides ? { overrides: current.overrides } : {}),
+				},
+			});
+		}
+		this._logService.info(`[AgentMergeTools] Set session enablement: session=${session}, enabled=${enabled}`);
+		return JSON.stringify({ enabled });
 	}
 
 	async readFailedCI(session: string, input: AgentMergeCIRequest = {}): Promise<string> {

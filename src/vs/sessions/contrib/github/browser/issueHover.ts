@@ -94,7 +94,8 @@ function appendHoverLink(container: HTMLElement, className: string, href: string
 	return link;
 }
 
-function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed' | 'notPlanned' | 'duplicate'; readonly label: string } {
+/** The issue's display state, used both for the hover's status pill and its accessible description. */
+export function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed' | 'notPlanned' | 'duplicate'; readonly label: string } {
 	if (issue.state === GitHubIssueState.Open) {
 		return { kind: 'open', label: localize('agentSessions.issueHover.open', "Open") };
 	}

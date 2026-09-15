@@ -18,10 +18,12 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 
 /**
  * Visual appearance of {@link HostFilterActionViewItem}.
@@ -53,6 +55,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 	private readonly _dropdownHover = this._register(new MutableDisposable());
 	private readonly _connectHover = this._register(new MutableDisposable());
+	private readonly _diagnosticsHover = this._register(new MutableDisposable());
 
 	constructor(
 		action: IAction,
@@ -60,6 +63,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		@IAgentHostFilterService protected readonly _filterService: IAgentHostFilterService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(undefined, action);
 
@@ -194,10 +198,36 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			this._showMenu(e);
 		}));
 
+		const diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
+		this._renderDiagnosticsButton(diagnosticsElement);
+
 		// Connect indicator — sibling of the picker button so it reads as
 		// an independent control (not part of the picker label).
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._wireConnectButton(this._connectElement);
+	}
+
+	private _renderDiagnosticsButton(element: HTMLElement): void {
+		const label = localize('agentHostFilter.diagnostics', "Show Connection Diagnostics");
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-label', label);
+		element.tabIndex = 0;
+		element.append(...renderLabelWithIcons(`$(${Codicon.report.id})`));
+		this._diagnosticsHover.value = this._hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			element,
+			() => label,
+		);
+
+		const showDiagnostics = () => void this._commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
+		this._register(dom.addDisposableListener(element, dom.EventType.CLICK, showDiagnostics));
+		this._register(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(event, true);
+				showDiagnostics();
+			}
+		}));
 	}
 
 	private _wireConnectButton(connectElement: HTMLElement): void {

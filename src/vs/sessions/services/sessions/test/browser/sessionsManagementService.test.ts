@@ -1638,6 +1638,63 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
+	for (const isolation of ['worktree', 'folder'] as const) {
+		for (const sendKind of ['foreground', 'background', 'headless'] as const) {
+			test(`${sendKind} new session captures ${isolation} configuration before the draft is replaced`, async () => {
+				const session = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+				const committed = { ...session, sessionId: 'committed', status: constObservable(SessionStatus.InProgress) };
+				const newSessionConfig = { isolation, providerConfig: { branch: 'main', providerOption: { enabled: true } } };
+				const configuration = new DeferredPromise<void>();
+				const capturing = new DeferredPromise<void>();
+				const calls: string[] = [];
+				const provider = new class extends TestSessionsProvider {
+					override resolveWorkspace(folder: URI): ISessionWorkspace {
+						return { uri: folder, label: 'repo', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+					}
+					override async getNewSessionConfig(sessionId: string) {
+						calls.push(`capture:${sessionId}`);
+						await capturing.complete();
+						await configuration.p;
+						return newSessionConfig;
+					}
+					override async prepareNewSession() {
+						calls.push('prepare');
+						return { session: { ...session, sessionId: 'prepared' } };
+					}
+					override async sendRequest(): Promise<ISession> {
+						calls.push('send');
+						return committed;
+					}
+				}(session);
+				const { service } = createSessionsManagementService(session, disposables, provider);
+				if (sendKind !== 'headless') {
+					service.createNewSession(URI.file('/repo'), { providerId: provider.id });
+				}
+				const sent = Event.toPromise(service.onDidSendRequest);
+				const options = { query: 'hi', background: sendKind === 'background' };
+				const sending = sendKind === 'headless'
+					? service.createAndSendNewChatRequest(URI.file('/repo'), options, { providerId: provider.id })
+					: service.sendNewChatRequest(session, options);
+				await capturing.p;
+				const beforeConfiguration = [...calls];
+				await configuration.complete();
+				await sending;
+				const event = await sent;
+
+				assert.deepStrictEqual({
+					beforeConfiguration, calls,
+					session: event.session, newSessionConfig: event.newSessionConfig,
+					isNewSession: event.isNewSession, sameOptions: event.options === options,
+				}, {
+					beforeConfiguration: ['capture:draft'],
+					calls: sendKind === 'headless' ? ['capture:draft', 'send'] : ['capture:draft', 'prepare', 'send'],
+					session: committed, newSessionConfig,
+					isNewSession: true, sameOptions: true,
+				});
+			});
+		}
+	}
+
 	test('sendNewChatRequest routes a prepared draft through its replacement provider', async () => {
 		const folder = URI.file('/workspace');
 		const workspace: ISessionWorkspace = {
