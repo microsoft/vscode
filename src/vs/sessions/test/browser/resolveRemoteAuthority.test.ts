@@ -141,7 +141,7 @@ suite('resolveRemoteAuthority', () => {
 		assert.strictEqual(result, 'tunnel+myTunnelId.usw2');
 	});
 
-	function assertDevContainerAuthority(hostPath: string): void {
+	function assertDevContainerAuthority(hostPath: string, hostAuthority?: string): void {
 		const address = 'devcontainer:container-id';
 		const providersService = makeProvidersService(address);
 		const remoteAgentHostService = makeRemoteAgentHostService([{
@@ -150,6 +150,7 @@ suite('resolveRemoteAuthority', () => {
 				type: RemoteAgentHostEntryType.DevContainer,
 				address,
 				hostPath,
+				hostAuthority,
 			},
 		}]);
 		const authority = resolveRemoteAuthority('agenthost-devcontainer', providersService, remoteAgentHostService);
@@ -162,18 +163,18 @@ suite('resolveRemoteAuthority', () => {
 
 		assert.deepStrictEqual({
 			authority,
-			decodedHostPath: authority ? decodeHex(authority.slice('dev-container+'.length)).toString() : undefined,
+			decodedHostPath: authority ? decodeHex(authority.slice('dev-container+'.length).split('@')[0]).toString() : undefined,
 			folderUri: {
 				scheme: folderUri.scheme,
 				authority: folderUri.authority,
 				path: folderUri.path,
 			},
 		}, {
-			authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}`,
+			authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}${hostAuthority ? `@${hostAuthority}` : ''}`,
 			decodedHostPath: hostPath,
 			folderUri: {
 				scheme: 'vscode-remote',
-				authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}`,
+				authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}${hostAuthority ? `@${hostAuthority}` : ''}`,
 				path: '/workspaces/project',
 			},
 		});
@@ -189,6 +190,14 @@ suite('resolveRemoteAuthority', () => {
 
 	test('returns a Dev Containers authority for a Windows WSL UNC source folder', () => {
 		assertDevContainerAuthority('\\\\wsl.localhost\\Ubuntu\\home\\test\\project');
+	});
+
+	test('preserves the SSH parent authority when opening a remote Dev Container', () => {
+		assertDevContainerAuthority('/home/test/project', 'ssh-remote+server');
+	});
+
+	test('preserves the Tunnel parent authority when opening a remote Dev Container', () => {
+		assertDevContainerAuthority('/home/test/project', 'tunnel+server.region');
 	});
 
 	test('returns undefined for WebSocket connections', () => {

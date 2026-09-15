@@ -108,6 +108,9 @@ class HostKeyMockSSHClient {
 
 class HostKeyTestService extends SSHRemoteAgentHostMainService {
 	readonly client = new HostKeyMockSSHClient();
+	override async resolveSSHConfig(): ReturnType<SSHRemoteAgentHostMainService['resolveSSHConfig']> {
+		return { hostname: 'test.example.com', user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
+	}
 	knownHostsContents = '';
 	/** Set to make the known_hosts read throw, exercising the fail-closed path. */
 	knownHostsError: Error | undefined;

@@ -192,6 +192,8 @@ class MockSSHClient {
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
 	finishResponses: readonly string[] | undefined;
+	connectConfig: ConnectConfig | undefined;
+	readonly authMethods: string[] = [];
 
 	private readonly _errorListeners: Array<(err: Error) => void> = [];
 
@@ -210,15 +212,23 @@ class KeyboardInteractiveMockSSHClient {
 	}
 
 	connect(config: ConnectConfig): void {
+		this.connectConfig = config;
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
-		authHandler?.(null, false, method => {
+		const authenticate = (method: AnyAuthMethod | false) => {
+			if (method) {
+				this.authMethods.push(method.type);
+			}
+			if (method && method.type === 'none') {
+				authHandler?.(['keyboard-interactive'], false, authenticate);
+			}
 			if (method && method.type === 'keyboard-interactive') {
 				method.prompt('Keyboard', '', 'en-US', [{ prompt: 'Password: ', echo: false }], responses => {
 					this.finishResponses = responses;
 					this.fireError(new Error('All configured authentication methods failed'));
 				});
 			}
-		});
+		};
+		authHandler?.(null, false, authenticate);
 	}
 
 	end(): void {
@@ -436,6 +446,13 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 
 class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainService {
 	readonly client = new KeyboardInteractiveMockSSHClient();
+	readonly resolvedHosts: string[] = [];
+	proxyCommand: string | undefined;
+
+	override async resolveSSHConfig(host: string): ReturnType<SSHRemoteAgentHostMainService['resolveSSHConfig']> {
+		this.resolvedHosts.push(host);
+		return { hostname: '10.0.0.1', user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, proxyCommand: this.proxyCommand, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
+	}
 
 	protected override async _createSSHClient() {
 		return this.client as never;
@@ -447,6 +464,10 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 
 	connectSSHForTest(config: ISSHAgentHostConfig) {
 		return this._connectSSH(config, 'ssh:test-host');
+	}
+
+	get proxyCount(): number {
+		return this['_proxies'].size;
 	}
 }
 
@@ -1211,6 +1232,27 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	});
 
+	test('manual hosts resolve SSH configuration and release a failed proxy while authentication is pending', async () => {
+		const proxyService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		proxyService.proxyCommand = 'exit 42';
+		await assert.rejects(proxyService.connectSSHForTest(makeConfig({ host: 'sandbox.sbx' })), /SSH ProxyCommand exited/);
+		assert.deepStrictEqual({
+			resolvedHosts: proxyService.resolvedHosts,
+			host: proxyService.client.connectConfig?.host,
+			hasProxy: !!proxyService.client.connectConfig?.sock,
+			authMethods: proxyService.client.authMethods,
+			ended: proxyService.client.ended,
+			proxyCount: proxyService.proxyCount,
+		}, {
+			resolvedHosts: ['sandbox.sbx'],
+			host: '10.0.0.1',
+			hasProxy: true,
+			authMethods: ['none', 'keyboard-interactive'],
+			ended: true,
+			proxyCount: 0,
+		});
+	});
+
 	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
 		let finished: readonly string[] | undefined;
 		let cancelled = false;
@@ -1894,6 +1936,21 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		{ type: 'agent', username: 'u', agent: '/sock' },
 		{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa' },
 	];
+
+	test('tries none before credentials and continues with the advertised methods when rejected', () => {
+		const handler = makeAuthHandler([{ type: 'none', username: 'u' }, ...attempts], new NullLogService());
+		const calls: Array<object | false> = [];
+		handler(null, false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		assert.deepStrictEqual(calls, [
+			{ type: 'none', username: 'u' },
+			{ type: 'agent', username: 'u', agent: '/sock' },
+			{ type: 'publickey', username: 'u', key: KEY },
+			false,
+		]);
+	});
 
 	test('walks attempts in order, then signals exhaustion', () => {
 		const handler = makeAuthHandler(attempts, new NullLogService());

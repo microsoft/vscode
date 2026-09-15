@@ -8,7 +8,7 @@ import { spy } from 'sinon';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -558,6 +558,31 @@ suite('ActionListWidget', () => {
 			disabled: true,
 			title: 'Managed by your organization',
 		});
+	});
+
+	test('nested action groups expose a keyboard-accessible submenu and select the parent item', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [new SubmenuAction('hosts', '', [
+					new SubmenuAction('workspace', 'Workspace', [
+						toAction({ id: 'container', label: 'Use Dev Container', run: () => selected.push('container') }),
+					]),
+				])],
+			}],
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList')!;
+		const workspaceRow = submenu.querySelector<HTMLElement>('.monaco-list-row.action')!;
+		assert.ok(workspaceRow.querySelector('.action-list-submenu-indicator.has-submenu'));
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const nested = submenu.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(nested);
+		nested.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.deepStrictEqual(selected, ['container', 'remote']);
 	});
 
 	test('Escape from a submenu hides the action list', () => {
