@@ -9,12 +9,21 @@ import type { Repository } from './typings/git.d.ts';
 export class DisposableStore {
 
 	private disposables = new Set<vscode.Disposable>();
+	private isDisposed = false;
 
 	add(disposable: vscode.Disposable): void {
+		if (this.isDisposed) {
+			// The store was already disposed, so nothing would ever dispose this.
+			disposable.dispose();
+			return;
+		}
+
 		this.disposables.add(disposable);
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
+
 		for (const disposable of this.disposables) {
 			disposable.dispose();
 		}

@@ -7,6 +7,7 @@ steps:
   - checkout: distro
     path: s/.build/distro
     fetchDepth: 0
+    persistCredentials: true
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-distro
 
@@ -17,10 +18,10 @@ steps:
       git -C .build/distro checkout $DistroVersion
     displayName: Checkout distro commit
 
-  - script: git lfs install --local
+  - script: git -C .build/distro lfs install --local
     displayName: Initialize Git LFS
 
-  - script: git lfs pull
+  - script: git -C .build/distro lfs pull
     displayName: Pull Git LFS objects
 
   # Check out the private microsoft/vscode-encrypt, microsoft/vsda and

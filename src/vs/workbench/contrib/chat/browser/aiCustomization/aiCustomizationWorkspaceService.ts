@@ -24,6 +24,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly activeProjectLabel: IObservable<string | undefined>;
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -39,6 +40,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 			const folders = workspaceFolders.read(reader);
 			return folders[0]?.uri;
 		});
+		this.activeProjectLabel = derived(reader => {
+			const folders = workspaceFolders.read(reader);
+			return folders[0]?.name;
+		});
 	}
 
 	getActiveProjectRoot(): URI | undefined {
@@ -47,14 +52,15 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
-		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
-		AICustomizationManagementSection.McpServers,
-		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.HarnessSettings,
 	];
 
 	readonly isSessionsWindow = false;

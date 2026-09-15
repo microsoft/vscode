@@ -72,7 +72,7 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 		templateData.elementDisposables.clear();
 
 		templateData.chevron.className = 'group-chevron';
-		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 
 		templateData.icon.className = 'group-icon';
 		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));

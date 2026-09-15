@@ -91,6 +91,99 @@ export function normalizeDomain(value: string | undefined, fromUrl: boolean = fa
 	return hasWildcardPrefix ? `*.${host}` : host;
 }
 
+function normalizeUriAuthority(authority: string | undefined): string | undefined {
+	if (!authority || /[/?#\\]/.test(authority)) {
+		return undefined;
+	}
+
+	let hostname: string;
+	try {
+		const url = new URL(`http://${authority}`);
+		if (hasHostLikeCredentials(url)) {
+			return undefined;
+		}
+		hostname = url.hostname.toLowerCase();
+	} catch {
+		return undefined;
+	}
+
+	if (hostname.startsWith('[')) {
+		return hostname.endsWith(']') ? hostname : undefined;
+	}
+
+	return normalizeDomain(hostname, true);
+}
+
+function hasHostLikeCredentials(url: URL): boolean {
+	return [url.username, url.password].some(value => {
+		if (!value) {
+			return false;
+		}
+
+		let decoded: string;
+		try {
+			decoded = decodeURIComponent(value).toLowerCase();
+		} catch {
+			return true;
+		}
+
+		if (decoded.includes('@')) {
+			return false;
+		}
+
+		return (decoded.includes('.') && normalizeDomain(decoded, true) !== undefined)
+			|| normalizeBareIpv6(decoded) !== undefined;
+	});
+}
+
+function normalizeBareIpv6(value: string): string | undefined {
+	if (!value.includes(':') || /[/?#\\@\[\]]/.test(value)) {
+		return undefined;
+	}
+	return normalizeUriAuthority(`[${value}]`);
+}
+
+/**
+ * Normalizes an administrator allow/deny pattern to the canonical host form used for matching.
+ */
+export function normalizeDomainPattern(pattern: string): string | undefined {
+	const extractedPattern = extractDomainPattern(pattern);
+
+	if (extractedPattern === '*') {
+		return extractedPattern;
+	}
+
+	if (extractedPattern.startsWith('*.')) {
+		const normalizedPattern = normalizeDomain(extractedPattern, true);
+		if (!normalizedPattern) {
+			return undefined;
+		}
+		const suffix = normalizedPattern.slice(2);
+		return `*.${normalizeUriAuthority(suffix) ?? suffix}`;
+	}
+
+	return normalizeBareIpv6(extractedPattern)
+		?? normalizeUriAuthority(extractedPattern)
+		?? normalizeDomain(extractedPattern, true);
+}
+
+function normalizeEmbeddedIpv4(value: string): string | undefined {
+	const mappedMatch = /^\[::ffff:(?<high>[0-9a-f]{1,4}):(?<low>[0-9a-f]{1,4})\]$/.exec(value);
+	const compatibleMatch = mappedMatch ? undefined : /^\[::(?:(?<high>[0-9a-f]{1,4}):)?(?<low>[0-9a-f]{1,4})\]$/.exec(value);
+	const groups = (mappedMatch ?? compatibleMatch)?.groups;
+	if (!groups) {
+		return undefined;
+	}
+
+	const high = Number.parseInt(groups.high ?? '0', 16);
+	const low = Number.parseInt(groups.low, 16);
+	if (compatibleMatch && high === 0 && low <= 1) {
+		return undefined;
+	}
+
+	return `${high >>> 8}.${high & 0xff}.${low >>> 8}.${low & 0xff}`;
+}
+
 /**
  * Extracts the domain portion from a pattern string.
  * If the pattern contains `://`, it is parsed as a URI and the authority is returned.
@@ -120,7 +213,7 @@ export function extractDomainPattern(pattern: string): string {
  * @returns `true` if the domain matches the pattern.
  */
 export function matchesDomainPattern(domain: string, pattern: string): boolean {
-	const normalizedPattern = normalizeDomain(extractDomainPattern(pattern), pattern.includes('://'));
+	const normalizedPattern = normalizeDomainPattern(pattern);
 	if (!normalizedPattern) {
 		return false;
 	}
@@ -129,20 +222,21 @@ export function matchesDomainPattern(domain: string, pattern: string): boolean {
 	}
 	if (normalizedPattern.startsWith('*.')) {
 		const suffix = normalizedPattern.slice(2);
-		return domain === suffix || domain.endsWith(`.${suffix}`);
+		const normalizedDomain = normalizeEmbeddedIpv4(domain) ?? domain;
+		return normalizedDomain === suffix || normalizedDomain.endsWith(`.${suffix}`);
 	}
-	return domain === normalizedPattern;
+	return (normalizeEmbeddedIpv4(domain) ?? domain) === (normalizeEmbeddedIpv4(normalizedPattern) ?? normalizedPattern);
 }
 
 /**
  * Extracts and normalizes a domain from a URI.
- * Strips port numbers and trailing dots.
+ * Separates user information and ports, and canonicalizes IPv6 literals.
  *
  * @param uri The URI to extract the domain from.
  * @returns The normalized domain, or `undefined` if no valid domain could be extracted.
  */
 export function extractDomainFromUri(uri: URI): string | undefined {
-	return normalizeDomain(uri.authority, true);
+	return normalizeUriAuthority(uri.authority);
 }
 
 /**

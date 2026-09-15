@@ -21,7 +21,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -31,11 +31,10 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -47,7 +46,6 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
-	readonly isAutomations?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
 }
@@ -70,11 +68,18 @@ const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
 
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
-		id: 'sessions.customization.agents',
-		label: localize('agents', "Agents"),
-		icon: agentIcon,
-		section: AICustomizationManagementSection.Agents,
-		modelSection: AICustomizationManagementSection.Agents,
+		id: 'sessions.customization.plugins',
+		label: localize('plugins', "Plugins"),
+		icon: pluginIcon,
+		section: AICustomizationManagementSection.Plugins,
+		isPlugins: true,
+	},
+	{
+		id: 'sessions.customization.mcpServers',
+		label: localize('mcpServers', "MCP Servers"),
+		icon: mcpServerIcon,
+		section: AICustomizationManagementSection.McpServers,
+		isMcp: true,
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -91,33 +96,18 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		modelSection: AICustomizationManagementSection.Instructions,
 	},
 	{
+		id: 'sessions.customization.agents',
+		label: localize('agents', "Agents"),
+		icon: agentIcon,
+		section: AICustomizationManagementSection.Agents,
+		modelSection: AICustomizationManagementSection.Agents,
+	},
+	{
 		id: 'sessions.customization.hooks',
 		label: localize('hooks', "Hooks"),
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		modelSection: AICustomizationManagementSection.Hooks,
-	},
-	{
-		id: 'sessions.customization.automations',
-		label: localize('automations', "Automations"),
-		icon: automationIcon,
-		section: AICustomizationManagementSection.Automations,
-		isAutomations: true,
-		when: ChatAutomationsEnabledContext,
-	},
-	{
-		id: 'sessions.customization.mcpServers',
-		label: localize('mcpServers', "MCP Servers"),
-		icon: mcpServerIcon,
-		section: AICustomizationManagementSection.McpServers,
-		isMcp: true,
-	},
-	{
-		id: 'sessions.customization.plugins',
-		label: localize('plugins', "Plugins"),
-		icon: pluginIcon,
-		section: AICustomizationManagementSection.Plugins,
-		isPlugins: true,
 	},
 	{
 		id: 'sessions.customization.tools',
@@ -126,15 +116,22 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		section: AICustomizationManagementSection.Tools,
 		isTools: true,
 	},
+	{
+		id: 'sessions.customization.harnessSettings',
+		label: localize('harnessSettings', "Codex"),
+		icon: Codicon.openai,
+		section: AICustomizationManagementSection.HarnessSettings,
+	},
 ];
 
-export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.showWelcomePage();
@@ -142,12 +139,13 @@ export async function openCustomizationOverviewPage(editorService: IEditorServic
 }
 
 async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
-	const sessionResource = sessionsService.activeSession.get()?.resource;
-	if (sessionResource) {
-		harnessService.setActiveSession(sessionResource);
+	const session = sessionsService.activeSession.get();
+	if (session) {
+		harnessService.setActiveSession(session.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);
@@ -174,7 +172,6 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
-		@IAutomationService private readonly _automationService: IAutomationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -233,9 +230,6 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			const toolSets = this._toolsService.toolSets.read(reader);
 			return countEnabledCustomizationTools(toolSets, state, reader);
 		}
-		if (this._config.isAutomations) {
-			return this._automationService.automations.read(reader).length;
-		}
 		return 0;
 	}
 
@@ -277,7 +271,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			visibilityKeys.set(config.section, key);
 		}
 		this._register(autorun(reader => {
-			harnessService.activeHarness.read(reader);
+			const activeHarness = harnessService.activeHarness.read(reader);
 			harnessService.availableHarnesses.read(reader);
 			const descriptor = harnessService.getActiveDescriptor();
 			const hidden = new Set(descriptor.hiddenSections ?? []);
@@ -285,7 +279,8 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				if (!config.section) {
 					continue;
 				}
-				visibilityKeys.get(config.section)!.set(!hidden.has(config.section));
+				const supported = config.section !== AICustomizationManagementSection.HarnessSettings || activeHarness === SessionType.AgentHostCodex;
+				visibilityKeys.get(config.section)!.set(!hidden.has(config.section) && supported);
 			}
 		}));
 
@@ -298,6 +293,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				super({
 					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
 					title: CUSTOMIZATION_OVERVIEW_ITEM.label,
+					precondition: ChatContextKeys.enabled,
 					menu: {
 						id: Menus.SidebarCustomizations,
 						group: 'navigation',

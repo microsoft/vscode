@@ -16,12 +16,13 @@ import {
 	readProxyRequestBody,
 } from '../shared/loopbackProxyServer.js';
 import {
-	IOpenAiChatRequest,
-	OpenAiTranslationError,
-	bridgeResultToSseFrames,
-	openAiErrorBody,
-	openAiRequestToBridge,
-} from './byokOpenAiTranslation.js';
+	bridgeResultToResponsesBody,
+	bridgeResultToResponsesSseFrames,
+	IResponsesRequest,
+	responsesErrorBody,
+	responsesRequestToBridge,
+	ResponsesTranslationError,
+} from './byokResponsesTranslation.js';
 
 // #region Public types
 
@@ -45,7 +46,7 @@ export interface IByokLmProxyHandle extends ILoopbackProxyHandle {
 	/**
 	 * Build the provider `baseUrl` for a given BYOK vendor. The vendor is
 	 * encoded into the path so a single proxy can serve every vendor; the
-	 * runtime appends `/chat/completions` to this URL.
+	 * runtime appends `/responses` to this URL.
 	 */
 	providerBaseUrl(vendor: string): string;
 }
@@ -69,7 +70,7 @@ export interface IByokLmProxyService {
 
 const PROXY_USER_FACING_NAME = 'ByokLmProxyService';
 const VENDOR_PATH_PREFIX = '/v/';
-const CHAT_COMPLETIONS_SUFFIX = '/chat/completions';
+const RESPONSES_SUFFIX = '/responses';
 
 /**
  * The BYOK proxy keeps no per-bind mutable state: the active renderer bridge is
@@ -81,11 +82,11 @@ type ByokLmProxyState = undefined;
 /**
  * Local OpenAI-compatible HTTP proxy that lets the Copilot SDK runtime run
  * BYOK models provided by VS Code extensions. The runtime is configured with a
- * `type: 'openai'`, `wireApi: 'completions'` provider whose `baseUrl` points
- * here; inbound `POST /v/<vendor>/chat/completions` requests are authenticated,
+ * `type: 'openai'`, `wireApi: 'responses'` provider whose `baseUrl` points
+ * here; inbound `POST /v/<vendor>/responses` requests are authenticated,
  * translated, and forwarded to the renderer LM API via
  * {@link IByokLmBridgeRegistry}, and the buffered completion is streamed back
- * as OpenAI Chat Completions SSE.
+ * as OpenAI Responses SSE.
  *
  * The server lifecycle — lazy bind on `127.0.0.1`, nonce minting, refcounted
  * handles, in-flight tracking, and teardown — is inherited from
@@ -149,9 +150,9 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
-		const vendor = this._parseVendorFromChatPath(pathname);
+		const vendor = this._parseVendorFromResponsesPath(pathname);
 		if (method === 'POST' && vendor !== undefined) {
-			await this._handleChatCompletions(req, res, runtime, vendor);
+			await this._handleResponses(req, res, runtime, vendor);
 			return;
 		}
 
@@ -159,14 +160,13 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 	}
 
 	/**
-	 * Extract the vendor from a `/v/<vendor>/chat/completions` path, or return
-	 * `undefined` when the path is not a chat-completions route.
+	 * Extract the vendor from a `/v/<vendor>/responses` path.
 	 */
-	private _parseVendorFromChatPath(pathname: string): string | undefined {
-		if (!pathname.startsWith(VENDOR_PATH_PREFIX) || !pathname.endsWith(CHAT_COMPLETIONS_SUFFIX)) {
+	private _parseVendorFromResponsesPath(pathname: string): string | undefined {
+		if (!pathname.startsWith(VENDOR_PATH_PREFIX) || !pathname.endsWith(RESPONSES_SUFFIX)) {
 			return undefined;
 		}
-		const vendorSegment = pathname.slice(VENDOR_PATH_PREFIX.length, pathname.length - CHAT_COMPLETIONS_SUFFIX.length);
+		const vendorSegment = pathname.slice(VENDOR_PATH_PREFIX.length, pathname.length - RESPONSES_SUFFIX.length);
 		if (!vendorSegment) {
 			return undefined;
 		}
@@ -185,11 +185,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		return vendor;
 	}
 
-	private async _handleChatCompletions(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {
-		let body: IOpenAiChatRequest;
+	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {
+		let body: IResponsesRequest;
 		try {
 			const raw = await readProxyRequestBody(req);
-			body = JSON.parse(raw) as IOpenAiChatRequest;
+			body = JSON.parse(raw) as IResponsesRequest;
 		} catch (err) {
 			this._writeJsonError(res, 400, `Invalid request body: ${err instanceof Error ? err.message : String(err)}`, 'invalid_request_error');
 			return;
@@ -197,9 +197,9 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 		let bridgeRequest;
 		try {
-			bridgeRequest = openAiRequestToBridge(vendor, body);
+			bridgeRequest = responsesRequestToBridge(vendor, body);
 		} catch (err) {
-			const message = err instanceof OpenAiTranslationError ? err.message : String(err);
+			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
 			return;
 		}
@@ -231,15 +231,20 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				this._writeJsonError(res, 502, result.error, 'api_error');
 				return;
 			}
-			res.writeHead(200, {
-				'Content-Type': 'text/event-stream',
-				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive',
-			});
-			for (const frame of bridgeResultToSseFrames(result, bridgeRequest.modelId)) {
-				res.write(frame);
+			if (body.stream === true) {
+				res.writeHead(200, {
+					'Content-Type': 'text/event-stream',
+					'Cache-Control': 'no-cache',
+					'Connection': 'keep-alive',
+				});
+				for (const frame of bridgeResultToResponsesSseFrames(result, bridgeRequest.modelId)) {
+					res.write(frame);
+				}
+				res.end();
+			} else {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(bridgeResultToResponsesBody(result, bridgeRequest.modelId));
 			}
-			res.end();
 		} catch (err) {
 			if (entry.ac.signal.aborted || res.writableEnded) {
 				return;
@@ -261,7 +266,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 		res.writeHead(status, { 'Content-Type': 'application/json' });
-		res.end(openAiErrorBody(message, type));
+		res.end(responsesErrorBody(message, type));
 	}
 }
 

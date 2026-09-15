@@ -66,10 +66,16 @@
 		"increaseIndentPattern": "({+(?=((\\\\.|[^\"\\\\])*\"(\\\\.|[^\"\\\\])*\")*[^\"}]*)$)|(\\[+(?=((\\\\.|[^\"\\\\])*\"(\\\\.|[^\"\\\\])*\")*[^\"\\]]*)$)",
 		"decreaseIndentPattern": "^\\s*[}\\]],?\\s*$"
 	},
+	"folding": {
+		"markers": {
+			"start": "^\\s*//\\s*#?region\\b",
+			"end": "^\\s*//\\s*#?endregion\\b"
+		}
+	},
 	"onEnterRules": [
 		// Add // when pressing enter from inside line comment
 		{
-			"beforeText": "^\\s*//|\\s//\\s",
+			"beforeText": "^\\s*//\\s*\\S|\\s//\\s+\\S",
 			"afterText": "^(?!\\s*$)",
 			"action": {
 				"indent": "none",

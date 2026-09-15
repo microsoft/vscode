@@ -6,16 +6,14 @@
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { ChatTurnPillsContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { IChatTurnPillsPart } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
+import { renderChatWidget } from './chatWidget.fixture.js';
 
 // ============================================================================
 // Mock helpers
@@ -41,34 +39,44 @@ function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[]): IChatR
 }
 
 // ============================================================================
-// Render helper
+// Render helper (standalone content part)
 // ============================================================================
 
-function renderTurnPills(ctx: ComponentFixtureContext, diffs: readonly IEditSessionEntryDiff[]): void {
+interface IRenderTurnPillsOptions {
+	readonly diffs: readonly IEditSessionEntryDiff[];
+	/** When `true`, the changed-files disclosure is expanded. */
+	readonly expanded?: boolean;
+}
+
+function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPillsOptions): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			// Broad chat service graph: IContextMenuService, IEditorService and the
-			// ResourceLabels dependencies the preview pill needs.
 			registerChatFixtureServices(reg);
-			reg.defineInstance(IChatResponseFileChangesService, stubFileChangesService(diffs));
+			reg.defineInstance(IChatResponseFileChangesService, stubFileChangesService(options.diffs));
 		},
 	});
-
-	// Both pills are off by default; enable them so the fixture renders.
-	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, { changes: true, preview: true });
 
 	const content: IChatTurnPillsPart = {
 		kind: 'turnPills',
 		requestId: 'request-1',
 		sessionResource: URI.parse('vscode-chat-session://agent-host/session-1'),
+		isLastTurn: true,
 	};
-	const context = upcastPartial<IChatContentPartRenderContext>({ container });
+	const partContext = upcastPartial<IChatContentPartRenderContext>({ container });
 
-	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, context));
+	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, partContext));
 
+	if (options.expanded) {
+		part.domNode.querySelector<HTMLDetailsElement>('.checkpoint-file-changes-disclosure')!.open = true;
+	}
+
+	// The turn changes summary reuses the checkpoint summary styling, which is
+	// scoped under `.interactive-session` (and relies on `.monaco-workbench` for
+	// codicon sizing custom properties).
+	container.classList.add('monaco-workbench', 'interactive-session');
 	container.style.padding = '12px';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
 	container.appendChild(part.domNode);
@@ -80,35 +88,85 @@ function renderTurnPills(ctx: ComponentFixtureContext, diffs: readonly IEditSess
 
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
-	ChangesSingleFile: defineComponentFixture({
-		render: (ctx) => renderTurnPills(ctx, [fileDiff('app.ts', 12, 5, false)]),
+	// --- Standalone content part in each of its states ---
+
+	part: defineThemedFixtureGroup({
+		ChangesOnly_SingleFile: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, { diffs: [fileDiff('app.ts', 12, 5, false)] }),
+		}),
+
+		ChangesOnly_MultipleFiles: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, {
+				diffs: [
+					fileDiff('app.ts', 42, 7, false),
+					fileDiff('util.ts', 118, 64, false),
+					fileDiff('index.ts', 5, 0, true),
+				],
+			}),
+		}),
+
+		ChangesOnly_Expanded: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, {
+				expanded: true,
+				diffs: [
+					fileDiff('app.ts', 42, 7, false),
+					fileDiff('util.ts', 118, 64, false),
+					fileDiff('index.ts', 5, 0, true),
+				],
+			}),
+		}),
+
+		WorkspaceMarkdown: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, {
+				diffs: [
+					fileDiff('README.md', 20, 0, true),
+					fileDiff('app.ts', 8, 3, false),
+				],
+			}),
+		}),
+
+		NoChanges_Hidden: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, { diffs: [] }),
+		}),
 	}),
 
-	ChangesMultipleFiles: defineComponentFixture({
-		render: (ctx) => renderTurnPills(ctx, [
-			fileDiff('app.ts', 42, 7, false),
-			fileDiff('util.ts', 118, 64, false),
-			fileDiff('index.ts', 5, 0, true),
-		]),
-	}),
+	// --- Turn changes summary inside the entire chat ---
 
-	PreviewMarkdown: defineComponentFixture({
-		render: (ctx) => renderTurnPills(ctx, [
-			fileDiff('README.md', 20, 0, true),
-			fileDiff('app.ts', 8, 3, false),
-		]),
-	}),
+	inChat: defineThemedFixtureGroup({
+		Changes: defineComponentFixture({
+			render: (ctx) => renderChatWidget(ctx, {
+				agentHostSession: true,
+				messages: [
+					{
+						user: 'Refactor the fibonacci helper to be iterative',
+						assistant: [
+							{ kind: 'markdown', text: 'I rewrote `fibonacci(n)` to use an iterative loop and updated its callers, avoiding the exponential recursion.' },
+						],
+						fileChanges: [
+							{ name: 'fibon.ts', added: 12, removed: 8, created: false },
+							{ name: 'app.ts', added: 3, removed: 1, created: false },
+						],
+					},
+				],
+			}),
+		}),
 
-	PreviewMultiple: defineComponentFixture({
-		render: (ctx) => renderTurnPills(ctx, [
-			fileDiff('app.ts', 8, 3, false),
-			fileDiff('README.md', 20, 0, true),
-			fileDiff('index.html', 30, 4, true),
-			fileDiff('CHANGELOG.md', 6, 1, false),
-		]),
-	}),
-
-	NoChanges_Hidden: defineComponentFixture({
-		render: (ctx) => renderTurnPills(ctx, []),
+		ChangesWithExternalFileIgnored: defineComponentFixture({
+			render: (ctx) => renderChatWidget(ctx, {
+				agentHostSession: true,
+				messages: [
+					{
+						user: 'Create a Markdown handoff note in my home folder',
+						assistant: [
+							{ kind: 'markdown', text: 'I added `/home/user/session-notes.md` with the handoff details and updated `app.ts` in the workspace.' },
+						],
+						fileChanges: [
+							{ name: 'session-notes.md', added: 42, removed: 0, created: true, isOutsideWorkspace: true },
+							{ name: 'app.ts', added: 4, removed: 1, created: false },
+						],
+					},
+				],
+			}),
+		}),
 	}),
 });

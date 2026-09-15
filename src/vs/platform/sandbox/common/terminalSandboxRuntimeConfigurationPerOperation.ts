@@ -24,8 +24,6 @@ const terminalSandboxRuntimeConfigurationCommandRules: readonly ITerminalSandbox
 	},
 ];
 
-const terminalSandboxGnuPGCompatibleCommandKeywords = new Set(['git', 'gh', 'gpg', 'gpg2']);
-
 function getTerminalSandboxRuntimeConfigurationForOperation(operation: TerminalSandboxRuntimeConfigurationOperation, os: OperatingSystem): Record<string, unknown> {
 	switch (operation) {
 		case TerminalSandboxRuntimeConfigurationOperation.GnuPG:
@@ -88,9 +86,9 @@ export function getTerminalSandboxRuntimeConfigurationForCommands(os: OperatingS
 function shouldApplyRuntimeConfigurationOperation(operation: TerminalSandboxRuntimeConfigurationOperation, commandDetails: readonly ITerminalSandboxCommand[]): boolean {
 	switch (operation) {
 		case TerminalSandboxRuntimeConfigurationOperation.GnuPG:
-			// allowAllUnixSockets applies to the whole sandbox invocation, so only allow chains
-			// containing Git, GitHub CLI, and GnuPG commands.
-			return commandDetails.every(command => terminalSandboxGnuPGCompatibleCommandKeywords.has(command.keyword.toLowerCase()));
+			// Docker socket access can grant host-level privileges, so do not allow all Unix
+			// sockets when a Docker-related command is part of the sandbox invocation.
+			return commandDetails.every(command => !command.keyword.toLowerCase().startsWith('docker'));
 		case TerminalSandboxRuntimeConfigurationOperation.Node:
 			return true;
 	}

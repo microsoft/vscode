@@ -85,3 +85,23 @@ class SimulateFishFeedingStreakAction extends Action2 {
 }
 
 registerAction2(SimulateFishFeedingStreakAction);
+
+class ToggleAquariumActionVisibilityAction extends Action2 {
+
+	static readonly ID = 'sessions.aquarium.toggleActionVisibility';
+
+	constructor() {
+		super({
+			id: ToggleAquariumActionVisibilityAction.ID,
+			title: localize2('aquarium.toggleActionVisibility', "Toggle Aquarium Action Visibility"),
+			f1: true,
+			category: Categories.Developer,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IAquariumService).toggleActionVisibility();
+	}
+}
+
+registerAction2(ToggleAquariumActionVisibilityAction);

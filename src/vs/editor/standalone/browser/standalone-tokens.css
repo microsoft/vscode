@@ -5,8 +5,13 @@
 
 
 /* Default standalone editor fonts */
-.monaco-editor {
+.monaco-editor,
+.monaco-component,
+.monaco-component.context-view.fixed {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+}
+
+.monaco-editor {
 	--monaco-monospace-font: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
 }
 

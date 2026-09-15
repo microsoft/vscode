@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
-import { byokKnownModelToAPIInfo, BYOKModelCapabilities, isClientBYOKAllowed, resolveModelInfo } from '../byokProvider';
+import { byokKnownModelToAPIInfo, BYOKModelCapabilities, isClientBYOKAllowed, resolveModelInfo, resolveModelTokenLimits } from '../byokProvider';
 
 describe('byokKnownModelToAPIInfo', () => {
 	const baseCapabilities: BYOKModelCapabilities = {
@@ -42,6 +42,21 @@ describe('byokKnownModelToAPIInfo', () => {
 		const info = byokKnownModelToAPIInfo('TestProvider', 'm1', baseCapabilities);
 
 		expect(info.capabilities.editTools).toBeUndefined();
+	});
+
+	it('derives maxInputTokens from contextWindow when maxInputTokens is omitted', () => {
+		// The value surfaced here becomes `model.maxInputTokens`, which the custom
+		// endpoint/OAI/azure providers read when building the endpoint.
+		const info = byokKnownModelToAPIInfo('TestProvider', 'm1', {
+			name: 'BigContextModel',
+			contextWindow: 1000000,
+			maxOutputTokens: 384000,
+			toolCalling: true,
+			vision: false,
+		});
+
+		expect(info.maxInputTokens).toBe(1000000 - 384000);
+		expect(info.maxOutputTokens).toBe(384000);
 	});
 });
 
@@ -84,6 +99,73 @@ describe('resolveModelInfo', () => {
 		expect(info.modelOptions).toEqual({
 			temperature: null,
 			top_p: 0.95,
+		});
+	});
+
+	it('honors an explicit contextWindow as the source of truth for the context window', () => {
+		// A model documented as: Context Length 1M, Max Output 384K. The user can now
+		// declare the real capability directly instead of back-computing maxInputTokens.
+		const info = resolveModelInfo('m1', 'TestProvider', undefined, {
+			...baseCapabilities,
+			contextWindow: 1000000,
+			maxOutputTokens: 384000,
+			maxInputTokens: undefined,
+		});
+
+		expect(info.capabilities.limits?.max_context_window_tokens).toBe(1000000);
+		// The prompt budget is derived as contextWindow - maxOutputTokens.
+		expect(info.capabilities.limits?.max_prompt_tokens).toBe(1000000 - 384000);
+		expect(info.capabilities.limits?.max_output_tokens).toBe(384000);
+	});
+
+	it('derives the context window as maxInputTokens + maxOutputTokens when contextWindow is absent', () => {
+		const info = resolveModelInfo('m1', 'TestProvider', undefined, {
+			...baseCapabilities,
+			maxInputTokens: 616000,
+			maxOutputTokens: 384000,
+		});
+
+		expect(info.capabilities.limits?.max_context_window_tokens).toBe(616000 + 384000);
+		expect(info.capabilities.limits?.max_prompt_tokens).toBe(616000);
+	});
+
+	it('falls back to a 128000 context window when no capabilities are known', () => {
+		const info = resolveModelInfo('m1', 'TestProvider', undefined, undefined);
+
+		expect(info.capabilities.limits?.max_context_window_tokens).toBe(128000);
+	});
+});
+
+describe('resolveModelTokenLimits', () => {
+	it('derives the window from maxInputTokens + maxOutputTokens when contextWindow is absent', () => {
+		expect(resolveModelTokenLimits({ maxInputTokens: 616000, maxOutputTokens: 384000 })).toEqual({
+			contextWindow: 1000000,
+			maxInputTokens: 616000,
+			maxOutputTokens: 384000,
+		});
+	});
+
+	it('derives maxInputTokens from contextWindow when maxInputTokens is omitted', () => {
+		expect(resolveModelTokenLimits({ contextWindow: 1000000, maxOutputTokens: 384000 })).toEqual({
+			contextWindow: 1000000,
+			maxInputTokens: 616000,
+			maxOutputTokens: 384000,
+		});
+	});
+
+	it('clamps maxOutputTokens so it never exceeds the context window', () => {
+		expect(resolveModelTokenLimits({ contextWindow: 1000, maxOutputTokens: 8192 })).toEqual({
+			contextWindow: 1000,
+			maxInputTokens: 0,
+			maxOutputTokens: 1000,
+		});
+	});
+
+	it('clamps an explicit maxInputTokens to the remaining budget when it overflows the window', () => {
+		expect(resolveModelTokenLimits({ contextWindow: 1000000, maxInputTokens: 900000, maxOutputTokens: 384000 })).toEqual({
+			contextWindow: 1000000,
+			maxInputTokens: 616000,
+			maxOutputTokens: 384000,
 		});
 	});
 });

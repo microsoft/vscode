@@ -12,6 +12,7 @@ jobs:
     variables:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+      VSCODE_EXTENSION_TARGET: alpine-${{ parameters.VSCODE_ARCH }}
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
@@ -96,14 +97,18 @@ jobs:
           # which does not have their own .npmrc file
           npm config set registry "$NPM_REGISTRY"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM
 
       - task: npmAuthenticate@0
         inputs:
           workingFile: $(NPMRC_PATH)
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
 
       - task: Docker@1
         inputs:
@@ -134,7 +139,6 @@ jobs:
           mkdir -p .build/nodejs-musl
           NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
           BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
-          az extension add --name azure-devops --upgrade --only-show-errors
           az artifacts universal download \
             --organization "https://dev.azure.com/monacotools" \
             --project "Monaco" \
@@ -173,6 +177,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        displayName: Verify native optional dependency binaries
+
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         displayName: Mixin distro node modules
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -189,6 +200,9 @@ jobs:
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self
+
+      - script: node build/npm/electronTypes.ts
+        displayName: Prepare Electron types
 
       - template: ../common/agent-sdk-produce.yml@self
         parameters:

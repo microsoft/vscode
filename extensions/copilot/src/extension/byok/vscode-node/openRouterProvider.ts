@@ -25,10 +25,27 @@ interface OpenRouterModelData {
 	architecture?: {
 		input_modalities?: string[];
 	};
+	/**
+	 * The model's actual maximum context window, independent of which provider
+	 * OpenRouter ranks highest. Prefer this over `top_provider.context_length`,
+	 * which only reflects the primary provider and can be far smaller for
+	 * multi-provider models.
+	 * @see https://openrouter.ai/docs/guides/overview/models
+	 */
+	context_length?: number;
 	top_provider: {
 		context_length: number;
+		/** Maximum tokens the primary provider will produce in a response. */
+		max_completion_tokens?: number;
 	};
 }
+
+/**
+ * Fallback output-token budget used only when OpenRouter does not report
+ * `top_provider.max_completion_tokens` for a model. The value is heuristic — most
+ * tool-capable models do report an explicit budget, in which case this is unused.
+ */
+const DEFAULT_MAX_OUTPUT_TOKENS = 16_000;
 
 export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 
@@ -73,12 +90,21 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		const supportsReasoningEffort = supportedParameters.includes('reasoning') || supportedParameters.includes('reasoning_effort')
 			? ['low', 'medium', 'high']
 			: undefined;
+		// Prefer the model-level `context_length` (the real capability) over
+		// `top_provider.context_length`, which only reflects OpenRouter's
+		// highest-ranked provider and can be much smaller for multi-provider models.
+		const contextWindow = openRouterModelData.context_length ?? openRouterModelData.top_provider.context_length;
+		// Reserve output tokens from the window. Clamp the reserve so a small-context
+		// model (or a missing/oversized `max_completion_tokens`) never yields a
+		// non-positive prompt budget.
+		const requestedMaxOutputTokens = openRouterModelData.top_provider.max_completion_tokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
+		const maxOutputTokens = Math.min(requestedMaxOutputTokens, Math.floor(contextWindow / 2));
 		return {
 			name: openRouterModelData.name,
 			toolCalling: supportedParameters.includes('tools'),
 			vision: openRouterModelData.architecture?.input_modalities?.includes('image') ?? false,
-			maxInputTokens: openRouterModelData.top_provider.context_length - 16000,
-			maxOutputTokens: 16000,
+			maxInputTokens: contextWindow - maxOutputTokens,
+			maxOutputTokens,
 			supportsReasoningEffort
 		};
 	}

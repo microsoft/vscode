@@ -9,6 +9,7 @@ import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/ho
 import { Checkbox } from '../../../../../../../base/browser/ui/toggle/toggle.js';
 import { Action } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
@@ -21,6 +22,7 @@ import { IHoverService } from '../../../../../../../platform/hover/browser/hover
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../../../platform/notification/common/notification.js';
 import { defaultCheckboxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -29,6 +31,7 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 import '../media/chatAgentFeedbackReviewConfirmation.css';
@@ -55,6 +58,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 	private readonly _rows = new Map<string, ICommentRow>();
 	private readonly _rowStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _resourceLabels: ResourceLabels;
+	private readonly _onDidChangeRevealButtonDisablement = this._register(new Emitter<boolean>());
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
@@ -67,6 +71,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService, riskAssessmentService);
@@ -86,6 +91,8 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			{
 				label: revealLabel,
 				data: () => this._onReveal(),
+				disabled: true,
+				onDidChangeDisablement: this._onDidChangeRevealButtonDisablement.event,
 			},
 			{
 				label: localize('agentFeedback.cancel', "Cancel"),
@@ -174,8 +181,6 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			{ fileKind: FileKind.FILE, title: fileUri.fsPath || fileUri.path },
 		);
 
-		this._renderCommentText(rowStore, main, comment.text);
-
 		const actionsContainer = dom.append(rowElement, dom.$('.chat-agent-feedback-review-actions'));
 		const actionBar = rowStore.add(new ActionBar(actionsContainer));
 		actionBar.push(rowStore.add(new Action(
@@ -188,26 +193,33 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		actionBar.push(rowStore.add(new Action(
 			'agentFeedbackReview.delete',
 			localize('agentFeedback.delete', "Delete Comment"),
-			ThemeIcon.asClassName(Codicon.close),
+			ThemeIcon.asClassName(Codicon.closeSmall),
 			true,
 			() => this._delete(comment.id),
 		)), { icon: true, label: false });
 
+		this._renderCommentText(rowStore, main, actionsContainer, comment.text);
+
 		this._rows.set(comment.id, { comment, checkbox, element: rowElement });
+		rowStore.add(checkbox.onChange(() => this._updateRevealButtonDisablement()));
+		this._updateRevealButtonDisablement();
+	}
+
+	private _updateRevealButtonDisablement(): void {
+		this._onDidChangeRevealButtonDisablement.fire(![...this._rows.values()].some(row => row.checkbox.checked));
 	}
 
 	/**
 	 * Renders the comment body clamped to two visual lines by default, with an
-	 * expand/collapse toggle in the bottom-right corner. The toggle and the
-	 * fade/ellipsis affordance only appear when the text actually overflows two
-	 * lines; overflow is re-evaluated whenever the available width changes.
+	 * expand/collapse toggle below the row actions. The toggle and fade affordance
+	 * only appear when the text overflows two lines.
 	 */
-	private _renderCommentText(rowStore: DisposableStore, main: HTMLElement, text: string): void {
+	private _renderCommentText(rowStore: DisposableStore, main: HTMLElement, actionsContainer: HTMLElement, text: string): void {
 		const container = dom.append(main, dom.$('.chat-agent-feedback-review-text-container'));
 		const textElement = dom.append(container, dom.$('.chat-agent-feedback-review-text'));
 		textElement.textContent = text;
 
-		const toggle = dom.append(container, dom.$<HTMLButtonElement>('button.chat-agent-feedback-review-expand-toggle'));
+		const toggle = dom.append(actionsContainer, dom.$<HTMLButtonElement>('button.chat-agent-feedback-review-expand-toggle'));
 		toggle.type = 'button';
 		toggle.tabIndex = 0;
 		const toggleIcon = dom.append(toggle, dom.$('span.codicon'));
@@ -248,6 +260,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		const updateOverflow = () => {
 			const overflowing = isOverflowing();
 			container.classList.toggle('overflowing', overflowing);
+			toggle.classList.toggle('visible', overflowing);
 			if (!overflowing && expanded) {
 				expanded = false;
 				renderState();
@@ -263,6 +276,9 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		rowStore.add(dom.addDisposableListener(toggle, dom.EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
+			// Announce the toggle before the row grows so the list anchors this comment instead of
+			// auto-scrolling to the new end of the transcript when it is already at the bottom.
+			container.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 			expanded = !expanded;
 			renderState();
 		}));
@@ -290,6 +306,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			row?.element.remove();
 			this._rows.delete(commentId);
 			this._rowStores.deleteAndDispose(commentId);
+			this._updateRevealButtonDisablement();
 		} catch (error) {
 			this.logService.warn('[AgentFeedbackReview] Failed to delete comment', error);
 		}
@@ -302,16 +319,22 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 				checkedIds.push(row.comment.id);
 			}
 		}
+		if (!checkedIds.length) {
+			return;
+		}
 		// Accept the checked comments before approving the tool call so the
 		// annotation writes are dispatched ahead of the approval on the same
 		// connection; the server tool body then reads the updated state and
 		// returns exactly the revealed comments.
-		if (checkedIds.length) {
-			try {
-				await this.commandService.executeCommand(AgentFeedbackReviewCommandId.Accept, this._sessionResource, checkedIds);
-			} catch (error) {
-				this.logService.warn('[AgentFeedbackReview] Failed to accept comments', error);
-			}
+		try {
+			await this.commandService.executeCommand(AgentFeedbackReviewCommandId.Accept, this._sessionResource, checkedIds);
+		} catch (error) {
+			this.logService.warn('[AgentFeedbackReview] Failed to accept comments', error);
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('agentFeedback.acceptFailed', "Failed to reveal the selected comments. Please try again."),
+			});
+			return;
 		}
 		this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction });
 	}

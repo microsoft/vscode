@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/KapitanOczywisty/language-php/commit/cd607a522b79c457fe78bf7a1b04511d1c49f693",
+	"version": "https://github.com/KapitanOczywisty/language-php/commit/d94fd6b7dff1613d34bc0d36328f9982e65bd545",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -1802,7 +1802,7 @@
 					]
 				},
 				{
-					"begin": "(?=<<<\\s*'([a-zA-Z_]+[a-zA-Z0-9_]*)'\\s*$)",
+					"begin": "(?i)(?=<<<\\s*'([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)'\\s*$)",
 					"end": "(?!\\G)",
 					"name": "string.unquoted.nowdoc.php",
 					"patterns": [

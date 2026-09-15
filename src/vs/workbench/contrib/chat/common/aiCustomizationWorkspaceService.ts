@@ -8,7 +8,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -46,46 +46,35 @@ export const AICustomizationManagementSection = {
 	Plugins: 'plugins',
 	Models: 'models',
 	Tools: 'tools',
+	HarnessSettings: 'harnessSettings',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
+
+/** Command IDs for the AI Customizations Management Editor. */
+export const AICustomizationManagementCommands = {
+	OpenEditor: 'aiCustomization.openManagementEditor',
+	OpenMarketplace: 'aiCustomization.openMarketplace',
+	CreateNewAgent: 'aiCustomization.createNewAgent',
+	CreateNewSkill: 'aiCustomization.createNewSkill',
+	CreateNewInstructions: 'aiCustomization.createNewInstructions',
+	CreateNewPrompt: 'aiCustomization.createNewPrompt',
+	GenerateDebugReport: 'aiCustomization.generateDebugReport',
+	DismissMigrationHint: 'aiCustomization.dismissMigrationHint',
+} as const;
+
+/** Returns the workspace storage key for a harness-specific migration hint dismissal. */
+export function getCustomizationMigrationHintDismissedStorageKey(sessionType: string): string {
+	return `chat.customizationMigrationHint.dismissed.${sessionType}`;
+}
 
 /**
  * Per-type filter policy controlling which storage sources are visible
  * for a given customization type.
  */
-export interface IStorageSourceFilter {
-	/**
-	 * Which storage groups to display (e.g. workspace, user, extension, builtin).
-	 */
-	readonly sources: readonly AICustomizationSource[];
-}
-
-/**
- * Controls which features are shown on the welcome page of the
- * AI Customization Management Editor.
- */
 export interface IWelcomePageFeatures {
 	/** Show the "Configure Your AI" getting-started banner. */
 	readonly showGettingStartedBanner: boolean;
-}
-
-/**
- * Applies a source filter to an array of items that have uri and source.
- * Removes items whose source is not in the filter's source list.
- */
-export function applySourceFilter<T extends { readonly uri: URI; readonly source: AICustomizationSource }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
-	const sourceSet = new Set(filter.sources);
-	return items.filter(item => sourceSet.has(item.source));
-}
-
-/**
- * Applies a storage filter to an array of items that have uri and storage.
- * Removes items whose storage is not in the filter's source list.
- */
-export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: PromptsStorage }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
-	const sourceSet = new Set(filter.sources);
-	return items.filter(item => sourceSet.has(item.storage));
 }
 
 /**
@@ -98,6 +87,11 @@ export interface IAICustomizationWorkspaceService {
 	 * Observable that fires when the active project root changes.
 	 */
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+
+	/**
+	 * Display label for the active project.
+	 */
+	readonly activeProjectLabel: IObservable<string | undefined>;
 
 	/**
 	 * Returns the current active project root, if any.

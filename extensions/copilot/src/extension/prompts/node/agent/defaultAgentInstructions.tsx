@@ -6,7 +6,7 @@
 import { BasePromptElementProps, PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import type { LanguageModelToolInformation } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { isGpt5PlusFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt5PlusFamily, isHiddenModelN } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
@@ -480,14 +480,14 @@ export class ApplyPatchInstructions extends PromptElement<DefaultAgentPromptProp
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const isGpt5 = isGpt5PlusFamily(this.props.modelFamily);
-		const useSimpleInstructions = isGpt5 && this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gpt5AlternativePatch, this._experimentationService);
+		const isGpt5OrHiddenModelN = isGpt5PlusFamily(this.props.modelFamily) || (this.props.modelFamily !== undefined && isHiddenModelN(this.props.modelFamily));
+		const useSimpleInstructions = isGpt5OrHiddenModelN && this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gpt5AlternativePatch, this._experimentationService);
 
 		return <Tag name='applyPatchInstructions'>
 			To edit files in the workspace, use the {ToolName.ApplyPatch} tool. If you have issues with it, you should first try to fix your patch and continue using {ToolName.ApplyPatch}. {this.props.tools[ToolName.EditFile] && <>If you are stuck, you can fall back on the {ToolName.EditFile} tool, but {ToolName.ApplyPatch} is much faster and is the preferred tool.</>}<br />
-			{isGpt5 && <>Prefer the smallest set of changes needed to satisfy the task. Avoid reformatting unrelated code; preserve existing style and public APIs unless the task requires changes. When practical, complete all edits for a file within a single message.<br /></>}
+			{isGpt5OrHiddenModelN && <>Prefer the smallest set of changes needed to satisfy the task. Avoid reformatting unrelated code; preserve existing style and public APIs unless the task requires changes. When practical, complete all edits for a file within a single message.<br /></>}
 			{!useSimpleInstructions && <>
-				The input for this tool is a string representing the patch to apply, following a special format. For each snippet of code that needs to be changed, repeat the following:<br />
+				The tool call requires both `input`, a string representing the patch to apply, and `explanation`, a short description of what the patch aims to achieve. The input follows a special format. For each snippet of code that needs to be changed, repeat the following:<br />
 				<ApplyPatchFormatInstructions /><br />
 				NEVER print this out to the user, instead call the tool and the edits will be applied and shown to the user.<br />
 			</>}

@@ -23,6 +23,7 @@ import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/ch
 import { IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
@@ -136,6 +137,7 @@ function renderConfirmations(context: ComponentFixtureContext, commentSets: read
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
 			reg.defineInstance(ICommandService, createCommandService(commentsBySession));
 			reg.defineInstance(IChatTodoListService, new class extends mock<IChatTodoListService>() { override setTodos() { } }());
 			reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {

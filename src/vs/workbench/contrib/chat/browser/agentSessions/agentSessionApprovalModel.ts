@@ -26,6 +26,7 @@ export const enum AgentSessionApprovalKind {
 }
 
 export interface IAgentSessionApprovalInfo {
+	readonly approvalId: string;
 	readonly kind: AgentSessionApprovalKind;
 	readonly label: string;
 	readonly languageId: string | undefined;
@@ -34,11 +35,10 @@ export interface IAgentSessionApprovalInfo {
 }
 
 /**
- * A stable identity for a specific pending approval, distinguishing it from a
- * later, distinct approval on the same session (a fresh `since` yields a new id).
+ * A stable identity for a specific pending approval.
  */
 export function agentSessionApprovalId(info: IAgentSessionApprovalInfo): string {
-	return `${info.kind}\u0000${info.label}\u0000${info.since.getTime()}`;
+	return info.approvalId;
 }
 
 /**
@@ -93,7 +93,7 @@ export class AgentSessionApprovalModel extends Disposable {
 			if (current === value) {
 				return;
 			}
-			if (current !== undefined && value !== undefined && current.kind === value.kind && current.label === value.label && current.languageId === value.languageId) {
+			if (current !== undefined && value !== undefined && current.approvalId === value.approvalId && current.kind === value.kind && current.label === value.label && current.languageId === value.languageId) {
 				return;
 			}
 			settable.set(value, undefined);
@@ -137,6 +137,7 @@ export class AgentSessionApprovalModel extends Disposable {
 
 					const confirmState = state;
 					setIfChanged({
+						approvalId: part.toolCallId,
 						kind,
 						label,
 						languageId,

@@ -9,8 +9,9 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand, type PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
+import { IAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
@@ -29,11 +30,18 @@ export type IAgentPluginSkill = INamedPluginResource;
 export type IAgentPluginAgent = INamedPluginResource;
 export type IAgentPluginInstruction = INamedPluginResource;
 export type IAgentPluginMcpServerDefinition = IMcpServerDefinition;
+export interface IAgentPluginAutomation {
+	readonly uri: URI;
+	readonly blueprint: IAutomationBlueprint;
+}
 
 export interface IAgentPlugin {
 	readonly uri: URI;
+	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
+	/** Version declared by the plugin manifest, falling back to marketplace metadata. */
+	readonly version?: IObservable<string | undefined>;
 	readonly enablement: IObservable<ContributionEnablementState>;
 	/**
 	 * When `true`, the plugin is blocked by enterprise policy. It remains
@@ -43,13 +51,14 @@ export interface IAgentPlugin {
 	 */
 	readonly policyBlocked?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
-	remove?(): void;
+	remove?(): Promise<boolean>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
 	readonly agents: IObservable<readonly IAgentPluginAgent[]>;
 	readonly instructions: IObservable<readonly IAgentPluginInstruction[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
+	readonly automations: IObservable<readonly IAgentPluginAutomation[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;
 }

@@ -12,12 +12,12 @@ import { basename, dirname } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IAICustomizationWorkspaceService, applySourceFilter, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PromptsType, getSourceDescription } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -31,7 +31,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 	readonly onDidChange: Event<void>;
 
 	constructor(
-		private readonly getActiveDescriptor: () => IHarnessDescriptor,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IProductService private readonly productService: IProductService,
@@ -67,7 +66,13 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		const folders = await this.promptsService.getSourceFolders(type);
 		return folders.map(folder => ({
 			uri: folder.uri,
-			label: this.promptsService.getPromptLocationLabel(folder),
+			// Prefer the source-specific description (e.g. "Global (only used by
+			// Copilot agents)") over the generic "User Data" label so personal
+			// folders like ~/.copilot/skills read naturally. Only folders that
+			// carry a source (currently skills) use this; others fall back.
+			label: (folder.source !== undefined ? getSourceDescription(folder.source) : undefined) ?? this.promptsService.getPromptLocationLabel(folder),
+			source: folder.storage,
+			destinationGroupId: dirname(folder.uri).toString(),
 		}));
 	}
 
@@ -108,13 +113,10 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
-			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
 			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
 				const skillName = skill.name || basename(dirname(skill.uri)) || basename(skill.uri);
 				seenUris.add(skill.uri);
-				const skillFolderName = basename(dirname(skill.uri));
-				const uiTooltip = uiIntegrations.get(skillFolderName);
 				items.push({
 					uri: skill.uri,
 					type: promptType,
@@ -122,8 +124,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					description: skill.description,
 					source: skill.storage,
 					enabled: true,
-					badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
-					badgeTooltip: uiTooltip,
 					extensionId: skill.extension?.identifier.value,
 					pluginUri: skill.pluginUri,
 					pluginLabel: skill.pluginLabel,
@@ -134,8 +134,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				for (const file of allSkillFiles) {
 					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
 						const disabledName = file.name || basename(dirname(file.uri)) || basename(file.uri);
-						const disabledFolderName = basename(dirname(file.uri));
-						const uiTooltip = uiIntegrations.get(disabledFolderName);
 						items.push({
 							uri: file.uri,
 							type: promptType,
@@ -143,8 +141,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 							description: file.description,
 							source: file.storage,
 							enabled: false,
-							badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
-							badgeTooltip: uiTooltip,
 							extensionId: file.extension?.identifier.value,
 							pluginUri: file.pluginUri,
 							pluginLabel: file.pluginLabel,
@@ -181,7 +177,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			await this.fetchPromptServiceInstructions(items, extensionInfoByUri, disabledUris, promptType);
 		}
 
-		return this.applyLocalFilters(this.applyBuiltinGroupKeys(items, extensionInfoByUri), promptType);
+		return this.applyBuiltinGroupKeys(items, extensionInfoByUri);
 	}
 
 	private async fetchPromptServiceHooks(items: ICustomizationItem[], disabledUris: ResourceSet, promptType: PromptsType): Promise<void> {
@@ -328,14 +324,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				extensionLabel: extInfo.displayName || extInfo.id.value,
 			};
 		});
-	}
-
-	private applyLocalFilters(groupedItems: ICustomizationItem[], promptType: PromptsType): readonly ICustomizationItem[] {
-		const descriptor = this.getActiveDescriptor();
-		const filter = descriptor.getStorageSourceFilter(promptType);
-		const items = applySourceFilter(groupedItems, filter);
-
-		return items;
 	}
 
 }

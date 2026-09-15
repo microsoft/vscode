@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../../services/statusbar/browser/statusbar.js';
-import { ChatEntitlement, ChatEntitlementContextKeys, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContextKeys, ChatEntitlementService, getQuotaReset, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { disposableLongTimeout, disposableTimeout } from '../../../../../base/common/async.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -28,6 +28,7 @@ import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
+import { UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
 /**
@@ -106,7 +107,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
-	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key, ChatEntitlementContextKeys.hasByokModels.key]);
+	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set([...UpdateTitleBarEditorVisibleContext.keys(), ChatEntitlementContextKeys.hasByokModels.key]);
 
 	private static readonly QUOTA_RESUME_STATE_KEY = 'chat.quotaResumeState';
 	private static readonly QUOTA_RESET_RETRY_DELAY = 5 * 60 * 1000; // re-check 5 min after a passed reset time
@@ -236,20 +237,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private getQuotaResetTime(): number | undefined {
 		const quotas = this.chatEntitlementService.quotas;
-
-		const premiumResetAt = quotas.premiumChat?.resetAt;
-		if (typeof premiumResetAt === 'number') {
-			return premiumResetAt * 1000;
-		}
-
-		if (quotas.resetDate) {
-			const parsed = Date.parse(quotas.resetDate);
-			if (!isNaN(parsed)) {
-				return parsed;
-			}
-		}
-
-		return undefined;
+		return getQuotaReset(quotas.premiumChat, quotas)?.date.getTime();
 	}
 
 	private scheduleQuotaResetRefresh(): void {
@@ -432,8 +420,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			return false;
 		}
 
-		const hasTitleBarUpdate = Boolean(this.contextKeyService.getContextKeyValue('updateTitleBar'));
-		if (hasTitleBarUpdate) {
+		if (this.contextKeyService.contextMatchesRules(UpdateTitleBarEditorVisibleContext)) {
 			return false;
 		}
 

@@ -124,38 +124,6 @@ export interface PullRequestSearchResult {
 	};
 }
 
-export interface SessionInfo {
-	id: string;
-	name: string;
-	user_id: number;
-	agent_id: number;
-	logs: string;
-	logs_blob_id: string;
-	state: 'completed' | 'in_progress' | 'failed' | 'queued';
-	owner_id: number;
-	repo_id: number;
-	resource_type: string;
-	resource_id: number;
-	last_updated_at: string;
-	created_at: string;
-	completed_at: string;
-	event_type: string;
-	workflow_run_id: number;
-	premium_requests: number;
-	error: string | null;
-	resource_global_id: string;
-}
-
-export interface PullRequestComment {
-	id: string;
-	body: string;
-	createdAt: string;
-	author: {
-		login: string;
-	};
-	url: string;
-}
-
 export interface AssignableActor {
 	__typename: string;
 	login: string;
@@ -441,45 +409,6 @@ export async function getPullRequestFromGlobalId(
 	return node;
 }
 
-export async function addPullRequestCommentGraphQLRequest(
-	fetcherService: IFetcherService,
-	logService: ILogService,
-	telemetry: ITelemetryService,
-	host: string,
-	token: string | undefined,
-	pullRequestId: string,
-	commentBody: string,
-): Promise<PullRequestComment | null> {
-	const mutation = `
-		mutation AddPullRequestComment($pullRequestId: ID!, $body: String!) {
-			addComment(input: {subjectId: $pullRequestId, body: $body}) {
-				commentEdge {
-					node {
-						id
-						body
-						createdAt
-						author {
-							login
-						}
-						url
-					}
-				}
-			}
-		}
-	`;
-
-	logService.debug(`[GitHubAPI] Adding comment to pull request ${pullRequestId}`);
-
-	const variables = {
-		pullRequestId,
-		body: commentBody
-	};
-
-	const result = await makeGitHubGraphQLRequest(fetcherService, logService, telemetry, host, mutation, token, variables, 'github-graphql-add-pr-comment');
-
-	return result?.data?.addComment?.commentEdge?.node || null;
-}
-
 export async function closePullRequest(
 	fetcherService: IFetcherService,
 	logService: ILogService,
@@ -512,40 +441,6 @@ export async function closePullRequest(
 	return success;
 }
 
-export async function makeGitHubAPIRequestWithPagination(
-	fetcherService: IFetcherService,
-	logService: ILogService,
-	host: string,
-	path: string,
-	nwo: string,
-	token: string,
-): Promise<SessionInfo[]> {
-	let hasNextPage = false;
-	const sessionInfos: SessionInfo[] = [];
-	const page_size = 20;
-	let page = 1;
-	do {
-		const response = await fetcherService.fetch(
-			`${host}/${path}?page_size=${page_size}&page_number=${page}&resource_state=draft,open&repo_nwo=${nwo}`,
-			{
-				headers: {
-					Authorization: `Bearer ${token}`,
-					Accept: 'application/json',
-				},
-				callSite: 'github-api-sessions',
-			});
-		if (!response.ok) {
-			logService.error(`[GitHubAPI] Failed to fetch sessions: ${response.status} ${response.statusText}`);
-			return sessionInfos;
-		}
-		const sessions = await response.json();
-		sessionInfos.push(...sessions.sessions);
-		hasNextPage = sessions.sessions.length === page_size;
-		page++;
-	} while (hasNextPage);
-
-	return sessionInfos;
-}
 
 /**
  * Fetches assignable actors (users/bots) for a repository using suggestedActors API.

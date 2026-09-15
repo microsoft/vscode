@@ -114,8 +114,8 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 		const label = languageService.getLanguageName(languageId);
 		if (label && !seen.has(languageId)) {
 			future.push({
-				label: languageId,
-				description: `(${label})`,
+				label: label,
+				description: `(${languageId})`,
 				filepath: joinPath(dir, `${languageId}.json`),
 				hint: true,
 				iconClasses: getIconClassesForLanguageId(languageId)

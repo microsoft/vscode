@@ -31,18 +31,21 @@ import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation, InputGlobResult, inputGlobToPattern, patternContainsWorkspaceFolderPath } from './toolUtils';
 import { IExperimentationService } from '../../../lib/node/chatLibMain';
+import { IGrepResultService } from './grepResultService';
 
 interface IFindTextInFilesToolParams {
 	query: string;
 	isRegexp?: boolean;
 	includePattern?: string;
 	maxResults?: number;
+	defaultMaxResults?: number;
 	/** Whether to include files that would normally be ignored according to .gitignore, other ignore files and `files.exclude` and `search.exclude` settings. */
 	includeIgnoredFiles?: boolean;
 }
 
 interface FileMatch {
 	path: string;
+	uri: vscode.Uri;
 	matches: vscode.TextSearchMatch2[];
 	elidedMatches?: number;
 }
@@ -69,6 +72,7 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IGrepResultService private readonly grepResultService: IGrepResultService,
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, token: CancellationToken) {
@@ -100,7 +104,7 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 
 		checkCancellation(token);
 		const askedForTooManyResults = options.input.maxResults && options.input.maxResults > maxResultsCap;
-		const maxResults = Math.min(options.input.maxResults ?? defaultMaxResults, maxResultsCap);
+		const maxResults = Math.min(options.input.maxResults ?? options.input.defaultMaxResults ?? defaultMaxResults, maxResultsCap);
 		const isRegExp = options.input.isRegexp ?? true;
 		const queryIsValidRegex = this.isValidRegex(options.input.query);
 		const includeIgnoredFiles = options.input.includeIgnoredFiles ?? false;
@@ -185,6 +189,9 @@ Then if you want to include those files you can call the tool again by setting "
 		if (!groupedMatches) {
 			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
 		}
+		if (options.chatSessionResource !== undefined && options.chatRequestId !== undefined) {
+			this.grepResultService.addGrepResult(options.chatSessionResource, options.chatRequestId, groupedMatches);
+		}
 		const prompt = await renderPromptElementJSON(this.instantiationService,
 			FindTextInFilesGrepResult,
 			{ grouped: groupedMatches, query: options.input.query },
@@ -206,7 +213,7 @@ Then if you want to include those files you can call the tool again by setting "
 			const path = this.promptPathRepresentationService.getFilePath(textMatch.uri, true);
 			let fileMatch = groupedByFile.get(path);
 			if (fileMatch === undefined) {
-				fileMatch = { path, matches: [] };
+				fileMatch = { path, uri: textMatch.uri, matches: [] };
 				groupedByFile.set(path, fileMatch);
 			}
 			fileMatch.matches.push(textMatch);
@@ -448,7 +455,7 @@ Then if you want to include those files you can call the tool again by setting "
 		}
 
 		return {
-			maxResults: mode === CopilotToolMode.FullContext ? 200 : 20,
+			defaultMaxResults: mode === CopilotToolMode.FullContext ? this.getMaxResultsCap() : this.getDefaultMaxResults(),
 			...input,
 			includePattern,
 		};
@@ -461,7 +468,7 @@ Then if you want to include those files you can call the tool again by setting "
 
 	private getDefaultMaxResults(): number {
 		const result =  this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchDefaultMaxResults, this.experimentationService);
-		return Number.isFinite(result) ? Math.floor(result) : 20;
+		return Number.isFinite(result) ? Math.floor(result) : 100;
 	}
 
 	private getMaxResultsCap(): number {

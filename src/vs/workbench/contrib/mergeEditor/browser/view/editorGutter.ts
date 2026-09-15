@@ -78,6 +78,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		this.editorOnDidContentSizeChange.read(reader);
 
 		const scrollTop = this.scrollTop.read(reader);
+		const domNodeHeight = this._domNode.clientHeight;
 
 		const visibleRanges = this._editor.getVisibleRanges();
 		const unusedIds = new Set(this.views.keys());
@@ -126,7 +127,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				view.domNode.style.top = `${top}px`;
 				view.domNode.style.height = `${height}px`;
 
-				view.gutterItemView.layout(top, height, 0, this._domNode.clientHeight);
+				view.gutterItemView.layout(top, height, 0, domNodeHeight);
 			}
 		}
 

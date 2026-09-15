@@ -5,9 +5,12 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
+import type { IntegratedBrowserOpenSource } from './browserViewTelemetry.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -42,6 +45,7 @@ export enum BrowserViewCommandId {
 
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddElementCommentToChat = `${commandPrefix}.addElementCommentToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
 	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
 	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
@@ -54,6 +58,7 @@ export enum BrowserViewCommandId {
 	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
 	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
 	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	ClearAgentStorage = `${commandPrefix}.clearAgentStorage`,
 
 	// Find in page
 	ShowFind = `${commandPrefix}.showFind`,
@@ -68,8 +73,26 @@ export interface IElementAncestor {
 	readonly classNames?: string[];
 }
 
+export enum BrowserElementSelectionMode {
+	Select = 'select',
+	Comment = 'comment'
+}
+
+export interface IBrowserElementSelectionOptions {
+	readonly highlightFocusedElement?: boolean;
+	readonly continuous?: boolean;
+	readonly mode?: BrowserElementSelectionMode;
+}
+
+export interface IBrowserElementSelectionState {
+	readonly active: boolean;
+	readonly options: IBrowserElementSelectionOptions;
+}
+
 export interface IElementData {
 	readonly url?: string;
+	readonly elementId?: string;
+	readonly comment?: string;
 	readonly outerHTML: string;
 	readonly computedStyle: string;
 	readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
@@ -80,6 +103,16 @@ export interface IElementData {
 	readonly innerText?: string;
 }
 
+export interface IBrowserElementComment {
+	readonly elementId: string;
+	readonly body: string;
+}
+
+export interface IBrowserElementCommentsUpdate {
+	readonly comments?: readonly IBrowserElementComment[];
+	readonly pendingCommentIdsToDiscard?: readonly string[];
+}
+
 export interface IBrowserViewRect {
 	readonly x: number;
 	readonly y: number;
@@ -87,11 +120,31 @@ export interface IBrowserViewRect {
 	readonly height: number;
 }
 
+export interface IBrowserViewPreloadLocalizedStrings {
+	readonly addComment: string;
+	readonly addCommentPlaceholder: string;
+	readonly commentOnSelectedElement: string;
+	readonly elementComment: string;
+	readonly elementCommentWithBody: string;
+	readonly emptyElementComment: string;
+	readonly removeComment: string;
+	readonly removeElementComment: string;
+}
+
 export interface IBrowserViewTheme {
 	readonly focusBorder?: string;
 	readonly buttonBackground?: string;
 	readonly buttonForeground?: string;
+	readonly widgetBackground?: string;
+	readonly widgetForeground?: string;
+	readonly widgetBorder?: string;
+	readonly widgetShadow?: string;
+	readonly contrastBorder?: string;
+	readonly descriptionForeground?: string;
+	readonly inputPlaceholderForeground?: string;
+	readonly toolbarHoverBackground?: string;
 	readonly font?: string;
+	readonly reducedMotion?: boolean;
 }
 
 /**
@@ -175,14 +228,37 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	awaitNextPaint?: boolean;
 }
 
+/** Identifies who controls a browser view. */
+export type IBrowserViewOwner =
+	| { readonly type: 'user' }
+	| { readonly type: 'agent'; readonly sessionId: string };
+
 /**
- * Identifies who owns a browser view's lifecycle.
- * The owner is set at creation time and never changes.
+ * Grants matching agents access to a browser view. Omitted identifiers match all values.
  */
-export interface IBrowserViewOwner {
-	/** The main code window ID that owns this view's lifecycle. */
-	readonly mainWindowId: number;
-	/** Optional session ID identifying the agent session that created this view. */
+export interface IBrowserViewAgentAudience {
+	readonly type: 'agent';
+	readonly sessionId?: string;
+}
+
+export type IBrowserViewAudience = IBrowserViewAgentAudience;
+
+export function equalsBrowserViewAudience(first: IBrowserViewAudience, second: IBrowserViewAudience): boolean {
+	return first.type === second.type
+		&& first.sessionId === second.sessionId;
+}
+
+/**
+ * Returns whether an audience satisfies a pattern whose omitted identifiers are wildcards.
+ */
+export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, pattern: IBrowserViewAudience): boolean {
+	return candidate.type === pattern.type
+		&& (pattern.sessionId === undefined || pattern.sessionId === candidate.sessionId);
+}
+
+/** Identifies the workbench window and optional Agents Window session that host a browser view. */
+export interface IBrowserViewHost {
+	readonly windowId: number;
 	readonly sessionId?: string;
 }
 
@@ -192,14 +268,14 @@ export interface IBrowserViewOwner {
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
 
-/**
- * Editor opening hints passed from the main process to the workbench.
- */
-export interface IBrowserViewOpenOptions {
+/** Controls how the workbench presents a newly created browser view as an editor. */
+export interface IBrowserViewEditorOpenOptions {
 	readonly preserveFocus?: boolean;
 	readonly background?: boolean;
 	readonly pinned?: boolean;
@@ -211,15 +287,33 @@ export interface IBrowserViewOpenOptions {
 
 export interface IBrowserViewCreatedEvent {
 	readonly info: IBrowserViewInfo;
-
-	// May be omitted to create the view without opening an editor.
-	readonly openOptions?: IBrowserViewOpenOptions;
+	readonly initialUrl?: string;
+	/** Omitted when the creator does not request an editor. */
+	readonly editorOpenRequest?: IBrowserViewEditorOpenOptions;
 }
 
-export interface IBrowserViewCreateOptions {
+/** Host, ownership, storage, and initial access for a newly created browser view. */
+export interface IBrowserViewCreationContext {
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
-	readonly sessionOptions: IBrowserSessionOptions;
-	readonly initialState?: Partial<IBrowserViewState>;
+	readonly session: BrowserViewSessionSelector;
+	/** Grants automation clients access before the view is announced to other processes. */
+	readonly initialAudiences?: readonly IBrowserViewAudience[];
+}
+
+/** Complete main-process creation contract for a browser view. */
+export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
+	readonly associatedResource?: UriComponents;
+	readonly initialUrl?: string;
+	readonly openSource?: IntegratedBrowserOpenSource;
+}
+
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
+	const targetResource = URI.parse(target);
+	return extUriBiasedIgnorePathCase.isEqual(
+		associatedResource.with({ query: null, fragment: null }),
+		targetResource.with({ query: null, fragment: null })
+	);
 }
 
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
@@ -246,10 +340,11 @@ export interface IBrowserViewState {
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
 	browserZoomIndex: number;
-	isElementSelectionActive: boolean;
+	elementSelectionState: IBrowserElementSelectionState;
 	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
+	audiences: IBrowserViewAudience[];
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -343,12 +438,39 @@ export interface IBrowserViewFindInPageResult {
 export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
-	Ephemeral = 'ephemeral'
+	Ephemeral = 'ephemeral',
+	Agent = 'agent'
 }
 
-export interface IBrowserSessionOptions {
-	/** Storage / data-isolation scope for the session. */
-	scope: BrowserViewStorageScope;
+export type IBrowserViewSessionOptions =
+	| { readonly scope: BrowserViewStorageScope.Global }
+	| { readonly scope: BrowserViewStorageScope.Workspace }
+	| { readonly scope: BrowserViewStorageScope.Ephemeral }
+	| {
+		readonly scope: BrowserViewStorageScope.Agent;
+		/** Views with the same affinity share one in-memory browser session. */
+		readonly affinity?: string;
+	};
+
+export function isInMemoryStorageScope(scope: BrowserViewStorageScope): boolean {
+	return scope === BrowserViewStorageScope.Ephemeral || scope === BrowserViewStorageScope.Agent;
+}
+
+export function isBrowserViewStorageScopeShareableWithAgent(scope: BrowserViewStorageScope, networkFilteringEnabled: boolean): boolean {
+	return !networkFilteringEnabled || scope === BrowserViewStorageScope.Agent;
+}
+
+/** Selects an existing browser context by ID or resolves one from storage options. */
+export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
+
+export function getAgentBrowserViewCreationDefaults(sessionId: string, storageAffinity?: string) {
+	return {
+		owner: { type: 'agent', sessionId } as const,
+		initialAudiences: [{ type: 'agent' }] as const,
+		session: storageAffinity === undefined
+			? { scope: BrowserViewStorageScope.Agent } as const
+			: { scope: BrowserViewStorageScope.Agent, affinity: storageAffinity } as const
+	};
 }
 
 export const ipcBrowserViewChannelName = 'browserView';
@@ -384,7 +506,7 @@ export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
 	/**
-	 * Fires when a new browser view is created from an internal source (e.g. CDP or window.open).
+	 * Fires when a new browser view is created.
 	 */
 	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
 
@@ -399,14 +521,17 @@ export interface IBrowserViewService {
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
+	onDynamicDidChangeOwner(id: string): Event<IBrowserViewOwner>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
-	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
+	onDynamicDidRemoveElementComment(id: string): Event<string>;
+	onDynamicDidChangeElementSelectionState(id: string): Event<IBrowserElementSelectionState>;
 	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
+	onDynamicDidChangeAudiences(id: string): Event<IBrowserViewAudience[]>;
 	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
 	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
 
@@ -416,12 +541,12 @@ export interface IBrowserViewService {
 	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
 
 	/**
-	 * Get or create a browser view instance. Does not fire `onDidCreateBrowserView`.
+	 * Get or create a browser view instance.
 	 *
 	 * @param id The browser view identifier
 	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
 	 */
-	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo>;
 
 	/**
 	 * Destroy a browser view instance
@@ -430,12 +555,22 @@ export interface IBrowserViewService {
 	destroyBrowserView(id: string): Promise<void>;
 
 	/**
+	 * Update the owner of an existing browser view.
+	 */
+	setOwner(id: string, owner: IBrowserViewOwner): Promise<void>;
+
+	/**
 	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
 	 * @param id The browser view identifier
 	 * @return The state of the browser view for the given ID
 	 * @throws If no browser view exists for the given ID
 	 */
 	getState(id: string): Promise<IBrowserViewState>;
+
+	/**
+	 * Adds an audience or, when disabled, removes every audience matching it.
+	 */
+	setAudience(id: string, audience: IBrowserViewAudience, enabled: boolean): Promise<void>;
 
 	/**
 	 * Update the bounds of a browser view
@@ -624,12 +759,21 @@ export interface IBrowserViewService {
 	/**
 	 * Toggle element selection mode in a browser view.
 	 * Element selections are delivered via {@link onDynamicDidSelectElement}.
-	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionActive}.
+	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionState}.
 	 *
 	 * @param id The browser view identifier
 	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 * @param options Options to update while enabling or continuing element selection.
 	 */
-	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+	toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
+
+	/**
+	 * Synchronize the element comments displayed in a browser view.
+	 *
+	 * @param id The browser view identifier
+	 * @param update The comment state to synchronize
+	 */
+	setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void>;
 
 	/**
 	 * Toggle drag-to-select area picking on the top frame of a browser view.
