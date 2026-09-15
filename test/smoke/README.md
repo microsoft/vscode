@@ -98,6 +98,24 @@ Source runs launch the compiled standalone Agent Host with the checkout's matchi
 
 Fixtures isolate their source Agent Host, credentials, endpoint registry, and CLI state, and remove their containers and temporary tunnels during teardown. Failures retain the existing smoke-runner diagnostics and redacted remote-host logs under `.build/logs/smoke-tests-electron/`. Do not run two Electron smoke runners concurrently in the same checkout: the runner shares its top-level output and test-data directories.
 
+### Project board native-interaction gate
+
+Use the checkout's supported Node version and a dedicated local OSS Agents profile launched with `--remote-debugging-port=9337 --enable-smoke-test-driver`. Open its project board, expand cells until content extends below the window, and prepare a dedicated, visible test chat (or board-owned draft) with an empty composer and no open standalone window. The gate uses the real window size, not device/viewport emulation.
+
+```powershell
+node scripts\test-project-board.mts http://127.0.0.1:9337 "<test-chat-resource-URI>"
+```
+
+This opt-in gate uses the existing Playwright dependency; it does not submit prompts or create providers. It verifies a bounded scroll viewport, wheel access to the last row, Backspace/Delete, selection replacement, undo/redo, background-input isolation, popup Escape priority, Enter/Escape navigation, retained unsent input, and window cleanup. The URI must identify disposable test data, not a working conversation. Failed runs retain nonempty test input for inspection.
+
+Board browser tests cover host-class mirroring, scroll-position retention, directional navigation, and nested question controls. Those tests do **not** replace this Electron/native-keyboard gate.
+
+Attach with `connectOverCDP(..., { noDefaults: true })` and wait for all page targets before inspecting native focus. Default attachment enables focus emulation in background editors and can route editing commands to the wrong composer. Test real keyboard events and settled editor text; injecting `TextUpdateEvent` or assigning input values bypasses the failing command path.
+
+After an older CDP client has left stale focus behind, disable emulation and activate each affected native window once to restore blur/focus transitions. The gate uses the smoke driver's `focusWindow` host-service bridge and requires exactly one focused document; `page.bringToFront()` is not proof of OS focus. Escape's return to the board is checked without driver-assisted focus.
+
+If the native keyboard map is empty and letter shortcuts are unbound, use `"keyboard.dispatch": "keyCode"` in the isolated test profile. The gate intentionally fails rather than masking missing selection/undo shortcuts with programmatic edits.
+
 ### Error: Could not get a unique tmp filename, max tries reached
 
 On Windows, check for the folder `C:\Users\<username>\AppData\Local\Temp\t`. If this folder exists, the `tmp` module can't run properly, resulting in the error above. In this case, delete the `t` folder.
