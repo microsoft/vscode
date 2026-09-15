@@ -845,7 +845,7 @@ export class McpHTTPHandle extends Disposable {
 		return res;
 	}
 
-	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
+	protected async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
 		setHostHeader(init.headers, 'user-agent', `${product.nameLong}/${product.version}`);
 
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
@@ -860,10 +860,15 @@ export class McpHTTPHandle extends Disposable {
 		}
 
 		let currentUrl = url;
+		// Headers sent on the current hop. Stripping credentials on a cross-origin
+		// redirect must only affect the redirected request: `init.headers` belongs to
+		// the caller, which may reuse it to retry against the original origin.
+		let headers = init.headers;
 		let response!: CommonResponse;
 		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {
 			response = await this._fetchInternal(currentUrl, {
 				...init,
+				headers,
 				signal: this._abortCtrl.signal,
 				redirect: 'manual'
 			});
@@ -892,11 +897,8 @@ export class McpHTTPHandle extends Disposable {
 			// On a cross-origin redirect, strip credential-bearing headers so tokens and
 			// session ids configured for the original origin are not replayed to another host.
 			if (currentUrlParsed.origin !== nextUrlParsed.origin) {
-				for (const name of Object.keys(init.headers)) {
-					if (CROSS_ORIGIN_STRIPPED_HEADERS.has(name.toLowerCase())) {
-						delete init.headers[name];
-					}
-				}
+				headers = Object.fromEntries(Object.entries(headers)
+					.filter(([name]) => !CROSS_ORIGIN_STRIPPED_HEADERS.has(name.toLowerCase())));
 			}
 
 			const nextUrl = nextUrlParsed.toString();

@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { LogLevel } from '../../../../platform/log/common/log.js';
-import { createAuthMetadata, CommonResponse, IAuthMetadata } from '../../common/extHostMcp.js';
+import { URI } from '../../../../base/common/uri.js';
+import { LogLevel, NullLogService } from '../../../../platform/log/common/log.js';
+import { createAuthMetadata, CommonRequestInit, CommonResponse, IAuthMetadata, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { MainThreadMcpShape } from '../../common/extHost.protocol.js';
+import { McpServerTransportType } from '../../../contrib/mcp/common/mcpTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 // Test constants to avoid magic strings
@@ -100,7 +103,7 @@ async function createTestAuthMetadata(options: {
 }
 
 suite('ExtHostMcp', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('IAuthMetadata', () => {
 		suite('properties', () => {
@@ -730,6 +733,70 @@ suite('ExtHostMcp', () => {
 			// The behavior depends on implementation - either it updates or ignores non-401
 			// This test documents the actual behavior
 			assert.strictEqual(typeof result, 'boolean');
+		});
+	});
+
+	suite('McpHTTPHandle', () => {
+		class TestHandle extends McpHTTPHandle {
+			readonly requests: { url: string; headers: Record<string, string> }[] = [];
+
+			constructor(private readonly responses: CommonResponse[]) {
+				super(
+					1,
+					{ type: McpServerTransportType.HTTP, uri: URI.parse(TEST_MCP_URL), headers: [] },
+					{ $onDidChangeState() { }, $onDidPublishLog() { } } as unknown as MainThreadMcpShape,
+					new NullLogService(),
+				);
+			}
+
+			protected override async _fetchInternal(url: string, init?: CommonRequestInit): Promise<CommonResponse> {
+				this.requests.push({ url, headers: { ...init?.headers } });
+				return this.responses.shift()!;
+			}
+
+			fetch(url: string, init: { method: string; headers: Record<string, string> }): Promise<CommonResponse> {
+				return this._fetch(url, init);
+			}
+		}
+
+		test('should strip credentials from the redirected request only on a cross-origin redirect', async () => {
+			const handle = store.add(new TestHandle([
+				createMockResponse({ status: 307, headers: { location: 'https://other.example.com/mcp' } }),
+				createMockResponse({ status: 200 }),
+				createMockResponse({ status: 200 }),
+			]));
+			const headers: Record<string, string> = {
+				'Authorization': 'Bearer token',
+				'Mcp-Session-Id': 'session-1',
+				'Cookie': 'a=b',
+				'Accept': 'application/json',
+			};
+			const init = { method: 'POST', headers };
+
+			await handle.fetch(TEST_MCP_URL, init);
+
+			assert.strictEqual(handle.requests.length, 2);
+			assert.strictEqual(handle.requests[0].url, TEST_MCP_URL);
+			assert.strictEqual(handle.requests[0].headers['Mcp-Session-Id'], 'session-1');
+			assert.strictEqual(handle.requests[1].url, 'https://other.example.com/mcp');
+			assert.strictEqual(handle.requests[1].headers.Authorization, undefined);
+			assert.strictEqual(handle.requests[1].headers['Mcp-Session-Id'], undefined);
+			assert.strictEqual(handle.requests[1].headers.Cookie, undefined);
+			assert.strictEqual(handle.requests[1].headers.Accept, 'application/json');
+
+			// The caller's headers are untouched, so a retry against the original
+			// origin (as done by the auth retry) still carries the credentials.
+			assert.strictEqual(headers.Authorization, 'Bearer token');
+			assert.strictEqual(headers['Mcp-Session-Id'], 'session-1');
+			assert.strictEqual(headers.Cookie, 'a=b');
+
+			await handle.fetch(TEST_MCP_URL, init);
+
+			assert.strictEqual(handle.requests.length, 3);
+			assert.strictEqual(handle.requests[2].url, TEST_MCP_URL);
+			assert.strictEqual(handle.requests[2].headers.Authorization, 'Bearer token');
+			assert.strictEqual(handle.requests[2].headers['Mcp-Session-Id'], 'session-1');
+			assert.strictEqual(handle.requests[2].headers.Cookie, 'a=b');
 		});
 	});
 });
