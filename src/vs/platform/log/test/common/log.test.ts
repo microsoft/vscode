@@ -156,7 +156,7 @@ suite('Log', () => {
 				}
 			}());
 
-			assert.throws(() => createUnexpectedErrorHandler(logger)(new Error('Unexpected error')), failure);
+			assert.throws(() => createUnexpectedErrorHandler(logger)(new Error('Unexpected error')), /^Error: Logging failed$/);
 		});
 	});
 });
