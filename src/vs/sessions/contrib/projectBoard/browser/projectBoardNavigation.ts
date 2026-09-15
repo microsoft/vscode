@@ -95,6 +95,20 @@ export class ProjectBoardChatWindows extends Disposable {
 		await pending;
 	}
 
+	async closeActiveSession(windowId: number): Promise<URI | undefined> {
+		if (windowId === mainWindow.vscodeWindowId) {
+			return undefined;
+		}
+		const group = this.editorGroupsService.parts.find(part => part.windowId === windowId)?.activeGroup;
+		const input = group?.activeEditor;
+		if (group?.activeEditorPane?.getId() !== ChatEditorInput.EditorID || !input?.resource) {
+			return undefined;
+		}
+		// Draft card IDs retain the original editor URI even when the input model rebinds.
+		const resource = this.entries.has(input.resource.toString()) ? input.resource : this.publishedResource(input.resource);
+		return await group.closeEditor(input) ? resource : undefined;
+	}
+
 	async createNewSession(): Promise<void> {
 		const types = this.sessionsManagementService.getQuickChatSessionTypes();
 		const active = this.sessionsService.activeSession.get();

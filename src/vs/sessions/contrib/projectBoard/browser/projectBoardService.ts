@@ -53,6 +53,7 @@ export const IProjectBoardService = createDecorator<IProjectBoardService>('proje
 export interface IProjectBoardService {
 	readonly _serviceBrand: undefined;
 	open(): Promise<void>;
+	closeSession(windowId: number): Promise<void>;
 }
 
 class ProjectBoardView extends Disposable {
@@ -138,6 +139,15 @@ class ProjectBoardView extends Disposable {
 	private hasFocusedCard(): boolean {
 		const ownerDocument = this.container.ownerDocument;
 		return ownerDocument.hasFocus() && [...this.cardElements.values()].some(element => element.contains(ownerDocument.activeElement));
+	}
+
+	focusChat(resource: URI): void {
+		const draft = this.drafts.find(draft => draft.id === resource.toString() || isEqual(draft.resource, resource));
+		const id = this.model.cards.find(card => isEqual(card.chat.resource, resource))?.id
+			?? (draft && `draft:${draft.id}`);
+		const element = (id && this.cardElements.get(id)) || this.createSessionButton?.element;
+		element?.focus({ preventScroll: true });
+		element?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	private observeSessions(): void {
@@ -303,6 +313,8 @@ class ProjectBoardView extends Disposable {
 			return;
 		}
 		this.rendering = true;
+		const scrollTop = this.boardElement?.scrollTop ?? 0;
+		const scrollLeft = this.boardElement?.scrollLeft ?? 0;
 		const ownerDocument = this.container.ownerDocument;
 		// A background document retains activeElement but must not reclaim window focus.
 		const activeElement = ownerDocument.hasFocus() ? ownerDocument.activeElement : null;
@@ -328,7 +340,7 @@ class ProjectBoardView extends Disposable {
 		title.textContent = localize('projectBoard.title', "Agent project board");
 		heading.appendChild(title);
 		const description = document.createElement('p');
-		description.textContent = localize('projectBoard.description', "Arrange live chats by area and priority. Double-click a card to open its chat.");
+		description.textContent = localize('projectBoard.description', "Arrange live chats by area and priority. Use arrow keys to navigate cards, Enter to open, and Escape to close the chat window.");
 		heading.appendChild(description);
 		header.appendChild(heading);
 		const tools = document.createElement('div');
@@ -425,6 +437,8 @@ class ProjectBoardView extends Disposable {
 		board.appendChild(grid);
 		this.container.appendChild(board);
 		this.boardElement = board;
+		board.scrollTop = scrollTop;
+		board.scrollLeft = scrollLeft;
 		this.rendering = false;
 		if (ownerDocument.hasFocus()) {
 			if (focusedQuestion?.isConnected && isHTMLElement(focusedQuestion)) {
@@ -966,7 +980,7 @@ class ProjectBoardView extends Disposable {
 		element.tabIndex = 0;
 		element.setAttribute('role', 'button');
 		element.setAttribute('aria-description', move
-			? localize('projectBoard.cardInstructions', "Double-click or press Enter or Space to open this chat. Drag to move, or press {0} to choose a destination.", isMacintosh ? 'Command+Shift+M' : 'Ctrl+Shift+M')
+			? localize('projectBoard.cardInstructions', "Use arrow keys to navigate cards, Home or End to reach the first or last card, and Enter or Space to open this chat. Drag to move, or press {0} to choose a destination.", isMacintosh ? 'Command+Shift+M' : 'Ctrl+Shift+M')
 			: localize('projectBoard.draftInstructions', "Double-click or press Enter or Space to open this session draft."));
 		if (move) {
 			element.setAttribute('aria-keyshortcuts', isMacintosh ? 'Meta+Shift+M' : 'Control+Shift+M');
@@ -989,8 +1003,37 @@ class ProjectBoardView extends Disposable {
 				event.preventDefault();
 				event.stopPropagation();
 				move();
+			} else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(key => event.equals(key))) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.navigateCard(element, event.keyCode);
 			}
 		}));
+	}
+
+	private navigateCard(element: HTMLElement, key: KeyCode): void {
+		const elements = [...this.cardElements.values()];
+		let target: HTMLElement | undefined;
+		if (key === KeyCode.Home || key === KeyCode.End) {
+			target = key === KeyCode.Home ? elements[0] : elements.at(-1);
+		} else {
+			const origin = element.getBoundingClientRect();
+			const horizontal = key === KeyCode.LeftArrow || key === KeyCode.RightArrow;
+			const direction = key === KeyCode.LeftArrow || key === KeyCode.UpArrow ? -1 : 1;
+			const candidates = elements.filter(candidate => candidate !== element).map(candidate => {
+				const rect = candidate.getBoundingClientRect();
+				const dx = (rect.left + rect.right - origin.left - origin.right) / 2;
+				const dy = (rect.top + rect.bottom - origin.top - origin.bottom) / 2;
+				const aligned = horizontal
+					? rect.top < origin.bottom && rect.bottom > origin.top
+					: rect.left < origin.right && rect.right > origin.left;
+				return { candidate, forward: (horizontal ? dx : dy) * direction, aligned, distance: Math.hypot(dx, dy) };
+			}).filter(candidate => candidate.forward > 1);
+			candidates.sort((a, b) => Number(b.aligned) - Number(a.aligned) || a.distance - b.distance);
+			target = candidates[0]?.candidate;
+		}
+		target?.focus({ preventScroll: true });
+		target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	private async pickPlacement(card: IProjectBoardCard): Promise<void> {
@@ -1122,6 +1165,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	declare readonly _serviceBrand: undefined;
 
 	private boardWindow: IAuxiliaryWindow | undefined;
+	private boardView: ProjectBoardView | undefined;
 	private opening: Promise<void> | undefined;
 	private readonly boardDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly chatWindows: ProjectBoardChatWindows;
@@ -1160,6 +1204,19 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		}
 	}
 
+	async closeSession(windowId: number): Promise<void> {
+		try {
+			const resource = await this.chatWindows.closeActiveSession(windowId);
+			if (resource && this.boardWindow) {
+				await this.focusBoardWindow();
+				this.boardView?.focusChat(resource);
+			}
+		} catch (error) {
+			this.logService.error('[ProjectBoard] Failed to close session view', error);
+			this.notificationService.error(localize('projectBoard.closeFailed', "The session window could not be closed."));
+		}
+	}
+
 	private async openWindow(): Promise<void> {
 		try {
 			const boardWindow = await this.auxiliaryWindowService.open({ nativeTitlebar: true });
@@ -1184,10 +1241,15 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 				return;
 			}
 			boardWindow.window.document.title = localize('projectBoard.windowTitle', "Agent Project Board");
-			boardWindow.container.classList.add('project-board-window');
-			store.add(this.instantiationService.createInstance(ProjectBoardView, boardWindow.container, this.chatWindows, this.boardState, {
+			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, boardWindow.container, this.chatWindows, this.boardState, {
 				sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 				logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
+			}));
+			this.boardView = view;
+			store.add(toDisposable(() => {
+				if (this.boardView === view) {
+					this.boardView = undefined;
+				}
 			}));
 		} catch (error) {
 			this.boardWindow = undefined;

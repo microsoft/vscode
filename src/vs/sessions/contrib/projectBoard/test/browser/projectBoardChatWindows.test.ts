@@ -16,10 +16,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IEditorIdentifier, IEditorPane, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
+import { IEditorIdentifier, IEditorPane, IUntypedEditorInput, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { ChatEditorInput } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
@@ -46,6 +46,7 @@ suite('ProjectBoardChatWindows', () => {
 		const windowId = targetWindow.vscodeWindowId;
 		const resource = URI.parse('test-chat:session#child');
 		let inputDisposed = false;
+		const closed: EditorInput[] = [];
 		const input = new class extends mock<ChatEditorInput>() {
 			override readonly resource = resource;
 			override dispose(): void { inputDisposed = true; }
@@ -53,6 +54,12 @@ suite('ProjectBoardChatWindows', () => {
 		const group = new class extends mock<IEditorGroup>() {
 			override readonly id = 10;
 			override readonly windowId = windowId;
+			override readonly activeEditor = input;
+			override get activeEditorPane(): IVisibleEditorPane { return pane; }
+			override async closeEditor(editor: EditorInput): Promise<boolean> {
+				closed.push(editor);
+				return state.closeAllowed;
+			}
 		}();
 		const mainGroup = new class extends mock<IEditorGroup>() {
 			override readonly id = 1;
@@ -68,10 +75,13 @@ suite('ProjectBoardChatWindows', () => {
 			focusError: undefined as Error | undefined,
 			trusted: true,
 			readError: undefined as Error | undefined,
+			closeAllowed: true,
+			editorId: ChatEditorInput.EditorID,
 		};
 		const pane = new class extends mock<IEditorPane>() {
-			override getId(): string { return ChatEditorInput.EditorID; }
+			override getId(): string { return state.editorId; }
 			override readonly group = group;
+			override readonly input = input;
 			override focus(): void { state.editorFocused = true; }
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
@@ -83,12 +93,17 @@ suite('ProjectBoardChatWindows', () => {
 			return pane;
 		});
 		instantiationService.stub(IEditorService, {
+			activeEditorPane: undefined,
 			findEditors: () => state.existing,
 			openEditor,
 			isOpened: () => state.opened,
 		});
 		instantiationService.stub(IEditorGroupsService, {
 			groups: [],
+			parts: [new class extends mock<IEditorPart>() {
+				override readonly windowId = windowId;
+				override readonly activeGroup = group;
+			}()],
 			getGroup: id => id === group.id ? group : id === mainGroup.id ? mainGroup : undefined,
 		});
 		instantiationService.stub(IHostService, {
@@ -129,8 +144,23 @@ suite('ProjectBoardChatWindows', () => {
 				override readonly resource = resource;
 			}();
 		}();
-		return { opener, card, input, openEditor, createInstance, state, focused, readSessions, errors, targetWindow, group, mainGroup, pane, inputDisposed: () => inputDisposed };
+		return { opener, card, input, openEditor, createInstance, state, focused, readSessions, errors, targetWindow, group, mainGroup, pane, closed, inputDisposed: () => inputDisposed };
 	}
+
+	test('PB-05 Escape closure uses the editor close lifecycle only for an auxiliary chat', async () => {
+		const h = setup();
+		assert.strictEqual(await h.opener.closeActiveSession(h.mainGroup.windowId), undefined);
+		h.state.editorId = 'workbench.editors.text';
+		assert.strictEqual(await h.opener.closeActiveSession(h.group.windowId), undefined);
+		assert.deepStrictEqual(h.closed, []);
+		h.state.editorId = ChatEditorInput.EditorID;
+		h.state.closeAllowed = false;
+		assert.strictEqual(await h.opener.closeActiveSession(h.group.windowId), undefined);
+		h.state.closeAllowed = true;
+		assert.strictEqual(await h.opener.closeActiveSession(h.group.windowId), h.card.chat.resource);
+		assert.deepStrictEqual(h.closed, [h.input, h.input]);
+		assert.strictEqual(h.inputDisposed(), false, 'Never bypass the normal close handler');
+	});
 
 	test('PB-05 opens the exact child in a compact chat editor window, not the owner', async () => {
 		const h = setup();
