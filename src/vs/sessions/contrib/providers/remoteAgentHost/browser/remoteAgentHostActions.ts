@@ -920,7 +920,7 @@ async function promptToConnectViaTunnel(
 	tunnelPicker.show();
 
 	try {
-		tunnels = await tunnelService.listTunnels();
+		tunnels = await tunnelService.listTunnels({ authProvider });
 	} catch (err) {
 		store.dispose();
 		notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
@@ -996,11 +996,11 @@ async function promptToConnectViaTunnel(
 				}
 
 				tunnelPicker.busy = true;
-				await tunnelService.deleteTunnel(event.item.tunnel);
+				await tunnelService.deleteTunnel(event.item.tunnel, authProvider);
 				tunnels = tunnels.filter(tunnel => tunnel.tunnelId !== event.item.tunnel.tunnelId);
 				updateTunnelPickerItems();
 				try {
-					tunnels = await tunnelService.listTunnels();
+					tunnels = await tunnelService.listTunnels({ authProvider });
 				} catch (err) {
 					notificationService.error(localize('tunnelRefreshAfterDeleteFailed', "Deleted dev tunnel '{0}', but failed to refresh dev tunnels: {1}", event.item.tunnel.name, err instanceof Error ? err.message : String(err)));
 					return;
