@@ -153,6 +153,8 @@ export interface IActionListItem<T> {
 	 * the chevron opens an inline submenu with these actions.
 	 */
 	readonly submenuActions?: IAction[];
+	/** When true, clicking the row opens its submenu instead of selecting the item. */
+	readonly openSubmenuOnClick?: boolean;
 	/** Options for the action list rendered in the nested submenu panel. */
 	readonly submenuOptions?: IActionListOptions;
 	readonly keybinding?: ResolvedKeybinding;
@@ -2098,6 +2100,11 @@ export class ActionListWidget<T> extends Disposable {
 			const target = e.browserEvent.target;
 			if (dom.isHTMLElement(target) && (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.action-list-item-inline-toggle'))) {
 				this._list.setSelection([]);
+				return;
+			}
+			if (element.openSubmenuOnClick && element.submenuActions?.length) {
+				this._list.setSelection([]);
+				this._showSubmenuForItem(element);
 				return;
 			}
 		}
