@@ -6,6 +6,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
+import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -153,6 +154,8 @@ export interface IActionListItem<T> {
 	 * the chevron opens an inline submenu with these actions.
 	 */
 	readonly submenuActions?: IAction[];
+	/** When true, clicking the row opens its submenu instead of selecting the item. */
+	readonly openSubmenuOnClick?: boolean;
 	/** Options for the action list rendered in the nested submenu panel. */
 	readonly submenuOptions?: IActionListOptions;
 	readonly keybinding?: ResolvedKeybinding;
@@ -2093,11 +2096,16 @@ export class ActionListWidget<T> extends Disposable {
 			});
 			return;
 		}
-		// Don't select when clicking the toolbar, submenu indicator, or inline toggle
-		if (dom.isMouseEvent(e.browserEvent)) {
+		// Don't select when activating the toolbar, submenu indicator, or inline toggle
+		if (dom.isMouseEvent(e.browserEvent) || e.browserEvent?.type === TouchEventType.Tap) {
 			const target = e.browserEvent.target;
 			if (dom.isHTMLElement(target) && (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.action-list-item-inline-toggle'))) {
 				this._list.setSelection([]);
+				return;
+			}
+			if (element.openSubmenuOnClick && element.submenuActions?.length) {
+				this._list.setSelection([]);
+				this._showSubmenuForItem(element);
 				return;
 			}
 		}
@@ -2257,7 +2265,9 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 
-		if (event.key !== 'Tab') {
+		// Ctrl/Meta/Alt+Tab are editor- and OS-level shortcuts (e.g. editor group
+		// navigation); only plain Tab and Shift+Tab drive panel traversal.
+		if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) {
 			return;
 		}
 
@@ -2615,10 +2625,25 @@ export class ActionListWidget<T> extends Disposable {
 				this._submenuContainer.style.width = `${edgeRect.width / zoom}px`;
 			}
 			const panelRect = this._submenuContainer.getBoundingClientRect();
-			const panelWidth = alignToParent ? panelRect.width : maxWidth + 10;
+			let panelWidth = alignToParent ? panelRect.width : maxWidth + 10;
 			const spaceRight = targetWindow.innerWidth - (alignToParent ? edgeRect.right : anchorRect.right);
 			const spaceLeft = edgeRect.left;
 			const gap = alignToParent ? 0 : 4;
+			const viewportMargin = 4;
+
+			// On a narrow viewport (e.g. a phone) neither side may have room for the
+			// panel next to its anchor. Clamp its width to what actually fits
+			// on-screen so it can be reflowed into the viewport rather than
+			// overflowing off one edge.
+			if (!alignToParent) {
+				const availableWidth = targetWindow.innerWidth - 2 * viewportMargin;
+				if (panelWidth > availableWidth) {
+					panelWidth = Math.max(availableWidth, 0);
+				}
+				this._submenuContainer.style.boxSizing = 'border-box';
+				this._submenuContainer.style.width = `${panelWidth}px`;
+			}
+
 			let showRight = spaceRight >= panelWidth || spaceRight >= spaceLeft;
 			if (persistent && this._submenuSide && (this._submenuSide === 'right' ? spaceRight : spaceLeft) >= panelWidth) {
 				showRight = this._submenuSide === 'right';
@@ -2626,9 +2651,20 @@ export class ActionListWidget<T> extends Disposable {
 			if (persistent) {
 				this._submenuSide = showRight ? 'right' : 'left';
 			}
-			const left = showRight
+			let left = showRight
 				? edgeRect.right - parentRect.left + gap
 				: edgeRect.left - parentRect.left - panelWidth - gap;
+
+			// Clamp the final position so the panel always renders fully
+			// on-screen, which the width clamp above alone cannot guarantee once
+			// the anchor itself sits close to a viewport edge.
+			const pageLeft = parentRect.left + left;
+			if (pageLeft < viewportMargin) {
+				left += viewportMargin - pageLeft;
+			} else if (pageLeft + panelWidth > targetWindow.innerWidth - viewportMargin) {
+				left -= (pageLeft + panelWidth) - (targetWindow.innerWidth - viewportMargin);
+			}
+
 			this._submenuContainer.style.left = `${left / zoom}px`;
 
 			const panelHeight = panelRect.height;
@@ -2676,9 +2712,21 @@ export class ActionListWidget<T> extends Disposable {
 		};
 		this._layoutSubmenu = layout;
 		layout();
-		if ((this._options?.persistentHover || element.hover?.alignToParent || preserveVerticalPosition) && this._currentSubmenuElement === element) {
+		// tabThroughPanel content (e.g. a GitHub reference hover) can grow when
+		// focus reveals bounded text, in which case the panel must reposition
+		// itself, not just the row that measured it before the content changed.
+		if ((this._options?.persistentHover || element.hover?.alignToParent || element.hover?.tabThroughPanel || preserveVerticalPosition) && this._currentSubmenuElement === element) {
 			if (!submenuWidget) {
-				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', layout, targetWindow));
+				const scheduledLayout = this._submenuDisposables.add(new MutableDisposable());
+				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', () => {
+					if (!scheduledLayout.value) {
+						// Layout can resize the observed panel, so run it outside resize observation.
+						scheduledLayout.value = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
+							scheduledLayout.clear();
+							layout();
+						});
+					}
+				}, targetWindow));
 				this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
 			}
 			if (this._options?.persistentHover || preserveVerticalPosition) {
@@ -3029,6 +3077,10 @@ export class ActionList<T> extends Disposable {
 
 	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
 		this._widget.updateItems(items, focusItemId, options);
+	}
+
+	getFocusedElement(): IActionListItem<T> | undefined {
+		return this._widget.getFocusedElement();
 	}
 
 	/** Height the list would need for `items`, for a caller sizing against other contents. */
