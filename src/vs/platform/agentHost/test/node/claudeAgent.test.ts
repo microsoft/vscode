@@ -49,7 +49,9 @@ import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, I
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { exitPlanModeQuestionId } from '../../node/claude/claudeInteractiveTools.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
@@ -7211,21 +7213,24 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		ctx.agent.respondToUserInputRequest('toolu_inner_ask', ChatInputResponseKind.Cancel);
 		await askPromise;
 
-		// ExitPlanMode — emits a pending_confirmation.
+		// ExitPlanMode — emits a ChatInputRequested action (plan review).
+		// The handler awaits the plan-file read before registering the
+		// request, so give it a tick before responding.
 		const planPromise = canUseTool(
 			'ExitPlanMode',
 			{ plan: '1. do thing' },
 			{ ...makeOptions('toolu_inner_plan'), agentID: 'agent-plan' },
 		);
-		ctx.agent.respondToPermissionRequest('toolu_inner_plan', false);
+		await tick();
+		ctx.agent.respondToUserInputRequest('toolu_inner_plan', ChatInputResponseKind.Cancel);
 		await planPromise;
 
-		const askAction = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatInputRequested);
-		const planConfirm = signals.find(s => s.kind === 'pending_confirmation' && s.state.toolName === 'ExitPlanMode');
+		const askAction = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatInputRequested && s.action.request.id === 'toolu_inner_ask');
+		const planAction = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatInputRequested && s.action.request.id === 'toolu_inner_plan');
 
 		assert.deepStrictEqual({
 			askParent: askAction?.kind === 'action' ? askAction.parentToolCallId : null,
-			planParent: planConfirm?.kind === 'pending_confirmation' ? planConfirm.parentToolCallId : null,
+			planParent: planAction?.kind === 'action' ? planAction.parentToolCallId : null,
 			askParentSpawnAgentId: session.subagents.getSpawn('toolu_parent_ask')?.agentId,
 			planParentSpawnAgentId: session.subagents.getSpawn('toolu_parent_plan')?.agentId,
 		}, {
@@ -7345,17 +7350,14 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'The user cancelled the question' });
 	});
 
-	test('Test 12b — ExitPlanMode: Approve persists permissionMode=acceptEdits without a reentrant live SDK call', async () => {
+	test('Test 12b — ExitPlanMode: Approve & Auto-Edit persists permissionMode=acceptEdits without a reentrant live SDK call', async () => {
 		// Calling `Query.setPermissionMode` synchronously inside
 		// `canUseTool` collides with the SDK's control channel (which
 		// is mid-flight delivering the canUseTool request) and leaves
 		// the turn unable to resume. Mirror production: write the new
 		// mode to `IAgentConfigurationService`. The session ignores this
 		// server-originated event to avoid a reentrant SDK control request.
-		const { ctx, canUseTool, sessionUri } = await materialize();
-
-		const signals: AgentSignal[] = [];
-		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+		const { ctx, canUseTool, inputRequests, sessionUri } = await materialize();
 
 		const promise = canUseTool('ExitPlanMode', { plan: '1. Read foo\n2. Edit foo' }, {
 			signal: new AbortController().signal,
@@ -7364,43 +7366,125 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		});
 		await tick();
 
-		const captured = signals.find(s => s.kind === 'pending_confirmation');
-		ctx.agent.respondToPermissionRequest('tu_plan_ok', true);
+		const inputRequest = inputRequests.at(-1)! as ChatInputRequestWithPlanReview;
+		ctx.agent.respondToUserInputRequest('tu_plan_ok', ChatInputResponseKind.Accept, {
+			[exitPlanModeQuestionId('tu_plan_ok')]: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'approveAcceptEdits' },
+			},
+		});
 		const result = await promise;
 
 		const fakeQuery = ctx.sdk.warmQueries.at(-1)?.produced;
 		const persistedMode = ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'];
-		// See Test 7: the agent keys its chat map by the default-chat URI, which
-		// populates the emitted URI's cached string form; mirror it here.
-		const expectedChat = URI.parse(buildDefaultChatUri(sessionUri));
-		expectedChat.toString();
 		assert.deepStrictEqual({
-			signal: captured,
+			purpose: readChatInputRequestPurpose(inputRequest),
+			requestId: inputRequest.id,
+			planContent: inputRequest.planReview?.content,
+			planActions: inputRequest.planReview?.actions.map(a => a.id),
 			result,
 			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
 			persistedMode,
 		}, {
-			signal: {
-				kind: 'pending_confirmation',
-				chat: expectedChat,
-				state: {
-					status: ToolCallStatus.PendingConfirmation,
-					toolCallId: 'tu_plan_ok',
-					toolName: 'ExitPlanMode',
-					displayName: 'Ready to code?',
-					invocationMessage: { markdown: '1. Read foo\n2. Edit foo' },
-					toolInput: '{"plan":"1. Read foo\\n2. Edit foo"}',
-					confirmationTitle: 'Ready to code?',
-					options: [
-						{ id: 'approve', label: 'Approve', kind: 'approve' },
-						{ id: 'deny', label: 'Deny', kind: 'deny' },
-					],
-				},
-				permissionKind: 'custom-tool',
+			purpose: ChatInputRequestPurpose.PlanReview,
+			requestId: 'tu_plan_ok',
+			planContent: '1. Read foo\n2. Edit foo',
+			planActions: ['approve', 'approveAcceptEdits', 'approveBypass'],
+			result: {
+				behavior: 'allow',
+				updatedInput: { plan: '1. Read foo\n2. Edit foo' },
+				updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
 			},
-			result: { behavior: 'allow', updatedInput: { plan: '1. Read foo\n2. Edit foo' } },
 			recordedModes: [],
 			persistedMode: 'acceptEdits',
+		});
+	});
+
+	test('Test 12c — ExitPlanMode: plain Approve persists permissionMode=default', async () => {
+		const { ctx, canUseTool, sessionUri } = await materialize();
+
+		const promise = canUseTool('ExitPlanMode', { plan: 'p' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_plan_default',
+			requestId: 'tu_plan_default',
+		});
+		await tick();
+
+		ctx.agent.respondToUserInputRequest('tu_plan_default', ChatInputResponseKind.Accept, {
+			[exitPlanModeQuestionId('tu_plan_default')]: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'approve' },
+			},
+		});
+		const result = await promise;
+
+		assert.deepStrictEqual({
+			result,
+			persistedMode: ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'],
+		}, {
+			result: { behavior: 'allow', updatedInput: { plan: 'p' } },
+			persistedMode: 'default',
+		});
+	});
+
+	test('Test 12d — ExitPlanMode: freeform feedback returns deny carrying the feedback, no mode write', async () => {
+		const { ctx, canUseTool, sessionUri } = await materialize();
+
+		const promise = canUseTool('ExitPlanMode', { plan: 'p' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_plan_fb',
+			requestId: 'tu_plan_fb',
+		});
+		await tick();
+
+		ctx.agent.respondToUserInputRequest('tu_plan_fb', ChatInputResponseKind.Accept, {
+			[exitPlanModeQuestionId('tu_plan_fb')]: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'approve', freeformValues: ['use vitest'] },
+			},
+		});
+		const result = await promise;
+
+		assert.deepStrictEqual({
+			result,
+			persistedMode: ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'],
+		}, {
+			result: { behavior: 'deny', message: 'The user has feedback on the plan before proceeding:\n\nuse vitest' },
+			persistedMode: undefined,
+		});
+	});
+
+	test('Test 12e — ExitPlanMode: restricted auto-approve policy offers only Approve and clamps the persisted mode', async () => {
+		const { ctx, canUseTool, inputRequests, sessionUri } = await materialize();
+		ctx.configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+
+		const promise = canUseTool('ExitPlanMode', { plan: 'p' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_plan_policy',
+			requestId: 'tu_plan_policy',
+		});
+		await tick();
+
+		// Respond with an action id the restricted request never offered
+		// (a stale or forged client answer); the persisted mode must still
+		// clamp to `default`.
+		const inputRequest = inputRequests.at(-1)! as ChatInputRequestWithPlanReview;
+		ctx.agent.respondToUserInputRequest('tu_plan_policy', ChatInputResponseKind.Accept, {
+			[exitPlanModeQuestionId('tu_plan_policy')]: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'approveBypass' },
+			},
+		});
+		const result = await promise;
+
+		assert.deepStrictEqual({
+			offeredActions: inputRequest.planReview?.actions.map(a => a.id),
+			result,
+			persistedMode: ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'],
+		}, {
+			offeredActions: ['approve'],
+			result: { behavior: 'allow', updatedInput: { plan: 'p' } },
+			persistedMode: 'default',
 		});
 	});
 
@@ -7414,7 +7498,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		});
 		await tick();
 
-		ctx.agent.respondToPermissionRequest('tu_plan_deny', false);
+		ctx.agent.respondToUserInputRequest('tu_plan_deny', ChatInputResponseKind.Decline);
 		const result = await promise;
 
 		const fakeQuery = ctx.sdk.warmQueries.at(-1)?.produced;
@@ -7490,7 +7574,12 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		});
 		await tick();
 
-		ctx.agent.respondToPermissionRequest('tu_peer_plan', true);
+		ctx.agent.respondToUserInputRequest('tu_peer_plan', ChatInputResponseKind.Accept, {
+			[exitPlanModeQuestionId('tu_peer_plan')]: {
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'approveAcceptEdits' },
+			},
+		});
 		const result = await promise;
 
 		assert.deepStrictEqual({
@@ -7498,7 +7587,11 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			configChanges,
 			ownerPermissionMode: ctx.configService.getSessionConfigValues(session.toString())?.['permissionMode'],
 		}, {
-			result: { behavior: 'allow', updatedInput: { plan: 'peer plan' } },
+			result: {
+				behavior: 'allow',
+				updatedInput: { plan: 'peer plan' },
+				updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
+			},
 			// Exactly one config write, keyed by the owning session — never
 			// by the peer chat's own URI.
 			configChanges: [session.toString()],
@@ -7506,17 +7599,22 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		});
 	});
 
-	test('Test 14 — ExitPlanMode: synchronous respond inside pending_confirmation listener resolves canUseTool', async () => {
-		// Same race as Test 8 but for the ExitPlanMode permission path
-		// (`_handleExitPlanMode`): the deferred must be registered
-		// before the `pending_confirmation` event is fired, otherwise
+	test('Test 14 — ExitPlanMode: synchronous respond inside ChatInputRequested listener resolves canUseTool', async () => {
+		// Same race as Test 8 but for the ExitPlanMode plan-review path
+		// (`handleExitPlanMode`): the deferred must be registered
+		// before the `ChatInputRequested` action is fired, otherwise
 		// a synchronous responder hits an empty pending map and the
 		// SDK's `canUseTool` deadlocks.
 		const { ctx, canUseTool } = await materialize();
 
 		disposables.add(ctx.agent.onDidChatProgress(s => {
-			if (s.kind === 'pending_confirmation' && s.state.toolName === 'ExitPlanMode') {
-				ctx.agent.respondToPermissionRequest(s.state.toolCallId, true);
+			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested && s.action.request.id === 'tu_plan_race') {
+				ctx.agent.respondToUserInputRequest('tu_plan_race', ChatInputResponseKind.Accept, {
+					[exitPlanModeQuestionId('tu_plan_race')]: {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Selected, value: 'approveAcceptEdits' },
+					},
+				});
 			}
 		}));
 
@@ -7525,7 +7623,11 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			toolUseID: 'tu_plan_race',
 			requestId: 'tu_plan_race',
 		});
-		assert.deepStrictEqual(result, { behavior: 'allow', updatedInput: { plan: 'sync test' } });
+		assert.deepStrictEqual(result, {
+			behavior: 'allow',
+			updatedInput: { plan: 'sync test' },
+			updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
+		});
 	});
 
 	test('respondToUserInputRequest unknown id is silent', () => {

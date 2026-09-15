@@ -6,22 +6,24 @@
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
+import { localize } from '../../../../nls.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { extractServerToolName } from './claudeServerToolMcpServer.js';
-import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
-import { CLAUDE_PLAN_DECLINED_MESSAGE, CLAUDE_QUESTION_CANCELLED_MESSAGE, CLAUDE_USER_DECLINED_MESSAGE } from './claudeToolDenial.js';
+import { buildAskUserSessionInputQuestions, buildExitPlanModeReviewRequest, exitPlanModeQuestionId, flattenAskUserAnswers, parseAskUserQuestionInput, resolveExitPlanModeAnswer } from './claudeInteractiveTools.js';
+import { claudePlanFeedbackMessage, CLAUDE_PLAN_DECLINED_MESSAGE, CLAUDE_QUESTION_CANCELLED_MESSAGE, CLAUDE_USER_DECLINED_MESSAGE } from './claudeToolDenial.js';
 import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermissionKind, getClaudeToolDisplayName, getClaudeToolInputString, getClaudeToolPath, INTERACTIVE_CLAUDE_TOOLS, buildClaudeToolMeta } from './claudeToolDisplay.js';
 
 /**
  * Dependencies for {@link handleCanUseTool}. Kept narrow: a session
  * lookup callback (so the agent's `_sessions` map stays private) and
  * the configuration service for the one mutation point
- * (`ExitPlanMode` Approve persists `permissionMode = 'acceptEdits'`).
+ * (`ExitPlanMode` approval persists the chosen `permissionMode`).
  * Subagent correlation reads from `session.subagents` (the per-session
  * {@link import('./claudeSubagentRegistry.js').SubagentRegistry}); the
  * bridge no longer takes a host-singleton resolver dep.
@@ -126,14 +128,10 @@ async function dispatchCanUseTool(
 ): Promise<PermissionResult> {
 	// Interactive tools (`AskUserQuestion`, `ExitPlanMode`) are
 	// exempt from SDK `permissionMode` auto-approval, so they reach
-	// `canUseTool` even under `bypassPermissions`. Routing then
-	// splits by tool semantics rather than by the
-	// `INTERACTIVE_CLAUDE_TOOLS` flag itself: `ExitPlanMode` is a
-	// permission gate (Approve/Deny on whether to leave plan mode)
-	// so it uses the standard `pending_confirmation` channel with
-	// custom button labels; `AskUserQuestion` is structured user
-	// input (a question carousel) so it routes through
-	// `requestUserInput` / `ChatInputRequested`.
+	// `canUseTool` even under `bypassPermissions`. Both route
+	// through `requestUserInput` / `ChatInputRequested`:
+	// `AskUserQuestion` as a question carousel, `ExitPlanMode` as a
+	// plan-review request rendered by the workbench's plan widget.
 	if (INTERACTIVE_CLAUDE_TOOLS.has(toolName)) {
 		return handleInteractiveTool(deps, session, toolName, input, options);
 	}
@@ -230,11 +228,16 @@ function handleInteractiveTool(
 }
 
 /**
- * `ExitPlanMode` (S3.5b): render the plan body inside the standard
- * tool-confirmation card (`pending_confirmation` channel — same path
- * normal write tools take), persist `permissionMode = 'acceptEdits'`
- * on Approve (next `sendMessage` forwards via `Query.setPermissionMode`),
- * deny with production-mirrored wording on cancel.
+ * `ExitPlanMode` (S3.5b): surface the plan through the workbench's
+ * plan-review widget (`ChatInputRequested` carrying a `planReview`
+ * payload — the same channel the Copilot agent uses), await the
+ * outcome, and persist the chosen permission mode on approval so the
+ * next `sendMessage` forwards it via `Query.setPermissionMode`. The
+ * plan body is read from the tracked `~/.claude/plans/*.md` file (the
+ * SDK no longer sends the plan text on the tool input); older CLIs
+ * that still send `input.plan` fall back to that inline text.
+ * Feedback flows back as a deny so Claude revises the plan while
+ * staying in plan mode.
  *
  * NOTE: we MUST NOT call `session.setPermissionMode` here. That issues
  * a live SDK control request on the same channel the SDK is using to
@@ -254,19 +257,63 @@ async function handleExitPlanMode(
 ): Promise<PermissionResult> {
 	const toolUseID = options.toolUseID;
 	const parentToolCallId = resolveSubagentParent(session, options);
-	const approved = await session.requestPermission({
-		toolUseID,
-		state: buildExitPlanModeConfirmationState(input, toolUseID),
-		permissionKind: getClaudePermissionKind('ExitPlanMode'),
-		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
-	});
-	if (approved) {
-		deps.configurationService.updateSessionConfig(deps.configurationResource.toString(), {
-			[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits' satisfies ClaudePermissionMode,
-		});
-		return { behavior: 'allow', updatedInput: input };
+	const planFile = await session.readPlanReview();
+	// The plan-file read is the only await before `requestUserInput`
+	// registers the pending id. An SDK abort during it slips past the
+	// abort handler in `handleCanUseTool` (nothing registered yet) and
+	// would park the request forever, so re-check before registering.
+	if (options.signal.aborted) {
+		return { behavior: 'deny', message: 'SDK aborted the tool request' };
 	}
-	return { behavior: 'deny', message: CLAUDE_PLAN_DECLINED_MESSAGE };
+	const inlinePlan = typeof input.plan === 'string' && input.plan.trim().length > 0 ? input.plan : undefined;
+	const planContent = planFile?.content ?? inlinePlan ?? localize('claude.exitPlanMode.fallbackContent', "A plan is ready for review.");
+	const answer = await session.requestUserInput(
+		buildExitPlanModeReviewRequest(planContent, planFile?.uri, toolUseID, isAutoApprovePolicyRestricted(deps.configurationService)),
+		parentToolCallId,
+	);
+	const resolved = resolveExitPlanModeAnswer(answer.response, answer.answers, exitPlanModeQuestionId(toolUseID));
+	switch (resolved.kind) {
+		case 'approved': {
+			// Re-check the policy at persist time: it may have flipped while
+			// the review was open, and the answer may carry an action id the
+			// request never offered.
+			const mode = resolved.mode !== 'default' && isAutoApprovePolicyRestricted(deps.configurationService)
+				? 'default'
+				: resolved.mode;
+			deps.configurationService.updateSessionConfig(deps.configurationResource.toString(), {
+				[ClaudeSessionConfigKey.PermissionMode]: mode,
+			});
+			// Also hand the mode to the SDK on the allow result: the live
+			// query ignores server-originated config changes, so without
+			// this the implementation starting right after approval would
+			// run in the old mode until the next sendMessage forwards the
+			// persisted value. `updatedPermissions` is the SDK's own
+			// non-reentrant permission-update channel; the config write
+			// above keeps the AHP mode picker and later turns in sync.
+			return {
+				behavior: 'allow',
+				updatedInput: input,
+				...(mode !== 'default'
+					? { updatedPermissions: [{ type: 'setMode', mode, destination: 'session' } satisfies PermissionUpdate] }
+					: {}),
+			};
+		}
+		case 'feedback':
+			return { behavior: 'deny', message: claudePlanFeedbackMessage(resolved.feedback) };
+		case 'declined':
+			return { behavior: 'deny', message: CLAUDE_PLAN_DECLINED_MESSAGE };
+	}
+}
+
+/**
+ * Whether the enterprise auto-approve policy forbids switching a
+ * session into an auto-approving mode. Mirrors
+ * `ClaudeAgent.getAutonomousSessionConfig` — non-Copilot agents are
+ * governed by this root-config key rather than managed settings (see
+ * `agentHostManagedSettings.ts`).
+ */
+function isAutoApprovePolicyRestricted(configurationService: IAgentConfigurationService): boolean {
+	return configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true;
 }
 
 /**

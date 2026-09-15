@@ -1476,8 +1476,12 @@ export interface IChatPlanApprovalAction {
 	label: string;
 	description?: string;
 	default?: boolean;
-	/** When set to 'autopilot', a confirmation dialog is shown before proceeding. */
-	permissionLevel?: 'autopilot';
+	/**
+	 * Elevated-permission marker: 'autopilot' shows the Autopilot
+	 * confirmation dialog, 'bypass' shows the shared Bypass Approvals
+	 * permission warning, before the action is submitted.
+	 */
+	permissionLevel?: 'autopilot' | 'bypass';
 }
 
 /** The result of reviewing a plan. */

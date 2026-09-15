@@ -65,6 +65,9 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
+	/** Most recent plan-file write observed by the file-edit observer. */
+	get lastPlanFileUri(): URI | undefined { return this._editObserver.lastPlanFileUri; }
+
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);

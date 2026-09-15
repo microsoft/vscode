@@ -15,6 +15,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
@@ -75,6 +76,7 @@ function createRouter(
 		[IAgentEditAttributionService, attributionService],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 		[IEditArcReporterService, new NullEditArcReporterService()],
+		[INativeEnvironmentService, { userHome: URI.file('/home/testuser') } as INativeEnvironmentService],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
