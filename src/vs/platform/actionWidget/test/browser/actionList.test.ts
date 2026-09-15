@@ -2447,6 +2447,42 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('hover resize restores its preferred width without changing focus', async () => {
+		const content = document.createElement('div');
+		content.style.cssText = 'width: 120px; height: 80px;';
+		const control = document.createElement('button');
+		control.textContent = 'Open';
+		content.appendChild(control);
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('active'),
+				hover: { content, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => [control], contentOwnsPadding: true },
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		control.focus();
+		await settleLayout();
+
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const preferredWidth = panel.getBoundingClientRect().width;
+		panel.style.width = '80px';
+		await settleLayout();
+		const restoredWidth = panel.getBoundingClientRect().width;
+		await settleLayout();
+
+		assert.deepStrictEqual({
+			restoredWidth,
+			settledWidth: panel.getBoundingClientRect().width,
+			focusRetained: document.activeElement === control,
+		}, {
+			restoredWidth: preferredWidth,
+			settledWidth: preferredWidth,
+			focusRetained: true,
+		});
+	});
+
 	test('refresh does not reopen a dismissed tab-through hover', () => {
 		const content = document.createElement('div');
 		const control = document.createElement('button');
