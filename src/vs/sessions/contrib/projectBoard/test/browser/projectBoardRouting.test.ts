@@ -12,7 +12,12 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { OPEN_AGENT_PROJECT_BOARD_COMMAND_ID } from '../../../../../platform/window/common/window.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ChatEditorInput } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IProjectBoardService } from '../../browser/projectBoardService.js';
@@ -20,6 +25,38 @@ import '../../browser/projectBoard.contribution.js';
 
 suite('Project Board Agents routing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('PB-05 Escape is scoped to standalone chats and yields to input selections and find', async () => {
+		const id = 'workbench.action.agentProjectBoard.closeSession';
+		const binding = KeybindingsRegistry.getDefaultKeybindings().find(binding => binding.command === id)!;
+		assert.ok(binding);
+		const chord = binding.keybinding?.chords[0];
+		assert.ok(chord instanceof KeyCodeChord);
+		assert.strictEqual(chord.keyCode, KeyCode.Escape);
+		const context = new Context(0, null);
+		context.setValue(IsSessionsWindowContext.key, true);
+		context.setValue(IsAuxiliaryWindowContext.key, true);
+		context.setValue(ActiveEditorContext.key, ChatEditorInput.EditorID);
+		assert.strictEqual(binding.when?.evaluate(context), true);
+		for (const [key, value] of [
+			[IsSessionsWindowContext.key, false],
+			[IsAuxiliaryWindowContext.key, false],
+			[ActiveEditorContext.key, 'workbench.editors.text'],
+			[EditorContextKeys.hasNonEmptySelection.key, true],
+			[EditorContextKeys.hasMultipleSelections.key, true],
+			[ChatContextKeys.findWidgetVisible.key, true],
+		] as const) {
+			const previous = context.getValue(key);
+			context.setValue(key, value);
+			assert.strictEqual(binding.when?.evaluate(context), false, key);
+			context.setValue(key, previous);
+		}
+		const instantiationService = store.add(new TestInstantiationService());
+		let closed = 0;
+		instantiationService.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({ closeSession: async () => { closed++; } }));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		assert.strictEqual(closed, 1);
+	});
 
 	test('PB-06: forwarded command waits for restore before opening the existing profile board', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
