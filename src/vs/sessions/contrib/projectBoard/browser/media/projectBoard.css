@@ -32,6 +32,22 @@
 	flex-shrink: 0;
 }
 
+.project-board-header > .project-board-settings {
+	box-sizing: border-box;
+	width: 28px;
+	height: 28px;
+	padding: 4px;
+}
+
+.project-board-card-metrics {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size40, 4px);
+	margin-bottom: var(--vscode-spacing-size40, 4px);
+}
+
 .project-board-header p {
 	margin: 6px 0 18px;
 	color: var(--vscode-descriptionForeground);
@@ -165,6 +181,28 @@
 .project-board-card-status-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-fontSize-body1, 13px);
+}
+
+.project-board-card-duration,
+.project-board-card-credits {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40, 4px);
+	box-sizing: border-box;
+	max-width: 100%;
+	padding: 2px 6px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	background: var(--vscode-badge-background);
+	overflow-wrap: anywhere;
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label1, 12px);
+	font-variant-numeric: tabular-nums;
+}
+
+.project-board-card-metrics .codicon,
+.project-board-credit-icon {
+	flex-shrink: 0;
 }
 
 .project-board-card-status-running {

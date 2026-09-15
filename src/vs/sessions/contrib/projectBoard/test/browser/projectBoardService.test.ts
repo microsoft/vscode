@@ -22,6 +22,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -115,7 +116,10 @@ suite('ProjectBoardService', () => {
 		instantiationService.stub(IChatService, { chatModels: loadedModels });
 		instantiationService.stub(IChatSessionsService, { getMaterializedSessionResource: () => undefined });
 		const metadata = observableValue<IProjectBoardMetadata>('metadata', { kind: 'unavailable', message: 'Prompt unavailable' });
-		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, dispose() { } });
+		const credits = observableValue<number | undefined>('credits', undefined);
+		const creditsError = observableValue<string | undefined>('creditsError', undefined);
+		const includeCredits = sinon.spy();
+		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, credits, creditsError, setIncludeCredits: includeCredits, dispose() { } });
 		const openedContext: string[] = [];
 		instantiationService.stub(IOpenerService, {
 			open: async (resource, options) => {
@@ -206,7 +210,7 @@ suite('ProjectBoardService', () => {
 			}(),
 			contextMenu,
 		));
-		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, loadedModels, quickInput, pick,
+		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, includeCredits, loadedModels, quickInput, pick,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -232,6 +236,146 @@ suite('ProjectBoardService', () => {
 		await service.open();
 		assert.strictEqual(state.openCount, 1);
 		assert.ok(state.focusCount > firstFocusCount);
+	});
+
+	test('PB-18 top-right settings independently toggle metrics and restore across board reopen', async () => {
+		const { document } = createBoardDocument();
+		const chat = new TestChat('Metrics');
+		const h = createBoard(document, [chat]);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelector('.project-board-header > :last-child')?.getAttribute('data-board-control'), 'settings');
+		const settings = h.container.querySelector('[data-board-control="settings"]')!;
+		assert.strictEqual(settings.textContent, '');
+		assert.ok(settings.classList.contains('codicon-settings-gear'));
+		assert.strictEqual(settings.getAttribute('aria-label'), 'Board display settings');
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration, .project-board-card-credits'), null);
+		const toggle = async (id: string, checked: boolean) => {
+			const button = h.currentContainer.querySelector<HTMLElement>('[data-board-control="settings"]')!;
+			button.focus();
+			button.click();
+			assert.strictEqual(h.contextMenu.delegate?.domForShadowRoot, h.currentContainer);
+			const action = h.contextMenu.delegate!.getActions().find(action => action.id === id)!;
+			assert.strictEqual(action.checked, checked);
+			await action.run();
+		};
+		await toggle('projectBoard.settings.stateDuration', false);
+		assert.ok(h.container.querySelector('.project-board-card-duration'));
+		assert.strictEqual(h.container.querySelector('.project-board-card-credits'), null);
+		await toggle('projectBoard.settings.credits', false);
+		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: unavailable');
+		h.credits.set(0, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 0 credits');
+		h.credits.set(12.5, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 12.5 credits');
+		const metrics = h.container.querySelector('.project-board-card-metrics')!;
+		assert.strictEqual(metrics.parentElement?.firstElementChild, metrics);
+		assert.strictEqual(metrics.querySelector('.project-board-card-credits')?.textContent, '$12.5 credits');
+		assert.ok(metrics.querySelector('.codicon-clock[aria-hidden="true"]'));
+		assert.strictEqual(document.activeElement?.getAttribute('data-board-control'), 'settings');
+		await toggle('projectBoard.settings.stateDuration', true);
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration'), null);
+		h.closeBoard();
+		await h.service.open();
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-duration'), null);
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 12.5 credits');
+		await toggle('projectBoard.settings.credits', true);
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits'), null);
+		assert.ok(h.includeCredits.calledWith(false));
+		assert.deepStrictEqual(h.opened, []);
+		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-18 corner pills wrap inside narrow cards and credit hover explains the reported value', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Metrics layout')]);
+		const hover = sinon.spy(h.instantiationService.invokeFunction(accessor => accessor.get(IHoverService)), 'setupDelayedHover');
+		store.add(toDisposable(() => hover.restore()));
+		h.credits.set(12.5, undefined);
+		await h.service.open();
+		for (const id of ['projectBoard.settings.stateDuration', 'projectBoard.settings.credits']) {
+			h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+			await h.contextMenu.delegate!.getActions().find(action => action.id === id)!.run();
+		}
+		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
+		const metrics = card.querySelector<HTMLElement>('.project-board-card-metrics')!;
+		const credits = metrics.querySelector<HTMLElement>('.project-board-card-credits')!;
+		const options = hover.getCalls().findLast(call => call.args[0] === credits)?.args[1];
+		const hoverContent = (typeof options === 'function' ? options() : options)?.content;
+		assert.ok(typeof hoverContent === 'string');
+		assert.ok(hoverContent.includes('AI credits: 12.5 credits'));
+		assert.ok(hoverContent.includes('including subagents'));
+		assert.ok(hoverContent.includes('Not a dollar amount'));
+		for (const width of [260, 180, 140]) {
+			card.style.width = `${width}px`;
+			const bounds = metrics.getBoundingClientRect();
+			const pills = [...metrics.children].map(pill => pill.getBoundingClientRect());
+			assert.ok(pills.every(pill => pill.left >= bounds.left && pill.right <= bounds.right + 1));
+			assert.ok(card.querySelector('h4')!.getBoundingClientRect().top >= bounds.bottom);
+			assert.ok(Math.max(...pills.map(pill => pill.right)) >= bounds.right - 1, 'Pills align to the right');
+		}
+		assert.strictEqual(mainWindow.getComputedStyle(metrics).flexWrap, 'wrap');
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('PB-18 timer ticks update only text and preserve focused cards, state age and scroll', async () => {
+		const { document } = createBoardDocument();
+		const clock = sinon.useFakeTimers({ now: 10000, toFake: ['Date'] });
+		store.add(toDisposable(() => clock.restore()));
+		const chat = new TestChat('Timer');
+		const h = createBoard(document, [chat]);
+		const interval = sinon.spy(document.defaultView!, 'setInterval');
+		const clearInterval = sinon.spy(document.defaultView!, 'clearInterval');
+		store.add(toDisposable(() => { interval.restore(); clearInterval.restore(); }));
+		await h.service.open();
+		assert.strictEqual(interval.callCount, 0);
+		h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+		await h.contextMenu.delegate!.getActions()[0].run();
+		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
+		card.focus();
+		const duration = card.querySelector('.project-board-card-duration')!;
+		const board = h.container.querySelector<HTMLElement>('.project-board')!;
+		board.style.height = '80px';
+		board.scrollTop = 20;
+		const scrollTop = board.scrollTop;
+		clock.tick(61000);
+		interval.lastCall.args[0]();
+		assert.strictEqual(duration.textContent, '≥ 01:01');
+		assert.strictEqual(duration.getAttribute('aria-label'), 'Time in state: at least 01:01');
+		assert.ok(duration.querySelector('.codicon-clock'), 'Timer updates must preserve the icon');
+		assert.strictEqual(h.container.querySelector('[data-chat-resource]'), card);
+		assert.strictEqual(document.activeElement, card);
+		assert.strictEqual(board.scrollTop, scrollTop);
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration')?.textContent, '00:00');
+		clock.tick(2000);
+		chat.title.set('Renamed', undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration')?.textContent, '00:02');
+		h.closeBoard();
+		await Promise.resolve();
+		assert.strictEqual(clearInterval.callCount, interval.callCount);
+		assert.deepStrictEqual(h.opened, []);
+		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-18 drafts have no metrics, archived cards have no timer, and credit failures notify once', async () => {
+		const chat = new TestChat('Billing');
+		const h = createBoard(mainWindow.document, [chat]);
+		h.drafts.set([{ id: 'draft', resource: URI.parse('test-draft:session'), hasContent: true, submitted: false }], undefined);
+		const notifications: string[] = [];
+		store.add(h.errors.event(message => notifications.push(message)));
+		await h.service.open();
+		for (const id of ['projectBoard.settings.stateDuration', 'projectBoard.settings.credits']) {
+			h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+			await h.contextMenu.delegate!.getActions().find(action => action.id === id)!.run();
+		}
+		assert.strictEqual(h.container.querySelector('.project-board-card-draft .project-board-card-duration, .project-board-card-draft .project-board-card-credits'), null);
+		h.creditsError.set('Invalid reported usage', undefined);
+		chat.title.set('Renamed billing', undefined);
+		assert.deepStrictEqual(notifications, ['Could not read AI credit usage for "Billing".']);
+		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: unavailable');
+		chat.isArchived.set(true, undefined);
+		h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration'), null);
+		assert.ok(h.container.querySelector('.project-board-card-credits'));
 	});
 
 	test('PB-01 disposes the window and its live observers', async () => {
