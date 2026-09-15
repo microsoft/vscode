@@ -24,7 +24,7 @@ import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../s
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { createListHarness, createSession } from './sessionsListTestUtils.js';
+import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
@@ -81,17 +81,16 @@ suite('Sessions list context menus', () => {
 	const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
 	const targetGroup: ISessionGroup = { id: 'target', name: 'Target', createdAt: 2 };
 
-	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date) {
-		const { session } = createSession('Session');
+	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session]) {
 		const contextMenuService = new TestContextMenuService();
 		let menuDisposed = false;
-		const harness = createListHarness(disposables, [session], instantiationService => {
+		const harness = createListHarness(disposables, sessions, instantiationService => {
 			const contextKeyService = instantiationService.get(IContextKeyService);
 			const commandService = instantiationService.get(ICommandService);
 			instantiationService.stub(IContextMenuService, contextMenuService);
 			instantiationService.stub(ISessionGroupsService, new TestSessionGroupsService(
 				[group, targetGroup],
-				grouped ? new Map([[session.sessionId, group.id]]) : new Map(),
+				grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
 			));
 			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 				override createMenu(): IMenu {
@@ -116,7 +115,7 @@ suite('Sessions list context menus', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, managementService: harness.managementService, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, menuDisposed: () => menuDisposed };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -170,9 +169,15 @@ suite('Sessions list context menus', () => {
 		});
 	});
 
-	test('workspace and custom-group headers mark all rendered sessions as read', async () => {
+	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {
 		for (const grouped of [false, true]) {
-			const { container, contextMenuService, managementService } = createList(grouped, false, SessionsGrouping.Workspace);
+			const visible = createTestSession('Visible', { workspaceLabel: 'Workspace', isRead: false }).session;
+			const filtered = createTestSession('Filtered', { workspaceLabel: 'Workspace', status: SessionStatus.Error, isRead: false }).session;
+			const read = createTestSession('Read', { workspaceLabel: 'Workspace', isRead: true }).session;
+			const archived = createTestSession('Archived', { workspaceLabel: 'Workspace', isArchived: true, isRead: false }).session;
+			const { container, contextMenuService, managementService, list } = createList(grouped, false, SessionsGrouping.Workspace, [visible, filtered, read, archived]);
+			list.setStatusExcluded(SessionStatus.Error, true);
+			list.setExcludeRead(true);
 			const header = [...container.querySelectorAll<HTMLElement>('.session-section')]
 				.find(element => element.querySelector('.session-section-label')?.textContent === (grouped ? group.name : 'Workspace'));
 			assert.ok(header);
@@ -189,11 +194,11 @@ suite('Sessions list context menus', () => {
 				grouped,
 				actions: {
 					ids: grouped
-						? ['sessionsViewPane.markAllRenderedRead', 'vs.actions.separator', 'sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
-						: ['sessionsViewPane.markAllRenderedRead', 'vs.actions.separator', 'sessions.createGroup'],
+						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
+						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup'],
 					disposableIds: [],
 				},
-				readSessions: ['Session'],
+				readSessions: ['Visible', 'Filtered'],
 			});
 		}
 	});

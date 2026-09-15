@@ -4159,18 +4159,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	private getMarkAllRenderedSessionsReadAction(sessions: readonly ISession[]): IAction {
+	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
 		return toAction({
-			id: 'sessionsViewPane.markAllRenderedRead',
-			label: localize('markAllRenderedRead', "Mark All as Read"),
-			run: () => this._sessionsManagementService.markAllRead(sessions),
+			id: 'sessionsViewPane.markAllInSectionRead',
+			label: localize('markAllInSectionRead', "Mark All as Read"),
+			run: () => {
+				const sessions = getSessions().filter(session => !isAutomationSession(session) && !session.isArchived.get() && !session.isRead.get());
+				return this._sessionsManagementService.markAllRead(sessions);
+			},
 		});
 	}
 
 	private showSectionContextMenu(section: ISessionSection, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
 		const actions: IAction[] = [];
 		if (this.options.grouping() === SessionsGrouping.Workspace && section.id.startsWith('workspace:')) {
-			actions.push(this.getMarkAllRenderedSessionsReadAction(section.sessions), new Separator());
+			actions.push(this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => sessionWorkspaceLabel(session) === section.label)), new Separator());
 		}
 		actions.push(this.getCreateGroupAction());
 		this.contextMenuService.showContextMenu({
@@ -4181,8 +4184,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
 		const actions: IAction[] = [];
-		if (this.options.grouping() === SessionsGrouping.Workspace && groupItem.sessions.length > 0) {
-			actions.push(this.getMarkAllRenderedSessionsReadAction(groupItem.sessions), new Separator());
+		if (this.options.grouping() === SessionsGrouping.Workspace && !groupItem.isEmpty) {
+			actions.push(this.getMarkAllSessionsReadAction(() => {
+				const sessionIds = new Set(this._sessionGroupsService.getSessionIdsInGroup(groupItem.group.id));
+				return this.sessions.filter(session => sessionIds.has(session.sessionId));
+			}), new Separator());
 		}
 		actions.push(
 			this.getCreateGroupAction(),
