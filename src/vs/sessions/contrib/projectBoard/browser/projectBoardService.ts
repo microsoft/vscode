@@ -527,6 +527,12 @@ class ProjectBoardView extends Disposable {
 					checked: !!display?.showCredits,
 					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showCredits', !this.boardState.configuration.get().display?.showCredits)),
 				}),
+				toAction({
+					id: 'projectBoard.settings.description',
+					label: localize('projectBoard.showDescription', "Show Description"),
+					checked: display?.showDescription !== false,
+					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showDescription', this.boardState.configuration.get().display?.showDescription === false)),
+				}),
 			],
 			onHide: () => {
 				if (generation !== this.menuGeneration) {
@@ -820,10 +826,6 @@ class ProjectBoardView extends Disposable {
 		store.add(this.hoverService.setupDelayedHover(title, { content: card.title }));
 		element.appendChild(title);
 
-		const session = document.createElement('div');
-		session.className = 'project-board-card-session';
-		session.textContent = localize('projectBoard.session', "Session: {0}", card.sessionTitle);
-		element.appendChild(session);
 		if (card.workspace) {
 			const workspace = document.createElement('div');
 			workspace.className = 'project-board-card-workspace';
@@ -882,9 +884,6 @@ class ProjectBoardView extends Disposable {
 			}));
 			metrics.appendChild(credits);
 		}
-		if (metrics.childElementCount) {
-			element.insertBefore(metrics, title);
-		}
 		if (card.connection) {
 			const connection = document.createElement('div');
 			connection.className = 'project-board-card-warning';
@@ -892,7 +891,7 @@ class ProjectBoardView extends Disposable {
 			element.appendChild(connection);
 		}
 
-		if (card.description) {
+		if (card.description && display?.showDescription !== false) {
 			const description = document.createElement('div');
 			description.className = 'project-board-card-description';
 			description.textContent = card.description;
@@ -923,7 +922,6 @@ class ProjectBoardView extends Disposable {
 		if (time !== undefined) {
 			recency.dataset.submittedAt = String(time);
 		}
-		element.appendChild(recency);
 		if (metadata && metadata.kind !== 'loading' && metadata.message) {
 			const capability = document.createElement('div');
 			capability.className = metadata.kind === 'ready' ? 'project-board-card-metadata-note' : 'project-board-card-warning';
@@ -977,6 +975,13 @@ class ProjectBoardView extends Disposable {
 			descriptions.push(previewElement.id);
 			element.appendChild(previewElement);
 		}
+		const statusBar = document.createElement('footer');
+		statusBar.className = 'project-board-card-status-bar';
+		statusBar.appendChild(recency);
+		if (metrics.childElementCount) {
+			statusBar.appendChild(metrics);
+		}
+		element.appendChild(statusBar);
 		element.setAttribute('aria-describedby', descriptions.join(' '));
 
 		store.add(addDisposableListener(element, EventType.DRAG_START, event => {
@@ -1231,7 +1236,7 @@ class ProjectBoardView extends Disposable {
 			case SessionStatus.Error:
 				return '\u26A0\uFE0F';
 			default:
-				return '\u{1F9CD}';
+				return '\u{1F9CD}\u{1F4A4}';
 		}
 	}
 
