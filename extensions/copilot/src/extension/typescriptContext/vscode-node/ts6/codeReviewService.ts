@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
+import type { TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import * as protocol from '../../common/serverProtocol';
 import { toTypeScriptChangeClassificationResult, toTypeScriptMetricsResult } from '../codeReview';
 
@@ -29,7 +29,7 @@ type TypeScriptChangeClassificationRequestArgs = Omit<protocol.TypeScriptChangeC
 	offset: number;
 };
 
-export class TS6CodeReviewProvider implements Omit<ICodeReviewService, '_serviceBrand'>, vscode.Disposable {
+export class TS6CodeReviewProvider implements vscode.Disposable {
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
 
 	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {

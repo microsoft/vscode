@@ -103,6 +103,8 @@ class TestCodeReviewService implements ICodeReviewService {
 		return undefined;
 	}
 
+	async openDiff(): Promise<void> { }
+
 	dispose(): void { }
 }
 

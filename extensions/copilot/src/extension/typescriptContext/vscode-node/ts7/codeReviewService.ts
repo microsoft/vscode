@@ -7,7 +7,7 @@ import * as ts from '@typescript/native/unstable/ast';
 import type * as vscode from 'vscode';
 
 import type { ILogService } from '../../../../platform/log/common/logService';
-import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
+import type { TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import type * as protocol from '../../common/serverProtocol';
 import { toTypeScriptChangeClassificationResult, toTypeScriptMetricsResult } from '../codeReview';
@@ -69,7 +69,7 @@ interface ClassifiedBucket<T extends BucketInfo> {
 	readonly classifications: protocol.TypeScriptChangeClassification[];
 }
 
-export class TS7CodeReviewProvider implements Omit<ICodeReviewService, '_serviceBrand'>, vscode.Disposable {
+export class TS7CodeReviewProvider implements vscode.Disposable {
 	private readonly disposables = new DisposableStore();
 	private readonly nativeApi: CodeReviewApiProvider;
 

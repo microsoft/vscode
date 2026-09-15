@@ -10,7 +10,7 @@ import { suite, test } from 'vitest';
 import { packageJson } from '../../../../platform/env/common/packagejson';
 import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { LanguageModelTextPart } from '../../../../vscodeTypes';
+import { LanguageModelTextPart, Uri } from '../../../../vscodeTypes';
 import { getContributedToolName, ToolName } from '../../common/toolNames';
 import { ToolRegistry } from '../../common/toolsRegistry';
 import { ITypeScriptChangeClassificationToolInput, TypeScriptChangeClassificationTool } from '../typeScriptChangeClassificationTool';
@@ -25,6 +25,7 @@ suite('TypeScript change classification tool', () => {
 			'original content',
 			'mapped to the modified AST',
 			'direct modified and original arrays',
+			'always render the joined entity path as a Markdown link',
 		];
 		assert.deepStrictEqual({
 			registered: ToolRegistry.getTools().some(tool => tool.toolName === ToolName.TypeScriptChangeClassification),
@@ -38,12 +39,15 @@ suite('TypeScript change classification tool', () => {
 	});
 
 	test('returns serialized classifications and forwards all bucket types', async () => {
+		const modifiedLink = Uri.parse('vscode-insiders://GitHub.copilot-chat/openCodeReviewDiff?id=modified');
+		const originalLink = Uri.parse('vscode-insiders://GitHub.copilot-chat/openCodeReviewDiff?id=original');
 		const classification: TypeScriptChangeClassificationResult = {
 			modified: [
 				{
 					kind: 'method',
 					path: ['Calculator', 'calculate'],
 					range: { start: 1, end: 5 },
+					entityLink: modifiedLink,
 					changes: [
 						{
 							classifications: ['structural'],
@@ -63,6 +67,7 @@ suite('TypeScript change classification tool', () => {
 					kind: 'class',
 					path: ['Calculator'],
 					range: { start: 0, end: 10 },
+					entityLink: originalLink,
 					changes: [{
 						classifications: ['structural'],
 						changeType: 'deleted',
@@ -92,7 +97,16 @@ suite('TypeScript change classification tool', () => {
 			result: getText(result),
 		}, {
 			calls: [input],
-			result: JSON.stringify(classification),
+			result: JSON.stringify({
+				modified: [{
+					...classification.modified[0],
+					entityLink: modifiedLink.toString(true),
+				}],
+				original: [{
+					...classification.original[0],
+					entityLink: originalLink.toString(true),
+				}],
+			}),
 		});
 	});
 
@@ -132,6 +146,8 @@ class TestCodeReviewService implements ICodeReviewService {
 	async computeMetrics(): Promise<TypeScriptMetricsResult | undefined> {
 		return undefined;
 	}
+
+	async openDiff(): Promise<void> { }
 
 	dispose(): void { }
 }

@@ -78,6 +78,10 @@ interface TypeScriptChangeBucketBase {
 	 * Zero-based, end-exclusive line range of the structural entity in the current snapshot.
 	 */
 	readonly range: LineRange;
+	/**
+	 * Opens the original and modified snapshots in a diff editor focused on this entity.
+	 */
+	readonly entityLink?: vscode.Uri;
 }
 
 export interface TypeScriptModifiedChangeBucket extends TypeScriptChangeBucketBase {
@@ -87,6 +91,8 @@ export interface TypeScriptModifiedChangeBucket extends TypeScriptChangeBucketBa
 export interface TypeScriptOriginalChangeBucket extends TypeScriptChangeBucketBase {
 	readonly changes: readonly TypeScriptClassifiedOriginalLines[];
 }
+
+export type TypeScriptChangeBucket = TypeScriptModifiedChangeBucket | TypeScriptOriginalChangeBucket;
 
 export interface TypeScriptChangeClassificationResult {
 	readonly modified: readonly TypeScriptModifiedChangeBucket[];
@@ -110,6 +116,11 @@ export interface ICodeReviewService extends vscode.Disposable {
 	 * against the original snapshot. All ranges are zero-based, start inclusive, and end exclusive.
 	 */
 	classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined>;
+
+	/**
+	 * Opens a code-review entity link created by {@link classifyChanges}.
+	 */
+	openDiff(uri: vscode.Uri): Promise<void>;
 }
 
 export class NullCodeReviewService implements ICodeReviewService {
@@ -122,6 +133,8 @@ export class NullCodeReviewService implements ICodeReviewService {
 	async classifyChanges(): Promise<undefined> {
 		return undefined;
 	}
+
+	async openDiff(): Promise<void> { }
 
 	dispose(): void {
 		// No resources to dispose for the null implementation.

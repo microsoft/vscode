@@ -13,6 +13,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
+import { ICodeReviewService } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -25,6 +26,7 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatSessionsUriHandler, CustomUriHandler } from '../../chatSessions/vscode/chatSessionsUriHandler';
 import { EXTENSION_ID } from '../../common/constants';
+import { CodeReviewDiffUriPath } from '../../typescriptContext/vscode-node/codeReviewService';
 import { ILaunchConfigService, needsWorkspaceFolderForTaskError } from '../common/launchConfigService';
 import { CopilotDebugCommandSessionFactory } from '../node/copilotDebugCommandSessionFactory';
 import { SimpleRPC } from '../node/copilotDebugWorker/rpc';
@@ -61,6 +63,7 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IGitExtensionService private readonly _gitExtensionService: IGitExtensionService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
+		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 	) {
 		super();
 
@@ -128,6 +131,9 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 	}
 
 	handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
+		if (uri.path === CodeReviewDiffUriPath) {
+			return this.codeReviewService.openDiff(uri);
+		}
 		if (this.chatSessionsUriHandler.canHandleUri(uri)) {
 			return this.chatSessionsUriHandler.handleUri(uri);
 		}
