@@ -18,12 +18,17 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ISessionPullRequestCreation, ISessionPullRequestOptions } from '../common/pullRequestCreation.js';
 import { CreatePullRequestFocusedContext } from '../common/changes.js';
 import { CreatePullRequestPreferences } from '../common/createPullRequestPreferences.js';
-import { CreatePullRequestWidget, ICreatePullRequestWidgetOptions } from './createPullRequestWidget.js';
+import { CreatePullRequestWidget, ICreatePullRequestFormContent, ICreatePullRequestWidgetOptions } from './createPullRequestWidget.js';
 
 export class CreatePullRequestContextView extends Disposable {
 	private readonly view = this._register(new MutableDisposable());
 	private readonly formContextView: ContextViewHandler;
 	private readonly preferences: CreatePullRequestPreferences;
+	private readonly savedContent = new WeakMap<ISessionPullRequestCreation, {
+		readonly branchName: string | undefined;
+		readonly baseBranchName: string | undefined;
+		readonly content: ICreatePullRequestFormContent;
+	}>();
 
 	constructor(
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -43,10 +48,15 @@ export class CreatePullRequestContextView extends Disposable {
 
 	show(anchor: HTMLElement, creation: ISessionPullRequestCreation, options?: Pick<ICreatePullRequestWidgetOptions, 'branchName' | 'baseBranchName' | 'initialDraft' | 'sendToChat'> & { readonly onHide?: () => void; readonly onRestoreFocus?: () => void }, onCreated?: (options: ISessionPullRequestOptions) => void): void {
 		this.close();
+		const saved = this.savedContent.get(creation);
+		const initialContent = saved?.branchName === options?.branchName && saved?.baseBranchName === options?.baseBranchName ? saved?.content : undefined;
+		this.savedContent.delete(creation);
 		const previouslyFocused = dom.getActiveElement();
 		let widget: CreatePullRequestWidget;
 		let active = true;
 		let restoreFocus = true;
+		let preserveContent = true;
+		let submittedContent: ICreatePullRequestFormContent | undefined;
 		const view = this.formContextView.showContextView({
 			getAnchor: () => anchor,
 			anchorAlignment: AnchorAlignment.RIGHT,
@@ -57,10 +67,28 @@ export class CreatePullRequestContextView extends Disposable {
 				widget = store.add(new CreatePullRequestWidget({
 					...options,
 					creation,
+					initialContent,
 					preferences: this.preferences.read(),
 					onDidChangePreferences: change => this.preferences.update(change),
-					onCancel: () => this.close(),
+					onCancel: () => {
+						preserveContent = false;
+						this.close();
+					},
+					onDismiss: () => this.close(),
+					onWillCreate: () => {
+						submittedContent = widget.getFormContent();
+						this.savedContent.set(creation, {
+							branchName: options?.branchName,
+							baseBranchName: options?.baseBranchName,
+							content: submittedContent,
+						});
+						this.close();
+					},
 					onCreated: (options, message) => {
+						preserveContent = false;
+						if (submittedContent && this.savedContent.get(creation)?.content === submittedContent) {
+							this.savedContent.delete(creation);
+						}
 						if (message) {
 							this.notificationService.info(message);
 						}
@@ -71,6 +99,7 @@ export class CreatePullRequestContextView extends Disposable {
 					},
 					onDetachedError: error => this.notificationService.error(error),
 					onDidSendToChat: () => {
+						preserveContent = false;
 						if (active) {
 							this.close();
 						}
@@ -98,6 +127,13 @@ export class CreatePullRequestContextView extends Disposable {
 			},
 			onHide: () => {
 				active = false;
+				if (preserveContent && !widget.isSubmitting) {
+					this.savedContent.set(creation, {
+						branchName: options?.branchName,
+						baseBranchName: options?.baseBranchName,
+						content: widget.getFormContent(),
+					});
+				}
 				if (restoreFocus) {
 					if (dom.isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
 						previouslyFocused.focus();
