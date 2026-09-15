@@ -16,7 +16,6 @@ import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionItemContextMenuId, SessionItemHasBranchNameContext } from '../../../sessions/browser/views/sessionsList.js';
 
 interface ISessionChatLinkContext {
 	readonly session: ISession;
@@ -41,7 +40,7 @@ registerAction2(class CopyAgentHostSessionLinkAction extends Action2 {
 			id: COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID,
 			title: localize2('copyAgentHostSessionLink', "Copy Link"),
 			menu: [{
-				id: SessionItemContextMenuId,
+				id: Menus.SessionItemContextMenu,
 				group: '2_open',
 				order: 2,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
@@ -82,33 +81,5 @@ registerAction2(class CopyAgentHostChatLinkAction extends Action2 {
 			return;
 		}
 		await accessor.get(IClipboardService).writeText(buildExternalLink(accessor, context.session, context.chat.resource.fragment || undefined));
-	}
-});
-
-registerAction2(class CopySessionBranchNameAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.agentHost.copySessionBranchName',
-			title: localize2('copySessionBranchName', "Copy Branch Name"),
-			menu: [{
-				id: SessionItemContextMenuId,
-				group: '2_open',
-				order: 3,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-					SessionItemHasBranchNameContext,
-				),
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		const session = getSession(context);
-		const branchName = session?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim();
-		if (!branchName) {
-			return;
-		}
-
-		await accessor.get(IClipboardService).writeText(branchName);
 	}
 });
