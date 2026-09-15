@@ -57,6 +57,7 @@ export interface ISSHAgentHostConfig {
 	readonly name: string;
 	/** SSH config host alias (e.g. "robfast2") for reconnection on restart. */
 	readonly sshConfigHost?: string;
+	readonly proxyJump?: string;
 	/** Dev override: custom command to start the remote agent host instead of the default CLI. */
 	readonly remoteAgentHostCommand?: string;
 	/** When true, enables OpenSSH agent forwarding (auth-agent@openssh.com) for this connection. Requires {@link authMethod} to be Agent. */
@@ -273,6 +274,7 @@ export interface ISSHResolvedConfig {
 	readonly hostname: string;
 	readonly user: string | undefined;
 	readonly port: number;
+	readonly proxyJump?: string;
 	readonly identityFile: string[];
 	readonly identityAgent: string | undefined;
 	readonly forwardAgent: boolean;

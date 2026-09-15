@@ -78,11 +78,13 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		: strictHostKeyCheckingValue === 'false'
 			? 'no'
 			: strictHostKeyCheckingValue;
+	const proxyJump = map.get('proxyjump');
 
 	return {
 		hostname: map.get('hostname') ?? '',
 		user: map.get('user') || undefined,
 		port: parseInt(map.get('port') ?? '22', 10),
+		proxyJump: proxyJump?.toLowerCase() === 'none' ? undefined : proxyJump,
 		identityFile: identityFiles,
 		identityAgent: map.get('identityagent') || undefined,
 		forwardAgent: map.get('forwardagent') === 'yes',
