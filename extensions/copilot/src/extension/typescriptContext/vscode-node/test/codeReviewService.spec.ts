@@ -10,6 +10,9 @@ const executeCommand = vi.hoisted(() => vi.fn());
 
 vi.mock('vscode', () => ({
 	commands: { executeCommand },
+	extensions: {
+		getExtension: () => ({ activate: async () => { } }),
+	},
 	Range: class {
 		readonly start: { line: number; character: number };
 		readonly end: { line: number; character: number };
@@ -38,7 +41,9 @@ suite('TypeScript 6 code review service', () => {
 				metrics: { cognitiveComplexity: 0, cyclomaticComplexity: 1, runtimeComplexity: 'O(1)' },
 			}],
 		};
-		executeCommand.mockResolvedValue({ type: 'response', body: expectedResult });
+		executeCommand.mockImplementation(async (_command, request) => request === '_.copilot.ping'
+			? { type: 'response', body: { kind: 'ok' } }
+			: { type: 'response', body: expectedResult });
 		const provider = new TS6CodeReviewProvider();
 		try {
 			const actual = await provider.computeMetrics('C:\\workspace\\metrics.ts', 'const value = 1;');
@@ -52,7 +57,7 @@ suite('TypeScript 6 code review service', () => {
 						},
 					})),
 				},
-				command: executeCommand.mock.calls[0],
+				command: executeCommand.mock.calls[1],
 			}, {
 				actual: expectedResult,
 				command: [
@@ -77,6 +82,7 @@ suite('TypeScript 6 code review service', () => {
 			modified: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
+				pathKinds: ['class', 'method'],
 				range: { start: 2, end: 5 },
 				changes: [{
 					classifications: ['code'],
@@ -86,7 +92,9 @@ suite('TypeScript 6 code review service', () => {
 			}],
 			original: [],
 		};
-		executeCommand.mockResolvedValue({ type: 'response', body: expectedResult });
+		executeCommand.mockImplementation(async (_command, request) => request === '_.copilot.ping'
+			? { type: 'response', body: { kind: 'ok' } }
+			: { type: 'response', body: expectedResult });
 		const provider = new TS6CodeReviewProvider();
 		try {
 			const actual = await provider.classifyChanges({
@@ -103,7 +111,7 @@ suite('TypeScript 6 code review service', () => {
 			});
 			assert.deepStrictEqual({
 				actual,
-				command: executeCommand.mock.calls[0],
+				command: executeCommand.mock.calls[1],
 			}, {
 				actual: expectedResult,
 				command: [

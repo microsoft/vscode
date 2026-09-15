@@ -24,9 +24,15 @@ interface EntityInfo {
 	readonly containsEntities: boolean;
 }
 
+interface NamedContainer {
+	readonly kind: string;
+	readonly pathSegment: string;
+}
+
 interface StructuralEntity {
 	readonly kind: string;
 	readonly path: readonly string[];
+	readonly pathKinds: readonly string[];
 	readonly range: LineSpan;
 	readonly structuralRange: LineSpan;
 	readonly bodyRange: LineSpan | undefined;
@@ -98,7 +104,13 @@ export class TypeScriptChangeClassifier {
 			const key = JSON.stringify(entity.path);
 			let target = result.get(key);
 			if (target === undefined) {
-				target = { kind: entity.kind, path: entity.path.slice(), range: entity.range, changes: [] };
+				target = {
+					kind: entity.kind,
+					path: entity.path.slice(),
+					pathKinds: entity.pathKinds.slice(),
+					range: entity.range,
+					changes: [],
+				};
 				result.set(key, target);
 			}
 			target.changes.push({ classifications, changeType: bucket.changeType, range: bucket.range });
@@ -112,7 +124,13 @@ export class TypeScriptChangeClassifier {
 			const key = JSON.stringify(entity.path);
 			let target = result.get(key);
 			if (target === undefined) {
-				target = { kind: entity.kind, path: entity.path.slice(), range: entity.range, changes: [] };
+				target = {
+					kind: entity.kind,
+					path: entity.path.slice(),
+					pathKinds: entity.pathKinds.slice(),
+					range: entity.range,
+					changes: [],
+				};
 				result.set(key, target);
 			}
 			target.changes.push({ classifications, changeType: bucket.changeType, range: bucket.range });
@@ -124,35 +142,40 @@ export class TypeScriptChangeClassifier {
 		const sourceEntity: StructuralEntity = {
 			kind: 'sourceFile',
 			path: [],
+			pathKinds: [],
 			range: { start: 0, end: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1 },
 			structuralRange: { start: 0, end: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1 },
 			bodyRange: undefined,
 			depth: 0,
 		};
 		const entities: StructuralEntity[] = [sourceEntity];
-		sourceFile.forEachChild(child => this.collectEntity(child, sourceFile, [], sourceEntity, entities));
+		sourceFile.forEachChild(child => this.collectEntity(child, sourceFile, [], [], sourceEntity, entities));
 		return entities;
 	}
 
-	private collectEntity(node: Node, sourceFile: SourceFile, parentPath: readonly string[], parent: StructuralEntity, result: StructuralEntity[]): void {
+	private collectEntity(node: Node, sourceFile: SourceFile, parentPath: readonly string[], parentPathKinds: readonly string[], parent: StructuralEntity, result: StructuralEntity[]): void {
 		const info = ChangeAst.getEntity(node, sourceFile);
 		let childPath = parentPath;
+		let childPathKinds = parentPathKinds;
 		let childParent = parent;
 		if (info?.pathSegment !== undefined) {
 			const path = [...parentPath, info.pathSegment];
-			const entity = ChangeAst.createStructuralEntity(node, sourceFile, info, path, parent);
+			const pathKinds = [...parentPathKinds, info.kind];
+			const entity = ChangeAst.createStructuralEntity(node, sourceFile, info, path, pathKinds, parent);
 			result.push(entity);
 			if (info.containsEntities) {
 				childPath = path;
+				childPathKinds = pathKinds;
 				childParent = entity;
 			}
 		} else {
 			const container = ChangeAst.getNamedContainer(node, sourceFile);
 			if (container !== undefined) {
-				childPath = [...parentPath, container];
+				childPath = [...parentPath, container.pathSegment];
+				childPathKinds = [...parentPathKinds, container.kind];
 			}
 		}
-		node.forEachChild(child => this.collectEntity(child, sourceFile, childPath, childParent, result));
+		node.forEachChild(child => this.collectEntity(child, sourceFile, childPath, childPathKinds, childParent, result));
 	}
 
 	private classifyBucket<T extends BucketInfo>(bucket: T, entities: readonly StructuralEntity[]): ClassifiedBucket<T> {
@@ -260,11 +283,12 @@ namespace ChangeAst {
 		return undefined;
 	}
 
-	export function getNamedContainer(node: Node, sourceFile: SourceFile): string | undefined {
-		return ts.isObjectLiteralExpression(node) ? getAssignedEntityName(node, sourceFile) : undefined;
+	export function getNamedContainer(node: Node, sourceFile: SourceFile): NamedContainer | undefined {
+		const pathSegment = ts.isObjectLiteralExpression(node) ? getAssignedEntityName(node, sourceFile) : undefined;
+		return pathSegment === undefined ? undefined : { kind: 'object', pathSegment };
 	}
 
-	export function createStructuralEntity(node: Node, sourceFile: SourceFile, info: EntityInfo, path: readonly string[], parent: StructuralEntity): StructuralEntity {
+	export function createStructuralEntity(node: Node, sourceFile: SourceFile, info: EntityInfo, path: readonly string[], pathKinds: readonly string[], parent: StructuralEntity): StructuralEntity {
 		const range = getLineSpan(node, sourceFile);
 		const structuralChildren = getStructuralChildren(node, info);
 		const structuralEnd = structuralChildren[0] === undefined
@@ -273,6 +297,7 @@ namespace ChangeAst {
 		return {
 			kind: info.kind,
 			path,
+			pathKinds,
 			range,
 			structuralRange: { start: range.start, end: structuralEnd },
 			bodyRange: info.body === undefined ? undefined : getBodyLineSpan(info.body, sourceFile),

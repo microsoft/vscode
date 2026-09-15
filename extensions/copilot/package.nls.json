@@ -318,6 +318,8 @@
 	"copilot.tools.readProjectStructure.name": "Project Structure",
 	"copilot.tools.typeScriptChangeClassification.name": "TypeScript Change Classification",
 	"copilot.tools.typeScriptMetrics.name": "TypeScript Metrics",
+	"copilot.changedEntitiesView.name": "Changed Entities",
+	"copilot.changedEntitiesView.empty": "No changed TypeScript or JavaScript files.",
 	"copilot.tools.getChangedFiles.name": "Git Changes",
 	"copilot.tools.createFile.name": "Create File",
 	"copilot.tools.createFile.description": "Create new files",

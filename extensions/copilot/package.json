@@ -567,7 +567,7 @@
         "toolReferenceName": "typescriptChanges",
         "icon": "$(diff)",
         "userDescription": "%copilot.tools.typeScriptChangeClassification.description%",
-        "modelDescription": "Classify added, changed, and deleted line ranges in a TypeScript or JavaScript file as structural and/or code changes. Use this when reviewing edits and you already have the original content and line diff; do not use it to retrieve a git diff or compiler diagnostics. Modified added/changed ranges and original deleted ranges are zero-based, start-inclusive, end-exclusive. Supply original content; optionally supply modified content, otherwise the current TypeScript language-service snapshot is used. Added and changed ranges are mapped to the modified AST, while deleted ranges are mapped to the original AST. Returns direct modified and original arrays grouped by enclosing named entity path. Every entity bucket includes an entityLink; when presenting results, always render the joined entity path as a Markdown link targeting that exact entityLink, and do not wrap the linked path in code formatting. Label a code classification as Code addition, Code change, or Code deletion according to its changeType.",
+        "modelDescription": "Classify added, changed, and deleted line ranges in a TypeScript or JavaScript file as structural and/or code changes. Use this when reviewing edits and you already have the original content and line diff; do not use it to retrieve a git diff or compiler diagnostics. Modified added/changed ranges and original deleted ranges are zero-based, start-inclusive, end-exclusive. Supply original content; optionally supply modified content, otherwise the current TypeScript language-service snapshot is used. Added and changed ranges are mapped to the modified AST, while deleted ranges are mapped to the original AST. Returns direct modified and original arrays grouped by enclosing named entity path. Each bucket includes pathKinds aligned positionally with path. Every entity bucket includes an entityLink; when presenting results, always render the joined entity path as a Markdown link targeting that exact entityLink, and do not wrap the linked path in code formatting. Label a code classification as Code addition, Code change, or Code deletion according to its changeType.",
         "tags": [],
         "canBeReferencedInPrompt": true,
         "inputSchema": {
@@ -2526,6 +2526,11 @@
         "view": "debug",
         "when": "github.copilot-chat.activated",
         "contents": "%github.copilot.viewsWelcome.debug%"
+      },
+      {
+        "view": "github.copilot.changedEntities",
+        "when": "chatIsEnabled",
+        "contents": "%copilot.changedEntitiesView.empty%"
       }
     ],
     "chatViewsWelcome": [
@@ -6616,6 +6621,14 @@
           "name": "Language Context Inspector",
           "icon": "$(inspect)",
           "when": "github.copilot.chat.showContextInspectorView"
+        }
+      ],
+      "scm": [
+        {
+          "id": "github.copilot.changedEntities",
+          "name": "%copilot.changedEntitiesView.name%",
+          "when": "chatIsEnabled",
+          "visibility": "collapsed"
         }
       ]
     },

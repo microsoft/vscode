@@ -121,6 +121,7 @@ export interface TypeScriptClassifiedOriginalLines extends TypeScriptClassifiedC
 interface TypeScriptChangeBucketBase {
 	kind: string;
 	path: string[];
+	pathKinds: string[];
 	range: LineRange;
 }
 
@@ -630,6 +631,9 @@ export namespace TypeScriptChangeClassificationResponse {
 			typeof bucket.kind === 'string'
 			&& Array.isArray(bucket.path)
 			&& bucket.path.every((segment: string) => typeof segment === 'string')
+			&& Array.isArray(bucket.pathKinds)
+			&& bucket.pathKinds.length === bucket.path.length
+			&& bucket.pathKinds.every((kind: string) => typeof kind === 'string')
 			&& typeof bucket.range?.start === 'number'
 			&& typeof bucket.range.end === 'number'
 			&& Array.isArray(bucket.changes)

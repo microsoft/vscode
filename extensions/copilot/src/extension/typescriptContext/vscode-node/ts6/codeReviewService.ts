@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 
 import type { TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import * as protocol from '../../common/serverProtocol';
 import { toTypeScriptChangeClassificationResult, toTypeScriptMetricsResult } from '../codeReview';
 
@@ -31,8 +32,12 @@ type TypeScriptChangeClassificationRequestArgs = Omit<protocol.TypeScriptChangeC
 
 export class TS6CodeReviewProvider implements vscode.Disposable {
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
+	private activation: Promise<boolean> | undefined;
 
 	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {
+		if (!await this.ensureActivated()) {
+			return undefined;
+		}
 		const args: TypeScriptMetricsRequestArgs = {
 			file: vscode.Uri.file(filePath),
 			line: 1,
@@ -52,6 +57,9 @@ export class TS6CodeReviewProvider implements vscode.Disposable {
 	}
 
 	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined> {
+		if (!await this.ensureActivated()) {
+			return undefined;
+		}
 		const args: TypeScriptChangeClassificationRequestArgs = {
 			file: vscode.Uri.file(input.filePath),
 			line: 1,
@@ -75,5 +83,25 @@ export class TS6CodeReviewProvider implements vscode.Disposable {
 
 	dispose(): void {
 		// No resources to dispose for the TS6 implementation.
+	}
+
+	private ensureActivated(): Promise<boolean> {
+		this.activation ??= this.activate();
+		return this.activation;
+	}
+
+	private async activate(): Promise<boolean> {
+		const typeScriptExtension = vscode.extensions.getExtension('vscode.typescript-language-features');
+		if (typeScriptExtension === undefined) {
+			return false;
+		}
+		await typeScriptExtension.activate();
+		const response = await vscode.commands.executeCommand<protocol.PingResponse | undefined>(
+			'typescript.tsserverRequest',
+			'_.copilot.ping',
+			TS6CodeReviewProvider.ExecConfig,
+			CancellationToken.None,
+		);
+		return response?.body?.kind === 'ok';
 	}
 }

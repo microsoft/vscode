@@ -75,6 +75,10 @@ interface TypeScriptChangeBucketBase {
 	 */
 	readonly path: readonly string[];
 	/**
+	 * Structural entity kinds corresponding positionally to {@link path}.
+	 */
+	readonly pathKinds: readonly string[];
+	/**
 	 * Zero-based, end-exclusive line range of the structural entity in the current snapshot.
 	 */
 	readonly range: LineRange;

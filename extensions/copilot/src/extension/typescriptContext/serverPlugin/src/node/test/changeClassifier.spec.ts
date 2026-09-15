@@ -53,6 +53,7 @@ suite('TypeScript 6 change classifier', () => {
 			signatureOnly: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
+				pathKinds: ['class', 'method'],
 				range: { start: 1, end: 4 },
 				changes: [{
 					classifications: ['structural'],
@@ -63,6 +64,7 @@ suite('TypeScript 6 change classifier', () => {
 			bodyOnly: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
+				pathKinds: ['class', 'method'],
 				range: { start: 1, end: 4 },
 				changes: [{
 					classifications: ['code'],
@@ -73,6 +75,7 @@ suite('TypeScript 6 change classifier', () => {
 			signatureAndBody: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
+				pathKinds: ['class', 'method'],
 				range: { start: 1, end: 4 },
 				changes: [{
 					classifications: ['structural', 'code'],
@@ -83,6 +86,7 @@ suite('TypeScript 6 change classifier', () => {
 			grouped: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
+				pathKinds: ['class', 'method'],
 				range: { start: 1, end: 4 },
 				changes: [
 					{
@@ -119,6 +123,7 @@ suite('TypeScript 6 change classifier', () => {
 			{
 				kind: 'property',
 				path: ['Calculator', 'value'],
+				pathKinds: ['class', 'property'],
 				range: { start: 1, end: 2 },
 				changes: [{
 					classifications: ['structural'],
@@ -129,6 +134,7 @@ suite('TypeScript 6 change classifier', () => {
 			{
 				kind: 'method',
 				path: ['Calculator', 'added'],
+				pathKinds: ['class', 'method'],
 				range: { start: 3, end: 6 },
 				changes: [{
 					classifications: ['structural'],
@@ -171,6 +177,7 @@ suite('TypeScript 6 change classifier', () => {
 			addedClass: [{
 				kind: 'class',
 				path: ['Added'],
+				pathKinds: ['class'],
 				range: { start: 0, end: 6 },
 				changes: [{
 					classifications: ['structural'],
@@ -181,6 +188,7 @@ suite('TypeScript 6 change classifier', () => {
 			addedNamespace: [{
 				kind: 'module',
 				path: ['Added'],
+				pathKinds: ['module'],
 				range: { start: 0, end: 5 },
 				changes: [{
 					classifications: ['structural'],
@@ -216,6 +224,7 @@ suite('TypeScript 6 change classifier', () => {
 			structural: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
+				pathKinds: ['class', 'method'],
 				range: { start: 2, end: 5 },
 				changes: [{
 					classifications: ['structural'],
@@ -226,6 +235,7 @@ suite('TypeScript 6 change classifier', () => {
 			code: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
+				pathKinds: ['class', 'method'],
 				range: { start: 2, end: 5 },
 				changes: [{
 					classifications: ['code'],
@@ -256,6 +266,7 @@ suite('TypeScript 6 change classifier', () => {
 			{
 				kind: 'getter',
 				path: ['State', 'get state'],
+				pathKinds: ['class', 'getter'],
 				range: { start: 1, end: 4 },
 				changes: [{
 					classifications: ['code'],
@@ -266,6 +277,7 @@ suite('TypeScript 6 change classifier', () => {
 			{
 				kind: 'setter',
 				path: ['State', 'set state'],
+				pathKinds: ['class', 'setter'],
 				range: { start: 4, end: 7 },
 				changes: [{
 					classifications: ['code'],

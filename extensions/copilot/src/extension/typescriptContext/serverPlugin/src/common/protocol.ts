@@ -121,6 +121,7 @@ export interface TypeScriptClassifiedOriginalLines extends TypeScriptClassifiedC
 interface TypeScriptChangeBucketBase {
 	kind: string;
 	path: string[];
+	pathKinds: string[];
 	range: LineRange;
 }
 

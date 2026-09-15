@@ -20,6 +20,9 @@ vi.mock('vscode', async importOriginal => {
 		commands: {
 			executeCommand: mocks.executeCommand,
 		},
+		extensions: {
+			getExtension: () => ({ activate: async () => { } }),
+		},
 		env: {
 			uriScheme: 'vscode-insiders',
 		},
@@ -52,6 +55,7 @@ suite('Code review diff links', () => {
 			modified: [{
 				kind: 'method',
 				path: ['Reader', 'listen'],
+				pathKinds: ['class', 'method'],
 				range: { start: 20, end: 30 },
 				changes: [{
 					classifications: ['code'],
@@ -62,6 +66,7 @@ suite('Code review diff links', () => {
 			original: [{
 				kind: 'method',
 				path: ['Reader', 'listen'],
+				pathKinds: ['class', 'method'],
 				range: { start: 18, end: 28 },
 				changes: [{
 					classifications: ['structural'],
@@ -71,6 +76,7 @@ suite('Code review diff links', () => {
 			}],
 		};
 		mocks.executeCommand.mockReset();
+		mocks.executeCommand.mockResolvedValueOnce({ type: 'response', body: { kind: 'ok' } });
 		mocks.executeCommand.mockResolvedValueOnce({ type: 'response', body: protocolResult });
 		mocks.executeCommand.mockResolvedValueOnce(undefined);
 
@@ -97,7 +103,7 @@ suite('Code review diff links', () => {
 			assert.ok(link !== undefined);
 			await service.openDiff(link);
 
-			const diffCall = mocks.executeCommand.mock.calls[1];
+			const diffCall = mocks.executeCommand.mock.calls[2];
 			const originalUri = diffCall[1] as vscode.Uri;
 			const modifiedUri = diffCall[2] as vscode.Uri;
 			assert.deepStrictEqual({

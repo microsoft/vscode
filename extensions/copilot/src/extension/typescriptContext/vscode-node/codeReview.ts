@@ -32,6 +32,7 @@ function toModifiedChangeBucket(bucket: protocol.TypeScriptModifiedChangeBucket)
 	return {
 		...bucket,
 		path: bucket.path.slice(),
+		pathKinds: bucket.pathKinds.slice(),
 		changes: bucket.changes.map(change => ({
 			...change,
 			classifications: change.classifications.slice(),
@@ -43,6 +44,7 @@ function toOriginalChangeBucket(bucket: protocol.TypeScriptOriginalChangeBucket)
 	return {
 		...bucket,
 		path: bucket.path.slice(),
+		pathKinds: bucket.pathKinds.slice(),
 		changes: bucket.changes.map(change => ({
 			...change,
 			classifications: change.classifications.slice(),

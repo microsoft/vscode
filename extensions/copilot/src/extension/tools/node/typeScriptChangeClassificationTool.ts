@@ -60,10 +60,11 @@ export class TypeScriptChangeClassificationTool implements vscode.LanguageModelT
 			&& Number.isInteger(range.end) && range.end > range.start);
 	}
 
-	private serializeBucket<T extends { readonly path: readonly string[]; readonly entityLink?: vscode.Uri; readonly changes: readonly { readonly classifications: readonly string[] }[] }>(bucket: T): object {
+	private serializeBucket<T extends { readonly path: readonly string[]; readonly pathKinds: readonly string[]; readonly entityLink?: vscode.Uri; readonly changes: readonly { readonly classifications: readonly string[] }[] }>(bucket: T): object {
 		return {
 			...bucket,
 			path: bucket.path.slice(),
+			pathKinds: bucket.pathKinds.slice(),
 			entityLink: bucket.entityLink?.toString(true),
 			changes: bucket.changes.map(change => ({
 				...change,

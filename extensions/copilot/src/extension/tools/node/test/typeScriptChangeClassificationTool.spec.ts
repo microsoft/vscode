@@ -25,6 +25,7 @@ suite('TypeScript change classification tool', () => {
 			'original content',
 			'mapped to the modified AST',
 			'direct modified and original arrays',
+			'pathKinds aligned positionally with path',
 			'always render the joined entity path as a Markdown link',
 			'Code addition, Code change, or Code deletion',
 		];
@@ -47,6 +48,7 @@ suite('TypeScript change classification tool', () => {
 				{
 					kind: 'method',
 					path: ['Calculator', 'calculate'],
+					pathKinds: ['class', 'method'],
 					range: { start: 1, end: 5 },
 					entityLink: modifiedLink,
 					changes: [
@@ -67,6 +69,7 @@ suite('TypeScript change classification tool', () => {
 				{
 					kind: 'class',
 					path: ['Calculator'],
+					pathKinds: ['class'],
 					range: { start: 0, end: 10 },
 					entityLink: originalLink,
 					changes: [{
