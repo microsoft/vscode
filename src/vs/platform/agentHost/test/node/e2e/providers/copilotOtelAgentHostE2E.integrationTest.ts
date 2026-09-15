@@ -95,12 +95,20 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		// `otlp-http` AsyncBatchSpanProcessor, whose default scheduled delay batches
 		// it out ~5s later. Poll well past that batch cadence so the assertion waits
 		// for the batched SDK span instead of racing it.
+		//
+		// Match the `invoke_agent` root span by name *prefix* rather than exact
+		// value: following the GenAI semantic convention, the runtime now names the
+		// span `invoke_agent {gen_ai.agent.name}` (e.g. `invoke_agent copilot` for
+		// the default agent, `invoke_agent explorer` for a subagent), so an exact
+		// `"name":"invoke_agent"` match no longer holds. The contract this test
+		// exercises is that the SDK-emitted `invoke_agent` span flows through the
+		// Agent Host file exporter, which the prefix still verifies.
 		const exported = await retry(async () => {
 			const contents = await readFile(exportFile, 'utf8').catch(() => '');
 			if (!contents.includes('"traceId"')
 				|| !contents.includes('"spanId"')
 				|| !contents.includes('vscode.agent_host.session.title_changed')
-				|| !contents.includes('"name":"invoke_agent"')
+				|| !contents.includes('"name":"invoke_agent')
 				|| !contents.includes('"service.name":"github-copilot"')) {
 				throw new Error(`OTel spans have not reached the file exporter: ${contents}`);
 			}
