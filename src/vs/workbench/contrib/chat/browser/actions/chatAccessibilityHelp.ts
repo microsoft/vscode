@@ -92,6 +92,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('workbench.action.openAgentsWindow', 'To open the Agents Window, invoke the Open Agents Window command{0}. In screen reader mode, this keybinding includes Alt to avoid conflicts with screen reader shortcuts.', '<keybinding:workbench.action.openAgentsWindow>'));
 			content.push(localize('workbench.action.chat.openAgentHostFolderPicker', 'When starting an agent session in a multi-root workspace, you can choose which root folder it runs in by invoking the Folder command{0}, then selecting a folder from the list.', '<keybinding:workbench.action.chat.openAgentHostFolderPicker>'));
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
+			content.push(localize('chat.agentHostSandboxPolicy', "In Copilot agent-host sessions, use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report."));
 			content.push(getModePickerAccessibilityHelp());
 		}
 		if (sessionStatusPillsSupported) {

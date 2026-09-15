@@ -14,6 +14,11 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the sandbox policy command and report link', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

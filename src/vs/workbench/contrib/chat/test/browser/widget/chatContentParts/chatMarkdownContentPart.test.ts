@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -18,10 +21,14 @@ import { IHoverService } from '../../../../../../../platform/hover/browser/hover
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownDecorationsRenderer } from '../../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { IChatPetService } from '../../../../browser/chatPetService.js';
 import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
@@ -144,6 +151,10 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		chatSessionsService = new MockChatSessionsService();
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
+		instantiationService.stub(IChatMarkdownAnchorService, disposables.add(new ChatMarkdownAnchorService()));
+		instantiationService.stub(IChatPetService, new class extends mock<IChatPetService>() {
+			override unlockAchievement(): boolean { return false; }
+		}());
 		instantiationService.stub(ILinkPresentationService, {
 			_serviceBrand: undefined,
 			onDidChangeLinkPresentationRules: Event.None,
@@ -237,6 +248,109 @@ suite('ChatMarkdownContentPart', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	test('decorates a response with 1000 ordinary links and one preview link in a single anchor scan', () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configurationService.setUserConfiguration(ChatConfiguration.RichLinks, false);
+		const element = mainWindow.document.createElement('div');
+		for (let i = 0; i < 1000; i++) {
+			const anchor = mainWindow.document.createElement('a');
+			anchor.textContent = `Link ${i}`;
+			anchor.setAttribute('data-href', `https://example.com/${i}${i % 2 ? '?view=full' : ''}`);
+			element.appendChild(anchor);
+		}
+		const preview = mainWindow.document.createElement('a');
+		preview.textContent = 'Open Report';
+		preview.setAttribute('data-href', 'file:///report.md?vscodeLinkType=markdown-preview');
+		element.appendChild(preview);
+		const queries = spy(element, 'querySelectorAll');
+		disposables.add(toDisposable(() => queries.restore()));
+		const decorationsRenderer = disposables.add(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
+
+		disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: new MarkdownString() }, element));
+
+		assert.deepStrictEqual({
+			anchorScans: queries.withArgs('a').callCount,
+			linkCount: element.childElementCount,
+			widgets: Array.from(element.querySelectorAll('.chat-inline-anchor-widget')).map(anchor => anchor.textContent),
+			firstLink: element.firstElementChild?.getAttribute('data-href'),
+		}, {
+			anchorScans: 1,
+			linkCount: 1001,
+			widgets: ['Open Report'],
+			firstLink: 'https://example.com/0',
+		});
+	});
+
+	for (const keyCode of [13, 32]) {
+		test(`opens policy previews through the widget on keyCode ${keyCode}`, async () => {
+			const opened = new DeferredPromise<Parameters<IOpenerService['open']>>();
+			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+				override async open(...args: Parameters<IOpenerService['open']>): Promise<boolean> {
+					opened.complete(args);
+					return true;
+				}
+			}());
+			renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const part = createMarkdownPart('[Open Report](file:///report.md?vscodeLinkType=markdown-preview)');
+			const anchor = part.domNode.querySelector('a')!;
+
+			anchor.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true }));
+
+			const [resource, options] = await opened.p;
+			assert.deepStrictEqual({
+				resource: resource.toString(),
+				options,
+			}, {
+				resource: 'file:///report.md',
+				options: {
+					fromUserGesture: true,
+					editorOptions: { override: 'vscode.markdown.preview.editor', selection: undefined },
+				},
+			});
+			await timeout(0);
+		});
+	}
+
+	for (const authority of ['local', 'remote-host']) {
+		for (const richLinks of [false, true]) {
+			test(`opens sandbox policy response links in Markdown preview on ${authority} with rich links ${richLinks}`, async () => {
+				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+				configurationService.setUserConfiguration(ChatConfiguration.RichLinks, richLinks);
+				disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
+					provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
+					resolveChatResponseUri: (_resource, href) => rewriteAgentHostLinkTarget(href, authority),
+				}));
+				const opened = new DeferredPromise<Parameters<IOpenerService['open']>>();
+				instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+					override async open(...args: Parameters<IOpenerService['open']>): Promise<boolean> {
+						opened.complete(args);
+						return true;
+					}
+				}());
+				const resource = URI.file('C:/session/diagnostics/sandbox-policy.md');
+				const link = resource.with({ query: 'vscodeLinkType=markdown-preview' });
+				const part = createMarkdownPart(new MarkdownString().appendLink(link, 'Open Sandbox Policy').value);
+				const anchor = part.domNode.querySelector<HTMLElement>('.chat-inline-anchor-widget');
+				assert.ok(anchor, 'The response link must use the preview-aware file widget');
+
+				anchor.click();
+
+				const [openedResource, options] = await opened.p;
+				assert.deepStrictEqual({
+					resource: openedResource.toString(),
+					options,
+				}, {
+					resource: rewriteAgentHostLinkTarget(resource.toString(), authority),
+					options: {
+						fromUserGesture: true,
+						editorOptions: { override: 'vscode.markdown.preview.editor', selection: undefined },
+					},
+				});
+				await timeout(0);
+			});
+		}
+	}
 
 	test('transforms accumulated response Markdown while preserving link text', () => {
 		disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
