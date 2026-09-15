@@ -63,7 +63,7 @@ export class SSHProxyCommand extends Disposable {
 	private _stderr = '';
 	private _stopped = false;
 
-	constructor(command: string, logService: ILogService) {
+	constructor(command: string, logService: ILogService, windows = process.platform === 'win32', terminateProcess: typeof killTree = killTree) {
 		super();
 		this._child = spawn(command, { shell: true, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
 		this.stream = Duplex.from({ readable: this._child.stdout, writable: this._child.stdin });
@@ -71,7 +71,7 @@ export class SSHProxyCommand extends Disposable {
 			this._stopped = true;
 			this.stream.end();
 			if (this._child.pid !== undefined && this._child.exitCode === null && this._child.signalCode === null) {
-				void killTree(this._child.pid).catch(error => logService.warn('[SSHRemoteAgentHost] Failed to stop SSH ProxyCommand', error)).finally(() => this.stream.destroy());
+				void terminateProcess(this._child.pid, windows).catch(error => logService.warn('[SSHRemoteAgentHost] Failed to stop SSH ProxyCommand', error)).finally(() => this.stream.destroy());
 			} else {
 				this.stream.destroy();
 			}

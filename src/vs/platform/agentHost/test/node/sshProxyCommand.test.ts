@@ -7,6 +7,7 @@ import assert from 'assert';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { isWindows } from '../../../../base/common/platform.js';
+import { killTree } from '../../../../base/node/processes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from '../../node/sshProxyCommand.js';
@@ -14,6 +15,10 @@ import { shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 
 suite('SSH ProxyCommand', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const proxyScript = 'process.stdout.write(\'ready\'); process.stdin.pipe(process.stdout); setInterval(() => {}, 1000)';
+	const proxyCommand = isWindows
+		? `set "ELECTRON_RUN_AS_NODE=1" && "${process.execPath}" -e "${proxyScript}"`
+		: `ELECTRON_RUN_AS_NODE=1 ${shellEscape(process.execPath)} -e ${shellEscape(proxyScript)}`;
 
 	test('expands the original alias separately from the resolved hostname', () => {
 		assert.deepStrictEqual([
@@ -44,9 +49,8 @@ suite('SSH ProxyCommand', () => {
 		assert.deepStrictEqual(values, [user, user, user]);
 	});
 
-	(isWindows ? test.skip : test)('relays stdio and closes the proxy process on disposal', async () => {
-		const command = `ELECTRON_RUN_AS_NODE=1 ${shellEscape(process.execPath)} -e ${shellEscape('process.stdout.write("ready"); process.stdin.pipe(process.stdout)')}`;
-		const proxy = store.add(new SSHProxyCommand(command, store.add(new NullLogService())));
+	test('relays stdio and closes the proxy process on disposal', async () => {
+		const proxy = store.add(new SSHProxyCommand(proxyCommand, store.add(new NullLogService())));
 		const errors: Error[] = [];
 		proxy.stream.on('error', error => errors.push(error));
 		const read = () => new Promise<string>(resolve => proxy.stream.once('data', (data: Buffer) => resolve(data.toString())));
@@ -58,6 +62,23 @@ suite('SSH ProxyCommand', () => {
 		proxy.dispose();
 		await closed;
 		assert.deepStrictEqual({ ready, data, errors }, { ready: 'ready', data: 'ssh bytes', errors: [] });
+	});
+
+	test('uses forceful process-tree termination only on Windows', async () => {
+		const forcefulModes: (boolean | undefined)[] = [];
+		const errors: Error[] = [];
+		for (const windows of [false, true]) {
+			const proxy = store.add(new SSHProxyCommand(proxyCommand, store.add(new NullLogService()), windows, async (pid, forceful) => {
+				await killTree(pid, isWindows);
+				forcefulModes.push(forceful);
+			}));
+			proxy.stream.on('error', error => errors.push(error));
+			await new Promise<void>(resolve => proxy.stream.once('data', () => resolve()));
+			const closed = new Promise<void>(resolve => proxy.stream.once('close', resolve));
+			proxy.dispose();
+			await closed;
+		}
+		assert.deepStrictEqual({ forcefulModes, errors }, { forcefulModes: [false, true], errors: [] });
 	});
 
 	(isWindows ? test.skip : test)('reports proxy failures with stderr', async () => {
