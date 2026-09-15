@@ -689,6 +689,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
 	private readonly codeBlocksByEditorUri = new ResourceMap<IChatCodeBlockInfo>();
+	/** Re-applies a rendered part's code block registrations, which `disposeElement` drops when the row is virtualized. */
+	private readonly codeBlockRegistrationsByPart = new WeakMap<IChatContentPart, () => void>();
 
 	private readonly fileTreesByResponseId = new Map<string, IChatFileTreeInfo[]>();
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
@@ -2637,8 +2639,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
-	 * Notifies retained parts that their row is back in the DOM. Rendering a content diff already
-	 * does this, so this only covers the progressive paths that skip it because nothing changed.
+	 * Notifies retained parts that their row is back in the DOM, and restores the code block
+	 * registrations that `disposeElement` dropped while it was virtualized. Rendering a content diff
+	 * already does both, so this only covers the progressive paths that skip it because nothing changed.
 	 */
 	private remountRenderedParts(templateData: IChatListItemTemplate): void {
 		if (templateData.renderedPartsMounted || !templateData.renderedParts || !templateData.rowContainer.isConnected) {
@@ -2647,8 +2650,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.renderedPartsMounted = true;
 		for (const part of templateData.renderedParts) {
-			part?.onDidRemount?.();
+			if (part) {
+				this.remountRenderedPart(templateData, part);
+			}
 		}
+	}
+
+	/**
+	 * Re-applies a retained part's code block registrations and tells it that it was remounted, so
+	 * code block navigation works as soon as the row is back rather than after the next re-render.
+	 */
+	private remountRenderedPart(templateData: IChatListItemTemplate, part: IChatContentPart): void {
+		// Only the template that currently owns the element may rewrite its registrations, so a
+		// stale row cannot clobber the entries of the template that replaced it.
+		const element = templateData.currentElement;
+		if (element && this.templateDataByRequestId.get(element.id) === templateData) {
+			this.codeBlockRegistrationsByPart.get(part)?.();
+		}
+		part.onDidRemount?.();
 	}
 
 	/**
@@ -2785,8 +2804,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			if (!partToRender) {
 				// null=no change
-				if (!templateData.renderedPartsMounted) {
-					alreadyRenderedPart?.onDidRemount?.();
+				if (!templateData.renderedPartsMounted && alreadyRenderedPart) {
+					this.remountRenderedPart(templateData, alreadyRenderedPart);
 				}
 				return;
 			}
@@ -2823,7 +2842,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (alreadyRenderedPart.tryIncrementalUpdate(partToRender)) {
 						renderedParts[contentIndex] = alreadyRenderedPart;
 						if (!templateData.renderedPartsMounted) {
-							alreadyRenderedPart.onDidRemount();
+							this.remountRenderedPart(templateData, alreadyRenderedPart);
 						}
 						return;
 					}
@@ -4000,6 +4019,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			});
 		};
 		updateCodeblocks();
+		this.codeBlockRegistrationsByPart.set(part, updateCodeblocks);
 		if (part instanceof ChatMarkdownContentPart) {
 			part.addDisposable(part.onDidChangeCodeblocks(updateCodeblocks));
 		}

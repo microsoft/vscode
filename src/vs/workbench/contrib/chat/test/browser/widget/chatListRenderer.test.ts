@@ -1608,10 +1608,12 @@ suite('ChatListRenderer', () => {
 			const originalPart = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
 			assert.ok(originalPart);
 			const documentsPreserved = [];
+			let codeBlocksAfterRemount: number[] | undefined;
 
 			if (remount) {
 				renderer.disposeElement(node, 0, template);
 				container.remove();
+				assert.deepStrictEqual(renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex), []);
 				if (remount === 'afterUpdate') {
 					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nOffscreen update') });
 					await timeout(500);
@@ -1622,6 +1624,8 @@ suite('ChatListRenderer', () => {
 				mainWindow.document.body.appendChild(container);
 				assert.strictEqual(template.renderedPartsMounted, false);
 				renderer.renderElement(node, 0, template);
+				// Navigation must work as soon as the row is back, without waiting for another token.
+				codeBlocksAfterRemount = renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex);
 				await retry(async () => {
 					assert.strictEqual(reinitializations, 1);
 				}, 10, 100);
@@ -1656,6 +1660,7 @@ suite('ChatListRenderer', () => {
 				frameCount: frames.length,
 				reinitializations,
 				partPreserved: template.renderedParts?.includes(originalPart) ?? false,
+				codeBlocksAfterRemount,
 				codeBlockIndices: renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex),
 				finalTextRendered: template.value.textContent?.includes('Following 2'),
 			}, {
@@ -1664,6 +1669,7 @@ suite('ChatListRenderer', () => {
 				frameCount: 2,
 				reinitializations: remount ? 1 : 0,
 				partPreserved: true,
+				codeBlocksAfterRemount: remount ? [0] : undefined,
 				codeBlockIndices: [0, 1],
 				finalTextRendered: true,
 			});
