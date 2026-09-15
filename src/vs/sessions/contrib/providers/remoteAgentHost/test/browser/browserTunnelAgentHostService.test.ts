@@ -5,13 +5,27 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { type ITunnelApplicationConfig } from '../../../../../../base/common/product.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type ITunnelConnectResult, type ITunnelGatewaySelection, type ITunnelGatewaySelectionSession, type ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { resolveGatewaySelection, type IGatewaySelectionRequest } from '../../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import type { ITunnelDuplexStream } from '../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { type IProductService } from '../../../../../../platform/product/common/productService.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { type IDiscoveredTunnel, type ITunnelDiscoveryProvider } from '../../../../../../workbench/browser/web.api.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/browser/environmentService.js';
+import { type AuthenticationSession, IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { TestProductService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import {
+	BrowserTunnelAgentHostService,
 	BrowserTunnelRelayClientFactory,
 	connectThroughTunnelGateway,
 	filterBrowserTunnelInfos,
@@ -24,6 +38,7 @@ import {
 	type IDevTunnelsWebRequestOptions,
 	type IDevTunnelsWebTunnel,
 } from '../../browser/devTunnelsWebLoader.js';
+import { WebTunnelAgentHostService } from '../../browser/webTunnelAgentHostService.js';
 
 const tunnel: ITunnelInfo = {
 	tunnelId: 'tunnel-id',
@@ -90,8 +105,71 @@ class FakeConnector implements ITunnelAgentHostConnector {
 	}
 }
 
+function createRemoteAgentHostService(): IRemoteAgentHostService {
+	return new class extends mock<IRemoteAgentHostService>() {
+		override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
+			return { dispose() { } };
+		}
+	}();
+}
+
+function createBrowserTunnelService(
+	store: Pick<DisposableStore, 'add'>,
+	sessions: readonly AuthenticationSession[],
+	listTunnels: () => Promise<readonly IDevTunnelsWebTunnel[]>,
+): BrowserTunnelAgentHostService {
+	class FakeManagementClient implements IDevTunnelsWebManagementClient {
+		constructor(_userAgent: string, _apiVersion: object, _userTokenCallback: () => Promise<string>) {
+		}
+
+		listTunnels(): Promise<readonly IDevTunnelsWebTunnel[]> {
+			return listTunnels();
+		}
+
+		getTunnel(): Promise<IDevTunnelsWebTunnel | null> {
+			throw new Error('Not used by discovery tests');
+		}
+
+		deleteTunnel(): Promise<boolean> {
+			throw new Error('Not used by discovery tests');
+		}
+	}
+
+	const bundle: IDevTunnelsWeb = {
+		TunnelManagementHttpClient: FakeManagementClient,
+		ManagementApiVersions: { Version20230927preview: {} },
+		TunnelRelayTunnelClient: class extends mock<IDevTunnelsWebRelayClient>() { },
+		TunnelAccessScopes: {},
+	};
+	const authenticationService = new class extends mock<IAuthenticationService>() {
+		override getSessions(): Promise<readonly AuthenticationSession[]> {
+			return Promise.resolve(sessions);
+		}
+	}();
+	const tunnelApplicationConfig: ITunnelApplicationConfig = {
+		authenticationProviders: { github: { scopes: ['tunnel'] } },
+		editorWebUrl: '',
+		extension: { extensionId: 'test.remote-tunnels', friendlyName: 'Remote Tunnels' },
+	};
+	const productService: IProductService = { ...TestProductService, tunnelApplicationConfig };
+	const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+
+	return store.add(new BrowserTunnelAgentHostService(
+		createRemoteAgentHostService(),
+		new NullLogService(),
+		store.add(new TestInstantiationService()),
+		configurationService,
+		authenticationService,
+		productService,
+		store.add(new InMemoryStorageService()),
+		new class extends mock<IRemoteAgentHostLocationPreferenceService>() { }(),
+		new class extends mock<IDialogService>() { }(),
+		{ connector: new FakeConnector(undefined), loadDevTunnelsWeb: async () => bundle },
+	));
+}
+
 suite('BrowserTunnelAgentHostService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('filters discovered tunnels below the supported protocol version', () => {
 		const results = filterBrowserTunnelInfos([
@@ -108,6 +186,47 @@ suite('BrowserTunnelAgentHostService', () => {
 			protocolVersion: 6,
 			hostConnectionCount: 0,
 		}]);
+	});
+
+	test('rejects discovery when authentication is unavailable', async () => {
+		const service = createBrowserTunnelService(store, [], async () => []);
+
+		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+	});
+
+	test('rejects SDK tunnel enumeration failures', async () => {
+		const service = createBrowserTunnelService(store, [{
+			id: 'session-id',
+			accessToken: 'token',
+			account: { id: 'account-id', label: 'Test Account' },
+			scopes: ['tunnel'],
+		}], async () => {
+			throw new Error('enumeration failed');
+		});
+
+		await assert.rejects(service.listTunnels(), /enumeration failed/);
+	});
+
+	test('rejects embedder tunnel discovery failures', async () => {
+		const discoveryProvider = new class extends mock<ITunnelDiscoveryProvider>() {
+			override async listTunnels(): Promise<IDiscoveredTunnel[]> {
+				throw new Error('authentication failed');
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		const service = store.add(new WebTunnelAgentHostService(
+			createRemoteAgentHostService(),
+			new class extends mock<IBrowserWorkbenchEnvironmentService>() {
+				override readonly options = { tunnelDiscoveryProvider: discoveryProvider };
+			}(),
+			new NullLogService(),
+			instantiationService,
+			new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }),
+			new class extends mock<IAuthenticationService>() { }(),
+			store.add(new InMemoryStorageService()),
+		));
+
+		await assert.rejects(service.listTunnels(), /authentication failed/);
 	});
 
 	test('completes the version-six gateway selection returned by the browser picker', async () => {

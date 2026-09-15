@@ -1801,6 +1801,7 @@ export class WorkspacePicker extends Disposable {
 				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
 				submenuActions: [new SubmenuAction('workspacePicker.remote.options', '', remoteSubmenuActions)],
 				filterItems: remoteFilterItems,
+				openSubmenuOnClick: true,
 				submenuOptions: {
 					showFilter: true,
 					filterPlaceholder: localize('workspacePicker.remoteFilter', "Search Remote"),

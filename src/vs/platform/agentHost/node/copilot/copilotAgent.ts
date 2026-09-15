@@ -70,7 +70,7 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -3473,7 +3473,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const activeClient = this._activeClients.get(current.configurationResource);
 			const currentSnapshot = activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
-			if (entry.requiresRestartAfterWorkingDirectoryChange || (activeClient && currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot))) {
+			const refreshReason = entry.requiresRestartAfterWorkingDirectoryChange
+				? 'workingDirectoryChanged'
+				: activeClient && currentSnapshot
+					? await activeClient.getRestartReason(entry.appliedSnapshot, current.chatKey, currentSnapshot)
+					: undefined;
+			if (refreshReason) {
+				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session: operation=resumeTurn, sdkSessionId=${entry.sessionId}, chat=${current.chatKey}, turnId=${turnId}, reason=${refreshReason}`);
 				await this._destroyLiveSession(entry, true);
 				entry = entry.sessionId === current.configurationId
 					? await this._resumeSession(current.configurationId, current.chat)
@@ -4177,7 +4183,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot:${current.configurationId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			const rootsChanged = !!entry && workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
 			const currentSnapshot = entry && activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
-			const structuralConfigChanged = !!entry && !!activeClient && !!currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot);
+			const structuralRestartReason = entry && activeClient && currentSnapshot ? await activeClient.getRestartReason(entry.appliedSnapshot, current.chatKey, currentSnapshot) : undefined;
 			const currentDisabledRootMcpServers = entry && currentSnapshot
 				? await this._disabledRootMcpServers(current.configurationResource, entry.sessionId, currentSnapshot)
 				: undefined;
@@ -4185,8 +4191,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
 				[...new Set(currentDisabledRootMcpServers)].sort(),
 			);
-			if (entry && (entry.requiresRestartAfterWorkingDirectoryChange || rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh || entry.requiresControlPlaneResync)) {
-				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
+			const refreshReason = (entry?.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
+				?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
+				?? structuralRestartReason
+				?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
+				?? (entry?.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
+				?? (entry?.requiresControlPlaneResync ? 'controlPlaneResync' : undefined);
+			if (entry && refreshReason) {
+				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session: operation=sendMessage, sdkSessionId=${entry.sessionId}, chat=${current.chatKey}, turnId=${turnId ?? '(none)'}, reason=${refreshReason}, clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				// Finish disconnecting before resuming the SAME SDK session id with
 				// the updated config. Routing is preserved so the session identity
 				// is recoverable; peer chats keep their own entries and are left
@@ -4203,7 +4215,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			if (!entry) {
-				this._logService.info(`[Copilot:${current.configurationId}] No cached entry${hadCachedEntry ? ' (was evicted by requiresRestart)' : ''}, calling _resumeSession`);
+				this._logService.info(`[Copilot:${current.configurationId}] No cached entry${hadCachedEntry ? ' (was evicted by configuration refresh)' : ''}, calling _resumeSession`);
 			}
 			entry ??= await this._ensureResolvedChatSession(current, workingDirectories);
 			if (!entry) {
@@ -6996,41 +7008,7 @@ class SessionPluginController extends Disposable {
 	 * stable.
 	 */
 	private _projectForPublish<T extends Customization>(customization: T): T {
-		return this._overlayMcpState(this._applyEnablement(customization));
-	}
-
-	/**
-	 * Overlays the latest known MCP runtime `state`/`channel` (see
-	 * {@link mcpServerStates}) onto a customization and its children,
-	 * preserving object identity when nothing is overlaid so downstream
-	 * equality checks stay stable.
-	 */
-	private _overlayMcpState<T extends Customization>(customization: T): T {
-		const overlays = this.mcpServerStates.get();
-		if (overlays.size === 0) {
-			return customization;
-		}
-		if (customization.type === CustomizationType.McpServer) {
-			const overlay = overlays.get(customization.id);
-			return overlay ? { ...customization, state: overlay.state, channel: overlay.channel } : customization;
-		}
-		const children = customization.children;
-		if (!children || children.length === 0) {
-			return customization;
-		}
-		let changed = false;
-		const overlaidChildren = children.map(child => {
-			if (child.type !== CustomizationType.McpServer) {
-				return child;
-			}
-			const overlay = overlays.get(child.id);
-			if (!overlay) {
-				return child;
-			}
-			changed = true;
-			return { ...child, state: overlay.state, channel: overlay.channel };
-		});
-		return changed ? { ...customization, children: overlaidChildren } : customization;
+		return applyMcpServerRuntimeStates(this._applyEnablement(customization), this.mcpServerStates.get());
 	}
 }
 
@@ -7220,15 +7198,15 @@ class ActiveClient extends Disposable {
 		return structuredClone(servers);
 	}
 
-	/** Returns whether plugins or the chat-scoped structural tool set changed enough to require resume. */
-	async requiresRestart(snap: IActiveClientSnapshot, chatKey?: string, current?: IActiveClientSnapshot): Promise<boolean> {
+	/** Reports the first changed structural contribution without including its contents. */
+	async getRestartReason(snap: IActiveClientSnapshot, chatKey?: string, current?: IActiveClientSnapshot): Promise<string | undefined> {
 		current ??= await this.snapshot(chatKey);
 		if (!parsedPluginsEqual(snap.plugins, current.plugins)) {
-			return true;
+			return 'clientPluginsChanged';
 		}
 		if (!equals(snap.mcpServers, current.mcpServers)) {
-			return true;
+			return 'rootMcpServersChanged';
 		}
-		return !structuralToolsEqual(current.tools, snap.tools);
+		return !structuralToolsEqual(current.tools, snap.tools) ? 'clientToolsChanged' : undefined;
 	}
 }

@@ -505,6 +505,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuFilterPlaceholder: unifiedRemoteItem?.submenuOptions?.filterPlaceholder,
 				submenuFocusFilterOnOpen: unifiedRemoteItem?.submenuOptions?.focusFilterOnOpen,
 				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
+				openSubmenuOnClick: unifiedRemoteItem?.openSubmenuOnClick,
 			},
 			unifiedFilteredRemoteItems: unifiedRemoteItem?.filterItems?.map(item => ({
 				label: item.label,
@@ -533,6 +534,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuFilterPlaceholder: 'Search Remote',
 				submenuFocusFilterOnOpen: true,
 				submenuWidth: 180,
+				openSubmenuOnClick: true,
 			},
 			unifiedFilteredRemoteItems: [
 				{ label: 'Manage Provider agenthost-tunnel-one', ariaLabel: 'Provider agenthost-tunnel-one, Online · 1 active session' },

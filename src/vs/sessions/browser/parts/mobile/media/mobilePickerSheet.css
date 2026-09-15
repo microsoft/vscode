@@ -161,6 +161,52 @@
 	line-height: 1;
 }
 
+.mobile-picker-sheet.compact-header > .mobile-picker-sheet-handle {
+	display: none;
+}
+
+.mobile-picker-sheet.compact-header > .mobile-picker-sheet-title-row {
+	gap: 0;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.mobile-picker-sheet.compact-header .mobile-picker-sheet-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	padding: 0 var(--vscode-spacing-size40);
+}
+
+.mobile-picker-sheet.compact-header .mobile-picker-sheet-header-action {
+	width: 44px;
+	height: 44px;
+	min-width: 44px;
+	padding: 0;
+	color: var(--vscode-foreground);
+}
+
+.mobile-picker-sheet.compact-header .mobile-picker-sheet-header-action-icon-glyph {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.mobile-picker-sheet.compact-header .mobile-picker-sheet-header-action::before {
+	background: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.mobile-picker-sheet.compact-header .mobile-picker-sheet-header-action:hover::before {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-picker-sheet.compact-header .mobile-picker-sheet-header-action[aria-disabled='true'] {
+	color: var(--vscode-disabledForeground);
+	cursor: default;
+}
+
+.mobile-picker-sheet.compact-header .mobile-picker-sheet-header-action:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .mobile-picker-sheet-caption {
 	padding: 0 16px 12px;
 	font-size: 13px;

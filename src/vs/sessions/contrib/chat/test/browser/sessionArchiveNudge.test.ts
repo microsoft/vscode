@@ -28,7 +28,7 @@ import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onb
 import { IOnboardingScenario, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
-import { IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -71,6 +71,22 @@ suite('SessionArchiveNudge', () => {
 			override readonly workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>(this, { kind: 'connected' });
 		}();
+	}
+
+	function pullRequestRef(number: number, overrides: Partial<IGitHubPullRequestRef> = {}): IGitHubPullRequestRef {
+		return { owner: 'owner', repo: 'repo', number, uri: URI.parse(`https://github.com/owner/repo/pull/${number}`), createdByThisSession: true, ...overrides };
+	}
+
+	function setGitHubInfo(session: ReturnType<typeof createSession>, ...infos: IGitHubInfo[]) {
+		const values = infos.map(info => observableValue<IGitHubInfo | undefined>('gitHubInfo', info));
+		session.workspace.set(upcastPartial<ISessionWorkspace>({
+			folders: values.map((gitHubInfo, index) => ({
+				root: URI.file(`/repo${index}`), workingDirectory: URI.file(`/repo${index}`), name: `repo${index}`, description: undefined,
+				gitRepository: { uri: URI.file(`/repo${index}`), workTreeUri: undefined, baseBranchName: undefined, gitHubInfo },
+			})),
+			isVirtualWorkspace: false,
+		}), undefined);
+		return values;
 	}
 
 	function setup(sessions = [createSession()], enabled = true, enterpriseHost?: string, onboardingEnabled = false) {
@@ -277,8 +293,141 @@ suite('SessionArchiveNudge', () => {
 		});
 	});
 
-	test('does not resolve github.com artifacts against a different GitHub host', () => {
-		const context = setup(undefined, true, 'github.example.com');
+	test('waits for authoritative merged state of an association without artifacts', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1, { state: 'merged', liveState: 'merged' })] });
+		const context = setup([session]);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		for (const state of [GitHubPullRequestState.Open, GitHubPullRequestState.Closed, GitHubPullRequestState.Merged, undefined]) {
+			context.setPullRequest(1, state);
+			states.push(!!nudge.options.get());
+		}
+		assert.deepStrictEqual({ states, requests: context.requests }, { states: [false, false, false, true, false], requests: ['owner/repo/1'] });
+	});
+
+	test('ignores inherited and unowned multi-PR refs, including an empty list with a primary PR', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		const inherited = pullRequestRef(1, { createdByThisSession: false });
+		const info = { owner: 'owner', repo: 'repo', pullRequest: inherited };
+		const [gitHubInfo] = setGitHubInfo(session, { ...info, pullRequests: [inherited, pullRequestRef(2, { createdByThisSession: undefined })] });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		gitHubInfo.set({ ...info, pullRequests: [] }, undefined);
+		states.push(!!nudge.options.get());
+		gitHubInfo.set({ ...info, pullRequests: [inherited, pullRequestRef(3)] }, undefined);
+		context.setPullRequest(3, GitHubPullRequestState.Merged);
+		states.push(!!nudge.options.get());
+		assert.deepStrictEqual({ states, requests: context.requests }, { states: [false, false, true], requests: ['owner/repo/3'] });
+	});
+
+	test('accepts a legacy primary PR without artifacts or provenance', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequest: pullRequestRef(1, { createdByThisSession: undefined }) });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		assert.deepStrictEqual({ count: nudge.options.get()?.pullRequestCount, requests: context.requests }, { count: 1, requests: ['owner/repo/1'] });
+	});
+
+	test('deduplicates artifacts and associations across folders without restarting unchanged models', () => {
+		const session = createSession();
+		const duplicate = pullRequestRef(1, { owner: 'OWNER', repo: 'REPO', uri: URI.parse('https://github.com/OWNER/REPO/pull/01/') });
+		const [gitHubInfo] = setGitHubInfo(session,
+			{ owner: 'owner', repo: 'repo', pullRequests: [duplicate, pullRequestRef(2)] },
+			{ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1), pullRequestRef(2)] },
+		);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		gitHubInfo.set({ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2), duplicate] }, undefined);
+		session.artifacts.set([], undefined);
+		nudge.markShown();
+		assert.deepStrictEqual({
+			count: nudge.options.get()?.pullRequestCount, requests: context.requests, counts: context.counts, events: context.events,
+		}, {
+			count: 2, requests: ['owner/repo/1', 'owner/repo/2'], counts: { references: 2, polling: 2, refreshes: 2 },
+			events: [{ name: 'agents/sessionArchiveNudge', data: { agentSessionId: hashSessionIdForTelemetry(session.sessionId), action: 'shown', pullRequestCount: 2, hasWorktree: false } }],
+		});
+	});
+
+	test('waits for mixed artifacts and associations in every repository and reacts to their removal', () => {
+		const session = createSession();
+		const [gitHubInfo] = setGitHubInfo(session,
+			{ owner: 'other', repo: 'project', pullRequests: [pullRequestRef(2, { owner: 'other', repo: 'project', uri: URI.parse('https://github.com/other/project/pull/2') })] },
+			{ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(3)] },
+		);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states = [nudge.options.get()?.pullRequestCount];
+		context.setPullRequest(2, GitHubPullRequestState.Merged, 'other', 'project');
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.setPullRequest(3, GitHubPullRequestState.Merged);
+		states.push(nudge.options.get()?.pullRequestCount);
+		gitHubInfo.set({ owner: 'other', repo: 'project', pullRequests: [pullRequestRef(4)] }, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		gitHubInfo.set(undefined, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		session.workspace.set(undefined, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.current.set(undefined, undefined);
+		assert.deepStrictEqual({ states, references: context.counts.references, polling: context.counts.polling }, {
+			states: [undefined, undefined, 3, undefined, 2, 1], references: 0, polling: 0,
+		});
+	});
+
+	test('invalid GitHub artifacts still block merged associations', () => {
+		const session = createSession();
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1)] });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states: boolean[] = [];
+		for (const invalid of [
+			artifact(2, { link: undefined }),
+			artifact(2, { link: URI.parse('https://github.com/owner/repo/pull/invalid'), isGitHub: undefined }),
+			artifact(0),
+			artifact(Number.MAX_SAFE_INTEGER + 1),
+			artifact(2, { link: URI.parse('https://github.example.com/owner/repo/pull/2') }),
+		]) {
+			session.artifacts.set([invalid], undefined);
+			states.push(!!nudge.options.get());
+		}
+		session.artifacts.set([], undefined);
+		states.push(!!nudge.options.get());
+		assert.deepStrictEqual(states, [false, false, false, false, false, true]);
+	});
+
+	test('invalid or unsupported owned association URLs block merged artifacts', () => {
+		const session = createSession();
+		const [gitHubInfo] = setGitHubInfo(session, { owner: 'owner', repo: 'repo' });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states: boolean[] = [];
+		for (const uri of [
+			'https://github.com/owner/repo/pull/invalid',
+			'https://github.com/owner/repo/pull/0',
+			'https://github.com/owner/repo/pull/9007199254740992',
+			'https://github.example.com/owner/repo/pull/2',
+		]) {
+			gitHubInfo.set({ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2, { uri: URI.parse(uri) })] }, undefined);
+			states.push(!!nudge.options.get());
+		}
+		assert.deepStrictEqual(states, [false, false, false, false]);
+	});
+
+	test('does not resolve github.com artifacts or associations against a different GitHub host', () => {
+		const session = createSession();
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2)] });
+		const context = setup([session], true, 'github.example.com');
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
 		assert.deepStrictEqual({ visible: !!nudge.options.get(), requests: context.requests }, { visible: false, requests: [] });

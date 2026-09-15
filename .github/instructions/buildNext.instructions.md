@@ -134,6 +134,7 @@ Two placeholders that need injection:
 
 - Removes `webEndpointUrlTemplate` from product config (see `tweakProductForServerWeb` in old build)
 - Uses `.build/extensions` for builtin extensions (not `.build/web/extensions`)
+- Bundles the browser shell `vs/code/browser/workbench/workbench`, which statically imports the web workbench. Do not also emit `vs/workbench/workbench.web.main.internal` as a separate server-web entry; standalone `web` still needs that entry.
 
 ### 5. Entry Point Parity with Old Build
 

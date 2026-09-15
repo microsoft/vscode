@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -155,6 +155,8 @@ export interface ISendRequestSentEvent {
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	/** Provider configuration captured before preparation can replace the draft. Values may be sensitive and must not be logged wholesale. */
+	readonly newSessionConfig?: ISessionConfigurationSnapshot;
 	/**
 	 * The exact options object the send was started with, so callers can
 	 * correlate a fire-and-forget (background) send with its completion.

@@ -117,7 +117,7 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
-	const pullRequestTitles = new Map(artifactPullRequests.map(entry => [linkKey(entry.link), entry.label]));
+	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
 	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
 	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
