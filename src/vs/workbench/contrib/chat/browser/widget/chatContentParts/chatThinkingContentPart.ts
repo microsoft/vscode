@@ -303,9 +303,20 @@ const funWorkingMessages = [
 	localize('chat.working.fun.2', "Reticulating splines"),
 	localize('chat.working.fun.3', "Untangling the spaghetti"),
 	localize('chat.working.fun.4', "Communing with the codebase"),
+	localize('chat.working.fun.5', "Letting it cook"),
+	localize('chat.working.fun.6', "Thanking all the fish"),
+	localize('chat.working.fun.7', "Stabilizing the wormhole"),
+	localize('chat.working.fun.8', "Baking the ideas"),
+
+	// Code
+	localize('chat.working.fun.code.1', "Consulting the oracle"),
+	localize('chat.working.fun.code.2', "Shooting for the stars"),
+	localize('chat.working.fun.code.3', "Stirring the solution"),
 
 	// Minecraft
 	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
+	localize('chat.working.fun.minecraft.2', "Digging straight down"),
+	localize('chat.working.fun.minecraft.3', "Mining at night"),
 
 	// Microsoft
 	localize('chat.working.fun.ms.1', "Summoning Clippy"),
