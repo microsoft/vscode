@@ -73,11 +73,11 @@
 	line-height: 1;
 }
 
-.sessions-chat-codicon-button-hover {
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:hover ~ .sessions-chat-background .sessions-chat-codicon-button-active {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-codicon-button-focus-visible {
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:focus-visible ~ .sessions-chat-background .sessions-chat-codicon-button-active {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));

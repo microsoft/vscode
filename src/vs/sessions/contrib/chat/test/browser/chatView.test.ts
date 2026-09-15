@@ -649,6 +649,7 @@ suite('Sessions - Chat View', () => {
 		initialButton?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', keyCode: 13 }));
 		const cellsAfter = layer ? [...layer.querySelectorAll<HTMLElement>('.sessions-chat-codicon-cell')] : [];
 		const nextButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const activeCells = cellsAfter.filter(cell => cell.classList.contains('sessions-chat-codicon-button-active'));
 		const focusedButtonStyle = nextButton ? dom.getWindow(nextButton).getComputedStyle(nextButton) : undefined;
 		const activationParent = activationTarget?.parentElement;
 		const layoutAfter = cellsAfter.map(cell => ({
@@ -662,6 +663,7 @@ suite('Sessions - Chat View', () => {
 			layerAriaHidden: layer?.ariaHidden,
 			buttonCount: part.querySelectorAll(':scope > .sessions-chat-codicon-hit-target').length,
 			buttonIsOutsideBackground: !backgroundLayer?.contains(nextButton ?? null),
+			buttonPrecedesBackground: initialButton?.nextElementSibling === backgroundLayer,
 			buttonChildCount: nextButton?.childElementCount,
 			role: nextButton?.getAttribute('role'),
 			tabIndex: nextButton?.tabIndex,
@@ -670,6 +672,8 @@ suite('Sessions - Chat View', () => {
 			buttonZIndex: buttonStyle?.zIndex,
 			backgroundZIndex: backgroundStyle?.zIndex,
 			visualCellSize: { width: initialCell?.offsetWidth, height: initialCell?.offsetHeight },
+			activeCellCount: activeCells.length,
+			activeCellMatchesButton: activeCells[0]?.style.left === nextButton?.style.left && activeCells[0]?.style.top === nextButton?.style.top,
 			iconsAriaHidden: cellsAfter.every(cell => cell.ariaHidden === 'true' && cell.querySelector<HTMLElement>('.codicon')?.ariaHidden === 'true'),
 			activationTarget: activationTarget?.className,
 			activationTargetRetained: activationParent ? cellsBefore.includes(activationParent) : false,
@@ -685,6 +689,7 @@ suite('Sessions - Chat View', () => {
 			layerAriaHidden: 'true',
 			buttonCount: 1,
 			buttonIsOutsideBackground: true,
+			buttonPrecedesBackground: true,
 			buttonChildCount: 0,
 			role: 'button',
 			tabIndex: 0,
@@ -693,6 +698,8 @@ suite('Sessions - Chat View', () => {
 			buttonZIndex: '3',
 			backgroundZIndex: '0',
 			visualCellSize: { width: 24, height: 24 },
+			activeCellCount: 1,
+			activeCellMatchesButton: true,
 			iconsAriaHidden: true,
 			activationTarget: 'sessions-chat-codicon-button-animation',
 			activationTargetRetained: true,
