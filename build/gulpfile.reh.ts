@@ -533,8 +533,8 @@ function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destin
 
 ['reh', 'reh-web'].forEach(type => {
 	const target = type === 'reh' ? 'server' : 'server-web';
-	const bundleTask = task.define(`esbuild-vscode-${type}`, () => runEsbuildBundle(`out-vscode-${type}`, false, true, target));
-	const minifyTask = task.define(`esbuild-vscode-${type}-min`, () => runEsbuildBundle(`out-vscode-${type}-min`, true, true, target, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`));
+	const esbuildBundleTask = task.define(`esbuild-vscode-${type}`, () => runEsbuildBundle(`out-vscode-${type}`, false, true, target));
+	const esbuildBundleMinTask = task.define(`esbuild-vscode-${type}-min`, () => runEsbuildBundle(`out-vscode-${type}-min`, true, true, target, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`));
 
 	BUILD_TARGETS.forEach(buildTarget => {
 		const dashed = (str: string) => (str ? `-${str}` : ``);
@@ -568,7 +568,7 @@ function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destin
 				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
-				minified ? minifyTask : bundleTask,
+				minified ? esbuildBundleMinTask : esbuildBundleTask,
 				serverTaskCI
 			));
 			task.task(serverTask);

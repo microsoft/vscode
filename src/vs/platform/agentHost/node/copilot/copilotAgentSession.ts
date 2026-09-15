@@ -421,6 +421,7 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
+const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -488,6 +489,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly serverToolHost?: IAgentServerToolHost;
 	/** Overrides source-launch detection for deterministic tests. */
 	readonly enableDevelopmentErrorInjection?: boolean;
+	/** Overrides the quiet period before task status completes a subagent turn. */
+	readonly subagentTaskCompletionDelay?: number;
 
 	/**
 	 * Invoked whenever this chat's in-flight turn ends — normal completion,
@@ -845,6 +848,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
+	private readonly _subagentTaskCompletionSchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
+	private readonly _subagentTaskCompletionDelay: number;
 	private _subagentTaskStatusRevision = 0;
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
@@ -1216,6 +1221,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 		this._abortCts.value = new CancellationTokenSource();
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
+		this._subagentTaskCompletionDelay = options.subagentTaskCompletionDelay ?? SUBAGENT_TASK_COMPLETION_DELAY_MS;
 		this.sessionId = options.rawSessionId;
 		this._ownerSessionUri = options.sessionUri;
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
@@ -1526,7 +1532,11 @@ export class CopilotAgentSession extends Disposable {
 		if (this._dropLateRootTurnEvents) {
 			return;
 		}
-		if (!e.agentId || this._activeSubagentAgentIds.has(e.agentId)) {
+		if (!e.agentId) {
+			return;
+		}
+		if (this._activeSubagentAgentIds.has(e.agentId)) {
+			this._subagentTaskCompletionSchedulers.get(e.agentId)?.schedule();
 			return;
 		}
 		const parentToolCallId = this._parentToolCallIdsByAgentId.get(e.agentId);
@@ -1584,6 +1594,29 @@ export class CopilotAgentSession extends Disposable {
 		this._autoModeResolvedByToolCallId.delete(parentToolCallId);
 	}
 
+	private _scheduleSubagentTurnCompletion(agentId: string, toolCallId?: string): void {
+		if (!this._activeSubagentAgentIds.has(agentId)) {
+			return;
+		}
+		const parentToolCallId = toolCallId ?? this._parentToolCallIdsByAgentId.get(agentId);
+		if (!parentToolCallId) {
+			return;
+		}
+		if (this._subagentTaskCompletionDelay <= 0) {
+			this._completeSubagentTurn(agentId, parentToolCallId);
+			return;
+		}
+		let scheduler = this._subagentTaskCompletionSchedulers.get(agentId);
+		if (!scheduler) {
+			scheduler = new RunOnceScheduler(() => {
+				this._subagentTaskCompletionSchedulers.deleteAndDispose(agentId);
+				this._completeSubagentTurn(agentId, parentToolCallId);
+			}, this._subagentTaskCompletionDelay);
+			this._subagentTaskCompletionSchedulers.set(agentId, scheduler);
+		}
+		scheduler.schedule();
+	}
+
 	private _observeTokenUsage(parentToolCallId: string | undefined, eventId: string, model: string | undefined, scope: 'direct-model' | 'compaction', tokens: UsageContext, reasoningEffort?: string, apiCallId?: string): void {
 		const recordId = apiCallId ? `api:${apiCallId}` : eventId ? `event:${eventId}` : undefined;
 		const identity = recordId ? `${scope}\0${recordId}` : undefined;
@@ -1633,7 +1666,7 @@ export class CopilotAgentSession extends Disposable {
 					continue;
 				}
 				if (task.status === 'idle' || task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
-					this._completeSubagentTurn(task.id, task.toolCallId);
+					this._scheduleSubagentTurnCompletion(task.id, task.toolCallId);
 				}
 			}
 		});
@@ -5679,6 +5712,7 @@ export class CopilotAgentSession extends Disposable {
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 				this._activeSubagentAgentIds.add(e.agentId);
+				this._subagentTaskCompletionSchedulers.deleteAndDispose(e.agentId);
 			}
 			if (this._currentTurn.value) {
 				this._rootTurnIdBySubagentToolCallId.set(e.data.toolCallId, this._currentTurn.value.id);
@@ -6814,6 +6848,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onTurnEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Turn ended: ${e.data.turnId}`);
+			if (e.agentId) {
+				this._scheduleSubagentTurnCompletion(e.agentId);
+			}
 			if (!e.agentId && this._activeRootSdkTurnId === e.data.turnId) {
 				this._activeRootSdkTurnId = undefined;
 			}

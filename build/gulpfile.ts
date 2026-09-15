@@ -20,6 +20,7 @@ task.task(compilation.compileExtensionPointNamesTask);
 const require = createRequire(import.meta.url);
 
 // API proposal names
+task.task(compilation.checkApiProposalNamesTask);
 task.task(compilation.compileApiProposalNamesTask);
 task.task(compilation.watchApiProposalNamesTask);
 

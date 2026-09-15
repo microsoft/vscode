@@ -20,9 +20,11 @@ import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
-import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
+import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
+import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
+import { getBundleOptions } from './bundle.ts';
 
 const globAsync = promisify(glob);
 
@@ -199,175 +201,6 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 }
 
 // ============================================================================
-// Resource Patterns (files to copy, not transpile/bundle)
-// ============================================================================
-
-// Common resources needed by all targets
-const commonResourcePatterns = [
-	// Tree-sitter queries
-	'vs/editor/common/languages/highlights/*.scm',
-	'vs/editor/common/languages/injections/*.scm',
-
-	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
-	'vs/workbench/browser/media/code-icon.svg',
-	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
-	'vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
-	'vs/sessions/contrib/chat/browser/media/*.svg',
-	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
-];
-
-// Resources for desktop target
-const desktopResourcePatterns = [
-	...commonResourcePatterns,
-
-	// HTML
-	'vs/code/electron-browser/workbench/workbench.html',
-	'vs/code/electron-browser/workbench/workbench-dev.html',
-	'vs/sessions/electron-browser/sessions.html',
-	'vs/sessions/electron-browser/sessions-dev.html',
-	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-	'vs/workbench/contrib/webview/browser/pre/*.html',
-
-	// Webview pre scripts
-	'vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Shell scripts
-	'vs/base/node/*.sh',
-	'vs/workbench/contrib/terminal/common/scripts/*.sh',
-	'vs/workbench/contrib/terminal/common/scripts/*.ps1',
-	'vs/workbench/contrib/terminal/common/scripts/*.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/*.fish',
-	'vs/workbench/contrib/terminal/common/scripts/*.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
-	'vs/workbench/contrib/externalTerminal/**/*.scpt',
-
-	// Media - audio
-	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
-
-	// Media - images
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
-	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
-	'vs/workbench/services/extensionManagement/common/media/*.svg',
-	'vs/workbench/services/extensionManagement/common/media/*.png',
-	'vs/workbench/browser/parts/editor/media/*.png',
-	'vs/workbench/contrib/debug/browser/media/*.png',
-
-	// Sessions - built-in prompts and skills
-	'vs/sessions/prompts/*.prompt.md',
-	'vs/sessions/skills/**/SKILL.md',
-];
-
-// Resources for server target (minimal - no UI)
-const serverResourcePatterns = [
-	// Shell scripts for process monitoring
-	'vs/base/node/cpuUsage.sh',
-	'vs/base/node/ps.sh',
-
-	// External Terminal
-	'vs/workbench/contrib/externalTerminal/**/*.scpt',
-
-	// Terminal shell integration
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
-	'vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/GitTabExpansion.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
-];
-
-// Resources for server-web target (server + web UI)
-const serverWebResourcePatterns = [
-	...serverResourcePatterns,
-	...commonResourcePatterns,
-
-	// Web HTML
-	'vs/code/browser/workbench/workbench.html',
-	'vs/code/browser/workbench/workbench-dev.html',
-	'vs/code/browser/workbench/callback.html',
-	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-	'vs/workbench/contrib/webview/browser/pre/*.html',
-
-	// Webview pre scripts
-	'vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Media - audio
-	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
-
-	// Media - images
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
-	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.png',
-	'vs/workbench/services/extensionManagement/common/media/*.svg',
-	'vs/workbench/services/extensionManagement/common/media/*.png',
-];
-
-// Resources for standalone web target (browser-only, no server)
-const webResourcePatterns = [
-	...commonResourcePatterns,
-
-	// Web HTML
-	'vs/code/browser/workbench/workbench.html',
-	'vs/code/browser/workbench/workbench-dev.html',
-	'vs/code/browser/workbench/callback.html',
-	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-	'vs/workbench/contrib/webview/browser/pre/*.html',
-
-	// Webview pre scripts
-	'vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Media - audio
-	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
-
-	// Media - images
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
-	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.png',
-	'vs/workbench/services/extensionManagement/common/media/*.svg',
-	'vs/workbench/services/extensionManagement/common/media/*.png',
-];
-
-/**
- * Get resource patterns for a build target.
- */
-function getResourcePatternsForTarget(target: BuildTarget): string[] {
-	switch (target) {
-		case 'desktop':
-			return desktopResourcePatterns;
-		case 'server':
-			return serverResourcePatterns;
-		case 'server-web':
-			return serverWebResourcePatterns;
-		case 'web':
-			return webResourcePatterns;
-		default:
-			throw new Error(`Unknown target: ${target}`);
-	}
-}
-
-// ============================================================================
 // Utilities
 // ============================================================================
 
@@ -516,36 +349,6 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 	});
 
 	console.log(`[resources] Copied ${allFiles.length} files`);
-}
-
-/**
- * Copy curated resource files for production bundles.
- * Uses specific per-target patterns matching the old build's vscodeResourceIncludes,
- * serverResourceIncludes, etc. Only called by bundle() - transpile uses copyAllNonTsFiles().
- */
-async function copyResources(outDir: string, target: BuildTarget): Promise<void> {
-	console.log(`[resources] Copying to ${outDir} for target '${target}'...`);
-	let copied = 0;
-
-	const ignorePatterns = ['**/test/**', '**/*-dev.html'];
-
-	const resourcePatterns = getResourcePatternsForTarget(target);
-	for (const pattern of resourcePatterns) {
-		const files = await globAsync(pattern, {
-			cwd: path.join(REPO_ROOT, SRC_DIR),
-			ignore: ignorePatterns,
-		});
-
-		for (const file of files) {
-			const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
-			const destPath = path.join(REPO_ROOT, outDir, file);
-
-			await copyFile(srcPath, destPath);
-			copied++;
-		}
-	}
-
-	console.log(`[resources] Copied ${copied} files`);
 }
 
 // ============================================================================
@@ -700,27 +503,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
 
-	// Read TSLib for banner
-	const tslibPath = path.join(REPO_ROOT, 'node_modules/tslib/tslib.es6.js');
-	const tslib = await fs.promises.readFile(tslibPath, 'utf-8');
-	const banner = {
-		js: `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-${tslib}`,
-		css: `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/`,
-	};
-
-	// Shared TypeScript options for bundling directly from source
-	const tsconfigRaw = JSON.stringify({
-		compilerOptions: {
-			experimentalDecorators: true,
-			useDefineForClassFields: false
-		}
-	});
-
 	// Create shared NLS collector (only used if doNls is true)
 	const nlsCollector = createNLSCollector();
 	const preserveEnglish = false; // Production mode: replace messages with null
@@ -757,22 +539,13 @@ ${tslib}`,
 		const needsCssBundling = bundleCssEntryPoints.has(entryPoint);
 
 		const buildOptions: esbuild.BuildOptions = {
+			...getBundleOptions(doMinify, 'neutral'),
 			entryPoints: needsCssBundling
 				? [{ in: entryPath, out: entryPoint }]
 				: [entryPath],
 			...(needsCssBundling
 				? { outdir: path.join(REPO_ROOT, outDir) }
 				: { outfile: outPath }),
-			bundle: true,
-			format: 'esm',
-			platform: 'neutral',
-			target: ['es2024'],
-			packages: 'external',
-			sourcemap: 'linked',
-			sourcesContent: true,
-			minify: doMinify,
-			treeShaking: true,
-			banner,
 			loader: {
 				'.ttf': 'file',
 				'.svg': 'file',
@@ -781,12 +554,6 @@ ${tslib}`,
 			},
 			assetNames: 'media/[name]',
 			plugins,
-			write: false, // Don't write yet, we need to post-process
-			logLevel: 'warning',
-			logOverride: {
-				'unsupported-require-call': 'silent',
-			},
-			tsconfigRaw,
 		};
 
 		const result = await esbuild.build(buildOptions);
@@ -797,11 +564,6 @@ ${tslib}`,
 	// Bundle bootstrap files (with minimist inlined) directly from TypeScript source
 	for (const entry of bootstrapEntryPoints) {
 		const entryPath = path.join(REPO_ROOT, SRC_DIR, `${entry}.ts`);
-		if (!fs.existsSync(entryPath)) {
-			console.log(`[bundle] Skipping ${entry} (not found)`);
-			continue;
-		}
-
 		const outPath = path.join(REPO_ROOT, outDir, `${entry}.js`);
 
 		const bootstrapPlugins: esbuild.Plugin[] = [inlineMinimistPlugin(), contentMapperPlugin];
@@ -813,25 +575,10 @@ ${tslib}`,
 		}
 
 		const result = await esbuild.build({
+			...getBundleOptions(doMinify, 'node'),
 			entryPoints: [entryPath],
 			outfile: outPath,
-			bundle: true,
-			format: 'esm',
-			platform: 'node',
-			target: ['es2024'],
-			packages: 'external',
-			sourcemap: 'linked',
-			sourcesContent: true,
-			minify: doMinify,
-			treeShaking: true,
-			banner,
 			plugins: bootstrapPlugins,
-			write: false, // Don't write yet, we need to post-process
-			logLevel: 'warning',
-			logOverride: {
-				'unsupported-require-call': 'silent',
-			},
-			tsconfigRaw,
 		});
 
 		buildResults.push({ outPath, result });
@@ -970,7 +717,7 @@ ${tslib}`,
 	}
 
 	// Copy resources (curated per-target patterns for production)
-	await copyResources(outDir, target);
+	await copyResources(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(outDir, doMinify, target);
@@ -978,7 +725,8 @@ ${tslib}`,
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
-			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
+			outDir: path.join(outDir, devTunnelsWebOutDir),
+			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${devTunnelsWebOutDir}` : undefined,
 		});
 	}
 
@@ -1113,7 +861,7 @@ Options for 'transpile':
 	--exclude-tests    Exclude test files from transpilation
 
 Options for 'bundle':
-	--minify           Minify the output bundles and SVG assets
+	--minify           Minify bundles, copied JavaScript resources, and SVG assets
 	--nls              Process NLS (localization) strings
 	--mangle-privates  Convert native #private fields to regular properties
 	--out <dir>        Output directory (default: out-vscode)

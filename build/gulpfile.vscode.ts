@@ -25,7 +25,7 @@ import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
-import { copyCodiconsTask } from './lib/compilation.ts';
+import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
@@ -60,6 +60,7 @@ const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
 
 task.task(task.define('core-ci', task.series(
+	checkApiProposalNamesTask,
 	copyCodiconsTask,
 	compileNonNativeExtensionsBuildTask,
 	compileExtensionMediaBuildTask,
@@ -335,6 +336,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'resources/win32/react.ico',
 				'resources/win32/ruby.ico',
 				'resources/win32/sass.ico',
+				'resources/win32/sessions.ico',
 				'resources/win32/shell.ico',
 				'resources/win32/sql.ico',
 				'resources/win32/typescript.ico',

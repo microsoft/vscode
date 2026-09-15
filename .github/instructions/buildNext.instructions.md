@@ -37,6 +37,7 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
   - `bundle` command: TS → bundled JS using `esbuild.build()`
 - **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
+- **[resources.ts](../../build/next/resources.ts)** - Curated production resource selection and copied JavaScript minification
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
 - **[svg.ts](../../build/next/svg.ts)** - Production-only SVG finishing, independent of the legacy gulp infrastructure
@@ -59,13 +60,29 @@ In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` tas
 
 Desktop, server, server-web, and standalone web packaging use the same `runEsbuildBundle()` helper. Minified bundles enable `--minify --mangle-privates --nls`. Local server and web builds generate API proposal names and the shared build date explicitly instead of compiling an intermediate production tree.
 
-The canonical production entry points, resource lists, and product/built-in-extension injection live in [build/next/index.ts](../../build/next/index.ts). Bootstrap entry points are shared with packaging through [build/lib/esbuild.ts](../../build/lib/esbuild.ts), so package metadata is injected into the same files the bundler emits. Gulp still orchestrates compilation, extension builds, packaging, and translations; there is no separate legacy production bundle/minify chain.
+The canonical production entry points and product/built-in-extension injection live in [build/next/index.ts](../../build/next/index.ts); curated resource lists and copied-script minification live in [resources.ts](../../build/next/resources.ts). Build targets and bootstrap entry points are shared with packaging through [build/lib/esbuild.ts](../../build/lib/esbuild.ts), so package metadata is injected into the same files the bundler emits. Gulp still orchestrates compilation, extension builds, packaging, and translations; there is no separate legacy production bundle/minify chain.
 
 Do not remove shared tooling based on its age:
 - `editor-distro` still uses [createCompile()](../../build/lib/compilation.ts), the TypeScript stream compiler, and [nls.ts](../../build/lib/nls.ts) to emit Monaco ESM with English messages preserved.
 - Development and extension transpilation still use the stream transpilers; declaration generation and editor extraction still use the TypeScript API.
 - [i18n.ts](../../build/lib/i18n.ts) serves Monaco, translation export/import, and localization packages. `vscode-translations-export` obtains core metadata from `core-ci`.
 - `source-map` is used by the current NLS/private-field transforms as well as the stream compiler. `gulp-sourcemaps` remains in the Monaco/development/extension pipelines; its type augmentation lives in [gulp-sourcemaps.d.ts](../../build/lib/typings/gulp-sourcemaps.d.ts).
+
+### TypeScript Helpers in Production Bundles
+
+[bundle.ts](../../build/next/bundle.ts) holds the shared ESM options for normal entries (`neutral`) and Node bootstraps (`node`). Both compile TypeScript source directly with esbuild, which emits, scopes, and minifies the helpers each input needs. Their JS and CSS banners contain only the Microsoft copyright comment; do not append executable `tslib` to them. Esbuild does not parse banner text, so it cannot tree-shake it, minify it, or protect it from name/export collisions.
+
+- Desktop, server, server-web, and web entries do not consume the old banner's helpers or initialization. The public workbench and Sessions embedder exports are defined in their source entry points, not in tslib. Removing the banner intentionally removes its accidental 32 helper exports and default export, not any source-defined API.
+- Explicit tslib imports still follow normal bundler resolution: package imports remain external, while explicitly bundled helpers can be tree-shaken. Already-generated JavaScript retains its own helper definitions.
+- Non-minified bundles also omit the redundant library but retain readable esbuild-generated helpers. Development transpilation, standalone CommonJS preloads, and the separate Dev Tunnels bundle do not use the removed banner.
+- The removed compiled-JavaScript pipeline stripped TypeScript boilerplate and replaced it with a tslib banner. Direct-from-TypeScript bundles instead use esbuild's scoped, tree-shaken helpers.
+- Keep the copyright banner and existing license/notice packaging. Banner changes belong in esbuild's options so its source maps account for them; do not strip code after generating maps. Product integrity checksums continue to be computed from final bundled bytes during packaging.
+
+Focused coverage uses the production options for helper-free entries, service decorators, disposal, compiler-generated JS, explicit tslib imports, export/name collisions, legal comments, and source maps in both minified and non-minified modes:
+
+```bash
+node --test build/next/test/bundle.test.ts build/next/test/nls-sourcemap.test.ts
+```
 
 ### Production SVG Optimization
 
@@ -139,11 +156,7 @@ Two placeholders that need injection:
 
 ### 6. NLS Output File Parity
 
-**Problem:** `finalizeNLS()` was generating `nls.messages.js` (with `globalThis._VSCODE_NLS_MESSAGES=...`) in addition to the standard `.json` files. The old build only produces `nls.messages.json`, `nls.keys.json`, and `nls.metadata.json`.
-
-**Fix:** Removed `nls.messages.js` generation from `finalizeNLS()` in `nls-plugin.ts`.
-
-**Lesson:** Don't add new output file formats that create parity differences with the old build. The old build is the reference.
+`finalizeNLS()` writes `nls.messages.json`, `nls.keys.json`, `nls.metadata.json`, and `nls.messages.js`, matching the retained stream compiler's metadata formats. The JavaScript catalog is required by the localization upload pipeline; its shared ASCII serializer preserves decoded message values. Production bundles replace English strings with indices, while Monaco preserves English messages.
 
 ### Translated Message Cache Identity
 
@@ -162,6 +175,24 @@ Desktop, server, and server-web packaging compute `nlsMetadataHash` from the com
 - Watch mode incremental copy now accepts **any** non-`.ts` file change (removed the `copyExtensions` allowlist).
 
 **Lesson:** Dev builds should copy everything (completeness matters); production builds should be selective (size matters). Don't mix the two strategies.
+
+### Production Copied JavaScript
+
+[resources.ts](../../build/next/resources.ts) owns the per-target resource patterns. `bundle --minify` minifies each selected JavaScript resource while copying it from `src/`; it does not traverse or re-minify bundled/generated outputs. Without `--minify`, copying remains byte-for-byte. Transpile, watch, and incremental development builds still use the separate unmodified copy path.
+
+The current JavaScript inventory is `vs/workbench/contrib/webview/browser/pre/service-worker.js` for desktop, server-web, and standalone web; server-only selects no JavaScript resources. The processing policy applies to JavaScript resources, not that filename, so additional scripts selected by the resource patterns receive the same handling.
+
+- Minification does not bundle, wrap, force an output module format, or tree-shake the scripts. A resolver bypasses the repository's `package.json` module-type inference, so classic globals/top-level `this` and CommonJS contexts are preserved; explicit ESM imports/exports remain ESM.
+- Legal comments and ordinary leading copyright/license headers are retained.
+- esbuild composes local external and inline input source maps, embeds original sources, and emits a sibling map with a local or `--source-map-base-url` reference. Copied scripts and bundled outputs share [rewriteSourceMappingURL()](../../build/next/source-map-url.ts) to keep CDN references platform-independent. Source-map read/parse diagnostics (including missing files, malformed JSON/mappings, and unsupported URLs) are promoted to build errors.
+- The standalone-web pipeline uploads all emitted core maps, including copied-script maps. Packaging still runs after resource processing and computes integrity checksums from final output bytes.
+- Generated NLS, tslib banners, native-private/dependency mangling, SVG optimization, and extension minification remain separate concerns.
+
+Focused regression tests (no workbench compilation required):
+
+```bash
+node --test build/next/test/resources.test.ts build/next/test/transpile.test.ts build/next/test/source-map-url.test.ts build/next/test/svg.test.ts
+```
 
 ---
 
@@ -186,9 +217,15 @@ npm run gulp vscode-reh-web-darwin-arm64-min
 
 1. **`BUILD_INSERT_PACKAGE_CONFIGURATION`** - Server bootstrap files ([bootstrap-meta.ts](../../src/bootstrap-meta.ts)) have this marker for package.json injection. It is handled by [inlineMeta.ts](../../build/lib/inlineMeta.ts) during packaging.
 
-2. **Mangling** - Production bundles use `--mangle-privates` and [private-to-property.ts](../../build/next/private-to-property.ts), not a TypeScript-to-TypeScript mangling pass.
+2. **Mangling** - TypeScript private/protected-name mangling is intentionally retired. Esbuild still minifies bundle-local identifiers. `--mangle-privates` and [private-to-property.ts](../../build/next/private-to-property.ts) lower native `#private` fields, except in extension-host bundles; they are not the removed TypeScript-to-TypeScript pass.
 
 3. **Entry points and resources** - Per-target definitions are maintained in [index.ts](../../build/next/index.ts), not duplicated in packaging gulpfiles.
+
+4. **Validation** - Official platform and web pipelines invoke `core-ci`, which checks the API proposal registry and type-checks with tsgo before bundling. Required bootstrap entries must fail the build if missing. Post-processing syntax checks remain enabled.
+
+5. **Source maps** - Core bundles, copied JavaScript resources, and the additional Dev Tunnels browser bundle preserve source content and honor the configured CDN map URL. The SDK writer only touches its own emitted files. Standalone preload publication is fixed separately in [#336204](https://github.com/microsoft/vscode/pull/336204); do not duplicate that pending implementation. [resources.ts](../../build/next/resources.ts) continues to export the shared `BuildTarget` type for that producer.
+
+6. **Deferred Unicode validation** - The legacy minifier's whole-output rejection of JS/CSS characters above U+00FF has not been ported. Keep that validation policy separate from infrastructure removal; the separate Unicode escaping work does not itself restore this check.
 
 ---
 
