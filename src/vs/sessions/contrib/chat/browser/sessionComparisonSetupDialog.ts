@@ -21,6 +21,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
@@ -50,6 +51,193 @@ function harnessKey(providerId: string, sessionTypeId: string): string {
 	return `${providerId}\0${sessionTypeId}`;
 }
 
+const SESSION_COMPARISON_DIALOG_WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
+const SESSION_COMPARISON_DIALOG_HEIGHT_STORAGE_KEY = 'sessions.comparisonSetupDialog.height';
+const SESSION_COMPARISON_DIALOG_MIN_WIDTH = 480;
+const SESSION_COMPARISON_DIALOG_MIN_HEIGHT = 240;
+const SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO = 0.9;
+const SESSION_COMPARISON_DIALOG_KEYBOARD_RESIZE_STEP = 20;
+
+type SessionComparisonDialogResizeAxis = 'width' | 'height' | 'both';
+
+export class SessionComparisonDialogResizeController extends Disposable {
+
+	private readonly widthHandle: HTMLElement;
+	private readonly heightHandle: HTMLElement;
+	private readonly cornerHandle: HTMLElement;
+
+	constructor(
+		private readonly dialogElement: HTMLElement,
+		private readonly handleContainer: HTMLElement,
+		private readonly storageService: IStorageService,
+	) {
+		super();
+
+		this.widthHandle = this._createHandle(
+			'session-comparison-setup-resize-width',
+			localize('sessionComparisonSetup.resizeWidth', "Resize dialog width"),
+			'width',
+		);
+		this.heightHandle = this._createHandle(
+			'session-comparison-setup-resize-height',
+			localize('sessionComparisonSetup.resizeHeight', "Resize dialog height"),
+			'height',
+		);
+		this.cornerHandle = dom.append(this.handleContainer, dom.$('.session-comparison-setup-resize-handle.session-comparison-setup-resize-both'));
+		this.cornerHandle.setAttribute('aria-hidden', 'true');
+
+		this._registerPointerResize(this.widthHandle, 'width');
+		this._registerPointerResize(this.heightHandle, 'height');
+		this._registerPointerResize(this.cornerHandle, 'both');
+		this._restoreSize();
+
+		this._register({
+			dispose: () => {
+				this.widthHandle.remove();
+				this.heightHandle.remove();
+				this.cornerHandle.remove();
+			},
+		});
+	}
+
+	private _createHandle(className: string, ariaLabel: string, axis: Exclude<SessionComparisonDialogResizeAxis, 'both'>): HTMLElement {
+		const handle = dom.append(this.handleContainer, dom.$(`.session-comparison-setup-resize-handle.${className}`));
+		handle.tabIndex = 0;
+		handle.setAttribute('role', 'slider');
+		handle.setAttribute('aria-label', ariaLabel);
+		handle.setAttribute('aria-orientation', axis === 'width' ? 'horizontal' : 'vertical');
+		this._register(dom.addDisposableListener(handle, 'keydown', event => this._onHandleKeyDown(event, axis)));
+		this._register(dom.addDisposableListener(handle, 'focus', () => this._updateHandleValues()));
+		return handle;
+	}
+
+	private _registerPointerResize(handle: HTMLElement, axis: SessionComparisonDialogResizeAxis): void {
+		type ResizeStart = {
+			readonly pointerId: number;
+			readonly clientX: number;
+			readonly clientY: number;
+			readonly width: number;
+			readonly height: number;
+		};
+
+		let start: ResizeStart | undefined;
+		this._register(dom.addDisposableListener(handle, 'pointerdown', event => {
+			if (event.button !== 0) {
+				return;
+			}
+
+			const bounds = this.dialogElement.getBoundingClientRect();
+			start = {
+				pointerId: event.pointerId,
+				clientX: event.clientX,
+				clientY: event.clientY,
+				width: bounds.width,
+				height: bounds.height,
+			};
+			if (handle.tabIndex >= 0) {
+				handle.focus();
+			}
+			handle.setPointerCapture(event.pointerId);
+			event.preventDefault();
+		}));
+		this._register(dom.addDisposableListener(handle, 'pointermove', event => {
+			if (!start || event.pointerId !== start.pointerId) {
+				return;
+			}
+
+			const width = axis === 'height' ? start.width : start.width + ((event.clientX - start.clientX) * 2);
+			const height = axis === 'width' ? start.height : start.height + ((event.clientY - start.clientY) * 2);
+			this._setSize(width, height);
+			event.preventDefault();
+		}));
+		const finishResize = (event: PointerEvent): void => {
+			if (!start || event.pointerId !== start.pointerId) {
+				return;
+			}
+
+			start = undefined;
+			if (handle.hasPointerCapture(event.pointerId)) {
+				handle.releasePointerCapture(event.pointerId);
+			}
+			this._persistSize();
+		};
+		this._register(dom.addDisposableListener(handle, 'pointerup', finishResize));
+		this._register(dom.addDisposableListener(handle, 'pointercancel', finishResize));
+	}
+
+	private _onHandleKeyDown(event: KeyboardEvent, axis: Exclude<SessionComparisonDialogResizeAxis, 'both'>): void {
+		const bounds = this.dialogElement.getBoundingClientRect();
+		const step = event.shiftKey ? SESSION_COMPARISON_DIALOG_KEYBOARD_RESIZE_STEP * 2 : SESSION_COMPARISON_DIALOG_KEYBOARD_RESIZE_STEP;
+		let width = bounds.width;
+		let height = bounds.height;
+
+		if (axis === 'width' && event.key === 'ArrowLeft') {
+			width -= step;
+		} else if (axis === 'width' && event.key === 'ArrowRight') {
+			width += step;
+		} else if (axis === 'height' && event.key === 'ArrowUp') {
+			height -= step;
+		} else if (axis === 'height' && event.key === 'ArrowDown') {
+			height += step;
+		} else {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		this._setSize(width, height);
+		this._persistSize();
+	}
+
+	private _restoreSize(): void {
+		const width = this.storageService.getNumber(SESSION_COMPARISON_DIALOG_WIDTH_STORAGE_KEY, StorageScope.PROFILE);
+		const height = this.storageService.getNumber(SESSION_COMPARISON_DIALOG_HEIGHT_STORAGE_KEY, StorageScope.PROFILE);
+		if (width === undefined && height === undefined) {
+			this._updateHandleValues();
+			return;
+		}
+
+		this._setSize(width, height);
+	}
+
+	private _setSize(width: number | undefined, height: number | undefined): void {
+		const targetWindow = dom.getWindow(this.dialogElement);
+		const maxWidth = Math.floor(targetWindow.innerWidth * SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO);
+		const maxHeight = Math.floor(targetWindow.innerHeight * SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO);
+		if (width !== undefined) {
+			const clampedWidth = Math.max(Math.min(SESSION_COMPARISON_DIALOG_MIN_WIDTH, maxWidth), Math.min(maxWidth, width));
+			if (Number.isFinite(clampedWidth) && clampedWidth > 0) {
+				this.dialogElement.style.width = `${Math.round(clampedWidth)}px`;
+			}
+		}
+		if (height !== undefined) {
+			const clampedHeight = Math.max(Math.min(SESSION_COMPARISON_DIALOG_MIN_HEIGHT, maxHeight), Math.min(maxHeight, height));
+			if (Number.isFinite(clampedHeight) && clampedHeight > 0) {
+				this.dialogElement.style.height = `${Math.round(clampedHeight)}px`;
+			}
+		}
+		this.dialogElement.classList.add('session-comparison-setup-dialog-resized');
+		this._updateHandleValues();
+	}
+
+	private _updateHandleValues(): void {
+		const bounds = this.dialogElement.getBoundingClientRect();
+		const targetWindow = dom.getWindow(this.dialogElement);
+		this.widthHandle.setAttribute('aria-valuemin', `${Math.min(SESSION_COMPARISON_DIALOG_MIN_WIDTH, Math.floor(targetWindow.innerWidth * SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO))}`);
+		this.widthHandle.setAttribute('aria-valuemax', `${Math.floor(targetWindow.innerWidth * SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO)}`);
+		this.widthHandle.setAttribute('aria-valuenow', `${Math.round(bounds.width)}`);
+		this.heightHandle.setAttribute('aria-valuemin', `${Math.min(SESSION_COMPARISON_DIALOG_MIN_HEIGHT, Math.floor(targetWindow.innerHeight * SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO))}`);
+		this.heightHandle.setAttribute('aria-valuemax', `${Math.floor(targetWindow.innerHeight * SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO)}`);
+		this.heightHandle.setAttribute('aria-valuenow', `${Math.round(bounds.height)}`);
+	}
+
+	private _persistSize(): void {
+		const bounds = this.dialogElement.getBoundingClientRect();
+		this.storageService.store(SESSION_COMPARISON_DIALOG_WIDTH_STORAGE_KEY, Math.round(bounds.width), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(SESSION_COMPARISON_DIALOG_HEIGHT_STORAGE_KEY, Math.round(bounds.height), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+}
+
 export class SessionComparisonSetupDialog extends Disposable {
 
 	private readonly activeDialog = this._register(new MutableDisposable<DisposableStore>());
@@ -60,6 +248,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 	}
@@ -69,7 +258,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 		this.activeDialog.value = disposables;
 		const rowsDisposables = disposables.add(new DisposableStore());
 		let attempts = [...initialAttempts];
-		let body: HTMLElement | undefined;
+		let content: HTMLElement | undefined;
 		let confirmButton: IButton | undefined;
 		let validationElement: HTMLElement | undefined;
 		let prompt = context.prompt;
@@ -107,16 +296,16 @@ export class SessionComparisonSetupDialog extends Disposable {
 		};
 
 		const renderRows = (focusAttemptId?: string): void => {
-			if (!body) {
+			if (!content) {
 				return;
 			}
 			evaluationExpanded = renderedEvaluation?.open ?? evaluationExpanded;
 			renderedEvaluation = undefined;
 			rowsDisposables.clear();
-			dom.clearNode(body);
+			dom.clearNode(content);
 			validationElement = undefined;
 
-			const promptSection = dom.append(body, dom.$('.session-comparison-setup-prompt'));
+			const promptSection = dom.append(content, dom.$('.session-comparison-setup-prompt'));
 			const promptHeading = dom.append(promptSection, dom.$('h3.session-comparison-setup-section-title'));
 			promptHeading.id = `session-comparison-prompt-${generateUuid()}`;
 			promptHeading.textContent = localize('sessionComparisonSetup.prompt', "Prompt");
@@ -135,7 +324,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				context.setPrompt(value);
 				updateValidation();
 			}));
-			const contextSummary = dom.append(body, dom.$('.session-comparison-setup-context-summary'));
+			const contextSummary = dom.append(content, dom.$('.session-comparison-setup-context-summary'));
 			dom.append(contextSummary, dom.$('span')).textContent = localize('sessionComparisonSetup.startingFrom', "Starting from");
 			dom.append(contextSummary, dom.$('span.session-comparison-setup-context-value')).textContent = context.workspaceLabel;
 			if (context.branch !== undefined) {
@@ -152,10 +341,10 @@ export class SessionComparisonSetupDialog extends Disposable {
 					localize('sessionComparisonSetup.attachedContextCount', "{0} context items", context.attachedContextCount);
 			}
 
-			const usage = dom.append(body, dom.$('.session-comparison-setup-usage'));
+			const usage = dom.append(content, dom.$('.session-comparison-setup-usage'));
 			usage.textContent = localize('sessionComparisonSetup.usage', "Each attempt runs in an isolated worktree. Nothing is applied automatically.");
 
-			const attemptsSection = dom.append(body, dom.$('.session-comparison-setup-attempts'));
+			const attemptsSection = dom.append(content, dom.$('.session-comparison-setup-attempts'));
 			const attemptsHeading = dom.append(attemptsSection, dom.$('h3.session-comparison-setup-section-title'));
 			attemptsHeading.id = `session-comparison-attempts-${generateUuid()}`;
 			attemptsHeading.textContent =
@@ -409,7 +598,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				renderRows(attempt.id);
 			}));
 
-			const evaluation = dom.append(body, dom.$('details.session-comparison-setup-evaluation')) as HTMLDetailsElement;
+			const evaluation = dom.append(content, dom.$('details.session-comparison-setup-evaluation')) as HTMLDetailsElement;
 			renderedEvaluation = evaluation;
 			evaluation.open = evaluationExpanded;
 			const evaluationSummary = dom.append(evaluation, dom.$('summary.session-comparison-setup-evaluation-summary'));
@@ -442,7 +631,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				evaluationExpanded = evaluation.open;
 			}));
 
-			validationElement = dom.append(body, dom.$('.session-comparison-setup-validation'));
+			validationElement = dom.append(content, dom.$('.session-comparison-setup-validation'));
 			validationElement.setAttribute('role', 'status');
 			validationElement.setAttribute('aria-live', 'polite');
 			updateValidation();
@@ -472,8 +661,13 @@ export class SessionComparisonSetupDialog extends Disposable {
 						},
 					}],
 					renderBody: container => {
-						body = container;
-						body.classList.add('session-comparison-setup-body');
+						container.classList.add('session-comparison-setup-body');
+						content = dom.append(container, dom.$('.session-comparison-setup-content'));
+						const dialogElement = container.closest<HTMLElement>('.session-comparison-setup-dialog');
+						if (!dialogElement) {
+							throw new Error('Session comparison setup dialog element not found.');
+						}
+						disposables.add(new SessionComparisonDialogResizeController(dialogElement, container, this.storageService));
 						renderRows();
 					},
 				},

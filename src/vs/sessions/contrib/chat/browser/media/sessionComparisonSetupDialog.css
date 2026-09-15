@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .session-comparison-setup-dialog {
+	position: relative;
+	box-sizing: border-box;
 	width: min(560px, calc(100% - var(--vscode-spacing-size320)));
 }
 
@@ -22,16 +24,26 @@
 }
 
 .monaco-dialog-box.session-comparison-setup-dialog .dialog-message-body {
+	flex: 1 1 auto;
 	min-height: 0;
 	overflow: hidden;
 }
 
 .session-comparison-setup-body {
 	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	max-height: calc(90vh - 120px);
+}
+
+.session-comparison-setup-content {
+	display: flex;
+	flex: 1 1 auto;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
-	max-height: calc(90vh - 120px);
+	min-height: 0;
 }
 
 .session-comparison-setup-validation,
@@ -75,6 +87,7 @@
 
 .session-comparison-setup-attempts {
 	display: flex;
+	flex: 1 1 auto;
 	flex-direction: column;
 	min-height: 0;
 }
@@ -91,6 +104,58 @@
 	max-height: 220px;
 	overflow: hidden;
 	padding-right: var(--vscode-spacing-size60);
+}
+
+.session-comparison-setup-dialog-resized .session-comparison-setup-rows {
+	max-height: none;
+}
+
+.session-comparison-setup-resize-handle {
+	position: absolute;
+	z-index: 1;
+	touch-action: none;
+}
+
+.session-comparison-setup-resize-width {
+	top: 0;
+	right: calc(-1 * var(--vscode-spacing-size40));
+	width: var(--vscode-spacing-size80);
+	height: 100%;
+	cursor: ew-resize;
+}
+
+.session-comparison-setup-resize-height {
+	bottom: calc(-1 * var(--vscode-spacing-size40));
+	left: 0;
+	width: 100%;
+	height: var(--vscode-spacing-size80);
+	cursor: ns-resize;
+}
+
+.session-comparison-setup-resize-both {
+	right: calc(-1 * var(--vscode-spacing-size40));
+	bottom: calc(-1 * var(--vscode-spacing-size40));
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	cursor: nwse-resize;
+}
+
+.session-comparison-setup-resize-both::after {
+	position: absolute;
+	right: var(--vscode-spacing-size40);
+	bottom: var(--vscode-spacing-size40);
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+	content: '';
+	opacity: 0.7;
+}
+
+.session-comparison-setup-resize-width:focus-visible,
+.session-comparison-setup-resize-height:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .session-comparison-setup-row {
