@@ -72,6 +72,32 @@
 	height: 26px;
 }
 
+.agent-host-filter-combo.sidebar .agent-host-filter-diagnostics {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 26px;
+	height: 26px;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.agent-host-filter-combo.sidebar .agent-host-filter-diagnostics .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.agent-host-filter-combo.sidebar .agent-host-filter-diagnostics:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.agent-host-filter-combo.sidebar .agent-host-filter-diagnostics:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 /* --- Dropdown pill ------------------------------------------------------ */
 
 .agent-host-filter-combo .agent-host-filter-dropdown {

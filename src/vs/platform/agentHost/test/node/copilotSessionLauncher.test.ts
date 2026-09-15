@@ -78,6 +78,7 @@ function returningSession(session: CopilotSession): CopilotClient {
 class CapturingLogService extends NullLogService {
 	readonly traces: string[] = [];
 	readonly errors: string[] = [];
+	readonly infos: string[] = [];
 
 	override getLevel(): LogLevel {
 		return LogLevel.Trace;
@@ -89,6 +90,10 @@ class CapturingLogService extends NullLogService {
 
 	override error(message: string): void {
 		this.errors.push(message);
+	}
+
+	override info(message: string): void {
+		this.infos.push(message);
 	}
 }
 
@@ -714,7 +719,10 @@ suite('CopilotSessionLauncher shared session config', () => {
 					pluginDir.fsPath,
 					syntheticPluginDir.fsPath,
 					testWorkingDirectory.fsPath,
-				].filter(value => logService.traces.some(message => message.includes('MCP launch projection:') && message.includes(value))),
+				].filter(value => logService.traces.some(message => message.includes('MCP launch projection:') && message.includes(value))
+					|| logService.infos.some(message => message.includes(value))),
+				resumeLogs: logService.infos.filter(message => message.includes('SDK resumeSession '))
+					.map(message => message.replace(/attemptId=[\da-f-]+/g, 'attemptId=<id>').replace(/elapsedMs=\d+$/, 'elapsedMs=<ms>')),
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
@@ -782,6 +790,10 @@ suite('CopilotSessionLauncher shared session config', () => {
 					},
 				],
 				sensitiveProjectionValues: [],
+				resumeLogs: [
+					'[Copilot:session-1] SDK resumeSession started: attemptId=<id>',
+					'[Copilot:session-1] SDK resumeSession settled: attemptId=<id>, outcome=success, elapsedMs=<ms>',
+				],
 			});
 		} finally {
 			sessions.dispose();
@@ -800,7 +812,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	}
 
-	function createResumeFailingLaunch(message: string, code = -32603, sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number } {
+	function createResumeFailingLaunch(message: string, code = -32603, sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, logService: ILogService = new NullLogService()): { readonly launcher: CopilotSessionLauncher; readonly plan: CopilotSessionLaunchPlan; readonly getCreateSessionCalls: () => number } {
 		let createSessionCalls = 0;
 		const session = {
 			sessionId: 'session-1',
@@ -819,7 +831,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			},
 		};
 		return {
-			launcher: createTestLauncher(undefined, {}, new NullLogService(), sessionOpenTelemetry),
+			launcher: createTestLauncher(undefined, {}, logService, sessionOpenTelemetry),
 			plan: {
 				client,
 				sessionId: 'session-1',
@@ -909,12 +921,30 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	});
 
-	test('does not replace a session with an empty one for an unrecognized -32603', async () => {
-		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
+	test('logs resume failure without replacing the session for an unrecognized -32603', async () => {
+		const logService = new CapturingLogService();
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: session resume failed: GenericFailure, subagent telemetry projection state is not initialized', -32603, noopSessionOpenTelemetry, logService);
 
 		try {
-			await assert.rejects(() => launcher.launch(plan, testRuntime), /something went wrong/);
-			assert.strictEqual(getCreateSessionCalls(), 0);
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /subagent telemetry projection state is not initialized/);
+			const resumeLogs = logService.infos.filter(message => message.includes('SDK resumeSession '));
+			const attemptIds = resumeLogs.map(message => message.match(/attemptId=(?<id>[\da-f-]{36})/)?.groups?.id);
+			assert.deepStrictEqual({
+				createSessionCalls: getCreateSessionCalls(),
+				preparation: logService.infos.find(message => message.includes('Preparing SDK session:')),
+				resumeLogs: resumeLogs.map(message => message.replace(/attemptId=[\da-f-]+/g, 'attemptId=<id>').replace(/elapsedMs=\d+$/, 'elapsedMs=<ms>')),
+				attemptCount: new Set(attemptIds).size,
+				missingAttemptId: attemptIds.includes(undefined),
+			}, {
+				createSessionCalls: 0,
+				preparation: `[Copilot:session-1] Preparing SDK session: kind=resume, configuration=${testRuntime.configurationResource.toString()}, chat=${testRuntime.chatUri.toString()}`,
+				resumeLogs: [
+					'[Copilot:session-1] SDK resumeSession started: attemptId=<id>',
+					'[Copilot:session-1] SDK resumeSession settled: attemptId=<id>, outcome=error, elapsedMs=<ms>',
+				],
+				attemptCount: 1,
+				missingAttemptId: false,
+			});
 		} finally {
 			await launcher.disposeByokProxyHandle();
 		}

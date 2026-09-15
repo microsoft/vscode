@@ -36,6 +36,8 @@ export const enum CopilotCliConfigKey {
 	ReasoningSummary = 'reasoningSummary',
 	/** Enable the experimental HydraFusion synthetic model. Off by default. */
 	HydraFusion = 'hydraFusion',
+	/** Character budget for skill descriptions included in the Copilot SDK system message. */
+	SkillCharBudget = 'skillCharBudget',
 	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
 	AutoModeTiers = 'autoModeTiers',
 	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
@@ -71,6 +73,8 @@ export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
+export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
+
 export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
 
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
@@ -87,6 +91,12 @@ export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
+export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
+
+/** Floors valid skill character budgets and returns the default for invalid values. */
+export function normalizeSkillCharBudget(value: number | undefined): number {
+	return value !== undefined && Number.isFinite(value) && value >= 1 ? Math.floor(value) : DEFAULT_COPILOT_SKILL_CHAR_BUDGET;
+}
 
 /** Floors valid tool-search thresholds and returns the default for invalid values. */
 export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
@@ -210,6 +220,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
 		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.skillCharBudget.title', "Skill Character Budget"),
+		description: localize('agentHost.config.skillCharBudget.description', "Maximum number of characters available for skill descriptions in the Copilot SDK system message."),
+		default: DEFAULT_COPILOT_SKILL_CHAR_BUDGET,
 	}),
 	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
 		type: 'boolean',

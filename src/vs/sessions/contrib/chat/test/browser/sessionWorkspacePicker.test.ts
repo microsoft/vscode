@@ -503,8 +503,14 @@ suite('WorkspacePicker - Connection Status', () => {
 				alignToAnchorTop: unifiedRemoteItem?.hover?.alignToAnchorTop,
 				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
 				submenuFilterPlaceholder: unifiedRemoteItem?.submenuOptions?.filterPlaceholder,
+				submenuFocusFilterOnOpen: unifiedRemoteItem?.submenuOptions?.focusFilterOnOpen,
 				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
+				openSubmenuOnClick: unifiedRemoteItem?.openSubmenuOnClick,
 			},
+			unifiedFilteredRemoteItems: unifiedRemoteItem?.filterItems?.map(item => ({
+				label: item.label,
+				ariaLabel: item.item?.ariaLabel,
+			})),
 			unifiedSubmenu: unifiedRemoteActions instanceof SubmenuAction
 				? unifiedRemoteActions.actions.map(action => ({
 					label: action.label,
@@ -526,8 +532,17 @@ suite('WorkspacePicker - Connection Status', () => {
 				alignToAnchorTop: true,
 				submenuFilter: true,
 				submenuFilterPlaceholder: 'Search Remote',
+				submenuFocusFilterOnOpen: true,
 				submenuWidth: 180,
+				openSubmenuOnClick: true,
 			},
+			unifiedFilteredRemoteItems: [
+				{ label: 'Manage Provider agenthost-tunnel-one', ariaLabel: 'Provider agenthost-tunnel-one, Online · 1 active session' },
+				{ label: 'Manage Provider agenthost-tunnel-two', ariaLabel: 'Provider agenthost-tunnel-two, Online · 2 active sessions' },
+				{ label: 'Manage Provider agenthost-tunnel-idle', ariaLabel: 'Provider agenthost-tunnel-idle, Online' },
+				{ label: 'Manage Provider agenthost-ssh', ariaLabel: 'Provider agenthost-ssh, Online · 1 active session' },
+				{ label: 'Manage Provider agenthost-wsl', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
+			],
 			unifiedSubmenu: [
 				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
 				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
@@ -4032,6 +4047,20 @@ suite('WorkspacePicker - Tab discovery', () => {
 			focusesFilter: true,
 			filterPlaceholder: 'Search',
 		});
+	});
+
+	test('strips only trailing ellipses from unified browse action labels', () => {
+		const labels = ['Repository...', 'Repository\u2026', 'Repo...sitory', 'Repo\u2026sitory', 'Repository'];
+		providersService.setProviders([
+			createMockProvider('github', {
+				browseActions: labels.map(label => makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, label)),
+			}),
+		]);
+		const picker = createTestablePicker(disposables, providersService, false, {}, undefined, undefined, true);
+
+		picker.selectWorkspaceActions();
+
+		assert.deepStrictEqual(picker.getItemLabels(), ['Repository', 'Repository', 'Repo...sitory', 'Repo\u2026sitory', 'Repository']);
 	});
 
 	test('uses location icons and hides GitHub recents represented by local folders when enabled', () => {

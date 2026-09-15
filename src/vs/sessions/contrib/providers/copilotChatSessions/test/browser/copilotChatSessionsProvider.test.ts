@@ -1333,23 +1333,52 @@ suite('CopilotChatSessionsProvider', () => {
 	test('Copilot CLI session maps workspace selection to Agent Host folder config', async () => {
 		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }));
 		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		await timeout(0);
 		const providerSession = provider.getSession(session.sessionId) as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
 		providerSession.setIsolationMode('workspace');
 
-		assert.strictEqual(providerSession.isolationMode.get(), 'workspace');
-		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), { isolation: 'folder' });
+		assert.deepStrictEqual({
+			config: providerSession.getAgentHostSessionConfig(),
+			newSessionConfig: await provider.getNewSessionConfig(session.sessionId),
+		}, {
+			config: { isolation: 'folder' },
+			newSessionConfig: { isolation: 'folder', providerConfig: { repository: URI.file('/test/project').fsPath, isolation: 'folder' } },
+		});
 		providerSession.dispose();
 	});
 
 	test('Copilot CLI session maps worktree selection to Agent Host config', async () => {
 		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }));
 		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		await timeout(0);
 		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
 		providerSession.setIsolationMode('worktree');
 		providerSession.setBranch('main');
 
-		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), { isolation: 'worktree', branch: 'main' });
+		assert.deepStrictEqual({
+			config: providerSession.getAgentHostSessionConfig(),
+			newSessionConfig: await provider.getNewSessionConfig(session.sessionId),
+		}, {
+			config: { isolation: 'worktree', branch: 'main' },
+			newSessionConfig: { isolation: 'worktree', providerConfig: { repository: URI.file('/test/project').fsPath, isolation: 'worktree', branch: 'main' } },
+		});
 		providerSession.dispose();
+	});
+
+	test('new session config captures cloud provider options', async () => {
+		const provider = createProvider(disposables, model);
+		const session = provider.createNewSession(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repository' }), CopilotCloudSessionType.id);
+		const providerSession = provider.getSession(session.sessionId)!;
+		providerSession.setOption?.('customOption', { id: 'selected', name: 'Selected' });
+		const config = await provider.getNewSessionConfig(session.sessionId);
+		providerSession.setOption?.('customOption', { id: 'changed', name: 'Changed' });
+
+		assert.deepStrictEqual({
+			selected: config?.providerConfig.customOption,
+			current: (await provider.getNewSessionConfig(session.sessionId))?.providerConfig.customOption,
+			isolation: config?.isolation,
+			missing: await provider.getNewSessionConfig('missing'),
+		}, { selected: 'selected', current: 'changed', isolation: undefined, missing: undefined });
 	});
 
 	test('Copilot CLI session forwards git.branchPrefix as worktreeBranchPrefix for worktree isolation', async () => {

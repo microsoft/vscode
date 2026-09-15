@@ -11,9 +11,10 @@ import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';
 import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
+import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import product from '../product.json' with { type: 'json' };
 import { getProductionDependencies } from './lib/dependencies.ts';
-import { readISODate } from './lib/date.ts';
+import { readISODate, writeISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { untar } from './lib/util.ts';
@@ -22,13 +23,14 @@ import * as fs from 'fs';
 import glob from 'glob';
 import { promisify } from 'util';
 import rceditCallback from 'rcedit';
-import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { compileApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
 import crypto from 'crypto';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
+import { runEsbuildBundle } from './lib/esbuild.ts';
 import { fetchUrls } from './lib/fetch.ts';
 import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
@@ -412,6 +414,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor((json: Record<string, unknown>) => {
 				json.commit = commit;
+				json.nlsMetadataHash = computeNLSMetadataHash(path.join(REPO_ROOT, sourceFolderName), commit);
 				json.date = readISODate(sourceFolderName);
 				json.version = version;
 				// Stamp agentSdks from the per-platform results file produced
@@ -649,6 +652,10 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 	));
 	task.task(minifyTask);
 
+	const target = type === 'reh' ? 'server' : 'server-web';
+	const esbuildBundleTask = task.define(`esbuild-vscode-${type}`, () => runEsbuildBundle(`out-vscode-${type}`, false, true, target));
+	const esbuildBundleMinTask = task.define(`esbuild-vscode-${type}-min`, () => runEsbuildBundle(`out-vscode-${type}-min`, true, true, target, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`));
+
 	BUILD_TARGETS.forEach(buildTarget => {
 		const dashed = (str: string) => (str ? `-${str}` : ``);
 		const platform = buildTarget.platform;
@@ -674,12 +681,14 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			task.task(serverTaskCI);
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				compileBuildWithManglingTask,
+				copyCodiconsTask,
+				compileApiProposalNamesTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
 				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
-				minified ? minifyTask : bundleTask,
+				writeISODate('out-build'),
+				minified ? esbuildBundleMinTask : esbuildBundleTask,
 				serverTaskCI
 			));
 			task.task(serverTask);

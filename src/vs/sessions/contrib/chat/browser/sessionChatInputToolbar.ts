@@ -31,7 +31,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef, type IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -43,7 +43,7 @@ import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../ser
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
-import { createIssueHover } from '../../github/browser/issueHover.js';
+import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
 import { linkKey } from '../../../common/sessionLinks.js';
 
@@ -82,8 +82,26 @@ function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, ope
 	};
 }
 
+interface ICachedHover {
+	readonly element: HTMLElement;
+	readonly tabbableElements: readonly HTMLElement[];
+}
+
+function createCachedHover<T extends IGitHubPullRequestRef | IGitHubIssueRef>(cache: WeakMap<T, ICachedHover> | undefined, reference: T, createHover: () => { readonly element: HTMLElement; readonly tabbableElements: readonly HTMLElement[] }): ICachedHover {
+	const hover = createHover();
+	const cachedHover = cache?.get(reference);
+	if (!cachedHover) {
+		const result = { element: hover.element, tabbableElements: hover.tabbableElements };
+		cache?.set(reference, result);
+		return result;
+	}
+	cachedHover.element.className = hover.element.className;
+	cachedHover.element.replaceChildren(...hover.element.childNodes);
+	return { element: cachedHover.element, tabbableElements: hover.tabbableElements };
+}
+
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: { readonly artifacts: readonly ISessionArtifact[]; remove(artifactIds: readonly string[]): Promise<void> }): readonly IChatPullRequestPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: { readonly artifacts: readonly ISessionArtifact[]; remove(artifactIds: readonly string[]): Promise<void> }, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
 		const artifacts = artifactActions?.artifacts.filter(artifact => artifact.isArtifact && artifact.kind === SessionArtifactKind.PullRequest && artifact.link && linkKey(artifact.link.toString(true)) === linkKey(ref.uri.toString(true)));
 		const title = pullRequest?.title ?? ref.title;
@@ -100,7 +118,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			...(pullRequest.headRef ? { onDidClickHeadBranch: () => { void clipboardService.writeText(pullRequest.headRef); } } : {}),
 		}) : undefined;
 		const createDropdownHover = createHover ? () => {
-			const hover = createHover('compact');
+			const hover = createCachedHover(dropdownHoverCache, ref, () => createHover('compact'));
 			hoverTabbableElements = hover.tabbableElements;
 			return hover.element;
 		} : undefined;
@@ -171,7 +189,7 @@ interface IResolvedSessionIssue {
 }
 
 /** Builds Agents Window issue pill entries, enriching them when live details are available. */
-export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
+export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
 	const entries = issues.map(({ ref, issue }) => {
 		const title = issue?.title ?? ref.title;
 		let hoverTabbableElements: readonly HTMLElement[] = [];
@@ -184,7 +202,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			density,
 		}) : undefined;
 		const createDropdownHover = createHover ? () => {
-			const hover = createHover('compact');
+			const hover = createCachedHover(dropdownHoverCache, ref, () => createHover('compact'));
 			hoverTabbableElements = hover.tabbableElements;
 			return hover.element;
 		} : undefined;
@@ -205,6 +223,9 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
 			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			ariaDescription: issue
+				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, ref.uri.toString(true))
+				: ref.uri.toString(true),
 			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
@@ -255,6 +276,8 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
 	private readonly _browsers: SessionBrowsersControl;
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
+	private readonly _pullRequestDropdownHoverCache = new WeakMap<IGitHubPullRequestRef, ICachedHover>();
+	private readonly _issueDropdownHoverCache = new WeakMap<IGitHubIssueRef, ICachedHover>();
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
@@ -355,7 +378,7 @@ export class SessionChatInputToolbar extends Disposable {
 					}
 				},
 			} : undefined;
-			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, artifactActions);
+			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, artifactActions, this._pullRequestDropdownHoverCache);
 		});
 		const issueRefs = derived(this, reader => gitHubInfo.read(reader)?.issues ?? []);
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
@@ -379,7 +402,7 @@ export class SessionChatInputToolbar extends Disposable {
 				}));
 			}
 		}));
-		const issueSections = derived(this, reader => buildSessionIssueSections(issues.read(reader), this._session.read(reader), commandService, clipboardService, openerService, this._sessionsService));
+		const issueSections = derived(this, reader => buildSessionIssueSections(issues.read(reader), this._session.read(reader), commandService, clipboardService, openerService, this._sessionsService, this._issueDropdownHoverCache));
 		const issueIcon = derived(this, reader => {
 			const resolved = issues.read(reader);
 			if (resolved.length === 1) {
