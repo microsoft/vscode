@@ -13,11 +13,21 @@ import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
+import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('EditorResolverService', () => {
+	test('Agents window editor defaults use the Integrated Browser for HTML and follow the Markdown editor setting', () => {
+		assert.deepStrictEqual({
+			enabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true }),
+			disabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: false }),
+		}, {
+			enabled: { '*.html': 'workbench.editor.browser', '*.md': 'vscode.markdown.editor' },
+			disabled: { '*.html': 'workbench.editor.browser', '*.md': 'vscode.markdown.preview.editor' },
+		});
+	});
+
 	test('Agents window diff editor default follows the Markdown editor setting', () => {
 		assert.deepStrictEqual({
 			enabled: diffEditorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true }),
