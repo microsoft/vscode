@@ -172,6 +172,36 @@
       {
         "fileMatch": "*.schema.json",
         "url": "http://json-schema.org/draft-07/schema#"
+      },
+      {
+        "fileMatch": [
+          "arazzo.json",
+          "arazzo.yml",
+          "arazzo.yaml"
+        ],
+        "url": "https://www.schemastore.org/openapi-arazzo-1.X.json"
+      },
+      {
+        "fileMatch": [
+          "openapi.json",
+          "openapi.yml",
+          "openapi.yaml",
+          "*.openapi.json",
+          "*.openapi.yml",
+          "*.openapi.yaml"
+        ],
+        "url": "https://www.schemastore.org/openapi-3.X.json"
+      },
+      {
+        "fileMatch": [
+          "overlay.json",
+          "overlay.yml",
+          "overlay.yaml",
+          "*.overlay.json",
+          "*.overlay.yml",
+          "*.overlay.yaml"
+        ],
+        "url": "https://www.schemastore.org/openapi-overlay-1.X.json"
       }
     ],
     "jsonValidationRegistry": [
