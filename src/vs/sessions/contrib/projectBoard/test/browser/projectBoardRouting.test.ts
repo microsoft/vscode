@@ -173,6 +173,7 @@ suite('Project Board Agents routing', () => {
 				order: 5,
 			},
 			settingActions: [
+				'projectBoard.settings.autoIncludeSessions',
 				'projectBoard.settings.stateDuration',
 				'projectBoard.settings.credits',
 				'projectBoard.settings.lastPrompt',
@@ -189,6 +190,7 @@ suite('Project Board Agents routing', () => {
 			addAxis: async kind => { calls.push(`add:${kind}`); },
 			toggleArchived: () => { calls.push('archived'); },
 			createSession: async () => { calls.push('session'); },
+			toggleAutoIncludeSessions: () => { calls.push('autoInclude'); },
 			toggleDisplayOption: key => { calls.push(`display:${key}`); },
 		}));
 
@@ -197,11 +199,12 @@ suite('Project Board Agents routing', () => {
 			KANBAN_ADD_COLUMN_COMMAND_ID,
 			KANBAN_TOGGLE_ARCHIVED_COMMAND_ID,
 			KANBAN_NEW_SESSION_COMMAND_ID,
+			'projectBoard.settings.autoIncludeSessions',
 			'projectBoard.settings.credits',
 		]) {
 			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
 		}
 
-		assert.deepStrictEqual(calls, ['add:row', 'add:column', 'archived', 'session', 'display:showCredits']);
+		assert.deepStrictEqual(calls, ['add:row', 'add:column', 'archived', 'session', 'autoInclude', 'display:showCredits']);
 	});
 });

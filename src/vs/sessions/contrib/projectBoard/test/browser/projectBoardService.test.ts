@@ -46,6 +46,7 @@ import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/
 import { submitChatQuestionCarousel } from '../../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { SessionsDataTransfers } from '../../../../browser/dnd.js';
 
 class TestChat extends mock<IChat>() {
 	override readonly title = observableValue('title', this.name);
@@ -79,6 +80,7 @@ suite('ProjectBoardService', () => {
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		const session = new class extends mock<ISession>() {
+			override readonly sessionId = 'test-session';
 			override readonly resource = URI.parse('test-session:session');
 			override readonly providerId = 'test';
 			override readonly title = observableValue('session-title', 'Owning session');
@@ -338,7 +340,7 @@ suite('ProjectBoardService', () => {
 		const settings = h.container.querySelector('[data-board-control="settings"]')!;
 		assert.strictEqual(settings.textContent, '');
 		assert.ok(settings.classList.contains('codicon-settings-gear'));
-		assert.strictEqual(settings.getAttribute('aria-label'), 'Board display settings');
+		assert.strictEqual(settings.getAttribute('aria-label'), 'Board settings');
 		assert.strictEqual(h.container.querySelector('.project-board-card-duration, .project-board-card-credits'), null);
 		const toggle = async (id: string, checked: boolean) => {
 			const button = h.currentContainer.querySelector<HTMLElement>('[data-board-control="settings"]')!;
@@ -376,6 +378,42 @@ suite('ProjectBoardService', () => {
 		assert.ok(h.includeCredits.calledWith(false));
 		assert.deepStrictEqual(h.opened, []);
 		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('auto-include sessions hides unplaced chats and a Sessions list drop explicitly places them', () => {
+		const chats = [new TestChat('First chat'), new TestChat('Second chat')];
+		const h = createBoard(mainWindow.document, chats);
+		store.add(h.service.createView(h.container));
+		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 2);
+
+		h.service.toggleAutoIncludeSessions();
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned .project-board-empty')?.textContent, 'Drop a chat here');
+
+		const dataTransfer = new mainWindow.DataTransfer();
+		dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({
+			sessionId: h.session.sessionId,
+			resource: h.session.resource.toString(),
+		}));
+		const unassigned = h.container.querySelector<HTMLElement>('.project-board-unassigned')!;
+		const unassignedDragOver = new mainWindow.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer });
+		unassigned.dispatchEvent(unassignedDragOver);
+		assert.strictEqual(unassignedDragOver.defaultPrevented, false);
+
+		const target = h.container.querySelector<HTMLElement>('[aria-label="General, P1"]')!;
+		const dragOver = new mainWindow.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer });
+		target.dispatchEvent(dragOver);
+		target.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+
+		assert.deepStrictEqual({
+			accepted: dragOver.defaultPrevented,
+			placed: [...h.container.querySelectorAll('[aria-label="General, P1"] h4')].map(element => element.textContent),
+			unassigned: h.container.querySelectorAll('.project-board-unassigned .project-board-card').length,
+		}, {
+			accepted: true,
+			placed: ['First chat', 'Second chat'],
+			unassigned: 0,
+		});
 	});
 
 	test('PB-18 bottom status bar wraps transparent metrics after the timestamp and retains credit hover', async () => {
