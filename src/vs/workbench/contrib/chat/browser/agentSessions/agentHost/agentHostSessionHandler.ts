@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
-import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -882,6 +882,8 @@ export interface IAgentHostSessionHandlerConfig {
 	 * falling back to the first workspace folder.
 	 */
 	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
+	/** Prepare a new session's directory after authentication, before any session is created. */
+	readonly prepareWorkingDirectory?: (sessionResource: URI, workingDirectory: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
 	/** Called after a locally-created session has been accepted by the backend. */
@@ -932,6 +934,7 @@ class ActiveClientEntry extends Disposable {
 
 	constructor(
 		private readonly _scope: IAgentCustomizationScope,
+		readonly scopeRoots: readonly URI[],
 		clientId: string,
 		debounceDelay: number,
 		private readonly _getSessionState: (backendSession: URI) => SessionState | undefined,
@@ -1901,6 +1904,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
 					imported ? { turns: imported.turns, model: imported.model } : undefined,
 					stage => failureStage = stage,
+					cancellationToken,
 				);
 			} else {
 				failureStage = 'authentication';
@@ -2323,15 +2327,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		await entry.claim(backendSession, cancellationToken);
 	}
 
-	private _ensureActiveClientEntry(sessionResource: URI): ActiveClientEntry {
+	private _ensureActiveClientEntry(sessionResource: URI, scopeRoots?: readonly URI[]): ActiveClientEntry {
 		const existing = this._activeClientEntries.get(sessionResource);
-		if (existing) {
+		if (existing && (!scopeRoots || this._activeClientService.areScopeRootsEqual(existing.scopeRoots, scopeRoots))) {
 			return existing;
 		}
+		this._disposeActiveClientEntry(sessionResource);
 
-		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
+		const roots = scopeRoots ?? this._resolveCustomizationScopeRoots(sessionResource);
+		const scope = this._activeClientService.acquireScope(this._config.sessionType, roots);
 		const entry = new ActiveClientEntry(
 			scope,
+			roots,
 			this._config.connection.clientId,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),
@@ -5583,8 +5590,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
-		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void, cancellationToken: CancellationToken = CancellationToken.None): Promise<URI> {
 		const requestedSession = this._resolveSessionUri(sessionResource);
 		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
 
@@ -5593,8 +5599,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		onFailureStage?.('authentication');
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
-		const activeClientEntry = this._ensureActiveClientEntry(sessionResource);
-		await activeClientEntry.whenSettled();
+		onFailureStage?.('createSession');
+		const requestedDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+		const preparedDirectory = this._config.prepareWorkingDirectory
+			? await this._config.prepareWorkingDirectory(sessionResource, requestedDirectory, cancellationToken)
+			: requestedDirectory;
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource, preparedDirectory);
+
+		const activeClientEntry = this._ensureActiveClientEntry(sessionResource, workingDirectories ?? []);
+		await raceCancellationError(activeClientEntry.whenSettled(), cancellationToken);
 		const activeClient = this._getCurrentActiveClient(sessionResource);
 
 		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
@@ -6073,8 +6089,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
-	private _resolveRequestedWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
-		const primary = this._resolveRequestedWorkingDirectory(sessionResource);
+	private _resolveRequestedWorkingDirectories(sessionResource: URI, primary = this._resolveRequestedWorkingDirectory(sessionResource)): readonly URI[] | undefined {
 		return this._hostAddressableWorkingDirectories(
 			computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._getRootState(), this._config.provider)
 		);

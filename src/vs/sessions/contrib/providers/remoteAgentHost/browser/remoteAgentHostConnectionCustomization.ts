@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 
@@ -23,6 +26,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 	 * Return `undefined` to keep scheme == provider.
 	 */
 	readonly backendSessionScheme?: (provider: string) => string | undefined;
+
+	/** Prepare a host-addressable directory after authentication and before creating a session. */
+	readonly prepareWorkingDirectory?: (connection: IAgentConnection, workingDirectory: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

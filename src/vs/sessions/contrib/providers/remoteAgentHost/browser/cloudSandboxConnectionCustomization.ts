@@ -13,6 +13,7 @@ import {
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
+import { CloudSandboxProjectResolver } from './cloudSandboxProjectResolver.js';
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
@@ -29,19 +30,11 @@ function isGitHubResource(resource: string): boolean {
 		|| host.endsWith('.ghe.com');
 }
 
-/**
- * The {@link IRemoteAgentHostConnectionCustomization} for a cloud sandbox address, supplying the two
- * ways the sandbox host deviates from the generic path:
- *
- *  - **Auth**: the host only accepts a sealed envelope, so the connection's `encrypted_github_token`
- *    is presented instead of the resolved bearer. Fails closed if no sealed token is available.
- *  - **Scheme**: the host advertises provider `copilot` but addresses sessions as `ahp-session`.
- *
- * Returns `undefined` for non-sandbox addresses.
- */
+/** Adapts authentication, session identity and repository preparation for a cloud sandbox. */
 export function createCloudSandboxConnectionCustomization(
 	address: string,
 	sandboxService: ICloudSandboxAgentHostService,
+	projectResolver: CloudSandboxProjectResolver,
 ): IRemoteAgentHostConnectionCustomization | undefined {
 	const environmentId = cloudSandboxEnvironmentId(address);
 	if (environmentId === undefined) {
@@ -66,6 +59,7 @@ export function createCloudSandboxConnectionCustomization(
 		},
 		backendSessionScheme: (provider: string): string | undefined =>
 			provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
+		prepareWorkingDirectory: (connection, workingDirectory, token) => projectResolver.resolve(connection, workingDirectory, token),
 	};
 }
 

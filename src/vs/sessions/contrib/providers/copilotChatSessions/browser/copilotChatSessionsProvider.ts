@@ -65,6 +65,7 @@ import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { getGitHubRepositoryId } from '../../../../common/gitHubRepository.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -78,11 +79,6 @@ const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
 
 /** Remembers the cloud sandbox choice across new sessions, like the isolation picker above. */
 const STORAGE_KEY_USE_SANDBOX = 'sessions.cloudSandboxPicker.useSandbox';
-
-function getGitHubRepositoryId(repository: string): string | undefined {
-	const match = /^(?:(?:https?|ssh|git):\/\/(?:git@)?github\.com\/|git@github\.com:)?(?<owner>[^/:\s]+)\/(?<repo>[^/\s]+?)(?:\.git)?\/?$/i.exec(repository);
-	return match?.groups ? `${match.groups.owner}/${match.groups.repo}` : undefined;
-}
 
 export type IsolationMode = 'worktree' | 'workspace';
 

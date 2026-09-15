@@ -8,6 +8,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -10946,6 +10947,161 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectories?.[0]?.toString(), URI.file('/custom/working/dir').toString());
 		}));
 
+		test('handler prepares the working directory after authentication and before creation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const calls: string[] = [];
+			const repository = URI.parse('https://example.com/owner/repo');
+			const directory = URI.file('/host/checkout');
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Test',
+					description: 'test',
+					models: [],
+					protectedResources: [{
+						resource: 'https://example.com',
+						authorization_servers: ['https://example.com/login'],
+						required: true,
+					}],
+				}],
+				activeSessions: 0,
+			});
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'prepare-directory-test',
+				sessionType: 'prepare-directory-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveWorkingDirectory: () => repository,
+				resolveAuthentication: async () => {
+					calls.push('authenticate');
+					return true;
+				},
+				prepareWorkingDirectory: async (_sessionResource, requestedDirectory) => {
+					calls.push(`prepare:${requestedDirectory?.toString()}`);
+					calls.push(`created:${agentHostService.createSessionCalls.length}`);
+					return directory;
+				},
+			}));
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'prepare-directory-test' });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.deepStrictEqual({
+				calls,
+				directories: agentHostService.createSessionCalls.map(call => call.workingDirectories?.map(uri => uri.toString())),
+			}, {
+				calls: ['authenticate', `prepare:${repository.toString()}`, 'created:0'],
+				directories: [[directory.toString()]],
+			});
+		}));
+
+		test('handler does not create a session or send a turn when directory preparation fails', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'prepare-failure-test',
+				sessionType: 'prepare-failure-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				prepareWorkingDirectory: async () => { throw new Error('Repository could not be prepared'); },
+			}));
+			const registered = chatAgentService.registeredAgents.get('prepare-failure-test');
+			assert.ok(registered);
+			await assert.rejects(registered.impl.invoke(makeRequest({
+				agentId: 'prepare-failure-test',
+				sessionResource: URI.from({ scheme: 'prepare-failure-test', path: '/new-failure' }),
+			}), () => { }, [], CancellationToken.None), /Repository could not be prepared/);
+			assert.deepStrictEqual({ sessions: agentHostService.createSessionCalls.length, turns: agentHostService.turnActions.length }, { sessions: 0, turns: 0 });
+		});
+
+		for (const changesDirectory of [true, false]) {
+			test(`handler rebinds the prepared customization scope only when its roots change (${changesDirectory})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { instantiationService, agentHostService, chatAgentService, activeClientService, seedActiveClient } = createTestServices(disposables);
+				const directory = URI.file('/host/checkout');
+				const requestedDirectory = changesDirectory ? URI.parse('https://example.com/owner/repo') : directory;
+				const initialRoots = changesDirectory ? [] : [directory.toString()];
+				const scopes: { roots: string[]; disposed: boolean }[] = [];
+				const acquireScope = activeClientService.acquireScope;
+				activeClientService.acquireScope = (sessionType, roots) => {
+					const scope = acquireScope(sessionType, roots);
+					const record = { roots: roots.map(root => root.toString()), disposed: false };
+					scopes.push(record);
+					return {
+						...scope,
+						dispose: () => {
+							record.disposed = true;
+							scope.dispose();
+						},
+					};
+				};
+				const customizations: ClientPluginCustomization[] = [{
+					type: CustomizationType.Plugin, id: 'checkout-mcp', uri: 'file:///checkout-mcp', name: 'Checkout MCP',
+				}];
+				disposables.add(seedActiveClient('prepare-scope-test', { customizations: constObservable(customizations) }, [directory]));
+				agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
+				const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+					provider: 'copilot',
+					agentId: 'prepare-scope-test',
+					sessionType: 'prepare-scope-test',
+					fullName: 'Test',
+					description: 'test',
+					connection: agentHostService,
+					connectionAuthority: 'local',
+					resolveWorkingDirectory: () => requestedDirectory,
+					prepareWorkingDirectory: async () => directory,
+				}));
+				let scopesBeforeSend: string[][] = [];
+				const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, {
+					agentId: 'prepare-scope-test',
+					beforeInvoke: () => { scopesBeforeSend = scopes.map(scope => scope.roots); },
+				});
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+				assert.deepStrictEqual({
+					scopesBeforeSend,
+					scopes,
+					directories: agentHostService.createSessionCalls.map(call => call.workingDirectories?.map(uri => uri.toString())),
+					customizations: agentHostService.createSessionCalls.map(call => call.activeClient?.customizations),
+				}, {
+					scopesBeforeSend: [initialRoots],
+					scopes: changesDirectory
+						? [{ roots: [], disposed: true }, { roots: [directory.toString()], disposed: false }]
+						: [{ roots: initialRoots, disposed: false }],
+					directories: [[directory.toString()]],
+					customizations: [customizations],
+				});
+			}));
+		}
+
+		test('handler does not create a session after directory preparation is cancelled', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const cts = disposables.add(new CancellationTokenSource());
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'prepare-cancellation-test',
+				sessionType: 'prepare-cancellation-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				prepareWorkingDirectory: async () => {
+					cts.cancel();
+					return URI.file('/host/checkout');
+				},
+			}));
+			const registered = chatAgentService.registeredAgents.get('prepare-cancellation-test');
+			assert.ok(registered);
+			await assert.rejects(registered.impl.invoke(makeRequest({
+				agentId: 'prepare-cancellation-test',
+				sessionResource: URI.from({ scheme: 'prepare-cancellation-test', path: '/new-cancellation' }),
+			}), () => { }, [], cts.token), CancellationError);
+			assert.deepStrictEqual({ sessions: agentHostService.createSessionCalls.length, turns: agentHostService.turnActions.length }, { sessions: 0, turns: 0 });
+		});
+
 		test('handler forwards request session config to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(
 				disposables,
@@ -11159,6 +11315,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('handler resolves authentication before sending to an eager-created session', async () => {
 			const authenticationRequests: ProtectedResourceMetadata[][] = [];
+			let preparations = 0;
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot',
@@ -11171,6 +11328,10 @@ suite('AgentHostChatContribution', () => {
 				resolveAuthentication: async protectedResources => {
 					authenticationRequests.push(protectedResources);
 					return true;
+				},
+				prepareWorkingDirectory: async (_sessionResource, workingDirectory) => {
+					preparations++;
+					return workingDirectory;
 				},
 			}));
 			const protectedResource: ProtectedResourceMetadata = {
@@ -11215,9 +11376,11 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				authenticationRequests,
 				turnActionCount: agentHostService.turnActions.length,
+				preparations,
 			}, {
 				authenticationRequests: [[protectedResource]],
 				turnActionCount: 1,
+				preparations: 0,
 			});
 		});
 

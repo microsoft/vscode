@@ -1123,6 +1123,9 @@ export interface IAgentConnection {
 	 */
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
+	/** Send a host-specific extension request. Callers must check capabilities and validate the response. */
+	requestExtension?(method: string, params: Record<string, unknown>): Promise<unknown>;
+
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;

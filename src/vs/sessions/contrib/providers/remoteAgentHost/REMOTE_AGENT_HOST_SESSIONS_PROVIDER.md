@@ -61,6 +61,14 @@ Drafts expose the shared untitled `ISession` contract and use remote workspace m
 
 Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
 
+### Preparing a remote workspace
+
+A connection customization may prepare a new session's working directory after authentication and before backend session creation. The shared session handler owns this ordering; the customization owns host-specific capability checks, requests, progress, and validation. The resolved directory is retained by the connection's working-directory resolver and passed through the normal resource URI mapping.
+
+Cloud sandbox repository selections use this boundary to resolve a checkout on hosts that advertise project management. They reuse a ready checkout or await the host's clone result before creating the session. The client does not clone locally or acquire a second workload credential. Hosts without the capability retain the existing host-selected directory behavior.
+
+Preparation failures and cancellation stop session creation and the first turn; they do not fall back to an unrelated directory. Existing backend sessions keep their established directories and do not run preparation again. Host-specific requests stay outside the standard protocol command map and are used only after checking the advertised capability.
+
 ## Authentication and recovery
 
 Authentication challenges, credential refresh, and transport retries remain connection policy. The request that encountered a challenge observes its actual success, cancellation, or failure; provider operations do not silently convert authentication failures into availability results.

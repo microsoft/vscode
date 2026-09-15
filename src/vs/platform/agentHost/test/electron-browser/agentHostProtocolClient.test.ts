@@ -409,6 +409,29 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	test('extension requests preserve parameters and return the host response', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const params = { channel: ROOT_STATE_URI, repository: 'https://example.com/owner/repo' };
+		const response = client.requestExtension('x-test/prepareRepository', params);
+		await timeout(0);
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest => 'id' in message && 'method' in message && message.method === 'x-test/prepareRepository');
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { directory: '/checkout/repo' } });
+		assert.deepStrictEqual({ params: request.params, result: await response }, { params, result: { directory: '/checkout/repo' } });
+	});
+
+	test('extension requests propagate protocol errors', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const response = client.requestExtension('x-test/prepareRepository', {});
+		await timeout(0);
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest => 'id' in message && 'method' in message && message.method === 'x-test/prepareRepository');
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Project management unavailable' } });
+		await assert.rejects(response, /Project management unavailable/);
+	});
+
 	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'test.example:1234', 'vscode-remote://ssh-remote+test'] as const) {
 		test(`workspace trust forwards only the target host's trusted roots (${String(identity)})`, async () => {
 			const transport = disposables.add(new TestProtocolTransport());

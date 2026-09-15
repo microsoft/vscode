@@ -53,6 +53,7 @@ import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js'
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
+import { CloudSandboxProjectResolver } from './cloudSandboxProjectResolver.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
@@ -178,12 +179,10 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	) {
 		super();
 
-		// Supply the generic remote-agent-host contribution with the sandbox host's per-connection
-		// deviations (sealed-token auth + `ahp-session` backend scheme) without leaking sandbox
-		// specifics into that shared code path.
+		const projectResolver = this._instantiationService.createInstance(CloudSandboxProjectResolver);
 		this._register(this._connectionCustomizations.register(
 			isCloudSandboxConnectionAddress,
-			address => createCloudSandboxConnectionCustomization(address, this._cloudSandboxService)!,
+			address => createCloudSandboxConnectionCustomization(address, this._cloudSandboxService, projectResolver)!,
 		));
 
 		// Keep providers wired to their live connections and their status fresh.

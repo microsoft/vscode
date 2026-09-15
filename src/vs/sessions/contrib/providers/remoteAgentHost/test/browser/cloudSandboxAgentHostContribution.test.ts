@@ -38,6 +38,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
@@ -204,6 +205,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const hostGroups: IAgentHostGroup[] = [];
 	const readOnlySessionTypes: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
 	const created: ICloudSandboxCreateSessionRequest[] = [];
 	const connectedTo: string[] = [];
 	const historyRequests: string[] = [];
