@@ -18,13 +18,15 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('EditorResolverService', () => {
-	test('Agents window editor defaults use the Integrated Browser for HTML and follow the Markdown editor setting', () => {
+	test('Agents window editor defaults use the Integrated Browser for HTML when available and follow the Markdown editor setting', () => {
 		assert.deepStrictEqual({
-			enabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true }),
-			disabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: false }),
+			enabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true, integratedBrowserAvailable: true }),
+			disabled: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: false, integratedBrowserAvailable: true }),
+			unavailable: editorsAssociationsAgentsWindowDefault({ markdownDefaultEditor: true, integratedBrowserAvailable: false }),
 		}, {
 			enabled: { '*.html': 'workbench.editor.browser', '*.md': 'vscode.markdown.editor' },
 			disabled: { '*.html': 'workbench.editor.browser', '*.md': 'vscode.markdown.preview.editor' },
+			unavailable: { '*.md': 'vscode.markdown.editor' },
 		});
 	});
 

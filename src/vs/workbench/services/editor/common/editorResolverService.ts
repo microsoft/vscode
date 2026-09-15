@@ -56,9 +56,9 @@ function markdownEditorAgentsWindowDefault(markdownDefaultEditor?: boolean): str
  *
  * Pass `false` to use the Markdown preview editor for `*.md` files.
  */
-export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
+export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean; integratedBrowserAvailable?: boolean }): Record<string, string> {
 	const associations: Record<string, string> = {};
-	if (!isWeb) {
+	if (options?.integratedBrowserAvailable ?? !isWeb) {
 		associations['*.html'] = 'workbench.editor.browser';
 	}
 	associations['*.md'] = markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor);
