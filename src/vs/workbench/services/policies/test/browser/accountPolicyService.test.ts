@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -16,7 +17,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -339,6 +340,30 @@ suite('AccountPolicyService', () => {
 				[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 				[COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' },
 			},
+		});
+	});
+
+	test('marks an empty initial managed-settings snapshot as resolved', async () => {
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
+		await defaultAccountService.refresh();
+		const nativeManagedSettingsService = disposables.add(new DeferredNativeManagedSettingsService());
+		const service = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService));
+		let changes = 0;
+		disposables.add(service.onDidChangeManagedSettings(() => changes++));
+
+		assert.strictEqual(service.isManagedSettingsResolved, false);
+		const didResolve = Event.toPromise(service.onDidChangeManagedSettings);
+		nativeManagedSettingsService.resolve({});
+		await didResolve;
+
+		assert.deepStrictEqual({
+			resolved: service.isManagedSettingsResolved,
+			value: service.getManagedSettingValue(COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY),
+			changes,
+		}, {
+			resolved: true,
+			value: undefined,
+			changes: 1,
 		});
 	});
 
@@ -777,6 +802,19 @@ suite('AccountPolicyService', () => {
 
 		dispose(): void {
 			this._onDidChangeManagedSettings.dispose();
+		}
+	}
+
+	class DeferredNativeManagedSettingsService extends FakeNativeManagedSettingsService {
+		private readonly _result = new DeferredPromise<ManagedSettingsData>();
+
+		override updatePolicyDefinitions(): Promise<ManagedSettingsData> {
+			return this._result.p;
+		}
+
+		resolve(managedSettings: ManagedSettingsData): void {
+			this.managedSettings = managedSettings;
+			this._result.complete(managedSettings);
 		}
 	}
 

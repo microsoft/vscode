@@ -20,9 +20,12 @@ import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostRemoteAgentsEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostRemoteAgentsService } from '../../node/agentHostRemoteAgentsService.js';
+import { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,11 +53,37 @@ suite('agentHostBootstrap', () => {
 
 		// Whole-graph dependency completeness is checked statically in
 		// agentHostServices.test.ts without forcing every descriptor to construct.
-		assert.ok(runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader)));
-		assert.deepStrictEqual(runtime.instantiationService.invokeFunction(accessor => [
-			accessor.get(IAgentHostCheckpointService) !== undefined,
-			accessor.get(IAgentHostReviewService) !== undefined,
-		]), [true, true]);
+		const services = runtime.instantiationService.invokeFunction(accessor => ({
+			sdkDownloader: accessor.get(IAgentSdkDownloader),
+			checkpoint: accessor.get(IAgentHostCheckpointService),
+			review: accessor.get(IAgentHostReviewService),
+			configuration: accessor.get(IAgentConfigurationService),
+			managedSettings: accessor.get(IAgentHostManagedSettingsService),
+			remoteAgents: accessor.get(IAgentHostRemoteAgentsService),
+		}));
+		let remoteAgentsActivationCount = 0;
+		testDisposables.add(services.remoteAgents.registerContribution({
+			activate: () => {
+				remoteAgentsActivationCount++;
+				return toDisposable(() => undefined);
+			},
+		}));
+		services.managedSettings.setClientRemoteAgentHostsEnabled('bootstrap-test', true);
+		services.configuration.updateRootConfig({ [AgentHostRemoteAgentsEnabledConfigKey]: true });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			sdkDownloader: services.sdkDownloader !== undefined,
+			checkpoint: services.checkpoint !== undefined,
+			review: services.review !== undefined,
+			remoteAgentsActivationCount,
+		}, {
+			sdkDownloader: true,
+			checkpoint: true,
+			review: true,
+			remoteAgentsActivationCount: 1,
+		});
 	});
 
 	test('loads standalone proxy configuration before resolver construction', () => {

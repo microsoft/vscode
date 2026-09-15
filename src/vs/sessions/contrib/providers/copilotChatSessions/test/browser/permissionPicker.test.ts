@@ -100,6 +100,7 @@ suite('Copilot PermissionPicker', () => {
 		const managedSettingsService: IManagedSettingsService = {
 			_serviceBrand: undefined,
 			onDidChangeManagedSettings: managedSettingsChanged.event,
+			isManagedSettingsResolved: true,
 			getManagedSettingValue: key => key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
 		};
 		const enablementService: IAgentHostEnablementService = {

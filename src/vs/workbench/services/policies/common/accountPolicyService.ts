@@ -81,6 +81,9 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	readonly onDidChangeGateInfo = this._onDidChangeGateInfo.event;
 
 	private _managedSettings: ManagedSettingsData = {};
+	private _isManagedSettingsResolved = false;
+	private _initialDefaultAccountResolved = false;
+	get isManagedSettingsResolved(): boolean { return this._isManagedSettingsResolved; }
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<void>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
@@ -138,6 +141,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// `onDidChangeDefaultAccount`. Re-evaluate once the account has resolved
 		// so the gate doesn't stay stuck on `noAccount`.
 		this.defaultAccountService.getDefaultAccount().then(() => {
+			this._initialDefaultAccountResolved = true;
 			this._updatePolicyDefinitions(this.policyDefinitions);
 		});
 	}
@@ -147,7 +151,13 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const managedSettings = await this.updateCopilotManagedSettingDefinitions(policyDefinitions);
 
 		const updated: string[] = [];
+		const previousManagedSettings = this._managedSettings;
+		const wasManagedSettingsResolved = this._isManagedSettingsResolved;
 		const resolvedPolicyData = this.getPolicyData(managedSettings);
+		this._isManagedSettingsResolved = this._initialDefaultAccountResolved;
+		if (!equals(previousManagedSettings, this._managedSettings) || wasManagedSettingsResolved !== this._isManagedSettingsResolved) {
+			this._onDidChangeManagedSettings.fire();
+		}
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
@@ -267,7 +277,6 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const activeManagedSettingsSources = MANAGED_SETTINGS_CHANNELS.filter(source => activeSources.has(source));
 		if (!equals(this._managedSettings, pick.values)) {
 			this._managedSettings = pick.values;
-			this._onDidChangeManagedSettings.fire();
 		}
 		if (!accountPolicyData && activeManagedSettingsSources.length === 0) {
 			return undefined;

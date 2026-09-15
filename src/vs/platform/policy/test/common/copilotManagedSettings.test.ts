@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -215,6 +215,42 @@ suite('Copilot managed settings per-key precedence (pickManagedSettings)', () =>
 				],
 			}]]),
 			activeSources: ['server'],
+		});
+	});
+
+	test('remote Agent Host disablement is false-wins across every channel combination', () => {
+		const key = COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY;
+		const values = [undefined, false, true];
+		for (const native of values) {
+			for (const server of values) {
+				for (const file of values) {
+					const pick = pickManagedSettings(
+						native === undefined ? undefined : { [key]: native },
+						server === undefined ? undefined : { [key]: server },
+						file === undefined ? undefined : { [key]: file },
+					);
+					const disabled = [native, server, file].includes(false);
+					assert.deepStrictEqual(pick.values[key], disabled ? false : native ?? server ?? file, JSON.stringify({ native, server, file }));
+				}
+			}
+		}
+	});
+
+	test('remote Agent Host disablement reports the restrictive source while retaining all contributions', () => {
+		const key = COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY;
+		const pick = pickManagedSettings({ [key]: true }, { [key]: true }, { [key]: false });
+		assert.deepStrictEqual(pick, {
+			values: { [key]: false },
+			resolutions: new Map([[key, {
+				value: false,
+				source: 'file',
+				contributions: [
+					{ channel: 'nativeMdm', value: true },
+					{ channel: 'server', value: true },
+					{ channel: 'file', value: false },
+				],
+			}]]),
+			activeSources: ['file'],
 		});
 	});
 

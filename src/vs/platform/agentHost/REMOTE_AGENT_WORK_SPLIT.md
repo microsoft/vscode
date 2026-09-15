@@ -130,6 +130,10 @@ The headless AHP client extraction is complete. Person 2 can begin provider
 catalog and workspace-less chat work against a local fake of the proposed
 connection contract.
 
+The runtime controls and shared activation lifecycle are implemented locally
+and pending review. The lifecycle remains disabled until both the persisted
+master setting and a connected client's managed-policy snapshot allow it.
+
 Person 2 is not fully unblocked yet and must not depend directly on
 `AgentHostProtocolClientCore`. The full handoff occurs when Person 1's target
 contribution boundary supplies the stable connection interface and fake

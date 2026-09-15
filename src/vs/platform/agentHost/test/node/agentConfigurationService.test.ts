@@ -11,7 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostRemoteAgentsEnabledConfigKey, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
@@ -293,6 +293,8 @@ suite('AgentConfigurationService', () => {
 		firstService.updateRootConfig({
 			[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days,
 			[AgentHostMcpServersConfigKey]: { operatorServer: { command: 'node' } },
+			[AgentHostRemoteAgentsEnabledConfigKey]: true,
+			[AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey]: true,
 		});
 		await firstService.whenIdle();
 
@@ -302,9 +304,13 @@ suite('AgentConfigurationService', () => {
 		assert.deepStrictEqual({
 			showExternalSessions: restartedService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey),
 			mcpServers: restartedService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey),
+			remoteAgentsEnabled: restartedService.getRootValue(platformRootSchema, AgentHostRemoteAgentsEnabledConfigKey),
+			tunnelDiscoveryEnabled: restartedService.getRootValue(platformRootSchema, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey),
 		}, {
 			showExternalSessions: AgentHostExternalSessionsMode.Last30Days,
 			mcpServers: { operatorServer: { command: 'node' } },
+			remoteAgentsEnabled: true,
+			tunnelDiscoveryEnabled: true,
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});

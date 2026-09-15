@@ -20,6 +20,7 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const SetClientRemoteAgentHostsPolicyExtensionMethod = 'vscode/setClientRemoteAgentHostsPolicy';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';

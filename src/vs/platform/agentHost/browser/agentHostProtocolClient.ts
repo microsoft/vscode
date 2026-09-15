@@ -14,13 +14,14 @@ import { localize } from '../../../nls.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY, IManagedSettingsService } from '../../policy/common/copilotManagedSettings.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import type { IAgentCreateSessionConfig } from '../common/agent.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
-import { RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { RequestAgentHostWorkspaceTrustExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostProtocolClientCore, AgentHostClientState, InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../common/agentHostProtocolClient.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
@@ -41,6 +42,7 @@ export type { IAgentHostProtocolClientOptions };
 
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
+	[SetClientRemoteAgentHostsPolicyExtensionMethod]: { params: { enabled: boolean } };
 }
 
 /**
@@ -64,6 +66,7 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 		@IWorkspaceTrustEnablementService private readonly _workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		const address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		const connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
@@ -121,6 +124,11 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 				this._updateWorkspaceTrust();
 			}
 		}));
+		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
+			if (this.connectionState === AgentHostClientState.Connected) {
+				this._updateRemoteAgentHostsPolicy();
+			}
+		}));
 	}
 
 	protected override _clientMeta(): Record<string, unknown> {
@@ -135,6 +143,7 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 	}
 
 	protected override _forwardClientConfig(includeManagedSettings = true): void {
+		this._updateRemoteAgentHostsPolicy(!includeManagedSettings);
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, getAgentHostConfigurationSyncTarget(this._resourceIdentity)));
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
@@ -145,6 +154,14 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 		if (includeManagedSettings) {
 			this._updateManagedSettingsPermissions();
 		}
+	}
+
+	private _updateRemoteAgentHostsPolicy(sendDuringReconnect = false): void {
+		if (!this._managedSettingsService.isManagedSettingsResolved) {
+			return;
+		}
+		const managedValue = this._managedSettingsService.getManagedSettingValue(COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY);
+		this._sendExtensionNotification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: managedValue !== false }, sendDuringReconnect);
 	}
 
 	protected override _updateManagedSettingsPermissions(sendDuringReconnect = false): void {

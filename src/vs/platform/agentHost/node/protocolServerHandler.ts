@@ -21,7 +21,7 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -511,6 +511,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							this._managedSettingsService.setClientPermissions(this._managedSettingsContributionId(client.clientId), permissions);
 						} else {
 							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
+						}
+					}
+					return;
+				}
+				if ((msg as { method: string }).method === SetClientRemoteAgentHostsPolicyExtensionMethod) {
+					if (client) {
+						const enabled = ((msg as { params?: { enabled?: unknown } }).params)?.enabled;
+						if (typeof enabled === 'boolean') {
+							this._managedSettingsService.setClientRemoteAgentHostsEnabled(this._managedSettingsContributionId(client.clientId), enabled);
+						} else {
+							this._logService.warn('[ProtocolServer] Ignoring invalid remote Agent Host managed setting contribution.');
 						}
 					}
 					return;
@@ -1087,7 +1098,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (record?.state === 'grace') {
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
-				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+				this._removeManagedSettingsContributions(clientId);
 			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -2238,9 +2249,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return `${this._managedSettingsOwnerId}:${clientId}`;
 	}
 
+	private _removeManagedSettingsContributions(clientId: string): void {
+		const contributionId = this._managedSettingsContributionId(clientId);
+		this._managedSettingsService.removeClientPermissions(contributionId);
+		this._managedSettingsService.removeClientRemoteAgentHostsEnabled(contributionId);
+	}
+
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
-			this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+			this._removeManagedSettingsContributions(clientId);
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

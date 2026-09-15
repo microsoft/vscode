@@ -22,10 +22,13 @@ import { AgentHostChatCompletionProvider } from './agentHostChatCompletionProvid
 import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from './chatContributions/builtInChatContributions.js';
+import { IAgentHostRemoteAgentsService } from './agentHostRemoteAgentsService.js';
 
 export function activateAgentHostContributions(accessor: ServicesAccessor, instantiationService: IInstantiationService): DisposableStore {
 	const store = new DisposableStore();
 	try {
+		store.add(accessor.get(IAgentHostRemoteAgentsService).activate());
+
 		const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
 		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
 		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));

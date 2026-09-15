@@ -118,6 +118,7 @@ suite('AgentHostEnablementService', () => {
 		const managedSettingsService: IManagedSettingsService = {
 			_serviceBrand: undefined,
 			onDidChangeManagedSettings: managedSettingsEmitter.event,
+			isManagedSettingsResolved: true,
 			getManagedSettingValue: key => key === COPILOT_SANDBOX_ENABLED_KEY ? true : key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
 		};
 		const { service } = createService(false, true, managedSettingsService);
@@ -143,6 +144,7 @@ suite('AgentHostEnablementService', () => {
 		const managedSettingsService: IManagedSettingsService = {
 			_serviceBrand: undefined,
 			onDidChangeManagedSettings: managedSettingsEmitter.event,
+			isManagedSettingsResolved: true,
 			getManagedSettingValue: key => key === COPILOT_SANDBOX_ENABLED_KEY ? sandboxEnabled : undefined,
 		};
 

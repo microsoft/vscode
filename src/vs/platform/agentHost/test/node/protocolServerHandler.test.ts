@@ -17,7 +17,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -4051,6 +4051,17 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('setClientRemoteAgentHostsPolicy validates and restrictively combines client contributions', () => {
+		const allowingTransport = connectClient('client-remote-agents-allowed');
+		const restrictingTransport = connectClient('client-remote-agents-restricted');
+
+		allowingTransport.simulateMessage(notification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: true }));
+		restrictingTransport.simulateMessage(notification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: false }));
+		restrictingTransport.simulateMessage(notification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: 'invalid' }));
+
+		assert.strictEqual(managedSettingsService.remoteAgentHostsEnabled, false);
+	});
+
 	test('scopes managed settings contributions to each protocol handler', () => {
 		const firstTransport = connectClient('shared-client-id');
 		firstTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
@@ -4096,20 +4107,34 @@ suite('ProtocolServerHandler', () => {
 		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
 		}));
+		activeTransport.simulateMessage(notification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: true }));
 		const graceTransport = connectClient('client-managed-settings-grace');
 		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
+		graceTransport.simulateMessage(notification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: false }));
 		graceTransport.simulateClose();
 
-		assert.deepStrictEqual(managedSettingsService.permissions, {
-			disableBypassPermissionsMode: 'disable',
-			ask: ['Shell'],
+		assert.deepStrictEqual({
+			permissions: managedSettingsService.permissions,
+			remoteAgentHostsEnabled: managedSettingsService.remoteAgentHostsEnabled,
+		}, {
+			permissions: {
+				disableBypassPermissionsMode: 'disable',
+				ask: ['Shell'],
+			},
+			remoteAgentHostsEnabled: false,
 		});
 
 		handler.dispose();
 
-		assert.deepStrictEqual(managedSettingsService.permissions, {});
+		assert.deepStrictEqual({
+			permissions: managedSettingsService.permissions,
+			remoteAgentHostsEnabled: managedSettingsService.remoteAgentHostsEnabled,
+		}, {
+			permissions: {},
+			remoteAgentHostsEnabled: undefined,
+		});
 	});
 
 	test('removes a managed settings contribution after disconnect grace expires', () => {
@@ -4118,11 +4143,18 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 				permissions: { ask: ['Shell'] },
 			}));
+			transport.simulateMessage(notification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: false }));
 			transport.simulateClose();
 
 			await new Promise(resolve => setTimeout(resolve, 30_001));
 
-			assert.deepStrictEqual(managedSettingsService.permissions, {});
+			assert.deepStrictEqual({
+				permissions: managedSettingsService.permissions,
+				remoteAgentHostsEnabled: managedSettingsService.remoteAgentHostsEnabled,
+			}, {
+				permissions: {},
+				remoteAgentHostsEnabled: undefined,
+			});
 		});
 	});
 

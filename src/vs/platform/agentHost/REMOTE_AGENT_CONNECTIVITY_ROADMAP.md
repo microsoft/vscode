@@ -23,12 +23,15 @@ renderer services, or transport-specific code.
 ### Controls
 
 - Use two distinct Agent Host runtime settings under a remote-agents namespace:
-  one master switch and one tunnel-discovery switch.
+  `remoteAgents.enabled` as the master switch and
+  `remoteAgents.tunnelDiscovery.enabled` as the tunnel-discovery switch.
 - Persist both settings per Agent Host. Their defaults are off until configured.
 - Connected clients present and edit the settings through AHP's existing
   client-dispatchable root configuration.
-- Add one runtime managed setting that can force the master feature off. Tunnel
-  discovery inherits the effective master state.
+- Use the runtime managed setting `remoteAgents.enabled` to gate the persisted
+  master setting. The host remains disabled until a connected client supplies
+  its managed-policy snapshot, and any connected client's managed `false`
+  forces the feature off. Tunnel discovery inherits the effective master state.
 - Activate the feature from one shared path used by both the normal Agent Host
   process and the standalone server.
 
@@ -130,7 +133,7 @@ Each change should remain independently reviewable and testable.
 Current prototype status:
 
 - [x] PR 1: headless AHP client core.
-- [ ] PR 2: runtime controls and shared activation.
+- [x] PR 2: runtime controls and shared activation (pending review).
 - [ ] PR 3: target contribution boundary and complete Person 2 handoff.
 
 Person 2 can begin fake-backed provider and chat work now, but must not depend

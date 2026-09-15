@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostRemoteAgentsEnabledConfigKey, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -53,6 +53,27 @@ suite('agentHostSchema', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, true);
+	});
+
+	test('remote agent controls are additive disabled-by-default root settings', () => {
+		const schema = platformRootSchema.toProtocol();
+		assert.deepStrictEqual({
+			master: schema.properties[AgentHostRemoteAgentsEnabledConfigKey],
+			tunnelDiscovery: schema.properties[AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey],
+		}, {
+			master: {
+				type: 'boolean',
+				title: 'Remote Agents',
+				description: 'Whether this Agent Host can connect to and use agents from other Agent Hosts.',
+				default: false,
+			},
+			tunnelDiscovery: {
+				type: 'boolean',
+				title: 'Remote Agent Tunnel Discovery',
+				description: 'Whether this Agent Host discovers and connects to eligible remote Agent Hosts through tunnels when remote agents are enabled.',
+				default: false,
+			},
+		});
 	});
 
 	// ---- schemaProperty / individual validators ---------------------------

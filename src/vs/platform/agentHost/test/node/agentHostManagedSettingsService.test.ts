@@ -51,4 +51,35 @@ suite('AgentHostManagedSettingsService', () => {
 
 		assert.strictEqual(changes, 2);
 	});
+
+	test('composes remote agent enablement restrictively across clients', () => {
+		const service = store.add(new AgentHostManagedSettingsService());
+		let changes = 0;
+		store.add(service.onDidChange(() => changes++));
+
+		const initial = service.remoteAgentHostsEnabled;
+		service.setClientRemoteAgentHostsEnabled('client-1', true);
+		const allowed = service.remoteAgentHostsEnabled;
+		service.setClientRemoteAgentHostsEnabled('client-2', false);
+		const restricted = service.remoteAgentHostsEnabled;
+		service.removeClientRemoteAgentHostsEnabled('client-2');
+		const afterRestrictionRemoved = service.remoteAgentHostsEnabled;
+		service.removeClientRemoteAgentHostsEnabled('client-1');
+
+		assert.deepStrictEqual({
+			initial,
+			allowed,
+			restricted,
+			afterRestrictionRemoved,
+			afterAllRemoved: service.remoteAgentHostsEnabled,
+			changes,
+		}, {
+			initial: undefined,
+			allowed: true,
+			restricted: false,
+			afterRestrictionRemoved: true,
+			afterAllRemoved: undefined,
+			changes: 4,
+		});
+	});
 });

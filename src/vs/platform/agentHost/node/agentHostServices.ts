@@ -65,6 +65,7 @@ import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './sha
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
+import { AgentHostRemoteAgentsService, IAgentHostRemoteAgentsService } from './agentHostRemoteAgentsService.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -105,6 +106,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
 	services.set(IAgentHostToolCallTracker, new SyncDescriptor(AgentHostToolCallTracker));
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
+	services.set(IAgentHostRemoteAgentsService, new SyncDescriptor(AgentHostRemoteAgentsService));
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 }

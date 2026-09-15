@@ -60,6 +60,9 @@ export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 /** Managed-settings transport control that requires a fresh server fetch on startup. */
 export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
 
+/** Managed-settings control that can prevent Agent Hosts from connecting to other Agent Hosts. */
+export const COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY = 'remoteAgents.enabled';
+
 /**
  * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
  * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
@@ -78,6 +81,7 @@ export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 };
@@ -185,12 +189,15 @@ export const IManagedSettingsService = createDecorator<IManagedSettingsService>(
 export interface IManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeManagedSettings: Event<void>;
+	/** Whether the initial account, native, and file-backed managed-settings snapshot has resolved. */
+	readonly isManagedSettingsResolved: boolean;
 	getManagedSettingValue(key: string): ManagedSettingValue | undefined;
 }
 
 export class NullManagedSettingsService implements IManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeManagedSettings = Event.None;
+	readonly isManagedSettingsResolved = true;
 
 	getManagedSettingValue(): ManagedSettingValue | undefined {
 		return undefined;
@@ -408,8 +415,8 @@ export interface IManagedSettingsPick {
  * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
  * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
  * channel that supplies it wins, but a key that the higher channels never set is still filled in by
- * a lower channel. The runtime-owned `sandbox.enabled` control is the exception: any managed
- * `true` wins, so harness selection cannot discard a sandbox requirement from another channel.
+ * a lower channel. Runtime-owned restrictive controls are exceptions: any managed
+ * `sandbox.enabled=true` and any managed `remoteAgents.enabled=false` win across channels.
  *
  * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
  * resolution here (rather than inlining it at each call site) keeps policy evaluation
@@ -420,7 +427,7 @@ export interface IManagedSettingsPick {
 export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsPick {
 	const bags: Record<ManagedSettingsChannel, ManagedSettingsData | undefined> = { nativeMdm, server, file };
 
-	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
+	// Preserve delivery order for provenance even when a restrictive value wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
@@ -437,7 +444,9 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 			const existing = resolutions.get(key);
 			if (existing) {
 				existing.contributions.push({ channel, value });
-				if (key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true) {
+				const raisesSandboxFloor = key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true;
+				const disablesRemoteAgents = key === COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY && value === false && existing.value !== false;
+				if (raisesSandboxFloor || disablesRemoteAgents) {
 					existing.value = value;
 					existing.source = channel;
 				}

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -16,6 +17,7 @@ import { IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequ
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostRemoteAgentsService, type IAgentHostRemoteAgentsContribution } from '../../node/agentHostRemoteAgentsService.js';
 
 class FailingChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -38,6 +40,23 @@ class FailingChangesetOperationService extends Disposable implements IAgentHostC
 	updateOperations(): void { }
 	getOperations() { return []; }
 	async invokeChangesetOperation(): Promise<never> { throw new Error('Not implemented'); }
+}
+
+class TestRemoteAgentsService implements IAgentHostRemoteAgentsService {
+	declare readonly _serviceBrand: undefined;
+	readonly enabled = constObservable(false);
+	readonly tunnelDiscoveryEnabled = constObservable(false);
+	activationCount = 0;
+	disposalCount = 0;
+
+	activate() {
+		this.activationCount++;
+		return toDisposable(() => this.disposalCount++);
+	}
+
+	registerContribution(_contribution: IAgentHostRemoteAgentsContribution) {
+		return Disposable.None;
+	}
 }
 
 const nullGitStateService: IAgentHostGitStateService = {
@@ -67,6 +86,7 @@ suite('AgentHostContributions', () => {
 
 	test('disposes earlier registrations when activation fails', () => {
 		const changesetOperationService = disposables.add(new FailingChangesetOperationService());
+		const remoteAgentsService = new TestRemoteAgentsService();
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const services = new ServiceCollection(
@@ -75,6 +95,7 @@ suite('AgentHostContributions', () => {
 			[IAgentHostGitStateService, nullGitStateService],
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
 			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+			[IAgentHostRemoteAgentsService, remoteAgentsService],
 			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
@@ -83,6 +104,14 @@ suite('AgentHostContributions', () => {
 			() => instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)),
 			/Contribution registration failed/,
 		);
-		assert.strictEqual(changesetOperationService.disposedRegistrationCount, 1);
+		assert.deepStrictEqual({
+			disposedRegistrationCount: changesetOperationService.disposedRegistrationCount,
+			remoteAgentsActivationCount: remoteAgentsService.activationCount,
+			remoteAgentsDisposalCount: remoteAgentsService.disposalCount,
+		}, {
+			disposedRegistrationCount: 1,
+			remoteAgentsActivationCount: 1,
+			remoteAgentsDisposalCount: 1,
+		});
 	});
 });

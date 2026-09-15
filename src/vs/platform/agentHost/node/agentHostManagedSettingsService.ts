@@ -15,8 +15,11 @@ export interface IAgentHostManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
 	readonly permissions: IAgentHostManagedSettingsPermissions;
+	readonly remoteAgentHostsEnabled: boolean | undefined;
 	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void;
 	removeClientPermissions(clientId: string): void;
+	setClientRemoteAgentHostsEnabled(clientId: string, enabled: boolean): void;
+	removeClientRemoteAgentHostsEnabled(clientId: string): void;
 }
 
 export class AgentHostManagedSettingsService extends Disposable implements IAgentHostManagedSettingsService {
@@ -26,10 +29,18 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly _permissionsByClient = new Map<string, IAgentHostManagedSettingsPermissions>();
+	private readonly _remoteAgentHostsEnabledByClient = new Map<string, boolean>();
 	private _permissions: IAgentHostManagedSettingsPermissions = {};
 
 	get permissions(): IAgentHostManagedSettingsPermissions {
 		return this._permissions;
+	}
+
+	get remoteAgentHostsEnabled(): boolean | undefined {
+		if (this._remoteAgentHostsEnabledByClient.size === 0) {
+			return undefined;
+		}
+		return [...this._remoteAgentHostsEnabledByClient.values()].every(enabled => enabled);
 	}
 
 	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void {
@@ -44,6 +55,24 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 	removeClientPermissions(clientId: string): void {
 		if (this._permissionsByClient.delete(clientId)) {
 			this._updatePermissions();
+		}
+	}
+
+	setClientRemoteAgentHostsEnabled(clientId: string, enabled: boolean): void {
+		if (this._remoteAgentHostsEnabledByClient.get(clientId) === enabled) {
+			return;
+		}
+		const previous = this.remoteAgentHostsEnabled;
+		this._remoteAgentHostsEnabledByClient.set(clientId, enabled);
+		if (previous !== this.remoteAgentHostsEnabled) {
+			this._onDidChange.fire();
+		}
+	}
+
+	removeClientRemoteAgentHostsEnabled(clientId: string): void {
+		const previous = this.remoteAgentHostsEnabled;
+		if (this._remoteAgentHostsEnabledByClient.delete(clientId) && previous !== this.remoteAgentHostsEnabled) {
+			this._onDidChange.fire();
 		}
 	}
 
@@ -73,4 +102,5 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 			this._onDidChange.fire();
 		}
 	}
+
 }
