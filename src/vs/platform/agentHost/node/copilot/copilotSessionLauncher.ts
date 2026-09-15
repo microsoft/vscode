@@ -9,6 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
@@ -629,6 +630,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		const sandboxConfig = () => {
@@ -645,10 +647,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		let fallbackConfig = config;
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
-			const stopWatch = new StopWatch();
-			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await this._resumeSession(session, plan, config);
-			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
 		} catch (err) {
 			let resumeError = err;
@@ -689,11 +688,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
-		return this._sessionOpenTelemetry.withSdkResume(
-			session,
-			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
-		);
+	private async _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
+		const attemptId = generateUuid();
+		const stopWatch = new StopWatch();
+		let outcome = 'error';
+		this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession started: attemptId=${attemptId}`);
+		try {
+			const raw = await this._sessionOpenTelemetry.withSdkResume(
+				session,
+				() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
+			);
+			outcome = 'success';
+			return raw;
+		} finally {
+			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession settled: attemptId=${attemptId}, outcome=${outcome}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
+		}
 	}
 
 	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
@@ -730,7 +739,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyGpt56Customizations(raw, sessionId);
 		}
-		return new CopilotSessionWrapper(raw);
+		return new CopilotSessionWrapper(raw, this._logService);
 	}
 
 	/**

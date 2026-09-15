@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Radio } from '../../../../../base/browser/ui/radio/radio.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -34,6 +36,8 @@ import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesA
 
 suite('CreatePullRequestWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
 	const agentMergeOptions: ISessionPullRequestAgentMergeOptions = {
 		addressReviews: false,
 		fixCI: true,
@@ -507,6 +511,78 @@ suite('CreatePullRequestWidget', () => {
 			preferences: preferences.read(),
 		}, { before: 'false', after: 'true', method: 'Auto-Merge', preferences: { draft: false, mergeMode: 'auto', mergeMethod: 'REBASE' } });
 	});
+
+	for (const { name, overrides, draft, reason } of [
+		{
+			name: 'disabled repository auto-merge',
+			overrides: { autoMergeAllowed: false },
+			draft: false,
+			reason: 'GitHub auto-merge is disabled for this repository. Ask a repository administrator to enable "Allow auto-merge" in the repository\'s Settings > General > Pull Requests.',
+		},
+		{
+			name: 'unavailable repository settings',
+			overrides: { autoMergeAllowed: false, mergeMethods: [] },
+			draft: false,
+			reason: 'Repository merge settings could not be loaded or no merge methods are enabled. Check your GitHub access and the repository\'s Settings > General > Pull Requests.',
+		},
+		{
+			name: 'no enabled merge methods',
+			overrides: { mergeMethods: [] },
+			draft: false,
+			reason: 'Repository merge settings could not be loaded or no merge methods are enabled. Check your GitHub access and the repository\'s Settings > General > Pull Requests.',
+		},
+		{
+			name: 'draft pull requests',
+			overrides: {},
+			draft: true,
+			reason: 'Mark the pull request ready before enabling GitHub auto-merge.',
+		},
+	]) {
+		test(`explains ${name} in the auto-merge hover and accessible description`, async () => {
+			const items = sinon.spy(Radio.prototype, 'setItems');
+			const { widget, submissions } = createWidget({ prepare: async () => ({ ...details, ...overrides }) }, undefined, { initialDraft: draft });
+			await widget.ready;
+			const autoMerge = element(widget, '[role="radio"][aria-label="Auto-Merge"]');
+			autoMerge.click();
+			assert.deepStrictEqual({
+				tooltip: items.getCalls().flatMap(call => call.args[0]).filter(item => item.text === 'Auto-Merge').at(-1)?.tooltip,
+				description: autoMerge.getAttribute('aria-description'),
+				disabled: autoMerge.getAttribute('aria-disabled'),
+				selected: autoMerge.getAttribute('aria-checked'),
+				submissions,
+			}, { tooltip: reason, description: reason, disabled: 'true', selected: 'false', submissions: [] });
+		});
+	}
+
+	for (const outcome of ['success', 'failure'] as const) {
+		test(`updates auto-merge guidance after loading ${outcome}`, async () => {
+			const items = sinon.spy(Radio.prototype, 'setItems');
+			const generation = new DeferredPromise<ISessionPullRequestDetails>();
+			const { widget } = createWidget({ prepare: () => generation.p });
+			const readState = () => {
+				const autoMerge = element(widget, '[role="radio"][aria-label="Auto-Merge"]');
+				return {
+					tooltip: items.getCalls().flatMap(call => call.args[0]).filter(item => item.text === 'Auto-Merge').at(-1)?.tooltip,
+					description: autoMerge.getAttribute('aria-description'),
+					disabled: autoMerge.getAttribute('aria-disabled'),
+				};
+			};
+			const before = readState();
+			if (outcome === 'success') {
+				await generation.complete(details);
+			} else {
+				await generation.error(new Error('Repository unavailable'));
+			}
+			await widget.ready;
+			const reason = 'Repository merge settings could not be loaded. Check your GitHub access and retry loading the pull request details.';
+			assert.deepStrictEqual({ before, after: readState() }, {
+				before: { tooltip: 'Checking GitHub auto-merge availability...', description: 'Checking GitHub auto-merge availability...', disabled: 'false' },
+				after: outcome === 'success'
+					? { tooltip: 'Auto-Merge', description: null, disabled: 'false' }
+					: { tooltip: reason, description: reason, disabled: 'true' },
+			});
+		});
+	}
 
 	test('sending from the context-view menu closes only on successful send and does not call onCreated', async () => {
 		const { host, anchor, contextView } = createContextView();
