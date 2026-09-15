@@ -25,6 +25,7 @@
  */
 
 import assert from 'assert';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../common/meta/agentToolConfirmationMeta.js';
 import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
@@ -628,6 +629,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			clientSeq: 3,
 			action: {
 				type: ActionType.ChatToolCallConfirmed,
+				_meta: withToolConfirmationId({}, readToolConfirmationId(getActionEnvelope(initialReady).action as ChatToolCallReadyAction))._meta,
 				turnId,
 				toolCallId,
 				approved: true,
@@ -1013,6 +1015,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 				clientSeq: 2,
 				action: {
 					type: ActionType.ChatToolCallConfirmed,
+					_meta: withToolConfirmationId({}, readToolConfirmationId(toolReadyAction))._meta,
 					turnId,
 					toolCallId: toolReadyAction.toolCallId, approved: true,
 					confirmed: ToolCallConfirmationReason.UserAction,
@@ -1054,6 +1057,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 					clientSeq: ++teardownSeq,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
+						_meta: withToolConfirmationId({}, readToolConfirmationId(action))._meta,
 						turnId,
 						toolCallId: action.toolCallId, approved: true,
 						confirmed: ToolCallConfirmationReason.UserAction,

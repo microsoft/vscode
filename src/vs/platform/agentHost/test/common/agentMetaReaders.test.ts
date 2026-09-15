@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { hasToolConfirmationId, readToolConfirmationId, withToolConfirmationId } from '../../common/meta/agentToolConfirmationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -35,6 +36,23 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('tool confirmation metadata distinguishes legacy, malformed and scoped identities', () => {
+		assert.deepStrictEqual([
+			{},
+			{ _meta: { 'agentHost.confirmationId': '' } },
+			{ _meta: { 'agentHost.confirmationId': 1 } },
+			withToolConfirmationId({ _meta: { retained: true } }, 'request-1'),
+		].map(source => ({ present: hasToolConfirmationId(source), id: readToolConfirmationId(source) })), [
+			{ present: false, id: undefined },
+			{ present: true, id: undefined },
+			{ present: true, id: undefined },
+			{ present: true, id: 'request-1' },
+		]);
+		assert.deepStrictEqual(withToolConfirmationId({ _meta: { retained: true } }, 'request-1'), {
+			_meta: { retained: true, 'agentHost.confirmationId': 'request-1' },
+		});
+	});
 
 	suite('readToolCallMeta', () => {
 		test('returns empty when no _meta', () => {

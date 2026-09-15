@@ -19,6 +19,7 @@ import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyActi
 import { buildDefaultChatUri, ResponsePartKind, SessionStatus, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../common/meta/agentToolConfirmationMeta.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
@@ -215,6 +216,7 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 			clientSeq: 2,
 			action: {
 				type: ActionType.ChatToolCallConfirmed,
+				_meta: withToolConfirmationId({}, readToolConfirmationId(readyAction))._meta,
 				turnId: readyAction.turnId,
 				toolCallId: readyAction.toolCallId,
 				approved: true,

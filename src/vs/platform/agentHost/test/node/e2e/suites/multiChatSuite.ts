@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readToolConfirmationId, withToolConfirmationId } from '../../../../common/meta/agentToolConfirmationMeta.js';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
@@ -245,6 +246,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 					clientSeq: nextClientSeq++,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
+						_meta: withToolConfirmationId({}, readToolConfirmationId(action))._meta,
 						turnId,
 						toolCallId: action.toolCallId,
 						approved: true,
