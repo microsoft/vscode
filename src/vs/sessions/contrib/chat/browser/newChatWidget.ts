@@ -110,6 +110,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
 	private readonly _comparisonAttempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(this, []);
 	private readonly _comparisonJudgeHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
+	private readonly _comparisonBranch = observableValue<string | undefined>(this, undefined);
 	private readonly _comparisonSetupDialog = this._register(new MutableDisposable<SessionComparisonSetupDialog>());
 
 	/**
@@ -933,6 +934,18 @@ export class NewChatWidget extends Disposable {
 		return this._compareAgentsEnabled.get() && this._getComparisonBranch() !== undefined;
 	}
 
+	private async _getComparisonBranches(session: IActiveSession, selectedBranch: string): Promise<readonly string[]> {
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return [selectedBranch];
+		}
+		const branchSchema = provider.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.Branch];
+		const branches = branchSchema?.enumDynamic
+			? (await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch)).map(item => item.value)
+			: (branchSchema?.enum ?? []).map(String);
+		return [...new Set([selectedBranch, ...branches].filter(branch => branch.trim().length > 0))];
+	}
+
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
@@ -953,11 +966,12 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const session = this._session.get();
-		const branch = session ? this._getComparisonBranch(session) : undefined;
+		const branch = this._comparisonBranch.get() ?? (session ? this._getComparisonBranch(session) : undefined);
 		if (!branch) {
 			this._workspacePicker.showPicker();
 			return;
 		}
+		const branches = session ? await this._getComparisonBranches(session, branch) : [branch];
 		const currentType = session && this.sessionsManagementService.getSessionTypesForFolder(workspace).find(({ providerId, sessionType }) =>
 			providerId === session.providerId && sessionType.id === session.sessionType);
 		const defaultPermission = currentType
@@ -992,16 +1006,19 @@ export class NewChatWidget extends Disposable {
 				workspace,
 				workspaceLabel: this._workspacePicker.selectedResolved?.workspace.label ?? basename(workspace),
 				branch,
+				branches,
 				attachedContextCount: this._newChatInput.attachments.length,
 				prompt: this._newChatInput.getInputValue(),
 				setPrompt: prompt => this._newChatInput.setInputValue(prompt),
 			}, initialAttempts, initialJudgeHarness);
 			this._comparisonAttempts.set(result.attempts, undefined);
 			this._comparisonJudgeHarness.set(result.judgeHarness, undefined);
+			this._comparisonBranch.set(result.branch, undefined);
 			if (result.confirmed) {
 				if (await this._newChatInput.submit()) {
 					this._comparisonAttempts.set([], undefined);
 					this._comparisonJudgeHarness.set(undefined, undefined);
+					this._comparisonBranch.set(undefined, undefined);
 					shouldRefocusInput = false;
 				}
 			}
@@ -1127,7 +1144,8 @@ export class NewChatWidget extends Disposable {
 				this._workspacePicker.showPicker();
 				return false;
 			}
-			const branch = this._getComparisonBranch(session);
+			const permissionLevel = session.permissionLevel?.get();
+			const branch = this._comparisonBranch.get() ?? this._getComparisonBranch(session);
 			if (!branch) {
 				this.notificationService.error(localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit."));
 				return false;
@@ -1340,6 +1358,7 @@ export class NewChatWidget extends Disposable {
 		if (this._comparisonAttempts.get().length > 0 && (!folderUri || !currentFolderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))) {
 			this._comparisonAttempts.set([], undefined);
 			this._comparisonJudgeHarness.set(undefined, undefined);
+			this._comparisonBranch.set(undefined, undefined);
 		}
 		const refreshingPromptOptions = !!currentFolderUri
 			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))

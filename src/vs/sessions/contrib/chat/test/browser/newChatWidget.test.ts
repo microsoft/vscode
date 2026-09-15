@@ -166,6 +166,8 @@ interface ISendHarness {
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
 	readonly _comparisonAttempts: IObservable<readonly ISessionComparisonAttemptConfiguration[]>;
+	readonly _comparisonJudgeHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
+	readonly _comparisonBranch?: IObservable<string | undefined>;
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
 		readonly selectionSnapshot?: IWorkspaceSelectionSnapshot;
@@ -217,6 +219,10 @@ interface IConfigureComparisonHarness {
 		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
 		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
 	};
+	readonly _comparisonBranch: {
+		get(): string | undefined;
+		set(value: string | undefined, transaction: undefined): void;
+	};
 	readonly _comparisonSetupDialog: {
 		value: IDisposable | undefined;
 		clear(): void;
@@ -242,6 +248,7 @@ interface IConfigureComparisonHarness {
 		};
 	};
 	_getComparisonBranch(session: ISession | undefined): string | undefined;
+	_getComparisonBranches(session: ISession, selectedBranch: string): Promise<readonly string[]>;
 }
 
 interface IGetComparisonBranchHarness {
@@ -1285,6 +1292,7 @@ suite('NewChatWidget', () => {
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(configuredAttempts),
 			_comparisonJudgeHarness: constObservable(configuredAttempts[0].harness),
+			_comparisonBranch: constObservable('feature/modal'),
 			_workspacePicker: {
 				selectedFolderUri: workspace,
 				clearAttachedContext: () => { },
@@ -1340,10 +1348,12 @@ suite('NewChatWidget', () => {
 			result,
 			attempts: comparisonOptions?.attempts,
 			judgeHarness: comparisonOptions?.judgeHarness,
+			branch: comparisonOptions?.branch,
 		}, {
 			result: true,
 			attempts: configuredAttempts,
 			judgeHarness: configuredAttempts[0].harness,
+			branch: 'feature/modal',
 		});
 	});
 
@@ -1357,6 +1367,7 @@ suite('NewChatWidget', () => {
 				showPicker: () => workspacePickerOpened++,
 			},
 			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'agent' })),
+			_comparisonBranch: { get: () => undefined, set: () => { } },
 			_getComparisonBranch: () => undefined,
 		}));
 
@@ -1430,8 +1441,10 @@ suite('NewChatWidget', () => {
 		const harnessSelection = { providerId: 'provider', sessionTypeId: 'agent', label: 'Copilot', modelId: undefined, modelLabel: undefined, permissionId: undefined, permissionLabel: undefined };
 		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, []);
 		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
+		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
 		let openedAttempts: readonly ISessionComparisonAttemptConfiguration[] = [];
 		let openedJudge: ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		let openedContext: ISessionComparisonSetupContext | undefined;
 		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
 			value: undefined,
 			clear() {
@@ -1458,6 +1471,7 @@ suite('NewChatWidget', () => {
 			},
 			_comparisonAttempts: attempts,
 			_comparisonJudgeHarness: judgeHarness,
+			_comparisonBranch: comparisonBranch,
 			_comparisonSetupDialog: dialogSlot,
 			sessionsManagementService: {
 				getSessionTypesForFolder: () => [{
@@ -1470,23 +1484,31 @@ suite('NewChatWidget', () => {
 			},
 			instantiationService: {
 				createInstance: () => ({
-					show: async (_context, initialAttempts, initialJudgeHarness) => {
+					show: async (context, initialAttempts, initialJudgeHarness) => {
+						openedContext = context;
 						openedAttempts = initialAttempts;
 						openedJudge = initialJudgeHarness;
-						return { confirmed: false, attempts: initialAttempts, judgeHarness: initialJudgeHarness };
+						return { confirmed: false, attempts: initialAttempts, judgeHarness: initialJudgeHarness, branch: 'feature/comparison' };
 					},
 					dispose: () => { },
 				}),
 			},
 			_getComparisonBranch: () => 'main',
+			_getComparisonBranches: async () => ['main', 'feature/comparison'],
 		});
 
 		assert.deepStrictEqual({
+			branch: openedContext?.branch,
+			branches: openedContext?.branches,
+			retainedBranch: comparisonBranch.get(),
 			attemptCount: openedAttempts.length,
 			distinctIds: new Set(openedAttempts.map(attempt => attempt.id)).size,
 			harnesses: openedAttempts.map(attempt => attempt.harness),
 			judge: openedJudge,
 		}, {
+			branch: 'main',
+			branches: ['main', 'feature/comparison'],
+			retainedBranch: 'feature/comparison',
 			attemptCount: 2,
 			distinctIds: 2,
 			harnesses: [harnessSelection, harnessSelection],
@@ -1510,10 +1532,12 @@ suite('NewChatWidget', () => {
 		const editedJudge = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'judge-model', modelLabel: 'Judge Model', permissionId: 'allowAll', permissionLabel: 'Allow all' };
 		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, [initialAttempt]);
 		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
+		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
 		const openedWith: (readonly ISessionComparisonAttemptConfiguration[])[] = [];
+		const openedBranches: string[] = [];
 		const results: ISessionComparisonSetupResult[] = [
-			{ confirmed: false, attempts: editedAttempts, judgeHarness: editedJudge },
-			{ confirmed: true, attempts: editedAttempts, judgeHarness: editedJudge },
+			{ confirmed: false, attempts: editedAttempts, judgeHarness: editedJudge, branch: 'feature/first' },
+			{ confirmed: true, attempts: editedAttempts, judgeHarness: editedJudge, branch: 'feature/second' },
 		];
 		let submitCount = 0;
 		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
@@ -1543,11 +1567,13 @@ suite('NewChatWidget', () => {
 			},
 			_comparisonAttempts: attempts,
 			_comparisonJudgeHarness: judgeHarness,
+			_comparisonBranch: comparisonBranch,
 			_comparisonSetupDialog: dialogSlot,
 			sessionsManagementService: { getSessionTypesForFolder: () => [] },
 			instantiationService: {
 				createInstance: () => ({
-					show: async (_context, initialAttempts) => {
+					show: async (context, initialAttempts) => {
+						openedBranches.push(context.branch);
 						openedWith.push(initialAttempts);
 						return results.shift()!;
 					},
@@ -1555,6 +1581,7 @@ suite('NewChatWidget', () => {
 				}),
 			},
 			_getComparisonBranch: () => 'main',
+			_getComparisonBranches: async (_session, selectedBranch) => [selectedBranch, 'feature/first', 'feature/second'],
 		};
 
 		await configureComparison.call(harness);
@@ -1562,24 +1589,30 @@ suite('NewChatWidget', () => {
 			firstOpen: openedWith[0],
 			draftAttempts: attempts.get(),
 			draftJudge: judgeHarness.get(),
+			draftBranch: comparisonBranch.get(),
 			submitCount,
 		}, {
 			firstOpen: [initialAttempt],
 			draftAttempts: editedAttempts,
 			draftJudge: editedJudge,
+			draftBranch: 'feature/first',
 			submitCount: 0,
 		});
 
 		await configureComparison.call(harness);
 		assert.deepStrictEqual({
 			secondOpen: openedWith[1],
+			openedBranches,
 			draftAttempts: attempts.get(),
 			draftJudge: judgeHarness.get(),
+			draftBranch: comparisonBranch.get(),
 			submitCount,
 		}, {
 			secondOpen: editedAttempts,
+			openedBranches: ['main', 'feature/first'],
 			draftAttempts: [],
 			draftJudge: undefined,
+			draftBranch: undefined,
 			submitCount: 1,
 		});
 	});
@@ -1601,6 +1634,7 @@ suite('NewChatWidget', () => {
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(attempts),
+			_comparisonBranch: constObservable(undefined),
 			_workspacePicker: {
 				selectedFolderUri: workspace,
 				clearAttachedContext: () => { },
