@@ -6,12 +6,12 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostAgentFactoriesEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -75,6 +75,7 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
 	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
+	[CopilotCliConfigKey.AgentFactories]: { type: 'boolean', title: 'Agent Factories' },
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
 	[CopilotCliConfigKey.ReasoningSummary]: { type: 'boolean', title: 'Reasoning Summary' },
 	[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
@@ -91,7 +92,7 @@ async function flush(): Promise<void> {
 	await Promise.resolve();
 }
 
-function setup(disposables: DisposableStore, settings: Record<string, unknown>) {
+function setup(disposables: DisposableStore, settings: Record<string, unknown>, agentHostEnabled = true) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	disposables.add({ dispose: () => agentHostService.dispose() });
@@ -99,7 +100,7 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>) 
 	disposables.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: observableValue('agentHostEnabled', agentHostEnabled), managedSandboxEnforced: constObservable(false) });
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
 	return { agentHostService };
 }
@@ -124,6 +125,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[CopilotClaudeAdvisorEnabledSettingId]: true,
 			[AgentHostToolSearchEnabledSettingId]: true,
+			[AgentHostAgentFactoriesEnabledSettingId]: true,
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
 			[AgentHostReasoningSummaryEnabledSettingId]: true,
@@ -138,13 +140,14 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 12);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 13);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.ClaudeAdvisor]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
+			[CopilotCliConfigKey.AgentFactories]: true,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
 			[CopilotCliConfigKey.ReasoningSummary]: true,
 			[CopilotCliConfigKey.HydraFusion]: true,
@@ -160,6 +163,25 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
+		});
+
+		test('forwards the effective HydraFusion value only when local Agent Host is enabled', async () => {
+			const results: { setting: boolean; agentHostEnabled: boolean; forwarded: boolean | undefined }[] = [];
+			for (const [setting, agentHostEnabled] of [[false, true], [true, true], [true, false]] as const) {
+				const { agentHostService } = setup(disposables, { [AgentHostHydraFusionEnabledSettingId]: setting }, agentHostEnabled);
+				agentHostService.setRootState(makeRootStateWithSchema({
+					[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
+				}));
+				await flush();
+				const action = agentHostService.dispatchedActions[0]?.action as IRootConfigChangedAction | undefined;
+				results.push({ setting, agentHostEnabled, forwarded: action?.config[CopilotCliConfigKey.HydraFusion] as boolean | undefined });
+			}
+
+			assert.deepStrictEqual(results, [
+				{ setting: false, agentHostEnabled: true, forwarded: false },
+				{ setting: true, agentHostEnabled: true, forwarded: true },
+				{ setting: true, agentHostEnabled: false, forwarded: undefined },
+			]);
 		});
 		agentHostService.setRootState(makeRootStateWithSchema({
 			[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
@@ -206,6 +228,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.ClaudeAdvisor]: false,
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
+			[CopilotCliConfigKey.AgentFactories]: false,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
 			[CopilotCliConfigKey.ReasoningSummary]: false,
 			[CopilotCliConfigKey.HydraFusion]: false,

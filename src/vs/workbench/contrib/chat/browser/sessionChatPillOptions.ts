@@ -87,3 +87,16 @@ export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 		? localize('sessionSubagents.showSingle', "Show 1 subagent")
 		: localize('sessionSubagents.show', "Show {0} subagents", count),
 };
+
+/** Shared presentation of the Agent Factories pill. */
+export const sessionFactoriesPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionFactories',
+	icon: Codicon.layers,
+	title: localize('sessionFactories.title', "Factories"),
+	summaryLabel: count => count === 1
+		? localize('sessionFactories.countSingle', "1 Factory Run")
+		: localize('sessionFactories.count', "{0} Factory Runs", count),
+	summaryAriaLabel: count => count === 1
+		? localize('sessionFactories.showSingle', "Show 1 factory run")
+		: localize('sessionFactories.show', "Show {0} factory runs", count),
+};

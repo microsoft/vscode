@@ -1504,7 +1504,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean }> {
+	): Promise<ResumeSessionConfig> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -1518,8 +1518,31 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean }> })._buildSessionConfig(plan, runtime, () => { });
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> })._buildSessionConfig(plan, runtime, () => { });
 	}
+
+	test('enables Agent Factories only with explicit opt-in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const enabled = await buildResumeConfig(createLauncher(store, { agentFactories: true }), undefined);
+		const disabled = await buildResumeConfig(createLauncher(store, { agentFactories: false }), undefined);
+		const notConfigured = await buildResumeConfig(createLauncher(store, {}), undefined);
+
+		assert.deepStrictEqual({
+			enabledExtensions: enabled.requestExtensions,
+			enabledFeatureFlags: enabled.featureFlags,
+			disabledExtensions: disabled.requestExtensions,
+			disabledFeatureFlags: disabled.featureFlags,
+			defaultExtensions: notConfigured.requestExtensions,
+			defaultFeatureFlags: notConfigured.featureFlags,
+		}, {
+			enabledExtensions: true,
+			enabledFeatureFlags: { agent_factories: true, EXTENSIONS: true },
+			disabledExtensions: false,
+			disabledFeatureFlags: undefined,
+			defaultExtensions: false,
+			defaultFeatureFlags: undefined,
+		});
+	});
 
 	test('enables experimental mode only with HydraFusion opt-in', async () => {
 		const store = disposables.add(new DisposableStore());

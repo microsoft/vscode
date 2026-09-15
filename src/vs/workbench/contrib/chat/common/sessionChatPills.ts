@@ -21,6 +21,7 @@ export const enum SessionChatPillKind {
 	Issues = 'issues',
 	Browsers = 'browsers',
 	Subagents = 'subagents',
+	Factories = 'factories',
 }
 
 /** All pill kinds, in the order they are offered in the visibility menu. */
@@ -33,6 +34,7 @@ export const SESSION_CHAT_PILL_KINDS: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Customizations,
 	SessionChatPillKind.Browsers,
 	SessionChatPillKind.Subagents,
+	SessionChatPillKind.Factories,
 ];
 
 export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
@@ -45,6 +47,7 @@ export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 		case SessionChatPillKind.Issues: return localize('sessionChatPills.issues', "Issues");
 		case SessionChatPillKind.Browsers: return localize('sessionChatPills.browsers', "Browsers");
 		case SessionChatPillKind.Subagents: return localize('sessionChatPills.subagents', "Subagents");
+		case SessionChatPillKind.Factories: return localize('sessionChatPills.factories', "Factories");
 	}
 }
 

@@ -55,6 +55,7 @@ import { TasksSchemaProperties } from '../../../../contrib/tasks/common/tasks.js
 import { RemoteSocketFactoryService } from '../../../../../platform/remote/common/remoteSocketFactoryService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
 
 suite('ConfigurationDefaultOverridesContribution', () => {
 
@@ -77,7 +78,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 
 	// Builds the contribution without running its constructor so that `processExperimentalSettings`
 	// can be driven directly, resolving treatments from the given (mutable) record.
-	function createTestContribution(treatments: Record<string, string | undefined>): TestContribution {
+	function createTestContribution(treatments: Record<string, string | number | boolean | undefined>): TestContribution {
 		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
 		contribution.processedExperimentalSettings = new Set();
 		contribution.autoExperimentalSettings = new Set();
@@ -90,6 +91,49 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		contribution.environmentService = { isSessionsWindow: false };
 		return contribution;
 	}
+
+	test('applies the HydraFusion startup treatment as the default while preserving explicit values', async () => {
+		const setting = 'chat.copilot.hydraFusion.enabled';
+		const configuration: IConfigurationNode = {
+			id: 'test.hydraFusionStartupExperiment',
+			type: 'object',
+			properties: {
+				[setting]: {
+					type: 'boolean',
+					default: false,
+					experiment: { mode: 'startup' }
+				}
+			}
+		};
+		const contribution = createTestContribution({ [`config.${setting}`]: true });
+		configurationRegistry.registerConfiguration(configuration);
+
+		try {
+			await contribution.processExperimentalSettings([setting], false);
+			const treatmentDefault = configurationRegistry.getConfigurationProperties()[setting].default;
+			const defaultConfiguration = ConfigurationModel.createEmptyModel(new NullLogService());
+			defaultConfiguration.setValue(setting, treatmentDefault);
+			const explicitFalseConfiguration = ConfigurationModel.createEmptyModel(new NullLogService());
+			explicitFalseConfiguration.setValue(setting, false);
+			const explicitTrueConfiguration = ConfigurationModel.createEmptyModel(new NullLogService());
+			explicitTrueConfiguration.setValue(setting, true);
+
+			assert.deepStrictEqual({
+				treatmentDefault,
+				explicitFalse: defaultConfiguration.merge(explicitFalseConfiguration).getValue(setting),
+				explicitTrue: defaultConfiguration.merge(explicitTrueConfiguration).getValue(setting),
+			}, {
+				treatmentDefault: true,
+				explicitFalse: false,
+				explicitTrue: true,
+			});
+		} finally {
+			if (contribution.registeredExperimentalDefaults.size) {
+				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			}
+			configurationRegistry.deregisterConfigurations([configuration]);
+		}
+	});
 
 	const firstSetting = 'test.firstAutoExperimentalSetting';
 	const secondSetting = 'test.secondAutoExperimentalSetting';

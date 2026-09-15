@@ -21,7 +21,7 @@ import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, type ChatPillsCompac
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
-import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
+import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionFactoriesPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
@@ -70,6 +70,7 @@ export interface IStandardChatInputPillsData {
 	readonly customizations?: IStandardChatInputPillSections;
 	readonly browsers?: IStandardChatInputPillSections;
 	readonly subagents?: IStandardChatInputPillSections;
+	readonly factories?: IStandardChatInputPillSections;
 }
 
 function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
@@ -147,6 +148,7 @@ export class StandardChatInputPillSources extends Disposable {
 		addSections(SessionChatPillKind.Customizations, data.customizations, sessionCustomizationsPillOptions);
 		addSections(SessionChatPillKind.Browsers, data.browsers, sessionBrowsersPillOptions);
 		addSections(SessionChatPillKind.Subagents, data.subagents, sessionSubagentsPillOptions);
+		addSections(SessionChatPillKind.Factories, data.factories, sessionFactoriesPillOptions);
 		this.sources = sources;
 	}
 }

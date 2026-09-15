@@ -16,6 +16,7 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { ISessionFactoryRun, SessionFactoryRunPhaseStatus, SessionFactoryRunStatus, withSessionFactoryRuns } from '../../../../../../platform/agentHost/common/sessionFactoryRuns.js';
 import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -26,6 +27,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../bro
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { AgentHostFactoryRunEditorInput } from '../../../browser/agentSessions/agentHost/agentHostFactoryRunEditorInput.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
@@ -899,6 +901,150 @@ suite('AgentHostSessionInputPills', () => {
 			explicitSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
 			canonicalSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
 			backToSession: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
+		});
+	});
+
+	test('renders a Factories pill from the session meta and opens the run editor', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const runs: ISessionFactoryRun[] = [
+			{
+				runId: 'older-run',
+				factoryName: 'review-changed',
+				description: 'Review changed files',
+				status: SessionFactoryRunStatus.Completed,
+				revision: 4,
+				createdAt: 1000,
+				startedAt: 1100,
+				updatedAt: 5000,
+				completedAt: 5000,
+				liveAgentCount: 0,
+				totalSpawnedAgentCount: 3,
+				usage: { activeMs: 65_000, subagents: 3, aiCredits: 2 },
+				limits: {},
+				phases: [],
+				agents: [],
+				progress: [],
+			},
+			{
+				runId: 'newer-run',
+				factoryName: 'understand-automations',
+				description: 'Explain automations',
+				status: SessionFactoryRunStatus.Running,
+				revision: 2,
+				createdAt: 2000,
+				startedAt: 2100,
+				updatedAt: 2500,
+				currentPhaseId: 'investigate',
+				liveAgentCount: 4,
+				totalSpawnedAgentCount: 4,
+				usage: { activeMs: 20_000, subagents: 4, aiCredits: 1 },
+				limits: {},
+				phases: [{ id: 'investigate', ordinal: 0, title: 'Investigate', status: SessionFactoryRunPhaseStatus.Active, activeMs: 20_000, totalAgentCount: 4, liveAgentCount: 4 }],
+				agents: [],
+				progress: [],
+			},
+		];
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: buildDefaultChatUri(backendSession),
+				chats: [],
+				_meta: withSessionFactoryRuns(undefined, runs),
+			} as unknown as SessionState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		let dropdownItems: readonly { readonly label?: string; readonly badge?: string }[] = [];
+		let selectItem: ((index: number) => void) | undefined;
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			show: (_user, _supportsPreview, items, delegate) => {
+				dropdownItems = items.map(item => ({ label: item.label, badge: item.badge }));
+				selectItem = index => {
+					const item = items[index].item;
+					if (item !== undefined) {
+						delegate.onSelect(item);
+					}
+				};
+			},
+			hide: () => { },
+			updateItems: () => { },
+			focusItemById: () => { },
+		}));
+		const opened: unknown[] = [];
+		const editorService = upcastPartial<IEditorService>({
+			openEditor: (async (editor: unknown) => {
+				opened.push(editor);
+				if (editor instanceof Disposable) {
+					// A real editor service takes ownership of the input.
+					store.add(editor);
+				}
+				return undefined;
+			}) as IEditorService['openEditor'],
+		});
+		const [clipboardService, configurationService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+
+		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+		button?.click();
+		// Skip the section title row; the newest run is listed first.
+		selectItem?.(1);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const openedInput = opened[0];
+
+		assert.deepStrictEqual({
+			label: button?.querySelector('.chat-pill-label')?.textContent,
+			ariaLabel: button?.getAttribute('aria-label'),
+			dropdownLabels: dropdownItems.map(item => item.label),
+			dropdownBadges: dropdownItems.slice(1).map(item => item.badge),
+			opened: openedInput instanceof AgentHostFactoryRunEditorInput
+				? { runId: openedInput.runId, factoryName: openedInput.factoryName, sessionResource: openedInput.sessionResource.toString(), name: openedInput.getName() }
+				: undefined,
+		}, {
+			label: '2 Factory Runs',
+			ariaLabel: 'Show 2 factory runs',
+			dropdownLabels: ['Factory Runs', 'understand-automations', 'review-changed'],
+			dropdownBadges: ['Running · Investigate · 4 live agents', 'Completed · 3 agents · 1m 5s'],
+			opened: { runId: 'newer-run', factoryName: 'understand-automations', sessionResource: sessionResource.toString(), name: 'understand-automations' },
 		});
 	});
 });

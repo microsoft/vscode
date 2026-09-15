@@ -11,6 +11,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import type { ISessionFactoryRun } from '../../../../platform/agentHost/common/sessionFactoryRuns.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
@@ -789,6 +790,11 @@ export interface ISession {
 	 * surfaces only one of them must filter on that field.
 	 */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
+	/**
+	 * Agent Factory runs the session owns, in durable creation order. Absent for
+	 * providers without factories.
+	 */
+	readonly factoryRuns?: IObservable<readonly ISessionFactoryRun[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;

@@ -87,6 +87,8 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
+import { createCopilotFactoryRunReader, readCopilotFactoryRuns } from './copilotFactoryRuns.js';
+import { isSessionFactoryRunTerminal } from '../../common/sessionFactoryRuns.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
@@ -241,6 +243,44 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
 }
 
 /**
+ * Host-synthesized `exit_plan_mode` action. The runtime's action set is closed,
+ * so this never reaches the SDK: picking it approves the plan as `autopilot`
+ * and then steers the model to implement the plan's sections with an Agent
+ * Factory. Offered only while Agent Factories are enabled for the session.
+ */
+const PLAN_ACTION_AUTOPILOT_FACTORIES = 'autopilot_factories';
+
+/**
+ * How often live factory runs are re-read. The runtime's `factory.run_updated`
+ * fires only on start and settle, so this is what keeps phases, agents, and
+ * progress current in the UI while a run executes.
+ */
+const FACTORY_RUNS_LIVE_POLL_INTERVAL_MS = 3_000;
+
+/**
+ * Steering prompt sent after a plan is approved with
+ * {@link PLAN_ACTION_AUTOPILOT_FACTORIES}. Written for the model: it names the
+ * factory tools by their runtime names and spells out the phase shape so the
+ * run is observable section by section.
+ */
+function buildFactoryPlanImplementationPrompt(planPath: string | undefined): string {
+	const planReference = planPath
+		? `The approved plan is in ${planPath}.`
+		: 'Use the plan you just had approved.';
+	return [
+		'Implement the approved plan with an Agent Factory instead of doing every section yourself.',
+		planReference,
+		'',
+		'1. Read the factory guide with `factories_manage` (`operation: "guide"`), then author a session-scoped factory with `factories_manage` (`operation: "author"`).',
+		'2. Give the factory one phase per plan section (group only sections that are trivially small). In each phase, implement the section with `ctx.agent(...)`, using a distinct `label` per agent and a prompt that includes the section text, the files it touches, and the acceptance criteria. Run independent sections with `ctx.parallel`; keep sections that depend on each other sequential.',
+		'3. End with a verification phase whose agents build, run the relevant tests, and review the combined changes against the plan, returning structured findings.',
+		'4. Start the factory with `run_factory`, wait for it to settle, then read its result. Fix any gaps or failures it reports yourself before finishing.',
+		'',
+		'If the factory tools are unavailable in this session, implement the plan directly instead.',
+	].join('\n');
+}
+
+/**
  * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
  * Keys not present here fall back to the raw action id.
  */
@@ -255,6 +295,11 @@ function getPlanActionDescription(actionId: string): { label: string; descriptio
 			return {
 				label: localize('agentHost.planReview.autopilotFleet.label', "Implement with Autopilot Fleet"),
 				description: localize('agentHost.planReview.autopilotFleet.description', "Continue autonomously with fleet management, using the selected approval level."),
+			};
+		case PLAN_ACTION_AUTOPILOT_FACTORIES:
+			return {
+				label: localize('agentHost.planReview.autopilotFactories.label', "Implement with Agent Factories"),
+				description: localize('agentHost.planReview.autopilotFactories.description', "Continue autonomously, implementing each plan section with a factory subagent and verifying the result."),
 			};
 		case 'interactive':
 			return {
@@ -852,6 +897,14 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentTaskCompletionDelay: number;
 	private _subagentTaskStatusRevision = 0;
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
+	/** Coalesces bursts of `factory.run_*` events into one read of the session's factory runs. */
+	private readonly _factoryRunsRefreshThrottler = this._register(new Throttler());
+	/** Re-reads live factory runs between the runtime's sparse invalidation events. */
+	private readonly _factoryRunsPoll = this._register(new RunOnceScheduler(() => {
+		void this._refreshFactoryRuns().catch(err => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to poll factory runs: ${getErrorMessage(err)}`);
+		});
+	}, FACTORY_RUNS_LIVE_POLL_INTERVAL_MS));
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
 	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAssistedApproval | undefined>();
@@ -912,6 +965,8 @@ export class CopilotAgentSession extends Disposable {
 			readonly actions: readonly string[];
 			readonly recommendedAction: string;
 			readonly questionId: string;
+			/** Path of the plan file at review time, when the runtime reported one. */
+			readonly planPath?: string;
 		}
 	>();
 	/** File edit tracker for this session. */
@@ -1670,6 +1725,58 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 		});
+	}
+
+	/**
+	 * Re-reads the session's Agent Factory runs from the runtime and publishes
+	 * them for every client surface. The SDK's `factory.run_updated` event is an
+	 * invalidation signal rather than a payload, so each burst collapses into one
+	 * read of the durable state.
+	 *
+	 * The runtime emits that invalidation only when a run starts and when it
+	 * settles; phase, agent, progress, and accounting revisions in between commit
+	 * silently. While any run is live the runs are therefore also re-read on a
+	 * timer, the same fallback the SDK's own `waitForRun` relies on.
+	 */
+	private _refreshFactoryRuns(): Promise<void> {
+		return this._factoryRunsRefreshThrottler.queue(async () => {
+			const runs = await readCopilotFactoryRuns(createCopilotFactoryRunReader(this._wrapper.session.factory), (runId, error) => {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read factory run ${runId}: ${getErrorMessage(error)}`);
+			});
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._onDidSessionProgress.fire({ kind: 'factory_runs_changed', session: this._ownerSessionUri, runs });
+			this._scheduleLiveFactoryRunsPoll(runs.some(run => !isSessionFactoryRunTerminal(run.status)));
+		});
+	}
+
+	private _scheduleLiveFactoryRunsPoll(hasLiveRun: boolean): void {
+		if (!hasLiveRun || this._store.isDisposed) {
+			this._factoryRunsPoll.cancel();
+			return;
+		}
+		if (!this._factoryRunsPoll.isScheduled()) {
+			this._factoryRunsPoll.schedule();
+		}
+	}
+
+	private _isAgentFactoriesEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AgentFactories) === true;
+	}
+
+	/**
+	 * Inserts the host-only Agent Factories plan action right after the
+	 * autopilot variants the runtime offered. The runtime never sees this id
+	 * (see {@link PLAN_ACTION_AUTOPILOT_FACTORIES}), and it is offered only when
+	 * the session can actually author and run factories.
+	 */
+	private _withFactoryPlanAction(actions: readonly string[]): readonly string[] {
+		if (!this._isAgentFactoriesEnabled() || !actions.includes('autopilot') || actions.includes(PLAN_ACTION_AUTOPILOT_FACTORIES)) {
+			return actions;
+		}
+		const anchor = Math.max(actions.indexOf('autopilot_fleet'), actions.indexOf('autopilot'));
+		return [...actions.slice(0, anchor + 1), PLAN_ACTION_AUTOPILOT_FACTORIES, ...actions.slice(anchor + 1)];
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {
@@ -4785,7 +4892,7 @@ export class CopilotAgentSession extends Disposable {
 	 * cannot handle.
 	 */
 	private _resolveExitPlanMode(
-		pending: { actions: readonly string[]; recommendedAction: string; questionId: string },
+		pending: { actions: readonly string[]; recommendedAction: string; questionId: string; planPath?: string },
 		response: ChatInputResponseKind,
 		answers?: Record<string, ChatInputAnswer>,
 	): CopilotExitPlanModeResponse {
@@ -4848,19 +4955,42 @@ export class CopilotAgentSession extends Disposable {
 		// idempotent, so the later event is a no-op.
 		this._syncAhpModeFromExitPlanAction(selectedAction);
 
-		const isAutopilot = selectedAction === 'autopilot' || selectedAction === 'autopilot_fleet';
+		// The factories action is host-only: the SDK sees a plain autopilot
+		// approval, and the factory playbook follows as a steering message the
+		// model reads as soon as it resumes implementation.
+		if (selectedAction === PLAN_ACTION_AUTOPILOT_FACTORIES) {
+			this._steerFactoryPlanImplementation(pending.planPath);
+		}
+		const sdkAction = selectedAction === PLAN_ACTION_AUTOPILOT_FACTORIES ? 'autopilot' : selectedAction;
+		const isAutopilot = sdkAction === 'autopilot' || sdkAction === 'autopilot_fleet';
 		return {
 			approved: true,
-			selectedAction,
+			selectedAction: sdkAction,
 			...(isAutopilot && this._isBypassApprovals() ? { autoApproveEdits: true } : {}),
 		};
+	}
+
+	/**
+	 * Sends the Agent Factory implementation playbook as a steering message so
+	 * it shows as its own turn and reaches the model right after the plan
+	 * approval result. Failures are logged rather than surfaced: the plan is
+	 * already approved, so the model still implements it, just directly.
+	 */
+	private _steerFactoryPlanImplementation(planPath: string | undefined): void {
+		const steering: PendingMessage = {
+			id: generateUuid(),
+			message: { text: buildFactoryPlanImplementationPrompt(planPath), origin: { kind: MessageKind.User } },
+		};
+		void this.sendSteering(steering).catch(err => {
+			this._logService.error(`[Copilot:${this.sessionId}] Failed to steer factory plan implementation`, err);
+		});
 	}
 
 	/**
 	 * Translates an approved `exit_plan_mode` action into the AHP `mode` axis
 	 * and writes it so the mode picker reflects the choice immediately:
 	 *
-	 *  - `autopilot` / `autopilot_fleet` → `mode='autopilot'`.
+	 *  - `autopilot` / `autopilot_fleet` / `autopilot_factories` → `mode='autopilot'`.
 	 *  - `interactive` → `mode='interactive'`.
 	 *  - `exit_only` (approve plan without executing) leaves the mode untouched.
 	 */
@@ -4868,6 +4998,7 @@ export class CopilotAgentSession extends Disposable {
 		switch (selectedAction) {
 			case 'autopilot':
 			case 'autopilot_fleet':
+			case PLAN_ACTION_AUTOPILOT_FACTORIES:
 				this._syncAhpConfigFromSdkMode('autopilot');
 				break;
 			case 'interactive':
@@ -6501,7 +6632,8 @@ export class CopilotAgentSession extends Disposable {
 			return { approved: false };
 		}
 
-		const options = data.actions.map(actionId => {
+		const offeredActions = this._withFactoryPlanAction(data.actions);
+		const options = offeredActions.map(actionId => {
 			const desc = getPlanActionDescription(actionId);
 			return {
 				id: actionId,
@@ -6540,9 +6672,10 @@ export class CopilotAgentSession extends Disposable {
 		}, ChatInputRequestPurpose.PlanReview);
 
 		const pendingPlanReview = this._pendingPlanReviews.register(requestId, {
-			actions: data.actions,
+			actions: offeredActions,
 			recommendedAction: data.recommendedAction,
 			questionId,
+			...(planPath ? { planPath } : {}),
 		});
 
 		this._onDidSessionProgress.fire({
@@ -6787,6 +6920,25 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${sessionId}] Failed to reconcile subagent task status: ${getErrorMessage(err)}`);
 			});
 		}));
+
+		// Factory events are ephemeral invalidations; the durable run state is
+		// re-read on each so the published projection never goes stale.
+		const refreshFactoryRuns = () => {
+			void this._refreshFactoryRuns().catch(err => {
+				this._logService.warn(`[Copilot:${sessionId}] Failed to refresh factory runs: ${getErrorMessage(err)}`);
+			});
+		};
+		this._register(wrapper.onFactoryRunUpdated(refreshFactoryRuns));
+		this._register(wrapper.onFactoryRunStarted(refreshFactoryRuns));
+		this._register(wrapper.onFactoryRunSettled(refreshFactoryRuns));
+		// Runs outlive the turn that started them, so a resumed session republishes
+		// them without waiting for the next event. Skipped when factories are off,
+		// where the runtime rejects the read.
+		if (this._isAgentFactoriesEnabled()) {
+			void this._refreshFactoryRuns().catch(err => {
+				this._logService.trace(`[Copilot:${sessionId}] Initial factory run read failed: ${getErrorMessage(err)}`);
+			});
+		}
 
 		this._register(wrapper.onTurnStart(e => {
 			const turn = this._currentTurn.value;

@@ -20,6 +20,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
+import { AgentHostFactoryRunEditorInput } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostFactoryRunEditorInput.js';
+import { describeFactoryRun, getFactoryRunStatusIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostFactoryRunPresentation.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
@@ -324,6 +327,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 		@IOpenerService openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
+		@IEditorService editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -418,6 +422,32 @@ export class SessionChatInputToolbar extends Disposable {
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
 				: localize('sessionChatPills.allChanges', "All Changes");
 		});
+		const factorySections = derived<readonly IChatPillSection[]>(this, reader => {
+			const session = this._session.read(reader);
+			const runs = session?.factoryRuns?.read(reader);
+			if (!session || !runs?.length) {
+				return [];
+			}
+			// Newest first, so the dropdown opens on the run the session started last.
+			const entries = runs.slice().reverse().map((run): IChatPillEntry => {
+				const description = describeFactoryRun(run);
+				return {
+					id: run.runId,
+					label: run.factoryName,
+					pillLabel: run.factoryName,
+					badge: description,
+					icon: getFactoryRunStatusIcon(run.status),
+					ariaLabel: localize('sessionChatPills.openFactoryRun', "Open factory run {0}", run.factoryName),
+					ariaDescription: description,
+					tooltip: `${run.factoryName}\n${description}`,
+					open: () => {
+						layoutService.revealEditorPartExplicitly();
+						void editorService.openEditor(new AgentHostFactoryRunEditorInput(session.resource, run.runId, run.factoryName), { pinned: true });
+					},
+				};
+			});
+			return [{ title: localize('sessionChatPills.factoryRuns', "Factory Runs"), entries }];
+		});
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
 				stats: this._diffStats,
@@ -446,6 +476,7 @@ export class SessionChatInputToolbar extends Disposable {
 			customizations: { sections: this._customizationSections },
 			browsers: { sections: this._browsers.sections },
 			subagents: { sections: this._backgroundActivities.sections },
+			factories: { sections: factorySections },
 		}, SESSION_CHAT_PILL_KINDS));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {

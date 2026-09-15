@@ -23,6 +23,7 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import { withSessionFactoryRuns } from '../common/sessionFactoryRuns.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -602,6 +603,17 @@ export class AgentSideEffects extends Disposable {
 				kind: PendingMessageKind.Steering,
 				id: signal.id,
 			});
+			return;
+		}
+
+		if (signal.kind === 'factory_runs_changed') {
+			const session = signal.session.toString();
+			const state = this._stateManager.getSessionState(session);
+			if (!state) {
+				this._logService.trace(`[AgentSideEffects] Dropping factory runs for unknown session ${session}`);
+				return;
+			}
+			this._stateManager.setSessionMeta(session, withSessionFactoryRuns(state._meta, signal.runs));
 			return;
 		}
 		const signalResource = signal.kind === 'action' || signal.kind === 'model_call_completed' || signal.kind === 'model_call_finished' ? signal.resource.toString() : signal.chat.toString();
