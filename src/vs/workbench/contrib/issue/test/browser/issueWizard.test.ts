@@ -55,7 +55,7 @@ suite('Issue Wizard Launch Command', () => {
 	let openedSessionResources: URI[];
 	let openedWidgets: IChatWidget[];
 	let focusedSessionResources: URI[];
-	let openedSessionOptions: { sessionType: string; displayName: string; workspaceFolder: URI }[];
+	let openedSessionOptions: { sessionType: string; displayName: string; workspaceFolder?: URI }[];
 	let completionRequests: { sessionResource: URI; params: IChatInputCompletionsParams }[];
 	let parsedSkillUris: URI[];
 	let lastFocusedWidget: IChatWidget | undefined;
@@ -279,7 +279,7 @@ suite('Issue Wizard Launch Command', () => {
 		assert.deepStrictEqual({
 			sessionTypes: openedSessionResources.map(resource => resource.scheme),
 			freshSession: !extUriBiasedIgnorePathCase.isEqual(firstSession, openedSessionResources[1]),
-			selectedFolders: openedSessionOptions.map(options => options.workspaceFolder.toString()),
+			selectedFolders: openedSessionOptions.map(options => options.workspaceFolder?.toString()),
 			displayNames: openedSessionOptions.map(options => options.displayName),
 			focusedSessions: focusedSessionResources.map(resource => resource.toString()),
 			queries: acceptedRequests.map(request => request.query),
@@ -293,6 +293,25 @@ suite('Issue Wizard Launch Command', () => {
 			focusedSessions: openedSessionResources.map(resource => resource.toString()),
 			queries: ['/issue-wizard Help me troubleshoot a VS Code issue.', '/issue-wizard Help me troubleshoot a VS Code issue.'],
 			attachmentKinds: ['generic', 'generic'],
+			notifications: { warn: [], error: [] },
+		});
+	});
+
+	test('creates an Agent Host editor session without a workspace folder', async () => {
+		setupServices({ folders: [] });
+		await runCommand();
+
+		assert.deepStrictEqual({
+			sessionTypes: openedSessionResources.map(resource => resource.scheme),
+			selectedFolders: openedSessionOptions.map(options => options.workspaceFolder?.toString()),
+			focusedSessions: focusedSessionResources.map(resource => resource.toString()),
+			queries: acceptedRequests.map(request => request.query),
+			notifications,
+		}, {
+			sessionTypes: [agentHostSessionType],
+			selectedFolders: [undefined],
+			focusedSessions: openedSessionResources.map(resource => resource.toString()),
+			queries: ['/issue-wizard Help me troubleshoot a VS Code issue.'],
 			notifications: { warn: [], error: [] },
 		});
 	});
@@ -562,7 +581,7 @@ suite('Issue Wizard Launch Command', () => {
 			activeResource: URI.file('/workspace-a-not-a-child/file.txt'),
 		});
 		await runCommand();
-		assert.strictEqual(openedSessionOptions[0].workspaceFolder.toString(), firstFolder.toString());
+		assert.strictEqual(openedSessionOptions[0].workspaceFolder?.toString(), firstFolder.toString());
 	});
 });
 

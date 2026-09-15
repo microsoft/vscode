@@ -85,6 +85,8 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			detail: localize('clientToolSet.vscode.detail', "Navigate code, manage extensions, and run built-in VS Code commands."),
 			members: [
 				...(workspaceService.isSessionsWindow ? [] : ['runTests', 'testFailure', 'rename', 'usages']),
+				'getVSCodeInfo',
+				'searchVSCodeLogs',
 				'toolSearch',
 			],
 		}));

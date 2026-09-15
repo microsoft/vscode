@@ -37,6 +37,8 @@ import { NativeGitHubUploadService } from './nativeGitHubUploadService.js';
 import { IssueReporterEditorPane } from './issueReporterEditorPane.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import '../browser/issueWizard.js';
+import { IIssueDiagnosticsService, IssueDiagnosticsService } from './issueDiagnosticsService.js';
+import { IssueWizardDiagnosticToolsContribution } from './issueWizardDiagnosticTools.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
@@ -44,6 +46,7 @@ registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.D
 registerSingleton(IScreenshotService, NativeScreenshotService, InstantiationType.Delayed);
 registerSingleton(IRecordingService, NativeRecordingService, InstantiationType.Delayed);
 registerSingleton(IGitHubUploadService, NativeGitHubUploadService, InstantiationType.Delayed);
+registerSingleton(IIssueDiagnosticsService, IssueDiagnosticsService, InstantiationType.Delayed);
 
 // Settings
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -122,6 +125,7 @@ class NativeIssueContribution extends BaseIssueContribution {
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(NativeIssueContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(IssueWizardDiagnosticToolsContribution, LifecyclePhase.Restored);
 
 class ReportPerformanceIssueUsingReporterAction extends Action2 {
 

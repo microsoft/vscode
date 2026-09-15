@@ -160,7 +160,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			scheme: options.sessionType,
 			path: `/untitled-${generateUuid()}`,
 		});
-		this.agentHostNewSessionFolderService.setFolder(sessionResource, options.workspaceFolder);
+		if (options.workspaceFolder) {
+			this.agentHostNewSessionFolderService.setFolder(sessionResource, options.workspaceFolder);
+		}
 		const widget = await this.openSession(sessionResource, ACTIVE_GROUP, {
 			pinned: true,
 			sessionTypeSelectionReason: 'explicitOverride',

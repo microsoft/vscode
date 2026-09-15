@@ -125,11 +125,6 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 		}
 
 		const folderUri = this.getInvokingWorkspaceFolder();
-		if (!folderUri) {
-			this.notificationService.warn(localize('issueWizardUnavailable.noFolder', "Issue Wizard needs an open workspace folder."));
-			return;
-		}
-
 		await this.createSessionAndSendBootstrap(folderUri, options?.symptom);
 	}
 
@@ -155,7 +150,7 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 		return (activeResource ? this.workspaceContextService.getWorkspaceFolder(activeResource)?.uri : undefined) ?? folders[0]?.uri;
 	}
 
-	private async createSessionAndSendBootstrap(folderUri: URI, symptom: string | undefined): Promise<void> {
+	private async createSessionAndSendBootstrap(folderUri: URI | undefined, symptom: string | undefined): Promise<void> {
 		try {
 			const agentHostSessionType = this.chatSessionsService.getAllChatSessionContributions()
 				.find(contribution => contribution.agentHostProviderId && isLocalAgentHostTarget(contribution.type))?.type;

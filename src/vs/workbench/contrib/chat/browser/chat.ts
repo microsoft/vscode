@@ -118,7 +118,7 @@ export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidge
 export interface INewAgentHostEditorSessionOptions {
 	readonly sessionType: string;
 	readonly displayName: string;
-	readonly workspaceFolder: URI;
+	readonly workspaceFolder?: URI;
 }
 
 /**
@@ -180,9 +180,9 @@ export interface IChatWidgetService {
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
 	/**
-	 * Creates a fresh Agent Host session bound to a workspace folder and opens it
-	 * in a chat editor. The returned widget is the exact widget created for the
-	 * new session.
+	 * Creates a fresh Agent Host session, optionally bound to a workspace folder,
+	 * and opens it in a chat editor. The returned widget is the exact widget
+	 * created for the new session.
 	 */
 	openNewAgentHostEditorSession(options: INewAgentHostEditorSessionOptions): Promise<INewAgentHostEditorSession | undefined>;
 

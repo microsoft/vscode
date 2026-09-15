@@ -95,6 +95,41 @@ suite('ChatWidgetService - new Agent Host editor session', () => {
 		});
 	});
 
+	test('creates a fresh editor session without binding a folder when none is supplied', async () => {
+		const widget = upcastPartial<IChatWidget>({});
+		const { service, folderAssignments, clearedResources, openCalls } = createService(widget);
+
+		const result = await service.openNewAgentHostEditorSession({ sessionType: 'agent-host-test', displayName: 'Issue Wizard' });
+
+		assert.deepStrictEqual({
+			created: !!result,
+			sessionType: result?.sessionResource.scheme,
+			exactWidget: result?.widget === widget,
+			folderAssignments,
+			openCalls: openCalls.map(call => ({
+				sessionResource: call.sessionResource.toString(),
+				target: call.target,
+				pinned: call.options?.pinned,
+				selectionReason: call.options?.sessionTypeSelectionReason,
+				title: call.options?.title,
+			})),
+			clearedResources,
+		}, {
+			created: true,
+			sessionType: 'agent-host-test',
+			exactWidget: true,
+			folderAssignments: [],
+			openCalls: [{
+				sessionResource: result?.sessionResource.toString(),
+				target: ACTIVE_GROUP,
+				pinned: true,
+				selectionReason: 'explicitOverride',
+				title: { fallback: 'Issue Wizard' },
+			}],
+			clearedResources: [],
+		});
+	});
+
 	test('clears the provisional folder binding when the editor widget cannot be opened', async () => {
 		const { service, folderAssignments, clearedResources } = createService(undefined);
 		const result = await service.openNewAgentHostEditorSession({ sessionType: 'agent-host-test', displayName: 'Issue Wizard', workspaceFolder: URI.file('/workspace') });

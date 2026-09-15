@@ -14,6 +14,7 @@ import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, IRemoteAgentHostConnectionInfo, IRemo
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService, type IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { readTextFileTail } from '../../../../../platform/files/common/io.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -255,7 +256,8 @@ export async function readAgentHostLogSourceContent(
 			if (!source.resource) {
 				return undefined;
 			}
-			return readFileTail(fileService, source.resource, capBytes);
+			const content = await readTextFileTail(fileService, source.resource, capBytes);
+			return { ...content, fileResource: source.resource };
 		}
 		case AgentHostLogSourceKind.ProcessChannel: {
 			if (!source.channelId) {
@@ -326,30 +328,6 @@ async function listWireLogFiles(
 
 	// Newest first.
 	return selected.sort((a, b) => b.mtime - a.mtime);
-}
-
-/** Reads at most `capBytes` from the tail of a file. */
-async function readFileTail(fileService: IFileService, resource: URI, capBytes: number): Promise<IAgentHostLogContent> {
-	let size: number | undefined;
-	try {
-		size = (await fileService.resolve(resource, { resolveMetadata: true })).size;
-	} catch {
-		size = undefined;
-	}
-
-	if (size !== undefined && size > capBytes) {
-		const content = await fileService.readFile(resource, { position: size - capBytes, length: capBytes });
-		let text = content.value.toString();
-		// Drop the leading partial line so the view starts on a record boundary.
-		const firstNewline = text.indexOf('\n');
-		if (firstNewline >= 0) {
-			text = text.slice(firstNewline + 1);
-		}
-		return { text, totalBytes: size, truncated: true, fileResource: resource };
-	}
-
-	const content = await fileService.readFile(resource, { limits: { size: capBytes } });
-	return { text: content.value.toString(), totalBytes: size, truncated: false, fileResource: resource };
 }
 
 /** Returns at most `capBytes` worth of text from the tail of a string. */
