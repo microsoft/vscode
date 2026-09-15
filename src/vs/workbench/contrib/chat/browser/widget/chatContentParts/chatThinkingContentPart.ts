@@ -69,6 +69,12 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
+function extractActiveTextFromPart(content: IChatThinkingPart): string {
+	return Array.isArray(content.value)
+		? (content.value.findLast(value => !!value) ?? '').trim()
+		: extractTextFromPart(content);
+}
+
 function isEditToolId(toolId: string): boolean {
 	const lowerToolId = toolId.toLowerCase();
 	return lowerToolId.includes('edit') ||
@@ -372,6 +378,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
+	private arrayThinkingSource: IChatThinkingPart | undefined;
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking');
@@ -1358,18 +1365,25 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.setExpanded(false);
 	}
 
+	public setArrayThinkingSource(content: IChatThinkingPart): void {
+		this.arrayThinkingSource = content;
+	}
+
 	public updateThinking(content: IChatThinkingPart): void {
 		// If disposed, ignore late updates coming from renderer diffing
 		if (this._store.isDisposed) {
 			return;
 		}
+		if (Array.isArray(content.value)) {
+			this.setArrayThinkingSource(content);
+			content = { ...content, value: extractActiveTextFromPart(content) };
+		}
 		this.content = content;
 		this.reasoningDurationMs = content.reasoningDurationMs;
 
-		// Update any pending lazy thinking item with matching ID so that
-		// when materialized, it will have the latest streaming content
+		// Array sections share an ID; only update the lazy item for the current text container.
 		for (const lazyItem of this.lazyItems) {
-			if (lazyItem.kind === 'thinking' && lazyItem.content.id === content.id) {
+			if (lazyItem.kind === 'thinking' && lazyItem.content.id === content.id && lazyItem.textContainer === this.textContainer) {
 				lazyItem.content = content;
 				break;
 			}
@@ -1577,6 +1591,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 		for (const thinkingPart of this.allThinkingParts) {
 			thinkingPart.generatedTitle = title;
+		}
+		if (this.arrayThinkingSource) {
+			this.arrayThinkingSource.generatedTitle = title;
 		}
 	}
 
@@ -2739,6 +2756,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		if (other.id !== this.id) {
 			return true;
+		}
+
+		if (Array.isArray(other.value) && this.arrayThinkingSource) {
+			return other === this.arrayThinkingSource
+				&& extractActiveTextFromPart(other) === extractTextFromPart(this.content)
+				&& other.reasoningDurationMs === this.reasoningDurationMs
+				&& other.generatedTitle === this.content.generatedTitle;
 		}
 
 		// Accept replacement model parts so generated titles are written back to the current part.

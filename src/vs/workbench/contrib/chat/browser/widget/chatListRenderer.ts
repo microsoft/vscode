@@ -2609,7 +2609,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
-		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
+		const contentIsAlreadyRendered = partsToRender.length === (templateData.renderedParts?.length ?? 0) && partsToRender.every(part => part === null);
 		if (!contentIsAlreadyRendered) {
 			this.renderChatContentDiff(partsToRender, contentForThisTurn.content, element, index, templateData);
 		}
@@ -2673,7 +2673,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
-		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
+		const contentIsAlreadyRendered = partsToRender.length === (templateData.renderedParts?.length ?? 0) && partsToRender.every(part => part === null);
 		if (contentIsAlreadyRendered) {
 			if (contentForThisTurn.moreContentAvailable) {
 				// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
@@ -2746,9 +2746,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& contentForThisTurn.slice(contentIndex + 1).some(part => part.kind === 'working');
 			if (alreadyRenderedPart) {
 				if (partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
-					if (!Array.isArray(partToRender.value)) {
-						alreadyRenderedPart.updateThinking(partToRender);
-					}
+					alreadyRenderedPart.updateThinking(partToRender);
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
 				} else if (alreadyRenderedPart instanceof ChatThinkingContentPart && this.shouldPinPart(partToRender, element)) {
@@ -2876,6 +2874,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				delete renderedParts[i];
 			}
 		}
+		renderedParts.length = partsToRender.length;
 
 		const animateCollapse = templateData.wasResponseComplete === false && element.isComplete;
 		this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
@@ -4745,6 +4744,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						lastPart = itemPart;
 					}
 				}
+			}
+			if (lastPart instanceof ChatThinkingContentPart) {
+				lastPart.setArrayThinkingSource(content);
 			}
 			return lastPart ?? this.renderNoContent(other => content.kind === other.kind);
 			// non-array, handle case where we are currently thinking vs. starting a new thinking part
