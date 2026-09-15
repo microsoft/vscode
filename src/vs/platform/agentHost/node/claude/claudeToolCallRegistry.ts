@@ -26,6 +26,11 @@ export interface IClaudeToolStartInfo {
 	readonly isClientTool: boolean;
 }
 
+/** The part of the subagent registry {@link ClaudeToolCallRegistry.clearPending} needs. */
+export interface ISubagentSpawnLookup {
+	getParentSpawn(innerToolUseId: string): { readonly background: boolean } | undefined;
+}
+
 interface IRegistryEntry {
 	readonly toolName: string;
 	readonly turnId: string;
@@ -230,13 +235,17 @@ export class ClaudeToolCallRegistry {
 	 * session and accumulate across turns. Called from `mapResult`
 	 * on every `result` envelope.
 	 */
-	clearPending(logService: ILogService): void {
+	clearPending(logService: ILogService, subagents?: ISubagentSpawnLookup): void {
 		if (this._entries.size === 0) {
 			return;
 		}
 		for (const [toolUseId, entry] of this._entries) {
+			// A background subagent outlives its spawning turn; its result is still coming.
+			if (subagents?.getParentSpawn(toolUseId)?.background) {
+				continue;
+			}
 			logService.warn(`[claudeToolCallRegistry] turn ${entry.turnId} ended with pending tool_use ${toolUseId} (${entry.toolName}); dropping cross-message state`);
+			this._entries.delete(toolUseId);
 		}
-		this._entries.clear();
 	}
 }
