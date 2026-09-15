@@ -41,6 +41,8 @@ export interface ISessionComparisonHarness {
 	readonly modelId?: string;
 	readonly modelLabel?: string;
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	readonly permissionId?: string;
+	readonly permissionLabel?: string;
 }
 
 export interface ISessionComparisonAttemptConfiguration {
@@ -116,6 +118,7 @@ export interface ISessionComparison {
 	readonly workspace: URI;
 	readonly prompt: string;
 	readonly branch?: string;
+	/** Retained for comparisons persisted before execution presets were introduced. */
 	readonly permissionLevel?: string;
 	readonly judgeHarness?: ISessionComparisonHarness;
 	readonly participants: readonly ISessionComparisonParticipant[];
@@ -158,9 +161,12 @@ export function getSessionComparisonHarnessDisplayLabel(harness: ISessionCompari
 		? localize('sessionComparison.harnessAndModel', "{0} · {1}", harness.label, harness.modelLabel)
 		: harness.label;
 	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
-	return typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
+	const configuredLabel = typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
 		? localize('sessionComparison.harnessModelAndEffort', "{0} · {1}", harnessLabel, getReasoningEffortLabel(reasoningEffort))
 		: harnessLabel;
+	return harness.permissionId && harness.permissionId !== 'default' && harness.permissionLabel
+		? localize('sessionComparison.harnessAndPermissions', "{0} · {1}", configuredLabel, harness.permissionLabel)
+		: configuredLabel;
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {

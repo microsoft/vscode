@@ -131,6 +131,10 @@ export class ReadSessionComparisonTool implements IToolImpl {
 					agent: participant.harness.label,
 					model: participant.harness.modelLabel ?? 'Default',
 					reasoningEffort: typeof reasoningEffort === 'string' ? reasoningEffort : 'default',
+					permissions: {
+						id: participant.harness.permissionId ?? 'default',
+						label: participant.harness.permissionLabel ?? 'Default',
+					},
 				},
 				status: session?.status.get() ?? 'unavailable',
 				launchError: participant.launchError,

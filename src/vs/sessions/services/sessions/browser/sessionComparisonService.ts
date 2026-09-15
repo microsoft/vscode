@@ -248,7 +248,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				sessionTypeId: recommended.harness.sessionTypeId,
 				modelId: recommended.harness.modelId,
 				modelConfiguration: recommended.harness.modelConfiguration,
-				permissionLevel: comparison.permissionLevel,
+				...this._permissionOptions(recommended.harness, comparison.permissionLevel),
 				isolationMode: 'worktree',
 				branch: comparison.branch,
 				metadata: withSessionComparisonMetadata(undefined, {
@@ -282,7 +282,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			sessionTypeId: harness.sessionTypeId,
 			modelId: harness.modelId,
 			modelConfiguration: harness.modelConfiguration,
-			permissionLevel: options.permissionLevel,
+			...this._permissionOptions(harness, options.permissionLevel),
 			isolationMode: 'worktree',
 			branch: options.branch,
 			metadata: withSessionComparisonMetadata(undefined, {
@@ -292,6 +292,16 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				attemptCount: options.attempts.length,
 			}),
 		};
+	}
+
+	private _permissionOptions(harness: ISessionComparisonHarness, legacyPermissionLevel: string | undefined) {
+		if (harness.permissionId) {
+			return { permissionId: harness.permissionId };
+		}
+		if (legacyPermissionLevel) {
+			return { permissionLevel: legacyPermissionLevel };
+		}
+		return {};
 	}
 
 	private _requireComparison(comparisonId: string): ISessionComparison {
@@ -456,7 +466,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			sessionTypeId: harness.sessionTypeId,
 			modelId: harness.modelId,
 			modelConfiguration: harness.modelConfiguration,
-			permissionLevel: comparison.permissionLevel,
+			...this._permissionOptions(harness, comparison.permissionLevel),
 			isolationMode: 'worktree',
 			branch: comparison.branch,
 			metadata: withSessionComparisonMetadata(undefined, {

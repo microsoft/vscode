@@ -512,7 +512,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionComparisonSetup: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['A focused, narrow Run and Compare Agents dialog opens with the current prompt, a compact “Starting from vscode · main” summary, and the note that each attempt runs in an isolated worktree and nothing is applied automatically. Two aligned attempt rows are visible by default with Agent selectors and the shared VS Code model picker, which uses the experimental provider-tab experience for model effort and context configuration. Remove actions are absent while only the required two attempts exist, Add attempt is a quiet inline action, Evaluation is collapsed with its selected Judge summarized, and the primary action reads Run 2 attempts.'],
+		expectedVisualDescriptions: ['A wide, focused Run and Compare Agents dialog opens with the current prompt, a compact “Starting from vscode · main” summary, and an unchecked Allow all permissions for every participant checkbox with explanatory text. The dialog notes that each attempt runs in an isolated worktree and nothing is applied automatically. Two aligned attempt rows are visible by default with Agent, Model, and Permissions controls on one line. The shared VS Code model picker uses the experimental provider-tab experience for model effort and context configuration, while each Permissions picker shows the exact provider choices, such as Manual permissions and Allow all for Copilot. The Model column receives the most room so configured model names and effort summaries remain readable. Remove actions are absent while only the required two attempts exist, Add attempt is a quiet inline action, Evaluation is collapsed with its independently configured Judge summarized, and the primary action reads Run 2 attempts.'],
 		render: context => renderNewChatWidget(context, { height: 760, withWorkspace: true, withConfiguredModel: true, openComparisonSetup: true, comparisonPrompt: 'Implement the issue and include focused tests.' }),
 	}),
 	NewSessionGitHubContextPicker: defineComponentFixture({
@@ -670,6 +670,19 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		];
 		override readonly supportsLocalWorkspaces = true;
 		override readonly supportsModelConfigurationForCreation = true;
+		override getPermissionOptionsForCreation() {
+			return [{
+				id: 'default',
+				label: 'Manual permissions',
+				description: 'Ask before tool calls.',
+				isDefault: true,
+			}, {
+				id: 'autoApprove',
+				label: 'Allow all',
+				description: 'Run tool calls without asking.',
+				isAllowAll: true,
+			}];
+		}
 
 		override getSessions(): ISession[] {
 			return [];

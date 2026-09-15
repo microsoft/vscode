@@ -2369,6 +2369,48 @@ suite('SessionsManagementService', () => {
 		}), /does not support model configuration/);
 	});
 
+	test('createNewSession forwards exact permission choices and rejects unavailable permissions', () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		const providerOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly sessionTypes: readonly ISessionType[] = [
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'supported', label: 'Supported', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'unsupported', label: 'Unsupported', icon: Codicon.vm },
+			];
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override getPermissionOptionsForCreation(sessionTypeId: string) {
+				return sessionTypeId === 'supported' ? [{
+					id: 'allowAll',
+					label: 'Allow all',
+					description: 'Allow all tools.',
+					isAllowAll: true,
+				}] : [];
+			}
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions.push(options);
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		service.createNewSession(URI.parse('test:///folder'), {
+			sessionTypeId: 'supported',
+			permissionId: 'allowAll',
+		});
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
+			sessionTypeId: 'unsupported',
+			permissionId: 'allowAll',
+		}), /does not support permission 'allowAll'/);
+
+		assert.deepStrictEqual(providerOptions, [{
+			metadata: undefined,
+			permissionId: 'allowAll',
+		}]);
+	});
+
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {
 		const session = stubSession({
 			sessionId: 's1',

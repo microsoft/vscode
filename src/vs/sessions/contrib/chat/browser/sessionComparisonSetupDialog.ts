@@ -10,6 +10,7 @@ import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Button, IButton } from '../../../../base/browser/ui/button/button.js';
+import { TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -29,6 +30,7 @@ import { createModelConfigurationActions, ILanguageModelChatMetadataAndIdentifie
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getSessionComparisonHarnessDisplayLabel, ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../services/sessions/common/sessionComparison.js';
+import { type ISessionPermissionOption } from '../../../services/sessions/common/sessionsProvider.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatInput.js';
 
@@ -341,6 +343,60 @@ export class SessionComparisonSetupDialog extends Disposable {
 					localize('sessionComparisonSetup.attachedContextCount', "{0} context items", context.attachedContextCount);
 			}
 
+			const getPermissionOptions = (harness: ISessionComparisonHarness): readonly ISessionPermissionOption[] =>
+				this.sessionsProvidersService.getProvider(harness.providerId)?.getPermissionOptionsForCreation?.(harness.sessionTypeId) ?? [];
+			const getSelectedPermission = (harness: ISessionComparisonHarness): ISessionPermissionOption | undefined => {
+				const options = getPermissionOptions(harness);
+				return options.find(option => option.id === harness.permissionId && !option.locked)
+					?? options.find(option => option.isDefault && !option.locked);
+			};
+			const applyPermission = (harness: ISessionComparisonHarness, permission: ISessionPermissionOption): ISessionComparisonHarness => ({
+				...harness,
+				permissionId: permission.id,
+				permissionLabel: permission.label,
+			});
+			const participantHarnesses = () => [...attempts.map(attempt => attempt.harness), judgeHarness];
+			const getBulkPermissionState = () => {
+				const harnesses = participantHarnesses();
+				const allowAllPermissions = harnesses.map(harness =>
+					getPermissionOptions(harness).find(option => option.isAllowAll && !option.locked));
+				const allAllowAll = harnesses.length > 0 && harnesses.every(harness => getSelectedPermission(harness)?.isAllowAll === true);
+				const allDefault = harnesses.length > 0 && harnesses.every(harness => getSelectedPermission(harness)?.isDefault === true);
+				return {
+					available: allowAllPermissions.every((permission): permission is ISessionPermissionOption => !!permission),
+					checked: allAllowAll ? true : allDefault ? false : 'mixed' as const,
+				};
+			};
+			const bulkPermissionState = getBulkPermissionState();
+			const bulkPermissions = dom.append(content, dom.$('.session-comparison-setup-bulk-permissions'));
+			const bulkPermissionLabel = localize('sessionComparisonSetup.permissions.allowAllParticipants', "Allow all permissions for every participant");
+			const bulkPermissionCheckbox = rowsDisposables.add(new TriStateCheckbox(bulkPermissionLabel, bulkPermissionState.checked, defaultCheckboxStyles));
+			bulkPermissionCheckbox.domNode.setAttribute('aria-checked', String(bulkPermissionState.checked));
+			if (!bulkPermissionState.available) {
+				bulkPermissionCheckbox.disable();
+			}
+			dom.append(bulkPermissions, bulkPermissionCheckbox.domNode);
+			dom.append(bulkPermissions, dom.$('span.session-comparison-setup-bulk-permissions-label', { 'aria-hidden': 'true' }, bulkPermissionLabel));
+			const bulkPermissionDescription = dom.append(bulkPermissions, dom.$('span.session-comparison-setup-bulk-permissions-description'));
+			bulkPermissionDescription.textContent = bulkPermissionState.available
+				? localize('sessionComparisonSetup.permissions.allowAllParticipantsDescription', "Uses each selected agent's Allow all, Bypass Permissions, or Full Access option. Uncheck to restore every participant's default.")
+				: localize('sessionComparisonSetup.permissions.allowAllParticipantsUnavailable', "Unavailable for one or more selected agents or disabled by your organization.");
+			const updateBulkPermissionCheckbox = () => {
+				const checked = getBulkPermissionState().checked;
+				bulkPermissionCheckbox.checked = checked;
+				bulkPermissionCheckbox.domNode.setAttribute('aria-checked', String(checked));
+			};
+			rowsDisposables.add(bulkPermissionCheckbox.onChange(() => {
+				const selectPermission = (harness: ISessionComparisonHarness): ISessionComparisonHarness => {
+					const options = getPermissionOptions(harness);
+					const permission = options.find(option => (bulkPermissionCheckbox.checked === true ? option.isAllowAll : option.isDefault) && !option.locked);
+					return permission ? applyPermission(harness, permission) : harness;
+				};
+				attempts = attempts.map(attempt => ({ ...attempt, harness: selectPermission(attempt.harness) }));
+				judgeHarness = selectPermission(judgeHarness);
+				renderRows();
+			}));
+
 			const usage = dom.append(content, dom.$('.session-comparison-setup-usage'));
 			usage.textContent = localize('sessionComparisonSetup.usage', "Each attempt runs in an isolated worktree. Nothing is applied automatically.");
 
@@ -372,9 +428,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 				selectedHarness: ISessionComparisonHarness,
 				agentAriaLabel: string,
 				modelAriaLabel: string,
+				permissionAriaLabel: string,
 				unavailableAgentMessage: string,
 				unavailableModelMessage: string,
 				unavailableModelConfigurationMessage: string,
+				unavailablePermissionMessage: string,
 				onChange: (harness: ISessionComparisonHarness) => void,
 			): SelectBox | undefined => {
 				const harnessIndex = harnesses.findIndex(harness =>
@@ -391,6 +449,18 @@ export class SessionComparisonSetupDialog extends Disposable {
 					harness = selectedHarness;
 				}
 				const provider = this.sessionsProvidersService.getProvider(harness.providerId);
+				const permissionOptions = provider?.getPermissionOptionsForCreation?.(harness.sessionTypeId) ?? [];
+				const selectedPermission = permissionOptions.find(option => option.id === harness.permissionId && !option.locked)
+					?? permissionOptions.find(option => option.isDefault && !option.locked)
+					?? permissionOptions.find(option => !option.locked);
+				if (selectedPermission && (harness.permissionId !== selectedPermission.id || harness.permissionLabel !== selectedPermission.label)) {
+					const hadUnavailablePermission = harness.permissionId !== undefined;
+					harness = applyPermission(harness, selectedPermission);
+					onChange(harness);
+					if (hadUnavailablePermission) {
+						status(unavailablePermissionMessage);
+					}
+				}
 				const models = provider?.getModelsSnapshotForCreation?.(context.workspace, harness.sessionTypeId).models ?? [];
 				if (harness.modelId && !models.some(model => model.identifier === harness.modelId)) {
 					harness = { ...harness, modelId: undefined, modelLabel: undefined, modelConfiguration: undefined };
@@ -441,7 +511,14 @@ export class SessionComparisonSetupDialog extends Disposable {
 				rowsDisposables.add(agentSelect.onDidSelect(({ index }) => {
 					const selected = harnesses[index];
 					if (selected) {
-						onChange(selected);
+						const nextPermissionOptions = getPermissionOptions(selected);
+						const nextPermission = nextPermissionOptions.find(option => option.id === harness.permissionId && !option.locked)
+							?? nextPermissionOptions.find(option => option.isDefault && !option.locked)
+							?? nextPermissionOptions.find(option => !option.locked);
+						onChange(nextPermission ? applyPermission(selected, nextPermission) : selected);
+						if (harness.permissionId && nextPermission?.id !== harness.permissionId) {
+							status(unavailablePermissionMessage);
+						}
 						renderRows();
 					}
 				}));
@@ -534,6 +611,42 @@ export class SessionComparisonSetupDialog extends Disposable {
 					{ compact: constObservable(false), contextViewLayer: 1 },
 				));
 				modelPicker.render(dom.append(modelField, dom.$('.session-comparison-setup-model-picker')));
+
+				const permissionField = dom.append(container, dom.$('.session-comparison-setup-field'));
+				dom.append(permissionField, dom.$('span.session-comparison-setup-field-label')).textContent =
+					localize('sessionComparisonSetup.permissions', "Permissions");
+				const permissionSelect = rowsDisposables.add(new SelectBox(
+					permissionOptions.length > 0
+						? permissionOptions.map(option => ({
+							text: option.label,
+							detail: option.locked ? option.lockedReason : option.description,
+							description: option.description,
+							isDisabled: option.locked,
+						}))
+						: [{
+							text: localize('sessionComparisonSetup.permissions.unavailable', "Unavailable"),
+							detail: localize('sessionComparisonSetup.permissions.unavailableDetail', "This agent does not expose configurable permissions."),
+							isDisabled: true,
+						}],
+					Math.max(0, permissionOptions.findIndex(option => option.id === harness.permissionId)),
+					this.contextViewService,
+					defaultSelectBoxStyles,
+					{
+						ariaLabel: permissionAriaLabel,
+						useCustomDrawn: true,
+						contextViewLayer: 1,
+					},
+				));
+				permissionSelect.render(dom.append(permissionField, dom.$('.session-comparison-setup-select')));
+				permissionSelect.setEnabled(permissionOptions.length > 0);
+				rowsDisposables.add(permissionSelect.onDidSelect(({ index }) => {
+					const permission = permissionOptions[index];
+					if (permission && !permission.locked) {
+						harness = applyPermission(harness, permission);
+						onChange(harness);
+						updateBulkPermissionCheckbox();
+					}
+				}));
 				return agentSelect;
 			};
 
@@ -567,9 +680,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 					attempt.harness,
 					localize('sessionComparisonSetup.agentForAttempt', "Agent for attempt {0}", index + 1),
 					localize('sessionComparisonSetup.modelForAttempt', "Model for attempt {0}", index + 1),
+					localize('sessionComparisonSetup.permissionsForAttempt', "Permissions for attempt {0}", index + 1),
 					localize('sessionComparisonSetup.agentReset', "The agent for attempt {0} is no longer available. The first available agent will be used.", index + 1),
 					localize('sessionComparisonSetup.modelReset', "The selected model for attempt {0} is no longer available. The agent default will be used.", index + 1),
 					localize('sessionComparisonSetup.modelConfigurationReset', "The selected model configuration for attempt {0} is no longer supported. The model defaults will be used.", index + 1),
+					localize('sessionComparisonSetup.permissionReset', "The selected permission for attempt {0} is no longer available. The agent default will be used.", index + 1),
 					harness => attempts[index] = { id: attempt.id, harness },
 				);
 
@@ -619,9 +734,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 				judgeHarness,
 				localize('sessionComparisonSetup.agentForJudge', "Agent for the Judge"),
 				localize('sessionComparisonSetup.modelForJudge', "Model for the Judge"),
+				localize('sessionComparisonSetup.permissionsForJudge', "Permissions for the Judge"),
 				localize('sessionComparisonSetup.judgeAgentReset', "The Judge agent is no longer available. The first available agent will be used."),
 				localize('sessionComparisonSetup.judgeModelReset', "The selected Judge model is no longer available. The agent default will be used."),
 				localize('sessionComparisonSetup.judgeModelConfigurationReset', "The selected Judge model configuration is no longer supported. The model defaults will be used."),
+				localize('sessionComparisonSetup.judgePermissionReset', "The selected Judge permission is no longer available. The agent default will be used."),
 				harness => {
 					judgeHarness = harness;
 					judgeValue.textContent = getJudgeLabel();

@@ -960,12 +960,17 @@ export class NewChatWidget extends Disposable {
 		}
 		const currentType = session && this.sessionsManagementService.getSessionTypesForFolder(workspace).find(({ providerId, sessionType }) =>
 			providerId === session.providerId && sessionType.id === session.sessionType);
+		const defaultPermission = currentType
+			? this.sessionsProvidersService.getProvider(currentType.providerId)?.getPermissionOptionsForCreation?.(currentType.sessionType.id).find(option => option.isDefault && !option.locked)
+			: undefined;
 		const currentHarness = currentType ? {
 			providerId: currentType.providerId,
 			sessionTypeId: currentType.sessionType.id,
 			label: currentType.sessionType.label,
 			modelId: this._newChatInput.selectedModelState.get().currentModel?.identifier,
 			modelLabel: this._newChatInput.selectedModelState.get().currentModel?.metadata.name,
+			permissionId: defaultPermission?.id,
+			permissionLabel: defaultPermission?.label,
 		} : undefined;
 		const retainedAttempts = this._comparisonAttempts.get();
 		const initialAttempts = retainedAttempts.length >= 2
@@ -1122,7 +1127,6 @@ export class NewChatWidget extends Disposable {
 				this._workspacePicker.showPicker();
 				return false;
 			}
-			const permissionLevel = session.permissionLevel?.get();
 			const branch = this._getComparisonBranch(session);
 			if (!branch) {
 				this.notificationService.error(localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit."));
@@ -1135,6 +1139,11 @@ export class NewChatWidget extends Disposable {
 				const resolution = type && harness.modelId
 					? this.sessionsProvidersService.getProvider(type.providerId)?.getModelsSnapshotForCreation?.(workspace, type.sessionType.id, harness.modelId).desiredModelResolution
 					: undefined;
+				const permissionOptions = type
+					? this.sessionsProvidersService.getProvider(type.providerId)?.getPermissionOptionsForCreation?.(type.sessionType.id)
+					: undefined;
+				const permission = permissionOptions?.find(option => option.id === harness.permissionId && !option.locked)
+					?? permissionOptions?.find(option => option.isDefault && !option.locked);
 				const resolvedModelId = resolution?.kind === 'available' ? resolution.model.identifier : undefined;
 				return type ? {
 					providerId: harness.providerId,
@@ -1143,6 +1152,8 @@ export class NewChatWidget extends Disposable {
 					modelId: resolvedModelId,
 					modelLabel: resolution?.kind === 'available' ? resolution.model.metadata.name : undefined,
 					modelConfiguration: resolvedModelId ? harness.modelConfiguration : undefined,
+					permissionId: permissionOptions ? permission?.id : harness.permissionId,
+					permissionLabel: permissionOptions ? permission?.label : harness.permissionLabel,
 				} : undefined;
 			};
 			const attempts = this._comparisonAttempts.get().flatMap(attempt => {
@@ -1183,7 +1194,6 @@ export class NewChatWidget extends Disposable {
 					attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
 					attempts,
 					judgeHarness,
-					permissionLevel,
 					branch,
 				});
 				await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);

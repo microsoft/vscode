@@ -1271,11 +1271,11 @@ suite('NewChatWidget', () => {
 		const configuredAttempts: readonly ISessionComparisonAttemptConfiguration[] = [
 			{
 				id: 'first-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'high' } },
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'high' }, permissionId: 'autoApprove', permissionLabel: 'Allow all' },
 			},
 			{
 				id: 'second-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'xhigh' } },
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'xhigh' }, permissionId: 'default', permissionLabel: 'Manual permissions' },
 			},
 		];
 		let comparisonOptions: IStartSessionComparisonOptions | undefined;
@@ -1427,7 +1427,7 @@ suite('NewChatWidget', () => {
 
 	test('opens a new comparison with two attempts from the composer selection', async () => {
 		const workspace = URI.file('/workspace');
-		const harnessSelection = { providerId: 'provider', sessionTypeId: 'agent', label: 'Copilot', modelId: undefined, modelLabel: undefined };
+		const harnessSelection = { providerId: 'provider', sessionTypeId: 'agent', label: 'Copilot', modelId: undefined, modelLabel: undefined, permissionId: undefined, permissionLabel: undefined };
 		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, []);
 		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
 		let openedAttempts: readonly ISessionComparisonAttemptConfiguration[] = [];
@@ -1465,6 +1465,9 @@ suite('NewChatWidget', () => {
 					sessionType: { id: harnessSelection.sessionTypeId, label: harnessSelection.label, supportsWorktreeConfiguration: true },
 				}],
 			},
+			sessionsProvidersService: {
+				getProvider: () => undefined,
+			},
 			instantiationService: {
 				createInstance: () => ({
 					show: async (_context, initialAttempts, initialJudgeHarness) => {
@@ -1495,16 +1498,16 @@ suite('NewChatWidget', () => {
 		const workspace = URI.file('/workspace');
 		const initialAttempt = {
 			id: 'initial',
-			harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-1', modelLabel: 'Model 1' },
+			harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-1', modelLabel: 'Model 1', permissionId: 'default', permissionLabel: 'Default' },
 		};
 		const editedAttempts = [
 			initialAttempt,
 			{
 				id: 'added',
-				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-2', modelLabel: 'Model 2' },
+				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-2', modelLabel: 'Model 2', permissionId: 'allowAll', permissionLabel: 'Allow all' },
 			},
 		];
-		const editedJudge = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'judge-model', modelLabel: 'Judge Model' };
+		const editedJudge = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'judge-model', modelLabel: 'Judge Model', permissionId: 'allowAll', permissionLabel: 'Allow all' };
 		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, [initialAttempt]);
 		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
 		const openedWith: (readonly ISessionComparisonAttemptConfiguration[])[] = [];

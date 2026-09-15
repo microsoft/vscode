@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.session-comparison-setup-dialog {
+.monaco-dialog-box.session-comparison-setup-dialog {
 	position: relative;
 	box-sizing: border-box;
-	width: min(560px, calc(100% - var(--vscode-spacing-size320)));
+	width: 880px;
+	max-width: calc(100vw - var(--vscode-spacing-size320));
 }
 
 .session-comparison-setup-dialog .dialog-message {
@@ -21,6 +22,7 @@
 
 .monaco-dialog-box.session-comparison-setup-dialog .dialog-message-row .dialog-message-container {
 	flex: 1 1 auto;
+	width: 100%;
 	min-width: 0;
 	overflow-y: hidden;
 }
@@ -86,6 +88,24 @@
 .session-comparison-setup-context-value {
 	color: var(--vscode-foreground);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-setup-bulk-permissions {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: center;
+	column-gap: var(--vscode-spacing-size60);
+	row-gap: var(--vscode-spacing-size20);
+}
+
+.session-comparison-setup-bulk-permissions-label {
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.session-comparison-setup-bulk-permissions-description {
+	grid-column: 2;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .session-comparison-setup-attempts {
@@ -164,8 +184,8 @@
 .session-comparison-setup-row {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size60);
-	padding: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 	border-radius: var(--vscode-cornerRadius-medium);
 }
@@ -189,8 +209,8 @@
 
 .session-comparison-setup-row-controls {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: var(--vscode-spacing-size80);
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 0.9fr);
+	gap: var(--vscode-spacing-size120);
 }
 
 .session-comparison-setup-field {

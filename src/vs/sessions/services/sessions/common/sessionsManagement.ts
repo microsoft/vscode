@@ -88,6 +88,8 @@ export interface ICreateNewSessionOptions {
 	 * Requires {@link modelId} and provider support.
 	 */
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/** Provider-owned permission option applied before the first request. */
+	readonly permissionId?: string;
 	/**
 	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
 	 * to apply via {@link ISessionsProvider.setMode}. Skipped if the

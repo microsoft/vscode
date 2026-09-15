@@ -27,6 +27,17 @@ export interface ISessionChangeEvent {
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
+/** Provider-owned permission choice exposed while configuring a new session. */
+export interface ISessionPermissionOption {
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly isDefault?: boolean;
+	readonly isAllowAll?: boolean;
+	readonly locked?: boolean;
+	readonly lockedReason?: string;
+}
+
 /** A provider-prepared replacement draft and its rollback operation. */
 export interface IPreparedNewSession {
 	readonly session: ISession;
@@ -59,6 +70,8 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly modelId?: string;
 	/** Model-specific primitive values applied only to this draft. */
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/** Provider-owned permission option resolved before the first request. */
+	readonly permissionId?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
@@ -283,6 +296,8 @@ export interface ISessionsProvider {
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
 	/** Whether model-specific configuration can be scoped to a newly created draft. */
 	readonly supportsModelConfigurationForCreation?: boolean;
+	/** Exact permission choices available while creating the given session type. */
+	getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 

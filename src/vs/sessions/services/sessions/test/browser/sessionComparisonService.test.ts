@@ -399,6 +399,42 @@ suite('SessionComparisonService', () => {
 		]);
 	});
 
+	test('uses each persisted permission choice for attempts, Judge, and synthesis', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueue(stubSession('judge'));
+
+		const options = startOptions();
+		const comparison = await service.startComparison({
+			...options,
+			attempts: [
+				{ ...options.attempts[0], harness: { ...options.attempts[0].harness, permissionId: 'autoApprove', permissionLabel: 'Allow all' } },
+				{ ...options.attempts[1], harness: { ...options.attempts[1].harness, permissionId: 'default', permissionLabel: 'Default Permissions' } },
+			],
+			judgeHarness: { ...options.judgeHarness, permissionId: 'bypassPermissions', permissionLabel: 'Bypass Permissions' },
+		});
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict('attempt-two', ['attempt-one', 'attempt-two']));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+		await service.synthesize(comparison.id);
+
+		assert.deepStrictEqual(sessionsManagementService.createCalls.map(call => ({
+			permissionId: call.createOptions?.permissionId,
+			permissionLevel: call.createOptions?.permissionLevel,
+		})), [
+			{ permissionId: 'autoApprove', permissionLevel: undefined },
+			{ permissionId: 'default', permissionLevel: undefined },
+			{ permissionId: 'bypassPermissions', permissionLevel: undefined },
+			{ permissionId: 'default', permissionLevel: undefined },
+		]);
+	});
+
 	test('restores every comparison participant to its comparison group', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessions.comparisons', JSON.stringify([{
