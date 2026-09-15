@@ -9,25 +9,62 @@ import { EventType as GestureEventType, Gesture } from '../../../../base/browser
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { localChatSessionType } from '../common/chatSessionsService.js';
+import { ChatClosedPromoNotification, ChatConfiguration } from '../common/constants.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { getChatSessionType } from '../common/model/chatUri.js';
+import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from './chat.js';
+import { DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY } from './chatPromoNotification.js';
+import { addDismissedNotificationId, readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
+import { getModelProviderIcon } from './widget/input/modelPicker/modelProviderIcons.js';
 import './media/chatPromoWidget.css';
 
-export const ARM_CHAT_PROMO_COMMAND_ID = '_chat.armChatPromo';
-export const DISARM_CHAT_PROMO_COMMAND_ID = '_chat.disarmChatPromo';
+export const CHAT_CLOSED_PROMO_TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
+
 export const CHAT_PROMO_TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
 export const CHAT_PROMO_DISMISS_COMMAND_ID = '_chat.dismissPromo';
 
-export interface IChatPromoCardInput {
+type ChatPromoWidgetTelemetryEvent = {
+	promoId: string;
+};
+
+type ChatPromoWidgetTelemetryClassification = {
+	promoId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the model promo shown on the collapsed-chat card.' };
+	owner: 'rfeltis';
+	comment: 'Tracks collapsed-chat promo card visibility and user dismissals.';
+};
+
+type ChatPromoWidgetActionTelemetryEvent = ChatPromoWidgetTelemetryEvent & {
+	action: 'tryModel';
+};
+
+type ChatPromoWidgetActionTelemetryClassification = {
+	promoId: ChatPromoWidgetTelemetryClassification['promoId'];
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action taken on the collapsed-chat promo card.' };
+	owner: 'rfeltis';
+	comment: 'Tracks actions taken from the collapsed-chat promo card.';
+};
+
+interface IChatPromoCardInput {
 	readonly title: string;
 	readonly subtitle?: string;
 	readonly promoId: string;
@@ -47,6 +84,9 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 
 	private pendingPayload: IChatPromoCardInput | undefined;
 	private pipAnchor: HTMLElement | undefined;
+	private _popupTreatment: boolean | undefined;
+	private _popupTreatmentPending = false;
+	private _popupTreatmentGeneration = 0;
 	private readonly iconHoverBlock = this._register(new MutableDisposable());
 	private readonly pipRetry = this._register(new MutableDisposable());
 	private readonly pipObserver = this._register(new MutableDisposable());
@@ -57,13 +97,198 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
-		this._register(CommandsRegistry.registerCommand(ARM_CHAT_PROMO_COMMAND_ID, (_accessor, payload: IChatPromoCardInput) => this.armChatPromo(payload)));
-		this._register(CommandsRegistry.registerCommand(DISARM_CHAT_PROMO_COMMAND_ID, () => this.disarmChatPromo()));
+		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, async (_accessor, modelIdentifier?: string) => {
+			await this.openChatAndSwitchModel(typeof modelIdentifier === 'string' ? modelIdentifier : undefined);
+		}));
+		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_DISMISS_COMMAND_ID, (_accessor, promoId?: string) => {
+			this.disarmChatPromo();
+			if (typeof promoId === 'string') {
+				addDismissedNotificationId(this.storageService, DISMISSED_PROMOS_STORAGE_KEY, promoId);
+			}
+		}));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'click', e => this.onWorkbenchClick(e), true));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'keydown', e => this.onWorkbenchKeyDown(e), true));
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.syncPip()));
+		this._register(this.layoutService.onDidLayoutMainContainer(() => this.syncPip()));
+		this._register(this.assignmentService.onDidRefetchAssignments(() => {
+			this._popupTreatmentGeneration++;
+			this._popupTreatment = undefined;
+			this._popupTreatmentPending = false;
+			this.syncPip();
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
+				this.syncPip();
+			}
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_PROMOS_STORAGE_KEY, this._store)(() => this.syncPip()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, SEEN_PROMOS_STORAGE_KEY, this._store)(() => this.syncPip()));
+		this._register(this.viewsService.onDidChangeViewVisibility(e => {
+			if (e.id === ChatViewId) {
+				this.syncPip();
+			}
+		}));
+		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this.syncPip()));
+		this._register(this.chatWidgetService.onDidChangeFocusedWidget(() => this.syncPip()));
+		this.syncPip();
+	}
+
+	private syncPip(): void {
+		const payload = this.eligiblePipPayload();
+		if (payload) {
+			if (!equals(this.pendingPayload, payload)) {
+				this.armChatPromo(payload);
+			}
+			return;
+		}
+		if (this.pendingPayload) {
+			this.disarmChatPromo();
+		}
+	}
+
+	private eligiblePipPayload(): IChatPromoCardInput | undefined {
+		if (this.isLocalChatVisible()) {
+			return undefined;
+		}
+		const dismissed = readDismissedNotificationIds(this.storageService, DISMISSED_PROMOS_STORAGE_KEY);
+		const seen = readDismissedNotificationIds(this.storageService, SEEN_PROMOS_STORAGE_KEY);
+		let candidate: ILanguageModelChatMetadataAndIdentifier | undefined;
+		for (const id of this.languageModelsService.getLanguageModelIds()) {
+			const meta = this.languageModelsService.lookupLanguageModel(id);
+			if (!meta || !ILanguageModelChatMetadata.hasPromoBanner(meta) || !ILanguageModelChatMetadata.hasPromoDiscount(meta) || dismissed.has(meta.promo.id) || seen.has(meta.promo.id) || !this.isGitHubCopilotPromo({ identifier: id, metadata: meta })) {
+				continue;
+			}
+			candidate = { identifier: id, metadata: meta };
+			break;
+		}
+		if (!candidate || !this.isPopupEnabled()) {
+			return undefined;
+		}
+		return this.promoCardPayload(candidate);
+	}
+
+	private isLocalChatVisible(): boolean {
+		if (!this.viewsService.isViewVisible(ChatViewId)) {
+			return false;
+		}
+		const resource = this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+		return !resource || getChatSessionType(resource) === localChatSessionType;
+	}
+
+	private isPopupEnabled(): boolean {
+		const config = this.configurationService.inspect<ChatClosedPromoNotification>(ChatConfiguration.ChatClosedPromoNotification);
+		if (isConfigured(config) || config.policyValue !== undefined || config.memoryValue !== undefined) {
+			return config.value === ChatClosedPromoNotification.CopilotIconPopup;
+		}
+		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
+		if (!anchor?.getClientRects().length) {
+			return false;
+		}
+		if (this._popupTreatment === undefined && !this._popupTreatmentPending) {
+			void this.resolvePopupTreatment();
+		}
+		return this._popupTreatment === true;
+	}
+
+	private async resolvePopupTreatment(): Promise<void> {
+		const generation = this._popupTreatmentGeneration;
+		this._popupTreatmentPending = true;
+		let enabled = false;
+		try {
+			enabled = await this.assignmentService.getTreatment<ChatClosedPromoNotification>(CHAT_CLOSED_PROMO_TREATMENT) === ChatClosedPromoNotification.CopilotIconPopup;
+		} catch (error) {
+			this.logService.warn('[ChatPromo] Failed to resolve promo treatment', error);
+		}
+		if (this._store.isDisposed || generation !== this._popupTreatmentGeneration) {
+			return;
+		}
+		this._popupTreatmentPending = false;
+		this._popupTreatment = enabled;
+		this.syncPip();
+	}
+
+	private isGitHubCopilotPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		const harness = model.metadata.targetChatSessionType ?? localChatSessionType;
+		if (harness !== localChatSessionType) {
+			return false;
+		}
+		const vendor = model.metadata.vendor;
+		return !vendor || vendor === COPILOT_VENDOR_ID;
+	}
+
+	private promoCardPayload(model: ILanguageModelChatMetadataAndIdentifier): IChatPromoCardInput | undefined {
+		const promo = model.metadata.promo;
+		if (!promo) {
+			return undefined;
+		}
+		return {
+			title: promo.message.replace(/\.+$/, ''),
+			subtitle: ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt)?.replace(/\.+$/, ''),
+			promoId: promo.id,
+			tryLabel: localize('chat.promo.tryModel', "Try {0}", model.metadata.name),
+			modelIdentifier: model.identifier,
+			providerIcon: getModelProviderIcon(model).id,
+		};
+	}
+
+	private async openChatAndSwitchModel(modelIdentifier: string | undefined): Promise<void> {
+		const targetHarness = this.targetHarnessForModel(modelIdentifier);
+		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		let widget = await this.chatWidgetService.revealWidget();
+		widget?.focusInput();
+		if (widget) {
+			await this.whenSessionResolved(widget);
+		}
+		const sessionResource = widget?.viewModel?.sessionResource;
+		const currentHarness = sessionResource ? getChatSessionType(sessionResource) : undefined;
+		if (currentHarness !== targetHarness) {
+			await this.commandService.executeCommand(`workbench.action.chat.openNewChatSessionInPlace.${targetHarness}`, 'sidebar');
+			widget = await this.chatWidgetService.revealWidget() ?? widget;
+			widget?.focusInput();
+		}
+		if (!modelIdentifier || !widget) {
+			return;
+		}
+		if (!widget.input.switchModelByIdentifier(modelIdentifier, true, true)) {
+			await widget.input.requestModelByIdentifier(modelIdentifier);
+		}
+	}
+
+	private async whenSessionResolved(widget: IChatWidget): Promise<void> {
+		if (widget.viewModel?.sessionResource) {
+			return;
+		}
+		const store = new DisposableStore();
+		try {
+			await new Promise<void>(resolve => {
+				store.add(widget.onDidChangeViewModel(() => {
+					if (widget.viewModel?.sessionResource) {
+						resolve();
+					}
+				}));
+				store.add(disposableTimeout(resolve, 2000));
+			});
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private targetHarnessForModel(modelIdentifier: string | undefined): string {
+		if (!modelIdentifier) {
+			return localChatSessionType;
+		}
+		const meta = this.languageModelsService.lookupLanguageModel(modelIdentifier);
+		return meta?.targetChatSessionType ?? localChatSessionType;
 	}
 
 	private armChatPromo(payload: IChatPromoCardInput): void {
@@ -221,7 +446,9 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		}, true);
 		if (!hover) {
 			contentDisposables.dispose();
+			return;
 		}
+		this.telemetryService.publicLog2<ChatPromoWidgetTelemetryEvent, ChatPromoWidgetTelemetryClassification>('chatPromoWidgetShown', { promoId: info.promoId });
 	}
 
 	private persistOnIconClick(info: IChatPromoCardInput): void {
@@ -252,6 +479,7 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		const closeIcon = dom.append(closeButton, dom.$(ThemeIcon.asCSSSelector(Codicon.close)));
 		closeIcon.setAttribute('aria-hidden', 'true');
 		disposables.add(dom.addDisposableListener(closeButton, 'click', () => {
+			this.telemetryService.publicLog2<ChatPromoWidgetTelemetryEvent, ChatPromoWidgetTelemetryClassification>('chatPromoWidgetDismissed', { promoId: info.promoId });
 			this.hoverService.hideHover(true);
 		}));
 
@@ -264,6 +492,10 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		const button = disposables.add(new Button(buttonBar, { ...defaultButtonStyles }));
 		button.label = info.tryLabel;
 		disposables.add(button.onDidClick(() => {
+			this.telemetryService.publicLog2<ChatPromoWidgetActionTelemetryEvent, ChatPromoWidgetActionTelemetryClassification>('chatPromoWidgetAction', {
+				promoId: info.promoId,
+				action: 'tryModel',
+			});
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 				'workbenchActionExecuted',
 				{ id: CHAT_PROMO_TRY_MODEL_COMMAND_ID, from: 'chatPromoWidget' }

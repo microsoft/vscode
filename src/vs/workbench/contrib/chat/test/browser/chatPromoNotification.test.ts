@@ -16,17 +16,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CHAT_CLOSED_PROMO_TREATMENT, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
-import { ARM_CHAT_PROMO_COMMAND_ID, ChatPromoWidgetContribution, DISARM_CHAT_PROMO_COMMAND_ID, IChatPromoCardInput } from '../../browser/chatPromoWidget.js';
+import { ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
+import { CHAT_CLOSED_PROMO_TREATMENT, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoWidgetContribution } from '../../browser/chatPromoWidget.js';
 import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../../browser/chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -187,6 +189,9 @@ function createMockWidgetService(options: { sessionScheme?: string } = {}) {
 	};
 	const service = {
 		_serviceBrand: undefined,
+		lastFocusedWidget: widget,
+		onDidChangeFocusedSession: Event.None,
+		onDidChangeFocusedWidget: Event.None,
 		revealWidget: async () => widget,
 	} as unknown as IChatWidgetService;
 	const resolveSession = (scheme: string) => {
@@ -222,31 +227,103 @@ function createContribution(
 	lmService: ILanguageModelsService,
 	notifService: IChatInputNotificationService,
 	storageService: InMemoryStorageService,
-	commandService: ICommandService = createMockCommandService().service,
-	closedPromoNotification: ChatClosedPromoNotification = ChatClosedPromoNotification.None,
-	viewsService?: IViewsService,
-	widgetService?: IChatWidgetService,
-	options: { configurationService?: TestConfigurationService; assignmentService?: IWorkbenchAssignmentService; logService?: ILogService; layoutService?: ILayoutService } = {},
+	_commandService?: ICommandService,
+	_closedPromoNotification?: ChatClosedPromoNotification,
+	_viewsService?: IViewsService,
+	_widgetService?: IChatWidgetService,
+	_options?: { configurationService?: TestConfigurationService; assignmentService?: IWorkbenchAssignmentService; logService?: ILogService; layoutService?: ILayoutService },
 ) {
-	const configurationService = options.configurationService ?? new TestConfigurationService({
-		[ChatConfiguration.ChatClosedPromoNotification]: closedPromoNotification,
-	});
-	return new ChatPromoNotificationContribution(
+	return new ChatPromoNotificationContribution(lmService, notifService, storageService);
+}
+
+function createStatusIcon(disposables: Pick<DisposableStore, 'add'>, parent: HTMLElement = document.body): HTMLElement {
+	const anchor = dom.append(parent, dom.$('div', { id: 'chat.statusBarEntry' }));
+	dom.append(anchor, dom.$('.codicon.codicon-copilot'));
+	disposables.add(toDisposable(() => anchor.remove()));
+	return anchor;
+}
+
+function isPipArmed(anchor: HTMLElement | undefined): boolean {
+	return !!anchor?.querySelector('.codicon-copilot-dot');
+}
+
+function mockHoverService(): IHoverService {
+	return { hideHover() { }, showInstantHover() { return undefined; } } as unknown as IHoverService;
+}
+
+class RecordingTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string; data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
+
+function createWidget(
+	lmService: ILanguageModelsService,
+	storageService: InMemoryStorageService,
+	options: {
+		commandService?: ICommandService;
+		closedPromoNotification?: ChatClosedPromoNotification;
+		viewsService?: IViewsService;
+		widgetService?: IChatWidgetService;
+		configurationService?: TestConfigurationService;
+		assignmentService?: IWorkbenchAssignmentService;
+		logService?: ILogService;
+		layoutService?: ILayoutService;
+		hoverService?: IHoverService;
+		telemetryService?: ITelemetryService;
+	} = {},
+) {
+	const configurationService = options.configurationService ?? new TestConfigurationService(
+		options.closedPromoNotification === undefined ? {} : {
+			[ChatConfiguration.ChatClosedPromoNotification]: options.closedPromoNotification,
+		},
+	);
+	return new ChatPromoWidgetContribution(
+		options.commandService ?? createMockCommandService().service,
+		options.hoverService ?? mockHoverService(),
+		options.layoutService ?? { mainContainer: document.body, onDidLayoutMainContainer: Event.None } as ILayoutService,
+		options.telemetryService ?? NullTelemetryService,
 		lmService,
-		notifService,
 		storageService,
-		commandService,
-		widgetService ?? createMockWidgetService().service,
 		configurationService,
-		viewsService ?? {
+		options.viewsService ?? {
 			_serviceBrand: undefined,
 			onDidChangeViewVisibility: Event.None,
 			isViewVisible: () => false,
 		} as unknown as IViewsService,
 		options.assignmentService ?? new NullWorkbenchAssignmentService(),
 		options.logService ?? new NullLogService(),
-		options.layoutService ?? { mainContainer: document.body, onDidLayoutMainContainer: Event.None } as ILayoutService,
+		options.widgetService ?? createMockWidgetService().service,
 	);
+}
+
+function stubPromoWidgetServices(instantiation: TestInstantiationService, container: HTMLElement, store: Pick<DisposableStore, 'add'>, hoverService: IHoverService = mockHoverService(), models: { identifier: string; metadata: Partial<ILanguageModelChatMetadata> }[] = []): void {
+	instantiation.stub(ILayoutService, { mainContainer: container, onDidLayoutMainContainer: Event.None });
+	instantiation.stub(ICommandService, createMockCommandService().service);
+	instantiation.stub(IHoverService, hoverService);
+	instantiation.stub(ITelemetryService, NullTelemetryService);
+	instantiation.stub(ILanguageModelsService, models.length
+		? createMockLanguageModelsService(models, store).service
+		: {
+			onDidChangeLanguageModels: Event.None,
+			getLanguageModelIds: () => [],
+			lookupLanguageModel: () => undefined,
+		} as unknown as ILanguageModelsService);
+	instantiation.stub(IStorageService, store.add(new InMemoryStorageService()));
+	instantiation.stub(IConfigurationService, new TestConfigurationService(models.length ? {
+		[ChatConfiguration.ChatClosedPromoNotification]: ChatClosedPromoNotification.CopilotIconPopup,
+	} : {}));
+	instantiation.stub(IViewsService, {
+		onDidChangeViewVisibility: Event.None,
+		isViewVisible: () => false,
+	} as unknown as IViewsService);
+	instantiation.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
+	instantiation.stub(ILogService, new NullLogService());
+	instantiation.stub(IChatWidgetService, createMockWidgetService().service);
 }
 
 suite('ChatPromoNotificationContribution', () => {
@@ -263,9 +340,10 @@ suite('ChatPromoNotificationContribution', () => {
 		treatment?: string;
 		iconPresent?: boolean;
 		iconVisible?: boolean;
+		sessionScheme?: string;
 	} = {}) {
 		const anchor = dom.append(document.body, dom.$('div', { id: 'chat.statusBarEntry' }));
-		anchor.textContent = 'Copilot';
+		dom.append(anchor, dom.$('.codicon.codicon-copilot'));
 		disposables.add(toDisposable(() => anchor.remove()));
 		if (options.iconPresent === false) {
 			anchor.remove();
@@ -296,14 +374,23 @@ suite('ChatPromoNotificationContribution', () => {
 		sinon.stub(assignments, 'onDidRefetchAssignments').value(refetch.event);
 		const getTreatment = sinon.stub(assignments, 'getTreatment').resolves(options.treatment);
 		const views = createMockViewsService(disposables, options.visible);
+		const widgets = createMockWidgetService(options.sessionScheme ? { sessionScheme: options.sessionScheme } : {});
 		const log = new NullLogService();
 		const warn = sinon.spy(log, 'warn');
 		return {
 			models, languageModels, notifications, storage, commands, configuration, getTreatment, refetch, views, warn, anchor, layout,
-			start: () => disposables.add(createContribution(
-				languageModels.service, notifications.service, storage, commands.service, undefined, views.service, undefined,
-				{ configurationService: configuration, assignmentService: assignments, logService: log, layoutService },
-			)),
+			start: () => {
+				disposables.add(createContribution(languageModels.service, notifications.service, storage));
+				return disposables.add(createWidget(languageModels.service, storage, {
+					commandService: commands.service,
+					viewsService: views.service,
+					widgetService: widgets.service,
+					configurationService: configuration,
+					assignmentService: assignments,
+					logService: log,
+					layoutService,
+				}));
+			},
 		};
 	}
 
@@ -314,10 +401,10 @@ suite('ChatPromoNotificationContribution', () => {
 			fixture.refetch.fire();
 			assert.deepStrictEqual({
 				queries: fixture.getTreatment.callCount,
-				commands: fixture.commands.executed.map(command => command.id),
+				pip: isPipArmed(fixture.anchor),
 			}, {
 				queries: 0,
-				commands: configured === ChatClosedPromoNotification.CopilotIconPopup ? [ARM_CHAT_PROMO_COMMAND_ID] : [],
+				pip: configured === ChatClosedPromoNotification.CopilotIconPopup,
 			});
 		});
 	}
@@ -352,12 +439,12 @@ suite('ChatPromoNotificationContribution', () => {
 			const popup = treatment === ChatClosedPromoNotification.CopilotIconPopup;
 			assert.deepStrictEqual({
 				queries: fixture.getTreatment.getCalls().map(call => call.args),
-				commands: fixture.commands.executed.map(command => command.id),
+				pip: isPipArmed(fixture.anchor),
 				banner: !!fixture.notifications.getNotification(),
 			}, {
 				queries: [[CHAT_CLOSED_PROMO_TREATMENT]],
-				commands: popup ? [ARM_CHAT_PROMO_COMMAND_ID] : [],
-				banner: !popup,
+				pip: popup,
+				banner: true,
 			});
 		});
 	}
@@ -372,8 +459,8 @@ suite('ChatPromoNotificationContribution', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			queries: fixture.getTreatment.callCount,
-			commands: fixture.commands.executed.map(command => command.id),
-		}, { queries: 1, commands: [ARM_CHAT_PROMO_COMMAND_ID] });
+			pip: isPipArmed(fixture.anchor),
+		}, { queries: 1, pip: true });
 	});
 
 	test('a refetched control assignment disarms an active treatment', async () => {
@@ -385,9 +472,9 @@ suite('ChatPromoNotificationContribution', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			queries: fixture.getTreatment.callCount,
-			commands: fixture.commands.executed.map(command => command.id),
+			pip: isPipArmed(fixture.anchor),
 			banner: !!fixture.notifications.getNotification(),
-		}, { queries: 2, commands: [ARM_CHAT_PROMO_COMMAND_ID, DISARM_CHAT_PROMO_COMMAND_ID], banner: true });
+		}, { queries: 2, pip: false, banner: true });
 	});
 
 	test('waits until Chat collapses before the first cohort query', async () => {
@@ -399,21 +486,39 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.deepStrictEqual({
 			beforeCollapse,
 			queries: fixture.getTreatment.callCount,
-			commands: fixture.commands.executed.map(command => command.id),
-		}, { beforeCollapse: 0, queries: 1, commands: [ARM_CHAT_PROMO_COMMAND_ID] });
+			pip: isPipArmed(fixture.anchor),
+		}, { beforeCollapse: 0, queries: 1, pip: true });
+	});
+
+	test('keeps the pip when Chat is open on another harness', async () => {
+		const fixture = experimentFixture({ visible: true, sessionScheme: 'openai-codex', treatment: ChatClosedPromoNotification.CopilotIconPopup });
+		fixture.start();
+		await timeout(0);
+		assert.deepStrictEqual({
+			queries: fixture.getTreatment.callCount,
+			pip: isPipArmed(fixture.anchor),
+			seen: fixture.storage.get('chat.seenPromoIds', StorageScope.APPLICATION, ''),
+		}, { queries: 1, pip: true, seen: '' });
 	});
 
 	test('a promo met in an open Chat never returns as a pip', async () => {
 		const fixture = experimentFixture({ visible: true, treatment: ChatClosedPromoNotification.CopilotIconPopup });
 		fixture.start();
-		fixture.notifications.getNotification()?.onDidShow?.();
+		const onDidShow = fixture.notifications.getNotification()?.onDidShow;
+		assert.ok(onDidShow);
+		const store = sinon.spy(fixture.storage, 'store');
+		onDidShow();
+		onDidShow();
 		fixture.views.setVisible(false);
 		await timeout(0);
 		assert.deepStrictEqual({
 			seen: fixture.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
+			seenWrites: store.withArgs('chat.seenPromoIds').callCount,
+			dismissed: fixture.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
+			banner: !!fixture.notifications.getNotification(),
 			queries: fixture.getTreatment.callCount,
-			commands: fixture.commands.executed.map(command => command.id),
-		}, { seen: '["promo"]', queries: 0, commands: [] });
+			pip: isPipArmed(fixture.anchor),
+		}, { seen: '["promo"]', seenWrites: 1, dismissed: undefined, banner: true, queries: 0, pip: false });
 	});
 
 	test('waits until the status icon is visible before the first cohort query', async () => {
@@ -426,8 +531,8 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.deepStrictEqual({
 			beforeLayout,
 			queries: fixture.getTreatment.callCount,
-			commands: fixture.commands.executed.map(command => command.id),
-		}, { beforeLayout: 0, queries: 1, commands: [ARM_CHAT_PROMO_COMMAND_ID] });
+			pip: isPipArmed(fixture.anchor),
+		}, { beforeLayout: 0, queries: 1, pip: true });
 	});
 
 	for (const change of ['expand', 'remove', 'dismiss', 'override', 'dispose', 'hideIcon']) {
@@ -462,8 +567,8 @@ suite('ChatPromoNotificationContribution', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				queries: fixture.getTreatment.callCount,
-				commands: fixture.commands.executed,
-			}, { queries: 1, commands: [] });
+				pip: isPipArmed(fixture.anchor),
+			}, { queries: 1, pip: false });
 		});
 	}
 
@@ -479,8 +584,8 @@ suite('ChatPromoNotificationContribution', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			queries: fixture.getTreatment.callCount,
-			commands: fixture.commands.executed,
-		}, { queries: 2, commands: [] });
+			pip: isPipArmed(fixture.anchor),
+		}, { queries: 2, pip: false });
 	});
 
 	test('logs a failed cohort query and leaves the banner in place', async () => {
@@ -493,8 +598,8 @@ suite('ChatPromoNotificationContribution', () => {
 			queries: fixture.getTreatment.callCount,
 			warnings: fixture.warn.callCount,
 			banner: !!fixture.notifications.getNotification(),
-			commands: fixture.commands.executed,
-		}, { queries: 1, warnings: 1, banner: true, commands: [] });
+			pip: isPipArmed(fixture.anchor),
+		}, { queries: 1, warnings: 1, banner: true, pip: false });
 	});
 
 	test('shows the input banner for a discounted promo by default', () => {
@@ -533,18 +638,18 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: false } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
 
-		assert.strictEqual(notifService.getNotification(), undefined);
-		assert.strictEqual(commands.executed.length, 0);
+		assert.deepStrictEqual({
+			banner: notifService.getNotification(),
+			pip: isPipArmed(anchor),
+		}, {
+			banner: undefined,
+			pip: false,
+		});
 	});
 
 	test('shows the popup when showBanner is missing', () => {
@@ -554,18 +659,18 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
 
-		assert.strictEqual(notifService.getNotification(), undefined, 'The closed-chat promo uses the card, not the banner');
-		assert.strictEqual(commands.executed[0]?.id, ARM_CHAT_PROMO_COMMAND_ID);
+		assert.deepStrictEqual({
+			banner: notifService.getNotification()?.message,
+			pip: isPipArmed(anchor),
+		}, {
+			banner: 'Get 20% off',
+			pip: true,
+		});
 	});
 
 	test('shows the Copilot-icon popup for a discounted promo when the setting is popup', () => {
@@ -575,28 +680,30 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
+		const hover = createPromoHover();
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			hoverService: hover.service,
+		}));
+		anchor.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		const card = hover.content;
 
-		const contribution = disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
-		assert.ok(contribution);
-
-		assert.strictEqual(notifService.getNotification(), undefined, 'A promo must not render the chat-input banner');
-		assert.strictEqual(commands.executed.length, 1);
-		assert.strictEqual(commands.executed[0].id, ARM_CHAT_PROMO_COMMAND_ID);
-		const payload = commands.executed[0].args[0] as IChatPromoCardInput;
-		assert.deepStrictEqual(payload, {
+		assert.deepStrictEqual({
+			banner: notifService.getNotification()?.message,
+			pipOpened: isPipArmed(anchor),
+			title: card?.querySelector('.title')?.textContent,
+			subtitle: card?.querySelector('.subtitle')?.textContent,
+			tryLabel: card?.querySelector('.monaco-button')?.textContent,
+			icon: card?.querySelector('.provider-icon')?.className,
+		}, {
+			banner: 'Get 20% off',
+			pipOpened: false,
 			title: 'Get 20% off',
 			subtitle: ILanguageModelChatMetadata.getPromoEndsAtLabel('2026-07-20T23:59:59Z')?.replace(/\.+$/, ''),
-			promoId: 'promo-1',
 			tryLabel: 'Try GPT-5.5',
-			modelIdentifier: 'copilot:gpt-5.5',
-			providerIcon: 'chat-model-provider-openai',
+			icon: 'codicon codicon-chat-model-provider-openai provider-icon',
 		});
 	});
 
@@ -629,20 +736,18 @@ suite('ChatPromoNotificationContribution', () => {
 			{ identifier: 'copilot:discounted', metadata: { name: 'Discounted', id: 'discounted', promo: { id: 'promo-discount', discountPercent: 20, message: 'Get 20% off', showBanner: true } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
 
-		assert.strictEqual(notifService.getNotification(), undefined, 'The preferred promo uses the card, not the banner');
-		assert.strictEqual(commands.executed[0]?.id, ARM_CHAT_PROMO_COMMAND_ID);
-		const payload = commands.executed[0].args[0] as IChatPromoCardInput;
-		assert.strictEqual(payload.title, 'Get 20% off');
+		assert.deepStrictEqual({
+			banner: notifService.getNotification()?.message,
+			pip: isPipArmed(anchor),
+		}, {
+			banner: 'Get 20% off',
+			pip: true,
+		});
 	});
 
 	test('does not show notification for negative promo discounts', () => {
@@ -833,20 +938,18 @@ suite('ChatPromoNotificationContribution', () => {
 			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', promo: { id: 'promo-b', discountPercent: 10, endsAt: '2026-08-01T00:00:00Z', message: 'Second promo', showBanner: true } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
 
-		assert.strictEqual(notifService.getNotification(), undefined);
-		assert.strictEqual(commands.executed.length, 1);
-		const payload = commands.executed[0].args[0] as IChatPromoCardInput;
-		assert.strictEqual(payload.title, 'First promo');
+		assert.deepStrictEqual({
+			banner: notifService.getNotification()?.message,
+			pip: isPipArmed(anchor),
+		}, {
+			banner: 'First promo',
+			pip: true,
+		});
 	});
 
 	test('shows a scoped 0% promo per harness', () => {
@@ -951,8 +1054,8 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-promo', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
-		disposables.add(createContribution(lmService, notifService.service, storageService, commands.service));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
 
 		await CommandsRegistry.getCommand(CHAT_PROMO_DISMISS_COMMAND_ID)?.handler(undefined!, 'promo-promo');
 		const stored = JSON.parse(storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]');
@@ -966,19 +1069,14 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
 
-		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_CHAT_PROMO_COMMAND_ID]);
+		assert.strictEqual(isPipArmed(anchor), true);
 		onDidChangeLanguageModels.fire('copilot');
-		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_CHAT_PROMO_COMMAND_ID]);
+		assert.strictEqual(isPipArmed(anchor), true);
 	});
 
 	test('updates an armed popup when the promoted model or message changes', () => {
@@ -989,26 +1087,43 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifications = createMockNotificationService(disposables);
 		const { service, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
 		const storage = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
-		disposables.add(createContribution(service, notifications.service, storage, commands.service, ChatClosedPromoNotification.CopilotIconPopup));
+		const anchor = createStatusIcon(disposables);
+		const hover = createPromoHover();
+		disposables.add(createContribution(service, notifications.service, storage));
+		disposables.add(createWidget(service, storage, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			hoverService: hover.service,
+		}));
 
+		const snapshot = () => ({ banner: notifications.getNotification()?.message, pip: isPipArmed(anchor) });
+		const seen = [snapshot()];
 		models[0] = {
 			identifier: 'copilot:second',
 			metadata: { name: 'Second', id: 'second', promo: { id: 'promo-second', discountPercent: 10, message: 'Second promo' } },
 		};
 		onDidChangeLanguageModels.fire('copilot');
+		seen.push(snapshot());
 		models[0].metadata.promo.message = 'Updated promo';
 		onDidChangeLanguageModels.fire('copilot');
+		seen.push(snapshot());
 		onDidChangeLanguageModels.fire('copilot');
+		seen.push(snapshot());
+		anchor.click();
 
-		assert.deepStrictEqual(commands.executed.map(command => {
-			const payload = command.args[0] as IChatPromoCardInput;
-			return { command: command.id, model: payload.modelIdentifier, promo: payload.promoId, title: payload.title };
-		}), [
-			{ command: ARM_CHAT_PROMO_COMMAND_ID, model: 'copilot:first', promo: 'promo-first', title: 'First promo' },
-			{ command: ARM_CHAT_PROMO_COMMAND_ID, model: 'copilot:second', promo: 'promo-second', title: 'Second promo' },
-			{ command: ARM_CHAT_PROMO_COMMAND_ID, model: 'copilot:second', promo: 'promo-second', title: 'Updated promo' },
-		]);
+		assert.deepStrictEqual({
+			seen,
+			title: hover.content?.querySelector('.title')?.textContent,
+			tryLabel: hover.content?.querySelector('.monaco-button')?.textContent,
+		}, {
+			seen: [
+				{ banner: 'First promo', pip: true },
+				{ banner: 'Second promo', pip: true },
+				{ banner: 'Second promo', pip: true },
+				{ banner: 'Second promo', pip: true },
+			],
+			title: 'Updated promo',
+			tryLabel: 'Try Second',
+		});
 	});
 
 	test('does not rearm an opened promo after model refresh or chat visibility changes', async () => {
@@ -1019,20 +1134,24 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifications = createMockNotificationService(disposables);
 		const { service, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
 		const storage = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
 		const views = createMockViewsService(disposables);
-		disposables.add(createContribution(service, notifications.service, storage, commands.service, ChatClosedPromoNotification.CopilotIconPopup, views.service));
+		const anchor = createStatusIcon(disposables);
+		disposables.add(createContribution(service, notifications.service, storage));
+		disposables.add(createWidget(service, storage, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			viewsService: views.service,
+		}));
 
 		await CommandsRegistry.getCommand(CHAT_PROMO_DISMISS_COMMAND_ID)!.handler(undefined!, 'promo-first');
 		onDidChangeLanguageModels.fire('copilot');
 		views.setVisible(true);
 		views.setVisible(false);
 		assert.deepStrictEqual({
-			commands: commands.executed.map(command => command.id),
+			pip: isPipArmed(anchor),
 			banner: notifications.getNotification(),
 			dismissed: JSON.parse(storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]'),
 		}, {
-			commands: [ARM_CHAT_PROMO_COMMAND_ID],
+			pip: false,
 			banner: undefined,
 			dismissed: ['promo-first'],
 		});
@@ -1045,22 +1164,17 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: { id: 'promo-codex', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Codex promo', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
 
 		assert.deepStrictEqual({
 			banner: notifService.getNotificationForSession('openai-codex')?.message,
-			commands: commands.executed.map(command => command.id),
+			pip: isPipArmed(anchor),
 		}, {
 			banner: 'Codex promo',
-			commands: [],
+			pip: false,
 		});
 	});
 
@@ -1071,24 +1185,21 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
 		const views = createMockViewsService(disposables, true);
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-			views.service,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			viewsService: views.service,
+		}));
 
 		assert.deepStrictEqual({
 			banner: notifService.getNotification()?.message,
-			commands: commands.executed.map(command => command.id),
+			pip: isPipArmed(anchor),
 		}, {
 			banner: 'Get 20% off',
-			commands: [],
+			pip: false,
 		});
 	});
 
@@ -1099,25 +1210,21 @@ suite('ChatPromoNotificationContribution', () => {
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
 		const views = createMockViewsService(disposables, false);
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-			views.service,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			viewsService: views.service,
+		}));
+		const seen = [isPipArmed(anchor)];
 		views.setVisible(true);
+		seen.push(isPipArmed(anchor));
 		views.setVisible(false);
+		seen.push(isPipArmed(anchor));
 
-		assert.deepStrictEqual(commands.executed.map(command => command.id), [
-			ARM_CHAT_PROMO_COMMAND_ID,
-			DISARM_CHAT_PROMO_COMMAND_ID,
-			ARM_CHAT_PROMO_COMMAND_ID,
-		]);
+		assert.deepStrictEqual(seen, [true, false, true]);
 	});
 
 	test('disarms the promo pip when the promo model leaves the list', () => {
@@ -1128,22 +1235,16 @@ suite('ChatPromoNotificationContribution', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
-		const commands = createMockCommandService();
+		const anchor = createStatusIcon(disposables);
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, { closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup }));
+		const seen = [isPipArmed(anchor)];
 		models.length = 0;
 		onDidChangeLanguageModels.fire(undefined);
+		seen.push(isPipArmed(anchor));
 
-		assert.deepStrictEqual(commands.executed.map(command => command.id), [
-			ARM_CHAT_PROMO_COMMAND_ID,
-			DISARM_CHAT_PROMO_COMMAND_ID,
-		]);
+		assert.deepStrictEqual(seen, [true, false]);
 	});
 
 	test('try-model switches the Copilot harness then the promo model', async () => {
@@ -1156,15 +1257,12 @@ suite('ChatPromoNotificationContribution', () => {
 		const commands = createMockCommandService();
 		const widget = createMockWidgetService({ sessionScheme: 'openai-codex' });
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-			undefined,
-			widget.service,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, {
+			commandService: commands.service,
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			widgetService: widget.service,
+		}));
 
 		await CommandsRegistry.getCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID)?.handler(undefined!, 'copilot:gpt-5.5');
 
@@ -1173,7 +1271,6 @@ suite('ChatPromoNotificationContribution', () => {
 			switched: widget.switched,
 		}, {
 			commands: [
-				{ id: ARM_CHAT_PROMO_COMMAND_ID, args: [commands.executed[0].args[0]] },
 				{ id: CHAT_OPEN_ACTION_ID, args: [] },
 				{ id: 'workbench.action.chat.openNewChatSessionInPlace.local', args: ['sidebar'] },
 			],
@@ -1191,15 +1288,12 @@ suite('ChatPromoNotificationContribution', () => {
 		const commands = createMockCommandService();
 		const widget = createMockWidgetService();
 
-		disposables.add(createContribution(
-			lmService,
-			notifService.service,
-			storageService,
-			commands.service,
-			ChatClosedPromoNotification.CopilotIconPopup,
-			undefined,
-			widget.service,
-		));
+		disposables.add(createContribution(lmService, notifService.service, storageService));
+		disposables.add(createWidget(lmService, storageService, {
+			commandService: commands.service,
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			widgetService: widget.service,
+		}));
 
 		const done = CommandsRegistry.getCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID)?.handler(undefined!, 'copilot:gpt-5.5');
 		setTimeout(() => widget.resolveSession('openai-codex'), 0);
@@ -1209,35 +1303,101 @@ suite('ChatPromoNotificationContribution', () => {
 			commands: commands.executed.map(command => command.id),
 			switched: widget.switched,
 		}, {
-			commands: [ARM_CHAT_PROMO_COMMAND_ID, CHAT_OPEN_ACTION_ID, 'workbench.action.chat.openNewChatSessionInPlace.local'],
+			commands: [CHAT_OPEN_ACTION_ID, 'workbench.action.chat.openNewChatSessionInPlace.local'],
 			switched: ['copilot:gpt-5.5'],
 		});
 	});
 
-	test('the promo card shows the model vendor icon at its design size', async () => {
+	function createPromoHover(showHover = true) {
+		const hoverStore = disposables.add(new DisposableStore());
+		let content: HTMLElement | undefined;
+		const service: IHoverService = {
+			...NullHoverService,
+			hideHover: () => hoverStore.clear(),
+			showInstantHover(options) {
+				assert.ok(options.content instanceof HTMLElement);
+				content = options.content;
+				if (!showHover) {
+					return undefined;
+				}
+				const target = options.target;
+				assert.ok(!(target instanceof HTMLElement));
+				return hoverStore.add({
+					isDisposed: false,
+					dispose() {
+						this.isDisposed = true;
+						target.dispose?.();
+					},
+				});
+			},
+		};
+		return { service, get content() { return content; } };
+	}
+
+	function openPromoCard(telemetryService: ITelemetryService, showHover = true): HTMLElement {
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const anchor = createStatusIcon(disposables);
+		const hover = createPromoHover(showHover);
+		disposables.add(createWidget(lmService, storageService, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			telemetryService,
+			hoverService: hover.service,
+		}));
+		anchor.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.ok(hover.content);
+		return hover.content;
+	}
+
+	test('logs analytics when the promo card is shown and dismissed', () => {
+		const telemetryService = new RecordingTelemetryService();
+		const card = openPromoCard(telemetryService);
+		card.querySelector<HTMLButtonElement>('button.close')!.click();
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'chatPromoWidgetShown', data: { promoId: 'promo-1' } },
+			{ name: 'chatPromoWidgetDismissed', data: { promoId: 'promo-1' } },
+		]);
+	});
+
+	test('logs analytics when the promo card CTA is clicked', () => {
+		const telemetryService = new RecordingTelemetryService();
+		const card = openPromoCard(telemetryService);
+		card.querySelector<HTMLElement>('.button-bar .monaco-button')!.click();
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'chatPromoWidgetShown', data: { promoId: 'promo-1' } },
+			{ name: 'chatPromoWidgetAction', data: { promoId: 'promo-1', action: 'tryModel' } },
+			{ name: 'workbenchActionExecuted', data: { id: CHAT_PROMO_TRY_MODEL_COMMAND_ID, from: 'chatPromoWidget' } },
+		]);
+	});
+
+	test('does not log shown analytics when the promo card cannot open', () => {
+		const telemetryService = new RecordingTelemetryService();
+		openPromoCard(telemetryService, false);
+		assert.deepStrictEqual(telemetryService.events, []);
+	});
+
+	test('the promo card shows the model vendor icon at its design size', () => {
 		const container = dom.append(document.body, dom.$('.monaco-workbench'));
 		disposables.add(toDisposable(() => container.remove()));
 		const statusbar = dom.append(container, dom.$('.part.statusbar'));
 		const entry = dom.append(statusbar, dom.$('div', { id: 'chat.statusBarEntry' }));
 		dom.append(entry, dom.$('.codicon.codicon-copilot'));
 		const instantiation = disposables.add(new TestInstantiationService());
-		instantiation.stub(ILayoutService, { mainContainer: container });
-		instantiation.stub(ICommandService, createMockCommandService().service);
 		let card: HTMLElement | undefined;
-		instantiation.stub(IHoverService, {
+		stubPromoWidgetServices(instantiation, container, disposables, {
 			hideHover() { },
 			showInstantHover(options) {
 				card = options.content as HTMLElement;
 				return undefined;
 			}
-		});
-		instantiation.stub(ITelemetryService, NullTelemetryService);
+		} as unknown as IHoverService, [{
+			identifier: 'copilot:claude',
+			metadata: { name: 'Claude', id: 'claude', promo: { id: 'promo', discountPercent: 20, message: 'Model promo' } },
+		}]);
 		disposables.add(instantiation.createInstance(ChatPromoWidgetContribution));
-		const payload: IChatPromoCardInput = {
-			title: 'Model promo', promoId: 'promo', tryLabel: 'Try Claude', modelIdentifier: 'copilot:claude',
-			providerIcon: 'chat-model-provider-claude',
-		};
-		await CommandsRegistry.getCommand(ARM_CHAT_PROMO_COMMAND_ID)!.handler(undefined!, payload);
 		entry.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 		// Mount the card the way the hover service does, because the hover host styles
@@ -1263,15 +1423,11 @@ suite('ChatPromoNotificationContribution', () => {
 		const entry = dom.append(statusbar, dom.$('div', { id: 'chat.statusBarEntry' }));
 		dom.append(entry, dom.$('.codicon.codicon-copilot'));
 		const instantiation = disposables.add(new TestInstantiationService());
-		instantiation.stub(ILayoutService, { mainContainer: container });
-		instantiation.stub(ICommandService, createMockCommandService().service);
-		instantiation.stub(IHoverService, { hideHover() { } });
-		instantiation.stub(ITelemetryService, NullTelemetryService);
+		stubPromoWidgetServices(instantiation, container, disposables, mockHoverService(), [{
+			identifier: 'copilot:model',
+			metadata: { name: 'Model', id: 'model', promo: { id: 'promo', discountPercent: 20, message: 'Model promo' } },
+		}]);
 		const widget = disposables.add(instantiation.createInstance(ChatPromoWidgetContribution));
-		const payload: IChatPromoCardInput = {
-			title: 'Model promo', promoId: 'promo', tryLabel: 'Try Model', modelIdentifier: 'copilot:model',
-		};
-		await CommandsRegistry.getCommand(ARM_CHAT_PROMO_COMMAND_ID)!.handler(undefined!, payload);
 		const initiallyArmed = !!entry.querySelector('.codicon-copilot-dot');
 
 		const replacement = dom.$('div', { id: 'chat.statusBarEntry' });
