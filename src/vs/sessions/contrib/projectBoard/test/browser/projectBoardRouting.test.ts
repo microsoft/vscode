@@ -21,6 +21,11 @@ import { ChatEditorInput } from '../../../../../workbench/contrib/chat/browser/w
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IProjectBoardService } from '../../browser/projectBoardService.js';
+import { KanbanCustomViewContribution } from '../../browser/kanbanView.js';
+import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { KANBAN_CUSTOM_VIEW_ID } from '../../../../common/projectBoard.js';
 import '../../browser/projectBoard.contribution.js';
 
 suite('Project Board Agents routing', () => {
@@ -94,5 +99,28 @@ suite('Project Board Agents routing', () => {
 			context.setValue(IsSessionsWindowContext.key, isSessions);
 			assert.strictEqual(entry.command.precondition?.evaluate(context), expected);
 		}
+	});
+
+	test('registers Kanban as a restorable Sessions custom view', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		let registered: ICustomViewDescriptor | undefined;
+		instantiationService.stub(ICustomViewService, upcastPartial<ICustomViewService>({
+			activeCustomView: constObservable(undefined),
+			registerCustomView: descriptor => {
+				registered = descriptor;
+				return { dispose() { } };
+			},
+		}));
+		store.add(instantiationService.createInstance(KanbanCustomViewContribution));
+
+		assert.deepStrictEqual({
+			id: registered?.id,
+			hasConstructor: !!registered?.ctor,
+			actions: registered?.actions,
+		}, {
+			id: KANBAN_CUSTOM_VIEW_ID,
+			hasConstructor: true,
+			actions: undefined,
+		});
 	});
 });

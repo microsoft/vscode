@@ -119,6 +119,8 @@ import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObs
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
+import { KANBAN_CUSTOM_VIEW_ID, KANBAN_SECTION_ID, MANAGE_KANBAN_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 const $ = DOM.$;
 
@@ -371,6 +373,8 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.calendar;
 		case CUSTOMIZATIONS_SECTION_ID:
 			return Codicon.extensions;
+		case KANBAN_SECTION_ID:
+			return Codicon.layout;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -385,7 +389,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 }
 
 function isShortcutSection(sectionId: string): boolean {
-	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID;
+	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || sectionId === KANBAN_SECTION_ID;
 }
 
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
@@ -2486,6 +2490,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				this.instantiationService,
 				element.id === CUSTOMIZATIONS_SECTION_ID ? this.customizationsIcon : undefined,
 			);
+			if (element.id === KANBAN_SECTION_ID) {
+				template.elementDisposables.add(autorun(reader => {
+					template.container.classList.toggle('active', this.customViewService.activeCustomView.read(reader)?.id === KANBAN_CUSTOM_VIEW_ID);
+				}));
+			}
 		}
 
 		template.label.textContent = element.label;
@@ -2950,6 +2959,9 @@ class SessionsAccessibilityProvider {
 						? localize('newSessionAria', "New Session ({0})", keybindingAriaLabel)
 						: localize('newSessionAriaWithoutKeybinding', "New Session");
 				});
+			}
+			if (element.id === SESSIONS_HEADER_SECTION_ID || element.id === KANBAN_SECTION_ID) {
+				return element.label;
 			}
 			if (element.id === AUTOMATIONS_SECTION_ID) {
 				return derived(this, reader => {
@@ -4249,6 +4261,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 				return;
 			}
+			if (isSessionSection(element) && element.id === KANBAN_SECTION_ID) {
+				this.tree.setSelection([]);
+				this.commandService.executeCommand(MANAGE_KANBAN_COMMAND_ID);
+				return;
+			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
 				// Gate the open on workspace trust before any side effect (mark-read,
 				// activation, folder mount). A refused open leaves the current
@@ -4779,6 +4796,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
 		}
 		this.setNavigationSections(navigationSections);
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
+			children.push(renderSection({ id: KANBAN_SECTION_ID, label: localize('kanban', "Kanban"), sessions: [] }));
+		}
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {

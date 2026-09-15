@@ -15,6 +15,11 @@
 	font-family: inherit;
 }
 
+.kanban-custom-view {
+	height: 100%;
+	padding: 0;
+}
+
 .project-board-header h1 {
 	margin: 0;
 	font-size: 22px;
