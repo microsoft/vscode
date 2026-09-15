@@ -18,11 +18,10 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 export class SessionComparisonGridController extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionComparisonGridController';
-	private _gridKey: string | undefined;
-	private _ignoredInitialFocusGridKey: string | undefined;
 	private _comparisonGridActive = false;
 	private _isolatedJudgeSessionId: string | undefined;
 	private _keepSidePaneHidden = false;
+	private _pendingJudgeIsolationSessionId: string | undefined;
 
 	constructor(
 		@ISessionsPartService sessionsPartService: ISessionsPartService,
@@ -44,9 +43,10 @@ export class SessionComparisonGridController extends Disposable implements IWork
 				this._isolatedJudgeSessionId = undefined;
 			}
 			this._keepSidePaneHidden = this._comparisonGridActive || this._isolatedJudgeSessionId !== undefined;
-			this._updateGridKey(this._comparisonGridActive
-				? visibleSessions.map(session => session?.sessionId ?? '').join('\0')
-				: undefined);
+			const activeJudgeSessionId = this._getJudgeSessionId(activeSession, visibleSessions, comparisons);
+			if (activeJudgeSessionId) {
+				this._scheduleJudgeIsolation(activeJudgeSessionId);
+			}
 			if (this._keepSidePaneHidden) {
 				this._hideSidePane();
 			}
@@ -62,24 +62,31 @@ export class SessionComparisonGridController extends Disposable implements IWork
 
 	private _onDidFocusSession(sessionId: string): void {
 		const visibleSessions = this.sessionsService.visibleSessions.get();
-		if (this.sessionsService.sessionGridLayout.get() !== 'grid'
-			|| !this._isComparisonGrid(visibleSessions, this.comparisonService.comparisons.get())) {
-			return;
-		}
-		const gridKey = visibleSessions.map(session => session?.sessionId ?? '').join('\0');
-		this._updateGridKey(gridKey);
-		if (this._ignoredInitialFocusGridKey === gridKey) {
-			this._ignoredInitialFocusGridKey = undefined;
-			return;
-		}
 		const focusedSession = visibleSessions.find(session => session?.sessionId === sessionId);
-		if (!focusedSession) {
+		if (this._getJudgeSessionId(focusedSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
 			return;
 		}
-		const comparison = this.comparisonService.getComparisonForSession(focusedSession.resource);
-		const participant = comparison?.participants.find(candidate =>
-			candidate.sessionResource && isEqual(candidate.sessionResource, focusedSession.resource));
-		if (participant?.role !== SessionComparisonParticipantRole.Judge) {
+		this._isolateJudge(sessionId);
+	}
+
+	private _scheduleJudgeIsolation(sessionId: string): void {
+		if (this._pendingJudgeIsolationSessionId === sessionId) {
+			return;
+		}
+		this._pendingJudgeIsolationSessionId = sessionId;
+		queueMicrotask(() => {
+			if (this._pendingJudgeIsolationSessionId !== sessionId) {
+				return;
+			}
+			this._pendingJudgeIsolationSessionId = undefined;
+			this._isolateJudge(sessionId);
+		});
+	}
+
+	private _isolateJudge(sessionId: string): void {
+		const visibleSessions = this.sessionsService.visibleSessions.get();
+		const judgeSession = visibleSessions.find(session => session?.sessionId === sessionId);
+		if (this._getJudgeSessionId(judgeSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
 			return;
 		}
 		this._isolatedJudgeSessionId = sessionId;
@@ -94,14 +101,30 @@ export class SessionComparisonGridController extends Disposable implements IWork
 	}
 
 	private _isComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
+		return this._getComparisonForVisibleSessions(visibleSessions, comparisons) !== undefined;
+	}
+
+	private _getJudgeSessionId(session: IActiveSession | undefined, visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): string | undefined {
+		if (!session) {
+			return undefined;
+		}
+		const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons);
+		const participant = comparison?.participants.find(candidate =>
+			candidate.sessionResource && isEqual(candidate.sessionResource, session.resource));
+		return participant?.role === SessionComparisonParticipantRole.Judge ? session.sessionId : undefined;
+	}
+
+	private _getComparisonForVisibleSessions(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): ISessionComparison | undefined {
 		if (visibleSessions.length <= 1 || visibleSessions.some(session => !session)) {
-			return false;
+			return undefined;
 		}
 		const firstSession = visibleSessions[0]!;
 		const comparison = comparisons.find(candidate =>
 			candidate.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, firstSession.resource)));
-		return !!comparison && visibleSessions.every(session => comparison.participants.some(participant =>
-			participant.sessionResource && isEqual(participant.sessionResource, session!.resource)));
+		return comparison && visibleSessions.every(session => comparison.participants.some(participant =>
+			participant.sessionResource && isEqual(participant.sessionResource, session!.resource)))
+			? comparison
+			: undefined;
 	}
 
 	private _hideSidePane(): void {
@@ -118,18 +141,4 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		}
 	}
 
-	private _updateGridKey(gridKey: string | undefined): void {
-		if (this._gridKey === gridKey) {
-			return;
-		}
-		this._gridKey = gridKey;
-		this._ignoredInitialFocusGridKey = gridKey;
-		if (gridKey) {
-			queueMicrotask(() => {
-				if (this._ignoredInitialFocusGridKey === gridKey) {
-					this._ignoredInitialFocusGridKey = undefined;
-				}
-			});
-		}
-	}
 }

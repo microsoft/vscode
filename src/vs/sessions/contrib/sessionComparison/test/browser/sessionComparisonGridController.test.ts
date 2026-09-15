@@ -46,7 +46,7 @@ suite('Session comparison grid controller', () => {
 			}],
 		};
 		const focused = store.add(new Emitter<string>());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', judge);
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', attempt);
 		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', [judge, attempt]);
 		const sessionGridLayout = observableValue<SessionGridLayout>('sessionGridLayout', initialLayout);
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
@@ -97,7 +97,7 @@ suite('Session comparison grid controller', () => {
 			}
 		}());
 		store.add(instantiationService.createInstance(SessionComparisonGridController));
-		return { focused, visibleSessions, sessionGridLayout, closed, hiddenParts, partVisibility, onDidChangePartVisibility, get resetCount() { return resetCount; } };
+		return { judge, attempt, focused, activeSession, visibleSessions, sessionGridLayout, comparisons, closed, hiddenParts, partVisibility, onDidChangePartVisibility, get resetCount() { return resetCount; } };
 	}
 
 	test('keeps the whole side pane hidden while an attempt comparison grid is visible', () => {
@@ -113,13 +113,10 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual(fixture.hiddenParts.at(-1), { hidden: true, part: Parts.EDITOR_PART });
 	});
 
-	test('ignores the initial grid focus and closes other panes on a later Judge focus', async () => {
+	test('closes other panes on the first Judge focus', () => {
 		const fixture = setup();
 
 		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
-		fixture.focused.fire('judge');
-		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
-		await Promise.resolve();
 		fixture.focused.fire('judge');
 
 		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, {
@@ -132,6 +129,18 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual(fixture.hiddenParts.at(-1), { hidden: true, part: Parts.EDITOR_PART });
 	});
 
+	test('closes other panes when Judge becomes active without a focus event', async () => {
+		const fixture = setup();
+
+		fixture.activeSession.set(fixture.judge, undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, {
+			closed: ['attempt'],
+			resetCount: 1,
+		});
+	});
+
 	test('does not collapse when a tiled attempt receives focus', async () => {
 		const fixture = setup();
 		await Promise.resolve();
@@ -140,9 +149,21 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
 	});
 
-	test('does not collapse an ordinary multi-session columns layout', () => {
+	test('collapses a comparison Judge from an ordinary multi-session columns layout', () => {
 		const fixture = setup('columns');
 		fixture.focused.fire('judge');
+
+		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, {
+			closed: ['attempt'],
+			resetCount: 1,
+		});
+	});
+
+	test('does not collapse unrelated multi-session columns', async () => {
+		const fixture = setup('columns');
+		fixture.comparisons.set([], undefined);
+		fixture.activeSession.set(fixture.judge, undefined);
+		await Promise.resolve();
 
 		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
 	});
