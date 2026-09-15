@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, addStandardDisposableListener, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, addStandardDisposableListener, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -30,7 +32,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
 import { CHAT_CARD_LARGE_CLASS } from '../../../../workbench/contrib/chat/browser/widget/chatCard.js';
-import { IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -39,6 +41,7 @@ import { IChat, SessionStatus } from '../../../services/sessions/common/session.
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBoardModel } from '../common/projectBoardModel.js';
 import { ProjectBoardState } from './projectBoardState.js';
+import { ProjectBoardStateDurations } from '../common/projectBoardStateDurations.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
@@ -61,6 +64,10 @@ class ProjectBoardView extends Disposable {
 	private readonly model = new ProjectBoardModel();
 	private readonly cardElements = new Map<string, HTMLElement>();
 	private readonly controlElements = new Map<string, HTMLElement>();
+	private readonly durationElements = new Map<string, HTMLElement>();
+	private readonly stateDurations = new ProjectBoardStateDurations();
+	private readonly creditValues = new Map<string, number | undefined>();
+	private readonly notifiedCreditErrors = new Map<string, string>();
 	private readonly renderDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly sessionObserver = this._register(new MutableDisposable());
 	private readonly movePicker = this._register(new MutableDisposable<DisposableStore>());
@@ -164,6 +171,7 @@ class ProjectBoardView extends Disposable {
 			} : undefined;
 			const sessions = this.sessionsManagementService.getSessions().filter(session => !newSession || session.providerId !== newSession.providerId || !isEqual(session.resource, newSession.resource));
 			this.model.updateSessions(sessions, reader);
+			this.stateDurations.update(this.model.cards);
 			this.updateMetadata(reader);
 			this.updateQuestionPreviews(reader);
 			this.render();
@@ -188,15 +196,30 @@ class ProjectBoardView extends Disposable {
 				this.metadataPreviews.deleteAndDispose(id);
 				this.metadataChats.delete(id);
 				this.notifiedMetadataErrors.delete(id);
+				this.notifiedCreditErrors.delete(id);
 			}
 		}
 		this.metadataStates.clear();
+		this.creditValues.clear();
 		for (const card of visible) {
 			if (this.metadataChats.get(card.id) !== card.chat) {
 				this.metadataPreviews.set(card.id, this.instantiationService.createInstance(ProjectBoardMetadata, card.chat));
 				this.metadataChats.set(card.id, card.chat);
 			}
-			const metadata = this.metadataPreviews.get(card.id)!.metadata.read(reader);
+			const helper = this.metadataPreviews.get(card.id)!;
+			const showCredits = !!this.boardState.configuration.read(reader).display?.showCredits;
+			helper.setIncludeCredits(showCredits);
+			const metadata = helper.metadata.read(reader);
+			if (showCredits) {
+				this.creditValues.set(card.id, helper.credits.read(reader));
+				const error = helper.creditsError.read(reader);
+				if (error && this.notifiedCreditErrors.get(card.id) !== error) {
+					this.notifiedCreditErrors.set(card.id, error);
+					this.notificationService.error(localize('projectBoard.creditsFailed', "Could not read AI credit usage for \"{0}\".", card.title));
+				} else if (!error) {
+					this.notifiedCreditErrors.delete(card.id);
+				}
+			}
 			this.metadataStates.set(card.id, metadata);
 			if (metadata.kind === 'ready') {
 				this.rememberPromptTime(card.id, metadata.submittedAt);
@@ -326,6 +349,7 @@ class ProjectBoardView extends Disposable {
 		this.renderDisposables.value = store;
 		this.cardElements.clear();
 		this.controlElements.clear();
+		this.durationElements.clear();
 		// Context-view hosts share the auxiliary container and must survive board rerenders.
 		this.boardElement?.remove();
 
@@ -380,6 +404,15 @@ class ProjectBoardView extends Disposable {
 				}
 			}
 		}));
+		const settings = this.createControl(header, localize('projectBoard.settings', "Settings"), 'settings', store);
+		settings.label = '';
+		settings.icon = Codicon.settingsGear;
+		settings.element.classList.add('project-board-settings');
+		settings.element.setAttribute('aria-haspopup', 'menu');
+		settings.element.setAttribute('aria-label', localize('projectBoard.displaySettings', "Board display settings"));
+		store.add(this.hoverService.setupDelayedHover(settings.element, { content: localize('projectBoard.displaySettings', "Board display settings") }));
+		settings.enabled = this.boardState.canEdit;
+		store.add(settings.onDidClick(() => this.showSettings(settings.element)));
 		board.appendChild(header);
 		if (!this.boardState.canEdit) {
 			const warning = document.createElement('section');
@@ -439,6 +472,14 @@ class ProjectBoardView extends Disposable {
 		this.boardElement = board;
 		board.scrollTop = scrollTop;
 		board.scrollLeft = scrollLeft;
+		if (this.durationElements.size) {
+			store.add(disposableWindowInterval(getWindow(this.container), () => {
+				for (const [id, element] of this.durationElements) {
+					element.textContent = this.stateDurations.getLabel(id, Date.now(), true);
+					element.parentElement?.setAttribute('aria-label', this.stateDurations.getLabel(id));
+				}
+			}, 1000));
+		}
 		this.rendering = false;
 		if (ownerDocument.hasFocus()) {
 			if (focusedQuestion?.isConnected && isHTMLElement(focusedQuestion)) {
@@ -463,6 +504,42 @@ class ProjectBoardView extends Disposable {
 		}
 		this.controlElements.set(key, button.element);
 		return button;
+	}
+
+	private showSettings(anchor: HTMLElement): void {
+		this.menuOpen = true;
+		const generation = ++this.menuGeneration;
+		anchor.setAttribute('aria-expanded', 'true');
+		const display = this.boardState.configuration.get().display;
+		this.contextMenuService.showContextMenu({
+			domForShadowRoot: this.container,
+			getAnchor: () => anchor,
+			getActions: () => [
+				toAction({
+					id: 'projectBoard.settings.stateDuration',
+					label: localize('projectBoard.showStateDuration', "Show Time in State"),
+					checked: !!display?.showStateDuration,
+					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showStateDuration', !this.boardState.configuration.get().display?.showStateDuration)),
+				}),
+				toAction({
+					id: 'projectBoard.settings.credits',
+					label: localize('projectBoard.showCredits', "Show AI Credits"),
+					checked: !!display?.showCredits,
+					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showCredits', !this.boardState.configuration.get().display?.showCredits)),
+				}),
+			],
+			onHide: () => {
+				if (generation !== this.menuGeneration) {
+					return;
+				}
+				anchor.setAttribute('aria-expanded', 'false');
+				this.menuOpen = false;
+				this.refreshAfterMenu();
+				if (anchor.ownerDocument.hasFocus()) {
+					this.controlElements.get('settings')?.focus({ preventScroll: true });
+				}
+			},
+		});
 	}
 
 	private renderAxis(container: HTMLElement, axis: IProjectBoardAxis, kind: 'row' | 'column', store: DisposableStore): void {
@@ -763,6 +840,51 @@ class ProjectBoardView extends Disposable {
 		}
 
 		element.appendChild(this.createStatus(document, this.getStatusLabel(card), this.getStatusGlyph(card), card.status === SessionStatus.InProgress));
+		const display = this.boardState.configuration.get().display;
+		const metrics = document.createElement('div');
+		metrics.className = 'project-board-card-metrics';
+		if (display?.showStateDuration && !card.archived) {
+			const duration = document.createElement('div');
+			duration.className = 'project-board-card-duration';
+			duration.setAttribute('role', 'img');
+			duration.setAttribute('aria-label', this.stateDurations.getLabel(card.id));
+			const icon = renderIcon(Codicon.clock);
+			icon.setAttribute('aria-hidden', 'true');
+			const value = document.createElement('span');
+			value.textContent = this.stateDurations.getLabel(card.id, Date.now(), true);
+			duration.append(icon, value);
+			describe(duration);
+			store.add(this.hoverService.setupDelayedHover(duration, () => ({
+				content: localize('projectBoard.stateDurationHelp', "{0}\n\nTime in this chat's current state, measured while the board is open. “At least” (≥) means its initial state start is unknown. Output, reading and moving the card do not reset the timer.", this.stateDurations.getLabel(card.id)),
+			})));
+			this.durationElements.set(card.id, value);
+			metrics.appendChild(duration);
+		}
+		if (display?.showCredits) {
+			const credits = document.createElement('div');
+			credits.className = 'project-board-card-credits';
+			credits.setAttribute('role', 'img');
+			const value = this.creditValues.get(card.id);
+			const label = value === undefined
+				? localize('projectBoard.creditsUnavailable', "AI credits: unavailable")
+				: localize('projectBoard.creditsUsed', "AI credits: {0}", formatCopilotCreditsLabel(value));
+			credits.setAttribute('aria-label', label);
+			const icon = document.createElement('span');
+			icon.className = 'project-board-credit-icon';
+			icon.setAttribute('aria-hidden', 'true');
+			icon.textContent = '$';
+			const amount = document.createElement('span');
+			amount.textContent = value === undefined ? localize('projectBoard.creditUnavailableCompact', "Unavailable") : formatCopilotCreditsLabel(value);
+			credits.append(icon, amount);
+			describe(credits);
+			store.add(this.hoverService.setupDelayedHover(credits, {
+				content: localize('projectBoard.creditsHelp', "{0}\n\nReported cumulative usage for this chat, including subagents when reported by its provider. Not a dollar amount, account balance or sum of sibling chats. Unavailable means no credit data is reported or the metadata preview limit was reached.", label),
+			}));
+			metrics.appendChild(credits);
+		}
+		if (metrics.childElementCount) {
+			element.insertBefore(metrics, title);
+		}
 		if (card.connection) {
 			const connection = document.createElement('div');
 			connection.className = 'project-board-card-warning';
