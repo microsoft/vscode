@@ -567,7 +567,7 @@
         "toolReferenceName": "typescriptChanges",
         "icon": "$(diff)",
         "userDescription": "%copilot.tools.typeScriptChangeClassification.description%",
-        "modelDescription": "Classify added, changed, and deleted line buckets in a TypeScript or JavaScript file as structural and/or algorithmic changes. Use this when reviewing edits and you already know which lines were added, changed, or deleted; do not use it to retrieve a git diff or compiler diagnostics. Added and changed ranges use zero-based start-inclusive, end-exclusive lines. Deleted entries provide the current-snapshot anchor line and deleted line count. Optionally provide content as the source snapshot; otherwise the current TypeScript language-service snapshot is used. Returns read-only JSON grouped into one bucket per enclosing named entity path. Each bucket includes the structural entity's zero-based, end-exclusive line range, and each input change retains its classifications and location.",
+        "modelDescription": "Classify added, changed, and deleted line ranges in a TypeScript or JavaScript file as structural and/or algorithmic changes. Use this when reviewing edits and you already have the original content and line diff; do not use it to retrieve a git diff or compiler diagnostics. Modified added/changed ranges and original deleted ranges are zero-based, start-inclusive, end-exclusive. Supply original content; optionally supply modified content, otherwise the current TypeScript language-service snapshot is used. Added and changed ranges are mapped to the modified AST, while deleted ranges are mapped to the original AST. Returns direct modified and original arrays grouped by enclosing named entity path.",
         "tags": [],
         "canBeReferencedInPrompt": true,
         "inputSchema": {
@@ -577,82 +577,107 @@
               "type": "string",
               "description": "The absolute path to the TypeScript or JavaScript file whose changes should be classified."
             },
-            "addedLineRanges": {
-              "type": "array",
-              "description": "Zero-based start-inclusive, end-exclusive line ranges containing added lines.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "start": {
-                    "type": "integer",
-                    "description": "The zero-based first added line."
-                  },
-                  "end": {
-                    "type": "integer",
-                    "description": "The zero-based line after the last added line."
+            "modified": {
+              "type": "object",
+              "description": "The modified snapshot and its added and changed line ranges.",
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "Optional modified source. When omitted, the current TypeScript language-service snapshot is used."
+                },
+                "added": {
+                  "type": "array",
+                  "description": "Added line ranges in the modified snapshot.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "description": "The zero-based inclusive first line."
+                      },
+                      "end": {
+                        "type": "integer",
+                        "description": "The zero-based exclusive end line."
+                      }
+                    },
+                    "required": [
+                      "start",
+                      "end"
+                    ],
+                    "additionalProperties": false
                   }
                 },
-                "required": [
-                  "start",
-                  "end"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "changedLineRanges": {
-              "type": "array",
-              "description": "Zero-based start-inclusive, end-exclusive line ranges containing changed lines.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "start": {
-                    "type": "integer",
-                    "description": "The zero-based first changed line."
-                  },
-                  "end": {
-                    "type": "integer",
-                    "description": "The zero-based line after the last changed line."
+                "changed": {
+                  "type": "array",
+                  "description": "Changed line ranges in the modified snapshot.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "description": "The zero-based inclusive first line."
+                      },
+                      "end": {
+                        "type": "integer",
+                        "description": "The zero-based exclusive end line."
+                      }
+                    },
+                    "required": [
+                      "start",
+                      "end"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "start",
-                  "end"
-                ],
-                "additionalProperties": false
-              }
+                }
+              },
+              "required": [
+                "added",
+                "changed"
+              ],
+              "additionalProperties": false
             },
-            "deletedLines": {
-              "type": "array",
-              "description": "Deleted-line buckets located by their anchor in the current source snapshot.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "line": {
-                    "type": "integer",
-                    "description": "The zero-based line where the first line was deleted."
-                  },
-                  "deletedLineCount": {
-                    "type": "integer",
-                    "description": "The number of deleted lines."
+            "original": {
+              "type": "object",
+              "description": "The original source and deleted line ranges mapped to it.",
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The original source content, such as the Git version of the file."
+                },
+                "deleted": {
+                  "type": "array",
+                  "description": "Deleted line ranges in the original snapshot.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "description": "The zero-based inclusive first line."
+                      },
+                      "end": {
+                        "type": "integer",
+                        "description": "The zero-based exclusive end line."
+                      }
+                    },
+                    "required": [
+                      "start",
+                      "end"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "line",
-                  "deletedLineCount"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "content": {
-              "type": "string",
-              "description": "Optional source snapshot to classify. When omitted, the current TypeScript language-service snapshot is used."
+                }
+              },
+              "required": [
+                "content",
+                "deleted"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
             "filePath",
-            "addedLineRanges",
-            "changedLineRanges",
-            "deletedLines"
+            "modified",
+            "original"
           ],
           "additionalProperties": false
         }

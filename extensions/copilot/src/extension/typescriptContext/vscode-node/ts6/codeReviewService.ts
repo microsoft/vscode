@@ -51,13 +51,13 @@ export class TS6CodeReviewProvider implements Omit<ICodeReviewService, '_service
 		return protocol.TypeScriptMetricsResponse.isOk(response) ? toTypeScriptMetricsResult(response.body) : undefined;
 	}
 
-	async classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
+	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined> {
 		const args: TypeScriptChangeClassificationRequestArgs = {
-			file: vscode.Uri.file(filePath),
+			file: vscode.Uri.file(input.filePath),
 			line: 1,
 			offset: 1,
-			changes,
-			content,
+			modified: input.modified,
+			original: input.original,
 		};
 		const response = await vscode.commands.executeCommand<protocol.TypeScriptChangeClassificationResponse | undefined>(
 			'typescript.tsserverRequest',

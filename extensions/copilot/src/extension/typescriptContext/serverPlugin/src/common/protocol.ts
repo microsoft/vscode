@@ -93,40 +93,48 @@ export interface TypeScriptMetricsResult {
 
 export type TypeScriptChangeClassification = 'algorithmic' | 'structural';
 
-export interface TypeScriptDeletedLines {
-	line: number;
-	deletedLineCount: number;
-}
-
-export interface TypeScriptChangeClassificationInput {
+export interface TypeScriptModifiedChangeInput {
+	content?: string;
 	added: readonly LineRange[];
 	changed: readonly LineRange[];
-	deleted: readonly TypeScriptDeletedLines[];
+}
+
+export interface TypeScriptOriginalChangeInput {
+	content: string;
+	deleted: readonly LineRange[];
 }
 
 interface TypeScriptClassifiedChangeBase {
 	classifications: TypeScriptChangeClassification[];
 }
 
-export type TypeScriptClassifiedChange = TypeScriptClassifiedAddedOrChangedLines | TypeScriptClassifiedDeletedLines;
-
-export interface TypeScriptClassifiedAddedOrChangedLines extends TypeScriptClassifiedChangeBase, LineRange {
+export interface TypeScriptClassifiedModifiedLines extends TypeScriptClassifiedChangeBase {
 	changeType: 'added' | 'changed';
+	range: LineRange;
 }
 
-export interface TypeScriptClassifiedDeletedLines extends TypeScriptClassifiedChangeBase, TypeScriptDeletedLines {
+export interface TypeScriptClassifiedOriginalLines extends TypeScriptClassifiedChangeBase {
 	changeType: 'deleted';
+	range: LineRange;
 }
 
-export interface TypeScriptChangeBucket {
+interface TypeScriptChangeBucketBase {
 	kind: string;
 	path: string[];
 	range: LineRange;
-	changes: TypeScriptClassifiedChange[];
+}
+
+export interface TypeScriptModifiedChangeBucket extends TypeScriptChangeBucketBase {
+	changes: TypeScriptClassifiedModifiedLines[];
+}
+
+export interface TypeScriptOriginalChangeBucket extends TypeScriptChangeBucketBase {
+	changes: TypeScriptClassifiedOriginalLines[];
 }
 
 export interface TypeScriptChangeClassificationResult {
-	buckets: TypeScriptChangeBucket[];
+	modified: TypeScriptModifiedChangeBucket[];
+	original: TypeScriptOriginalChangeBucket[];
 }
 
 export type WithinRangeCacheScope = {
@@ -596,8 +604,8 @@ export type TypeScriptMetricsResponse = (tt.server.protocol.Response & {
 }) | { type: 'cancelled' };
 
 export interface TypeScriptChangeClassificationRequestArgs extends tt.server.protocol.FileLocationRequestArgs {
-	changes: TypeScriptChangeClassificationInput;
-	content?: string;
+	modified: TypeScriptModifiedChangeInput;
+	original: TypeScriptOriginalChangeInput;
 }
 
 export interface TypeScriptChangeClassificationRequest extends tt.server.protocol.Request {
@@ -614,19 +622,23 @@ export namespace TypeScriptChangeClassificationResponse {
 			return false;
 		}
 		const body = response.body as OK | undefined;
-		return Array.isArray(body?.buckets) && body.buckets.every(bucket =>
+		return isChangeBuckets(body?.modified, false) && isChangeBuckets(body?.original, true);
+	}
+
+	function isChangeBuckets(buckets: readonly TypeScriptModifiedChangeBucket[] | readonly TypeScriptOriginalChangeBucket[] | undefined, original: boolean): boolean {
+		return Array.isArray(buckets) && buckets.every((bucket: TypeScriptModifiedChangeBucket | TypeScriptOriginalChangeBucket) =>
 			typeof bucket.kind === 'string'
 			&& Array.isArray(bucket.path)
-			&& bucket.path.every(segment => typeof segment === 'string')
+			&& bucket.path.every((segment: string) => typeof segment === 'string')
 			&& typeof bucket.range?.start === 'number'
 			&& typeof bucket.range.end === 'number'
 			&& Array.isArray(bucket.changes)
-			&& bucket.changes.every(change =>
+			&& bucket.changes.every((change: TypeScriptClassifiedModifiedLines | TypeScriptClassifiedOriginalLines) =>
 				Array.isArray(change.classifications)
-				&& change.classifications.every(classification => classification === 'algorithmic' || classification === 'structural')
-				&& ((change.changeType === 'added' || change.changeType === 'changed')
-					? typeof change.start === 'number' && typeof change.end === 'number'
-					: change.changeType === 'deleted' && typeof change.line === 'number' && typeof change.deletedLineCount === 'number'))
+				&& change.classifications.every((classification: TypeScriptChangeClassification) => classification === 'algorithmic' || classification === 'structural')
+				&& typeof change.range?.start === 'number'
+				&& typeof change.range.end === 'number'
+				&& (original ? change.changeType === 'deleted' : change.changeType === 'added' || change.changeType === 'changed'))
 		);
 	}
 

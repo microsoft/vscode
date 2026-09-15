@@ -34,32 +34,41 @@ export interface TypeScriptMetricsResult {
 
 export type TypeScriptChangeClassification = 'algorithmic' | 'structural';
 
-export interface TypeScriptDeletedLines {
-	readonly line: number;
-	readonly deletedLineCount: number;
+export interface TypeScriptModifiedChangeInput {
+	/**
+	 * When absent, the current TypeScript language-service snapshot is used.
+	 */
+	readonly content?: string;
+	readonly added: readonly LineRange[];
+	readonly changed: readonly LineRange[];
+}
+
+export interface TypeScriptOriginalChangeInput {
+	readonly content: string;
+	readonly deleted: readonly LineRange[];
 }
 
 export interface TypeScriptChangeClassificationInput {
-	readonly added: readonly LineRange[];
-	readonly changed: readonly LineRange[];
-	readonly deleted: readonly TypeScriptDeletedLines[];
+	readonly filePath: string;
+	readonly modified: TypeScriptModifiedChangeInput;
+	readonly original: TypeScriptOriginalChangeInput;
 }
 
 interface TypeScriptClassifiedChangeBase {
 	readonly classifications: readonly TypeScriptChangeClassification[];
 }
 
-export type TypeScriptClassifiedChange = TypeScriptClassifiedAddedOrChangedLines | TypeScriptClassifiedDeletedLines;
-
-export interface TypeScriptClassifiedAddedOrChangedLines extends TypeScriptClassifiedChangeBase, LineRange {
+export interface TypeScriptClassifiedModifiedLines extends TypeScriptClassifiedChangeBase {
 	readonly changeType: 'added' | 'changed';
+	readonly range: LineRange;
 }
 
-export interface TypeScriptClassifiedDeletedLines extends TypeScriptClassifiedChangeBase, TypeScriptDeletedLines {
+export interface TypeScriptClassifiedOriginalLines extends TypeScriptClassifiedChangeBase {
 	readonly changeType: 'deleted';
+	readonly range: LineRange;
 }
 
-export interface TypeScriptChangeBucket {
+interface TypeScriptChangeBucketBase {
 	readonly kind: string;
 	/**
 	 * Unique named structural-entity path for all changes in this bucket.
@@ -69,11 +78,19 @@ export interface TypeScriptChangeBucket {
 	 * Zero-based, end-exclusive line range of the structural entity in the current snapshot.
 	 */
 	readonly range: LineRange;
-	readonly changes: readonly TypeScriptClassifiedChange[];
+}
+
+export interface TypeScriptModifiedChangeBucket extends TypeScriptChangeBucketBase {
+	readonly changes: readonly TypeScriptClassifiedModifiedLines[];
+}
+
+export interface TypeScriptOriginalChangeBucket extends TypeScriptChangeBucketBase {
+	readonly changes: readonly TypeScriptClassifiedOriginalLines[];
 }
 
 export interface TypeScriptChangeClassificationResult {
-	readonly buckets: readonly TypeScriptChangeBucket[];
+	readonly modified: readonly TypeScriptModifiedChangeBucket[];
+	readonly original: readonly TypeScriptOriginalChangeBucket[];
 }
 
 export const ICodeReviewService = createServiceIdentifier<ICodeReviewService>('ICodeReviewService');
@@ -89,11 +106,10 @@ export interface ICodeReviewService extends vscode.Disposable {
 	computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined>;
 
 	/**
-	 * Classifies added, changed, and deleted line buckets using the TypeScript language-service
-	 * snapshot, or `content` when provided. Added and changed ranges are zero-based, start
-	 * inclusive, and end exclusive. Deleted lines use the current-snapshot deletion anchor.
+	 * Classifies added and changed ranges against the modified snapshot and deleted ranges
+	 * against the original snapshot. All ranges are zero-based, start inclusive, and end exclusive.
 	 */
-	classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined>;
+	classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined>;
 }
 
 export class NullCodeReviewService implements ICodeReviewService {

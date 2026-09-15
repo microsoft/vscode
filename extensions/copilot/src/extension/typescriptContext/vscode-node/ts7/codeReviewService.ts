@@ -48,25 +48,23 @@ interface StructuralEntity {
 	readonly depth: number;
 }
 
-interface BucketInfoBase {
+interface BucketInfo {
+	readonly changeType: 'added' | 'changed' | 'deleted';
 	readonly span: LineSpan;
+	readonly range: protocol.LineRange;
 	readonly order: number;
 }
 
-type BucketInfo = AddedOrChangedBucketInfo | DeletedBucketInfo;
-
-interface AddedOrChangedBucketInfo extends BucketInfoBase {
+interface ModifiedBucketInfo extends BucketInfo {
 	readonly changeType: 'added' | 'changed';
-	readonly range: protocol.LineRange;
 }
 
-interface DeletedBucketInfo extends BucketInfoBase {
+interface OriginalBucketInfo extends BucketInfo {
 	readonly changeType: 'deleted';
-	readonly deleted: protocol.TypeScriptDeletedLines;
 }
 
-interface ClassifiedBucket {
-	readonly bucket: BucketInfo;
+interface ClassifiedBucket<T extends BucketInfo> {
+	readonly bucket: T;
 	readonly entity: StructuralEntity;
 	readonly classifications: protocol.TypeScriptChangeClassification[];
 }
@@ -104,24 +102,32 @@ export class TS7CodeReviewProvider implements Omit<ICodeReviewService, '_service
 		}
 	}
 
-	async classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
+	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined> {
 		const api = await this.nativeApi.getApi();
 		if (api === undefined) {
 			return undefined;
 		}
 
+		const { filePath, modified, original } = input;
 		api.clearSourceFileCache();
 		const snapshot = await api.updateSnapshot({ openFiles: [filePath] });
 		try {
-			let result: protocol.TypeScriptChangeClassificationResult | undefined;
-			if (content === undefined) {
-				result = await this.classifySnapshot(snapshot, filePath, changes);
+			let modifiedResult: protocol.TypeScriptModifiedChangeBucket[] | undefined;
+			if (modified.content === undefined) {
+				modifiedResult = await this.classifyModifiedSnapshot(snapshot, filePath, modified);
 			} else {
-				await api.runWithTemporaryFileUpdate(snapshot, filePath, content, async updatedSnapshot => {
-					result = await this.classifySnapshot(updatedSnapshot, filePath, changes);
+				await api.runWithTemporaryFileUpdate(snapshot, filePath, modified.content, async updatedSnapshot => {
+					modifiedResult = await this.classifyModifiedSnapshot(updatedSnapshot, filePath, modified);
 				});
 			}
-			return result === undefined ? undefined : toTypeScriptChangeClassificationResult(result);
+
+			let originalResult: protocol.TypeScriptOriginalChangeBucket[] | undefined;
+			await api.runWithTemporaryFileUpdate(snapshot, filePath, original.content, async updatedSnapshot => {
+				originalResult = await this.classifyOriginalSnapshot(updatedSnapshot, filePath, original.deleted);
+			});
+			return modifiedResult === undefined || originalResult === undefined
+				? undefined
+				: toTypeScriptChangeClassificationResult({ modified: modifiedResult, original: originalResult });
 		} finally {
 			await snapshot.dispose();
 			const closedSnapshot = await api.updateSnapshot({ closeFiles: [filePath] });
@@ -139,27 +145,59 @@ export class TS7CodeReviewProvider implements Omit<ICodeReviewService, '_service
 		return sourceFile === undefined ? undefined : toTypeScriptMetricsResult(computeTypeScriptMetrics(sourceFile));
 	}
 
-	private async classifySnapshot(snapshot: Snapshot, filePath: string, changes: TypeScriptChangeClassificationInput): Promise<protocol.TypeScriptChangeClassificationResult | undefined> {
+	private async classifyModifiedSnapshot(snapshot: Snapshot, filePath: string, changes: protocol.TypeScriptModifiedChangeInput): Promise<protocol.TypeScriptModifiedChangeBucket[] | undefined> {
 		const project = await snapshot.getDefaultProjectForFile(filePath);
 		const sourceFile = await project?.program.getSourceFile(filePath);
-		return sourceFile === undefined ? undefined : new TypeScriptChangeClassifier().classify(sourceFile, changes);
+		return sourceFile === undefined ? undefined : new TypeScriptChangeClassifier().classifyModified(sourceFile, changes);
+	}
+
+	private async classifyOriginalSnapshot(snapshot: Snapshot, filePath: string, deleted: readonly protocol.LineRange[]): Promise<protocol.TypeScriptOriginalChangeBucket[] | undefined> {
+		const project = await snapshot.getDefaultProjectForFile(filePath);
+		const sourceFile = await project?.program.getSourceFile(filePath);
+		return sourceFile === undefined ? undefined : new TypeScriptChangeClassifier().classifyOriginal(sourceFile, deleted);
 	}
 }
 
 class TypeScriptChangeClassifier {
-	classify(sourceFile: SourceFile, changes: protocol.TypeScriptChangeClassificationInput): protocol.TypeScriptChangeClassificationResult {
+	classifyModified(sourceFile: SourceFile, changes: protocol.TypeScriptModifiedChangeInput): protocol.TypeScriptModifiedChangeBucket[] {
 		const entities = this.collectEntities(sourceFile);
-		const buckets = this.collectBuckets(changes);
+		let order = 0;
+		const buckets: ModifiedBucketInfo[] = [
+			...changes.added.map(range => ({
+				changeType: 'added' as const,
+				span: range,
+				range,
+				order: order++,
+			})),
+			...changes.changed.map(range => ({
+				changeType: 'changed' as const,
+				span: range,
+				range,
+				order: order++,
+			})),
+		];
 		const classified = buckets
 			.map(bucket => this.classifyBucket(bucket, entities))
 			.sort((left, right) => left.bucket.span.start - right.bucket.span.start || left.bucket.order - right.bucket.order);
-		return {
-			buckets: this.groupByPath(classified),
-		};
+		return this.groupModifiedByPath(classified);
 	}
 
-	private groupByPath(classified: readonly ClassifiedBucket[]): protocol.TypeScriptChangeBucket[] {
-		const result = new Map<string, protocol.TypeScriptChangeBucket>();
+	classifyOriginal(sourceFile: SourceFile, deleted: readonly protocol.LineRange[]): protocol.TypeScriptOriginalChangeBucket[] {
+		const entities = this.collectEntities(sourceFile);
+		const buckets: OriginalBucketInfo[] = deleted.map((range, order) => ({
+			changeType: 'deleted',
+			span: range,
+			range,
+			order,
+		}));
+		const classified = buckets
+			.map(bucket => this.classifyBucket(bucket, entities))
+			.sort((left, right) => left.bucket.span.start - right.bucket.span.start || left.bucket.order - right.bucket.order);
+		return this.groupOriginalByPath(classified);
+	}
+
+	private groupModifiedByPath(classified: readonly ClassifiedBucket<ModifiedBucketInfo>[]): protocol.TypeScriptModifiedChangeBucket[] {
+		const result = new Map<string, protocol.TypeScriptModifiedChangeBucket>();
 		for (const { bucket, entity, classifications } of classified) {
 			const key = JSON.stringify(entity.path);
 			let target = result.get(key);
@@ -167,19 +205,21 @@ class TypeScriptChangeClassifier {
 				target = { kind: entity.kind, path: entity.path.slice(), range: entity.range, changes: [] };
 				result.set(key, target);
 			}
-			target.changes.push(bucket.changeType === 'deleted'
-				? {
-					classifications,
-					changeType: bucket.changeType,
-					line: bucket.deleted.line,
-					deletedLineCount: bucket.deleted.deletedLineCount,
-				}
-				: {
-					classifications,
-					changeType: bucket.changeType,
-					start: bucket.range.start,
-					end: bucket.range.end,
-				});
+			target.changes.push({ classifications, changeType: bucket.changeType, range: bucket.range });
+		}
+		return Array.from(result.values());
+	}
+
+	private groupOriginalByPath(classified: readonly ClassifiedBucket<OriginalBucketInfo>[]): protocol.TypeScriptOriginalChangeBucket[] {
+		const result = new Map<string, protocol.TypeScriptOriginalChangeBucket>();
+		for (const { bucket, entity, classifications } of classified) {
+			const key = JSON.stringify(entity.path);
+			let target = result.get(key);
+			if (target === undefined) {
+				target = { kind: entity.kind, path: entity.path.slice(), range: entity.range, changes: [] };
+				result.set(key, target);
+			}
+			target.changes.push({ classifications, changeType: bucket.changeType, range: bucket.range });
 		}
 		return Array.from(result.values());
 	}
@@ -219,53 +259,27 @@ class TypeScriptChangeClassifier {
 		node.forEachChild(child => this.collectEntity(child, sourceFile, childPath, childParent, result));
 	}
 
-	private collectBuckets(changes: protocol.TypeScriptChangeClassificationInput): BucketInfo[] {
-		let order = 0;
-		return [
-			...changes.added.map(range => ({
-				changeType: 'added' as const,
-				span: { start: range.start, end: range.end },
-				range,
-				order: order++,
-			})),
-			...changes.changed.map(range => ({
-				changeType: 'changed' as const,
-				span: { start: range.start, end: range.end },
-				range,
-				order: order++,
-			})),
-			...changes.deleted.map(deleted => ({
-				changeType: 'deleted' as const,
-				span: { start: deleted.line, end: deleted.line + 1 },
-				deleted,
-				order: order++,
-			})),
-		];
-	}
-
-	private classifyBucket(bucket: BucketInfo, entities: readonly StructuralEntity[]): ClassifiedBucket {
+	private classifyBucket<T extends BucketInfo>(bucket: T, entities: readonly StructuralEntity[]): ClassifiedBucket<T> {
 		const containing = entities
 			.filter(entity => this.contains(entity.range, bucket.span))
 			.sort((left, right) => right.depth - left.depth);
 		let entity = containing[0] ?? entities[0];
 		let isCompleteEntity = false;
 
-		if (bucket.changeType !== 'deleted') {
-			const complete = entities
-				.filter(candidate => candidate.kind !== 'sourceFile' && this.contains(bucket.span, candidate.range))
-				.filter(candidate => !entities.some(parent =>
-					parent !== candidate
-					&& parent.kind !== 'sourceFile'
-					&& this.contains(bucket.span, parent.range)
-					&& this.contains(parent.range, candidate.range)));
-			if (complete.length === 1) {
-				entity = complete[0];
-				isCompleteEntity = true;
-			}
+		const complete = entities
+			.filter(candidate => candidate.kind !== 'sourceFile' && this.contains(bucket.span, candidate.range))
+			.filter(candidate => !entities.some(parent =>
+				parent !== candidate
+				&& parent.kind !== 'sourceFile'
+				&& this.contains(bucket.span, parent.range)
+				&& this.contains(parent.range, candidate.range)));
+		if (complete.length === 1) {
+			entity = complete[0];
+			isCompleteEntity = true;
 		}
 
 		const classifications: protocol.TypeScriptChangeClassification[] = [];
-		if (isCompleteEntity && bucket.changeType === 'added') {
+		if (isCompleteEntity && bucket.changeType !== 'changed') {
 			classifications.push('structural');
 		} else {
 			if (this.intersects(entity.structuralRange, bucket.span)) {

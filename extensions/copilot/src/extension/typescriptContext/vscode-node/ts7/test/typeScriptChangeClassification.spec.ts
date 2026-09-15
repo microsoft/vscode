@@ -9,7 +9,7 @@ import path from 'node:path';
 import { API } from '@typescript/native/unstable/async';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 
-import type { TypeScriptChangeClassificationInput } from '../../../../../platform/languageContextProvider/common/codeReviewService';
+import type { LineRange } from '../../../../../platform/languageContextProvider/common/regionContextProvider';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { TS7CodeReviewProvider } from '../codeReviewService';
 
@@ -61,8 +61,7 @@ suite('TypeScript 7 change classifier', () => {
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'changed',
-					start: signatureLine,
-					end: signatureLine + 1,
+					range: { start: signatureLine, end: signatureLine + 1 },
 				}],
 			}],
 			bodyOnly: [{
@@ -72,8 +71,7 @@ suite('TypeScript 7 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'changed',
-					start: bodyLine,
-					end: bodyLine + 1,
+					range: { start: bodyLine, end: bodyLine + 1 },
 				}],
 			}],
 			signatureAndBody: [{
@@ -83,8 +81,7 @@ suite('TypeScript 7 change classifier', () => {
 				changes: [{
 					classifications: ['structural', 'algorithmic'],
 					changeType: 'changed',
-					start: signatureLine,
-					end: bodyLine + 1,
+					range: { start: signatureLine, end: bodyLine + 1 },
 				}],
 			}],
 			grouped: [{
@@ -95,14 +92,12 @@ suite('TypeScript 7 change classifier', () => {
 					{
 						classifications: ['structural'],
 						changeType: 'changed',
-						start: signatureLine,
-						end: signatureLine + 1,
+						range: { start: signatureLine, end: signatureLine + 1 },
 					},
 					{
 						classifications: ['algorithmic'],
 						changeType: 'added',
-						start: bodyLine,
-						end: bodyLine + 1,
+						range: { start: bodyLine, end: bodyLine + 1 },
 					},
 				],
 			}],
@@ -132,26 +127,31 @@ suite('TypeScript 7 change classifier', () => {
 			changes: [{
 				classifications: ['structural'],
 				changeType: 'added',
-				start,
-				end: start + 6,
+				range: { start, end: start + 6 },
 			}],
 		}]);
 	});
 
-	test('uses a deletion anchor in the current snapshot', async () => {
+	test('classifies deleted ranges against the original snapshot', async () => {
 		const propertyLine = lineAt(source, 'private result: number;');
 		const bodyLine = lineAt(source, 'this.result += x;');
+		const methodStart = lineAt(source, 'public add(x: number): Calculator');
 
 		assert.deepStrictEqual({
 			structural: await classify({
 				added: [],
 				changed: [],
-				deleted: [{ line: propertyLine, deletedLineCount: 2 }],
+				deleted: [{ start: propertyLine, end: propertyLine + 1 }],
 			}),
 			algorithmic: await classify({
 				added: [],
 				changed: [],
-				deleted: [{ line: bodyLine, deletedLineCount: 1 }],
+				deleted: [{ start: bodyLine, end: bodyLine + 1 }],
+			}),
+			wholeMethod: await classify({
+				added: [],
+				changed: [],
+				deleted: [{ start: methodStart, end: methodStart + 4 }],
 			}),
 		}, {
 			structural: [{
@@ -161,8 +161,7 @@ suite('TypeScript 7 change classifier', () => {
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'deleted',
-					line: propertyLine,
-					deletedLineCount: 2,
+					range: { start: propertyLine, end: propertyLine + 1 },
 				}],
 			}],
 			algorithmic: [{
@@ -172,8 +171,17 @@ suite('TypeScript 7 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'deleted',
-					line: bodyLine,
-					deletedLineCount: 1,
+					range: { start: bodyLine, end: bodyLine + 1 },
+				}],
+			}],
+			wholeMethod: [{
+				kind: 'method',
+				path: ['Calculator', 'add'],
+				range: { start: 12, end: 16 },
+				changes: [{
+					classifications: ['structural'],
+					changeType: 'deleted',
+					range: { start: methodStart, end: methodStart + 4 },
 				}],
 			}],
 		});
@@ -203,8 +211,7 @@ suite('TypeScript 7 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'changed',
-					start: 2,
-					end: 3,
+					range: { start: 2, end: 3 },
 				}],
 			},
 			{
@@ -214,19 +221,35 @@ suite('TypeScript 7 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'changed',
-					start: 5,
-					end: 6,
+					range: { start: 5, end: 6 },
 				}],
 			},
 		]);
 	});
 
-	async function classify(changes: TypeScriptChangeClassificationInput, content?: string): Promise<readonly object[]> {
+	interface TestChanges {
+		readonly added: readonly LineRange[];
+		readonly changed: readonly LineRange[];
+		readonly deleted: readonly LineRange[];
+	}
+
+	async function classify(changes: TestChanges, content?: string): Promise<readonly object[]> {
 		const provider = new TS7CodeReviewProvider(new TestLogService(), new TestTypeScript7Api(api));
 		try {
-			const result = await provider.classifyChanges(filePath, changes, content);
+			const result = await provider.classifyChanges({
+				filePath,
+				modified: {
+					content,
+					added: changes.added,
+					changed: changes.changed,
+				},
+				original: {
+					content: source,
+					deleted: changes.deleted,
+				},
+			});
 			assert.ok(result !== undefined);
-			return result.buckets;
+			return [...result.modified, ...result.original];
 		} finally {
 			provider.dispose();
 		}

@@ -20,11 +20,11 @@ suite('TypeScript change classification tool', () => {
 		const contributedName = getContributedToolName(ToolName.TypeScriptChangeClassification);
 		const definition = packageJson.contributes.languageModelTools.find(tool => tool.name === contributedName);
 		const requiredDescriptionParts = [
-			'added, changed, and deleted line buckets',
+			'added, changed, and deleted line ranges',
 			'start-inclusive, end-exclusive',
-			'current-snapshot anchor line',
-			'one bucket per enclosing named entity path',
-			'Each bucket includes the structural entity',
+			'original content',
+			'mapped to the modified AST',
+			'direct modified and original arrays',
 		];
 		assert.deepStrictEqual({
 			registered: ToolRegistry.getTools().some(tool => tool.toolName === ToolName.TypeScriptChangeClassification),
@@ -39,7 +39,7 @@ suite('TypeScript change classification tool', () => {
 
 	test('returns serialized classifications and forwards all bucket types', async () => {
 		const classification: TypeScriptChangeClassificationResult = {
-			buckets: [
+			modified: [
 				{
 					kind: 'method',
 					path: ['Calculator', 'calculate'],
@@ -48,17 +48,17 @@ suite('TypeScript change classification tool', () => {
 						{
 							classifications: ['structural'],
 							changeType: 'changed',
-							start: 1,
-							end: 2,
+							range: { start: 1, end: 2 },
 						},
 						{
 							classifications: ['algorithmic'],
 							changeType: 'changed',
-							start: 2,
-							end: 4,
+							range: { start: 2, end: 4 },
 						},
 					],
 				},
+			],
+			original: [
 				{
 					kind: 'class',
 					path: ['Calculator'],
@@ -66,8 +66,7 @@ suite('TypeScript change classification tool', () => {
 					changes: [{
 						classifications: ['structural'],
 						changeType: 'deleted',
-						line: 8,
-						deletedLineCount: 2,
+						range: { start: 8, end: 10 },
 					}],
 				},
 			],
@@ -76,10 +75,15 @@ suite('TypeScript change classification tool', () => {
 		const tool = new TypeScriptChangeClassificationTool(service);
 		const input: ITypeScriptChangeClassificationToolInput = {
 			filePath: 'C:\\workspace\\calculator.ts',
-			addedLineRanges: [{ start: 0, end: 1 }],
-			changedLineRanges: [{ start: 2, end: 4 }],
-			deletedLines: [{ line: 8, deletedLineCount: 2 }],
-			content: 'class Calculator {}',
+			modified: {
+				content: 'class Calculator {}',
+				added: [{ start: 0, end: 1 }],
+				changed: [{ start: 2, end: 4 }],
+			},
+			original: {
+				content: 'class Calculator { calculate() {} }',
+				deleted: [{ start: 8, end: 10 }],
+			},
 		};
 		const result = await tool.invoke(createOptions(input), CancellationToken.None);
 
@@ -87,29 +91,26 @@ suite('TypeScript change classification tool', () => {
 			calls: service.calls,
 			result: getText(result),
 		}, {
-			calls: [{
-				filePath: 'C:\\workspace\\calculator.ts',
-				changes: {
-					added: [{ start: 0, end: 1 }],
-					changed: [{ start: 2, end: 4 }],
-					deleted: [{ line: 8, deletedLineCount: 2 }],
-				},
-				content: 'class Calculator {}',
-			}],
+			calls: [input],
 			result: JSON.stringify(classification),
 		});
 	});
 
 	test('rejects invalid buckets without invoking the service', async () => {
-		const service = new TestCodeReviewService({ buckets: [] });
+		const service = new TestCodeReviewService({ modified: [], original: [] });
 		const tool = new TypeScriptChangeClassificationTool(service);
 
 		await assert.rejects(
 			tool.invoke(createOptions({
 				filePath: 'C:\\workspace\\calculator.ts',
-				addedLineRanges: [],
-				changedLineRanges: [{ start: 4, end: 2 }],
-				deletedLines: [],
+				modified: {
+					added: [],
+					changed: [{ start: 4, end: 2 }],
+				},
+				original: {
+					content: '',
+					deleted: [],
+				},
 			}), CancellationToken.None),
 			/TypeScript change buckets contain invalid line information/,
 		);
@@ -117,20 +118,14 @@ suite('TypeScript change classification tool', () => {
 	});
 });
 
-interface ServiceCall {
-	readonly filePath: string;
-	readonly changes: TypeScriptChangeClassificationInput;
-	readonly content?: string;
-}
-
 class TestCodeReviewService implements ICodeReviewService {
 	readonly _serviceBrand: undefined;
-	readonly calls: ServiceCall[] = [];
+	readonly calls: TypeScriptChangeClassificationInput[] = [];
 
 	constructor(private readonly result: TypeScriptChangeClassificationResult | undefined) { }
 
-	async classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
-		this.calls.push({ filePath, changes, content });
+	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined> {
+		this.calls.push(input);
 		return this.result;
 	}
 

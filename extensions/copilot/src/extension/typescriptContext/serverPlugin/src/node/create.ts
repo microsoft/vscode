@@ -265,6 +265,9 @@ const typeScriptMetricsHandler = (request: TypeScriptMetricsRequest): TypeScript
 	}
 };
 
+const isValidLineRange = (range: { start: number; end: number }): boolean =>
+	Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start;
+
 const typeScriptChangeClassificationHandler = (request: TypeScriptChangeClassificationRequest): TypeScriptChangeClassificationHandlerResponse => {
 	const input = resolveInput(request.arguments, 0);
 	if (FailedHandlerResponse.is(input)) {
@@ -272,31 +275,35 @@ const typeScriptChangeClassificationHandler = (request: TypeScriptChangeClassifi
 	}
 
 	try {
-		const content = request.arguments?.content;
-		const changes = request.arguments?.changes;
-		if (content !== undefined && typeof content !== 'string') {
-			return { response: { error: ErrorCode.invalidArguments, message: 'Content must be a string' }, responseRequired: true };
-		}
-		if (changes === undefined
-			|| !Array.isArray(changes.added)
-			|| !changes.added.every(range => Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start)
-			|| !Array.isArray(changes.changed)
-			|| !changes.changed.every(range => Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start)
-			|| !Array.isArray(changes.deleted)
-			|| !changes.deleted.every(deleted => Number.isInteger(deleted.line) && deleted.line >= 0
-				&& Number.isInteger(deleted.deletedLineCount) && deleted.deletedLineCount > 0)) {
+		const modified = request.arguments?.modified;
+		const original = request.arguments?.original;
+		if (modified === undefined
+			|| (modified.content !== undefined && typeof modified.content !== 'string')
+			|| !Array.isArray(modified.added)
+			|| !modified.added.every(isValidLineRange)
+			|| !Array.isArray(modified.changed)
+			|| !modified.changed.every(isValidLineRange)
+			|| original === undefined
+			|| typeof original.content !== 'string'
+			|| !Array.isArray(original.deleted)
+			|| !original.deleted.every(isValidLineRange)) {
 			return { response: { error: ErrorCode.invalidArguments, message: 'TypeScript change buckets contain invalid line information' }, responseRequired: true };
 		}
 
 		const programSourceFile = input.program.getSourceFile(input.file);
 		if (programSourceFile === undefined) {
-			return { response: { buckets: [] }, responseRequired: true };
+			return { response: { modified: [], original: [] }, responseRequired: true };
 		}
 		const scriptTarget = input.program.getCompilerOptions().target ?? ts.ScriptTarget.Latest;
-		const sourceFile = content === undefined
+		const modifiedSourceFile = modified.content === undefined
 			? programSourceFile
-			: ts.createSourceFile(input.file, content, scriptTarget, true);
-		const result = new TypeScriptChangeClassifier().classify(sourceFile, changes);
+			: ts.createSourceFile(input.file, modified.content, scriptTarget, true);
+		const originalSourceFile = ts.createSourceFile(input.file, original.content, scriptTarget, true);
+		const classifier = new TypeScriptChangeClassifier();
+		const result = {
+			modified: classifier.classifyModified(modifiedSourceFile, modified),
+			original: classifier.classifyOriginal(originalSourceFile, original.deleted),
+		};
 		return { response: result, responseRequired: true };
 	} catch (error) {
 		if (error instanceof Error) {

@@ -99,7 +99,7 @@ class TestCodeReviewService implements ICodeReviewService {
 		return this.result;
 	}
 
-	async classifyChanges(_filePath: string, _changes: TypeScriptChangeClassificationInput, _content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
+	async classifyChanges(_input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined> {
 		return undefined;
 	}
 

@@ -8,7 +8,7 @@ import ts from 'typescript';
 import { beforeAll, suite, test } from 'vitest';
 
 import type * as changeClassifier from '../../common/changeClassifier';
-import type { TypeScriptChangeClassificationInput } from '../../common/protocol';
+import type { LineRange } from '../../common/protocol';
 
 let TypeScriptChangeClassifier: typeof changeClassifier.TypeScriptChangeClassifier;
 
@@ -57,8 +57,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'changed',
-					start: 1,
-					end: 2,
+					range: { start: 1, end: 2 },
 				}],
 			}],
 			bodyOnly: [{
@@ -68,8 +67,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'changed',
-					start: 2,
-					end: 3,
+					range: { start: 2, end: 3 },
 				}],
 			}],
 			signatureAndBody: [{
@@ -79,8 +77,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['structural', 'algorithmic'],
 					changeType: 'changed',
-					start: 1,
-					end: 3,
+					range: { start: 1, end: 3 },
 				}],
 			}],
 			grouped: [{
@@ -91,14 +88,12 @@ suite('TypeScript 6 change classifier', () => {
 					{
 						classifications: ['structural'],
 						changeType: 'changed',
-						start: 1,
-						end: 2,
+						range: { start: 1, end: 2 },
 					},
 					{
 						classifications: ['algorithmic'],
 						changeType: 'added',
-						start: 2,
-						end: 3,
+						range: { start: 2, end: 3 },
 					},
 				],
 			}],
@@ -128,8 +123,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'added',
-					start: 1,
-					end: 2,
+					range: { start: 1, end: 2 },
 				}],
 			},
 			{
@@ -139,8 +133,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'added',
-					start: 3,
-					end: 6,
+					range: { start: 3, end: 6 },
 				}],
 			},
 		]);
@@ -182,8 +175,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'added',
-					start: 0,
-					end: 6,
+					range: { start: 0, end: 6 },
 				}],
 			}],
 			addedNamespace: [{
@@ -193,14 +185,13 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'added',
-					start: 0,
-					end: 5,
+					range: { start: 0, end: 5 },
 				}],
 			}],
 		});
 	});
 
-	test('uses the current-snapshot deletion anchor', () => {
+	test('classifies deleted ranges against the original source', () => {
 		const source = [
 			'class Calculator {',
 			'',
@@ -214,23 +205,22 @@ suite('TypeScript 6 change classifier', () => {
 			structural: classify(source, {
 				added: [],
 				changed: [],
-				deleted: [{ line: 1, deletedLineCount: 3 }],
+				deleted: [{ start: 2, end: 5 }],
 			}),
 			algorithmic: classify(source, {
 				added: [],
 				changed: [],
-				deleted: [{ line: 3, deletedLineCount: 1 }],
+				deleted: [{ start: 3, end: 4 }],
 			}),
 		}, {
 			structural: [{
-				kind: 'class',
-				path: ['Calculator'],
-				range: { start: 0, end: 6 },
+				kind: 'method',
+				path: ['Calculator', 'calculate'],
+				range: { start: 2, end: 5 },
 				changes: [{
 					classifications: ['structural'],
 					changeType: 'deleted',
-					line: 1,
-					deletedLineCount: 3,
+					range: { start: 2, end: 5 },
 				}],
 			}],
 			algorithmic: [{
@@ -240,8 +230,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'deleted',
-					line: 3,
-					deletedLineCount: 1,
+					range: { start: 3, end: 4 },
 				}],
 			}],
 		});
@@ -271,8 +260,7 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'changed',
-					start: 2,
-					end: 3,
+					range: { start: 2, end: 3 },
 				}],
 			},
 			{
@@ -282,15 +270,25 @@ suite('TypeScript 6 change classifier', () => {
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'changed',
-					start: 5,
-					end: 6,
+					range: { start: 5, end: 6 },
 				}],
 			},
 		]);
 	});
 });
 
-function classify(source: string, changes: TypeScriptChangeClassificationInput): object[] {
+interface TestChanges {
+	readonly added: readonly LineRange[];
+	readonly changed: readonly LineRange[];
+	readonly deleted: readonly LineRange[];
+}
+
+function classify(source: string, changes: TestChanges): object[] {
 	const sourceFile = ts.createSourceFile('changes.ts', source, ts.ScriptTarget.Latest, true);
-	return new TypeScriptChangeClassifier().classify(sourceFile, changes).buckets;
+	const classifier = new TypeScriptChangeClassifier();
+	if (changes.deleted.length > 0) {
+		assert.deepStrictEqual({ added: changes.added, changed: changes.changed }, { added: [], changed: [] });
+		return classifier.classifyOriginal(sourceFile, changes.deleted);
+	}
+	return classifier.classifyModified(sourceFile, changes);
 }

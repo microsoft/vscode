@@ -74,30 +74,33 @@ suite('TypeScript 6 code review service', () => {
 
 	test('sends changed ranges and modified content to tsserver', async () => {
 		const expectedResult = {
-			buckets: [{
+			modified: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
 				range: { start: 2, end: 5 },
 				changes: [{
 					classifications: ['algorithmic'],
 					changeType: 'changed',
-					start: 3,
-					end: 4,
+					range: { start: 3, end: 4 },
 				}],
 			}],
+			original: [],
 		};
 		executeCommand.mockResolvedValue({ type: 'response', body: expectedResult });
 		const provider = new TS6CodeReviewProvider();
 		try {
-			const actual = await provider.classifyChanges(
-				'C:\\workspace\\calculator.ts',
-				{
+			const actual = await provider.classifyChanges({
+				filePath: 'C:\\workspace\\calculator.ts',
+				modified: {
+					content: 'class Calculator { calculate() { return 2; } }',
 					added: [],
 					changed: [{ start: 3, end: 4 }],
+				},
+				original: {
+					content: 'class Calculator { calculate() { return 1; } }',
 					deleted: [],
 				},
-				'class Calculator { calculate() { return 2; } }',
-			);
+			});
 			assert.deepStrictEqual({
 				actual,
 				command: executeCommand.mock.calls[0],
@@ -110,12 +113,15 @@ suite('TypeScript 6 code review service', () => {
 						file: { fsPath: 'C:\\workspace\\calculator.ts' },
 						line: 1,
 						offset: 1,
-						changes: {
+						modified: {
+							content: 'class Calculator { calculate() { return 2; } }',
 							added: [],
 							changed: [{ start: 3, end: 4 }],
+						},
+						original: {
+							content: 'class Calculator { calculate() { return 1; } }',
 							deleted: [],
 						},
-						content: 'class Calculator { calculate() { return 2; } }',
 					},
 					{ executionTarget: 0 },
 				],

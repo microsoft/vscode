@@ -5,8 +5,7 @@
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 
-import { ICodeReviewService } from '../../../platform/languageContextProvider/common/codeReviewService';
-import type { LineRange } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { ICodeReviewService, type TypeScriptChangeClassificationInput } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
@@ -14,13 +13,7 @@ import { ToolName } from '../common/toolNames';
 import { ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation } from './toolUtils';
 
-export interface ITypeScriptChangeClassificationToolInput {
-	readonly filePath: string;
-	readonly addedLineRanges: readonly LineRange[];
-	readonly changedLineRanges: readonly LineRange[];
-	readonly deletedLines: readonly { line: number; deletedLineCount: number }[];
-	readonly content?: string;
-}
+export type ITypeScriptChangeClassificationToolInput = TypeScriptChangeClassificationInput;
 
 export class TypeScriptChangeClassificationTool implements vscode.LanguageModelTool<ITypeScriptChangeClassificationToolInput> {
 	static readonly toolName = ToolName.TypeScriptChangeClassification;
@@ -35,25 +28,19 @@ export class TypeScriptChangeClassificationTool implements vscode.LanguageModelT
 		if (typeof filePath !== 'string' || filePath.length === 0 || !isAbsolute(filePath)) {
 			throw new Error('filePath must be a non-empty absolute file path');
 		}
-		const addedLineRanges = options.input.addedLineRanges;
-		const changedLineRanges = options.input.changedLineRanges;
-		const deletedLines = options.input.deletedLines;
-		if (!this.areValidLineRanges(addedLineRanges) || !this.areValidLineRanges(changedLineRanges)
-			|| !Array.isArray(deletedLines)
-			|| !deletedLines.every(deleted => Number.isInteger(deleted.line) && deleted.line >= 0
-				&& Number.isInteger(deleted.deletedLineCount) && deleted.deletedLineCount > 0)) {
+		const modified = options.input.modified;
+		const original = options.input.original;
+		if (modified === undefined
+			|| !this.areValidLineRanges(modified.added)
+			|| !this.areValidLineRanges(modified.changed)
+			|| (modified.content !== undefined && typeof modified.content !== 'string')
+			|| original === undefined
+			|| typeof original.content !== 'string'
+			|| !this.areValidLineRanges(original.deleted)) {
 			throw new Error('TypeScript change buckets contain invalid line information');
 		}
-		const content = options.input.content;
-		if (content !== undefined && typeof content !== 'string') {
-			throw new Error('content must be a string when provided');
-		}
 
-		const result = await this.codeReviewService.classifyChanges(filePath, {
-			added: addedLineRanges,
-			changed: changedLineRanges,
-			deleted: deletedLines,
-		}, content);
+		const result = await this.codeReviewService.classifyChanges(options.input);
 		checkCancellation(token);
 		if (result === undefined) {
 			throw new Error('TypeScript change classification is unavailable for the requested file');
@@ -61,22 +48,27 @@ export class TypeScriptChangeClassificationTool implements vscode.LanguageModelT
 
 		return new LanguageModelToolResult([
 			new LanguageModelTextPart(JSON.stringify({
-				buckets: result.buckets.map(bucket => ({
-					...bucket,
-					path: bucket.path.slice(),
-					changes: bucket.changes.map(change => ({
-						...change,
-						classifications: change.classifications.slice(),
-					})),
-				})),
+				modified: result.modified.map(bucket => this.serializeBucket(bucket)),
+				original: result.original.map(bucket => this.serializeBucket(bucket)),
 			})),
 		]);
 	}
 
-	private areValidLineRanges(ranges: readonly LineRange[]): boolean {
+	private areValidLineRanges(ranges: readonly { start: number; end: number }[]): boolean {
 		return Array.isArray(ranges) && ranges.every(range =>
 			Number.isInteger(range.start) && range.start >= 0
 			&& Number.isInteger(range.end) && range.end > range.start);
+	}
+
+	private serializeBucket<T extends { readonly path: readonly string[]; readonly changes: readonly { readonly classifications: readonly string[] }[] }>(bucket: T): object {
+		return {
+			...bucket,
+			path: bucket.path.slice(),
+			changes: bucket.changes.map(change => ({
+				...change,
+				classifications: change.classifications.slice(),
+			})),
+		};
 	}
 
 	prepareInvocation(): vscode.ProviderResult<vscode.PreparedToolInvocation> {

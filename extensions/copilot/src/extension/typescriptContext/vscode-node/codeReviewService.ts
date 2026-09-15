@@ -32,14 +32,13 @@ export class CodeReviewService implements ICodeReviewService {
 		return this.provider.computeMetrics(filePath, content);
 	}
 
-	classifyChanges(filePath: string, changes: TypeScriptChangeClassificationInput, content?: string): Promise<TypeScriptChangeClassificationResult | undefined> {
-		if (!changes.added.every(range => Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start)
-			|| !changes.changed.every(range => Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start)
-			|| !changes.deleted.every(deleted => Number.isInteger(deleted.line) && deleted.line >= 0
-				&& Number.isInteger(deleted.deletedLineCount) && deleted.deletedLineCount > 0)) {
+	classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined> {
+		if (!input.modified.added.every(CodeReviewService.isValidLineRange)
+			|| !input.modified.changed.every(CodeReviewService.isValidLineRange)
+			|| !input.original.deleted.every(CodeReviewService.isValidLineRange)) {
 			throw new Error('TypeScript change buckets contain invalid line information');
 		}
-		return this.provider.classifyChanges(filePath, changes, content);
+		return this.provider.classifyChanges(input);
 	}
 
 	dispose(): void {
@@ -76,5 +75,9 @@ export class CodeReviewService implements ICodeReviewService {
 		if (oldProvider !== this.provider) {
 			oldProvider.dispose();
 		}
+	}
+
+	private static isValidLineRange(range: { start: number; end: number }): boolean {
+		return Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end > range.start;
 	}
 }
