@@ -81,7 +81,10 @@ suite('ConnectionDiagnosticsReport', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConnectionDiagnosticsService, service);
 		instantiationService.stub(IClipboardService, clipboard);
-		instantiationService.stub(IWorkbenchLayoutService, { get activeContainer() { return getContainer(); } });
+		instantiationService.stub(IWorkbenchLayoutService, {
+			get activeContainer() { return getContainer(); },
+			get mainContainer() { return getContainer(); },
+		});
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: false }, onDidChangeSentiment: Event.None });
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => true });
