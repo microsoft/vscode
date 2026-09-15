@@ -7,6 +7,7 @@ import type { ILogService } from '../../../log/common/log.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { formatGenericToolInput, STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
+import type { IClaudeReplayToolUse } from './claudeReplayMapper.js';
 import { getClaudeInvocationMessage, getClaudeStreamingInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 
 /**
@@ -30,6 +31,7 @@ interface IRegistryEntry {
 	readonly toolName: string;
 	readonly turnId: string;
 	readonly isClientTool: boolean;
+	readonly restored: boolean;
 	inputBuffer: string;
 	displayedInputLength: number;
 	displayedAt: number | undefined;
@@ -80,16 +82,32 @@ export class ClaudeToolCallRegistry {
 	 * computed info bag is filled in by {@link finalize}.
 	 */
 	begin(toolUseId: string, toolName: string, turnId: string, isClientTool = false): void {
-		this._entries.set(toolUseId, {
+		this._insert(toolUseId, toolName, turnId, isClientTool, false);
+	}
+
+	/**
+	 * Re-seed a tool call from a replayed transcript so a `tool_result` that
+	 * arrives after restore resolves the same attribution and display info as live.
+	 */
+	hydrate(entry: IClaudeReplayToolUse): void {
+		const inserted = this._insert(entry.toolUseId, entry.toolName, entry.turnId, entry.isClientTool, true);
+		this._writeInfo(inserted, entry.parsedInput);
+	}
+
+	private _insert(toolUseId: string, toolName: string, turnId: string, isClientTool: boolean, restored: boolean): IRegistryEntry {
+		const entry: IRegistryEntry = {
 			toolName,
 			turnId,
 			isClientTool,
+			restored,
 			inputBuffer: '',
 			displayedInputLength: 0,
 			displayedAt: undefined,
 			displayedMessage: undefined,
 			info: undefined,
-		});
+		};
+		this._entries.set(toolUseId, entry);
+		return entry;
 	}
 
 	/**
@@ -206,12 +224,12 @@ export class ClaudeToolCallRegistry {
 	 * drift / replay). The `info` field may be `undefined` if the
 	 * tool block never reached `content_block_stop`.
 	 */
-	lookup(toolUseId: string): { readonly turnId: string; readonly toolName: string; readonly isClientTool: boolean; readonly info: IClaudeToolStartInfo | undefined } | undefined {
+	lookup(toolUseId: string): { readonly turnId: string; readonly toolName: string; readonly isClientTool: boolean; readonly restored: boolean; readonly info: IClaudeToolStartInfo | undefined } | undefined {
 		const entry = this._entries.get(toolUseId);
 		if (!entry) {
 			return undefined;
 		}
-		return { turnId: entry.turnId, toolName: entry.toolName, isClientTool: entry.isClientTool, info: entry.info };
+		return { turnId: entry.turnId, toolName: entry.toolName, isClientTool: entry.isClientTool, restored: entry.restored, info: entry.info };
 	}
 
 	/**
