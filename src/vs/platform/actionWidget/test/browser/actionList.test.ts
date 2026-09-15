@@ -2628,6 +2628,7 @@ suite('ActionListWidget', () => {
 					withinLeftEdge: true,
 					withinRightEdge: true,
 				});
+				widget.dispose();
 			});
 		});
 	}
