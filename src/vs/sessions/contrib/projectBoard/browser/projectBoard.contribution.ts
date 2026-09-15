@@ -17,6 +17,10 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { ChatEditorInput } from '../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { KanbanCustomViewContribution } from './kanbanView.js';
+
+registerWorkbenchContribution2(KanbanCustomViewContribution.ID, KanbanCustomViewContribution, WorkbenchPhase.BlockRestore);
 
 registerAction2(class OpenProjectBoardAction extends Action2 {
 	constructor() {

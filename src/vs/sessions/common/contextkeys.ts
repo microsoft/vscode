@@ -74,6 +74,7 @@ export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusConte
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
+export const KanbanCustomViewFocusContext = new RawContextKey<boolean>('kanbanCustomViewFocus', false, localize('kanbanCustomViewFocus', "Whether the Kanban custom view has keyboard focus"));
 
 //#endregion
 
