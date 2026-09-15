@@ -1691,7 +1691,10 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	}
 
 	async createSession(): Promise<void> {
-		await this.customView?.createSession();
+		if (this.customView) {
+			this.focusedView = { view: this.customView, window: mainWindow };
+			await this.customView.createSession();
+		}
 	}
 
 	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void {
