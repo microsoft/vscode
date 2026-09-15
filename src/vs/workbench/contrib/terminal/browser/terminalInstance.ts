@@ -555,14 +555,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// to hang in resolver extensions
 			let os: OperatingSystem | undefined;
 			if (!this.shellLaunchConfig.customPtyImplementation && this._terminalConfigurationService.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
-				os = await this._processManager.getBackendOS();
-				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
-				this.shellLaunchConfig.executable = defaultProfile.path;
-				this.shellLaunchConfig.args = defaultProfile.args;
-				// Only use default icon and color and env if they are undefined in the SLC
-				this.shellLaunchConfig.icon ??= defaultProfile.icon;
-				this.shellLaunchConfig.color ??= defaultProfile.color;
-				this.shellLaunchConfig.env ??= defaultProfile.env;
+				// Best-effort: the backend OS may be unavailable while a remote connection is still establishing; the executable is re-resolved later in `_createProcess`.
+				try {
+					os = await this._processManager.getBackendOS();
+					const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
+					this.shellLaunchConfig.executable = defaultProfile.path;
+					this.shellLaunchConfig.args = defaultProfile.args;
+					// Only use default icon and color and env if they are undefined in the SLC
+					this.shellLaunchConfig.icon ??= defaultProfile.icon;
+					this.shellLaunchConfig.color ??= defaultProfile.color;
+					this.shellLaunchConfig.env ??= defaultProfile.env;
+				} catch (err) {
+					os = undefined;
+					this._logService.trace('terminalInstance: skipping ahead-of-time executable resolution because the best-effort profile/OS resolution could not complete yet', err);
+				}
 			}
 
 			// Resolve the shell type ahead of time to allow features that depend upon it to work
