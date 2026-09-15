@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/imageCarousel.css';
+import './imageCarouselActions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -95,6 +96,8 @@ interface IOpenCarouselSingleImageArgs {
 	readonly mimeType: string;
 	readonly data: Uint8Array;
 	readonly title?: string;
+	readonly uri?: URI;
+	readonly sourceUri?: URI;
 }
 
 function isCollectionArgs(args: unknown): args is IOpenCarouselCollectionArgs {
@@ -141,6 +144,8 @@ class OpenImageInCarouselAction extends Action2 {
 						name: args.name,
 						mimeType: args.mimeType,
 						data: VSBuffer.wrap(args.data),
+						uri: args.uri,
+						sourceUri: args.sourceUri,
 					}],
 				}],
 			};
@@ -185,6 +190,7 @@ function createImageEntries(uris: URI[]): ICarouselImage[] {
 		name: basename(uri),
 		mimeType: getMediaMime(uri.path) ?? 'image/png',
 		uri,
+		sourceUri: uri,
 	}));
 }
 
