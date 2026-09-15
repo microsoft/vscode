@@ -228,9 +228,9 @@ export async function collectLaunchConfigs(folder: string): Promise<WorkspaceSta
 			return [];
 		}
 
-		if (getNodeType(json) === 'object' && json['configurations']) {
-			for (const each of json['configurations']) {
-				const type = each['type'];
+		if (getNodeType(json) === 'object' && json.configurations) {
+			for (const each of json.configurations) {
+				const type = each.type;
 				if (type) {
 					if (launchConfigs.has(type)) {
 						launchConfigs.set(type, launchConfigs.get(type)! + 1);

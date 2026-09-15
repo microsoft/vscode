@@ -58,10 +58,10 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 				return resolvedVariables[`config:${section}`];
 			},
 			getExecPath: (): string | undefined => {
-				return env['VSCODE_EXEC_PATH'];
+				return env.VSCODE_EXEC_PATH;
 			},
 			getAppRoot: (): string | undefined => {
-				return env['VSCODE_CWD'];
+				return env.VSCODE_CWD;
 			},
 			getFilePath: (): string | undefined => {
 				if (activeFileResource) {
@@ -70,13 +70,13 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 				return undefined;
 			},
 			getSelectedText: (): string | undefined => {
-				return resolvedVariables['selectedText'];
+				return resolvedVariables.selectedText;
 			},
 			getLineNumber: (): string | undefined => {
-				return resolvedVariables['lineNumber'];
+				return resolvedVariables.lineNumber;
 			},
 			getColumnNumber: (): string | undefined => {
-				return resolvedVariables['columnNumber'];
+				return resolvedVariables.columnNumber;
 			},
 			getExtension: async id => {
 				const installed = await extensionService.getInstalled();

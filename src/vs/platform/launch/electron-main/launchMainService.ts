@@ -144,7 +144,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 
 		// Agents window
-		else if (args['agents']) {
+		else if (args.agents) {
 			usedWindows = await this.windowsMainService.openAgentsWindow(baseConfig);
 		}
 

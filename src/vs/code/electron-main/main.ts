@@ -615,9 +615,9 @@ class CodeMain {
 			} else if (args.chat['reuse-window']) {
 				// Apply `--reuse-window` flag to the main arguments
 				args['reuse-window'] = true;
-			} else if (args.chat['profile']) {
+			} else if (args.chat.profile) {
 				// Apply `--profile` flag to the main arguments
-				args['profile'] = args.chat['profile'];
+				args.profile = args.chat.profile;
 			} else {
 				// Unless we are started with specific instructions about
 				// new windows or reusing existing ones, always take the
@@ -642,7 +642,7 @@ class CodeMain {
 		}
 
 		// Normalize paths and watch out for goto line mode
-		if (!args['remote']) {
+		if (!args.remote) {
 			const paths = this.doValidatePaths(args._, args.goto);
 			args._ = paths;
 		}

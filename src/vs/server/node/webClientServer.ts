@@ -59,7 +59,7 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 			// Check if file modified since
 			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
-			responseHeaders['Etag'] = etag;
+			responseHeaders.Etag = etag;
 			if (req.headers['if-none-match'] === etag) {
 				res.writeHead(304, responseHeaders);
 				return void res.end();
@@ -329,7 +329,7 @@ export class WebClientServer {
 			newQuery.delete(connectionTokenQueryName);
 			const queryString = newQuery.toString();
 			const newLocation = queryString ? `${basePath}?${queryString}` : basePath;
-			responseHeaders['Location'] = newLocation;
+			responseHeaders.Location = newLocation;
 
 			res.writeHead(302, responseHeaders);
 			return void res.end();
@@ -455,7 +455,7 @@ export class WebClientServer {
 		// DEV ---------------------------------------------------------------------------------------
 		if (this._cssDevService.isEnabled) {
 			const cssModules = await this._cssDevService.getCssModules();
-			values['WORKBENCH_DEV_CSS_MODULES'] = JSON.stringify(cssModules);
+			values.WORKBENCH_DEV_CSS_MODULES = JSON.stringify(cssModules);
 		}
 
 		if (useTestResolver) {
@@ -464,7 +464,7 @@ export class WebClientServer {
 				const packageJSON = JSON.parse((await promises.readFile(FileAccess.asFileUri(`${builtinExtensionsPath}/${extensionPath}/package.json`).fsPath)).toString());
 				bundledExtensions.push({ extensionPath, packageJSON });
 			}
-			values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON(bundledExtensions);
+			values.WORKBENCH_BUILTIN_EXTENSIONS = asJSON(bundledExtensions);
 		}
 
 		let data;
