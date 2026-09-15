@@ -256,7 +256,7 @@ export function setup(logger: Logger) {
 		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
 		const supportedPlatform = process.platform !== 'win32' && (!isCI || process.platform === 'linux');
 		const tunnelRequested = transport === 'ssh' || !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN;
-		const enabled = runDevContainerSuite && supportedPlatform && tunnelRequested;
+		const enabled = supportedPlatform && tunnelRequested && (runDevContainerSuite || transport === 'tunnel');
 		if (!enabled) {
 			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!supportedPlatform ? 'requires macOS/Linux locally or Linux CI' : !tunnelRequested ? 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture' : linuxDocker.reason}`);
 		}
