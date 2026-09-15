@@ -647,6 +647,7 @@ suite('Sessions - Chat View', () => {
 		initialButton?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', keyCode: 13 }));
 		const cellsAfter = layer ? [...layer.querySelectorAll<HTMLElement>('.sessions-chat-codicon-cell')] : [];
 		const nextButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const focusedButtonStyle = nextButton ? dom.getWindow(nextButton).getComputedStyle(nextButton) : undefined;
 		const activationParent = activationTarget?.parentElement;
 		const layoutAfter = cellsAfter.map(cell => ({
 			left: cell.style.left,
@@ -673,6 +674,7 @@ suite('Sessions - Chat View', () => {
 			buttonReused: nextButton === initialButton,
 			targetPositionChanged: `${nextButton?.style.left}:${nextButton?.style.top}` !== initialButtonPosition,
 			focusTransferred: dom.getWindow(part).document.activeElement === nextButton,
+			focusedButtonOpacity: focusedButtonStyle?.opacity,
 			cellElementsRetained: cellsAfter.length === cellsBefore.length && cellsAfter.every((cell, index) => cell === cellsBefore[index]),
 			layoutStable: layoutAfter,
 		}, {
@@ -694,6 +696,7 @@ suite('Sessions - Chat View', () => {
 			buttonReused: true,
 			targetPositionChanged: true,
 			focusTransferred: true,
+			focusedButtonOpacity: '0',
 			cellElementsRetained: true,
 			layoutStable: layoutBefore,
 		});

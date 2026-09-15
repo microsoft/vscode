@@ -57,7 +57,7 @@
 	place-items: center;
 }
 
-.sessions-chat-codicon-hit-target {
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target {
 	z-index: 3;
 	opacity: 0;
 	pointer-events: auto;
