@@ -50,6 +50,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -505,6 +506,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.open(container);
 		}
 
+		updateTerminalFontRendering(this.raw, this._terminalConfigurationService.config.fontRendering);
+
 		// TODO: Move before open so the DOM renderer doesn't initialize
 		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
@@ -589,6 +592,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	updateConfig(): void {
 		const config = this._terminalConfigurationService.config;
+		updateTerminalFontRendering(this.raw, config.fontRendering);
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setTextBlinking(config.textBlinking);
