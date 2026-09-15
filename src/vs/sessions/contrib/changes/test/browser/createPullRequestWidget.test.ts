@@ -1215,6 +1215,79 @@ suite('CreatePullRequestWidget', () => {
 		}, { closed: true, focused: true, created: false });
 	});
 
+	for (const dismissal of ['outside click', 'Escape']) {
+		test(`${dismissal} preserves generated content and edits when reopening`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			let attempts = 0;
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr',
+				prepareChatRequest: async query => ({ query }),
+				prepare: async () => ++attempts === 1 ? details : { ...details, title: 'Regenerated title', description: 'Regenerated description' },
+				create: async () => assert.fail('Must not create'),
+			};
+			contextView.show(anchor, creation);
+			await timeout(0);
+			const title = host.querySelector<HTMLInputElement>('input')!;
+			title.value = 'Keep my edited title';
+			title.dispatchEvent(new Event('input', { bubbles: true }));
+			if (dismissal === 'Escape') {
+				title.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 27, bubbles: true }));
+			} else {
+				anchor.parentElement!.click();
+			}
+			const closed = !host.querySelector('[role="dialog"]');
+			contextView.show(anchor, creation);
+			const restoredImmediately = host.querySelector<HTMLInputElement>('input')!.value;
+			await timeout(0);
+			assert.deepStrictEqual({
+				closed, restoredImmediately,
+				title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, {
+				closed: true, restoredImmediately: 'Keep my edited title',
+				title: 'Keep my edited title', description: details.description,
+			});
+		});
+	}
+
+	for (const field of ['input', 'textarea'] as const) {
+		test(`reopening during generation preserves an intentionally cleared ${field} and fills the untouched field`, async () => {
+			const { host, anchor, contextView } = createContextView();
+			const generation = new DeferredPromise<ISessionPullRequestDetails>();
+			let attempts = 0;
+			let cancellation: CancellationToken | undefined;
+			const creation: ISessionPullRequestCreation = {
+				operationId: 'create-pr',
+				prepareChatRequest: async query => ({ query }),
+				prepare: token => {
+					cancellation ??= token;
+					return ++attempts === 1 ? generation.p : Promise.resolve(details);
+				},
+				create: async () => assert.fail('Must not create'),
+			};
+			contextView.show(anchor, creation);
+			const input = host.querySelector<HTMLInputElement | HTMLTextAreaElement>(field)!;
+			input.value = 'Temporary';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			input.value = '';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			anchor.parentElement!.click();
+			contextView.show(anchor, creation);
+			await timeout(0);
+			await generation.complete({ ...details, title: 'Late title', description: 'Late description' });
+			await timeout(0);
+			assert.deepStrictEqual({
+				cancelled: cancellation?.isCancellationRequested,
+				title: host.querySelector<HTMLInputElement>('input')!.value,
+				description: host.querySelector<HTMLTextAreaElement>('textarea')!.value,
+			}, {
+				cancelled: true,
+				title: field === 'input' ? '' : details.title,
+				description: field === 'textarea' ? '' : details.description,
+			});
+		});
+	}
+
 	for (const outcome of ['success', 'failure'] as const) {
 		test(`creation ${outcome} cannot close or steal focus from a newer form after a session switch`, async () => {
 			const { host, anchor, contextView, errors } = createContextView();

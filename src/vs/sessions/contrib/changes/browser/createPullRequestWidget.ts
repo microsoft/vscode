@@ -33,15 +33,22 @@ import { CreatePullRequestAction, CreatePullRequestMergeMode, ICreatePullRequest
 type AgentMergeRepairAction = Exclude<keyof ISessionPullRequestAgentMergeOptions, 'mergePullRequest'>;
 const agentMergePolicies = ['never', 'ifUnchanged', 'always'] as const;
 
+export interface ICreatePullRequestFormContent {
+	readonly title?: string;
+	readonly description?: string;
+}
+
 export interface ICreatePullRequestWidgetOptions {
 	readonly creation: ISessionPullRequestCreation;
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
 	readonly initialDraft?: boolean;
+	readonly initialContent?: ICreatePullRequestFormContent;
 	readonly sendToChat?: (options: ISessionPullRequestOptions) => Promise<void>;
 	readonly preferences?: ICreatePullRequestPreferences;
 	readonly onDidChangePreferences?: (change: ICreatePullRequestPreferences) => void;
 	readonly onCancel: () => void;
+	readonly onDismiss?: () => void;
 	readonly onCreated: (options: ISessionPullRequestOptions, message: string | void) => void;
 	readonly onDidSendToChat?: () => void;
 	readonly onDetachedError: (error: Error) => void;
@@ -334,11 +341,26 @@ export class CreatePullRequestWidget extends Disposable {
 		this._register(this.descriptionInput.onDidHeightChange(() => this.relayout()));
 		// Capture before child buttons consume Escape and blur themselves.
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => this.onKeyDown(event), true));
+		if (options.initialContent?.title !== undefined) {
+			this.titleInput.value = options.initialContent.title;
+			this.titleEdited = true;
+		}
+		if (options.initialContent?.description !== undefined) {
+			this.descriptionInput.value = options.initialContent.description;
+			this.descriptionEdited = true;
+		}
 		this.updateMergeOptions();
 		this.ready = this.prepare();
 	}
 
 	get isSubmitting(): boolean { return this.submitting; }
+
+	getFormContent(): ICreatePullRequestFormContent {
+		return {
+			title: this.titleEdited || this.titleInput.value ? this.titleInput.value : undefined,
+			description: this.descriptionEdited || this.descriptionInput.value ? this.descriptionInput.value : undefined,
+		};
+	}
 
 	focus(): void {
 		this.titleInput.focus();
@@ -661,7 +683,7 @@ export class CreatePullRequestWidget extends Disposable {
 		if (key.equals(KeyCode.Escape)) {
 			dom.EventHelper.stop(event, true);
 			if (!this.submitting) {
-				this.options.onCancel();
+				(this.options.onDismiss ?? this.options.onCancel)();
 			}
 		} else if (key.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
 			dom.EventHelper.stop(event, true);
