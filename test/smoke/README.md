@@ -117,6 +117,8 @@ WSL connection failures also print a bounded, redacted snapshot of the focused c
 
 ### Project board native-interaction gate
 
+See the [contributor setup guide](../../docs/agent-project-board-setup.md) for the feature branch, build and isolated-profile launch instructions.
+
 Use the checkout's supported Node version and a dedicated local OSS Agents profile launched with `--remote-debugging-port=9337 --enable-smoke-test-driver`. Open its project board, expand cells until content extends below the window, and prepare a dedicated, visible test chat (or board-owned draft) with an empty composer and no open standalone window. The gate uses the real window size, not device/viewport emulation.
 
 ```powershell
