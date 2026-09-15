@@ -247,6 +247,25 @@ suite('SessionChatInputToolbar', () => {
 			openerService,
 			sessionsService,
 		).flatMap(section => section.entries)[0];
+		const issueHoverCache = new WeakMap<IGitHubIssueRef, { readonly element: HTMLElement; readonly tabbableElements: readonly HTMLElement[] }>();
+		const cachedIssueEntry = buildSessionIssueSections(
+			[{ ref: issueRef, issue }],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+			issueHoverCache,
+		).flatMap(section => section.entries)[0];
+		const refreshedCachedIssueEntry = buildSessionIssueSections(
+			[{ ref: issueRef, issue: { ...issue, title: 'Updated issue hover' } }],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+			issueHoverCache,
+		).flatMap(section => section.entries)[0];
 		const activeIssueEntry = buildSessionIssueSections(
 			[{
 				ref: issueRef,
@@ -266,6 +285,14 @@ suite('SessionChatInputToolbar', () => {
 		).flatMap(section => section.entries)[0];
 		const duplicateIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.Duplicate } }],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+		).flatMap(section => section.entries)[0];
+		const notPlannedIssueEntry = buildSessionIssueSections(
+			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.NotPlanned } }],
 			undefined,
 			commandService,
 			clipboardService,
@@ -293,8 +320,11 @@ suite('SessionChatInputToolbar', () => {
 		const issueHover = await renderHover(issueEntry);
 		const activeIssueHover = await renderHover(activeIssueEntry);
 		const duplicateIssueHover = await renderHover(duplicateIssueEntry);
+		const notPlannedIssueHover = await renderHover(notPlannedIssueEntry);
 		const pullRequestDropdownHover = renderDropdownHover(pullRequestEntry);
 		const issueDropdownHover = renderDropdownHover(issueEntry);
+		const cachedIssueDropdownHover = renderDropdownHover(cachedIssueEntry);
+		const refreshedCachedIssueDropdownHover = renderDropdownHover(refreshedCachedIssueEntry);
 		pullRequestHover?.querySelectorAll<HTMLButtonElement>('.sessions-pr-hover-branch').forEach(branch => branch.click());
 		pullRequestEntry?.open();
 		unresolvedIssueEntry?.open();
@@ -353,6 +383,8 @@ suite('SessionChatInputToolbar', () => {
 				titleOrder: [...issueHover?.querySelector('.sessions-issue-hover-title-content')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
 				dropdownClassName: issueDropdownHover?.className,
 				dropdownMatchesStandaloneContent: issueDropdownHover?.textContent === issueHover?.textContent,
+				dropdownPreservedOnRefresh: cachedIssueDropdownHover === refreshedCachedIssueDropdownHover,
+				dropdownUpdatedOnRefresh: refreshedCachedIssueDropdownHover?.textContent?.includes('Updated issue hover'),
 				dropdownExpandable: issueEntry?.hover?.expandable,
 				dropdownIndicator: issueEntry?.hover?.showIndicator,
 				dropdownTabThroughPanel: issueEntry?.hover?.tabThroughPanel,
@@ -376,15 +408,24 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
 				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
 				unresolvedHover: unresolvedIssueEntry?.pillHover,
+				unresolvedAriaDescription: unresolvedIssueEntry?.ariaDescription,
+				ariaDescription: issueEntry?.ariaDescription,
 				openCommands: commands,
 			},
 			activeIssue: {
 				status: activeIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
 				date: activeIssueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
+				ariaDescription: activeIssueEntry?.ariaDescription,
 			},
 			duplicateIssue: {
 				status: duplicateIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
 				statusKind: duplicateIssueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
+				ariaDescription: duplicateIssueEntry?.ariaDescription,
+			},
+			notPlannedIssue: {
+				status: notPlannedIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
+				statusKind: notPlannedIssueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
+				ariaDescription: notPlannedIssueEntry?.ariaDescription,
 			},
 		}, {
 			pullRequest: {
@@ -454,6 +495,8 @@ suite('SessionChatInputToolbar', () => {
 				titleTailOrder: ['#text', 'sessions-issue-hover-reference'],
 				dropdownClassName: 'sessions-issue-hover compact',
 				dropdownMatchesStandaloneContent: true,
+				dropdownPreservedOnRefresh: true,
+				dropdownUpdatedOnRefresh: true,
 				dropdownExpandable: true,
 				dropdownIndicator: false,
 				dropdownTabThroughPanel: true,
@@ -476,6 +519,8 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
 				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
+				unresolvedAriaDescription: 'https://github.com/microsoft/vscode/issues/42',
+				ariaDescription: 'Closed. https://github.com/microsoft/vscode/issues/42',
 				openCommands: [
 					{
 						id: 'workbench.agentSessions.action.openPullRequest',
@@ -490,10 +535,17 @@ suite('SessionChatInputToolbar', () => {
 			activeIssue: {
 				status: 'Open',
 				date: 'on Sep 3',
+				ariaDescription: 'Open. https://github.com/microsoft/vscode/issues/42',
 			},
 			duplicateIssue: {
 				status: 'Duplicate',
 				statusKind: 'duplicate',
+				ariaDescription: 'Duplicate. https://github.com/microsoft/vscode/issues/42',
+			},
+			notPlannedIssue: {
+				status: 'Not planned',
+				statusKind: 'notPlanned',
+				ariaDescription: 'Not planned. https://github.com/microsoft/vscode/issues/42',
 			},
 		});
 	});
