@@ -4,13 +4,15 @@
 
 **Blocked by:** 01 — Launch Issue Wizard from the editor
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Before invoking the log tool, the skill briefly explains why logs may help and asks for conversational consent.
-- [ ] The dedicated log tool also requires the normal Agent Host approval before discovery or file content is returned.
-- [ ] No logs are read or attached automatically, and denial returns no log data while allowing diagnosis to continue.
-- [ ] The tool resolves the current product's log root through VS Code-owned environment information.
-- [ ] Discovery and reads are bounded, and the agent can select only the log files and ranges relevant to the symptom.
-- [ ] Paths outside the resolved log root, including traversal attempts and unrelated absolute paths, are rejected.
-- [ ] Missing, rotated, or unreadable logs produce a useful recoverable result rather than ending the session.
-- [ ] Contract tests verify approval and denial, root confinement, traversal rejection, bounded output, and failure behavior.
+- [x] Before invoking the log tool, the skill briefly explains what it wants to search; the normal Agent Host confirmation is the consent surface, without a separate preliminary prompt.
+- [x] The dedicated log tool also requires the normal Agent Host approval before discovery or log content is returned.
+- [x] No logs are read or attached automatically, and denial returns no log data while allowing diagnosis to continue.
+- [x] The tool resolves the current product's log root through VS Code-owned environment information and discovers registered Output channels.
+- [x] Discovery and literal searches are bounded, and the agent can select only the current-run sources and terms relevant to the symptom.
+- [x] Paths outside the resolved log root, including traversal attempts and unrelated absolute paths, are rejected.
+- [x] Missing, rotated, or unreadable logs produce a useful recoverable result rather than ending the session.
+- [x] Serial searches allow one session approval to cover later reads without stacking confirmation prompts.
+- [x] When ordinary logs are insufficient, the skill guides the user through narrow Trace logging, reload or restart, one reproduction, a fresh search, and restoring the previous level.
+- [x] Contract tests verify approval and denial, root confinement, traversal rejection, bounded output, and failure behavior.

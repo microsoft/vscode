@@ -4,12 +4,16 @@
 
 **Blocked by:** 01 — Launch Issue Wizard from the editor
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-- [ ] A dedicated language-model tool returns only the running product's version, quality, and commit from VS Code-owned product services.
-- [ ] The tool works for Stable, Insiders, and Code OSS without invoking code, code-insiders, or another shell launcher.
-- [ ] The tool requires normal Agent Host approval before any metadata is returned.
-- [ ] Denying approval exposes no metadata and leaves the support conversation able to continue.
-- [ ] The tool never returns workspace contents, logs, account details, or unrelated environment data.
-- [ ] The Issue Wizard skill requests the metadata only when it is relevant and never attaches it automatically to a public artifact.
+- [x] A dedicated language-model tool returns only the running product's version, quality, and commit from VS Code-owned product services.
+- [x] The tool works for Stable, Insiders, and Code OSS without invoking code, code-insiders, or another shell launcher.
+- [x] The tool requires normal Agent Host approval before any metadata is returned.
+- [x] Denying approval exposes no metadata and leaves the support conversation able to continue.
+- [x] The tool never returns workspace contents, logs, account details, or unrelated environment data.
+- [x] The Issue Wizard skill requests the metadata only when it is relevant and never attaches it automatically to a public artifact.
 - [ ] Contract tests cover approval, denial, supported product qualities, missing values, and the exact minimal response shape.
+  - [x] Approval and denial.
+  - [x] Exact minimal response shape.
+  - [ ] Explicit Stable, Insiders, and Code OSS quality cases.
+  - [ ] Missing quality and commit values.
