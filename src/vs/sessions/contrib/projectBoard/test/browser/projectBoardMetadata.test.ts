@@ -25,7 +25,7 @@ suite('ProjectBoardMetadata', () => {
 		const resource = URI.parse('test-chat:session#child');
 		const changed = store.add(new Emitter<IChatChangeEvent>());
 		const disposed = store.add(new Emitter<void>());
-		const state = { acquired: 0, released: 0, scans: 0 };
+		const state = { acquired: 0, released: 0, scans: 0, credits: 0 };
 		let tail: ChatRequestModel[] | undefined;
 		const model = new class extends mock<ChatModel>() {
 			override get sessionResource() { return resource; }
@@ -33,6 +33,7 @@ suite('ProjectBoardMetadata', () => {
 			override readonly onDidDispose = disposed.event;
 			override readonly lastRequestObs = observableValue<ChatRequestModel | undefined>('lastRequest', undefined);
 			override get lastRequest() { return this.lastRequestObs.get(); }
+			override get sessionCost() { return state.credits; }
 			override getRequests() {
 				state.scans++;
 				assert.ok(tail, 'Must not scan transcript for ordinary lastRequest');
@@ -92,6 +93,73 @@ suite('ProjectBoardMetadata', () => {
 		assert.deepStrictEqual([result.prompt, result.submittedAt], ['Second', 500]);
 	});
 
+	test('PB-18 credits reuse the session total, update on usage and release subscriptions when hidden', () => {
+		const fixture = setup();
+		const request = fixture.request();
+		const response = store.add(new ChatResponseModel({ session: fixture.model, requestId: request.id, responseContent: [], codeBlockInfos: undefined }));
+		request.response = response;
+		fixture.model.lastRequestObs.set(request, undefined);
+		fixture.setTail([request]);
+		const metadata = fixture.create();
+		assert.strictEqual(fixture.state.scans, 0, 'Hidden credit metrics must not scan history');
+		metadata.setIncludeCredits(true);
+		assert.strictEqual(metadata.credits.get(), undefined, 'Absent billing data is not zero');
+		fixture.state.credits = 0;
+		response.setUsage({ kind: 'usage', promptTokens: 10, completionTokens: 20, sessionCopilotCredits: 0 });
+		assert.strictEqual(metadata.credits.get(), 0, 'Reported zero remains visible');
+		fixture.state.credits = 12.5;
+		response.setUsage({ kind: 'usage', promptTokens: 10, completionTokens: 20, copilotCredits: 2, sessionCopilotCredits: 12.5 });
+		assert.strictEqual(metadata.credits.get(), 12.5, 'Use shared total, not turn + session totals');
+		const scansBeforeOutput = fixture.state.scans;
+		response.updateContent({ kind: 'markdownContent', content: { value: 'Streaming text must not rescan billing history' } });
+		assert.strictEqual(fixture.state.scans, scansBeforeOutput);
+		metadata.setIncludeCredits(false);
+		const scans = fixture.state.scans;
+		response.setUsage({ kind: 'usage', promptTokens: 10, completionTokens: 20, copilotCredits: 4 });
+		assert.strictEqual(metadata.credits.get(), undefined);
+		assert.strictEqual(fixture.state.scans, scans);
+		metadata.setIncludeCredits(true);
+		fixture.disposed.fire();
+		assert.strictEqual(metadata.credits.get(), undefined);
+	});
+
+	test('PB-18 historical usage remains reactive when a newer turn has no credits', () => {
+		const fixture = setup();
+		const previous = fixture.request('Previous', 100);
+		const response = store.add(new ChatResponseModel({ session: fixture.model, requestId: previous.id, responseContent: [], codeBlockInfos: undefined }));
+		previous.response = response;
+		const latest = fixture.request('Latest', 200);
+		fixture.setTail([previous, latest]);
+		fixture.model.lastRequestObs.set(latest, undefined);
+		const metadata = fixture.create();
+		metadata.setIncludeCredits(true);
+		fixture.state.credits = 7;
+		response.setUsage({ kind: 'usage', promptTokens: 1, completionTokens: 1, copilotCredits: 7 });
+		assert.strictEqual(metadata.credits.get(), 7);
+		assert.strictEqual(fixture.state.acquired, 1);
+	});
+
+	test('PB-18 invalid billing data is logged and exposed, never shown as a successful value', () => {
+		const fixture = setup();
+		const request = fixture.request();
+		const response = store.add(new ChatResponseModel({ session: fixture.model, requestId: request.id, responseContent: [], codeBlockInfos: undefined }));
+		request.response = response;
+		fixture.setTail([request]);
+		fixture.model.lastRequestObs.set(request, undefined);
+		const metadata = fixture.create();
+		metadata.setIncludeCredits(true);
+		response.setUsage({ kind: 'usage', promptTokens: 0, completionTokens: 0, copilotCredits: NaN });
+		assert.strictEqual(metadata.credits.get(), undefined);
+		assert.strictEqual(metadata.creditsError.get(), 'Invalid reported AI credit usage');
+		assert.strictEqual(metadata.metadata.get().kind, 'ready');
+		assert.ok(fixture.log.errors.length);
+		fixture.state.credits = 3;
+		response.setUsage({ kind: 'usage', promptTokens: 0, completionTokens: 0, copilotCredits: 3 });
+		assert.strictEqual(metadata.credits.get(), 3);
+		assert.strictEqual(metadata.creditsError.get(), undefined);
+		assert.strictEqual(metadata.metadata.get().kind, 'ready');
+	});
+
 	test('nonvisible loaded-model recency reads no prompt, context or response and acquires no reference', () => {
 		const { model, state, request, setTail } = setup();
 		const submitted = new Proxy(request(), {
@@ -104,7 +172,7 @@ suite('ProjectBoardMetadata', () => {
 		});
 		model.lastRequestObs.set(submitted, undefined);
 		assert.strictEqual(getProjectBoardSubmittedAt(model), 100);
-		assert.deepStrictEqual(state, { acquired: 0, released: 0, scans: 0 });
+		assert.deepStrictEqual(state, { acquired: 0, released: 0, scans: 0, credits: 0 });
 		model.lastRequestObs.set(request('New submitted prompt', 500), undefined);
 		assert.strictEqual(getProjectBoardSubmittedAt(model), 500);
 		const hidden = request('Internal', 900, { isHiddenFromTranscript: true });

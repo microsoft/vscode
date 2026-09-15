@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IProjectBoardAxis, IProjectBoardConfiguration, IProjectBoardPlacement } from '../common/projectBoardConfiguration.js';
+import { IProjectBoardAxis, IProjectBoardConfiguration, IProjectBoardDisplayOptions, IProjectBoardPlacement } from '../common/projectBoardConfiguration.js';
 
 export class ProjectBoardState extends Disposable {
 	static readonly STORAGE_KEY = 'sessions.projectBoard.configuration';
@@ -41,6 +41,18 @@ export class ProjectBoardState extends Disposable {
 	getPlacement(cardId: string): IProjectBoardPlacement | undefined {
 		const placement = this._configuration.get().placements.find(placement => placement.cardId === cardId);
 		return placement ? { rowId: placement.rowId, columnId: placement.columnId } : undefined;
+	}
+
+	setDisplayOption(key: keyof IProjectBoardDisplayOptions, enabled: boolean): void {
+		this.mutate(configuration => {
+			if ((key !== 'showStateDuration' && key !== 'showCredits') || typeof enabled !== 'boolean') {
+				throw new Error(localize('projectBoard.invalidDisplayOption', "The board display option is invalid."));
+			}
+			return {
+				...configuration,
+				display: { showStateDuration: false, showCredits: false, ...configuration.display, [key]: enabled },
+			};
+		});
 	}
 
 	reset(): void {
@@ -217,6 +229,7 @@ function freezeConfiguration(configuration: IProjectBoardConfiguration): IProjec
 		rows: Object.freeze(configuration.rows.map(axis => Object.freeze({ ...axis }))),
 		columns: Object.freeze(configuration.columns.map(axis => Object.freeze({ ...axis }))),
 		placements: Object.freeze(configuration.placements.map(placement => Object.freeze({ ...placement }))),
+		...(configuration.display ? { display: Object.freeze({ ...configuration.display }) } : {}),
 	});
 }
 
@@ -231,8 +244,15 @@ function hasKeys(value: unknown, keys: readonly string[]): value is Record<strin
 
 function parseConfiguration(raw: string): IProjectBoardConfiguration {
 	const value: unknown = JSON.parse(raw);
-	if (!hasKeys(value, ['version', 'rows', 'columns', 'placements']) || value.version !== 1) {
+	if ((!hasKeys(value, ['version', 'rows', 'columns', 'placements']) && !hasKeys(value, ['version', 'rows', 'columns', 'placements', 'display'])) || value.version !== 1) {
 		throw new Error(localize('projectBoard.invalidVersion', "The saved board format or version is not supported."));
+	}
+	let display: IProjectBoardDisplayOptions | undefined;
+	if (Object.hasOwn(value, 'display')) {
+		if (!hasKeys(value.display, ['showStateDuration', 'showCredits']) || typeof value.display.showStateDuration !== 'boolean' || typeof value.display.showCredits !== 'boolean') {
+			throw new Error(localize('projectBoard.invalidDisplayOptions', "The saved board display options are invalid."));
+		}
+		display = { showStateDuration: value.display.showStateDuration, showCredits: value.display.showCredits };
 	}
 	const validAxes = (axes: unknown): axes is IProjectBoardAxis[] => {
 		if (!Array.isArray(axes) || axes.length === 0) {
@@ -262,5 +282,5 @@ function parseConfiguration(raw: string): IProjectBoardConfiguration {
 		cardIds.add(placement.cardId);
 		placements.push({ cardId: placement.cardId, rowId: placement.rowId, columnId: placement.columnId });
 	}
-	return { version: 1, rows: value.rows, columns: value.columns, placements };
+	return { version: 1, rows: value.rows, columns: value.columns, placements, ...(display ? { display } : {}) };
 }

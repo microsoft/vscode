@@ -69,6 +69,16 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Compute overflow after archive filtering. Cell attention counts include hidden Needs Input cards without changing recency ordering.
 - Hide chats archived individually or through their owning session by default. Preserve their placements; Show Archived/unarchive restores them.
 
+### Display settings
+
+- The top-right gear button opens Settings and independently toggles Time in State and AI Credits. Both are off by default; persist the choices in profile-local board configuration.
+- Enabled metrics form a right-aligned, wrapping row at the top of each live card: a clock with elapsed state time and a `$` credit pill. Preserve readable labels and hover explanations; the credit icon does not imply a dollar charge. Credit hover includes the reported value, scope and unavailable-data meaning.
+- Time in State applies to non-archived live cards, not drafts. Track each chat's observed runtime transitions, independently of prompt/output updates, read state and placement. Update only timer text once per second; do not rebuild cards or disturb question input, focus or scroll.
+- The first observed state is a lower bound labeled `at least`; its real start may precede opening the board. An observed transition resets the timer. A disconnected provider shows unavailable; reconnecting starts a new lower bound. Reopening the board starts fresh observation, not a fabricated continuation across unseen transitions.
+- AI Credits uses the existing chat model's cumulative session cost, including provider-reported backend totals and subagent costs. It is scoped to that card's chat, not an account balance or an aggregate across sibling chats in the owning session.
+- Distinguish reported zero from unavailable billing data. Unknown or preview-limited chats show unavailable, never zero or an estimate derived from tokens. Totals reflect reported usage and can lag billing.
+- Reuse the existing bounded visible metadata references. When credits are off, do not scan or observe usage history; when on, usage changes update totals without rescanning on streamed text.
+
 ### Questions
 
 - Needs Input cards reuse the interactive `ChatQuestionCarouselPart` and common answer-submission path.
@@ -91,7 +101,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 
 ### Storage and errors
 
-- Persist only the configuration version, ordered axis IDs/labels and placements in profile-local storage.
+- Persist only the configuration version, ordered axis IDs/labels, placements and display preferences in profile-local storage. Existing configurations without display preferences keep both metrics off.
 - Do not persist transcript copies, runtime status, credentials or artifact caches as board configuration.
 - Keep placement information when a provider disappears. Definitively unavailable placed chats have an explicit Remove Placement action.
 - Corrupt saved state locks mutation until an explicit confirmed reset; do not silently replace it with defaults.
@@ -145,6 +155,7 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-15:** Interactive Ask User, custom answers, validation, exactly-once submission and refresh-safe input.
 - **PB-16:** Standalone creation, passive Agents draft discovery and publication without duplicates.
 - **PB-17:** Cleanup only of untouched owned drafts; preserve entered, attached, pending, failed and submitted work.
+- **PB-18:** Independent persisted display toggles; state-duration transitions and lower bounds; reported zero versus unavailable credits; timer updates preserve focus/scroll and release on close.
 
 ### Resilience before optional P2
 

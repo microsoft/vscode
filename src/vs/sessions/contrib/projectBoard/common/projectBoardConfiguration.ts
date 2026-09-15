@@ -18,4 +18,10 @@ export interface IProjectBoardConfiguration {
 	readonly rows: readonly IProjectBoardAxis[];
 	readonly columns: readonly IProjectBoardAxis[];
 	readonly placements: readonly (IProjectBoardPlacement & { readonly cardId: string })[];
+	readonly display?: IProjectBoardDisplayOptions;
+}
+
+export interface IProjectBoardDisplayOptions {
+	readonly showStateDuration: boolean;
+	readonly showCredits: boolean;
 }
