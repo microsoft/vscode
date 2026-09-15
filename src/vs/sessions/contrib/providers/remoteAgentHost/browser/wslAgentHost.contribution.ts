@@ -125,11 +125,17 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 		}
 		const { distro, address } = entry.connection;
 		return {
-			connectOnDemand: () => this._connectWSLOnDemand(distro, entry.name, address),
+			connectOnDemand: () => this._ensureWSLOnDemand(address),
+			reconnectOnDemand: () => this._connectWSLOnDemand(distro, entry.name, address),
 			disconnectOnDemand: () => this._disconnectWSLOnDemand(distro, address),
 			onDidReportConnectProgress: this._wslService.onDidReportConnectProgress,
 			autoConnect: this._autoConnect,
 		};
+	}
+
+	private async _ensureWSLOnDemand(address: string): Promise<void> {
+		this._remoteAgentHostService.ensureConnection(address, true);
+		await this._remoteAgentHostService.waitForConnection(address);
 	}
 
 	private async _connectWSLOnDemand(distro: string, name: string, address: string): Promise<void> {

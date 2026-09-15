@@ -12,7 +12,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import type { IWSLConnectProgress, IWSLConnectResult } from '../../common/wslRemoteAgentHost.js';
+import { WSLConnectionMode, type IWSLConnectProgress, type IWSLConnectResult } from '../../common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../node/wslRemoteAgentHostService.js';
 import type WebSocket from 'ws';
 
@@ -127,6 +127,60 @@ suite('WSL Remote Agent Host Service', () => {
 				],
 			},
 		);
+	});
+
+	test('replace creates a fresh relay for a live distro', async () => {
+		const service = disposables.add(createService());
+		const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=first\n');
+		const firstResult = await first;
+
+		const replacement = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' }, WSLConnectionMode.Replace);
+		while (service.children.length < 2) {
+			await Promise.resolve();
+		}
+		service.children[1].emitStdout('ws://127.0.0.1:3001?tkn=second\n');
+		const replacementResult = await replacement;
+
+		assert.deepStrictEqual({
+			childCount: service.children.length,
+			firstChildKillCalls: service.children[0].killCalls,
+			connectionIdsDiffer: firstResult.connectionId !== replacementResult.connectionId,
+			replacementToken: replacementResult.connectionToken,
+		}, {
+			childCount: 2,
+			firstChildKillCalls: 1,
+			connectionIdsDiffer: true,
+			replacementToken: 'second',
+		});
+	});
+
+	test('replace waits for an in-flight bootstrap and then creates a fresh relay', async () => {
+		const service = disposables.add(createService());
+		const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		const replacement = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' }, WSLConnectionMode.Replace);
+
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=first\n');
+		const firstResult = await first;
+		while (service.children.length < 2) {
+			await Promise.resolve();
+		}
+		service.children[1].emitStdout('ws://127.0.0.1:3001?tkn=second\n');
+		const replacementResult = await replacement;
+
+		assert.deepStrictEqual({
+			childCount: service.children.length,
+			connectionIdsDiffer: firstResult.connectionId !== replacementResult.connectionId,
+			replacementToken: replacementResult.connectionToken,
+		}, {
+			childCount: 2,
+			connectionIdsDiffer: true,
+			replacementToken: 'second',
+		});
 	});
 
 	test('accepts initial bootstrap output after the output-idle budget', async () => {

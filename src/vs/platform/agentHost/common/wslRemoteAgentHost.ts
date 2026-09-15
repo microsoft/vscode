@@ -60,6 +60,14 @@ export interface IWSLConnectResult {
 	readonly connectionToken: string | undefined;
 }
 
+/** How the shared process handles a live relay for the same WSL distro. */
+export const enum WSLConnectionMode {
+	/** Return the retained relay unchanged. Only its existing protocol client may keep using it. */
+	Reuse = 'reuse',
+	/** Stop the retained relay and bootstrap a fresh one. */
+	Replace = 'replace',
+}
+
 export interface IWSLAgentHostConnection extends IDisposable {
 	readonly distro: string;
 	readonly localAddress: string;
@@ -98,9 +106,10 @@ export interface IWSLRemoteAgentHostService {
 	isWSLAvailable(): Promise<boolean>;
 	listDistros(): Promise<IWSLDistro[]>;
 	listRunningDistros(): Promise<string[]>;
+	/** Ensure the distro is connected without replacing a live protocol client. */
 	connect(config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection>;
 	disconnect(distro: string): Promise<void>;
-	/** Reconnect a cached distro, optionally as an automatic recovery attempt. */
+	/** Explicitly replace a cached distro connection, optionally as an automatic recovery attempt. */
 	reconnect(distro: string, name: string, userInitiated?: boolean): Promise<IWSLAgentHostConnection>;
 	/**
 	 * Distros the user has connected to, persisted across windows. Drives the
@@ -131,7 +140,7 @@ export interface IWSLRemoteAgentHostMainService {
 	isWSLAvailable(): Promise<boolean>;
 	listDistros(): Promise<IWSLDistro[]>;
 	listRunningDistros(): Promise<string[]>;
-	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult>;
+	connect(config: IWSLAgentHostConfig, mode: WSLConnectionMode): Promise<IWSLConnectResult>;
 	disconnect(distro: string): Promise<void>;
 	reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean): Promise<IWSLConnectResult>;
 }

@@ -17,6 +17,7 @@ import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 /** Options supplied by a remote-host kind when creating its sessions provider. */
 export interface IEntryDrivenProviderOptions {
 	readonly connectOnDemand?: () => Promise<void>;
+	readonly reconnectOnDemand?: () => Promise<void>;
 	readonly disconnectOnDemand?: () => Promise<void>;
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	readonly autoConnect?: IAgentHostAutoConnect;
@@ -98,6 +99,7 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			address,
 			name,
 			connectOnDemand: options.connectOnDemand,
+			reconnectOnDemand: options.reconnectOnDemand,
 			disconnectOnDemand: options.disconnectOnDemand,
 			onDidReportConnectProgress: options.onDidReportConnectProgress,
 			autoConnect: options.autoConnect,

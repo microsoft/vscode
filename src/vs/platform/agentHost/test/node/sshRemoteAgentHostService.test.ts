@@ -15,7 +15,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
+import { SSHAuthMethod, SSHConnectionMode, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
@@ -481,7 +481,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		const config = makeConfig({ sshConfigHost: 'myalias' });
 		const result1 = await service.connect(config);
-		assert.strictEqual(result1.connectionId, 'ssh:myalias');
+		assert.strictEqual(result1.address, 'ssh:myalias');
 		assert.strictEqual(result1.sshConfigHost, 'myalias');
 		assert.strictEqual(result1.lifecycle, 'external');
 		assert.strictEqual(service.startCalled, 0);
@@ -505,11 +505,34 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		// Reconnect — creates fresh relay on existing SSH tunnel; does not
 		// rerun endpoint discovery/selection (see connect()'s replaceRelay path).
-		const result2 = await service.reconnect('myalias', 'test-agent');
-		assert.strictEqual(result2.connectionId, result1.connectionId);
+		const result2 = await service.reconnect('myalias', 'test-agent', SSHConnectionMode.ReplaceRelay);
+		assert.notStrictEqual(result2.connectionId, result1.connectionId);
 		assert.strictEqual(result2.connectionToken, result1.connectionToken);
 		assert.strictEqual(result2.lifecycle, result1.lifecycle);
 		assert.strictEqual(service.relayCalled, 2); // fresh relay
+	});
+
+	test('replace connection reruns SSH bootstrap and endpoint selection', async () => {
+		service.execResponses = [
+			...discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]),
+			...discoveryResponses([makeEndpoint({ type: 'standalone', pid: 5678, instanceId: 'inst-2' })]),
+		];
+
+		const config = makeConfig({ sshConfigHost: 'myalias' });
+		const first = await service.connect(config);
+		const replacement = await service.connect(config, SSHConnectionMode.ReplaceConnection);
+
+		assert.deepStrictEqual({
+			connectionIdsDiffer: first.connectionId !== replacement.connectionId,
+			sshClients: service.mockClients.length,
+			relays: service.relayCalled,
+			selectedInstance: replacement.instanceId,
+		}, {
+			connectionIdsDiffer: true,
+			sshClients: 2,
+			relays: 2,
+			selectedInstance: 'inst-2',
+		});
 	});
 
 	test('reconnect does not fire onDidRelayClose for superseded relay', async () => {
@@ -522,7 +545,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		disposables.add(service.onDidRelayClose(id => closeEvents.push(id)));
 
 		// Reconnect replaces the relay — old relay close should be suppressed
-		await service.reconnect('myalias', 'test-agent');
+		await service.reconnect('myalias', 'test-agent', SSHConnectionMode.ReplaceRelay);
 
 		// Simulate the old relay's close event firing asynchronously
 		service.simulateOldRelayClose();
@@ -543,7 +566,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// simulating a WebSocket that fires 'close' synchronously on ws.close().
 		service.makePreviousRelaySyncClose();
 
-		await service.reconnect('myalias', 'test-agent');
+		await service.reconnect('myalias', 'test-agent', SSHConnectionMode.ReplaceRelay);
 		assert.deepStrictEqual(closeEvents, []);
 	});
 
@@ -551,7 +574,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
 
 		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
-		assert.strictEqual(result.connectionId, 'ssh:myhost');
+		assert.strictEqual(result.address, 'ssh:myhost');
 		assert.strictEqual(result.sshConfigHost, 'myhost');
 	});
 
@@ -563,7 +586,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const result = await service.connect(makeConfig({
 			remoteAgentHostCommand: '/custom/agent --port 0',
 		}));
-		assert.strictEqual(result.connectionId, 'testuser@10.0.0.1:22');
+		assert.strictEqual(result.address, 'testuser@10.0.0.1:22');
 		assert.strictEqual(result.serverType, undefined);
 		assert.strictEqual(result.instanceId, 'override');
 		assert.strictEqual(result.lifecycle, 'managed');
@@ -774,7 +797,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const events: ISSHEndpointSelectionRequest[] = [];
 		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
 
-		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ false);
+		const result = await service.reconnect('myhost', 'test-host', SSHConnectionMode.ReplaceConnection, undefined, undefined, /* userInitiated */ false);
 
 		assert.deepStrictEqual(events, [], 'cold-start silent reconnect() must never fire an endpoint-selection request');
 		assert.strictEqual(result.serverType, 'standalone');
@@ -792,7 +815,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		const result = await service.withEndpointSelectionResponse(
 			{ kind: 'candidate', type: 'editor', pid: 300, instanceId: 'editor-1' },
-			() => service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ true),
+			() => service.reconnect('myhost', 'test-host', SSHConnectionMode.ReplaceConnection, undefined, undefined, /* userInitiated */ true),
 		);
 
 		assert.ok(seenCandidates, 'user-initiated reconnect() must still show the picker when an editor entry exists');
@@ -921,7 +944,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// userInitiated: true would normally still prompt when an editor is
 		// live (see the contrasting test above) — a stored preference must
 		// pre-empt that entirely.
-		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ true, /* preferredAgentLocation */ 'editor');
+		const result = await service.reconnect('myhost', 'test-host', SSHConnectionMode.ReplaceConnection, undefined, undefined, /* userInitiated */ true, /* preferredAgentLocation */ 'editor');
 
 		assert.deepStrictEqual(events, []);
 		assert.strictEqual(result.serverType, 'editor');
@@ -1010,7 +1033,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			remoteAgentHostCommand: '/agent',
 		}));
 		assert.strictEqual(service.startCalled, 1);
-		assert.strictEqual(result2.connectionId, result.connectionId);
+		assert.notStrictEqual(result2.connectionId, result.connectionId);
 	});
 
 	test('fires onDidChangeConnections on connect and disconnect', async () => {
@@ -1165,7 +1188,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const r2 = await service.reconnect('myhost', 'test-host');
 		// Should have created a fresh SSH client (not reused the old one)
 		assert.strictEqual(service.mockClients.length, 2);
-		assert.strictEqual(r2.connectionId, r1.connectionId);
+		assert.notStrictEqual(r2.connectionId, r1.connectionId);
 	});
 
 	// --- Progress events ---
@@ -1463,7 +1486,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			port: 2222,
 			remoteAgentHostCommand: '/agent',
 		}));
-		assert.strictEqual(result.connectionId, 'testuser@192.168.1.1:2222');
+		assert.strictEqual(result.address, 'testuser@192.168.1.1:2222');
 	});
 
 	test('defaults to port 22 in connection key', async () => {
@@ -1471,7 +1494,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			host: '192.168.1.1',
 			remoteAgentHostCommand: '/agent',
 		}));
-		assert.strictEqual(result.connectionId, 'testuser@192.168.1.1:22');
+		assert.strictEqual(result.address, 'testuser@192.168.1.1:22');
 	});
 
 	// --- Reconnect preserves connection token from initial connect ---
@@ -1481,10 +1504,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		const original = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 
-		const reconnected = await service.reconnect('myhost', 'new-name');
+		const reconnected = await service.reconnect('myhost', 'new-name', SSHConnectionMode.ReplaceRelay);
 		assert.strictEqual(reconnected.connectionToken, original.connectionToken);
 		assert.strictEqual(reconnected.address, original.address);
-		assert.strictEqual(reconnected.connectionId, original.connectionId);
+		assert.notStrictEqual(reconnected.connectionId, original.connectionId);
 	});
 
 	// --- Relay messages from superseded relay are still routed (not gated) ---
@@ -1498,7 +1521,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		disposables.add(service.onDidRelayMessage(msg => messages.push(msg)));
 
 		// Reconnect replaces the relay
-		await service.reconnect('myhost', 'test-host');
+		const reconnected = await service.reconnect('myhost', 'test-host', SSHConnectionMode.ReplaceRelay);
 
 		// Simulate a message arriving from the OLD relay (index 0)
 		service.simulateRelayMessage('stale-message', 0);
@@ -1508,7 +1531,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// Both messages arrive — message suppression is deliberately NOT done
 		assert.deepStrictEqual(messages, [
 			{ connectionId: result.connectionId, data: 'stale-message' },
-			{ connectionId: result.connectionId, data: 'fresh-message' },
+			{ connectionId: reconnected.connectionId, data: 'fresh-message' },
 		]);
 	});
 
@@ -1517,7 +1540,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reconnect cleans up SSH client when relay recreation fails', async () => {
 		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
 
-		await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const original = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 		const originalClient = service.mockClients[0];
 		assert.strictEqual(originalClient.ended, false);
 
@@ -1533,14 +1556,15 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		disposables.add(service.onDidCloseConnection(id => closeEvents.push(id)));
 
 		await assert.rejects(
-			() => service.reconnect('myhost', 'test-host'),
+			() => service.reconnect('myhost', 'test-host', SSHConnectionMode.ReplaceRelay),
 			/relay failed/,
 		);
 
 		// SSH client should have been cleaned up despite the failure
 		assert.strictEqual(originalClient.ended, true);
 		// Close event should have fired to notify the renderer
-		assert.deepStrictEqual(closeEvents, ['ssh:myhost']);
+		assert.strictEqual(closeEvents.length, 1);
+		assert.notStrictEqual(closeEvents[0], original.connectionId);
 	});
 
 	test('reconnect rejects with timeout when relay creation hangs (silently dead SSH client)', async () => {
@@ -1552,7 +1576,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// reload, since the shared-process state survives.
 		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
 
-		await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const original = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 		const originalClient = service.mockClients[0];
 		assert.strictEqual(originalClient.ended, false);
 
@@ -1565,7 +1589,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		disposables.add(service.onDidCloseConnection(id => closeEvents.push(id)));
 
 		await assert.rejects(
-			() => service.reconnect('myhost', 'test-host'),
+			() => service.reconnect('myhost', 'test-host', SSHConnectionMode.ReplaceRelay),
 			/timed out|timeout/i,
 			'reconnect should reject (with a timeout error) instead of hanging when relay creation never settles'
 		);
@@ -1576,7 +1600,8 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(originalClient.ended, true, 'dead SSH client should be ended');
 		// Close event should have fired so the renderer's contribution sees
 		// the reconnect attempt resolved (even as a failure) and can retry.
-		assert.deepStrictEqual(closeEvents, ['ssh:myhost']);
+		assert.strictEqual(closeEvents.length, 1);
+		assert.notStrictEqual(closeEvents[0], original.connectionId);
 	});
 
 	// --- Reconnect cleans up old SSH client listeners ---
@@ -1594,7 +1619,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.ok(errorListenersBefore > 0, 'should have error listeners after connect');
 
 		// Reconnect replaces the SSHConnection — old listeners should be removed
-		await service.reconnect('myhost', 'test-host');
+		await service.reconnect('myhost', 'test-host', SSHConnectionMode.ReplaceRelay);
 
 		// Listener count should not grow — old ones removed, new ones added
 		assert.strictEqual(client.closeListenerCount, closeListenersBefore);

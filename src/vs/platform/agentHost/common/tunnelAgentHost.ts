@@ -484,8 +484,7 @@ export interface ITunnelAgentHostService {
 	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode;
 
 	/**
-	 * Connect to a tunnel's agent host and register the connection
-	 * with {@link IRemoteAgentHostService}.
+	 * Ensure a tunnel's agent host is connected and refresh its cached metadata.
 	 *
 	 * @param tunnel The tunnel to connect to.
 	 * @param authProvider Optional auth provider to use. If omitted, uses cached/last known.
@@ -496,6 +495,9 @@ export interface ITunnelAgentHostService {
 	 * `'prompt'`; otherwise they reuse the saved preference silently.
 	 */
 	connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
+
+	/** Replace a tunnel's live connection after refreshing its cached metadata. */
+	reconnect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void>;
 
 	/** Whether {@link deleteTunnel} is supported by this implementation. */
 	readonly canDeleteTunnels: boolean;

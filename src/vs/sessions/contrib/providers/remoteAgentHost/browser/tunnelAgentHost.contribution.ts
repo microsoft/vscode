@@ -220,7 +220,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			RemoteAgentHostSessionsProvider, {
 			address,
 			name,
-			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
+			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true, reconnect: false }),
+			reconnectOnDemand: () => this._connectTunnel(address, { userInitiated: true, reconnect: true }),
 			disconnectOnDemand: () => this._disconnectTunnel(address),
 		},
 		);
@@ -284,11 +285,25 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	 * Establish a relay connection to a cached tunnel. Called on demand
 	 * when the user invokes the browse action on an online-but-not-connected tunnel.
 	 */
-	private _connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void> {
+	private _connectTunnel(address: string, options: { readonly userInitiated: boolean; readonly reconnect: boolean }): Promise<void> {
 		const existing = this._pendingConnects.get(address);
 		if (existing) {
-			return existing;
+			if (!options.reconnect) {
+				return existing;
+			}
+			const queued = existing.then(
+				() => this._runTunnelConnection(address, options),
+				() => this._runTunnelConnection(address, options),
+			);
+			this._trackPendingConnection(address, queued);
+			return queued;
 		}
+		const pending = this._runTunnelConnection(address, options);
+		this._trackPendingConnection(address, pending);
+		return pending;
+	}
+
+	private async _runTunnelConnection(address: string, options: { readonly userInitiated: boolean; readonly reconnect: boolean }): Promise<void> {
 		this._diagnosticsService.recordHostAction(address, 'connect', options.userInitiated);
 
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
@@ -297,49 +312,61 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		const cached = this._tunnelService.getCachedTunnels().find(t => t.tunnelId === tunnelId);
 		const attemptStart = Date.now();
-		const promise = (async () => {
-			let handle: { close(): void } | undefined;
-			const timer = options.userInitiated && cached ? setTimeout(() => {
-				handle = this._notificationService.notify({
-					severity: Severity.Info,
-					message: nls.localize('tunnelConnecting', "Connecting to tunnel '{0}'...", cached.name),
-					progress: { infinite: true },
-				});
-			}, 1000) : undefined;
+		let handle: { close(): void } | undefined;
+		const timer = options.userInitiated && cached ? setTimeout(() => {
+			handle = this._notificationService.notify({
+				severity: Severity.Info,
+				message: nls.localize('tunnelConnecting', "Connecting to tunnel '{0}'...", cached.name),
+				progress: { infinite: true },
+			});
+		}, 1000) : undefined;
 
-			try {
-				if (!cached || this._isHostedTunnel(cached)) {
-					return;
-				}
-				const tunnelInfo: ITunnelInfo = {
-					tunnelId: cached.tunnelId,
-					clusterId: cached.clusterId,
-					name: cached.name,
-					tags: [],
-					// Legacy cache fallback, not a real capability claim.
-					protocolVersion: cached.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
-					hostConnectionCount: 0,
-				};
-				await this._tunnelService.connect(tunnelInfo, cached.authProvider, { userInitiated: options.userInitiated });
-				logTunnelConnectAttempt(this._telemetryService, { isReconnect: false, attempt: 1, durationMs: Date.now() - attemptStart, success: true });
-				logTunnelConnectResolved(this._telemetryService, { isReconnect: false, totalAttempts: 1, totalDurationMs: Date.now() - attemptStart, success: true });
-			} catch (err) {
-				this._logService.warn(`[TunnelAgentHost] Connect to ${cached?.name ?? address} failed:`, err);
-				logTunnelConnectAttempt(this._telemetryService, { isReconnect: false, attempt: 1, durationMs: Date.now() - attemptStart, success: false, errorCategory: 'other' });
-				logTunnelConnectResolved(this._telemetryService, { isReconnect: false, totalAttempts: 1, totalDurationMs: Date.now() - attemptStart, success: false });
-				throw err;
-			} finally {
-				if (timer !== undefined) {
-					clearTimeout(timer);
-				}
-				handle?.close();
-				this._pendingConnects.delete(address);
-				this._updateConnectionStatuses();
+		try {
+			if (!cached || this._isHostedTunnel(cached)) {
+				return;
 			}
-		})();
+			const tunnelInfo: ITunnelInfo = {
+				tunnelId: cached.tunnelId,
+				clusterId: cached.clusterId,
+				name: cached.name,
+				tags: [],
+				// Legacy cache fallback, not a real capability claim.
+				protocolVersion: cached.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
+				hostConnectionCount: 0,
+			};
+			if (options.reconnect) {
+				await this._tunnelService.reconnect(tunnelInfo, cached.authProvider, { userInitiated: options.userInitiated });
+			} else {
+				await this._tunnelService.connect(tunnelInfo, cached.authProvider, { userInitiated: options.userInitiated });
+			}
+			logTunnelConnectAttempt(this._telemetryService, { isReconnect: options.reconnect, attempt: 1, durationMs: Date.now() - attemptStart, success: true });
+			logTunnelConnectResolved(this._telemetryService, { isReconnect: options.reconnect, totalAttempts: 1, totalDurationMs: Date.now() - attemptStart, success: true });
+		} catch (err) {
+			this._logService.warn(`[TunnelAgentHost] Connect to ${cached?.name ?? address} failed:`, err);
+			logTunnelConnectAttempt(this._telemetryService, { isReconnect: options.reconnect, attempt: 1, durationMs: Date.now() - attemptStart, success: false, errorCategory: 'other' });
+			logTunnelConnectResolved(this._telemetryService, { isReconnect: options.reconnect, totalAttempts: 1, totalDurationMs: Date.now() - attemptStart, success: false });
+			throw err;
+		} finally {
+			if (timer !== undefined) {
+				clearTimeout(timer);
+			}
+			handle?.close();
+		}
+	}
 
-		this._pendingConnects.set(address, promise);
-		return promise;
+	private _trackPendingConnection(address: string, pending: Promise<void>): void {
+		this._pendingConnects.set(address, pending);
+		void pending.then(
+			() => this._completePendingConnection(address, pending),
+			() => this._completePendingConnection(address, pending),
+		);
+	}
+
+	private _completePendingConnection(address: string, pending: Promise<void>): void {
+		if (this._pendingConnects.get(address) === pending) {
+			this._pendingConnects.delete(address);
+			this._updateConnectionStatuses();
+		}
 	}
 
 	/**

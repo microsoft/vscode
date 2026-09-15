@@ -8,7 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import type { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { ITunnelGatewayInventory } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -80,6 +80,73 @@ suite('TunnelAgentHostService discovery', () => {
 		const service = store.add(instantiationService.createInstance(TunnelAgentHostService));
 
 		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+	});
+
+	test('desktop tunnel connect ensures while reconnect explicitly replaces and refreshes metadata', async () => {
+		const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+			readonly ensureCalls: Array<{ address: string; userInitiated: boolean }> = [];
+			readonly reconnectCalls: Array<{ address: string; userInitiated: boolean }> = [];
+
+			override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
+				return { dispose() { } };
+			}
+
+			override ensureConnection(address: string, userInitiated = true): void {
+				this.ensureCalls.push({ address, userInitiated });
+			}
+
+			override reconnect(address: string, userInitiated = true): void {
+				this.reconnectCalls.push({ address, userInitiated });
+			}
+
+			override async waitForConnection(address: string) {
+				return { address, name: address, status: RemoteAgentHostConnectionStatus.connected };
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
+			override getChannel(): IChannel {
+				return new class extends mock<IChannel>() { }();
+			}
+		}());
+		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() { }());
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, new class extends mock<IRemoteAgentHostLocationPreferenceService>() { }());
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		const service = store.add(instantiationService.createInstance(TunnelAgentHostService));
+		const tunnel = {
+			tunnelId: 'tunnel-id',
+			clusterId: 'cluster-id',
+			name: 'Remote tunnel',
+			tags: ['vscode-server-launcher', 'protocolv6'],
+			protocolVersion: 6,
+			hostConnectionCount: 1,
+		};
+
+		await service.connect(tunnel, 'github', { userInitiated: true });
+		await service.reconnect({ ...tunnel, clusterId: 'updated-cluster', name: 'Updated tunnel' }, 'microsoft', { userInitiated: true });
+
+		assert.deepStrictEqual({
+			ensureCalls: remoteAgentHostService.ensureCalls,
+			reconnectCalls: remoteAgentHostService.reconnectCalls,
+			cached: service.getCachedTunnels(),
+		}, {
+			ensureCalls: [{ address: 'tunnel:tunnel-id', userInitiated: true }],
+			reconnectCalls: [{ address: 'tunnel:tunnel-id', userInitiated: true }],
+			cached: [{
+				tunnelId: 'tunnel-id',
+				clusterId: 'updated-cluster',
+				name: 'Updated tunnel',
+				protocolVersion: 6,
+				authProvider: 'microsoft',
+			}],
+		});
 	});
 });
 

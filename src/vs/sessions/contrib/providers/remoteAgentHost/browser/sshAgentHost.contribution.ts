@@ -8,7 +8,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { type IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, getEntryAddress, getEntryTypeConfig, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeReconnectDelay } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
-import { computeSSHConnectionKey, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -98,7 +98,8 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 		const connection = entry.connection;
 		const address = getEntryAddress(entry);
 		return {
-			connectOnDemand: () => this._connectSSHOnDemand(connection, entry.name, address),
+			connectOnDemand: () => this._ensureSSHOnDemand(address),
+			reconnectOnDemand: () => this._connectSSHOnDemand(connection, entry.name, address),
 			disconnectOnDemand: () => this._disconnectSSHOnDemand(connection),
 			preferenceKey: computeSSHConnectionKey({
 				sshConfigHost: connection.sshConfigHost,
@@ -109,21 +110,20 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 		};
 	}
 
+	private async _ensureSSHOnDemand(address: string): Promise<void> {
+		this._remoteAgentHostService.ensureConnection(address, true);
+		await this._remoteAgentHostService.waitForConnection(address);
+	}
+
 	private async _connectSSHOnDemand(connection: IRemoteAgentHostSSHConnection, name: string, address: string): Promise<void> {
 		const sshConfigHost = connection.sshConfigHost;
 		if (!sshConfigHost) {
 			const stopwatch = StopWatch.create(false);
 			try {
-				await this._sshService.connect({
-					host: connection.hostName,
-					port: connection.port,
-					username: connection.user ?? connection.hostName,
-					authMethod: SSHAuthMethod.Agent,
-					name,
-					userInitiated: true,
-				});
+				this._remoteAgentHostService.reconnect(address, true);
+				await this._remoteAgentHostService.waitForConnection(address);
 				logSSHConnectAttempt(this._telemetryService, {
-					operation: 'connect',
+					operation: 'reconnect',
 					userInitiated: true,
 					attempt: 1,
 					durationMs: stopwatch.elapsed(),
@@ -132,7 +132,7 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 				});
 			} catch (err) {
 				logSSHConnectAttempt(this._telemetryService, {
-					operation: 'connect',
+					operation: 'reconnect',
 					userInitiated: true,
 					attempt: 1,
 					durationMs: stopwatch.elapsed(),

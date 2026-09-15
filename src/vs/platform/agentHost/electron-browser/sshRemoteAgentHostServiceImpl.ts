@@ -40,6 +40,7 @@ import {
 	isSSHHostKeyDeniedError,
 	SSH_HOST_KEY_DENIED_ERROR_NAME,
 	SSHAuthMethod,
+	SSHConnectionMode,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
 	type ISSHConnectResult,
@@ -181,6 +182,10 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		return entry;
 	}
 
+	clearStagedConfiguration(address: string): void {
+		this._stagedConfigurations.delete(address);
+	}
+
 	getEntryForSSHConfigHost(sshConfigHost: string): IRemoteAgentHostEntry | undefined {
 		return readSSHRemoteAgentHostEntries(this._storageService).find(entry =>
 			entry.connection.type === RemoteAgentHostEntryType.SSH && entry.connection.sshConfigHost === sshConfigHost
@@ -193,15 +198,15 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		}
 
 		const stagedConfig = this._stagedConfigurations.get(entry.connection.address);
-		this._stagedConfigurations.delete(entry.connection.address);
 		let result;
 		try {
 			result = stagedConfig
-				? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }))
+				? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }), SSHConnectionMode.ReplaceConnection)
 				: entry.connection.sshConfigHost
 					? await this._mainService.reconnect(
 						entry.connection.sshConfigHost,
 						entry.name,
+						SSHConnectionMode.ReplaceConnection,
 						this._getRemoteAgentHostCommand(),
 						this._isSSHAgentForwardingEnabled(),
 						options.userInitiated,
@@ -214,7 +219,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 						authMethod: SSHAuthMethod.Agent,
 						name: entry.name,
 						userInitiated: options.userInitiated,
-					}));
+					}), SSHConnectionMode.ReplaceConnection);
 		} catch (error) {
 			// A refused host key is the user's decision, not a transient fault.
 			// Report it in the shared vocabulary for "do not retry" while keeping
@@ -248,25 +253,12 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			},
 		};
 		if (existing) {
-			if (this._remoteAgentHostService.getConnection(result.address)) {
-				this._logService.trace('[SSHRemoteAgentHost] Returning existing connection handle');
-				this.storeEntry(persistedEntry);
-				return {
-					connection: this._createRelayClient(result),
-					transportDisposable: this._createTransportDisposable(result.connectionId, existing, this._observeSuccessfulConnection(result, options.userInitiated)),
-					reconnectTransfersTransportOwnership: true,
-				};
-			}
-			this._logService.info(`[SSHRemoteAgentHost] Replacing stale connection handle for ${result.address}`);
-			this._connections.delete(result.connectionId);
-			// The main service retained the SSH client while replacing its relay.
-			// Marking this handle closed keeps disposal from disconnecting it.
-			existing.fireClose();
-			existing.dispose();
-			this._onDidChangeConnections();
+			await this._mainService.disconnect(result.connectionId);
+			throw new Error(`SSH shared process reused relay ${result.connectionId} while creating a fresh protocol client for ${result.address}.`);
 		}
 
 		const handle = new SSHAgentHostConnectionHandle(
+			result.connectionId,
 			result.config,
 			result.address,
 			result.name,
@@ -274,7 +266,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			result.instanceId,
 			result.primary,
 			result.lifecycle,
-			() => this._mainService.disconnect(result.connectionId),
+			connectionId => this._mainService.disconnect(connectionId),
 		);
 		try {
 			this._connections.set(result.connectionId, handle);
@@ -282,9 +274,8 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			this.storeEntry(persistedEntry);
 			const endpointSelectionObserver = this._observeSuccessfulConnection(result, options.userInitiated);
 			return {
-				connection: this._createRelayClient(result),
-				transportDisposable: this._createTransportDisposable(result.connectionId, handle, endpointSelectionObserver),
-				reconnectTransfersTransportOwnership: true,
+				connection: this._createRelayClient(result, handle),
+				transportDisposable: this._createTransportDisposable(handle, endpointSelectionObserver),
 			};
 		} catch (err) {
 			this._logService.error('[SSHRemoteAgentHost] Connection setup failed', err);
@@ -332,9 +323,10 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		}
 	}
 
-	private _createTransportDisposable(connectionId: string, handle: SSHAgentHostConnectionHandle, endpointSelectionObserver?: IDisposable): IDisposable {
+	private _createTransportDisposable(handle: SSHAgentHostConnectionHandle, endpointSelectionObserver?: IDisposable): IDisposable {
 		return toDisposable(() => {
 			endpointSelectionObserver?.dispose();
+			const connectionId = handle.connectionId;
 			if (this._connections.get(connectionId) === handle) {
 				this._connections.delete(connectionId);
 				this._onDidChangeConnections();
@@ -345,13 +337,19 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		});
 	}
 
-	private _createRelayClient(result: Pick<ISSHConnectResult, 'connectionId' | 'address' | 'name' | 'sshConfigHost'>): AgentHostProtocolClient {
+	private _createRelayClient(result: Pick<ISSHConnectResult, 'connectionId' | 'address' | 'name' | 'sshConfigHost'>, handle: SSHAgentHostConnectionHandle): AgentHostProtocolClient {
 		const reestablish = async (): Promise<IRelayConnectionHandle> => {
 			if (!result.sshConfigHost) {
 				throw new NonReconnectableTransportError('Cannot automatically reconnect an SSH connection without an SSH config host.');
 			}
 			const preferredAgentLocation = this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost: result.sshConfigHost }));
-			const reconnected = await this._mainService.reconnect(result.sshConfigHost, result.name, this._getRemoteAgentHostCommand(), this._isSSHAgentForwardingEnabled(), false, preferredAgentLocation);
+			const reconnected = await this._mainService.reconnect(result.sshConfigHost, result.name, SSHConnectionMode.ReplaceRelay, this._getRemoteAgentHostCommand(), this._isSSHAgentForwardingEnabled(), false, preferredAgentLocation);
+			if (this._connections.get(handle.connectionId) === handle) {
+				this._connections.delete(handle.connectionId);
+				handle.replaceConnectionId(reconnected.connectionId);
+				this._connections.set(handle.connectionId, handle);
+				this._onDidChangeConnections();
+			}
 			return { connectionId: reconnected.connectionId };
 		};
 		return this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address, reestablish);
@@ -473,21 +471,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			this._logService.info(`[SSHRemoteAgentHost] onDidCloseConnection: connectionId=${connectionId}`);
 			const handle = this._connections.get(connectionId);
 			if (handle) {
-				this._logService.info(`[SSHRemoteAgentHost] onDidCloseConnection: found handle for ${connectionId}, cleaning up`);
-				this._connections.delete(connectionId);
-				handle.fireClose();
-				handle.dispose();
-				this._onDidChangeConnections.fire();
-
-				// Defense-in-depth: also signal the protocol client directly. The
-				// ReconnectingRelayTransport normally observes `onDidRelayClose` (fired from
-				// the same shared-process code path as this event) and calls back
-				// into the client. If that IPC delivery is missed for any reason,
-				// the renderer-side client would stay in `Connected` until its
-				// liveness watchdog fires — which can take hours when the
-				// renderer is backgrounded and Chromium throttles `setTimeout`.
-				// Use the handle's address (e.g., "ssh:macbook-air") since
-				// RemoteAgentHostService keys its clients by address, not connectionId.
+				// Keep the logical handle while its protocol client restores the
+				// relay. The reestablish callback rekeys it to the new relay id.
 				this._logService.info(`[SSHRemoteAgentHost] onDidCloseConnection: notifying protocol client for ${handle.localAddress}`);
 				this._remoteAgentHostService.notifyConnectionClosed(handle.localAddress);
 			} else {
@@ -536,8 +521,12 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 		const entry = this._connectionFactory.stageConfiguration({ ...config, userInitiated: config.userInitiated ?? true });
 		const address = getEntryAddress(entry);
-		this._remoteAgentHostService.reconnect(address, true);
-		await this._remoteAgentHostService.waitForConnection(address);
+		this._remoteAgentHostService.ensureConnection(address, true);
+		try {
+			await this._remoteAgentHostService.waitForConnection(address);
+		} finally {
+			this._connectionFactory.clearStagedConfiguration(address);
+		}
 		return this._getConnectionHandle(address);
 	}
 
@@ -981,6 +970,7 @@ class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostCo
 	private _closedByMain = false;
 
 	constructor(
+		private _connectionId: string,
 		readonly config: ISSHAgentHostConnection['config'],
 		readonly localAddress: string,
 		readonly name: string,
@@ -988,7 +978,7 @@ class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostCo
 		readonly instanceId: ISSHAgentHostConnection['instanceId'],
 		readonly primary: ISSHAgentHostConnection['primary'],
 		readonly lifecycle: ISSHAgentHostConnection['lifecycle'],
-		disconnectFn: () => Promise<void>,
+		disconnectFn: (connectionId: string) => Promise<void>,
 	) {
 		super();
 
@@ -996,9 +986,17 @@ class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostCo
 		// (skip if already closed from the main process side)
 		this._register(toDisposable(() => {
 			if (!this._closedByMain) {
-				disconnectFn().catch(() => { /* best effort */ });
+				disconnectFn(this._connectionId).catch(() => { /* best effort */ });
 			}
 		}));
+	}
+
+	get connectionId(): string {
+		return this._connectionId;
+	}
+
+	replaceConnectionId(connectionId: string): void {
+		this._connectionId = connectionId;
 	}
 
 	/** Called by the service when the main process signals connection closure. */

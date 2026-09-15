@@ -38,6 +38,19 @@ export const enum SSHAuthMethod {
 	Password = 'password',
 }
 
+/**
+ * How the shared process handles an SSH connection already retained for the
+ * same stable connection key.
+ */
+export const enum SSHConnectionMode {
+	/** Return the retained relay unchanged. Only its existing protocol client may keep using it. */
+	Reuse = 'reuse',
+	/** Replace only the WebSocket relay while retaining the SSH client and selected endpoint. */
+	ReplaceRelay = 'replaceRelay',
+	/** Replace the full SSH connection and select an endpoint again. */
+	ReplaceConnection = 'replaceConnection',
+}
+
 export interface ISSHAgentHostConfig {
 	/** Remote hostname or IP. */
 	readonly host: string;
@@ -172,7 +185,8 @@ export interface ISSHRemoteAgentHostService {
 	 * 4. Creates a WebSocket relay over the SSH channel
 	 * 5. Waits for {@link IRemoteAgentHostService} to complete the protocol handshake
 	 *
-	 * Resolves with the connection handle once the agent host is reachable.
+	 * Resolves with the existing or newly established connection handle once
+	 * the agent host is reachable. Does not replace a live protocol client.
 	 */
 	connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection>;
 
@@ -204,8 +218,8 @@ export interface ISSHRemoteAgentHostService {
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
 	/**
-	 * Re-establish an SSH tunnel on startup for a previously connected host.
-	 * Resolves once the service-owned protocol connection is ready.
+	 * Explicitly replace the connection for a previously connected host.
+	 * Resolves once the new service-owned protocol connection is ready.
 	 *
 	 * @param userInitiated See {@link ISSHAgentHostConfig.userInitiated}.
 	 * Defaults to `true` (picker-eligible) when omitted; background/auto
@@ -560,7 +574,7 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult>;
+	connect(config: ISSHAgentHostConfig, mode: SSHConnectionMode): Promise<ISSHConnectResult>;
 
 	/**
 	 * Send a message to a remote agent host through the SSH relay.
@@ -598,5 +612,5 @@ export interface ISSHRemoteAgentHostMainService {
 	 * The renderer computes this from its stored preference for this host's
 	 * {@link computeSSHConnectionKey stable key} before calling reconnect.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, mode: SSHConnectionMode, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
 }

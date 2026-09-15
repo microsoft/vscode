@@ -50,8 +50,14 @@ The remote Agent Host service owns protocol connection construction, handshake c
 
 `RemoteAgentHostContribution` owns the workbench integration for a live connection: remote filesystem browsing, agent and model discovery, terminals, authentication, and connection-scoped listener disposal.
 
-Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
-their context by address, request an explicit reconnect, and wait for the service to report the connection.
+Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. Ordinary
+open and ensure operations retain the protocol client for any live transport, including one that is still
+connecting, reconnecting, or retained after an incompatible handshake. Explicit recovery and preferred-location
+changes replace the connection, serializing behind an in-flight attempt when necessary.
+
+Every connection factory invocation constructs a new protocol client over a fresh, uninitialized transport.
+If a lower process retains a relay for the same address, the factory must explicitly replace it before returning.
+A retained relay may be reused only by the protocol client that already owns its initialized lifecycle.
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
