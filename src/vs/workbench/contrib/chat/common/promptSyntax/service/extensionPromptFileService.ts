@@ -249,6 +249,10 @@ export class ExtensionPromptFileService extends Disposable {
 		}
 
 		for (const providerEntry of providers) {
+			if (token.isCancellationRequested) {
+				break;
+			}
+
 			try {
 				const files = await providerEntry.providePromptFiles({}, token);
 				this._providerWhenClauses.set(providerEntry, files?.flatMap(file => file.when ? [file.when] : []) ?? []);
@@ -272,9 +276,10 @@ export class ExtensionPromptFileService extends Disposable {
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
-				if (!isCancellationError(e)) {
-					this.logger.error(`[listFromProviders] Failed to get ${type} files from provider`, e instanceof Error ? e.message : String(e));
+				if (token.isCancellationRequested || isCancellationError(e)) {
+					break;
 				}
+				this.logger.error(`[listFromProviders] Failed to get ${type} files from provider`, e instanceof Error ? e.message : String(e));
 			}
 		}
 

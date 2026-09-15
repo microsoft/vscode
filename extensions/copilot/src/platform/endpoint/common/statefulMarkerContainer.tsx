@@ -6,6 +6,11 @@
 import { BasePromptElementProps, PromptElement, Raw } from '@vscode/prompt-tsx';
 import { CustomDataPartMimeTypes } from './endpointTypes';
 
+export const MISSING_STATEFUL_TOOL_RESULT = JSON.stringify({
+	status: 'outcome_unknown',
+	message: 'No tool output was recorded. Verify the current state before retrying this tool if its result is still needed.',
+});
+
 /**
  * A type representing a stateful marker that can be stored in an opaque part in raw chat messages.
  */

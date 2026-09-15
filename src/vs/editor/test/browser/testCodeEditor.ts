@@ -5,6 +5,8 @@
 
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { mock } from '../../../base/test/common/mock.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { EditorConfiguration } from '../../browser/config/editorConfiguration.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../browser/editorBrowser.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
@@ -223,6 +225,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(IClipboardService, TestClipboardService);
 	define(IEditorWorkerService, TestEditorWorkerService);
 	defineInstance(IOpenerService, NullOpenerService);
+	defineInstance(IHoverService, NullHoverService);
 	define(INotificationService, TestNotificationService);
 	define(IDialogService, TestDialogService);
 	define(IUndoRedoService, UndoRedoService);

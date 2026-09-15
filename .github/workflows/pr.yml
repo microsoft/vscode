@@ -23,12 +23,12 @@ jobs:
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -61,6 +61,9 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare Electron types
+        run: node build/npm/electronTypes.ts
+
       - name: Type check /build/ scripts
         run: npm run typecheck
         working-directory: build
@@ -71,7 +74,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -110,12 +113,22 @@ jobs:
       job_name: CLI
       rustup_toolchain: 1.88
 
+  linux-electron-unit-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   linux-electron-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   linux-electron-smoke-tests:
@@ -124,7 +137,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   linux-browser-tests:
     name: Linux
@@ -140,12 +154,22 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  macos-electron-unit-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   macos-electron-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   macos-electron-smoke-tests:
@@ -154,7 +178,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   macos-browser-tests:
     name: macOS
@@ -170,12 +195,22 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  windows-electron-unit-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   windows-electron-tests:
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   windows-electron-smoke-tests:
@@ -184,7 +219,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   windows-browser-tests:
     name: Windows
@@ -208,11 +244,11 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -252,11 +288,11 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -271,17 +307,17 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           architecture: 'x64'
@@ -365,17 +401,17 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           architecture: 'x64'
@@ -403,14 +439,6 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
         run: npm ci
-
-      - name: TypeScript type checking
-        working-directory: extensions/copilot
-        run: npm run typecheck
-
-      - name: Lint
-        working-directory: extensions/copilot
-        run: npm run lint
 
       - name: Compile
         working-directory: extensions/copilot

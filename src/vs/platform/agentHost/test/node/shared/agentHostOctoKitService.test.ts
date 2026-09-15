@@ -55,6 +55,75 @@ function jsonResponse(body: unknown, status = 200): Response {
 suite('AgentHostOctoKitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('getRepositoryMergeCapabilities reads merge flags with the repository credential and cancellation signal', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse({
+			allow_auto_merge: true,
+			allow_merge_commit: false,
+			allow_squash_merge: true,
+			allow_rebase_merge: true,
+		}));
+		const service = makeService(fetch, 'https://github.enterprise.example');
+		const abortSignal = signal();
+
+		const capabilities = await service.getRepositoryMergeCapabilities('owner', 'repo', 'gh-token', abortSignal);
+
+		assert.deepStrictEqual({
+			capabilities,
+			url: captured().url,
+			method: captured().init?.method,
+			headers: captured().init?.headers,
+			body: captured().init?.body,
+			signal: captured().init?.signal,
+		}, {
+			capabilities: { autoMergeAllowed: true, mergeMethods: ['SQUASH', 'REBASE'] },
+			url: 'https://github.enterprise.example/api/v3/repos/owner/repo',
+			method: 'GET',
+			headers: {
+				Accept: 'application/vnd.github+json',
+				Authorization: 'Bearer gh-token',
+				'X-GitHub-Api-Version': '2022-11-28',
+			},
+			body: undefined,
+			signal: abortSignal,
+		});
+	});
+
+	for (const allowed of [false, true]) {
+		test(`getRepositoryMergeCapabilities reports explicit ${allowed} flags`, async () => {
+			const { fetch } = capturingFetch(jsonResponse({
+				allow_auto_merge: allowed,
+				allow_merge_commit: allowed,
+				allow_squash_merge: allowed,
+				allow_rebase_merge: allowed,
+			}));
+
+			assert.deepStrictEqual(await makeService(fetch).getRepositoryMergeCapabilities('o', 'r', 'token', signal()), {
+				autoMergeAllowed: allowed,
+				mergeMethods: allowed ? ['MERGE', 'SQUASH', 'REBASE'] : [],
+			});
+		});
+	}
+
+	for (const [name, value] of [
+		['null', null],
+		['missing flags', {}],
+		['missing auto-merge flag', { allow_merge_commit: true, allow_squash_merge: true, allow_rebase_merge: true }],
+		['invalid auto-merge flag', { allow_auto_merge: 'true', allow_merge_commit: true, allow_squash_merge: true, allow_rebase_merge: true }],
+		['invalid merge flag', { allow_auto_merge: true, allow_merge_commit: null, allow_squash_merge: true, allow_rebase_merge: true }],
+		['invalid squash flag', { allow_auto_merge: true, allow_merge_commit: true, allow_squash_merge: 1, allow_rebase_merge: true }],
+		['invalid rebase flag', { allow_auto_merge: true, allow_merge_commit: true, allow_squash_merge: true, allow_rebase_merge: {} }],
+	] as const) {
+		test(`getRepositoryMergeCapabilities rejects ${name}`, async () => {
+			const { fetch } = capturingFetch(jsonResponse(value));
+			await assert.rejects(() => makeService(fetch).getRepositoryMergeCapabilities('o', 'r', 'token', signal()), /Failed to fetch repository merge capabilities/);
+		});
+	}
+
+	test('getRepositoryMergeCapabilities propagates GitHub failures', async () => {
+		const { fetch } = capturingFetch(jsonResponse({ message: 'Forbidden' }, 403));
+		await assert.rejects(() => makeService(fetch).getRepositoryMergeCapabilities('o', 'r', 'token', signal()), /403.*Forbidden/);
+	});
+
 	test('createPullRequest posts the expected request and parses the response', async () => {
 		const { fetch, captured } = capturingFetch(jsonResponse({ html_url: 'https://github.com/o/r/pull/42', number: 42, node_id: 'PR_node_42' }));
 		const service = makeService(fetch);
@@ -126,6 +195,53 @@ suite('AgentHostOctoKitService', () => {
 		assert.strictEqual(captured().url, 'https://api.github.com/repos/o/r/pulls?head=fork-owner%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1');
 	});
 
+	test('findPullRequestByHeadBranch considers only allowed pull requests and prefers an open candidate', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/8', number: 8, state: 'open' },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'closed' },
+			{ html_url: 'https://github.com/o/r/pull/7', number: 7, state: 'open' },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadBranch(
+			'o',
+			'r',
+			'feature/test',
+			'tok',
+			signal(),
+			undefined,
+			['https://github.com/o/r/pull/9', 'https://github.com/o/r/pull/7'],
+		);
+
+		assert.deepStrictEqual({
+			result,
+			url: captured().url,
+		}, {
+			result: { url: 'https://github.com/o/r/pull/7', number: 7, nodeId: undefined, state: 'open' },
+			url: 'https://api.github.com/repos/o/r/pulls?head=o%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=100',
+		});
+	});
+
+	test('findPullRequestByHeadBranch uses allowed URL order when candidates have the same state', async () => {
+		const { fetch } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/7', number: 7, state: 'open' },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'open' },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadBranch(
+			'o',
+			'r',
+			'feature/test',
+			'tok',
+			signal(),
+			undefined,
+			['https://github.com/o/r/pull/9', 'https://github.com/o/r/pull/7'],
+		);
+
+		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined, state: 'open' });
+	});
+
 	test('findPullRequestByHeadSha returns the pull request whose head is the commit', async () => {
 		// Pull request 1 only contains the commit; 9 has it as its head.
 		const { fetch, captured } = capturingFetch(jsonResponse([
@@ -141,10 +257,22 @@ suite('AgentHostOctoKitService', () => {
 			url: captured().url,
 			method: captured().init?.method,
 		}, {
-			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9', state: 'open' },
 			url: 'https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100',
 			method: 'GET',
 		});
+	});
+
+	test('findPullRequestByHeadSha uses allowed pull requests to disambiguate branches at the same commit', async () => {
+		const { fetch } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/7', number: 7, state: 'open', head: { sha: 'bbb' } },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'open', head: { sha: 'bbb' } },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal(), ['https://github.com/o/r/pull/9']);
+
+		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined, state: 'open' });
 	});
 
 	test('findPullRequestByHeadSha treats an unpushed commit as no pull request', async () => {

@@ -8,24 +8,27 @@
  */
 
 import assert from 'assert';
-import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ActionType } from '../../../common/state/sessionActions.js';
-import { AgentHostCodexEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { ActionType, type RootAgentsChangedAction } from '../../../common/state/sessionActions.js';
+import { AgentHostCodexEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../common/agent.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 
 const AGENT_MARKER = 'CODEX_CUSTOM_AGENT_INSTRUCTION_MARKER';
+const WORKSPACE_AGENT_MARKER = 'CODEX_WORKSPACE_AGENT_INSTRUCTION_MARKER';
 const RULE_MARKER = 'CODEX_PLUGIN_RULE_MARKER';
 const SKILL_MARKER = 'CODEX_PLUGIN_SKILL_DESCRIPTION_MARKER';
 const MCP_MARKER = 'CODEX_PLUGIN_MCP_TOOL_MARKER';
+const HOOK_MARKER = 'CODEX_WORKSPACE_HOOK_MARKER';
 const nodeRequire = createRequire(import.meta.url);
 
 interface ICapturedRequest {
@@ -40,10 +43,29 @@ function developerInputText(body: unknown): string {
 		: '';
 }
 
-async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: string, pluginUri: string): Promise<PluginCustomization> {
-	const deadline = Date.now() + 60_000;
-	let lastPlugin: PluginCustomization | undefined;
+function quotePosixShellArgument(value: string): string {
+	return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function quotePowerShellArgument(value: string): string {
+	return `'${value.replace(/'/g, `''`)}'`;
+}
+
+async function waitForValue<T>(probe: () => Promise<T | undefined>, timeout: number, timeoutMessage: () => string): Promise<T> {
+	const deadline = Date.now() + timeout;
 	while (Date.now() < deadline) {
+		const value = await probe();
+		if (value !== undefined) {
+			return value;
+		}
+		await new Promise<void>(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error(timeoutMessage());
+}
+
+async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: string, pluginUri: string): Promise<PluginCustomization> {
+	let lastPlugin: PluginCustomization | undefined;
+	return waitForValue(async () => {
 		const session = await fetchSessionWithChat(client, sessionUri);
 		const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
 			customization.type === CustomizationType.Plugin
@@ -55,15 +77,40 @@ async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: strin
 			&& plugin.children?.some((child): child is McpServerCustomization => child.type === CustomizationType.McpServer) === true) {
 			return plugin;
 		}
-		await new Promise<void>(resolve => setTimeout(resolve, 100));
-	}
-	throw new Error(`Timed out waiting for parsed plugin ${pluginUri}; last state: ${JSON.stringify(lastPlugin)}`);
+		return undefined;
+	}, 60_000, () => `Timed out waiting for parsed plugin ${pluginUri}; last state: ${JSON.stringify(lastPlugin)}`);
+}
+
+async function waitForWorkspaceAgent(client: TestProtocolClient, sessionUri: string, agentUri: string): Promise<DirectoryCustomization> {
+	return waitForValue(async () => {
+		const session = await fetchSessionWithChat(client, sessionUri);
+		const directory = session.customizations?.find((customization): customization is DirectoryCustomization =>
+			customization.type === CustomizationType.Directory
+			&& customization.contents === CustomizationType.Agent
+			&& customization.children?.some(child => child.type === CustomizationType.Agent && child.uri === agentUri) === true
+		);
+		return directory;
+	}, 60_000, () => `Timed out waiting for workspace agent ${agentUri}`);
+}
+
+async function waitForFileContents(path: string, timeout: number): Promise<string> {
+	return waitForValue(async () => {
+		try {
+			return await readFile(path, 'utf8');
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+				throw error;
+			}
+			return undefined;
+		}
+	}, timeout, () => `Timed out waiting for ${path}`);
 }
 
 suite('Agent Host Provider Integration — Codex Customizations', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let userHomeDir: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
@@ -72,11 +119,22 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		if (!CODEX_SDK_ROOT) {
 			this.skip();
 		}
-		server = await startRealServer({ mockLlm: true, codexSdkRoot: CODEX_SDK_ROOT });
+		userHomeDir = await mkdtemp(join(tmpdir(), 'codex-customizations-home-'));
+		const codexHomeDir = join(userHomeDir, '.codex');
+		await mkdir(codexHomeDir, { recursive: true });
+		server = await startRealServer({
+			mockLlm: true,
+			codexSdkRoot: CODEX_SDK_ROOT,
+			codexHomeDir,
+			homeDir: userHomeDir,
+			userDataDir: join(userHomeDir, 'user-data'),
+		});
 	});
 
-	suiteTeardown(function () {
-		server?.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(60_000);
+		await stopServer(server);
+		await rm(userHomeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	});
 
 	setup(async function () {
@@ -179,7 +237,6 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			uri: pluginUri as ProtocolURI,
 			name: 'Codex Customizations Test Plugin',
 			nonce: '1',
-			enabled: true,
 		};
 
 		const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
@@ -226,6 +283,10 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
 			120_000,
 		);
+		const rolloutRoot = join(userHomeDir, '.codex', 'sessions');
+		const rolloutFiles = (await readdir(rolloutRoot, { recursive: true })).filter(file => file.endsWith('.jsonl'));
+		const rolloutContents = await Promise.all(rolloutFiles.map(file => readFile(join(rolloutRoot, file), 'utf8')));
+		assert.ok(rolloutContents.some(content => content.includes('CODEX_CUSTOMIZATIONS_OK')), 'Codex test rollouts must be written under the isolated test home');
 
 		const requests = (server.mockLlm?.getRequests?.() ?? []) as readonly ICapturedRequest[];
 		const responsesRequest = [...requests].reverse().find(request => request.path.includes('/responses'));
@@ -238,15 +299,186 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		assert.ok(requestText.includes(MCP_MARKER), 'plugin MCP tools must be advertised in the Codex model request');
 	});
 
+	test('workspace agent is exposed and selected without client customization sync', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-workspace-agent-'));
+		tempDirs.push(workspaceDir);
+		const agentsDir = join(workspaceDir, '.github', 'agents');
+		const agentFile = join(agentsDir, 'workspace-reviewer.agent.md');
+		const agentUri = URI.file(agentFile).toString();
+		await mkdir(agentsDir, { recursive: true });
+		await writeFile(agentFile, [
+			'---',
+			'name: Workspace Reviewer',
+			'description: Reviews this workspace.',
+			'---',
+			`Always follow ${WORKSPACE_AGENT_MARKER}.`,
+		].join('\n'));
+
+		const clientId = 'codex-workspace-agent-client';
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
+		const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
+		await client.call('createSession', {
+			channel: sessionUri,
+			provider: 'codex',
+			workingDirectories: [URI.file(workspaceDir).toString()],
+			config: { isolation: 'folder' },
+			activeClient: { clientId, tools: [], customizations: [] },
+		}, 30_000);
+		createdSessions.push(sessionUri);
+		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		client.clearReceived();
+
+		const directory = await waitForWorkspaceAgent(client, sessionUri, agentUri);
+		assert.deepStrictEqual(directory.children?.map(child => ({ type: child.type, name: child.name, uri: child.uri })), [{
+			type: CustomizationType.Agent,
+			name: 'Workspace Reviewer',
+			uri: agentUri,
+		}]);
+
+		const turnId = 'turn-codex-workspace-agent';
+		client.dispatch({
+			channel: buildDefaultChatUri(sessionUri),
+			clientSeq: 1,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2026-08-13T00:00:00.000Z',
+				message: {
+					text: 'Reply with exactly CODEX_WORKSPACE_AGENT_OK.',
+					origin: { kind: MessageKind.User },
+					agent: { uri: agentUri },
+				},
+			},
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, 'chat/turnComplete')
+			&& getActionEnvelope(notification).channel === buildDefaultChatUri(sessionUri)
+			&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
+			120_000,
+		);
+
+		const requests = (server.mockLlm?.getRequests?.() ?? []) as readonly ICapturedRequest[];
+		const responsesRequest = [...requests].reverse().find(request => request.path.includes('/responses'));
+		assert.ok(responsesRequest, `expected a Codex /responses request; got paths: ${requests.map(request => request.path).join(', ')}`);
+		assert.ok(developerInputText(responsesRequest.body).includes(WORKSPACE_AGENT_MARKER), 'selected workspace-agent instructions must reach the Codex developer message');
+	});
+
+	for (const trusted of [true, false]) {
+		test(`workspace SessionStart hook obeys Workspace Trust (${trusted ? 'trusted' : 'untrusted'})`, async function () {
+			this.timeout(180_000);
+
+			const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-workspace-hook-'));
+			tempDirs.push(workspaceDir);
+			const hooksDir = join(workspaceDir, '.codex');
+			const markerFile = join(workspaceDir, 'hook-marker.txt');
+			await mkdir(hooksDir, { recursive: true });
+			await writeFile(join(hooksDir, 'hooks.json'), JSON.stringify({
+				description: 'Agent Host thread-scoped hook trust integration test.',
+				hooks: {
+					SessionStart: [{
+						hooks: [{
+							type: 'command',
+							command: `printf %s ${quotePosixShellArgument(HOOK_MARKER)} > ${quotePosixShellArgument(markerFile)}`,
+							commandWindows: `Set-Content -LiteralPath ${quotePowerShellArgument(markerFile)} -Value ${quotePowerShellArgument(HOOK_MARKER)} -NoNewline`,
+							statusMessage: 'Running workspace hook integration test',
+							timeout: 5,
+						}],
+					}],
+				},
+			}));
+
+			const clientId = 'codex-workspace-hook-client';
+			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+			client.dispatch({
+				channel: ROOT_STATE_URI,
+				clientSeq: 1,
+				action: {
+					type: ActionType.RootConfigChanged, config: {
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: trusted ? [URI.file(workspaceDir).toString()] : [] },
+					}
+				},
+			});
+			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
+			const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
+			await client.call('createSession', {
+				channel: sessionUri,
+				provider: 'codex',
+				workingDirectories: [URI.file(workspaceDir).toString()],
+				config: { isolation: 'folder', [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } },
+				activeClient: { clientId, tools: [], customizations: [] },
+			}, 30_000);
+			createdSessions.push(sessionUri);
+			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			client.clearReceived();
+
+			const turnId = 'turn-codex-workspace-hook';
+			client.dispatch({
+				channel: buildDefaultChatUri(sessionUri),
+				clientSeq: 2,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: '2026-09-02T00:00:00.000Z',
+					message: {
+						text: 'Reply with exactly CODEX_WORKSPACE_HOOK_OK.',
+						origin: { kind: MessageKind.User },
+					},
+				},
+			});
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, 'chat/turnComplete')
+				&& getActionEnvelope(notification).channel === buildDefaultChatUri(sessionUri)
+				&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
+				120_000,
+			);
+
+			let marker: string | undefined;
+			if (trusted) {
+				marker = await waitForFileContents(markerFile, 30_000);
+			} else {
+				await assert.rejects(readFile(markerFile), { code: 'ENOENT' });
+			}
+			let codexConfig = '';
+			try {
+				codexConfig = await readFile(join(userHomeDir, '.codex', 'config.toml'), 'utf8');
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+					throw error;
+				}
+			}
+			assert.deepStrictEqual({
+				marker,
+				persistedHookTrust: codexConfig.includes('trusted_hash') || codexConfig.includes('.codex/hooks.json'),
+			}, {
+				marker: trusted ? HOOK_MARKER : undefined,
+				persistedHookTrust: false,
+			});
+		});
+	}
+
 	test('standalone host registers Codex after runtime enablement', async function () {
 		this.timeout(120_000);
-		const runtimeServer = await startRealServer({ mockLlm: true, codexSdkRoot: CODEX_SDK_ROOT, codexAgentEnabled: false });
-		const runtimeClient = new TestProtocolClient(runtimeServer.port);
+		const runtimeHomeDir = await mkdtemp(join(tmpdir(), 'codex-runtime-enablement-home-'));
 		const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-runtime-enablement-'));
+		const runtimeCodexHomeDir = join(runtimeHomeDir, '.codex');
+		await mkdir(runtimeCodexHomeDir, { recursive: true });
+		const runtimeServer = await startRealServer({
+			mockLlm: true,
+			codexSdkRoot: CODEX_SDK_ROOT,
+			codexHomeDir: runtimeCodexHomeDir,
+			codexAgentEnabled: false,
+			homeDir: runtimeHomeDir,
+			userDataDir: join(runtimeHomeDir, 'user-data'),
+		});
+		const runtimeClient = new TestProtocolClient(runtimeServer.port);
 		try {
 			await runtimeClient.connect();
 			await runtimeClient.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'codex-runtime-enablement-client' }, 30_000);
-			await runtimeClient.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
 			await runtimeClient.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 			runtimeClient.clearReceived();
 			runtimeClient.dispatch({
@@ -259,6 +491,12 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 				&& (getActionEnvelope(notification).action as { readonly config?: Readonly<Record<string, boolean>> }).config?.[AgentHostCodexEnabledConfigKey] === true,
 				30_000,
 			);
+			await runtimeClient.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.RootAgentsChanged)
+				&& (getActionEnvelope(notification).action as RootAgentsChangedAction).agents.some(agent => agent.provider === 'codex'),
+				30_000,
+			);
+			await runtimeClient.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'not-a-real-token' }, 30_000);
 
 			const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
 			await runtimeClient.call('createSession', {
@@ -269,9 +507,11 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			}, 30_000);
 		} finally {
 			runtimeClient.close();
-			runtimeServer.process.kill();
-			await runtimeServer.mockLlm?.close();
-			await rm(workspaceDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+			await stopServer(runtimeServer);
+			await Promise.all([
+				rm(runtimeHomeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+				rm(workspaceDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+			]);
 		}
 	});
 });

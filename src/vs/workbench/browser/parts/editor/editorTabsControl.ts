@@ -119,8 +119,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private readonly editorActionsDisposables = this._register(new DisposableStore());
 	/** Whether the editor-actions toolbar currently has any actions (drives the layout-actions separator). */
 	private editorActionsToolbarHasActions = false;
-	private addTabControlHasActions = false;
-	private addTabControlHasTrailingSeparator = false;
 
 	protected editorLayoutActionsSeparator: HTMLElement | undefined;
 	protected editorLayoutActionsToolbarContainer: HTMLElement | undefined;
@@ -154,6 +152,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		protected readonly tabsModel: IReadonlyEditorGroupModel,
 		protected readonly menuIds: IEditorGroupMenuIds | undefined,
 		protected readonly breadcrumbsInHeader: boolean,
+		protected readonly useModernUITabs: boolean,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -162,7 +161,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IHostService private readonly hostService: IHostService,
+		@IHostService protected readonly hostService: IHostService,
 		@IMenuService protected readonly menuService: IMenuService,
 	) {
 		super(themeService);
@@ -195,6 +194,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
+		this.updateTabActionSpaceReservation();
 		return parent;
 	}
 
@@ -218,10 +218,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
 	}
 
-	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, trailingSeparator = false): HTMLElement {
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement): HTMLElement {
 		const container = $('.tabs-bar-add-tab');
 		parent.insertBefore(container, before ?? null);
-		this.addTabControlHasTrailingSeparator = trailingSeparator;
 
 		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
 		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
@@ -237,15 +236,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}));
 		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
-			trailingSeparator,
 			actionViewItemProvider: action => action === addTabAction ? dropdown : undefined
 		}));
 		toolbar.setActions([addTabAction]);
 
 		const updateVisibility = () => {
-			this.addTabControlHasActions = getActions().length > 0;
-			container.classList.toggle('hidden', !this.addTabControlHasActions);
-			this.updateEditorLayoutActionsSeparator();
+			container.classList.toggle('hidden', getActions().length === 0);
 		};
 		updateVisibility();
 		this._register(menu.onDidChange(updateVisibility));
@@ -256,7 +252,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private updateEditorLayoutActionsSeparator(): void {
 		const hasLayoutActions = (this.editorLayoutActionsToolbar?.getItemsLength() ?? 0) > 0;
 		if (this.editorLayoutActionsSeparator) {
-			setVisibility(hasLayoutActions && !this.addTabControlHasTrailingSeparator && (this.editorActionsToolbarHasActions || this.addTabControlHasActions), this.editorLayoutActionsSeparator);
+			setVisibility(hasLayoutActions
+				&& this.editorActionsToolbarHasActions, this.editorLayoutActionsSeparator);
 		}
 	}
 
@@ -629,9 +626,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// In modern multi-tab mode the tabs-and-actions-container gains extra
 		// padding (tabs.css), so the total height differs from the base values.
 		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
-		// and no-tab modes are not affected by those CSS overrides.
-		if (this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs')) {
-			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+		// hosts using modern UI tabs opt into the same aligned height.
+		const usesModernMultiTabHeight = this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs');
+		if (usesModernMultiTabHeight || this.useModernUITabs) {
+			const height = isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+			// Connected tabs reserve one extra pixel for the separator below the gutter.
+			return height + (usesModernMultiTabHeight && this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs') ? 1 : 0);
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}
@@ -650,10 +650,16 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateTabHeight(): void {
+		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
 		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
 		// Signal compact mode via a CSS class so the modern tab rules in tabs.css
 		// can apply a proportionally smaller --editor-group-tab-height value.
-		this.parent.classList.toggle('compact-height', this.groupsView.partOptions.tabHeight === 'compact');
+		this.parent.classList.toggle('compact-height', isCompact);
+		this.parent.parentElement?.classList.toggle('editor-tabs-compact-height', isCompact);
+	}
+
+	private updateTabActionSpaceReservation(): void {
+		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -661,6 +667,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTabHeight();
+		}
+
+		if (oldOptions.tabActionReserveSpace !== newOptions.tabActionReserveSpace) {
+			this.updateTabActionSpaceReservation();
 		}
 
 		// Update Editor Actions Toolbar

@@ -9,8 +9,6 @@ exchanges:
           content: Read the attached resource and reply with only its exact contents.
     response:
       content:
-        - type: text
-          text: I'll read the file.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -25,8 +23,6 @@ exchanges:
           content: Read the attached resource and reply with only its exact contents.
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file.
             - type: tool_use
               name: Read
               input:

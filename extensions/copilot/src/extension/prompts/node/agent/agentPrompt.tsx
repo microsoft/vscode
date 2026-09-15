@@ -48,7 +48,6 @@ import { AgentConversationHistory, AgentUserMessageInHistory } from './agentConv
 import './allAgentPrompts';
 import { AlternateGPTPrompt, DefaultReminderInstructions, DefaultToolReferencesHint, ReminderInstructionsProps, ToolReferencesHintProps } from './defaultAgentInstructions';
 import { AgentPromptCustomizations, ReminderInstructionsConstructor, ToolReferencesHintConstructor } from './promptRegistry';
-import { PreferSemanticSearchInstructions } from './semanticSearchInstructions';
 import { SummarizedConversationHistory } from './summarizedConversationHistory';
 import { DeferredToolListReminder } from './toolSearchInstructions';
 
@@ -117,8 +116,6 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 
 		const omitBaseAgentInstructions = this.configurationService.getConfig(ConfigKey.Advanced.OmitBaseAgentInstructions);
 		const hasMemoryTool = !!this.props.promptContext.tools?.availableTools?.find(tool => tool.name === ToolName.Memory);
-		const hasSemanticSearchTool = !!this.props.promptContext.tools?.availableTools?.find(tool => tool.name === ToolName.Codebase);
-		const preferSemanticSearch = hasSemanticSearchTool && this.configurationService.getExperimentBasedConfig(ConfigKey.SemanticSearchToolMode, this.experimentationService) === 'preferred';
 		const baseAgentInstructions = <>
 			<SystemMessage>
 				You are an expert AI programming assistant, working with a user in the VS Code editor.<br />
@@ -126,9 +123,6 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 				<SafetyRules />
 			</SystemMessage>
 			{instructions}
-			{preferSemanticSearch && <SystemMessage>
-				<PreferSemanticSearchInstructions availableTools={this.props.promptContext.tools?.availableTools} />
-			</SystemMessage>}
 			{hasMemoryTool && <SystemMessage>
 				<MemoryInstructionsPrompt />
 			</SystemMessage>}

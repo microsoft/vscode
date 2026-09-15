@@ -20,6 +20,7 @@ const providers = {
 	enterprise: { name: 'GHE' },
 	google: { name: 'Google' },
 	apple: { name: 'Apple' },
+	microsoft: { name: 'Microsoft' },
 };
 
 const footerContent = {
@@ -32,15 +33,23 @@ const footerContent = {
 export default defineThemedFixtureGroup({ path: 'sessions/signInDialog/' }, {
 	SignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderSignInDialog(context, false, true),
+		render: context => renderSignInDialog(context, false, true, true),
 	}),
 	SignInWithEditorWindowOpen: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderSignInDialog(context, false, false),
+		render: context => renderSignInDialog(context, false, false, true),
+	}),
+	SignInRequired: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderSignInDialog(context, false, true, false),
 	}),
 	EnterpriseSignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderSignInDialog(context, true, true),
+		render: context => renderSignInDialog(context, true, true, true),
+	}),
+	SignInWithMicrosoft: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderSignInDialog(context, false, true, true, true),
 	}),
 	SigningIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -48,12 +57,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/signInDialog/' }, {
 	}),
 });
 
-function renderSignInDialog(context: ComponentFixtureContext, enterpriseAuthentication: boolean, showReturnToVSCodeEditor: boolean): void {
+function renderSignInDialog(context: ComponentFixtureContext, enterpriseAuthentication: boolean, showReturnToVSCodeEditor: boolean, allowContinueWithoutSignIn: boolean, showMicrosoftProvider = false): void {
 	const instantiationService = createDialogServices(context);
-	const presentation = createSessionsSignInDialogOptions(instantiationService.get(ICommandService), showReturnToVSCodeEditor);
+	const presentation = createSessionsSignInDialogOptions(instantiationService.get(ICommandService), showReturnToVSCodeEditor, allowContinueWithoutSignIn);
 	const dialog = context.disposableStore.add(instantiationService.createInstance(ChatSetupDialog, context.container, {
 		title: presentation.dialogTitle,
-		buttons: getChatSetupDialogButtons(ChatEntitlement.Unknown, presentation, enterpriseAuthentication, providers),
+		buttons: getChatSetupDialogButtons(ChatEntitlement.Unknown, presentation, enterpriseAuthentication, showMicrosoftProvider, providers),
 		icon: presentation.dialogIcon,
 		disableCloseButton: presentation.disableCloseButton,
 		footer: getChatSetupDialogFooter(undefined, TelemetryLevel.USAGE, 'https://github.com/settings/copilot/features', footerContent),

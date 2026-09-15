@@ -5,12 +5,16 @@
 
 import * as l10n from '@vscode/l10n';
 import { createServiceIdentifier } from '../../../util/common/services';
+import { Limiter } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { URI } from '../../../util/vs/base/common/uri';
 
 export const HAS_IGNORED_FILES_MESSAGE = l10n.t('\n\n**Note:** Some files were excluded from the context due to content exclusion rules. Click [here](https://docs.github.com/en/copilot/managing-github-copilot-in-your-organization/configuring-content-exclusions-for-github-copilot) to learn more.');
 
 export const IIgnoreService = createServiceIdentifier<IIgnoreService>('IIgnoreService');
+
+/** How many exclusion checks may run at once when filtering a batch of search results. */
+const IGNORE_CHECK_CONCURRENCY = 20;
 
 export interface IIgnoreService {
 
@@ -29,7 +33,7 @@ export interface IIgnoreService {
 
 	init(): Promise<void>;
 
-	isCopilotIgnored(file: URI, token?: CancellationToken): Promise<boolean>;
+	isCopilotIgnored(file: URI, token?: CancellationToken, contents?: string): Promise<boolean>;
 
 	asMinimatchPattern(): Promise<string | undefined>;
 }
@@ -62,11 +66,13 @@ export class NullIgnoreService implements IIgnoreService {
 }
 
 export async function filterIngoredResources(ignoreService: IIgnoreService, resources: URI[]): Promise<URI[]> {
-	const result: URI[] = [];
-	for (const resource of resources) {
-		if (!await ignoreService.isCopilotIgnored(resource)) {
-			result.push(resource);
-		}
+	// Bounded because this runs over every search result, and an unresolved repository turns each
+	// check into a git extension lookup, plus a file read when content rules are configured.
+	const limiter = new Limiter<boolean>(IGNORE_CHECK_CONCURRENCY);
+	try {
+		const ignored = await Promise.all(resources.map(resource => limiter.queue(() => ignoreService.isCopilotIgnored(resource))));
+		return resources.filter((_, index) => !ignored[index]);
+	} finally {
+		limiter.dispose();
 	}
-	return result;
 }

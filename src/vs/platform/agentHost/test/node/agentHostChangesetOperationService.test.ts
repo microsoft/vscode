@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
-import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
@@ -63,6 +65,25 @@ class TestContribution implements IChangesetOperationContribution {
 	dispose(): void { }
 }
 
+class FailingRegistrationContribution implements IChangesetOperationContribution {
+	disposed = false;
+
+	constructor(private readonly handler: IChangesetOperationHandler) { }
+
+	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
+		registry.registerChangesetOperationHandler(testOperationId, this.handler);
+		throw new Error('Registration failed');
+	}
+
+	getOperations(): undefined {
+		return undefined;
+	}
+
+	dispose(): void {
+		this.disposed = true;
+	}
+}
+
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
@@ -70,6 +91,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState = Event.None;
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
@@ -81,7 +103,6 @@ class TestGitStateService implements IAgentHostGitStateService {
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
 
 /**
@@ -94,6 +115,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
+	readonly onDidChangeWorkingDirectoryPending = Event.None;
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 
@@ -122,6 +144,8 @@ class TestConfigurationService implements IAgentConfigurationService {
 	}
 
 	updateSessionConfig(): void { }
+	getSessionSandboxPolicy(): undefined { return undefined; }
+	setSessionSandboxPolicy(): void { }
 
 	getSessionConfigValues(): Record<string, unknown> | undefined {
 		return undefined;
@@ -165,10 +189,22 @@ suite('AgentHostChangesetOperationService', () => {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			new TestGitStateService(),
-			new AgentHostChangesetSubscriptionService(),
+			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 		));
 	}
+
+	test('disposes partial handler registrations when contribution registration fails', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		const failingContribution = new FailingRegistrationContribution(handler);
+
+		assert.throws(() => service.registerContribution(failingContribution), /Registration failed/);
+		assert.strictEqual(failingContribution.disposed, true);
+
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+	});
 
 	test('multi-folder session advertises no operations for a turn changeset', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -271,6 +307,39 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(dispatched, [sampleOperations]);
 	});
 
+	for (const isolation of ['folder', 'worktree', undefined] as const) {
+		test(`implicit ${isolation ?? 'unresolved'} summary interest refreshes selected changeset operations once`, () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const sessionKey = 'agent:/session';
+			stateManager.createSession({
+				resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			});
+			stateManager.setSessionConfig(sessionKey, {
+				schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: isolation },
+			});
+			const changesetUri = isolation === 'worktree' ? buildBranchChangesetUri(sessionKey) : buildSessionChangesetUri(sessionKey);
+			stateManager.registerChangeset(changesetUri);
+			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+			subscriptions.addSubscription(sessionKey, sessionKey);
+			subscriptions.addSubscription(sessionKey, changesetUri);
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a'])));
+			disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+			const channels: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChangesetOperationsChanged) {
+					channels.push(envelope.channel);
+				}
+			}));
+
+			service.updateOperations(sessionKey, undefined, sampleGitState);
+
+			assert.deepStrictEqual({ channels, operations: stateManager.getChangesetState(changesetUri)?.operations }, {
+				channels: [changesetUri], operations: sampleOperations,
+			});
+		});
+	}
+
 	test('multi-folder session clears turn operations even when git state is absent', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
@@ -309,8 +378,7 @@ suite('AgentHostChangesetOperationService', () => {
 			}
 		}));
 
-		// A non-suppressed changeset with no resolvable git state must still defer
-		// (early return) — clearing is scoped to the suppressed turn/compare kinds.
+		// No cached operations need clearing while initial Git state is unresolved.
 		service.updateOperations(sessionKey, changesetUri);
 
 		assert.deepStrictEqual(dispatched, []);
@@ -331,10 +399,7 @@ suite('AgentHostChangesetOperationService', () => {
 			}
 		}));
 
-		// Multi-root, but the changeset is uncommitted (not turn/compare) so it is
-		// NOT suppressed. With no resolvable git state it must defer like any other
-		// non-suppressed changeset — the []-clear is scoped to suppressed kinds only,
-		// even in a multi-root session.
+		// Uncommitted changes are not suppressed and have no cached operations to clear.
 		service.updateOperations(sessionKey, changesetUri);
 
 		assert.deepStrictEqual(dispatched, []);
@@ -420,6 +485,49 @@ suite('AgentHostChangesetOperationService', () => {
 			calls: 1,
 			firstResult: { message: { markdown: 'Committed' } },
 			secondResult: { message: { markdown: 'Committed' } },
+		});
+	});
+
+	test('serializes in-flight invocations with different metadata', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Checkout', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const metadata: (Record<string, unknown> | undefined)[] = [];
+		const handler: IChangesetOperationHandler = {
+			invoke: params => {
+				metadata.push(params._meta);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		};
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const first = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId, _meta: { treeish: 'main' } });
+		const second = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId, _meta: { treeish: 'featureA' } });
+		const metadataWhileFirstRunning = [...metadata];
+		pending[0].complete({});
+		await first;
+		const metadataAfterFirstCompleted = [...metadata];
+		pending[1].complete({});
+		await second;
+
+		assert.deepStrictEqual({
+			metadataWhileFirstRunning,
+			metadataAfterFirstCompleted,
+			metadata,
+		}, {
+			metadataWhileFirstRunning: [{ treeish: 'main' }],
+			metadataAfterFirstCompleted: [{ treeish: 'main' }, { treeish: 'featureA' }],
+			metadata: [{ treeish: 'main' }, { treeish: 'featureA' }],
 		});
 	});
 

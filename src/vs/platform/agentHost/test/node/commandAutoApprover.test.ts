@@ -8,6 +8,25 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
 
+suite('CommandAutoApprover initialization', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('initializes concurrent approvers', async () => {
+		const approvers = Array.from({ length: 20 }, () => disposables.add(new CommandAutoApprover(new NullLogService())));
+
+		await Promise.all(approvers.map(approver => approver.initialize()));
+
+		assert.deepStrictEqual(
+			approvers.map(approver => [
+				approver.shouldAutoApprove('ls'),
+				approver.shouldAutoApprove('Get-ChildItem', { language: 'powershell' }),
+			]),
+			Array.from({ length: approvers.length }, () => ['approved', 'approved']),
+		);
+	});
+});
+
 suite('CommandAutoApprover', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

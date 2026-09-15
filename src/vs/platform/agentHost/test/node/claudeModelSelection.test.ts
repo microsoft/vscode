@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CLAUDE_AGENT_PROVIDER_ID, IAgentModelInfo } from '../../common/agentService.js';
+import { CLAUDE_AGENT_PROVIDER_ID, IAgentModelInfo } from '../../common/agent.js';
 import { AGENT_MODEL_GROUP_ID_META_KEY } from '../../common/agentModelSource.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import { claudeTransportForProvider, mergeClaudeModelCatalogs, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeModelSelectionId, toClaudeSdkModelId } from '../../node/claude/claudeModelSelection.js';

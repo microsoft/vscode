@@ -131,6 +131,8 @@ export interface IProductConfiguration {
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
 	readonly nlsCoreBaseUrl?: string;
+	/** Build-time hash of the commit and core NLS tables used to identify translated-message caches. */
+	readonly nlsMetadataHash?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
@@ -148,6 +150,7 @@ export interface IProductConfiguration {
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
+		readonly accessScopes?: string[];
 	};
 
 	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
@@ -440,6 +443,7 @@ export interface IDefaultChatAgent {
 		enterprise: { id: string; name: string };
 		google: { id: string; name: string };
 		apple: { id: string; name: string };
+		microsoft: { id: string; name: string };
 	};
 
 	readonly providerExtensionId: string;

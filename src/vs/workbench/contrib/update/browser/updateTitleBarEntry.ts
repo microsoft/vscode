@@ -16,23 +16,21 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { Action2, IMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
-import { InEditorZenModeContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { UpdateTitleBarChatInProgressContext, UpdateTitleBarContext, UpdateTitleBarEditorVisibleContext } from '../common/update.js';
 import { computeProgressPercent } from '../common/updateUtils.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
 
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
-const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
-const UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('updateTitleBarChatRequestInProgress', false);
 
 const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
 const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -55,6 +53,10 @@ export function registerUpdateTitleBarMenuPlacement(menuId: MenuId, item: Omit<I
 	additionalMenuPlacement = { menuId, item };
 }
 
+export function getAdditionalUpdateTitleBarMenuWhen(when?: ContextKeyExpression): ContextKeyExpression {
+	return ContextKeyExpr.and(UpdateTitleBarContext, when)!;
+}
+
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 	constructor() {
 		super({
@@ -64,7 +66,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 			menu: [{
 				id: MenuId.TitleBarUpdate,
 				order: 0,
-				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate(), ContextKeyExpr.not('inDebugMode'), UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate()),
+				when: UpdateTitleBarEditorVisibleContext,
 			}]
 		});
 	}
@@ -99,10 +101,10 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			return; // Electron only
 		}
 
-		this.context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
+		this.context = UpdateTitleBarContext.bindTo(contextKeyService);
 		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
 
-		const chatInProgressContext = UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.bindTo(contextKeyService);
+		const chatInProgressContext = UpdateTitleBarChatInProgressContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			chatInProgressContext.set(chatService.requestInProgressObs.read(reader));
 		}));
@@ -122,7 +124,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		this._register(actionViewItemService.register(
 			MenuId.TitleBarUpdate,
 			UPDATE_TITLE_BAR_ACTION_ID,
-			(action, options) => this.createEntry(instantiationService, action, options)
+			(action, options) => this.createEntry(instantiationService, action, options, AnchorAlignment.RIGHT)
 		));
 
 		if (additionalMenuPlacement) {
@@ -133,20 +135,20 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 					id: UPDATE_TITLE_BAR_ACTION_ID,
 					title: localize('updateIndicatorTitleBarAction', 'Update'),
 				},
-				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate(), item.when),
+				when: getAdditionalUpdateTitleBarMenuWhen(item.when),
 			});
 			this._register(actionViewItemService.register(
 				menuId,
 				UPDATE_TITLE_BAR_ACTION_ID,
-				(action, options) => this.createEntry(instantiationService, action, options)
+				(action, options) => this.createEntry(instantiationService, action, options, AnchorAlignment.LEFT)
 			));
 		}
 
 		void this.onStateChange(true);
 	}
 
-	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions): UpdateTitleBarEntry {
-		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, focus => {
+	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions, anchorAlignment: AnchorAlignment): UpdateTitleBarEntry {
+		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, anchorAlignment, this.tooltip, focus => {
 			this.tooltipVisible = true;
 			this.tooltipFocused = focus;
 		}, () => {
@@ -237,6 +239,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions,
+		private readonly anchorAlignment: AnchorAlignment,
 		private readonly tooltip: UpdateTooltip,
 		private readonly onDidShowTooltip: (focus: boolean) => void,
 		private readonly onUserDismissedTooltip: () => void,
@@ -289,7 +292,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			},
 			persistence: { sticky: true },
 			appearance: { showPointer: true, compact: true },
-			position: { anchorAlignment: AnchorAlignment.RIGHT },
+			position: { anchorAlignment: this.anchorAlignment },
 			trapFocus: focus,
 		}, focus);
 
@@ -309,7 +312,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions {
-		return { position: { anchorAlignment: AnchorAlignment.RIGHT } };
+		return { position: { anchorAlignment: this.anchorAlignment } };
 	}
 
 	private async runAction() {

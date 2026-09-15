@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { Event } from '../../../base/common/event.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -36,6 +37,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	constructor(
 		private readonly webContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
+		private readonly disableMaximize: boolean,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -111,6 +113,10 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			// Disable resizing for non-resizable windows
 			if (options?.resizable === false) {
 				window.setResizable(false);
+			}
+
+			if (this.disableMaximize) {
+				this._register(Event.fromNodeEventEmitter(window, 'maximize')(() => window.unmaximize()));
 			}
 		}
 	}

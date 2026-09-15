@@ -16,6 +16,7 @@ import { ILogger } from './logging';
 import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { MarkdownEditorProvider } from './preview/markdownEditorProvider';
+import { createSharedLinkPresentationService, registerLinkPresentationProvider } from './preview/linkPresentation/linkPresentationService';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
 import { ExtensionContentSecurityPolicyArbiter } from './preview/security';
@@ -46,7 +47,25 @@ export function activateShared(
 	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
 
-	const markdownEditorProvider = new MarkdownEditorProvider(context.extensionUri, context.globalState, opener, contributions, logger);
+	const linkPresentationService = createSharedLinkPresentationService(logger);
+	context.subscriptions.push(
+		linkPresentationService,
+		registerLinkPresentationProvider(linkPresentationService),
+		vscode.window.onDidChangeWindowState(event => {
+			if (event.focused) {
+				linkPresentationService.refresh();
+			}
+		}),
+	);
+
+	const markdownEditorProvider = new MarkdownEditorProvider(
+		context.extensionUri,
+		context.globalState,
+		opener,
+		contributions,
+		logger,
+		href => linkPresentationService.openLink(href),
+	);
 	context.subscriptions.push(markdownEditorProvider);
 	context.subscriptions.push(registerMarkdownEditorCommands(context, markdownEditorProvider));
 	context.subscriptions.push(vscode.window.registerCustomEditorProvider(

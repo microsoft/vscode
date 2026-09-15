@@ -73,6 +73,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 */
 	inlineToggle?: IActionListItemInlineToggle;
 	/**
+	 * Optional toggle switch rendered on the same row as the label.
+	 */
+	standaloneToggle?: IActionListItemInlineToggle;
+	/**
 	 * Optional keybinding to display next to the action. When provided, this overrides the
 	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
 	 * Useful when the active keybinding depends on a scoped context (e.g. focus state) that the
@@ -84,6 +88,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 // TODO @lramos15 - Should we just make IActionProvider templated?
 export interface IActionWidgetDropdownActionProvider {
 	getActions(): IActionWidgetDropdownAction[];
+}
+
+export interface IActionWidgetDropdownListOptionsProvider {
+	getListOptions(): IActionListOptions;
 }
 
 export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
@@ -110,6 +118,11 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	 * Options for the underlying ActionList (filter, collapsible sections).
 	 */
 	readonly listOptions?: IActionListOptions;
+	/**
+	 * Provides the ActionList options each time the dropdown opens. Evaluated fresh on every open
+	 * (like {@link actionProvider}); used only when {@link listOptions} is not set.
+	 */
+	readonly listOptionsProvider?: IActionWidgetDropdownListOptionsProvider;
 	/** Returns the action id to focus each time the dropdown opens. */
 	readonly getInitialFocusActionId?: () => string | undefined;
 }
@@ -192,6 +205,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					toolbarActions: action.toolbarActions,
 					className: action.className,
 					inlineToggle: action.inlineToggle,
+					standaloneToggle: action.standaloneToggle,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(isCheckable && action.checked ? Codicon.check.id : Codicon.blank.id) },
@@ -298,7 +312,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		super.show();
 
-		const listOptions = withActionWidgetDropdownMotion(this._options.listOptions);
+		const listOptions = withActionWidgetDropdownMotion(this._options.listOptions ?? this._options.listOptionsProvider?.getListOptions());
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,

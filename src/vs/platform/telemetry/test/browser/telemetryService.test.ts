@@ -137,6 +137,21 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Fixed telemetry level does not require a configuration service', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = TelemetryService.createWithLevel({
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
+			telemetryLevel: TelemetryLevel.ERROR,
+		}, TestProductService);
+
+		service.publicLog('usageEvent');
+		service.publicLogError('errorEvent');
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.eventName), ['errorEvent']);
+		service.dispose();
+	}));
+
 	test('Event with data', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
@@ -212,7 +227,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	});
 
-	test('setCommonProperty adds property to all subsequent events', function () {
+	test('setCommonProperty adds and removes property from subsequent events', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
 			appenders: [testAppender],
@@ -221,9 +236,27 @@ suite('TelemetryService', () => {
 		service.publicLog('eventBeforeSet');
 		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
 		service.publicLog('eventAfterSet');
+		service.setCommonProperty('common.copilotTrackingId', undefined);
+		service.publicLog('eventAfterClear');
 
-		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
-		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
+		assert.deepStrictEqual(testAppender.events.map(event => event.data['common.copilotTrackingId']), [
+			undefined,
+			'test-tracking-id',
+			undefined,
+		]);
+
+		service.dispose();
+	});
+
+	test('msftInternal reflects common properties set after construction', function () {
+		const service = new TelemetryService({
+			appenders: [NullAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		const beforeSet = service.msftInternal;
+		service.setCommonProperty('common.msftInternal', true);
+
+		assert.deepStrictEqual({ beforeSet, afterSet: service.msftInternal }, { beforeSet: undefined, afterSet: true });
 
 		service.dispose();
 	});
@@ -874,12 +907,13 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service checks with config service', function () {
 
-		let telemetryLevel = TelemetryConfiguration.OFF;
+		let telemetryLevel: string = TelemetryConfiguration.OFF;
 		const emitter = new Emitter<any>();
 
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
-			appenders: [testAppender]
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
 			override getValue<T>(): T {
@@ -896,6 +930,18 @@ suite('TelemetryService', () => {
 		telemetryLevel = TelemetryConfiguration.ERROR;
 		emitter.fire({ affectsConfiguration: () => true });
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+
+		telemetryLevel = 'invalid';
+		emitter.fire({ affectsConfiguration: () => true });
+		service.publicLog('invalidTelemetryLevel');
+		service.publicLogError('invalidTelemetryLevelError');
+		assert.deepStrictEqual({
+			telemetryLevel: service.telemetryLevel,
+			eventCount: testAppender.getEventsCount(),
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			eventCount: 0,
+		});
 
 		service.dispose();
 	});

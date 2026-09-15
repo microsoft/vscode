@@ -44,7 +44,7 @@ export const enum AgentHostConfigKey {
 
 export const SESSION_CUSTOMIZATION_DISCOVERY_MODES = ['scan', 'discover'] as const;
 export type SessionCustomizationDiscoveryMode = typeof SESSION_CUSTOMIZATION_DISCOVERY_MODES[number];
-export const DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE: SessionCustomizationDiscoveryMode = 'scan';
+export const DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE: SessionCustomizationDiscoveryMode = 'discover';
 
 /**
  * Persisted on-disk shape for a host-configured plugin. Kept stable across
@@ -93,7 +93,7 @@ export const agentHostCustomizationConfigSchema = createSchema({
 	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Host"),
-		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
+		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
 		default: false,
 	}),
 	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
@@ -137,6 +137,5 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		id: customizationId(entry.uri),
 		uri: entry.uri,
 		name: entry.displayName,
-		enabled: true,
 	};
 }

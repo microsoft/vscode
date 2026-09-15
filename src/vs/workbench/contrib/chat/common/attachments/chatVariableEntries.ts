@@ -14,6 +14,7 @@ import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRan
 import { isLocation, Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
+import type { IFeedbackPullRequest } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -282,6 +283,8 @@ export interface IChatRequestTranscriptContextVariableEntry extends IBaseChatReq
 	readonly value: string;
 	readonly uri: URI;
 	readonly tooltip?: string;
+	/** Message shown when hidden transcript preparation for this context completes. */
+	readonly readyMessage?: string;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -549,6 +552,8 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly diffHunks?: string;
 		/** When this item was converted from a PR review comment, the original thread ID. */
 		readonly sourcePRReviewCommentId?: string;
+		/** Pull request that originated this PR review comment. */
+		readonly sourcePullRequest?: IFeedbackPullRequest;
 		/** Additional replies that belong to the same comment thread as {@link text}. */
 		readonly replies?: readonly string[];
 	}>;
@@ -816,6 +821,7 @@ export function toChatTranscriptContextAttachmentMeta(entry: IChatRequestTranscr
 			iconId: entry.icon?.id,
 			tooltip: entry.tooltip,
 			fullName: entry.fullName,
+			readyMessage: entry.readyMessage,
 		},
 	};
 }
@@ -836,6 +842,7 @@ export function restoreChatTranscriptContextVariableEntry(label: string, value: 
 		...(typeof record.fullName === 'string' ? { fullName: record.fullName } : {}),
 		...(typeof record.iconId === 'string' ? { icon: ThemeIcon.fromId(record.iconId) } : {}),
 		...(typeof record.tooltip === 'string' ? { tooltip: record.tooltip } : {}),
+		...(typeof record.readyMessage === 'string' ? { readyMessage: record.readyMessage } : {}),
 		value,
 		uri: URI.parse(record.uri),
 		_meta: meta,

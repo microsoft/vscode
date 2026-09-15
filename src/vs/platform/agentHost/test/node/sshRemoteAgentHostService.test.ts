@@ -12,6 +12,8 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
@@ -301,7 +303,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	}
 
 	protected override async _startRemoteAgentHost(
-		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string,
+		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string, _telemetryLevel?: TelemetryConfiguration,
 	) {
 		this.startCalled++;
 		return { ...this.startResult, stream: new MockSSHChannel() as never };
@@ -463,6 +465,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		service = new TestableSSHRemoteAgentHostMainService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		);
 		disposables.add(service);
 	});
@@ -588,6 +591,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('--idle-timeout 300')), `should spawn with idle timeout; saw: ${JSON.stringify(execCalls)}`);
 		assert.ok(execCalls.some(c => c.includes('--new-instance')), `spawn must request a genuinely new instance; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(execCalls.some(c => c.includes('--telemetry-level off')), `spawn must apply telemetry disablement; saw: ${JSON.stringify(execCalls)}`);
 	});
 
 	test('reuses the single live standalone deterministically without a picker', async () => {
@@ -1188,6 +1192,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 				quality,
 				dataFolderName,
 			} as IProductService,
+			NullTelemetryService,
 		));
 		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
 		disposables.add(kbiService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
@@ -1282,6 +1287,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		));
 		loggingService.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },
@@ -1309,6 +1315,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		));
 		loggingService.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },
@@ -1343,6 +1350,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			pinnedService = new TestableSSHRemoteAgentHostMainService(
 				logService,
 				productService as IProductService,
+				NullTelemetryService,
 			);
 			disposables.add(pinnedService);
 		});
@@ -1632,6 +1640,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		service = new AuthAttemptsTestService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		);
 		disposables.add(service);
 	});

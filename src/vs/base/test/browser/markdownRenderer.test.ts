@@ -53,6 +53,16 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		});
 
+		test('Only allows inline-block display style on spans', () => {
+			const markdown = new MarkdownString(
+				'<span style="display:inline-block;">allowed</span><span style="display:block;">blocked</span>',
+				{ supportHtml: true },
+			);
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			assert.strictEqual(result.innerHTML, '<p><span style="display:inline-block;">allowed</span><span>blocked</span></p>');
+		});
+
 		test('Transforms parsed link targets without changing labels, titles, or code', () => {
 			const markdown = { value: '`[same](file:///same)` [a[b].ts](file:///same "file:///same") ![image](file:///same|width=10,height=20)' };
 			const result = store.add(renderMarkdown(markdown, {
@@ -93,6 +103,99 @@ suite('MarkdownRenderer', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
+		});
+
+		test('disallowed remote images are rendered as plaintext', () => {
+			const checkedUris: string[] = [];
+			const markdown = { value: '![image](https://example.com/collect?secret=value)' };
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: uri => {
+						checkedUris.push(uri.toString());
+						return false;
+					},
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				checkedUris,
+				html: result.innerHTML,
+			}, {
+				checkedUris: ['https://example.com/collect?secret%3Dvalue'],
+				html: '<p>&lt;img src="https://example.com/collect?secret=value" alt="image"&gt;</p>',
+			});
+		});
+
+		test('network-backed file images are rendered as plaintext', () => {
+			const markdownSources = [
+				{ value: '![image](file://remote-host/share/image.png)' },
+				new MarkdownString('<img src="file://remote-host/share/image.png">', { supportHtml: true }),
+			];
+			const results = markdownSources.map(markdown => store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element);
+
+			assert.deepStrictEqual(
+				results.map(result => ({
+					imageCount: result.querySelectorAll('img').length,
+					text: result.textContent,
+				})),
+				[
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png" alt="image">' },
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png">' },
+				]
+			);
+		});
+
+		test('relative image with a network-backed file base URI is rendered as plaintext', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.parse('file://remote-host/share/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				imageCount: result.querySelectorAll('img').length,
+				text: result.textContent,
+			}, {
+				imageCount: 0,
+				text: '<img src="image.png" alt="image">',
+			});
+		});
+
+		test('relative image with a local file base URI remains allowed', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.file('/images/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
+		});
+
+		test('local file image remains allowed by remote image validation', () => {
+			if (isWeb) {
+				return;
+			}
+			const localImage = URI.file('/images/cat.gif');
+			const result = store.add(renderMarkdown({ value: `![image](${localImage.toString()})` }, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
 		});
 
 		test('image width from title params', () => {
@@ -459,6 +562,26 @@ suite('MarkdownRenderer', () => {
 		test('does not double-escape entities inside code spans', () => {
 			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
 			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
+		});
+
+		test('reduces inline syntax inside list items when omitMarkdownSyntax is set', () => {
+			// A list item's content arrives as a text token carrying inline tokens. By default the
+			// item is emitted as raw source, so a link keeps its target; opting in reduces it to
+			// the text a reader actually sees.
+			const markdown = { value: '- Added [src/](/some/path/to/src)\n- Uses **bold** and `code`' };
+
+			assert.strictEqual(
+				renderAsPlaintext(markdown),
+				'Added [src/](/some/path/to/src)\n\nUses **bold** and `code`',
+				'default output is unchanged');
+			assert.strictEqual(
+				renderAsPlaintext(markdown, { omitMarkdownSyntax: true }),
+				'Added src/\n\nUses bold and code');
+		});
+
+		test('separates a nested list from the item holding it when omitMarkdownSyntax is set', () => {
+			const markdown = { value: '- outer\n    - inner [link](/target)' };
+			assert.strictEqual(renderAsPlaintext(markdown, { omitMarkdownSyntax: true }), 'outer\ninner link');
 		});
 	});
 

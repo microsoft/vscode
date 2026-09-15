@@ -21,6 +21,8 @@ export const enum SessionConfigKey {
 	AutoApprove = 'autoApprove',
 	/** `'permissions'` — per-tool session allow/deny lists. */
 	Permissions = 'permissions',
+	/** Persisted session sandbox selection; omitted or `default` follows the host default. */
+	SandboxEnabled = 'sandboxEnabled',
 	/** `'isolation'` — host-owned `'folder'` or `'worktree'` selection. */
 	Isolation = 'isolation',
 	/** `'branch'` — host-owned base branch to work from. */
@@ -33,7 +35,17 @@ export const enum SessionConfigKey {
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
 	WorktreeBranchTrack = 'worktreeBranchTrack',
+	/** `'worktreeCreateNewBranch'` — host-owned choice to create a branch instead of checking out the selected branch. */
+	WorktreeCreateNewBranch = 'worktreeCreateNewBranch',
+	/** `'agentMerge'` — client-owned Agent Merge enablement and session overrides. */
+	AgentMerge = 'agentMerge',
+	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
+	AgentMergeController = 'agentMerge.controller',
+	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
+	ShellInitScripts = 'shellInitScripts',
 }
+
+export type SessionSandboxEnabled = 'default' | 'on' | 'off';
 
 /**
  * The set of enum values the unified permission picker *tolerates* for the
@@ -52,3 +64,49 @@ export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default'
  * property: the agent execution mode axis.
  */
 export const KNOWN_MODE_VALUES: ReadonlySet<string> = new Set(['interactive', 'plan', 'autopilot']);
+
+/**
+ * Removes session config that is derived from live client state and must not
+ * survive an Agent Host restart.
+ */
+export function omitTransientSessionConfigValues<T>(values: Record<string, T>): Record<string, T> {
+	const result = { ...values };
+	delete result[SessionConfigKey.ShellInitScripts];
+	return result;
+}
+
+const automationDefinitionOwnedConfigKeys = [
+	SessionConfigKey.Permissions,
+	SessionConfigKey.SandboxEnabled,
+	SessionConfigKey.Isolation,
+	SessionConfigKey.Branch,
+	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.WorktreeBranchTrack,
+	SessionConfigKey.WorktreeCreateNewBranch,
+	SessionConfigKey.AgentMerge,
+	SessionConfigKey.AgentMergeController,
+] as const;
+
+/** Removes values owned by a concrete session or target rather than a reusable Automation template. */
+export function omitAutomationSessionTemplateConfigValues<T>(values: Record<string, T>): Record<string, T> {
+	const result = omitTransientSessionConfigValues(values);
+	for (const key of automationDefinitionOwnedConfigKeys) {
+		delete result[key];
+	}
+	return result;
+}
+
+/** Retains definition-owned values while an editor-facing Automation template is written back. */
+export function pickAutomationDefinitionOwnedConfigValues<T>(values: Readonly<Record<string, T>> | undefined): Record<string, T> {
+	const result: Record<string, T> = {};
+	if (!values) {
+		return result;
+	}
+	for (const key of automationDefinitionOwnedConfigKeys) {
+		if (Object.hasOwn(values, key)) {
+			result[key] = values[key];
+		}
+	}
+	return result;
+}

@@ -14,9 +14,20 @@ The `PromptRegistry` in `promptRegistry.ts` maps AI models to their optimal prom
 When `PromptRegistry.resolveAllCustomizations()` is called:
 1. **Phase 1 — `matchesModel()`**: Iterates registered resolvers in order, calling `matchesModel()`. First `true` wins.
 2. **Phase 2 — `familyPrefixes`**: If no `matchesModel` matched, checks `endpoint.family.startsWith(prefix)`. First match wins.
-3. **Defaults**: If no resolver matches, defaults are used for all customizations.
+3. **Phase 3 — provider fallback**: If neither phase matched, checks predicates registered through `registerFallbackPrompt(resolver, matchesModel)`. First match wins.
+4. **Defaults**: If no resolver matches, defaults are used for all customizations.
 
-Registration order matters — more specific resolvers (e.g., hash-based) should be registered before broader ones (e.g., prefix-based fallbacks).
+Registration order matters within each phase. Register broad provider defaults through `registerFallbackPrompt`, not `matchesModel` or `familyPrefixes`, so they never shadow a model-specific resolver or a family-prefix registration.
+
+### OpenAI Default
+
+Unrecognized GPT families and endpoints identified as OpenAI use the latest approved GPT prompt bundle. The single promotion point is the `LatestOpenAIPromptResolver` import in `openai/latestOpenAIPrompt.ts`, currently GPT-5.6. It reuses the entire resolver, including reminders, identity, safety, tool-reference hints, and user-query tag defaults, without copying prompt text.
+
+- Do not add a prompt file just because a new OpenAI model ships. Add a dedicated resolver only when the model needs different instructions.
+- Existing specialized GPT/Codex resolvers and the explicitly retained legacy families in `defaultOpenAIPrompt.tsx` take precedence. Version matchers must distinguish `gpt-5.1` and its hyphenated variants from `gpt-5.10`.
+- OpenAI provider metadata can identify opaque preview names; an OpenAI-compatible API alone does not establish OpenAI model identity. Explicit family routing takes precedence over the provider fallback.
+- Prompt inheritance must not alias the endpoint family or enable GPT-5.6-specific API/tool capabilities. Rendering still respects the actual endpoint's capabilities and available tools.
+- To promote a new default, update the resolver import in `latestOpenAIPrompt.ts` and the expected default in `test/openAIPrompts.spec.ts`. Run its routing/rendering tests and the existing agent prompt snapshots. Keep older specialized resolvers unchanged.
 
 ### Resolver Interface
 

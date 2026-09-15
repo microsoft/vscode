@@ -129,7 +129,6 @@ export const IVoiceToolDispatchService = createDecorator<IVoiceToolDispatchServi
 /** Action labels displayed in the status bar during tool execution. */
 const ACTION_LABELS: Record<string, string> = {
 	send_to_chat: localize('agentsVoice.action.sendToChat', "Sending to chat..."),
-	new_sessions: localize('agentsVoice.action.newSessions', "Starting new sessions..."),
 	get_session_info: localize('agentsVoice.action.getSessionInfo', "Checking sessions..."),
 	get_session_changes: localize('agentsVoice.action.getSessionChanges', "Checking changes..."),
 	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
@@ -211,29 +210,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				}
 				break;
 			}
-			case 'new_sessions': {
-				const sessions = args['sessions'];
-				const items: { text?: string }[] = Array.isArray(sessions) ? sessions : [{ text: argString('text') }];
-				let firstResource: URI | undefined;
-				for (const item of items) {
-					const text = item.text;
-					if (text) {
-						const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-						const resource = ref.object.sessionResource;
-						if (!firstResource) {
-							firstResource = resource;
-						}
-						await this.chatService.sendRequest(resource, text, this._agentModeOptions);
-						ref.dispose();
-					}
-				}
-				if (firstResource) {
-					if (await delegate.switchToSession(firstResource)) {
-						delegate.setTargetSession(firstResource);
-					}
-				}
-				break;
-			}
 			case 'focus_session': {
 				const targetSessionId = argString('coding_session_id');
 				const targetResource = this._findSessionResource(targetSessionId);
@@ -295,17 +271,29 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		if (!sessionId) {
 			return undefined;
 		}
-		const agentSession = this.agentSessionsService.model.sessions
+		const agentSessions = this.agentSessionsService.model.sessions
 			.find(session => !session.isArchived() && session.resource.toString() === sessionId);
-		if (agentSession) {
-			return agentSession.resource;
+		if (agentSessions) {
+			return agentSessions.resource;
 		}
 		for (const model of this.chatService.chatModels.get()) {
 			if (model.sessionResource.toString() === sessionId) {
 				return model.sessionResource;
 			}
 		}
-		return undefined;
+
+		const normalizedSessionId = sessionId.trim().toLocaleLowerCase();
+		const labeledSessions = this.agentSessionsService.model.sessions.filter(session =>
+			!session.isArchived() && session.label?.trim().toLocaleLowerCase() === normalizedSessionId
+		);
+		if (labeledSessions.length === 1) {
+			return labeledSessions[0].resource;
+		}
+
+		const labeledChatModels = [...this.chatService.chatModels.get()].filter(model =>
+			model.title?.trim().toLocaleLowerCase() === normalizedSessionId
+		);
+		return labeledChatModels.length === 1 ? labeledChatModels[0].sessionResource : undefined;
 	}
 
 	private async _showActionTarget(sessionId: string): Promise<{ ok: true; resource: URI } | { ok: false; reason: 'no_session' | 'session_not_found' | 'switch_failed' }> {
@@ -584,10 +572,12 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		const sessionData: Array<Record<string, unknown> & { state: string; is_active: boolean; last_activity: number }> = agentSessions.map(session => {
 			const model = this.chatService.getSession(session.resource);
 			const changes = getAgentChangesSummary(session.changes);
-			const state = session.status === AgentSessionStatus.InProgress ? 'working'
-				: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
-					: session.status === AgentSessionStatus.Completed ? 'idle'
-						: 'unknown';
+			const state = model
+				? model.requestNeedsInput?.get() ? 'waiting_for_input' : model.hasActiveRequest?.get() ? 'working' : 'idle'
+				: session.status === AgentSessionStatus.InProgress ? 'working'
+					: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
+						: session.status === AgentSessionStatus.Completed ? 'idle'
+							: 'unknown';
 			const lastActivity = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created ?? 0;
 			return {
 				id: session.resource.toString(),

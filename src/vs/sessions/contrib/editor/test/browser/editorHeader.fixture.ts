@@ -5,6 +5,7 @@
 
 import '../../browser/media/editorBreadcrumbs.css';
 import '../../browser/media/editorHeader.css';
+import '../../../../browser/parts/media/editorPart.css';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -79,14 +80,17 @@ MenuRegistry.appendMenuItem(addTabMenu, {
 	group: 'navigation',
 });
 
-function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false): void {
+function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false, tabHeight: 'default' | 'compact' = 'default', headerWidth?: number, reserveHeaderSpace = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
 	renderEditorTabBarFixture(ctx, {
 		modernUI: true,
-		partOptions: { showTabs },
+		partOptions: { showTabs, tabHeight },
 		breadcrumbs: breadcrumbs ? { filePath: 'on', icons: true } : undefined,
 		showHeader: true,
+		useModernUITabs: true,
+		reserveHeaderSpace,
+		headerWidth,
 		headerMenuIds: {
 			headerPrimary: primaryAction ? primaryMenu : emptyMenu,
 			headerSecondary: secondaryAction ? secondaryMenu : emptyMenu,
@@ -97,12 +101,18 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
-	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true) }),
+	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true), additionalThemes: ['darkHighContrast'] }),
+	CompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', false, 'compact'), additionalThemes: ['darkHighContrast'] }),
 	BreadcrumbsAndAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true) }),
 	BreadcrumbsAndSecondaryAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false, true) }),
 	BreadcrumbsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false) }),
 	PrimaryActionOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, true) }),
 	SecondaryActionOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, true) }),
 	LayoutActionsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, false, true) }),
-	SingleTabFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'single', true) }),
+	SingleTabFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'single', true), additionalThemes: ['darkHighContrast'] }),
+	SingleTabCompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'single', true, 'compact'), additionalThemes: ['darkHighContrast'] }),
+	SingleTabDockedHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'single', true, 'default', 520), additionalThemes: ['darkHighContrast'] }),
+	SingleTabCompactDockedHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'single', true, 'compact', 520), additionalThemes: ['darkHighContrast'] }),
+	SingleTabEmptyFiles: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, false, false, 'single', true, 'default', 520, true), additionalThemes: ['darkHighContrast'] }),
+	SingleTabCompactEmptyFiles: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, false, false, 'single', true, 'compact', 520, true), additionalThemes: ['darkHighContrast'] }),
 });

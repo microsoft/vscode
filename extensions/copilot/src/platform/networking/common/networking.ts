@@ -262,8 +262,12 @@ export type IChatRequestTelemetryProperties = {
 	associatedRequestId?: string;
 	retryAfterError?: string;
 	retryAfterErrorGitHubRequestId?: string;
+	/** CAPI service request id (X-Copilot-Service-Request-Id) of the attempt that failed and triggered this retry. */
+	retryAfterErrorCopilotServiceRequestId?: string;
 	connectivityTestError?: string;
 	connectivityTestErrorGitHubRequestId?: string;
+	/** CAPI service request id (X-Copilot-Service-Request-Id) of the connectivity test request. */
+	connectivityTestErrorCopilotServiceRequestId?: string;
 	retryAfterFilterCategory?: string;
 	/** A subtype for categorizing the request with a messageSource- eg subagent */
 	subType?: string;
@@ -300,7 +304,7 @@ export interface ITokenPriceTier {
 	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
-	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Derived from CAPI `billing.token_prices.<tier>.max_prompt_tokens`.
 	 * Present only when CAPI provides a `long_context` tier.
 	 */
 	readonly contextMax?: number;
@@ -320,6 +324,9 @@ export interface IChatEndpointTokenPricing {
 	 */
 	readonly longContext?: ITokenPriceTier;
 }
+
+/** CAPI notice code that shows as a warning banner and also flags the model picker row. */
+export const PENDING_DEPRECATION_CODE = 'model_pending_deprecation';
 
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
@@ -341,8 +348,11 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	/** Category-keyed warning banners for the model picker. */
 	readonly warningText?: Record<string, string>;
-	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
+	/** Category-keyed info banners for the model picker. Unlike {@link warningText} these never signal a problem. */
+	readonly infoText?: Record<string, string>;
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string; showBanner?: boolean };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**

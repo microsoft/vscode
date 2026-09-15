@@ -6,10 +6,9 @@
 import type { Language, Parser, Query, QueryCapture } from '@vscode/tree-sitter-wasm';
 import * as fs from 'fs';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { FileAccess } from '../../../base/common/network.js';
 import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
-import { getAppNodeModulesPath } from './appNodeModules.js';
+import { getAppNodeModulesUri } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
 import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/common/autoApprove/autoApproveParseSafety.js';
 import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
@@ -176,6 +175,48 @@ interface IAutoApproveRules {
 const neverMatchRegex = /(?!.*)/;
 const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 const sedFileWriteParser = new SedFileWriteParser();
+
+interface ITreeSitterResources {
+	readonly parserClass: typeof Parser;
+	readonly queryClass: typeof Query;
+	readonly bashLanguage: PromiseSettledResult<Language>;
+	readonly powershellLanguage: PromiseSettledResult<Language>;
+}
+
+let treeSitterResourcesPromise: Promise<ITreeSitterResources> | undefined;
+
+function getTreeSitterResources(): Promise<ITreeSitterResources> {
+	// Parser.init and Language.load mutate process-global WASM state, so load them once.
+	return treeSitterResourcesPromise ??= loadTreeSitterResources();
+}
+
+async function loadTreeSitterResources(): Promise<ITreeSitterResources> {
+	const { default: TreeSitter } = await import('@vscode/tree-sitter-wasm');
+	const moduleRoot = URI.joinPath(getAppNodeModulesUri(), '@vscode', 'tree-sitter-wasm', 'wasm');
+	const wasmPath = URI.joinPath(moduleRoot, 'tree-sitter.wasm').fsPath;
+
+	await TreeSitter.Parser.init({
+		locateFile() {
+			return wasmPath;
+		}
+	});
+
+	const loadGrammar = async (fileName: string) => {
+		const grammarWasm = await fs.promises.readFile(URI.joinPath(moduleRoot, fileName).fsPath);
+		return TreeSitter.Language.load(new Uint8Array(grammarWasm.buffer, grammarWasm.byteOffset, grammarWasm.byteLength));
+	};
+	const [bashLanguage, powershellLanguage] = await Promise.allSettled([
+		loadGrammar('tree-sitter-bash.wasm'),
+		loadGrammar('tree-sitter-powershell.wasm'),
+	]);
+
+	return {
+		parserClass: TreeSitter.Parser,
+		queryClass: TreeSitter.Query,
+		bashLanguage,
+		powershellLanguage,
+	};
+}
 
 /**
  * Auto-approves or denies shell commands based on terminal auto-approve rules.
@@ -391,30 +432,13 @@ export class CommandAutoApprover extends Disposable {
 
 	private async _initTreeSitter(): Promise<void> {
 		try {
-			const { default: TreeSitter } = (await import('@vscode/tree-sitter-wasm'));
+			const resources = await getTreeSitterResources();
 
 			if (this._store.isDisposed) {
 				return;
 			}
 
-			// Resolve WASM files from node_modules. In the desktop app the `.wasm`
-			// files are unpacked next to the ASAR archive (`node_modules.asar.unpacked`),
-			// while in dev and on the server (which has no ASAR) they live in a plain
-			// `node_modules`.
-			const moduleRoot = URI.joinPath(FileAccess.asFileUri(getAppNodeModulesPath()), '@vscode', 'tree-sitter-wasm', 'wasm');
-			const wasmPath = URI.joinPath(moduleRoot, 'tree-sitter.wasm').fsPath;
-
-			await TreeSitter.Parser.init({
-				locateFile() {
-					return wasmPath;
-				}
-			});
-
-			if (this._store.isDisposed) {
-				return;
-			}
-
-			const parser = new TreeSitter.Parser();
+			const parser = new resources.parserClass();
 			this._register(toDisposable(() => {
 				try {
 					parser.delete();
@@ -423,36 +447,20 @@ export class CommandAutoApprover extends Disposable {
 				}
 			}));
 
-			// Load the bash and PowerShell grammars. A failure to load one must
-			// not disable auto-approval for the other, so each is settled
-			// independently and assigned only if it resolved.
-			const loadGrammar = async (fileName: string) => {
-				const grammarWasm = await fs.promises.readFile(URI.joinPath(moduleRoot, fileName).fsPath);
-				return TreeSitter.Language.load(new Uint8Array(grammarWasm.buffer, grammarWasm.byteOffset, grammarWasm.byteLength));
-			};
-			const [bashLanguage, powershellLanguage] = await Promise.allSettled([
-				loadGrammar('tree-sitter-bash.wasm'),
-				loadGrammar('tree-sitter-powershell.wasm'),
-			]);
-
-			if (this._store.isDisposed) {
-				return;
-			}
-
 			this._parser = parser;
-			this._queryClass = TreeSitter.Query;
+			this._queryClass = resources.queryClass;
 			// A grammar that fails to load leaves its language undefined, so
 			// commands for that shell fall back to `noMatch` and require
 			// confirmation rather than auto-approving.
-			if (bashLanguage.status === 'fulfilled') {
-				this._bashLanguage = bashLanguage.value;
+			if (resources.bashLanguage.status === 'fulfilled') {
+				this._bashLanguage = resources.bashLanguage.value;
 			} else {
-				this._logService.warn('[CommandAutoApprover] Failed to load the bash grammar; bash commands will require confirmation', bashLanguage.reason);
+				this._logService.warn('[CommandAutoApprover] Failed to load the bash grammar; bash commands will require confirmation', resources.bashLanguage.reason);
 			}
-			if (powershellLanguage.status === 'fulfilled') {
-				this._powershellLanguage = powershellLanguage.value;
+			if (resources.powershellLanguage.status === 'fulfilled') {
+				this._powershellLanguage = resources.powershellLanguage.value;
 			} else {
-				this._logService.warn('[CommandAutoApprover] Failed to load the PowerShell grammar; PowerShell commands will require confirmation', powershellLanguage.reason);
+				this._logService.warn('[CommandAutoApprover] Failed to load the PowerShell grammar; PowerShell commands will require confirmation', resources.powershellLanguage.reason);
 			}
 			this._logService.info(`[CommandAutoApprover] Tree-sitter initialized (bash=${this._bashLanguage ? 'available' : 'unavailable'}, powershell=${this._powershellLanguage ? 'available' : 'unavailable'})`);
 		} catch (err) {

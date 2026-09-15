@@ -29,6 +29,8 @@ import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -36,15 +38,21 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 // Mock helpers
 // ============================================================================
 
-function createMockActiveSession(title: string, workspaceLabel: string): IActiveSession {
-	const workspace = new class extends mock<ISessionWorkspace>() {
-		override readonly label = workspaceLabel;
-	}();
+function createMockActiveSession(title: string, workspaceLabel?: string): IActiveSession {
+	let workspace: ISessionWorkspace | undefined;
+	if (workspaceLabel) {
+		const label = workspaceLabel;
+		workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly label = label;
+			override readonly folders = [];
+			override readonly isVirtualWorkspace = false;
+		}();
+	}
 	return new class extends mock<IActiveSession>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(false);
+		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
 
@@ -175,7 +183,13 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
 	}();
 
-	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel, blockedSessionsModel, ciFixModel));
+	const widget = disposableStore.add(instantiationService.createInstance(
+		SessionsTitleBarWidget,
+		action,
+		undefined,
+		sessionActionFeedback,
+		disposableStore.add(instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessionsModel, ciFixModel)),
+	));
 	widget.render(widgetHost);
 }
 
@@ -185,10 +199,16 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
-	// Default: shows the active session pill (icon + title + workspace).
+	// Default: shows the active session workspace.
 	SessionsTitleBar_ActiveSession: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+		}),
+	}),
+
+	SessionsTitleBar_NoWorkspace: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Quick chat'),
 		}),
 	}),
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -15,9 +16,10 @@ import { NullLogService } from '../../../../log/common/log.js';
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
+import { toClientPluginMcpDefaultCwdsMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfigFromPlugins, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 
 suite('codexClientCustomizations', () => {
 	const disposables = new DisposableStore();
@@ -33,12 +35,12 @@ suite('codexClientCustomizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function pluginCustomization(id: string): PluginCustomization {
-		return { type: CustomizationType.Plugin, id, uri: `https://plugins/${id}`, name: id, enabled: true };
+		return { type: CustomizationType.Plugin, id, uri: `https://plugins/${id}`, name: id, };
 	}
 
 	function mcpDef(name: string, config: IMcpServerConfiguration): IMcpServerDefinition {
 		const uri = URI.file(`/plugins/${name}/.mcp.json`);
-		return { name, configuration: config, uri, customization: { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: uri.toString(), name, enabled: true, state: { kind: McpServerStatus.Starting } } };
+		return { name, configuration: config, uri, customization: { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: uri.toString(), name, state: { kind: McpServerStatus.Starting } } };
 	}
 
 	function skillDef(pluginDir: string, name: string): IParsedSkill {
@@ -72,7 +74,7 @@ suite('codexClientCustomizations', () => {
 		store.setEnabled('p1', false);
 		assert.deepStrictEqual(store.toCustomizations().map(c => ({
 			id: c.id,
-			enabled: c.enabled,
+			enabled: isCustomizationEnabled(c),
 			children: c.children?.map(ch => ({ type: ch.type, id: ch.id })),
 		})), [{
 			id: 'p1',
@@ -109,6 +111,18 @@ suite('codexClientCustomizations', () => {
 		});
 	});
 
+	test('codexMcpServersFromPlugins resolves session-relative defaults at launch time', () => {
+		const sessionCwd = URI.file('/worktree');
+		const clientPlugin = plugin('p', '/cache/p', parsed({
+			mcpServers: [mcpDef('local', { type: McpServerType.LOCAL, command: 'run' })],
+		}));
+		clientPlugin.synced.customization._meta = toClientPluginMcpDefaultCwdsMeta({ local: null });
+
+		assert.deepStrictEqual(codexMcpServersFromPlugins([clientPlugin], sessionCwd), {
+			local: { command: 'run', cwd: sessionCwd.fsPath },
+		});
+	});
+
 	test('codexMcpServersFromPlugins de-duplicates server names (first wins) and omits empties', () => {
 		const plugins = [
 			plugin('a', '/plugins/a', parsed({ mcpServers: [mcpDef('dup', { type: McpServerType.LOCAL, command: 'first', args: [], env: {} })] })),
@@ -129,6 +143,15 @@ suite('codexClientCustomizations', () => {
 		assert.deepStrictEqual(codexSkillCapabilityRoots(plugins).map(root => root.fsPath), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
 	});
 
+	test('includes host file-link instructions without client customizations', async () => {
+		const config = await codexCustomizationConfig([], [], undefined, fileService);
+
+		assert.deepStrictEqual(config, {
+			agentRoles: [],
+			developerInstructions: CODEX_FILE_LINK_INSTRUCTIONS,
+		});
+	});
+
 	test('converts agent markdown and plugin instructions into codex launch configuration', async () => {
 		const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/agents/reviewer.agent.md' });
 		const instructionUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/rules/repo.instructions.md' });
@@ -139,7 +162,7 @@ suite('codexClientCustomizations', () => {
 			instructions: [instructionDef(instructionUri, 'repo')],
 		}))];
 
-		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: agentUri.toString() }, fileService);
+		const config = await codexCustomizationConfig([], plugins, { uri: agentUri.toString() }, fileService);
 
 		assert.deepStrictEqual(config, {
 			agentRoles: [{
@@ -148,7 +171,7 @@ suite('codexClientCustomizations', () => {
 				instructions: 'Review the change and report risks.',
 				model: 'gpt-test',
 			}],
-			developerInstructions: 'Always run focused tests.\n\nReview the change and report risks.',
+			developerInstructions: `Always run focused tests.\n\nReview the change and report risks.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 		});
 		assert.strictEqual(codexAgentRoleToml(config.agentRoles[0]), [
 			'name = "Reviewer"',
@@ -157,6 +180,38 @@ suite('codexClientCustomizations', () => {
 			'model = "gpt-test"',
 			'',
 		].join('\n'));
+	});
+
+	test('converts a selected workspace agent without a client plugin', async () => {
+		const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/agents/reviewer.agent.md' });
+		await fileService.writeFile(agentUri, VSBuffer.fromString([
+			'---',
+			'name: Workspace Reviewer',
+			'description: Reviews workspace changes',
+			'model: [gpt-first, gpt-second]',
+			'tools: [read_file, search]',
+			'infer: true',
+			'disable-model-invocation: true',
+			'---',
+			'Review the workspace change.',
+		].join('\n')));
+
+		const config = await codexCustomizationConfig(
+			[agentDef(agentUri, 'reviewer')],
+			[],
+			{ uri: agentUri.toString() },
+			fileService,
+		);
+
+		assert.deepStrictEqual(config, {
+			agentRoles: [{
+				name: 'Workspace Reviewer',
+				description: 'Reviews workspace changes',
+				instructions: 'Review the workspace change.',
+				model: 'gpt-first',
+			}],
+			developerInstructions: `Review the workspace change.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+		});
 	});
 
 	test('does not promote path-scoped plugin instructions to thread-global instructions', async () => {
@@ -171,9 +226,9 @@ suite('codexClientCustomizations', () => {
 			],
 		}))];
 
-		const config = await codexCustomizationConfigFromPlugins(plugins, undefined, fileService);
+		const config = await codexCustomizationConfig([], plugins, undefined, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply globally.');
+		assert.strictEqual(config.developerInstructions, `Apply globally.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('matches a selected source agent to its host-synced plugin copy', async () => {
@@ -188,7 +243,6 @@ suite('codexClientCustomizations', () => {
 				id: 'synced-plugin',
 				uri: sourcePluginUri.toString(),
 				name: 'Synced Plugin',
-				enabled: true,
 			},
 			pluginDir: syncedPluginUri,
 		};
@@ -197,9 +251,9 @@ suite('codexClientCustomizations', () => {
 			parsed: parsed({ agents: [agentDef(syncedAgentUri, 'reviewer')] }),
 		}];
 
-		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: sourceAgentUri.toString() }, fileService);
+		const config = await codexCustomizationConfig([], plugins, { uri: sourceAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply synced reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply synced reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('matches an original loose-agent URI to its synthetic bundle copy', async () => {
@@ -213,7 +267,6 @@ suite('codexClientCustomizations', () => {
 				id: 'synthetic-plugin',
 				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`,
 				name: 'VS Code Synced Data',
-				enabled: true,
 			},
 			pluginDir: syncedPluginUri,
 		};
@@ -222,9 +275,9 @@ suite('codexClientCustomizations', () => {
 			parsed: parsed({ agents: [agentDef(syncedAgentUri, 'reviewer')] }),
 		}];
 
-		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: sourceAgentUri.toString() }, fileService);
+		const config = await codexCustomizationConfig([], plugins, { uri: sourceAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply loose reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply loose reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('prefers an exact selected agent over a synthetic filename fallback', async () => {
@@ -239,23 +292,23 @@ suite('codexClientCustomizations', () => {
 		const plugins: ICodexClientPlugin[] = [
 			{
 				synced: {
-					customization: { type: CustomizationType.Plugin, id: 'selected-plugin', uri: selectedPluginUri.toString(), name: 'Selected Plugin', enabled: true },
+					customization: { type: CustomizationType.Plugin, id: 'selected-plugin', uri: selectedPluginUri.toString(), name: 'Selected Plugin', },
 					pluginDir: selectedSyncedPluginUri,
 				},
 				parsed: parsed({ agents: [agentDef(selectedSyncedAgentUri, 'selected-reviewer')] }),
 			},
 			{
 				synced: {
-					customization: { type: CustomizationType.Plugin, id: 'synthetic-plugin', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`, name: 'VS Code Synced Data', enabled: true },
+					customization: { type: CustomizationType.Plugin, id: 'synthetic-plugin', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/agent-host-codex`, name: 'VS Code Synced Data', },
 					pluginDir: syntheticPluginUri,
 				},
 				parsed: parsed({ agents: [agentDef(syntheticAgentUri, 'synthetic-reviewer')] }),
 			},
 		];
 
-		const config = await codexCustomizationConfigFromPlugins(plugins, { uri: selectedAgentUri.toString() }, fileService);
+		const config = await codexCustomizationConfig([], plugins, { uri: selectedAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply exact reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply exact reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('removeClient drops a client and setEnabled reports whether it changed', () => {

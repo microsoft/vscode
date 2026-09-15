@@ -15,7 +15,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
-import { agentsBadgeBackground, agentsBadgeForeground, agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
+import { agentsBadgeBackground, agentsBadgeForeground, agentsBottomPanelBorder, agentsPanelBackground, agentsPanelForeground } from '../../common/theme.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -128,7 +128,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		// Store background and border as CSS variables for the card styling on .part
 		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
-		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
+		container.style.setProperty('--part-border-color', this.getColor(agentsBottomPanelBorder) || 'transparent');
 		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
 		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
 
