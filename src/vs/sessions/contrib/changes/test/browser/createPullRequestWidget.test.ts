@@ -27,7 +27,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CreatePullRequestPreferences, ICreatePullRequestPreferences } from '../../common/createPullRequestPreferences.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
 import { CreatePullRequestContextView } from '../../browser/createPullRequestContextView.js';
 import { CreatePullRequestWidget, ICreatePullRequestWidgetOptions } from '../../browser/createPullRequestWidget.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
@@ -158,7 +158,7 @@ suite('CreatePullRequestWidget', () => {
 	for (const primaryAction of ['create', 'sendToChat'] as const) {
 		test(`${primaryAction} forwards prepared identity without persisting it`, async () => {
 			const context = { workingDirectory: 'file:///repo', repository: details.repository, branchName: details.branchName, baseBranchName: details.baseBranchName };
-			const sent: ISessionPullRequestOptions[] = [];
+			const sent: ISessionPullRequestChatOptions[] = [];
 			const { widget, submissions, preferences } = createWidget({ prepare: async () => ({ ...details, context }) }, undefined, {
 				preferences: { primaryAction },
 				sendToChat: async options => { sent.push(options); },
@@ -187,8 +187,8 @@ suite('CreatePullRequestWidget', () => {
 		action.dispatchEvent(new KeyboardEvent('keyup', { keyCode: 13, bubbles: true }));
 	}
 
-	test('the dropdown sends form options to chat without creating a PR or unlocking achievements', async () => {
-		const sent: ISessionPullRequestOptions[] = [];
+	test('the dropdown sends options without title or description to chat without creating a PR or unlocking achievements', async () => {
+		const sent: ISessionPullRequestChatOptions[] = [];
 		let completed = 0;
 		const { widget, submissions, preferences, created } = createWidget(undefined, undefined, {
 			sendToChat: async options => { sent.push(options); },
@@ -208,7 +208,7 @@ suite('CreatePullRequestWidget', () => {
 			primaryAction: preferences.read().primaryAction,
 		}, {
 			sent: [{
-				title: 'Send this title', description: 'Send this description', draft: false, agentMerge: true,
+				draft: false, agentMerge: true,
 				agentMergeOptions: { ...agentMergeOptions, mergePullRequest: 'always' }
 			}],
 			submissions: [], completed: 1, created: 0,
@@ -351,14 +351,23 @@ suite('CreatePullRequestWidget', () => {
 		};
 		const { widget, preferences } = createWidget({ prepare: () => generation.p }, undefined, { preferences: remembered, sendToChat: async () => { } });
 		const loadingPreferences = preferences.read();
+		const beforeGeneration = {
+			state: agentMergeState(widget),
+			mode: element(widget, '[role="radio"][aria-label="Agent Merge"]').getAttribute('aria-checked'),
+			canSend: element(widget, '.create-pr-submit').getAttribute('aria-disabled'),
+		};
 		await generation.complete(details);
 		await widget.ready;
 		assert.deepStrictEqual({
 			loadingPreferences, preferences: preferences.read(), state: agentMergeState(widget),
+			interactiveWhileLoading: beforeGeneration.state.hidden === false && beforeGeneration.state.actions.every(action => action.disabled === 'false'),
+			rememberedWhileLoading: beforeGeneration.state.policy === 'When Ready' && beforeGeneration.mode === 'true',
+			canSendWhileLoading: beforeGeneration.canSend,
 			draft: element(widget, '.create-pr-draft [role="checkbox"]').getAttribute('aria-checked'),
 			label: element(widget, '.create-pr-submit').textContent,
 		}, {
 			loadingPreferences: remembered, preferences: remembered, draft: 'true', label: 'Send Create PR Message',
+			interactiveWhileLoading: true, rememberedWhileLoading: true, canSendWhileLoading: 'false',
 			state: {
 				hidden: false, actions: [
 					{ label: 'Address Reviews', checked: 'true', disabled: 'false' },
@@ -366,6 +375,91 @@ suite('CreatePullRequestWidget', () => {
 					{ label: 'Resolve Conflicts and Behind Branches', checked: 'true', disabled: 'false' },
 				], policy: 'When Ready'
 			},
+		});
+	});
+
+	test('remembered merge options are editable during first generation and edits survive completion', async () => {
+		const generation = new DeferredPromise<ISessionPullRequestDetails>();
+		const { widget, preferences } = createWidget({ prepare: () => generation.p }, undefined, {
+			preferences: { mergeMode: 'auto', mergeMethod: 'REBASE', agentMergeOptions },
+		});
+		const before = {
+			mode: element(widget, '[role="radio"][aria-label="Auto-Merge"]').getAttribute('aria-checked'),
+			method: element(widget, '[role="radiogroup"][aria-label="Merge method"] [aria-checked="true"]').textContent,
+			canCreate: element(widget, '.create-pr-submit').getAttribute('aria-disabled'),
+		};
+		select(widget, 'Merge Commit');
+		select(widget, 'Agent Merge');
+		element(widget, '[role="checkbox"][aria-label="Address Reviews"]').click();
+		select(widget, 'When Ready');
+		element(widget, '[role="radio"][aria-label="Agent Merge"]').focus();
+		await generation.complete(details);
+		await widget.ready;
+		assert.deepStrictEqual({
+			before,
+			preferences: preferences.read(),
+			state: agentMergeState(widget),
+			focusRetained: dom.getActiveElement() === element(widget, '[role="radio"][aria-label="Agent Merge"]'),
+			canCreate: element(widget, '.create-pr-submit').getAttribute('aria-disabled'),
+		}, {
+			before: { mode: 'true', method: 'Rebase', canCreate: 'true' },
+			preferences: { mergeMode: 'agent', mergeMethod: 'MERGE', agentMergeOptions: { ...agentMergeOptions, addressReviews: true, mergePullRequest: 'always' } },
+			state: {
+				hidden: false, actions: [
+					{ label: 'Address Reviews', checked: 'true', disabled: 'false' },
+					{ label: 'Fix CI Failures', checked: 'true', disabled: 'false' },
+					{ label: 'Resolve Conflicts and Behind Branches', checked: 'false', disabled: 'false' },
+				], policy: 'When Ready',
+			},
+			focusRetained: true, canCreate: 'false',
+		});
+	});
+
+	test('the dropdown can send an agentic request before title and description generation finishes', async () => {
+		const generation = new DeferredPromise<ISessionPullRequestDetails>();
+		const sent: ISessionPullRequestChatOptions[] = [];
+		const { widget, submissions } = createWidget({ prepare: () => generation.p }, undefined, {
+			preferences: { mergeMode: 'agent', agentMergeOptions },
+			sendToChat: async options => { sent.push(options); },
+		});
+		input(widget, 'input', 'Do not send this title');
+		input(widget, 'textarea', 'Do not send this description');
+		element(widget, '.create-pr-submit').click();
+		const primaryDisabled = element(widget, '.create-pr-submit').getAttribute('aria-disabled');
+		const dropdownEnabled = element(widget, '.monaco-dropdown-button').getAttribute('aria-disabled');
+		openActionMenu(widget);
+		const menu = [...document.querySelectorAll<HTMLElement>('.monaco-menu .action-label')].map(action => ({
+			label: action.textContent, disabled: action.closest('.action-item')!.classList.contains('disabled'),
+		}));
+		chooseMenuAction('Send Create PR Message');
+		await timeout(0);
+		const sentBeforeGeneration = sent.length;
+		await generation.complete(details);
+		await widget.ready;
+		assert.deepStrictEqual({ primaryDisabled, dropdownEnabled, menu, sentBeforeGeneration, sent, submissions }, {
+			primaryDisabled: 'true', dropdownEnabled: 'false',
+			menu: [{ label: 'Create PR', disabled: true }, { label: 'Send Create PR Message', disabled: false }],
+			sentBeforeGeneration: 1, sent: [{ draft: false, agentMerge: true, agentMergeOptions }], submissions: [],
+		});
+	});
+
+	test('remembered agentic primary action works without text and prevents duplicate sends while loading', async () => {
+		const generation = new DeferredPromise<ISessionPullRequestDetails>();
+		const completion = new DeferredPromise<void>();
+		const sent: ISessionPullRequestChatOptions[] = [];
+		const { widget, submissions, preferences } = createWidget({ prepare: () => generation.p }, undefined, {
+			preferences: { draft: true, primaryAction: 'sendToChat' },
+			sendToChat: async options => { sent.push(options); await completion.p; },
+		});
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true }));
+		element(widget, '.create-pr-submit').click();
+		const dropdownDisabled = element(widget, '.monaco-dropdown-button').getAttribute('aria-disabled');
+		await completion.complete();
+		await timeout(0);
+		await generation.complete(details);
+		await widget.ready;
+		assert.deepStrictEqual({ sent, submissions, dropdownDisabled, agentMergePreferences: preferences.read().agentMergeOptions }, {
+			sent: [{ draft: true, agentMerge: false }], submissions: [], dropdownDisabled: 'true', agentMergePreferences: undefined,
 		});
 	});
 
