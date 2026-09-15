@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { CancellationTokenSource, CompletionTriggerKind, Selection } from 'vscode';
+import { CancellationTokenSource, CompletionTriggerKind, Selection, workspace, ConfigurationTarget } from 'vscode';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
 import { closeAllEditors, withRandomFileEditor } from './testUtils';
 
@@ -86,6 +86,13 @@ interface TestCompletionItem {
 	documentation?: string;
 }
 
+/**
+ * Tests the completion provider for a given file extension and content
+ * @param fileExtension The file extension to test
+ * @param contents The file content with cursor position marked by '|'
+ * @param expectedItems Expected completion items or undefined if no completions expected
+ * @returns A promise that resolves when the test is complete
+ */
 function testCompletionProvider(fileExtension: string, contents: string, expectedItems: TestCompletionItem[] | undefined): Thenable<boolean> {
 	const cursorPos = contents.indexOf('|');
 	const slicedContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
@@ -130,3 +137,70 @@ function testCompletionProvider(fileExtension: string, contents: string, expecte
 		return Promise.resolve();
 	});
 }
+
+suite('Tests for one-to-many language mapping', () => {
+	teardown(closeAllEditors);
+
+	test('Array mapping with HTML and CSS should provide HTML completions', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': ['html', 'css'] }, ConfigurationTarget.Global);
+		
+		try {
+			await testCompletionProvider('javascript', '<div |', [
+				{ label: 'div', documentation: `<div>|</div>` }
+			]);
+		} finally {
+			await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
+		}
+	});
+
+	test('Array mapping with HTML and CSS should provide CSS completions in style context', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': ['html', 'css'] }, ConfigurationTarget.Global);
+		
+		try {
+			await testCompletionProvider('javascript', '<div style="p|">', [
+				{ label: 'padding: ;', documentation: `padding: |;` }
+			]);
+		} finally {
+			await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
+		}
+	});
+
+	test('Array mapping with invalid languages should filter to valid ones', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': ['html', 'invalidlang', 'css'] }, ConfigurationTarget.Global);
+		
+		try {
+			await testCompletionProvider('javascript', '<div |', [
+				{ label: 'div', documentation: `<div>|</div>` }
+			]);
+		} finally {
+			await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
+		}
+	});
+
+	test('Backward compatibility: single string mapping still works', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': 'html' }, ConfigurationTarget.Global);
+		
+		try {
+			await testCompletionProvider('javascript', '<div |', [
+				{ label: 'div', documentation: `<div>|</div>` }
+			]);
+		} finally {
+			await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
+		}
+	});
+
+	test('Empty array should not register any completions', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': [] }, ConfigurationTarget.Global);
+		
+		try {
+			await testCompletionProvider('javascript', '<div |', undefined);
+		} finally {
+			await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
+		}
+	});
+});
