@@ -16,6 +16,7 @@ import {
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_GATEWAY_SELECT_PATH,
 	TUNNEL_MIN_PROTOCOL_VERSION,
+	TunnelNotFoundError,
 	TunnelTags,
 	type ITunnelConnectResult,
 	type ITunnelGatewayInventory,
@@ -269,7 +270,7 @@ export class TunnelAgentHostConnector extends Disposable {
 
 		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
 		if (!session) {
-			throw new Error(`${LOG_PREFIX} Tunnel ${tunnelId} not found`);
+			throw new TunnelNotFoundError(tunnelId);
 		}
 
 		const { tunnel } = session;
@@ -315,7 +316,7 @@ export class TunnelAgentHostConnector extends Disposable {
 	async prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined> {
 		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
 		if (!session) {
-			throw new Error(`${LOG_PREFIX} Tunnel ${tunnelId} not found`);
+			throw new TunnelNotFoundError(tunnelId);
 		}
 
 		const { tunnel } = session;

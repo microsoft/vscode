@@ -520,11 +520,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		const cached = options?.refresh ? undefined : this._getCachedGitHubMarketplacePlugins(cache, reference.canonicalId);
 		if (cached) {
-			return cached.map(c => ({
-				...c,
-				marketplace: reference.displayLabel,
-				marketplaceReference: reference,
-			}));
+			return cached.map(c => {
+				const plugin = ensureSourceDescriptor(c);
+				return {
+					...plugin,
+					marketplace: reference.displayLabel,
+					marketplaceReference: reference,
+					readmeUri: getMarketplaceReadmeUri(plugin.sourceDescriptor, reference, plugin.source),
+				};
+			});
 		}
 
 		let repoMayBePrivate = true;
@@ -716,7 +720,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 * Hydrates installed entries from marketplace metadata. Entries written
 	 * by current builds include the marketplace plugin name, which is enough
 	 * to re-read the full plugin descriptor from the marketplace source. Old
-	 * entries without a name fall back to matching by install URI.
+	 * entries without a name fall back to matching by install URI. Entries
+	 * that came from a single-plugin repository have no marketplace index to
+	 * look up at all and are recovered from the manifest in their install
+	 * directory.
 	 *
 	 * After hydration completes the installed-plugins store is "touched" so
 	 * that the derived {@link installedPlugins} observable re-evaluates with
@@ -739,7 +746,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 			try {
 				const plugins = await this._readPluginsForInstalledEntry(reference, CancellationToken.None);
-				const match = plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri));
+				// A marketplace that resolves but no longer lists the entry (a renamed or
+				// removed plugin) must not fall back: marketplace plugin directories
+				// usually hold a manifest too, and reading it would reclassify the entry
+				// as a direct source rooted at the marketplace repository, sending later
+				// updates to the wrong place. Only an absent marketplace index means the
+				// entry came from a single-plugin repo installed via
+				// `installPluginFromSource`, whose descriptor lives in the recorded
+				// install directory.
+				const match = plugins.length === 0
+					? await this.readSinglePluginManifest(entry.pluginUri, reference)
+					: plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri));
 				if (match) {
 					this._pluginMetadata.set(key, match);
 					hydrated++;
@@ -762,18 +779,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return this._fetchFromGitHubRepo(reference, reference.githubRepo, token);
 		}
 
-		const repoDir = this._pluginRepositoryService.getRepositoryUri(reference);
-		let plugins = await this._readPluginsFromDirectory(repoDir, reference, token);
-		if (plugins.length === 0) {
-			// The entry may have come from a single-plugin repo installed
-			// via `installPluginFromSource` (no marketplace.json). Try the
-			// plugin manifest at the repo root.
-			const single = await this.readSinglePluginManifest(repoDir, reference);
-			if (single) {
-				plugins = [single];
-			}
-		}
-		return plugins;
+		return this._readPluginsFromDirectory(this._pluginRepositoryService.getRepositoryUri(reference), reference, token);
 	}
 
 	/**
@@ -810,7 +816,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					marketplace: reference.displayLabel,
 					marketplaceReference: reference,
 					marketplaceType,
-					readmeUri: repoDir ? getMarketplaceReadmeFileUri(repoDir, source) : getMarketplaceReadmeUri(reference.githubRepo ?? '', source),
+					readmeUri: getMarketplaceReadmeUri(sourceDescriptor, reference, source, repoDir),
 				}];
 			});
 	}
@@ -1267,10 +1273,34 @@ export function hasSourceChanged(installed: IPluginSourceDescriptor, marketplace
 	}
 }
 
-function getMarketplaceReadmeUri(repo: string, source: string): URI {
+function getMarketplaceReadmeUri(sourceDescriptor: IPluginSourceDescriptor, reference: IMarketplaceReference, source: string, repoDir?: URI): URI | undefined {
+	if (sourceDescriptor.kind === PluginSourceKind.GitHub) {
+		const ref = sourceDescriptor.sha ?? sourceDescriptor.ref ?? 'main';
+		const normalizedPath = sourceDescriptor.path?.trim().replace(/^\.?\/+|\/+$/g, '');
+		const readmePath = normalizedPath ? `${normalizedPath}/README.md` : 'README.md';
+		return URI.parse(`https://github.com/${sourceDescriptor.repo}/blob/${ref}/${readmePath}`);
+	}
+
+	if (sourceDescriptor.kind === PluginSourceKind.GitUrl && sourceDescriptor.url.startsWith('https://github.com/')) {
+		const repo = sourceDescriptor.url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
+		const ref = sourceDescriptor.sha ?? sourceDescriptor.ref ?? 'main';
+		const normalizedPath = sourceDescriptor.path?.trim().replace(/^\.?\/+|\/+$/g, '');
+		const readmePath = normalizedPath ? `${normalizedPath}/README.md` : 'README.md';
+		return URI.parse(`https://github.com/${repo}/blob/${ref}/${readmePath}`);
+	}
+
+	if (repoDir) {
+		return getMarketplaceReadmeFileUri(repoDir, source);
+	}
+
+	if (!reference.githubRepo) {
+		return undefined;
+	}
+
 	const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
 	const readmePath = normalizedSource ? `${normalizedSource}/README.md` : 'README.md';
-	return URI.parse(`https://github.com/${repo}/blob/main/${readmePath}`);
+	const ref = reference.ref ?? 'main';
+	return URI.parse(`https://github.com/${reference.githubRepo}/blob/${ref}/${readmePath}`);
 }
 
 function getMarketplaceReadmeFileUri(repoDir: URI, source: string): URI {

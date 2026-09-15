@@ -11,6 +11,7 @@ import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';
 import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
+import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import product from '../product.json' with { type: 'json' };
 import { getProductionDependencies } from './lib/dependencies.ts';
 import { readISODate } from './lib/date.ts';
@@ -412,6 +413,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor((json: Record<string, unknown>) => {
 				json.commit = commit;
+				json.nlsMetadataHash = computeNLSMetadataHash(path.join(REPO_ROOT, sourceFolderName), commit);
 				json.date = readISODate(sourceFolderName);
 				json.version = version;
 				// Stamp agentSdks from the per-platform results file produced
@@ -573,6 +575,8 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			promisify(glob)('**/*.node', { cwd }),
 			promisify(glob)('**/rg.exe', { cwd }),
 			promisify(glob)('**/tgrep.exe', { cwd }),
+			// TODO@anthonykim1 Remove once @github/copilot ships OneAuthInterop.dll with complete version information.
+			promisify(glob)('**/OneAuthInterop.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));

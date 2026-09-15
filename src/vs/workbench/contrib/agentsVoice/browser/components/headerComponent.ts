@@ -187,8 +187,8 @@ export function createHeader(): HeaderComponent {
 
 			// Mute microphone button — shown only when connected
 			muteBtn.style.display = showConnected ? '' : 'none';
-			muteBtn.classList.toggle('codicon-mic', !props.isMuted);
-			muteBtn.classList.toggle('codicon-mute', props.isMuted);
+			muteBtn.classList.toggle('codicon-mic', props.isMuted);
+			muteBtn.classList.toggle('codicon-mic-off', !props.isMuted);
 			const muteColor = props.isMuted ? 'var(--vscode-editorError-foreground)' : 'var(--vscode-descriptionForeground)';
 			muteBtn.style.color = muteColor;
 			const muteLabel = props.isMuted

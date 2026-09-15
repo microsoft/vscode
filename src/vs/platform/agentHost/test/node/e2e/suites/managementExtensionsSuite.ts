@@ -433,7 +433,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 				hasProvider: provider !== undefined,
 				hasSnapshot: provider?.snapshot !== undefined,
 				hasError: provider?.error !== undefined,
-				sourceIsValid: provider?.snapshot !== undefined && ['server', 'device', 'client', 'mixed', 'none'].includes(provider.snapshot.source),
+				sourceIsValid: provider?.snapshot !== undefined && ['server', 'device', 'client', 'policyHelper', 'mixed', 'none'].includes(provider.snapshot.source),
 				managedKeysAreArray: Array.isArray(provider?.snapshot?.managedKeys),
 			}, {
 				hasProvider: true,

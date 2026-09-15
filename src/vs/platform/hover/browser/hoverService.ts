@@ -718,7 +718,10 @@ export class HoverService extends Disposable implements IHoverService {
 			},
 			update: async (newContent, hoverOptions) => {
 				content = newContent;
-				await hoverWidget?.update(content, undefined, hoverOptions);
+				// Keep the options for the next time the hover is shown, so an updated
+				// tooltip does not keep rendering the actions it was created with.
+				options = hoverOptions;
+				await hoverWidget?.update(content, undefined, options);
 			},
 			dispose: () => {
 				this._managedHovers.delete(targetElement);

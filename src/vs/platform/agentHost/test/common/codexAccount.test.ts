@@ -44,11 +44,12 @@ suite('Codex account metadata', () => {
 	});
 
 	test('reads only safe profile-image references', () => {
+		const nonce = 'a'.repeat(64);
 		const profileImage = {
-			uri: 'vscode-codex-profile-image:/profile.png',
+			uri: `vscode-codex-profile-image:/profile-${nonce}.png`,
 			contentType: 'image/png',
 			sizeHint: 5,
-			nonce: 'a'.repeat(64),
+			nonce,
 		};
 		const account = readCodexAccountInfo({
 			agents: [],

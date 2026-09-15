@@ -6,10 +6,10 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
-import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IOutgoingTurn, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
-/** Attaches GitHub references from outgoing messages and the current pull request after success. */
+/** Reconciles the session's current pull request after a started turn ends. */
 export class GitHubReferencesContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'githubReferences';
@@ -23,13 +23,8 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 		super();
 	}
 
-	onOutgoingTurn(turn: IOutgoingTurn): undefined {
-		void this._gitStateService.attachSessionGitHubReferences(turn.session, turn.message.text);
-		return undefined;
-	}
-
 	onTurnEnd(turn: ITurnEnd): void {
-		if (turn.reason.kind === 'success') {
+		if (turn.reason.kind !== 'rejected' && turn.reason.kind !== 'localCommand') {
 			const workingDirectory = this._stateManager.getSessionState(turn.session)?.workingDirectories?.[0];
 			void this._gitStateService.attachSessionGitHubPullRequest(turn.session, workingDirectory ? URI.parse(workingDirectory) : undefined);
 		}

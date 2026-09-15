@@ -9,8 +9,6 @@ exchanges:
           content: Call list_sessions exactly once with workspace "${workdir}", then reply exactly "listed".
     response:
       content:
-        - type: text
-          text: I'll call it once as requested.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__list_sessions
@@ -25,8 +23,6 @@ exchanges:
           content: Call list_sessions exactly once with workspace "${workdir}", then reply exactly "listed".
         - role: assistant
           content:
-            - type: text
-              text: I'll call it once as requested.
             - type: tool_use
               name: mcp__host__list_sessions
               input:
@@ -35,7 +31,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Call list_sessions exactly once with workspace \"${workdir}\", then reply exactly \"listed\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T02:19:40.274Z","modifiedAt":"2026-08-02T02:19:39.927Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Call list_sessions exactly once with workspace \"${workdir}\", then reply exactly \"listed\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-28T16:28:16.841Z","modifiedAt":"2026-08-28T16:28:12.592Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
     response:
       content: listed
       stopReason: end_turn

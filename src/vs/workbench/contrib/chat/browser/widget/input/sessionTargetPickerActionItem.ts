@@ -192,6 +192,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			this._updateAgentSessionItems();
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -345,6 +348,13 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		return undefined;
 	}
 
+	protected _getSessionLabel(type: AgentSessionTarget): string {
+		const knownType = getAgentSessionProvider(type);
+		return knownType
+			? getAgentSessionProviderName(knownType)
+			: (this.chatSessionsService.getChatSessionContribution(type)?.displayName ?? type);
+	}
+
 	private _getSessionIcon(sessionTypeItem: ISessionTypeItem): ThemeIcon {
 		// TODO: Remove hardcoded providers from core
 		const knownType = getAgentSessionProvider(sessionTypeItem.type);
@@ -364,22 +374,27 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		container.classList.add('chat-session-target-picker-item');
 	}
 
-	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
-		const currentType = this._getSelectedSessionType() ?? this._getDefaultSessionType();
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this.element?.setAttribute('aria-disabled', String(!this.isEnabled()));
+	}
 
-		// TODO: Remove hardcoded providers from core
-		const knownType = getAgentSessionProvider(currentType);
-		const label = knownType
-			? getAgentSessionProviderName(knownType)
-			: (this.chatSessionsService.getChatSessionContribution(currentType)?.displayName ?? currentType);
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		const currentType = this._getSelectedSessionType() ?? this._getDefaultSessionType();
+		const label = this._getSessionLabel(currentType);
 		const icon = this._getSessionIcon({ type: currentType, label, hoverDescription: '', commandId: '' });
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
-		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
+		if (!compact) {
+			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		}
 
 		dom.reset(element, ...labelElements);
+		this.updateTooltip();
+		element.ariaLabel = label;
 
 		return null;
 	}

@@ -18,7 +18,7 @@ import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWor
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { IMcpConfigPath, IMcpWorkbenchService, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { getMcpCollectionProvenance, IMcpConfigPath, IMcpWorkbenchService, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
 interface CollectionState extends IDisposable {
@@ -85,20 +85,11 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					collections.set(collectionId, definitions);
 				}
 
-				const launch: McpServerLaunch = config.type === 'http' ? {
-					type: McpServerTransportType.HTTP,
-					uri: URI.parse(config.url),
-					headers: Object.entries(config.headers || {}),
-					oauth: config.oauth,
-				} : {
-					type: McpServerTransportType.Stdio,
-					command: config.command,
-					args: config.args || [],
-					env: config.env || {},
-					envFile: config.envFile,
-					cwd: config.cwd,
-					sandbox: server.rootSandbox
-				};
+				const launch = McpServerLaunch.fromServerConfiguration(config, server.rootSandbox);
+				if (!launch) {
+					this.logService.warn(`Skipping invalid MCP server configuration: ${server.name}`);
+					continue;
+				}
 				const defaultCwd = config.type === 'http' ? undefined : mcpConfigPath?.workspaceFolder?.uri;
 
 				definitions[1].push({
@@ -132,6 +123,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 				const newServerDefinitions = observableValue<readonly McpServerDefinition[]>(this, serverDefinitions);
 				const newCollection: McpCollectionDefinition = {
 					id,
+					provenance: getMcpCollectionProvenance(mcpConfigPath?.target),
 					label: mcpConfigPath?.label ?? '',
 					order: mcpConfigPath?.order ?? McpCollectionSortOrder.User,
 					presentation: {

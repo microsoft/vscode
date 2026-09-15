@@ -114,6 +114,7 @@ export interface IChatRequestViewModel {
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isHiddenFromTranscript: boolean;
+	readonly isRequestHiddenFromTranscript: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
@@ -128,6 +129,7 @@ export interface IChatRequestViewModel {
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatRequestModel['requestSource'];
 	readonly systemInitiatedLabel?: string;
 	readonly origin?: IChatRequestModel['origin'];
 }
@@ -346,7 +348,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
 		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
-			if (item.isHiddenFromTranscript || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
+			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
 				return false;
 			}
 			return true;
@@ -355,7 +357,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
 
-		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isHiddenFromTranscript);
+		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isRequestHiddenFromTranscript);
 		if (pendingRequests.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
@@ -473,6 +475,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isHiddenFromTranscript;
 	}
 
+	get isRequestHiddenFromTranscript() {
+		return this._model.isRequestHiddenFromTranscript;
+	}
+
 	get shouldBeBlocked() {
 		return this._model.shouldBeBlocked;
 	}
@@ -518,6 +524,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get isSystemInitiated() {
 		return this._model.isSystemInitiated;
+	}
+
+	get requestSource() {
+		return this._model.requestSource;
 	}
 
 	get systemInitiatedLabel() {

@@ -963,8 +963,8 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments } = getRequestId(response.headers);
-		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, serverExperiments, compactionThreshold);
+		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, copilotServiceRequestId, serverExperiments, compactionThreshold);
 		const dumper = createResponsesStreamDumper(requestId, logService);
 		const parser = new SSEParser((ev) => {
 			try {
@@ -1184,6 +1184,7 @@ export class OpenAIResponsesProcessor {
 		private readonly telemetryService: ITelemetryService,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly copilotServiceRequestId: string,
 		private readonly serverExperiments: string,
 		private readonly compactionThreshold: number | undefined,
 		@ILogService private readonly logService: ILogService,
@@ -1432,7 +1433,7 @@ export class OpenAIResponsesProcessor {
 					model: chunk.response.model,
 					tokens: [],
 					telemetryData: this.telemetryData,
-					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
+					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, copilotServiceRequestId: this.copilotServiceRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
 					usage: {
 						prompt_tokens: chunk.response.usage?.input_tokens ?? 0,
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,
@@ -1510,6 +1511,7 @@ export class OpenAIResponsesProcessor {
 			requestId: {
 				headerRequestId: this.requestId,
 				gitHubRequestId: this.ghRequestId,
+				copilotServiceRequestId: this.copilotServiceRequestId,
 				completionId: response.id,
 				created: response.created_at,
 				deploymentId: '',

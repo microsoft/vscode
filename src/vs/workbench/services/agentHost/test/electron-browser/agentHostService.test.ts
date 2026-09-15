@@ -69,6 +69,7 @@ class TestAgentHostEnablementService extends Disposable implements IAgentHostEna
 	private readonly _enabled;
 	readonly enabled;
 	readonly managedSandboxEnforced = constObservable(false);
+	readonly managedSandboxAllowsBypass = constObservable(false);
 
 	constructor(enabled: boolean) {
 		super();

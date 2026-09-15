@@ -10,7 +10,7 @@ import { withChatSurfaceMeta } from '../../../../platform/agentHost/common/meta/
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatModelReference, IChatService } from '../../chat/common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, getLocalFallbackSessionTypeSelectionReason } from '../../chat/common/constants.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../chat/common/chatSessionsService.js';
 
 export const IInlineChatSessionResolver = createDecorator<IInlineChatSessionResolver>('inlineChatSessionResolver');
@@ -57,7 +57,8 @@ export class InlineChatSessionResolver implements IInlineChatSessionResolver {
 		let modelRef: IChatModelReference | undefined;
 		const agentHostEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.InlineChatAgentHostEnabled) === true;
 		const contribution = agentHostEnabled ? this._chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot) : undefined;
-		if (contribution?.locations?.includes(ChatAgentLocation.EditorInline)) {
+		const didAttemptAgentHost = contribution?.locations?.includes(ChatAgentLocation.EditorInline) === true;
+		if (didAttemptAgentHost) {
 			try {
 				const item = await this._chatSessionsService.createNewChatSessionItem(SessionType.AgentHostCopilot, {
 					prompt: '',
@@ -82,7 +83,10 @@ export class InlineChatSessionResolver implements IInlineChatSessionResolver {
 			return { modelRef, lockToAgent: contribution };
 		}
 
-		modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
+		modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.EditorInline, {
+			canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */,
+			sessionTypeSelectionReason: didAttemptAgentHost ? getLocalFallbackSessionTypeSelectionReason(SessionType.AgentHostCopilot, false) : undefined,
+		});
 		if (token.isCancellationRequested) {
 			modelRef.dispose();
 			return undefined;

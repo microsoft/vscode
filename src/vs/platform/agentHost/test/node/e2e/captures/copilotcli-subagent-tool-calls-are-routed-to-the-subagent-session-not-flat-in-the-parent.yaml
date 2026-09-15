@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
     response:
       content:
         - type: tool_use
@@ -14,23 +14,17 @@ exchanges:
           name: task
           input:
             name: list-cwd-files
-            prompt: |-
-              List the files in the current working directory: ${workdir}
-
-              Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
             agent_type: explore
-            description: List files in cwd
             mode: sync
+            description: List files in current working directory
+            prompt: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
       stopReason: tool_use
   - request:
       model: claude-haiku-4.5
       system: ${system}
       messages:
         - role: user
-          content: |-
-            List the files in the current working directory: ${workdir}
-
-            Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
+          content: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
     response:
       content:
         - type: tool_use
@@ -44,10 +38,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: |-
-            List the files in the current working directory: ${workdir}
-
-            Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
+          content: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
         - role: assistant
           content:
             - type: thinking
@@ -64,41 +55,40 @@ exchanges:
                 file-b.txt
     response:
       content: |-
-        The directory contains the following files:
-        - **file-a.txt**
-        - **file-b.txt**
+        The directory `${workdir}` contains the following files:
+
+        1. **file-a.txt**
+        2. **file-b.txt**
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
         - role: assistant
           content:
             - type: tool_use
               name: task
               input:
                 name: list-cwd-files
-                prompt: |-
-                  List the files in the current working directory: ${workdir}
-
-                  Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
                 agent_type: explore
-                description: List files in cwd
                 mode: sync
+                description: List files in current working directory
+                prompt: Use the `view` tool with path "${workdir}" to list the files and directories in that directory. Do not run any shell command. Just call view once on that path and report back the list of files/folders it contains.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                The directory contains the following files:
-                - **file-a.txt**
-                - **file-b.txt**
+                The directory `${workdir}` contains the following files:
+
+                1. **file-a.txt**
+                2. **file-b.txt**
     response:
       content: |-
-        The subagent listed the contents of the current working directory and found two files:
+        The subagent found two files in the current working directory:
 
-        - **file-a.txt**
-        - **file-b.txt**
+        1. `file-a.txt`
+        2. `file-b.txt`
       stopReason: end_turn

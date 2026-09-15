@@ -22,6 +22,7 @@ export interface IAgentHostDatabaseSession {
 	readonly session: string;
 	readonly provider: AgentProvider;
 	readonly startTime: number;
+	readonly modifiedTime: number;
 	readonly external: boolean | undefined;
 	readonly source: AgentSessionRegistrationSource;
 }
@@ -29,6 +30,8 @@ export interface IAgentHostDatabaseSession {
 export interface IAgentHostDatabaseSessionOptions {
 	readonly provider: AgentProvider;
 	readonly startTime: number;
+	/** Last observed provider modification time; defaults to {@link startTime}. */
+	readonly modifiedTime?: number;
 	readonly source: AgentSessionRegistrationSource;
 }
 
@@ -41,6 +44,11 @@ export interface IAgentHostDatabaseExternalUpdate {
 	readonly external: boolean;
 }
 
+export interface IAgentHostDatabaseModifiedTimeUpdate {
+	readonly session: string;
+	readonly modifiedTime: number;
+}
+
 export interface IAgentHostDatabase extends IDisposable {
 	/**
 	 * Records a session with source-aware provenance. When requested, the
@@ -51,6 +59,10 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
 	tombstoneAndUnregisterSession(session: string): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
+	/** Advances the durable last-observed modification time. */
+	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
+	/** Advances the durable last-observed modification time for many sessions in one transaction. */
+	updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void>;
 	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	isSessionRegistryEmpty(): Promise<boolean>;
@@ -107,6 +119,13 @@ const migrations = [
 		sql: [
 			`ALTER TABLE sessions ADD COLUMN registration_source TEXT NOT NULL DEFAULT 'explicit'`,
 			`UPDATE sessions SET registration_source = CASE WHEN external = 1 THEN 'discovery' ELSE 'explicit' END`,
+		].join(';\n'),
+	},
+	{
+		version: 4,
+		sql: [
+			'ALTER TABLE sessions ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0',
+			'UPDATE sessions SET modified_time = start_time',
 		].join(';\n'),
 	},
 ] as const;
@@ -185,14 +204,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	constructor(private readonly _path: string) { }
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		const changes = await runReturningChanges(
 			await this._ensureDatabase(),
-			`INSERT INTO sessions (session_uri, provider, start_time, external, registration_source)
-				SELECT ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
+			`INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+				SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
 				WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
 				ON CONFLICT(session_uri) DO UPDATE SET
 					provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions.provider END,
+					modified_time = MAX(sessions.modified_time, excluded.modified_time),
 					external = CASE
 						WHEN excluded.registration_source = 'explicit' THEN 0
 						WHEN excluded.registration_source = 'restore' THEN 0
@@ -204,7 +224,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						WHEN sessions.registration_source = 'explicit' THEN 'explicit'
 						ELSE excluded.registration_source
 					END`,
-			[session, provider, startTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+			[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
 		);
 		if (!registerOptions.checkTombstone) {
 			await this.clearSessionTombstone(session);
@@ -280,19 +300,53 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
+	async updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean> {
+		const changes = await runReturningChanges(
+			await this._ensureDatabase(),
+			'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?',
+			[modifiedTime, session, modifiedTime],
+		);
+		return changes > 0;
+	}
+
+	async updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void> {
+		// Advancing durable recency for a large catalogue one statement at a time
+		// dominates discovery, so the whole batch is flushed in a single
+		// transaction. The `modified_time < ?` guard keeps each advance monotonic
+		// even if a concurrent write moved a row forward since the snapshot.
+		const statements = updates
+			.filter(({ modifiedTime }) => Number.isFinite(modifiedTime))
+			.map(({ session, modifiedTime }) => `UPDATE sessions SET modified_time = ${modifiedTime} WHERE session_uri = ${quoteSqlString(session)} AND modified_time < ${modifiedTime}`);
+		if (statements.length === 0) {
+			return;
+		}
+		const database = await this._ensureDatabase();
+		try {
+			await exec(database, `BEGIN IMMEDIATE;\n${statements.join(';\n')};\nCOMMIT`);
+		} catch (error) {
+			try {
+				await exec(database, 'ROLLBACK');
+			} catch (rollbackError) {
+				throw new AggregateError([error, rollbackError], 'Failed to advance session modified times');
+			}
+			throw error;
+		}
+	}
+
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
-		const rows = await all(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions', []);
+		const rows = await all(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions', []);
 		return rows.map(row => ({
 			session: row.session_uri as string,
 			provider: row.provider as AgentProvider,
 			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
 			external: row.external === null ? undefined : row.external === 1,
 			source: row.registration_source as AgentSessionRegistrationSource,
 		}));
 	}
 
 	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
-		const row = await get(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions WHERE session_uri = ?', [session]);
+		const row = await get(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions WHERE session_uri = ?', [session]);
 		if (!row) {
 			return undefined;
 		}
@@ -300,6 +354,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			session: row.session_uri as string,
 			provider: row.provider as AgentProvider,
 			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
 			external: row.external === null || row.external === undefined ? undefined : row.external === 1,
 			source: row.registration_source as AgentSessionRegistrationSource,
 		};

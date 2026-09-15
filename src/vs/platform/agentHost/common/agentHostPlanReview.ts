@@ -25,3 +25,8 @@ export interface IAgentHostPlanReview {
 export type ChatInputRequestWithPlanReview = ChatInputRequest & {
 	readonly planReview?: IAgentHostPlanReview;
 };
+
+export function isChatInputRequestWithPlanReview(request: ChatInputRequest): request is ChatInputRequestWithPlanReview {
+	const candidate: ChatInputRequestWithPlanReview = request;
+	return candidate.planReview !== undefined;
+}

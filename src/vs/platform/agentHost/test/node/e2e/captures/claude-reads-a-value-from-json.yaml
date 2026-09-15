@@ -2,15 +2,13 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Read config.json and reply with the numeric value of "answer" only.
     response:
       content:
-        - type: text
-          text: I'll read the config file.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -18,15 +16,13 @@ exchanges:
             file_path: ${workdir}/config.json
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Read config.json and reply with the numeric value of "answer" only.
         - role: assistant
           content:
-            - type: text
-              text: I'll read the config file.
             - type: tool_use
               name: Read
               input:

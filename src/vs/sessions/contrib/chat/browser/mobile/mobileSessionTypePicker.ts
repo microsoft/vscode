@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -66,12 +67,12 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		super.render(container, options);
 	}
 
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
+	protected override _showPicker(anchor = this._triggerElement): void {
+		if (!anchor) {
 			return;
 		}
 		if (!isPhoneLayout(this.layoutService)) {
-			super._showPicker();
+			super._showPicker(anchor);
 			return;
 		}
 		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
@@ -114,20 +115,32 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		}
 
 		const trigger = this._triggerElement;
+		if (!trigger) {
+			return;
+		}
 		trigger.setAttribute('aria-expanded', 'true');
-		showMobilePickerSheet(
-			this.layoutService.mainContainer,
-			localize('mobileSessionTypePicker.title', "Session Type"),
-			sheetItems,
-		).then(id => {
+		void this._showMobilePicker(trigger, sheetItems);
+	}
+
+	private async _showMobilePicker(trigger: HTMLElement, sheetItems: readonly IMobilePickerSheetItem[]): Promise<void> {
+		try {
+			const id = await showMobilePickerSheet(
+				this.layoutService.mainContainer,
+				localize('mobileSessionTypePicker.title', "Session Type"),
+				sheetItems,
+			);
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
 			if (id !== undefined) {
 				const [providerId, sessionTypeId] = id.split('\u0000');
 				if (providerId && sessionTypeId) {
-					this._handleSelectedSessionType({ providerId, sessionTypeId });
+					await this._selectSessionType({ providerId, sessionTypeId });
 				}
 			}
-		});
+		} catch (error) {
+			trigger.setAttribute('aria-expanded', 'false');
+			trigger.focus();
+			onUnexpectedError(error);
+		}
 	}
 }

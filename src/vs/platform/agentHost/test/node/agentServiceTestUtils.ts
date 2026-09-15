@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
-import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -31,7 +31,7 @@ import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
@@ -81,6 +81,14 @@ export function getTestAgentServiceComposition(agentService: AgentService): IAge
 
 export function getTestAgentStateManager(agentService: AgentService): AgentHostStateManager {
 	return getTestAgentServiceComposition(agentService).stateManager;
+}
+
+export function getTestAgentHostProviderService(agentService: AgentService): IAgentHostProviderService {
+	return getTestAgentServiceComposition(agentService).providerService;
+}
+
+export function registerTestAgentProvider(agentService: AgentService, provider: import('../../common/agent.js').IAgent): void {
+	getTestAgentHostProviderService(agentService).registerProvider(provider);
 }
 
 export function getTestAgentHostWorktreeIsolation(agentService: AgentService): IAgentHostWorktreeIsolation {
@@ -136,23 +144,22 @@ export function createTestAgentService(
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
 	storageResource?: URI,
 	orchestratorDatabase?: IAgentHostDatabase,
+	sessionResidencyLimit?: number,
+	sessionReleaseRetryMs?: number,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
 	const proxyResolver = createTestAgentHostProxyResolver(fetchFn);
 	const foundationDisposables = new DisposableStore();
 	const worktreeIsolation = foundationDisposables.add(new MutableTestAgentHostWorktreeIsolation());
-	const services = new ServiceCollection(
+	const services = new StrictServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
 		[IProductService, productService],
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
-		[IAgentHostFileMonitorService, effectiveFileMonitorService],
-		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IAgentHostClientConnectionService, clientConnectionService],
-		[IAgentHostWorktreeIsolation, worktreeIsolation.service],
 	);
 	const options = {
 		rootConfigResource,
@@ -161,6 +168,8 @@ export function createTestAgentService(
 		hostLaunchKind,
 		storageResource,
 		orchestratorDatabase,
+		sessionResidencyLimit,
+		sessionReleaseRetryMs,
 	};
 	const foundation = createAgentServiceFoundation({
 		services,
@@ -179,8 +188,10 @@ export function createTestAgentService(
 		gitHubServiceOptions: foundation.gitHubServiceOptions,
 		copilotApiService,
 	});
+	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
+	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
-	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => foundation.callbackAdapter.value.getAgent(typeof session === 'string' ? session : session.toString())));
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
 	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 	services.set(IAgentHostSessionTitleController, foundationDisposables.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
@@ -205,6 +216,7 @@ export function createTestAgentService(
 		options,
 		accessor,
 		instantiationService,
+		services,
 		logService,
 		sessionDataService,
 		foundation,

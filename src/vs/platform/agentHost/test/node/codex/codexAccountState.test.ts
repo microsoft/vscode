@@ -70,6 +70,8 @@ suite('CodexAccountState', () => {
 				},
 			},
 			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
 		}), {
 			usedPercent: 42.4,
 			windowDurationMins: 7 * 24 * 60,
@@ -92,6 +94,8 @@ suite('CodexAccountState', () => {
 			},
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
 		}), { usedPercent: 100, windowDurationMins: undefined, resetsAt: undefined });
 	});
 
@@ -122,6 +126,8 @@ suite('CodexAccountState', () => {
 				},
 			},
 			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
 		}), { usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 });
 	});
 });

@@ -23,6 +23,11 @@ applyTo: src/vs/**
 
 - Don't use context keys as a source of truth for application logic (for example, by reading `IContextKeyService.getContextKeyValue()` and branching on the result). Read the state from its owning service or model instead. Context keys are intended for declarative enablement and visibility, such as when clauses, command preconditions, and menu contributions.
 
+## Multi-Window DOM
+
+- Always create workbench DOM elements in the main window JavaScript realm, including elements that will be rendered in an auxiliary window. Use helpers such as `dom.$` and `dom.h`, or use `mainWindow.document.createElement`. Do not use `targetWindow.document.createElement` or `element.ownerDocument.createElement`; auxiliary windows intentionally reject `createElement` so that checks such as `element instanceof HTMLElement` continue to work.
+- This rule applies to DOM element creation, not to window-bound APIs. Resolve the target window with `dom.getWindow(element)` when using APIs such as timers, animation frames, focus, observers, or `getComputedStyle`.
+
 ## URI
 
 - Don't hardcode URI scheme strings like `'file'`, `'untitled'`, or `'vscode-remote'`. Use the `Schemas` constants from `vs/base/common/network.ts` (e.g. `Schemas.file`, `Schemas.untitled`, `Schemas.vscodeRemote`).

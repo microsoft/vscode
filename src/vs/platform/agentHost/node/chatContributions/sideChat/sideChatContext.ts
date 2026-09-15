@@ -45,9 +45,10 @@ export function getSideChatPartialResponse(activeTurn: ActiveTurn | undefined): 
 	return responseMarkdown ? truncateMiddle(responseMarkdown, MAX_SIDE_CHAT_CONTEXT_CHARS) : undefined;
 }
 
-export function buildBoundedSideChatSourceContext(turns: readonly Turn[], turnId: string, activeTurn?: ActiveTurn): string | undefined {
+export function buildBoundedSideChatSourceContext(turns: readonly Turn[], turnId: string, activeTurn?: ActiveTurn, forkAnchorTurnId?: string): string | undefined {
 	if (activeTurn?.id === turnId) {
-		return buildSideChatSourceContext(turns, activeTurn);
+		const anchorIndex = forkAnchorTurnId === undefined ? -1 : turns.findIndex(turn => turn.id === forkAnchorTurnId);
+		return buildSideChatSourceContext(anchorIndex === -1 ? turns : turns.slice(anchorIndex + 1), activeTurn);
 	}
 	const turnIndex = turns.findIndex(turn => turn.id === turnId);
 	return turnIndex === -1 ? undefined : buildSideChatSourceContext(turns.slice(0, turnIndex + 1));
