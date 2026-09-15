@@ -82,7 +82,7 @@ function hasExpandedNode(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem |
 	return false;
 }
 
-const identityProvider = {
+const identityProvider: IIdentityProvider<ExplorerItem> = {
 	getId: (stat: ExplorerItem) => {
 		if (stat instanceof NewExplorerItem) {
 			return `new:${stat.getId()}`;
