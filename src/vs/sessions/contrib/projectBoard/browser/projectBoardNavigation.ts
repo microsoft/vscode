@@ -160,7 +160,7 @@ export class ProjectBoardChatWindows extends Disposable {
 		}));
 		let pane: IEditorPane;
 		try {
-			pane = await this.openInput(input, title, entry.group, savedInputState);
+			pane = await this.openInput(input, entry.group, savedInputState);
 		} catch (error) {
 			if (!this.entries.has(entry.id) || !entry.input) {
 				return;
@@ -260,16 +260,21 @@ export class ProjectBoardChatWindows extends Disposable {
 		// A typed input avoids the resolver moving a matching editor out of the main window.
 		const input = existing?.editor ?? this.instantiationService.createInstance(ChatEditorInput, card.chat.resource, { title: { fallback: card.title } });
 		try {
-			await this.openInput(input, card.title, existing?.groupId);
+			await this.openInput(input, existing?.groupId);
 		} finally {
 			if (!existing && !this.editorService.isOpened(identifier)) {
 				input.dispose();
 			}
 		}
-
+		try {
+			await this.sessionsManagementService.markRead(card.session);
+		} catch (error) {
+			this.logService.error('[ProjectBoard] Failed to mark opened chat read', error);
+			this.notificationService.error(localize('projectBoard.markReadFailed', "The chat opened, but its read state could not be updated."));
+		}
 	}
 
-	private async openInput(input: EditorInput, title: string, group?: PreferredGroup, modelInputState?: IChatModelInputState): Promise<IEditorPane> {
+	private async openInput(input: EditorInput, group?: PreferredGroup, modelInputState?: IChatModelInputState): Promise<IEditorPane> {
 		const options: IChatEditorOptions = {
 			pinned: true,
 			revealIfOpened: false,
@@ -281,7 +286,6 @@ export class ProjectBoardChatWindows extends Disposable {
 		if (!pane || pane.getId() !== ChatEditorInput.EditorID || !targetWindow || targetWindow === mainWindow) {
 			throw new Error(localize('projectBoard.chatWindowFailed', "The chat could not be opened in a separate window."));
 		}
-		targetWindow.document.title = title;
 		await this.hostService.focus(targetWindow);
 		pane.focus();
 		return pane;
