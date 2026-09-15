@@ -80,7 +80,7 @@ suite('ProjectBoardService', () => {
 			override readonly status = observableValue('sessionStatus', SessionStatus.Untitled);
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
 		}();
-		const state = { focusCount: 0, ownerFocusCount: 0, openCount: 0, disposeCount: 0, createdCount: 0, sessions: chats.length ? [session] : [], navigationError: undefined as Error | undefined };
+		const state = { focusCount: 0, ownerFocusCount: 0, openCount: 0, disposeCount: 0, createdCount: 0, sessions: chats.length ? [session] : [], navigationError: undefined as Error | undefined, closedResource: undefined as URI | undefined };
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
 		const opened: URI[] = [];
@@ -143,6 +143,7 @@ suite('ProjectBoardService', () => {
 		instantiationService.stubInstance(ProjectBoardChatWindows, {
 			drafts,
 			dispose() { },
+			async closeActiveSession() { return state.closedResource; },
 			async createNewSession() { state.createdCount++; },
 			async openDraft(id: string): Promise<void> {
 				if (state.navigationError) {
@@ -448,6 +449,55 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(new Set(visible).size, visible.length);
 	});
 
+	test('PB-14 board-owned scrolling survives host class mirroring and live updates', async () => {
+		const chats = Array.from({ length: 20 }, (_, index) => new TestChat(`Scrollable ${index}`));
+		const h = createBoard(mainWindow.document, chats);
+		h.container.style.cssText = 'height: 240px; width: 480px; display: flex; flex-direction: column; overflow: hidden; position: relative;';
+		await h.service.open();
+		// The auxiliary service mirrors the main workbench's classes after opening.
+		h.container.className = 'monaco-workbench';
+		const board = () => h.container.querySelector<HTMLElement>('.project-board')!;
+		assert.ok(board().clientHeight <= h.container.clientHeight, 'The scroll viewport must fit its auxiliary host');
+		assert.ok(board().scrollHeight > board().clientHeight);
+		assert.ok(board().scrollWidth > board().clientWidth);
+		board().scrollTop = board().scrollHeight;
+		board().scrollLeft = board().scrollWidth;
+		const position = { top: board().scrollTop, left: board().scrollLeft };
+		assert.ok(position.top > 0 && position.left > 0);
+		const lastCell = h.container.querySelector('[aria-label="General, P3"]')!;
+		assert.ok(lastCell.getBoundingClientRect().bottom <= board().getBoundingClientRect().bottom);
+		assert.ok(lastCell.getBoundingClientRect().right <= board().getBoundingClientRect().right);
+		chats[0].title.set('Updated while scrolled', undefined);
+		assert.deepStrictEqual({ top: board().scrollTop, left: board().scrollLeft }, position);
+	});
+
+	test('PB-05/PB-11 arrows follow card geometry, reveal focus, and Enter opens exactly that chat', async () => {
+		const chats = Array.from({ length: 4 }, (_, index) => new TestChat(`Navigate ${index}`));
+		const h = createBoard(mainWindow.document, chats);
+		h.container.style.cssText = 'height: 240px; width: 900px; position: relative;';
+		await h.service.open();
+		const cards = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')];
+		const press = (keyCode: number) => mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true }));
+		cards[0].focus();
+		press(39);
+		assert.strictEqual(mainWindow.document.activeElement, cards[1]);
+		press(37);
+		assert.strictEqual(mainWindow.document.activeElement, cards[0]);
+		press(40);
+		assert.strictEqual(mainWindow.document.activeElement, cards[3]);
+		assert.ok(h.container.querySelector('.project-board')!.scrollTop > 0, 'Keyboard focus reveals below-fold cards');
+		press(38);
+		assert.strictEqual(mainWindow.document.activeElement, cards[0]);
+		press(35);
+		assert.strictEqual(mainWindow.document.activeElement, cards[3]);
+		press(36);
+		assert.strictEqual(mainWindow.document.activeElement, cards[0]);
+		press(39);
+		press(13);
+		assert.deepStrictEqual(h.opened, [chats[1].resource]);
+		assert.ok(chats.every(chat => !chat.isRead.get()), 'Navigation itself never marks read');
+	});
+
 	test('PB-16 top-right New Session delegates creation without owner navigation', async () => {
 		const { service, container, state, opened } = createBoard(mainWindow.document.implementation.createHTMLDocument());
 		await service.open();
@@ -457,6 +507,32 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(state.createdCount, 1);
 		assert.deepStrictEqual(opened, []);
 		assert.strictEqual(state.ownerFocusCount, 0);
+	});
+
+	test('PB-05 closing a session returns focus to its card but never reopens a closed board', async () => {
+		const { document } = createBoardDocument();
+		const chat = new TestChat('Return here');
+		const h = createBoard(document, [chat]);
+		await h.service.open();
+		h.state.closedResource = chat.resource;
+		await h.service.closeSession(12345);
+		assert.strictEqual(document.activeElement?.getAttribute('data-chat-resource'), chat.resource.toString());
+		assert.strictEqual(h.state.ownerFocusCount, 0);
+		h.closeBoard();
+		await Promise.resolve();
+		await h.service.closeSession(12345);
+		assert.strictEqual(h.state.openCount, 1);
+	});
+
+	test('PB-05 a closing draft restores focus by its stable ID after its model resource changes', async () => {
+		const { document } = createBoardDocument();
+		const h = createBoard(document);
+		const original = URI.parse('test-draft:/original');
+		h.drafts.set([{ id: original.toString(), resource: URI.parse('test-draft:/rebound'), hasContent: true, submitted: false }], undefined);
+		await h.service.open();
+		h.state.closedResource = original;
+		await h.service.closeSession(12345);
+		assert.strictEqual(document.activeElement?.getAttribute('data-draft-id'), original.toString());
 	});
 
 	test('PB-16 draft cards use glyphs and card activation without an Open button', async () => {
@@ -843,6 +919,10 @@ suite('ProjectBoardService', () => {
 		textarea.value = 'Calendar layout';
 		textarea.setSelectionRange(3, 7);
 		textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		for (const keyCode of [37, 38, 39, 40, 35, 36]) {
+			textarea.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true }));
+			assert.strictEqual(document.activeElement, textarea, 'Card navigation must not capture answer-field keys');
+		}
 		chat.title.set('Updated question title', undefined);
 		h.sessionsChanged.fire({ added: [], removed: [], changed: [h.session] });
 		assert.deepStrictEqual({

@@ -9,7 +9,12 @@ import { localize2 } from '../../../../nls.js';
 import { IProjectBoardService } from './projectBoardService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { OPEN_AGENT_PROJECT_BOARD_COMMAND_ID } from '../../../../platform/window/common/window.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ChatEditorInput } from '../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 
@@ -28,5 +33,28 @@ registerAction2(class OpenProjectBoardAction extends Action2 {
 		const projectBoardService = accessor.get(IProjectBoardService);
 		await lifecycleService.when(LifecyclePhase.Restored);
 		await projectBoardService.open();
+	}
+});
+
+registerAction2(class CloseStandaloneSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.agentProjectBoard.closeSession',
+			title: localize2('closeStandaloneSession', "Close Standalone Chat"),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, IsAuxiliaryWindowContext, ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID)),
+			keybinding: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.EditorContrib - 10,
+				when: ContextKeyExpr.and(
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
+					ChatContextKeys.findWidgetVisible.toNegated(),
+				),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IProjectBoardService).closeSession(getActiveWindow().vscodeWindowId);
 	}
 });
