@@ -181,8 +181,6 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			const label = localize('sessionsChatBackground.confettiButton', "Celebrate");
 			this.confettiButton = this._register(new Button(this.element, { ariaLabel: label, title: label }));
 			this.confettiButton.element.classList.add('sessions-chat-codicon-hit-target');
-			this.confettiButton.element.style.width = `${codiconButtonSize}px`;
-			this.confettiButton.element.style.height = `${codiconButtonSize}px`;
 			this.confettiButton.element.hidden = true;
 			this._register(this.confettiButton.onDidClick(() => this.activateConfettiCell()));
 			this._register(addDisposableListener(this.confettiButton.element, EventType.MOUSE_OVER, () => {
@@ -364,8 +362,6 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 	private createInteractiveCodicon(icon: ThemeIcon): ICodiconCell {
 		const element = $('.sessions-chat-codicon-cell');
 		element.ariaHidden = 'true';
-		element.style.width = `${codiconButtonSize}px`;
-		element.style.height = `${codiconButtonSize}px`;
 		const animationElement = $('.sessions-chat-codicon-button-animation');
 		const iconElement = renderIcon(icon);
 		iconElement.ariaHidden = 'true';

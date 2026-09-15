@@ -620,6 +620,7 @@ suite('Sessions - Chat View', () => {
 
 	test('makes one random codicon an accessible confetti button', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-spacing-size240', '24px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
@@ -707,6 +708,7 @@ suite('Sessions - Chat View', () => {
 
 	test('keeps the confetti button fully inside the viewport and clear of conversation content', async () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-spacing-size240', '24px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		part.style.width = '850px';
 		part.style.height = '641px';
