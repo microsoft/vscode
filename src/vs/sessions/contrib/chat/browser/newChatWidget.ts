@@ -1081,7 +1081,6 @@ export class NewChatWidget extends Disposable {
 		if (!initialSynthesisHarness) {
 			return;
 		}
-		const useSavedEvaluatorDefaults = this._comparisonJudgeHarness.get() === undefined && retainedSynthesisHarness === undefined;
 		const setupDialog = this._comparisonSetupDialog.value = this.instantiationService.createInstance(SessionComparisonSetupDialog);
 		let shouldRefocusInput = true;
 		try {
@@ -1103,7 +1102,7 @@ export class NewChatWidget extends Disposable {
 				attachedContextCount: this._newChatInput.attachments.length,
 				prompt: this._newChatInput.getInputValue(),
 				setPrompt: prompt => this._newChatInput.setInputValue(prompt),
-			}, initialAttempts, initialJudgeHarness, initialSynthesisHarness, useSavedEvaluatorDefaults);
+			}, initialAttempts, initialJudgeHarness, initialSynthesisHarness);
 			this._comparisonAttempts.set(result.attempts, undefined);
 			this._comparisonJudgeHarness.set(result.judgeHarness, undefined);
 			this._comparisonSynthesisHarness.set(result.synthesisHarness, undefined);

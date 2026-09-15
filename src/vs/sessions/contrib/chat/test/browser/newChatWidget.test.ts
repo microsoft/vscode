@@ -252,7 +252,6 @@ interface IConfigureComparisonHarness {
 				initialAttempts: readonly ISessionComparisonAttemptConfiguration[],
 				initialJudgeHarness: ISessionComparisonAttemptConfiguration['harness'],
 				initialSynthesisHarness?: ISessionComparisonAttemptConfiguration['harness'],
-				useSavedEvaluatorDefaults?: boolean,
 			): Promise<ISessionComparisonSetupResult>;
 			dispose(): void;
 		};
@@ -1625,7 +1624,6 @@ suite('NewChatWidget', () => {
 		let openedAttempts: readonly ISessionComparisonAttemptConfiguration[] = [];
 		let openedJudge: ISessionComparisonAttemptConfiguration['harness'] | undefined;
 		let openedSynthesis: ISessionComparisonAttemptConfiguration['harness'] | undefined;
-		let openedWithSavedDefaults = false;
 		let openedContext: ISessionComparisonSetupContext | undefined;
 		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
 			value: undefined,
@@ -1668,12 +1666,11 @@ suite('NewChatWidget', () => {
 			},
 			instantiationService: {
 				createInstance: () => ({
-					show: async (context, initialAttempts, initialJudgeHarness, initialSynthesisHarness, useSavedEvaluatorDefaults) => {
+					show: async (context, initialAttempts, initialJudgeHarness, initialSynthesisHarness) => {
 						openedContext = context;
 						openedAttempts = initialAttempts;
 						openedJudge = initialJudgeHarness;
 						openedSynthesis = initialSynthesisHarness;
-						openedWithSavedDefaults = useSavedEvaluatorDefaults ?? false;
 						return { confirmed: false, attempts: initialAttempts, judgeHarness: initialJudgeHarness, synthesisHarness: initialSynthesisHarness ?? initialJudgeHarness, branch: 'feature/comparison' };
 					},
 					dispose: () => { },
@@ -1698,7 +1695,6 @@ suite('NewChatWidget', () => {
 			harnesses: openedAttempts.map(attempt => attempt.harness),
 			judge: openedJudge,
 			synthesis: openedSynthesis,
-			useSavedEvaluatorDefaults: openedWithSavedDefaults,
 		}, {
 			branch: 'main',
 			branches: ['main', 'feature/comparison'],
@@ -1708,7 +1704,6 @@ suite('NewChatWidget', () => {
 			harnesses: [harnessSelection, harnessSelection],
 			judge: harnessSelection,
 			synthesis: harnessSelection,
-			useSavedEvaluatorDefaults: true,
 		});
 	});
 
