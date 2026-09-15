@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -21,6 +21,7 @@ import { buildAgentSessionLinkPresentation } from '../../../../../platform/agent
 import { buildSubagentChatUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -29,8 +30,9 @@ import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agen
 import { toAgentHostBackendSessionUri } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../../contrib/chat/browser/actions/chatToolActions.js';
 import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
-import { IChatProgress, IChatSubagentToolInvocationData } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { IChatProgress, IChatSubagentToolInvocationData, IChatToolInvocation } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatModel, ChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -53,6 +55,7 @@ interface Scenario {
 	readonly interactive?: boolean;
 	readonly openChild?: boolean;
 	readonly narrow?: boolean;
+	readonly confirmations?: boolean;
 }
 
 interface Child {
@@ -87,6 +90,7 @@ const scenarios: Record<string, Scenario> = {
 	RetainedFollowUpFullConversation: { phase: 'followUp', description: 'Log-derived case: a later write_agent sends a follow-up to an older, already-running background worker. Its original pill is active above; the newest parent response still says Working. No new child turn starts.' },
 	RetainedFollowUpLatestTurn: { phase: 'followUp', latestTurnOnly: true, description: 'Known visibility gap from the supplied logs: this viewport shows the latest turn, while the active worker pill belongs to an earlier response. Use Show Original Agent to find it.' },
 	ResumedIdleBackgroundAgent: { phase: 'resumedFollowUp', description: 'A different case: the older background worker completed before the follow-up. Resuming it reactivates its original pill, without adding a launch to the latest parent response.' },
+	OffscreenSubagentApprovals: { phase: 'resumedFollowUp', latestTurnOnly: true, confirmations: true, description: 'Request approvals from two retained agents while their original launch response is virtualized away. The real input carousel must expose both commands; Allow or the Accept/Skip commands act only on the selected mock agent.' },
 	BackgroundCompletionNotification: { phase: 'notified', description: 'The retained worker finishes while the latest parent is waiting. The old pill settles, and the current response receives the background-completion notice.' },
 	CompletionWakesIdleParent: { phase: 'idleNotice', description: 'A background-completion notification starts a new system-initiated turn. The old parent response remains complete; it is not reopened.' },
 	BackgroundFailureNotification: { phase: 'failed', description: 'A failed background task stops running and its failure notice appears in a new system-initiated turn. The original child pill is retained.' },
@@ -107,7 +111,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	const { container, disposableStore } = context;
 	const width = scenario.narrow ? 380 : 760;
 	const isFollowUp = scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp' || scenario.phase === 'notified';
-	const height = scenario.latestTurnOnly ? 280 : isFollowUp ? 760 : 500;
+	const height = scenario.confirmations ? 620 : scenario.latestTurnOnly ? 280 : isFollowUp ? 760 : 500;
 	container.style.width = `${width}px`;
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -144,10 +148,11 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	await renderChatWidget({ ...context, container: preview }, {
 		messages: [],
 		agentHostSession: true,
-		inputVisible: false,
+		inputVisible: scenario.confirmations === true,
 		width,
 		height,
 		listHeight: height,
+		hostLayoutMode: scenario.confirmations ? 'listOnly' : undefined,
 		stickyScroll: false,
 		additionalServices: reg => {
 			reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
@@ -209,7 +214,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	config.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
 	config.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 	config.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
-	config.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, false);
+	config.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, scenario.confirmations === true);
 	config.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
 	config.setUserConfiguration(ChatConfiguration.Verbose, false);
 	config.setUserConfiguration(ChatConfiguration.RichLinks, true);
@@ -409,6 +414,11 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 			start(first);
 		} else if (scenario.phase !== 'queued') {
 			start(first);
+			if (scenario.confirmations) {
+				const second = await launch('fixture-validation', 'Validate fixture results');
+				start(second);
+				await finish(second);
+			}
 			if (scenario.phase === 'parallel') {
 				const second = await launch('history-review', 'Review restored history');
 				start(second);
@@ -427,6 +437,13 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 				await finish(first);
 			}
 			if (isFollowUp) {
+				if (scenario.confirmations) {
+					for (let i = 1; i <= 12; i++) {
+						const earlier = request(`Follow-up review ${i}`);
+						markdown(earlier, `Review ${i} is complete.\n\n- Checked the fixture inputs.\n- Preserved the original background agents.\n- Continued the parent conversation.`);
+						earlier.response?.complete();
+					}
+				}
 				await followUp(first);
 			}
 			if (scenario.phase === 'notified') {
@@ -443,7 +460,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 		}
 	}
 
-	const settle = () => timeout(1200);
+	const settle = () => timeout(scenario.confirmations ? 100 : 1200);
 	const revealOriginal = () => {
 		showParent();
 		listWidget.scrollTop = 0;
@@ -525,6 +542,80 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 		addControl('Show Original Agent', revealOriginal);
 		addControl('Show Latest Turn', revealLatest);
 	}
+	if (scenario.confirmations) {
+		disposableStore.add(registerChatToolActions());
+		const approvals: ChatToolInvocation[] = [];
+		const resumed = new Set<string>();
+		const summarizeApprovals = () => {
+			const states = approvals.map(tool => ({ id: tool.toolCallId, state: tool.state.get().type }));
+			container.dataset.approvalStates = JSON.stringify(states);
+			container.dataset.resumedAgents = String(resumed.size);
+			const stateName = (state: IChatToolInvocation.StateKind) => state === IChatToolInvocation.StateKind.WaitingForConfirmation ? 'awaiting approval'
+				: state === IChatToolInvocation.StateKind.Completed ? 'completed'
+					: state === IChatToolInvocation.StateKind.Cancelled ? 'skipped' : 'running';
+			feedback.textContent = `${resumed.size}/${approvals.length} mock agents resumed. ${states.map(tool => `${tool.id}: ${stateName(tool.state)}`).join('; ')}`;
+		};
+		const trigger = addControl('Request Offscreen Approvals', async () => {
+			revealLatest();
+			if (preview.querySelector('.chat-subagent-pill-widget')) {
+				throw new Error('The original agent response must be virtualized away before requesting approval');
+			}
+			trigger.enabled = false;
+			container.dataset.originalResponseRendered = 'false';
+			for (const [index, child] of [...children.values()].entries()) {
+				if (!child.data.isActive) {
+					start(child);
+				}
+				await finishChildTool(child);
+				const command = index === 0 ? 'node_modules/.bin/tsc --version' : 'node --test dist/test/helpers.test.js';
+				const tool = new ChatToolInvocation({
+					invocationMessage: index === 0 ? 'Check the compiler version' : 'Run the helper tests',
+					confirmationMessages: { title: 'Run in terminal?', message: new MarkdownString(command) },
+					toolSpecificData: { kind: 'terminal', commandLine: { original: command }, language: 'shellscript', editable: false },
+				}, { id: 'bash', displayName: 'Run Shell Command', modelDescription: 'Mock shell execution', source: ToolDataSource.Internal },
+					index === 0 ? 'compiler-check' : 'helper-tests', child.invocation.toolCallId, {});
+				approvals.push(tool);
+				publisher.publish([tool]);
+				disposableStore.add(autorun(reader => {
+					const state = tool.state.read(reader);
+					if (state.type === IChatToolInvocation.StateKind.Executing && !resumed.has(tool.toolCallId)) {
+						resumed.add(tool.toolCallId);
+						markdown(current, `Approval received: ${child.title} resumed and completed its mock check. No command was executed.`);
+						void tool.didExecuteTool({ content: [{ kind: 'text', value: 'Mock check completed after approval.' }] });
+					}
+					if (state.type === IChatToolInvocation.StateKind.Completed) {
+						child.data.isActive = false;
+						child.data.duration = 65000;
+						notifyChild(child);
+						child.request?.response?.complete();
+						if (approvals.length === children.size && approvals.every(approval => approval.state.read(undefined).type === IChatToolInvocation.StateKind.Completed) && !current.response?.isComplete) {
+							markdown(current, '**All mock checks completed.** Both agents continued after approval.');
+							current.response?.complete();
+						}
+					}
+					summarizeApprovals();
+				}));
+			}
+			summarizeApprovals();
+		});
+		const runApprovalCommand = (commandId: string) => {
+			const command = CommandsRegistry.getCommand(commandId);
+			if (!command) {
+				throw new Error(`Missing confirmation command: ${commandId}`);
+			}
+			instantiationService.invokeFunction(accessor => command.handler(accessor, { sessionResource: model.sessionResource }));
+		};
+		addControl('Accept Selected', () => runApprovalCommand(AcceptToolConfirmationActionId));
+		addControl('Skip Selected', () => runApprovalCommand(SkipToolConfirmationActionId));
+		// The fixture keybinding service only supplies labels, so dispatch the real commands for this shortcut.
+		disposableStore.add(dom.addDisposableListener(preview, dom.EventType.KEY_DOWN, event => {
+			if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+				event.preventDefault();
+				event.stopPropagation();
+				runApprovalCommand(event.altKey ? SkipToolConfirmationActionId : AcceptToolConfirmationActionId);
+			}
+		}));
+	}
 	if (scenario.model === 'late' && first) {
 		const child = first;
 		const showModel = addControl('Show Model', () => {
@@ -560,7 +651,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 		revealLatest();
 	}
 	const rootLaunches = root.response?.response.value.filter(part => (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'subagent' && !part.subAgentInvocationId) ?? [];
-	const expectedLaunches = scenario.phase === 'queued' || scenario.phase === 'peerChat' || scenario.phase === 'independentSession' ? 0 : scenario.phase === 'parallel' ? 2 : 1;
+	const expectedLaunches = scenario.phase === 'queued' || scenario.phase === 'peerChat' || scenario.phase === 'independentSession' ? 0 : scenario.phase === 'parallel' || scenario.confirmations ? 2 : 1;
 	if (rootLaunches.length !== expectedLaunches) {
 		throw new Error(`${name}: expected ${expectedLaunches} published child launches, got ${rootLaunches.length}`);
 	}
@@ -593,11 +684,14 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 			}
 		}
 	}
-	if (scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp') {
+	if ((scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp') && !scenario.confirmations) {
 		const latestResponse = preview.querySelector('.chat-most-recent-response');
 		if (latestResponse?.querySelector('.chat-subagent-pill-widget') || latestResponse?.querySelector('.shimmer-progress')?.textContent !== 'Working') {
 			throw new Error(`${name}: the latest turn must expose the current generic Working visibility gap`);
 		}
+	}
+	if (scenario.confirmations && preview.querySelector('.chat-subagent-pill-widget')) {
+		throw new Error(`${name}: approval scenario must start with the original agent response virtualized away`);
 	}
 	if (scenario.openChild && first) {
 		const openPill = pill?.querySelector<HTMLElement>('.chat-subagent-pill-content');
@@ -617,7 +711,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 export default defineThemedFixtureGroup({ path: 'chat/agent-lifecycle/' }, Object.fromEntries(
 	Object.entries(scenarios).map(([name, scenario]) => [name, defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		virtualTime: { durationMs: 2000 },
+		virtualTime: { enabled: !scenario.confirmations, durationMs: 2000 },
 		additionalThemes: name === 'RetainedFollowUpLatestTurn' || name === 'ParentCompleteChildRunning' ? ['darkHighContrast', 'lightHighContrast'] : [],
 		expectedVisualDescriptions: [scenario.description],
 		render: context => renderLifecycle(context, name, scenario),

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
@@ -51,6 +52,13 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatAgentService, IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
+import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
@@ -3503,6 +3511,69 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				sessionRowApprovalVisible: true,
 				chatRowApprovalVisible: false,
+			});
+		});
+
+		test('renders and confirms out-of-band subagent approvals on the owning session row', () => {
+			const { session } = createTestSession('Retained review', { status: SessionStatus.NeedsInput });
+			const harness = createListHarness(disposables, [session]);
+			const { instantiationService, store } = harness;
+			const chatService = new MockChatService();
+			instantiationService.stub(IChatService, chatService);
+			instantiationService.stub(IChatAgentService, store.add(instantiationService.createInstance(ChatAgentService)));
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: session.mainChat.get()!.resource,
+			}));
+			chatService.addSession(model);
+			const approvalModel = store.add(instantiationService.createInstance(AgentSessionApprovalModel));
+			const container = harness.createContainer();
+			const list = store.add(instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(400, 400);
+
+			const original = model.addRequest({ text: 'Launch the review', parts: [] }, { variables: [] }, 0);
+			original.response!.complete();
+			const latest = model.addRequest({ text: 'Follow-up', parts: [] }, { variables: [] }, 0);
+			latest.response!.complete();
+			const tools = ['compiler-check', 'helper-tests'].map(command => new ChatToolInvocation({
+				invocationMessage: command,
+				confirmationMessages: { title: 'Run in terminal?', message: new MarkdownString(command) },
+				toolSpecificData: { kind: 'terminal', commandLine: { original: command }, language: 'shellscript', editable: false },
+			}, { id: 'bash', displayName: 'Run Shell Command', modelDescription: 'Mock command', source: ToolDataSource.Internal },
+				command, 'retained-agent', {}));
+			for (const tool of tools) {
+				original.response!.updateContent(tool);
+			}
+			const row = container.querySelector<HTMLElement>('.session-item .session-approval-row');
+			assert.ok(row);
+			const firstLabel = row.textContent;
+			const firstAllow = row.querySelector<HTMLElement>('.session-approval-button .monaco-button');
+			assert.ok(firstAllow);
+			firstAllow.click();
+			const nextLabel = row.textContent;
+			const afterFirst = tools.map(tool => tool.state.get().type);
+			const nextAllow = row.querySelector<HTMLElement>('.session-approval-button .monaco-button');
+			assert.ok(nextAllow);
+			nextAllow.click();
+
+			assert.deepStrictEqual({
+				latestNeedsInput: model.requestNeedsInput.get(),
+				firstCommandShown: firstLabel?.includes('compiler-check'),
+				nextCommandShown: nextLabel?.includes('helper-tests'),
+				afterFirst,
+				afterBoth: tools.map(tool => tool.state.get().type),
+				approvalVisibleAfterBoth: row.classList.contains('visible'),
+			}, {
+				latestNeedsInput: undefined,
+				firstCommandShown: true,
+				nextCommandShown: true,
+				afterFirst: [IChatToolInvocation.StateKind.Executing, IChatToolInvocation.StateKind.WaitingForConfirmation],
+				afterBoth: [IChatToolInvocation.StateKind.Executing, IChatToolInvocation.StateKind.Executing],
+				approvalVisibleAfterBoth: false,
 			});
 		});
 
