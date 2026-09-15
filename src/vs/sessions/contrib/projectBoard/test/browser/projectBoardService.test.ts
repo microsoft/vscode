@@ -36,7 +36,8 @@ import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/proje
 import { IProjectBoardCard } from '../../common/projectBoardModel.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
-import { IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
+import { IProjectBoardInputConfiguration, IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChatQuestionAnswers, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { submitChatQuestionCarousel } from '../../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
@@ -50,6 +51,8 @@ class TestChat extends mock<IChat>() {
 	override readonly isArchived = observableValue('archived', false);
 	override readonly interactivity = observableValue('interactivity', ChatInteractivity.Full);
 	override readonly description = observableValue<IMarkdownString | undefined>('description', undefined);
+	override readonly modelId = observableValue<string | undefined>('modelId', undefined);
+	override readonly mode = observableValue<{ id: string; kind: string } | undefined>('mode', undefined);
 	override readonly resource = URI.parse(`test-chat:session#${this.name}`);
 
 	constructor(private readonly name: string) { super(); }
@@ -119,8 +122,10 @@ suite('ProjectBoardService', () => {
 		const metadata = observableValue<IProjectBoardMetadata>('metadata', { kind: 'unavailable', message: 'Prompt unavailable' });
 		const credits = observableValue<number | undefined>('credits', undefined);
 		const creditsError = observableValue<string | undefined>('creditsError', undefined);
+		const configuration = observableValue<IProjectBoardInputConfiguration | undefined>('configuration', undefined);
 		const includeCredits = sinon.spy();
-		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, credits, creditsError, setIncludeCredits: includeCredits, dispose() { } });
+		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, credits, creditsError, configuration, setIncludeConfiguration() { }, setIncludeCredits: includeCredits, dispose() { } });
+		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProvider: () => undefined });
 		const openedContext: string[] = [];
 		instantiationService.stub(IOpenerService, {
 			open: async (resource, options) => {
@@ -328,29 +333,61 @@ suite('ProjectBoardService', () => {
 		assert.deepStrictEqual(h.opened, []);
 	});
 
-	test('PB-18 description defaults visible, toggles independently, and restores without hiding prompts or state', async () => {
-		const chat = new TestChat('Description');
+	test('PB-18 last prompt toggle controls the visible prompt and restores without hiding status or timestamp', async () => {
+		const chat = new TestChat('Last prompt');
 		const h = createBoard(mainWindow.document, [chat]);
-		chat.description.set({ value: 'Planning the next step' }, undefined);
+		h.metadata.set({ kind: 'ready', prompt: 'The visible user prompt', submittedAt: 1000, context: [] }, undefined);
 		await h.service.open();
-		assert.strictEqual(h.container.querySelector('.project-board-card-description')?.textContent, 'Planning the next step');
+		assert.strictEqual(h.container.querySelector('.project-board-card-prompt')?.textContent, 'The visible user prompt');
 		const toggle = async (expected: boolean) => {
 			h.currentContainer.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
-			const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.description')!;
+			assert.ok(!h.contextMenu.delegate!.getActions().some(action => action.id === 'projectBoard.settings.description'));
+			const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.lastPrompt')!;
 			assert.strictEqual(action.checked, expected);
 			await action.run();
 		};
 		await toggle(true);
-		chat.description.set({ value: 'Updated while hidden' }, undefined);
-		assert.strictEqual(h.container.querySelector('.project-board-card-description'), null);
-		assert.ok(h.container.querySelector('.project-board-card-prompt'));
+		h.metadata.set({ kind: 'ready', prompt: 'Updated while hidden', submittedAt: 2000, context: [] }, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-prompt'), null);
+		assert.ok(h.container.querySelector('[data-submitted-at="2000"]'));
 		assert.ok(h.container.querySelector('.project-board-card-status'));
 		assert.strictEqual(h.container.querySelector('.project-board-card-metrics'), null);
 		h.closeBoard();
 		await h.service.open();
-		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-description'), null);
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-prompt'), null);
 		await toggle(false);
-		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-description')?.textContent, 'Updated while hidden');
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-prompt')?.textContent, 'Updated while hidden');
+		assert.deepStrictEqual(h.opened, []);
+		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-19 model and permission detail rows toggle independently without opening chats', async () => {
+		const chat = new TestChat('Configuration rows');
+		chat.modelId.set('model-specific-to-this-chat', undefined);
+		chat.mode.set({ id: 'reviewer', kind: 'agent' }, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelector('.project-board-card-configuration'), null);
+		const toggle = async (id: string) => {
+			h.currentContainer.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+			await h.contextMenu.delegate!.getActions().find(action => action.id === id)!.run();
+		};
+		await toggle('projectBoard.settings.modelDetails');
+		assert.ok(h.container.querySelector('.project-board-card-model')?.textContent?.includes('model-specific-to-this-chat'));
+		assert.strictEqual(h.container.querySelector('.project-board-card-permissions'), null);
+		await toggle('projectBoard.settings.permissionDetails');
+		assert.ok(h.container.querySelector('.project-board-card-permissions')?.textContent?.includes('reviewer'));
+		for (const row of h.container.querySelectorAll<HTMLElement>('.project-board-card-configuration')) {
+			assert.strictEqual(mainWindow.getComputedStyle(row).whiteSpace, 'nowrap', 'Each detail group is one compact row');
+		}
+		chat.modelId.set('updated-model', undefined);
+		assert.ok(h.container.querySelector('.project-board-card-model')?.textContent?.includes('updated-model'));
+		h.closeBoard();
+		await h.service.open();
+		assert.strictEqual(h.currentContainer.querySelectorAll('.project-board-card-configuration').length, 2);
+		await toggle('projectBoard.settings.modelDetails');
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-model'), null);
+		assert.ok(h.currentContainer.querySelector('.project-board-card-permissions'));
 		assert.deepStrictEqual(h.opened, []);
 		assert.strictEqual(chat.isRead.get(), false);
 	});
@@ -936,8 +973,8 @@ suite('ProjectBoardService', () => {
 			[SessionStatus.InProgress, false, '\u{1F3C3}', 'Busy'],
 			[SessionStatus.NeedsInput, false, '\u{1F64B}', 'Needs Input'],
 			[SessionStatus.Error, false, '\u26A0\uFE0F', 'Error'],
-			[SessionStatus.Completed, false, '\u{1F9CD}\u{1F4A4}', 'Idle, unvisited'],
-			[SessionStatus.Completed, true, '\u{1F9CD}\u{1F4A4}', 'Idle, visited'],
+			[SessionStatus.Completed, false, '\u{1F440}', 'Idle, unvisited'],
+			[SessionStatus.Completed, true, '\u{1F634}', 'Idle, visited'],
 		] as const) {
 			chat.status.set(status, undefined);
 			chat.isRead.set(isRead, undefined);

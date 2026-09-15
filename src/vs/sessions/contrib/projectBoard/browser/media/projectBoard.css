@@ -264,6 +264,27 @@
 	font-size: 12px;
 }
 
+.project-board-card-configuration {
+	display: flex;
+	gap: var(--vscode-spacing-size40, 4px);
+	margin-top: var(--vscode-spacing-size80, 8px);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1, 12px);
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.project-board-card-configuration > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-board-card-configuration > span + span {
+	border-left: 1px solid var(--vscode-panel-border);
+	padding-left: var(--vscode-spacing-size40, 4px);
+}
+
 .project-board-card-description {
 	display: -webkit-box;
 	overflow: hidden;

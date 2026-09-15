@@ -14,8 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ChatModel, ChatRequestModel, ChatResponseModel, IChatChangeEvent, IChatRequestModelParameters } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModel, ChatRequestModel, ChatResponseModel, IChatChangeEvent, IChatModelInputState, IChatRequestModelParameters } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { getProjectBoardSubmittedAt, projectBoardMetadataLimits, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
 
 suite('ProjectBoardMetadata', () => {
@@ -26,8 +26,15 @@ suite('ProjectBoardMetadata', () => {
 		const changed = store.add(new Emitter<IChatChangeEvent>());
 		const disposed = store.add(new Emitter<void>());
 		const state = { acquired: 0, released: 0, scans: 0, credits: 0 };
+		const inputState = observableValue<IChatModelInputState>('input', {
+			attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined,
+			inputText: '', selections: [], contrib: {},
+		});
 		let tail: ChatRequestModel[] | undefined;
 		const model = new class extends mock<ChatModel>() {
+			override readonly inputModel = new class extends mock<ChatModel['inputModel']>() {
+				override readonly state = inputState;
+			}();
 			override get sessionResource() { return resource; }
 			override readonly onDidChange = changed.event;
 			override readonly onDidDispose = disposed.event;
@@ -63,7 +70,7 @@ suite('ProjectBoardMetadata', () => {
 			session: model, message: { text, parts: [] }, variableData: { variables: [] },
 			timestamp, fallbackTimestamp: 99999, ...options,
 		});
-		return { resource, model, changed, disposed, state, log, create, reference, request, setTail: (requests: ChatRequestModel[]) => { tail = requests; } };
+		return { resource, model, changed, disposed, state, inputState, log, create, reference, request, setTail: (requests: ChatRequestModel[]) => { tail = requests; } };
 	}
 
 	test('existing model uses submitted request time, ignoring response output and visit time', () => {
@@ -91,6 +98,22 @@ suite('ProjectBoardMetadata', () => {
 		const result = metadata.metadata.get();
 		assert.strictEqual(result.kind, 'ready');
 		assert.deepStrictEqual([result.prompt, result.submittedAt], ['Second', 500]);
+	});
+
+	test('PB-19 configuration uses the retained model without propagating input text or cursor changes', () => {
+		const fixture = setup();
+		const metadata = fixture.create();
+		assert.strictEqual(metadata.configuration.get(), undefined);
+		metadata.setIncludeConfiguration(true);
+		const before = metadata.configuration.get();
+		fixture.inputState.set({ ...fixture.inputState.get(), inputText: 'Private unsent text', selections: [] }, undefined);
+		assert.strictEqual(metadata.configuration.get(), before, 'Typing must not rebuild board configuration rows');
+		fixture.inputState.set({ ...fixture.inputState.get(), permissionLevel: ChatPermissionLevel.AutoApprove }, undefined);
+		assert.strictEqual(metadata.configuration.get()?.permissionLevel, ChatPermissionLevel.AutoApprove);
+		assert.strictEqual(fixture.state.acquired, 1);
+		assert.ok(!Object.hasOwn(metadata.configuration.get()!, 'inputText'));
+		metadata.setIncludeConfiguration(false);
+		assert.strictEqual(metadata.configuration.get(), undefined);
 	});
 
 	test('PB-18 credits reuse the session total, update on usage and release subscriptions when hidden', () => {
