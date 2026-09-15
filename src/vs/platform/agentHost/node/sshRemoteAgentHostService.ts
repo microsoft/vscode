@@ -74,6 +74,7 @@ import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResul
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
+import { resolveSSHKnownHostsFiles } from './sshConfigPaths.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -1343,8 +1344,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return hosts;
 	}
 
-	private _parseSSHGOutput(stdout: string): ISSHResolvedConfig {
-		return parseSSHGOutput(stdout);
+	private async _parseSSHGOutput(stdout: string): Promise<ISSHResolvedConfig> {
+		return { ...parseSSHGOutput(stdout), ...await resolveSSHKnownHostsFiles(stdout) };
 	}
 
 	protected async _connectSSH(
