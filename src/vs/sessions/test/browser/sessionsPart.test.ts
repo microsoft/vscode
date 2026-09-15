@@ -284,4 +284,47 @@ suite('Sessions - Sessions Part', () => {
 			workbench.remove();
 		}
 	});
+
+	test('hides only inactive comparison inputs when the experiment is active', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench session-comparison-hide-inactive-inputs';
+		const part = document.createElement('div');
+		part.className = 'part sessionspart multiple-sessions-visible';
+		workbench.appendChild(part);
+
+		const createSessionView = (active: boolean) => {
+			const view = document.createElement('div');
+			view.className = `session-view${active ? ' is-active' : ''}`;
+			const interactiveSession = document.createElement('div');
+			interactiveSession.className = 'interactive-session';
+			const input = document.createElement('div');
+			input.className = 'interactive-input-part';
+			interactiveSession.appendChild(input);
+			view.appendChild(interactiveSession);
+			part.appendChild(view);
+			return input;
+		};
+		const activeInput = createSessionView(true);
+		const inactiveInput = createSessionView(false);
+		mainWindow.document.body.appendChild(workbench);
+
+		try {
+			const activeDisplay = mainWindow.getComputedStyle(activeInput).display;
+			const inactiveDisplay = mainWindow.getComputedStyle(inactiveInput).display;
+			workbench.classList.remove('session-comparison-hide-inactive-inputs');
+			const restoredDisplay = mainWindow.getComputedStyle(inactiveInput).display;
+
+			assert.deepStrictEqual({
+				activeDisplay,
+				inactiveDisplay,
+				restoredDisplay,
+			}, {
+				activeDisplay: 'block',
+				inactiveDisplay: 'none',
+				restoredDisplay: 'block',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
 });

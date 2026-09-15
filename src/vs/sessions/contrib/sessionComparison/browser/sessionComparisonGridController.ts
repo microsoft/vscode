@@ -5,8 +5,10 @@
 
 import { isEqual } from '../../../../base/common/resources.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -14,6 +16,9 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';
+
+const HIDE_INACTIVE_COMPARISON_INPUTS_CLASS = 'session-comparison-hide-inactive-inputs';
 
 export class SessionComparisonGridController extends Disposable implements IWorkbenchContribution {
 
@@ -28,14 +33,24 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		const hideInactiveInputs = observableFromEvent(
+			this,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING)),
+			() => configurationService.getValue<boolean>(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING),
+		);
 		this._register(autorun(reader => {
 			const layout = this.sessionsService.sessionGridLayout.read(reader);
 			const visibleSessions = this.sessionsService.visibleSessions.read(reader);
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const comparisons = this.comparisonService.comparisons.read(reader);
 			this._comparisonGridActive = layout === 'grid' && this._isComparisonGrid(visibleSessions, comparisons);
+			this.layoutService.mainContainer.classList.toggle(
+				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
+				hideInactiveInputs.read(reader) && layout === 'grid' && this._isAttemptComparisonGrid(visibleSessions, comparisons),
+			);
 			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
 				&& (visibleSessions.length !== 1
 					|| visibleSessions[0]?.sessionId !== this._isolatedJudgeSessionId
@@ -58,6 +73,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			}
 		}));
 		this._register(sessionsPartService.onDidFocusSession(sessionId => this._onDidFocusSession(sessionId)));
+		this._register(toDisposable(() => this.layoutService.mainContainer.classList.remove(HIDE_INACTIVE_COMPARISON_INPUTS_CLASS)));
 	}
 
 	private _onDidFocusSession(sessionId: string): void {
@@ -97,6 +113,14 @@ export class SessionComparisonGridController extends Disposable implements IWork
 
 	private _isComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
 		return this._getComparisonForVisibleSessions(visibleSessions, comparisons) !== undefined;
+	}
+
+	private _isAttemptComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
+		const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons);
+		return !!comparison && visibleSessions.every(session => comparison.participants.some(participant =>
+			participant.role === SessionComparisonParticipantRole.Attempt
+			&& participant.sessionResource
+			&& isEqual(participant.sessionResource, session!.resource)));
 	}
 
 	private _getJudgeSessionId(session: IActiveSession | undefined, visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): string | undefined {

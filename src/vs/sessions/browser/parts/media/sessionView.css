@@ -28,3 +28,10 @@
 :is(.hc-black, .hc-light).monaco-workbench .part.sessionspart.multiple-sessions-visible .session-view.is-active::after {
 	border-color: var(--vscode-contrastActiveBorder);
 }
+
+.monaco-workbench.session-comparison-hide-inactive-inputs
+	.part.sessionspart.multiple-sessions-visible
+	.session-view:not(.is-active)
+	.interactive-session > .interactive-input-part {
+	display: none;
+}

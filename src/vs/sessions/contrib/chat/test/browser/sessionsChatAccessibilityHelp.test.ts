@@ -121,8 +121,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			workspaceAndBranch: enabledProvider.provideContent().includes('Choose a Git repository with at least one commit and a remote, choose the base branch'),
 			permissions: enabledProvider.provideContent().includes('provider-specific Permissions selection'),
 			bulkPermissions: enabledProvider.provideContent().includes('Allow all permissions for every participant'),
+			permissionInfo: enabledProvider.provideContent().includes('information icon beside this checkbox'),
 			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
 			latestStep: enabledProvider.provideContent().includes('follow the latest available step'),
+			inactiveInputs: enabledProvider.provideContent().includes('only the active attempt pane shows its chat input'),
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 			choiceButtons: enabledProvider.provideContent().includes('Use Tab to move between the choice buttons'),
 		}, {
@@ -131,8 +133,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			workspaceAndBranch: true,
 			permissions: true,
 			bulkPermissions: true,
+			permissionInfo: true,
 			effort: true,
 			latestStep: true,
+			inactiveInputs: true,
 			customSynthesis: true,
 			choiceButtons: true,
 		});

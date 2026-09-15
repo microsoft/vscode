@@ -59,8 +59,7 @@
 	min-height: 0;
 }
 
-.session-comparison-setup-validation,
-.session-comparison-setup-usage {
+.session-comparison-setup-validation {
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -98,21 +97,27 @@
 }
 
 .session-comparison-setup-bulk-permissions {
-	display: grid;
-	grid-template-columns: auto 1fr;
+	display: flex;
 	align-items: center;
-	column-gap: var(--vscode-spacing-size60);
-	row-gap: var(--vscode-spacing-size20);
+	gap: var(--vscode-spacing-size60);
 }
 
 .session-comparison-setup-bulk-permissions-label {
 	font-size: var(--vscode-fontSize-body1);
 }
 
-.session-comparison-setup-bulk-permissions-description {
-	grid-column: 2;
+.session-comparison-setup-bulk-permissions-info {
+	display: inline-flex;
+	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
+	font-size: var(--vscode-codiconFontSize-compact);
+	cursor: help;
+}
+
+.session-comparison-setup-bulk-permissions-info:focus-visible {
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .session-comparison-setup-branch-picker-slot {
@@ -470,8 +475,7 @@
 	width: auto;
 }
 
-.session-comparison-setup-validation,
-.session-comparison-setup-usage {
+.session-comparison-setup-validation {
 	font-size: var(--vscode-fontSize-label1);
 }
 

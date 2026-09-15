@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -110,6 +111,9 @@ suite('Sessions - Comparison Result', () => {
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
 		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => layouts++));
+		result.domNode.style.width = '800px';
+		mainWindow.document.body.append(result.domNode);
+		store.add({ dispose: () => result.domNode.remove() });
 
 		const initialText = result.domNode.textContent ?? '';
 		const buttons = result.domNode.querySelectorAll<HTMLElement>('.monaco-button');
@@ -122,6 +126,7 @@ suite('Sessions - Comparison Result', () => {
 		const strengthsTitle = result.domNode.querySelector<HTMLElement>('.session-comparison-result-subtitle:last-of-type');
 		const strengthsTable = result.domNode.querySelector<HTMLElement>('.session-comparison-result-strengths');
 		const actions = result.domNode.querySelector<HTMLElement>('.session-comparison-result-actions');
+		const actionButtons = actions?.querySelectorAll<HTMLElement>(':scope > .monaco-button') ?? [];
 		const synthesisPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan');
 		const decisionTable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table');
 		const panelHiddenBefore = synthesisPanel?.hidden;
@@ -173,6 +178,10 @@ suite('Sessions - Comparison Result', () => {
 			layouts,
 			panelHiddenBefore,
 			choiceState,
+			actionLayout: {
+				count: actionButtons.length,
+				sameRow: new Set([...actionButtons].map(button => button.getBoundingClientRect().top)).size === 1,
+			},
 			accessibility,
 		}, {
 			content: {
@@ -203,6 +212,10 @@ suite('Sessions - Comparison Result', () => {
 				codexPressed: 'true',
 				synthesizerPressed: 'false',
 				codexLabel: 'Codex for Error handling. Better choice. Return typed diagnostics. Selected',
+			},
+			actionLayout: {
+				count: 3,
+				sameRow: true,
 			},
 			accessibility: {
 				regionRole: 'region',

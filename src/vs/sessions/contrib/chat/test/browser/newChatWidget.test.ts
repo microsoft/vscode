@@ -265,6 +265,7 @@ interface IConfigureComparisonHarness {
 interface IGetComparisonBranchHarness {
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _workspacePicker: {
+		readonly selectedFolderUri?: URI;
 		readonly selectedResolved: { readonly workspace: ISessionWorkspace } | undefined;
 	};
 	readonly sessionsProvidersService: {
@@ -277,6 +278,8 @@ interface IGetComparisonBranchHarness {
 
 interface IComparisonActionVisibilityHarness extends IGetComparisonBranchHarness {
 	readonly _compareAgentsEnabled: IObservable<boolean>;
+	readonly _pendingPreferredUpgrade: { readonly value: IDisposable | undefined };
+	readonly _newSessionCreation: { readonly value: IDisposable | undefined };
 	_getComparisonBranch(session?: ISession): string | undefined;
 }
 
@@ -1409,12 +1412,15 @@ suite('NewChatWidget', () => {
 		});
 		const harness: IComparisonActionVisibilityHarness = {
 			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
 			_session: constObservable(session),
-			_workspacePicker: { selectedResolved: { workspace } },
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
 			sessionsProvidersService: {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
 			_getComparisonBranch: getComparisonBranch,
@@ -1444,12 +1450,15 @@ suite('NewChatWidget', () => {
 		});
 		const harness: IComparisonActionVisibilityHarness = {
 			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
 			_session: constObservable(session),
-			_workspacePicker: { selectedResolved: { workspace } },
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
 			sessionsProvidersService: {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
 			_getComparisonBranch: getComparisonBranch,
@@ -1485,6 +1494,125 @@ suite('NewChatWidget', () => {
 		};
 
 		assert.strictEqual(getComparisonBranch.call(harness), 'main');
+	});
+
+	test('uses the selected workspace base branch while draft repository metadata is unresolved', () => {
+		const draftWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					baseBranchName: 'main',
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(draftWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.deepStrictEqual({
+			branch: getComparisonBranch.call(harness),
+			visible: shouldShowComparisonAction.call(harness),
+		}, {
+			branch: 'main',
+			visible: true,
+		});
+	});
+
+	test('shows the comparison action while Agent Host configuration is resolving', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(true),
+				}),
+			},
+			_getComparisonBranch: () => undefined,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), true);
+	});
+
+	test('shows the comparison action while the preferred provider upgrade is pending', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: 'provisional',
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: { dispose() { } } },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: 'provisional',
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: () => undefined,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), true);
 	});
 
 	test('opens a new comparison with two attempts from the composer selection', async () => {

@@ -7,6 +7,7 @@ import './media/sessionComparisonSetupDialog.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -25,6 +26,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -289,6 +291,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -457,10 +460,19 @@ export class SessionComparisonSetupDialog extends Disposable {
 			}
 			dom.append(bulkPermissions, bulkPermissionCheckbox.domNode);
 			dom.append(bulkPermissions, dom.$('span.session-comparison-setup-bulk-permissions-label', { 'aria-hidden': 'true' }, bulkPermissionLabel));
-			const bulkPermissionDescription = dom.append(bulkPermissions, dom.$('span.session-comparison-setup-bulk-permissions-description'));
-			bulkPermissionDescription.textContent = bulkPermissionState.available
-				? localize('sessionComparisonSetup.permissions.allowAllParticipantsDescription', "Uses each selected agent's Allow all, Bypass Permissions, or Full Access option. Uncheck to restore every participant's default.")
-				: localize('sessionComparisonSetup.permissions.allowAllParticipantsUnavailable', "Unavailable for one or more selected agents or disabled by your organization.");
+			const bulkPermissionHelp = bulkPermissionState.available
+				? localize('sessionComparisonSetup.permissions.allowAllParticipantsDescription', "Uses each selected agent's Allow all, Bypass Permissions, or Full Access option. Uncheck to restore every participant's default.\n\nEach attempt runs in an isolated worktree. Nothing is applied automatically.")
+				: localize('sessionComparisonSetup.permissions.allowAllParticipantsUnavailable', "Unavailable for one or more selected agents or disabled by your organization.\n\nEach attempt runs in an isolated worktree. Nothing is applied automatically.");
+			const bulkPermissionInfo = dom.append(bulkPermissions, renderIcon(Codicon.info));
+			bulkPermissionInfo.classList.add('session-comparison-setup-bulk-permissions-info');
+			bulkPermissionInfo.tabIndex = 0;
+			bulkPermissionInfo.setAttribute('role', 'note');
+			bulkPermissionInfo.setAttribute('aria-label', bulkPermissionHelp);
+			rowsDisposables.add(this.hoverService.setupManagedHover(
+				getDefaultHoverDelegate('element'),
+				bulkPermissionInfo,
+				bulkPermissionHelp,
+			));
 			const updateBulkPermissionCheckbox = () => {
 				const checked = getBulkPermissionState().checked;
 				bulkPermissionCheckbox.checked = checked;
@@ -473,9 +485,6 @@ export class SessionComparisonSetupDialog extends Disposable {
 				synthesisHarness = selection.synthesisHarness;
 				renderRows();
 			}));
-
-			const usage = dom.append(content, dom.$('.session-comparison-setup-usage'));
-			usage.textContent = localize('sessionComparisonSetup.usage', "Each attempt runs in an isolated worktree. Nothing is applied automatically.");
 
 			const attemptsSection = dom.append(content, dom.$('.session-comparison-setup-attempts'));
 			const attemptsHeading = dom.append(attemptsSection, dom.$('h3.session-comparison-setup-section-title'));
