@@ -55,6 +55,7 @@ suite('SessionComparisonTool', () => {
 	test('returns bounded evidence and exact session context targets to the Judge', async () => {
 		const comparison = stubComparison();
 		const session = stubAttemptSession();
+		const workingDirectory = URI.file('/workspace').fsPath;
 		const tool = new ReadSessionComparisonTool(
 			upcastPartial<ISessionComparisonService>({
 				getComparison: id => id === comparison.id ? comparison : undefined,
@@ -84,8 +85,8 @@ suite('SessionComparisonTool', () => {
 				status: SessionStatus.Completed,
 				sessionContextTarget: 'agent-host-session://copilot/attempt',
 				worktree: {
-					workingDirectory: '/workspace',
-					folders: ['/workspace'],
+					workingDirectory,
+					folders: [workingDirectory],
 				},
 				changesSummary: { files: 1, additions: 3, deletions: 1 },
 				changedFiles: [{

@@ -110,41 +110,41 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource);
 		const attemptNumbers = new Map(attemptParticipants.map((participant, index) => [participant.id, index + 1]));
 		const attempts = attemptParticipants.map((participant, index) => {
-				const session = this.sessionsManagementService.getSession(participant.sessionResource!);
-				const changes = session?.changes.get() ?? [];
-				const changedFiles = changes.slice(0, 200).map(change => ({
-					resource: (isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri).toString(),
-					insertions: change.insertions,
-					deletions: change.deletions,
-				}));
-				const workspace = session?.workspace.get();
-				const changesSummary = session?.changesSummary?.get();
-				const sessionContextTarget = session && invokingSession && invokingSession.providerId === session.providerId
-					? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
-					: undefined;
-				return {
-					attemptNumber: index + 1,
-					label: `Attempt ${index + 1}: ${participant.harness.label}${participant.harness.modelLabel ? ` · ${participant.harness.modelLabel}` : ''}`,
-					harness: {
-						agent: participant.harness.label,
-						model: participant.harness.modelLabel ?? 'Default',
-					},
-					status: session?.status.get() ?? 'unavailable',
-					launchError: participant.launchError,
-					sessionContextTarget,
-					sessionContextUnavailableReason: session && !sessionContextTarget
-						? 'Transcript follow-up is unavailable from this Judge host; use the manifest and worktree evidence.'
-						: undefined,
-					worktree: workspace ? {
-						workingDirectory: workspace.folders[0]?.workingDirectory.fsPath,
-						folders: workspace.folders.map(folder => folder.workingDirectory.fsPath),
-					} : undefined,
-					changesSummary,
-					changedFiles,
-					changedFilesStatus: changes.length > 0 ? 'available' : changesSummary?.files === 0 ? 'noChanges' : 'unavailable',
-					changedFilesTruncated: changes.length > changedFiles.length,
-				};
-			});
+			const session = this.sessionsManagementService.getSession(participant.sessionResource!);
+			const changes = session?.changes.get() ?? [];
+			const changedFiles = changes.slice(0, 200).map(change => ({
+				resource: (isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri).toString(),
+				insertions: change.insertions,
+				deletions: change.deletions,
+			}));
+			const workspace = session?.workspace.get();
+			const changesSummary = session?.changesSummary?.get();
+			const sessionContextTarget = session && invokingSession && invokingSession.providerId === session.providerId
+				? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
+				: undefined;
+			return {
+				attemptNumber: index + 1,
+				label: `Attempt ${index + 1}: ${participant.harness.label}${participant.harness.modelLabel ? ` · ${participant.harness.modelLabel}` : ''}`,
+				harness: {
+					agent: participant.harness.label,
+					model: participant.harness.modelLabel ?? 'Default',
+				},
+				status: session?.status.get() ?? 'unavailable',
+				launchError: participant.launchError,
+				sessionContextTarget,
+				sessionContextUnavailableReason: session && !sessionContextTarget
+					? 'Transcript follow-up is unavailable from this Judge host; use the manifest and worktree evidence.'
+					: undefined,
+				worktree: workspace ? {
+					workingDirectory: workspace.folders[0]?.workingDirectory.fsPath,
+					folders: workspace.folders.map(folder => folder.workingDirectory.fsPath),
+				} : undefined,
+				changesSummary,
+				changedFiles,
+				changedFilesStatus: changes.length > 0 ? 'available' : changesSummary?.files === 0 ? 'noChanges' : 'unavailable',
+				changedFilesTruncated: changes.length > changedFiles.length,
+			};
+		});
 		const synthesisPlan = comparison.synthesisPlan && comparison.verdict?.decisionSections ? {
 			sections: comparison.synthesisPlan.selections.flatMap(selection => {
 				const section = comparison.verdict!.decisionSections!.find(section => section.id === selection.sectionId);
