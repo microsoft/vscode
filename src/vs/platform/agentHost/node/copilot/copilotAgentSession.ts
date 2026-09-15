@@ -2431,11 +2431,15 @@ export class CopilotAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 		this._register(toDisposable(() => {
-			void wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle }).catch(error => {
-				this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
-			});
+			if (wrapper.lifecycleState === 'shutdown') {
+				wrapper.dispose();
+				return;
+			}
+			void wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle })
+				.catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`))
+				.finally(() => wrapper.dispose());
 		}));
-		this._wrapper = this._register(wrapper);
+		this._wrapper = wrapper;
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			if (!event.sessions.includes(this._ownerSessionUri.toString())) {
 				return;

@@ -154,6 +154,7 @@ class MockCopilotSession {
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
 	readonly registeredEventInterests: string[] = [];
 	readonly releasedEventInterests: string[] = [];
+	releaseEventInterestGate: Promise<void> | undefined;
 	mcpDisableGate: Promise<unknown> | undefined;
 	mcpStopServerGate: Promise<unknown> | undefined;
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
@@ -373,6 +374,7 @@ class MockCopilotSession {
 			},
 			releaseInterest: async ({ handle }: { handle: string }) => {
 				this.releasedEventInterests.push(handle);
+				await this.releaseEventInterestGate;
 				return { success: true };
 			},
 		},
@@ -8107,6 +8109,31 @@ Use the attached image as context.
 				registeredEventInterests: ['sampling.requested'],
 				releasedEventInterests: ['interest-1'],
 				samplingResponses: [{ requestId: 'sampling-1' }],
+			});
+		});
+
+		test('sampling interest is released before the SDK session disconnects', async () => {
+			const releaseEventInterestGate = new DeferredPromise<void>();
+			const { mockSession, session } = await createAgentSession(disposables, {
+				configureMockSession: mockSession => {
+					mockSession.releaseEventInterestGate = releaseEventInterestGate.p;
+				},
+			});
+
+			session.dispose();
+			await timeout(0);
+			const disconnectCallsWhileReleasing = mockSession.disconnectCalls;
+			releaseEventInterestGate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				releasedEventInterests: mockSession.releasedEventInterests,
+				disconnectCallsWhileReleasing,
+				disconnectCallsAfterRelease: mockSession.disconnectCalls,
+			}, {
+				releasedEventInterests: ['interest-1'],
+				disconnectCallsWhileReleasing: 0,
+				disconnectCallsAfterRelease: 1,
 			});
 		});
 
