@@ -294,7 +294,7 @@ suite('Render Functions', () => {
 			minimumVersion: '1.85',
 			renderADMX: () => [],
 			renderADMLStrings: (translations?: LanguageTranslations) => [
-				`<string id="TestPolicy">Test Policy ${translations?.['testModule']?.['test.policy'] || 'Default'}</string>`
+				`<string id="TestPolicy">Test Policy ${translations?.testModule?.['test.policy'] || 'Default'}</string>`
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"><textBox refId="TestPolicy"/></presentation>',
 			renderProfile: () => [],
@@ -387,7 +387,7 @@ suite('Render Functions', () => {
 <key>pfm_name</key>
 <string>TestPolicy</string>
 <key>pfm_description</key>
-<string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
+<string>${translations?.testModule?.['test.desc'] || 'Default Desc'}</string>
 </dict>`,
 			renderJsonValue: () => null
 		};
@@ -525,7 +525,7 @@ suite('Render Functions', () => {
 <key>pfm_name</key>
 <string>TestPolicy</string>
 <key>pfm_description</key>
-<string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
+<string>${translations?.testModule?.['test.desc'] || 'Default Desc'}</string>
 </dict>`,
 			renderJsonValue: () => null
 		};
@@ -705,7 +705,7 @@ suite('Render Functions', () => {
 				`</policy>`
 			],
 			renderADMLStrings: (translations?: LanguageTranslations) => [
-				`<string id="TestPolicy">${translations?.['testModule']?.['test.policy'] || 'Test Policy'}</string>`
+				`<string id="TestPolicy">${translations?.testModule?.['test.policy'] || 'Test Policy'}</string>`
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
 			renderProfile: () => [],

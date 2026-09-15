@@ -159,9 +159,9 @@ export async function getChromiumSysroot(arch: DebianArchString): Promise<string
 	const sysrootInfo = JSON.parse(fs.readFileSync(sysrootDictLocation, 'utf8'));
 	const sysrootArch = `bullseye_${arch}`;
 	const sysrootDict: SysrootDictEntry = sysrootInfo[sysrootArch];
-	const tarballFilename = sysrootDict['Tarball'];
-	const tarballSha = sysrootDict['Sha256Sum'];
-	const sysroot = path.join(tmpdir(), sysrootDict['SysrootDir']);
+	const tarballFilename = sysrootDict.Tarball;
+	const tarballSha = sysrootDict.Sha256Sum;
+	const sysroot = path.join(tmpdir(), sysrootDict.SysrootDir);
 	const url = [URL_PREFIX, URL_PATH, tarballSha].join('/');
 	const stamp = path.join(sysroot, '.stamp');
 	if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === url) {
