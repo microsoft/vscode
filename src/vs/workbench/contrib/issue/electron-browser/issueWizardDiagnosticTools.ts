@@ -130,7 +130,7 @@ export class SearchVSCodeLogsTool implements IToolImpl {
 					? localize('issueWizard.searchVSCodeLogs.confirmSearchTitle', "Allow VS Code logs to be searched?")
 					: localize('issueWizard.searchVSCodeLogs.confirmListTitle', "Allow VS Code log sources to be listed?"),
 				message: localize('issueWizard.searchVSCodeLogs.confirmMessage', "Logs can contain file paths, repository names, extension output, and other sensitive information. Only bounded source names or matching lines are returned."),
-				allowAutoConfirm: false,
+				allowAutoConfirm: true,
 			},
 		};
 	}

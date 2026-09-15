@@ -390,7 +390,7 @@ suite('Issue Wizard Diagnostic Tools', () => {
 			result: result.content[0].kind === 'text' ? JSON.parse(result.content[0].value) : undefined,
 		}, {
 			tool: { name: 'searchVSCodeLogs', canRequestPreApproval: true, runsInWorkspace: false },
-			confirmation: { hasTitle: true, hasMessage: true, allowAutoConfirm: false },
+			confirmation: { hasTitle: true, hasMessage: true, allowAutoConfirm: true },
 			result: { sources: [{ id: 'output:rendererLog', label: 'Window', kind: 'output' }] },
 		});
 	});
