@@ -94,7 +94,14 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 			if (!contents.includes('"traceId"')
 				|| !contents.includes('"spanId"')
 				|| !contents.includes('vscode.agent_host.session.title_changed')
-				|| !contents.includes('"name":"invoke_agent"')
+				// Match the SDK/CLI `invoke_agent` root span by name *prefix*: following
+				// the GenAI semantic convention, the runtime now names it
+				// `invoke_agent {gen_ai.agent.name}` (e.g. `invoke_agent copilot` for the
+				// default agent), so the previous exact `"name":"invoke_agent"` match no
+				// longer holds. The contract this test exercises — that the SDK-emitted
+				// `invoke_agent` span flows through the Agent Host file exporter — is still
+				// verified by the prefix.
+				|| !contents.includes('"name":"invoke_agent')
 				|| !contents.includes('"service.name":"github-copilot"')) {
 				throw new Error(`OTel spans have not reached the file exporter: ${contents}`);
 			}
