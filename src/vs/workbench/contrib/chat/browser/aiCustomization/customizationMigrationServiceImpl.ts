@@ -270,7 +270,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			}
 			const snapshot = scope.support.get();
 			const candidates = this.isMigrationEnabled(CustomizationMigrationType.McpServers)
-				? (await this.mcpServerMigration.createPlan(snapshot, roots)).candidates
+				? (await this.mcpServerMigration.createPlan(snapshot, roots, token)).candidates
 				: [];
 			if (!await this.waitForMcpServerSupport(scope, token)
 				|| !this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource))

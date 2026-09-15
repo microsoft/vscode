@@ -146,7 +146,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 				const referencesAzure = WorkspaceTags.searchArray(names, /azure/i);
 				if (referencesAzure) {
-					tags['node'] = true;
+					tags.node = true;
 				}
 				return tags;
 			},
@@ -179,7 +179,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			});
 		})).then(javas => {
 			if (javas.indexOf(true) !== -1) {
-				tags['java'] = true;
+				tags.java = true;
 			}
 			return tags;
 		});

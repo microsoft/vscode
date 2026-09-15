@@ -215,6 +215,13 @@ export class FeedbackInputWidget extends Disposable {
 		}
 	}
 
+	setActionLabels(primaryLabel: string, secondaryLabel?: string): void {
+		this._primaryAction.label = primaryLabel;
+		if (this._secondaryAction && secondaryLabel) {
+			this._secondaryAction.label = secondaryLabel;
+		}
+	}
+
 	/**
 	 * Toggles an accessible busy state: disables the input/actions, swaps the
 	 * action bar for a spinning loading codicon, and (when turning busy on)
