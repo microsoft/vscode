@@ -40,8 +40,9 @@
  * - `getOrCreate` is serialized per chat UI resource; chip instances may race.
  * - Rejected config or a missing backend can use the normal create path.
  *   Unconfirmed actions propagate failures instead of dropping cached config.
- * - Abandoned untitled chats must dispose their backend provisional state when
- *   `IChatService.onDidDisposeSession` reports the chat UI resource.
+ * - Abandoned untitled chats dispose their provisional state on model release.
+ *   After `SessionAdded`, the published backend outlives UI references; cleanup
+ *   forgets the provisional mapping without deleting that conversation.
  * - Callers own provider and working-directory consistency. Derive them from
  *   the chat resource/session type and active workspace in the same way on
  *   create and rebind.
@@ -64,6 +65,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -211,6 +213,7 @@ interface IProvisionalGeneration {
 	readonly workingDirectory: URI | undefined;
 	readonly workingDirectories: readonly URI[] | undefined;
 	readonly metadata: Record<string, unknown> | undefined;
+	materialized: boolean;
 }
 
 type ProvisionalOperationResult = URI | void;
@@ -276,6 +279,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new ResourceMap<IEntry>();
+	private readonly _pendingGenerations = new Set<IProvisionalGeneration>();
 	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
@@ -307,6 +311,18 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
+		this._register(this._agentHostService.onDidNotification(notification => {
+			if (notification.type !== NotificationType.SessionAdded) {
+				return;
+			}
+			this._pendingBackendDisposals.delete(URI.parse(notification.summary.resource));
+			for (const generation of [...this._entries.values()].map(entry => entry.generation).concat([...this._pendingGenerations])) {
+				if (generation?.backendSession.toString() === notification.summary.resource) {
+					// Published conversations are no longer owned by provisional cleanup.
+					generation.materialized = true;
+				}
+			}
+		}));
 
 		// Drop provisional sessions when the chat infra disposes their
 		// chat-input session resource (e.g. the user closes the widget
@@ -622,8 +638,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const generation = entry.generation;
 		const desired = this._computeEntryWorkingDirectories(entry);
 		return generation
-			&& this._sameUri(generation.workingDirectory, entry.workingDirectory)
-			&& this._sameWorkingDirectories(entry.provider, generation.workingDirectories, desired)
+			&& (generation.materialized || (this._sameUri(generation.workingDirectory, entry.workingDirectory)
+				&& this._sameWorkingDirectories(entry.provider, generation.workingDirectories, desired)))
 			? generation
 			: undefined;
 	}
@@ -684,6 +700,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 
 			const candidate = this._newProvisionalUri(entry.provider);
+			const pendingGeneration: IProvisionalGeneration = { backendSession: candidate, workingDirectory, workingDirectories, metadata, materialized: false };
+			this._pendingGenerations.add(pendingGeneration);
 			let created: URI;
 			try {
 				config = await resolveInitialAgentHostApprovalConfig(this._configurationService, this._agentHostService, entry.provider, workingDirectory, config);
@@ -704,9 +722,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				});
 			} catch (err) {
 				this._logService.warn(`[AgentHostProvisional] Failed to create provisional session for ${sessionResource.toString()}: ${err instanceof Error ? err.message : String(err)}`);
-				await this._disposeBackend(candidate, 'failed provisional candidate');
+				await this._disposeProvisionalGeneration(pendingGeneration, 'failed provisional candidate');
 				await this._retireGeneration(sessionResource, entry);
 				return undefined;
+			} finally {
+				this._pendingGenerations.delete(pendingGeneration);
 			}
 
 			if (this._entries.get(sessionResource) !== entry
@@ -714,16 +734,16 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				|| entry.configVersion !== configVersion
 				|| !this._sameUri(entry.workingDirectory, workingDirectory)
 				|| !this._sameWorkingDirectories(entry.provider, this._computeEntryWorkingDirectories(entry), workingDirectories)) {
-				await this._disposeBackend(created, 'obsolete provisional candidate');
+				await this._disposeProvisionalGeneration({ ...pendingGeneration, backendSession: created }, 'obsolete provisional candidate');
 				continue;
 			}
 
 			const previous = entry.generation;
-			entry.generation = { backendSession: created, workingDirectory, workingDirectories, metadata };
+			entry.generation = { ...pendingGeneration, backendSession: created };
 			this._publishActiveClient(entry);
 			this._onDidChange.fire(sessionResource);
 			if (previous) {
-				await this._disposeBackend(previous.backendSession, 'replaced provisional generation');
+				await this._disposeProvisionalGeneration(previous, 'replaced provisional generation');
 			}
 			return created;
 		}
@@ -732,14 +752,18 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private async _retireGeneration(sessionResource: URI, entry: IEntry): Promise<void> {
 		const generation = entry.generation;
-		if (!generation) {
+		if (!generation || generation.materialized) {
 			return;
 		}
 		entry.generation = undefined;
 		if (this._entries.get(sessionResource) === entry) {
 			this._onDidChange.fire(sessionResource);
 		}
-		await this._disposeBackend(generation.backendSession, 'retired provisional generation');
+		await this._disposeProvisionalGeneration(generation, 'retired provisional generation');
+	}
+
+	private _disposeProvisionalGeneration(generation: IProvisionalGeneration, reason: string): Promise<boolean> {
+		return generation.materialized ? Promise.resolve(true) : this._disposeBackend(generation.backendSession, reason);
 	}
 
 	private async _disposeBackend(backendSession: URI, reason: string): Promise<boolean> {
@@ -814,6 +838,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				const targetWorkingDirectories = this._computeEntryWorkingDirectories(oldEntry);
 				const metadata = this.getInitialSessionMetadata(newSessionResource);
+				const pendingGeneration: IProvisionalGeneration = { backendSession: newBackendSession, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories, metadata, materialized: false };
 				const matchingGeneration = oldEntry.provider === provider ? this._generationMatchingDesiredState(oldEntry) : undefined;
 				const reusableGeneration = !imported && matchingGeneration && equals(matchingGeneration.metadata ?? {}, metadata ?? {}) ? matchingGeneration : undefined;
 				let reused = false;
@@ -846,6 +871,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 						this._restoreImportedConversation(newSessionResource, imported);
 						return undefined;
 					}
+					this._pendingGenerations.add(pendingGeneration);
 					try {
 						created = await this._agentHostService.createSession({
 							provider,
@@ -859,16 +885,18 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					} catch (err) {
 						this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
 						this._restoreImportedConversation(newSessionResource, imported);
-						const disposed = await this._disposeBackend(newBackendSession, 'failed rebound candidate');
+						const disposed = await this._disposeProvisionalGeneration(pendingGeneration, 'failed rebound candidate');
 						if (!disposed) {
 							throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
 						}
 						return undefined;
+					} finally {
+						this._pendingGenerations.delete(pendingGeneration);
 					}
 				}
 
 				if (this._entries.get(oldSessionResource) !== oldEntry || oldEntry.disposed) {
-					const disposed = reused || await this._disposeBackend(created, 'retired rebound candidate');
+					const disposed = reused || await this._disposeProvisionalGeneration({ ...pendingGeneration, backendSession: created }, 'retired rebound candidate');
 					this._restoreImportedConversation(newSessionResource, imported);
 					if (!disposed) {
 						throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
@@ -881,7 +909,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					if (reused) {
 						continue;
 					}
-					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
+					const disposed = await this._disposeProvisionalGeneration({ ...pendingGeneration, backendSession: created }, 'obsolete rebound candidate');
 					if (!disposed) {
 						this._restoreImportedConversation(newSessionResource, imported);
 						throw new Error(`Cannot safely retry rebound session ${newBackendSession.toString()} until its stale candidate is retired`);
@@ -898,7 +926,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const newEntry = this._createEntry(provider, config, configVersion, targetWorkingDirectory, oldEntry.resolvedConfig);
 				newEntry.usesWorkspaceRootSet = oldEntry.usesWorkspaceRootSet;
 				this._updateActiveClientScope(newEntry);
-				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories, metadata };
+				newEntry.generation = { ...(reused ? reusableGeneration! : pendingGeneration), backendSession: created };
 				const boundResource = newSessionResource.with({ path: created.path });
 				this._entries.set(boundResource, newEntry);
 				if (!isEqual(boundResource, newSessionResource)) {
@@ -920,7 +948,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 				if (oldGeneration && !isEqual(oldGeneration.backendSession, created)) {
 					// The temporary generation is in-memory only, so disposal is best-effort.
-					await this._disposeBackend(oldGeneration.backendSession, 'temporary provisional generation');
+					await this._disposeProvisionalGeneration(oldGeneration, 'temporary provisional generation');
 				}
 				return created;
 			}
@@ -1015,7 +1043,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		return this._queue(sessionResource, async () => {
 			if (entry.generation) {
-				await this._disposeBackend(entry.generation.backendSession, 'provisional generation');
+				await this._disposeProvisionalGeneration(entry.generation, 'provisional generation');
 				entry.generation = undefined;
 			}
 		});
@@ -1026,8 +1054,13 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// awaiting in `dispose()` to keep workbench teardown synchronous.
 		for (const [, entry] of this._entries) {
 			entry.disposed = true;
+<<<<<<< HEAD
 			entry.lifetime.dispose();
 			if (entry.generation) {
+=======
+			entry.activeClientBinding.dispose();
+			if (entry.generation && !entry.generation.materialized) {
+>>>>>>> cf2681c1d68 (chat: preserve published sessions when provisional models close)
 				this._agentHostService.disposeSession(entry.generation.backendSession).catch(() => { /* swallow on shutdown */ });
 			}
 		}
@@ -1036,6 +1069,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		this._entries.clear();
 		this._pending.clear();
+		this._pendingGenerations.clear();
 		this._pendingBackendDisposals.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
