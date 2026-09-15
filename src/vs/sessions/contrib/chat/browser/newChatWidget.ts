@@ -286,7 +286,11 @@ export class NewChatWidget extends Disposable {
 					label: localize('runMultipleAgents.label', "Execute Parallel Agents..."),
 					description: comparisonDescription,
 					icon: Codicon.layers,
-					isVisible: () => this._compareAgentsEnabled.get() && this._getComparisonBranch() !== undefined,
+					isVisible: () => {
+						const session = this._session.get();
+						const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+						return this._compareAgentsEnabled.get() && provider !== undefined && isAgentHostProvider(provider);
+					},
 					run: () => void this._configureComparison(),
 				},
 			},
@@ -945,6 +949,11 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const session = this._session.get();
+		const branch = session ? this._getComparisonBranch(session) : undefined;
+		if (!branch) {
+			this._workspacePicker.showPicker();
+			return;
+		}
 		const currentType = session && this.sessionsManagementService.getSessionTypesForFolder(workspace).find(({ providerId, sessionType }) =>
 			providerId === session.providerId && sessionType.id === session.sessionType);
 		const currentHarness = currentType ? {
@@ -973,7 +982,7 @@ export class NewChatWidget extends Disposable {
 			const result = await setupDialog.show({
 				workspace,
 				workspaceLabel: this._workspacePicker.selectedResolved?.workspace.label ?? basename(workspace),
-				branch: this._getComparisonBranch(session),
+				branch,
 				attachedContextCount: this._newChatInput.attachments.length,
 				prompt: this._newChatInput.getInputValue(),
 				setPrompt: prompt => this._newChatInput.setInputValue(prompt),

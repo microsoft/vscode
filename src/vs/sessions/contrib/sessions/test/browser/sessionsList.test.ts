@@ -2098,15 +2098,24 @@ suite('Sessions - SessionsList', () => {
 				},
 				order: ['Judge', 'Synthesis', 'Attempt 1: Copilot · Claude Opus 5', 'Attempt 2: Codex · GPT-5'],
 				attempts: [
-					{ title: 'Attempt 1: Copilot · Claude Opus 5', ariaLabel: 'Attempt 1: Copilot · Claude Opus 5, updated now, State: In Progress', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
-					{ title: 'Attempt 2: Codex · GPT-5', ariaLabel: 'Attempt 2: Codex · GPT-5, updated now, State: In Progress', status: 'Working...', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Attempt 1: Copilot · Claude Opus 5', ariaLabel: 'Attempt 1: Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Attempt 2: Codex · GPT-5', ariaLabel: 'Attempt 2: Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
 				],
 				judge: { title: 'Judge', inProgress: true, hasProgressIndicator: true, connector: null },
 				independentParticipantConnectors: [null, null],
 			});
 
 			attempt1.status.set(SessionStatus.Completed, undefined);
-			assert.deepStrictEqual(attempts.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent), ['Completed', 'Working...']);
+			assert.deepStrictEqual({
+				statuses: attempts.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent),
+				ariaLabels: attempts.map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-label')),
+			}, {
+				statuses: [undefined, ''],
+				ariaLabels: [
+					'Attempt 1: Copilot · Claude Opus 5, updated now, State: Completed, in Workspace',
+					'Attempt 2: Codex · GPT-5, updated now, State: In Progress',
+				],
+			});
 			attempt2.status.set(SessionStatus.Completed, undefined);
 			assert.deepStrictEqual({
 				summary: parent.querySelector('.session-group-description')?.textContent,

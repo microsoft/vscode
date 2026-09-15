@@ -1069,18 +1069,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('unread', !isRead && !isArchived);
 			template.container.classList.toggle('quick-chat', isQuickChat && this.options.useCompactQuickChatRows);
-			template.comparisonAttemptStatus.classList.toggle('visible', comparisonAttemptLabel !== undefined && (this.options.shouldShowComparisonAttemptStatus?.(element, reader) ?? true));
+			let showComparisonAttemptStatus = comparisonAttemptLabel !== undefined && (this.options.shouldShowComparisonAttemptStatus?.(element, reader) ?? true);
 			template.comparisonAttemptStatusIcon.className = 'session-comparison-attempt-status-icon';
 			switch (sessionStatus) {
 				case SessionStatus.InProgress:
 					template.comparisonAttemptStatusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptWorking', "Working...");
+					template.comparisonAttemptStatusLabel.textContent = '';
 					break;
 				case SessionStatus.NeedsInput:
 					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Input needed");
 					break;
 				case SessionStatus.Completed:
-					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptCompleted', "Completed");
+					template.comparisonAttemptStatusLabel.textContent = '';
+					showComparisonAttemptStatus = false;
 					break;
 				case SessionStatus.Error:
 					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptFailed', "Failed");
@@ -1088,6 +1089,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				default:
 					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptPending', "Pending");
 			}
+			template.comparisonAttemptStatus.classList.toggle('visible', showComparisonAttemptStatus);
 		}));
 
 		// Title — reactive

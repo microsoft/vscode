@@ -1327,6 +1327,22 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('opens workspace selection when comparison isolation is unavailable', async () => {
+		let workspacePickerOpened = 0;
+
+		await configureComparison.call(upcastPartial<IConfigureComparisonHarness>({
+			_workspacePicker: {
+				selectedFolderUri: URI.file('/workspace'),
+				selectedResolved: { workspace: { label: 'workspace' } },
+				showPicker: () => workspacePickerOpened++,
+			},
+			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'agent' })),
+			_getComparisonBranch: () => undefined,
+		}));
+
+		assert.strictEqual(workspacePickerOpened, 1);
+	});
+
 	test('opens a new comparison with two attempts from the composer selection', async () => {
 		const workspace = URI.file('/workspace');
 		const harnessSelection = { providerId: 'provider', sessionTypeId: 'agent', label: 'Copilot', modelId: undefined, modelLabel: undefined };
