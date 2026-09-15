@@ -4,7 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IChatQuestion, IChatQuestionValidation } from './chatService.js';
+import { IChatQuestion, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatQuestionValidation, IChatService } from './chatService.js';
+import { ChatQuestionCarouselData } from '../model/chatProgressTypes/chatQuestionCarouselData.js';
+
+/** Commit one answer through the same model and provider notification path in every question host. */
+export function submitChatQuestionCarousel(carousel: IChatQuestionCarousel, requestId: string | undefined, answers: Map<string, IChatQuestionAnswerValue> | undefined, chatService: Pick<IChatService, 'notifyQuestionCarouselAnswer'>): boolean {
+	if (carousel.isUsed || carousel.answeredExternally || (carousel instanceof ChatQuestionCarouselData && carousel.completion.isSettled)) {
+		return false;
+	}
+	const record = answers ? Object.fromEntries(answers) : undefined;
+	if (carousel instanceof ChatQuestionCarouselData) {
+		carousel.dismiss(record);
+	} else {
+		carousel.data = record ?? {};
+		carousel.isUsed = true;
+	}
+	if (carousel.resolveId && requestId !== undefined) {
+		chatService.notifyQuestionCarouselAnswer(requestId, carousel.resolveId, record);
+	}
+	return true;
+}
 
 /** An option paired with its position in the question's declared order. */
 export interface IOrderedQuestionOption {

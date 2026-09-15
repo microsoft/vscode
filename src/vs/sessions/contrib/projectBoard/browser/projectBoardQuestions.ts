@@ -7,11 +7,11 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableFromPromise, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromPromise, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
-import { ElicitationState, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { getDisplayedQuestionText, getOptionsWithDefaultsFirst, submitChatQuestionCarousel } from '../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
+import { ElicitationState, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -59,10 +59,18 @@ export type ProjectBoardQuestionPreviewState =
 	| { readonly kind: 'error'; readonly message: string; readonly error: string }
 	| { readonly kind: 'ready'; readonly questions: readonly IProjectBoardQuestion[]; readonly permissions: readonly IProjectBoardPermission[]; readonly unsupported: readonly IProjectBoardUnsupportedInput[]; readonly truncated: boolean };
 
-/** Read-only, bounded pending-input preview; the view owns its lifetime and renders untrusted snapshots. */
+export interface IProjectBoardPendingQuestion {
+	readonly carousel: IChatQuestionCarousel;
+	readonly requestId: string;
+}
+
+/** Bounded pending input with a submission boundary tied to the currently retained request. */
 export class ProjectBoardQuestionPreview extends Disposable {
 	private readonly _preview = observableValue<ProjectBoardQuestionPreviewState>(this, Object.freeze({ kind: 'inactive' }));
 	readonly preview: IObservable<ProjectBoardQuestionPreviewState> = this._preview;
+	private readonly _questionCarousels = observableValue<readonly IProjectBoardPendingQuestion[]>(this, []);
+	readonly questionCarousels: IObservable<readonly IProjectBoardPendingQuestion[]> = this._questionCarousels;
+	private _activeModel: IChatModel | undefined;
 	private readonly _modelStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _completions = new WeakMap<ChatQuestionCarouselData, IObservable<{ value?: true | Error }>>();
 	private readonly _answered = new WeakSet<IChatQuestionCarousel>();
@@ -79,11 +87,30 @@ export class ProjectBoardQuestionPreview extends Disposable {
 		this._register(autorun(reader => {
 			if (this._chat.status.read(reader) !== SessionStatus.NeedsInput) {
 				this._modelStore.clear();
+				this._questionCarousels.set([], undefined);
 				this._preview.set(Object.freeze({ kind: 'inactive' }), undefined);
 			} else {
 				this._ensureModel();
 			}
 		}));
+	}
+
+	submit(question: IProjectBoardPendingQuestion, answers: Map<string, IChatQuestionAnswerValue> | undefined): boolean {
+		const request = this._activeModel?.lastRequest;
+		const response = request?.response;
+		if (this._isDisposed || this._chat.status.get() !== SessionStatus.NeedsInput || !request || request.isHiddenFromTranscript
+			|| request.id !== question.requestId || !response || response.isComplete || response.isCanceled
+			|| !response.response.value.includes(question.carousel)
+			|| !this._questionCarousels.get().some(pending => pending.carousel === question.carousel && pending.requestId === question.requestId)) {
+			this._logService.warn('ProjectBoardQuestionPreview: ignored an answer to an unavailable question');
+			return false;
+		}
+		try {
+			return submitChatQuestionCarousel(question.carousel, question.requestId, answers, this._chatService);
+		} catch (error) {
+			this._fail(error, localize('projectBoard.answerError', "Could not submit the answer. Open the chat to continue."));
+			return false;
+		}
 	}
 
 	private _ensureModel(): void {
@@ -130,6 +157,13 @@ export class ProjectBoardQuestionPreview extends Disposable {
 	}
 
 	private _observeModel(model: IChatModel, store: DisposableStore): void {
+		this._activeModel = model;
+		store.add(toDisposable(() => {
+			if (this._activeModel === model) {
+				this._activeModel = undefined;
+				this._questionCarousels.set([], undefined);
+			}
+		}));
 		const changed = observableSignalFromEvent(this, model.onDidChange);
 		const answersChanged = observableSignal(this);
 		store.add(this._chatService.onDidReceiveQuestionCarouselAnswer(event => {
@@ -161,14 +195,19 @@ export class ProjectBoardQuestionPreview extends Disposable {
 				if (response) {
 					observableSignalFromEvent(this, response.onDidChange).read(reader);
 				}
-				this._preview.set(this._project(response, reader), undefined);
+				const questions: IProjectBoardPendingQuestion[] = [];
+				const preview = this._project(response, reader, questions);
+				transaction(tx => {
+					this._questionCarousels.set(questions, tx);
+					this._preview.set(preview, tx);
+				});
 			} catch (error) {
 				this._fail(error);
 			}
 		}));
 	}
 
-	private _project(response: IChatResponseModel | undefined, reader: IReader): ProjectBoardQuestionPreviewState {
+	private _project(response: IChatResponseModel | undefined, reader: IReader, pending: IProjectBoardPendingQuestion[]): ProjectBoardQuestionPreviewState {
 		const questions: IProjectBoardQuestion[] = [];
 		const permissions: IProjectBoardPermission[] = [];
 		const unsupported: IProjectBoardUnsupportedInput[] = [];
@@ -244,6 +283,14 @@ export class ProjectBoardQuestionPreview extends Disposable {
 					continue;
 				}
 			}
+			const fits = (value: string | IMarkdownString | undefined) => value === undefined || (typeof value === 'string' ? value : value.value).length <= limits.textLength;
+			if (response && (part instanceof ChatQuestionCarouselData || part.resolveId) && pending.length < limits.questions
+				&& part.questions.length > 0 && part.questions.length <= limits.questions - pending.reduce((count, question) => count + question.carousel.questions.length, 0) && fits(part.message)
+				&& part.questions.every(question => (question.type === 'text' || question.type === 'singleSelect' || question.type === 'multiSelect')
+					&& fits(question.title) && fits(question.message) && fits(question.description) && fits(question.detailedMessage)
+					&& (question.options?.length ?? 0) <= limits.options && (question.options ?? []).every(option => fits(option.label)))) {
+				pending.push({ carousel: part, requestId: response.requestId });
+			}
 			for (const [index, question] of take(part.questions, limits.questions - questions.length).entries()) {
 				if (question.type !== 'text' && question.type !== 'singleSelect' && question.type !== 'multiSelect') {
 					addUnsupported('questionType');
@@ -280,17 +327,20 @@ export class ProjectBoardQuestionPreview extends Disposable {
 	}
 
 	private _unavailable(reason: 'modelUnavailable' | 'modelDisposed'): void {
+		this._questionCarousels.set([], undefined);
 		this._preview.set(Object.freeze({ kind: 'unavailable', reason, message: localize('projectBoard.questionUnavailable', "Question preview is unavailable. Open the chat to continue.") }), undefined);
 	}
 
-	private _fail(error: unknown): void {
-		this._logService.error('ProjectBoardQuestionPreview: failed to read pending input', error);
-		this._preview.set(Object.freeze({ kind: 'error', message: localize('projectBoard.questionError', "Could not load the question preview. Open the chat to continue."), error: toErrorMessage(error) }), undefined);
+	private _fail(error: unknown, message = localize('projectBoard.questionError', "Could not load the question preview. Open the chat to continue.")): void {
+		this._logService.error('ProjectBoardQuestionPreview: pending input failed', error);
+		this._preview.set(Object.freeze({ kind: 'error', message, error: toErrorMessage(error) }), undefined);
+		this._questionCarousels.set([], undefined);
 	}
 
 	override dispose(): void {
 		this._isDisposed = true;
 		super.dispose();
+		this._questionCarousels.set([], undefined);
 		this._preview.set(Object.freeze({ kind: 'inactive' }), undefined);
 	}
 }
