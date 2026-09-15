@@ -67,6 +67,14 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container .session-editor-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-label1);
+}
+
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
 	order: 2;
 	width: auto;
