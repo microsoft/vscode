@@ -4,7 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { IReader } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import type { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { isContributionEnabled } from '../../../../../workbench/contrib/chat/common/enablement.js';
+import { IAgentPlugin } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+
+export interface IAutomationTemplateSource {
+	readonly label: string;
+	readonly uri: URI;
+}
 
 export interface IAutomationTemplate {
 	readonly id: string;
@@ -12,6 +21,8 @@ export interface IAutomationTemplate {
 	readonly description: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly source?: IAutomationTemplateSource;
+	readonly enabled?: boolean;
 }
 
 export const AUTOMATION_TEMPLATES: readonly IAutomationTemplate[] = [
@@ -37,3 +48,26 @@ export const AUTOMATION_TEMPLATES: readonly IAutomationTemplate[] = [
 		schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
 	},
 ];
+
+export function readAutomationTemplates(plugins: readonly IAgentPlugin[], reader?: IReader): readonly IAutomationTemplate[] {
+	const templates = [...AUTOMATION_TEMPLATES];
+	for (const plugin of plugins) {
+		const enablement = reader ? plugin.enablement.read(reader) : plugin.enablement.get();
+		if (!isContributionEnabled(enablement)) {
+			continue;
+		}
+		const automations = reader ? plugin.automations.read(reader) : plugin.automations.get();
+		for (const automation of automations) {
+			templates.push({
+				id: `${plugin.uri.toString()}#automation=${automation.blueprint.id}`,
+				name: automation.blueprint.name,
+				description: automation.blueprint.description ?? localize('automationTemplate.pluginDescription', "Provided by {0}.", plugin.label),
+				prompt: automation.blueprint.prompt,
+				schedule: automation.blueprint.schedule,
+				source: { label: plugin.label, uri: automation.uri },
+				enabled: false,
+			});
+		}
+	}
+	return templates;
+}

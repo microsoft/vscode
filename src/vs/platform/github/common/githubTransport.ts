@@ -83,6 +83,8 @@ export interface GitHubDownloadRequest {
 export interface GitHubDownloadResponse {
 	readonly text: string;
 	readonly truncated: boolean;
+	/** Captured bytes, never more than the requested maximumBytes. */
+	readonly bytesRead?: number;
 	readonly sourceUrl: string;
 	readonly contentType?: string;
 }
@@ -237,11 +239,19 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						this._rateLimits.updateFromResponse(account, response);
 					}
 					if ([301, 302, 307, 308].includes(response.status)) {
+						if (response.body) {
+							cancelDownloadBody(response.body, this._logService);
+						}
 						const location = response.headers.get('location');
 						if (!location) {
 							throw new GitHubRequestError('GitHub download redirect was missing a Location header', 'malformedResponse', response.status);
 						}
-						const redirected = new URL(location, url);
+						let redirected: URL;
+						try {
+							redirected = new URL(location, url);
+						} catch {
+							throw new GitHubRequestError('GitHub download redirect used an invalid target', 'authorization');
+						}
 						validateDownloadUrl(redirected, this._allowInsecureLoopbackDownloads);
 						authenticated = redirected.origin === initialOrigin;
 						this._logService?.trace(`[GitHubTransport] Following download redirect to ${formatDownloadUrl(redirected.href)} (authenticated: ${authenticated})`);
@@ -249,14 +259,25 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						continue;
 					}
 					if (!response.ok) {
-						const body = await response.text();
-						throw this._httpError('GitHub download failed', response, body);
+						if (response.body) {
+							cancelDownloadBody(response.body, this._logService);
+						}
+						throw new GitHubRequestError(`GitHub download failed - HTTP ${response.status}`, classifyHttpError(response.status, ''), response.status);
 					}
-					const body = await readBoundedResponse(response, request.maximumBytes, combinedSignal);
+					let body: Awaited<ReturnType<typeof readBoundedResponse>>;
+					try {
+						body = await readBoundedResponse(response, request.maximumBytes, combinedSignal, this._logService);
+					} catch (error) {
+						if (combinedSignal.aborted) {
+							throw combinedSignal.reason ?? error;
+						}
+						throw new GitHubRequestError(`GitHub download body failed (codes: ${formatNetworkErrorCodes(error)})`, 'network');
+					}
 					this._logService?.trace(`[GitHubTransport] Downloaded ${body.bytes.byteLength} byte(s) (truncated: ${body.truncated})`);
 					return {
 						text: new TextDecoder().decode(body.bytes),
 						truncated: body.truncated,
+						bytesRead: body.bytes.byteLength,
 						sourceUrl: url,
 						contentType: response.headers.get('content-type') ?? undefined,
 					};
@@ -802,11 +823,12 @@ function transportErrorKind(error: unknown): string {
 }
 
 function validateDownloadUrl(url: URL, allowInsecureLoopback: boolean): void {
-	if (url.protocol === 'https:') {
+	if (url.protocol === 'https:' && !url.username && !url.password) {
 		return;
 	}
 	if (allowInsecureLoopback
 		&& url.protocol === 'http:'
+		&& !url.username && !url.password
 		&& (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]')) {
 		return;
 	}
@@ -817,21 +839,31 @@ async function readBoundedResponse(
 	response: Response,
 	maximumBytes: number,
 	signal: AbortSignal,
+	logService?: ILogService,
 ): Promise<{ readonly bytes: Uint8Array; readonly truncated: boolean }> {
 	const limit = Math.max(0, maximumBytes);
 	if (!response.body) {
+		signal.throwIfAborted();
 		return { bytes: new Uint8Array(), truncated: false };
 	}
 	const reader = response.body.getReader();
 	const chunks: Uint8Array[] = [];
 	let length = 0;
+	let complete = false;
+	let onAbort: () => void = () => { };
+	const aborted = new Promise<never>((_, reject) => {
+		onAbort = () => reject(signal.reason);
+		signal.addEventListener('abort', onAbort, { once: true });
+	});
 	try {
 		while (true) {
 			if (signal.aborted) {
 				throw signal.reason;
 			}
-			const result = await reader.read();
+			const result = await Promise.race([reader.read(), aborted]);
+			signal.throwIfAborted();
 			if (result.done) {
+				complete = true;
 				break;
 			}
 			if (length + result.value.byteLength > limit) {
@@ -840,16 +872,26 @@ async function readBoundedResponse(
 					chunks.push(result.value.slice(0, remaining));
 					length += remaining;
 				}
-				await reader.cancel();
 				return { bytes: concatenateBytes(chunks, length), truncated: true };
 			}
-			chunks.push(result.value);
+			if (result.value.byteLength > 0) {
+				chunks.push(result.value);
+			}
 			length += result.value.byteLength;
 		}
 		return { bytes: concatenateBytes(chunks, length), truncated: false };
 	} finally {
+		signal.removeEventListener('abort', onAbort);
+		if (!complete) {
+			cancelDownloadBody(reader, logService);
+		}
 		reader.releaseLock();
 	}
+}
+
+function cancelDownloadBody(body: { cancel(): Promise<void> }, logService?: ILogService): void {
+	// Cancellation must not block the deadline on an unresponsive underlying source.
+	void body.cancel().catch(() => logService?.warn('[GitHubTransport] Failed to cancel a download body'));
 }
 
 function concatenateBytes(chunks: readonly Uint8Array[], length: number): Uint8Array {

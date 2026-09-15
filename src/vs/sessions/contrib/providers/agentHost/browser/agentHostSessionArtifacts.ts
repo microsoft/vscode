@@ -69,6 +69,8 @@ export interface ISessionArtifactPartition {
 	readonly pullRequestTitles: ReadonlyMap<string, string>;
 	/** Issues this session produced, most recent first. */
 	readonly issueUrls: readonly string[];
+	/** Titles the agent recorded for its issue artifacts, keyed by {@link linkKey}. */
+	readonly issueTitles: ReadonlyMap<string, string>;
 }
 
 interface ISessionArtifactEntry {
@@ -98,6 +100,7 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 	const pullRequestUrls: string[] = [];
 	const pullRequestTitles = new Map<string, string>();
 	const issueUrls: string[] = [];
+	const issueTitles = new Map<string, string>();
 
 	for (const artifact of readSessionArtifacts(meta)) {
 		const mapped = toSessionArtifact(artifact);
@@ -110,17 +113,17 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 			continue;
 		}
 
+		const titles = artifact.type === SessionArtifactType.Issue ? issueTitles : pullRequestTitles;
+		const key = linkKey(link);
+		if (mapped.label && !titles.has(key)) {
+			titles.set(key, mapped.label);
+		}
+
 		if (artifact.type === SessionArtifactType.Issue) {
 			issueUrls.push(link);
 			continue;
 		}
 
-		// The label an agent records for a pull request is its title; keep the
-		// first one so a later duplicate cannot rewrite it.
-		const key = linkKey(link);
-		if (mapped.label && !pullRequestTitles.has(key)) {
-			pullRequestTitles.set(key, mapped.label);
-		}
 		pullRequestUrls.push(link);
 	}
 
@@ -129,7 +132,7 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 	pullRequestUrls.reverse();
 	issueUrls.reverse();
 
-	return { entries, pullRequestUrls, pullRequestTitles, issueUrls };
+	return { entries, pullRequestUrls, pullRequestTitles, issueUrls, issueTitles };
 }
 
 /** Case-insensitive de-duplication that keeps the first occurrence's casing. */

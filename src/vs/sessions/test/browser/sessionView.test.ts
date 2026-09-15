@@ -10,8 +10,11 @@ import { DisposableStore, MutableDisposable } from '../../../base/common/lifecyc
 import { observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { AbstractChatView, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../browser/parts/chatView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
+import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { URI } from '../../../base/common/uri.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +31,36 @@ suite('Sessions - Session View', () => {
 			super.dispose();
 		}
 	}
+
+	test('forwards workspace selection to the actual standalone or active group view', () => {
+		const folder = URI.file('/requested');
+		const options: ISelectWorkspaceOptions = { providerId: 'provider', isDefault: true };
+		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+		const target = disposables.add(new class extends TestNewSessionView {
+			override selectWorkspace(folder: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+				calls.push({ folder, options });
+				return 'preserved';
+			}
+		}());
+		const missingPicker = disposables.add(new TestNewSessionView());
+		const currentView = { value: undefined as AbstractChatView | undefined };
+		const group: ChatGroupView = Object.assign(Object.create(ChatGroupView.prototype), { _currentView: currentView });
+		const groups: ChatGroupsView = Object.assign(Object.create(ChatGroupsView.prototype), { _activeGroup: { view: group } });
+		const standalone = { value: undefined as AbstractChatView | undefined };
+		const sessionView: SessionView = Object.assign(Object.create(SessionView.prototype), { _standaloneView: standalone, _groupsView: groups });
+		const results = [sessionView.selectWorkspace(folder, options)];
+		currentView.value = missingPicker;
+		results.push(sessionView.selectWorkspace(folder, options));
+		currentView.value = target;
+		results.push(sessionView.selectWorkspace(folder, options));
+		currentView.value = missingPicker;
+		standalone.value = target;
+		results.push(sessionView.selectWorkspace(folder, options));
+		assert.deepStrictEqual({ results, calls }, {
+			results: ['notReady', 'notReady', 'preserved', 'preserved'],
+			calls: [{ folder, options }, { folder, options }],
+		});
+	});
 
 	test('forwards effective visibility (part and grid leaf) to the hosted chat view', () => {
 		const forwarded: boolean[] = [];

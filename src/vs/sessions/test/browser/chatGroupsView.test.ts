@@ -621,6 +621,149 @@ suite('Sessions - ChatGroupsView', () => {
 		await assert.rejects(view.openChatInNewGroup(secondary.resource), /open failed/);
 	});
 
+	for (const alreadyVisible of [false, true]) {
+		test(`opens a ${alreadyVisible ? 'visible' : 'hidden'} fork beside its source rather than the active group`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const neighbor = createChat('neighbor');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+			view.setSession(session, options);
+			view.layout(1200, 600, 0, 0);
+			await sessionsService.openChat(session, source.resource);
+			await view.openChatInNewGroup(neighbor.resource);
+			if (alreadyVisible) {
+				session.visibleChatTabs.set([...session.visibleChatTabs.get(), fork], undefined);
+			}
+
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const readGroups = () => view['_groups'].map(group => ({
+				chats: group.resourceIds.get(),
+				active: group.activeResourceId.get(),
+			}));
+			const afterOpen = readGroups();
+			const focusedAfterOpen = view.getFocusedChat()?.resource.toString();
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const afterRepeatedOpen = readGroups();
+			view.setSession(undefined, options);
+			view.setSession(session, options);
+
+			const expected = [
+				{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+				{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+				{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			];
+			assert.deepStrictEqual({
+				afterOpen,
+				focusedAfterOpen,
+				afterRepeatedOpen,
+				afterRestore: readGroups(),
+				activeChat: session.activeChat.get().resource.toString(),
+			}, {
+				afterOpen: expected,
+				focusedAfterOpen: fork.resource.toString(),
+				afterRepeatedOpen: expected,
+				afterRestore: expected,
+				activeChat: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('keeps the source peer visible when a fork was activated before being split', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, fork]);
+		view.setSession(session, options);
+		await sessionsService.openChat(session, fork.resource);
+
+		await view.openChatInNewGroup(fork.resource, source.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
+	});
+
+	for (const closeSource of [false, true]) {
+		test(`handles ${closeSource ? 'closing' : 'leaving'} the source group while opening a fork`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, fork], [main, source]);
+			view.setSession(session, options);
+			await view.openChatInNewGroup(source.resource);
+			const gate = new DeferredPromise<void>();
+			sessionsService.openChatGate = gate.p;
+			const opening = view.openChatInNewGroup(fork.resource, source.resource);
+			transaction(tx => {
+				session.activeChat.set(main, tx);
+				if (closeSource) {
+					session.visibleChatTabs.set([main], tx);
+				}
+			});
+			gate.complete();
+			await opening;
+
+			assert.deepStrictEqual({
+				groups: view['_groups'].map(group => group.activeResourceId.get()),
+				active: session.activeChat.get().resource.toString(),
+				focused: view.getFocusedChat()?.resource.toString(),
+			}, {
+				groups: closeSource ? [main.resource.toString(), fork.resource.toString()] : [main.resource.toString(), source.resource.toString(), fork.resource.toString()],
+				active: fork.resource.toString(),
+				focused: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('does not create a group when opening a hidden fork fails', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([source, fork], [source]);
+		view.setSession(session, options);
+		sessionsService.openChatError = new Error('open failed');
+
+		await assert.rejects(view.openChatInNewGroup(fork.resource, source.resource), /open failed/);
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{ chats: [source.resource.toString()], active: source.resource.toString() }]);
+	});
+
+	test('falls back to the active group when the source tab closes but its group remains', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const neighbor = createChat('neighbor');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(neighbor.resource);
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		const opening = view.openChatInNewGroup(fork.resource, source.resource);
+		session.visibleChatTabs.set([main, neighbor], undefined);
+		gate.complete();
+		await opening;
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString()], active: main.resource.toString() },
+			{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
+	});
+
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');

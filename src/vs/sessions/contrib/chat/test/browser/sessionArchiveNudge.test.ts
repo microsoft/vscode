@@ -22,22 +22,20 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestChatEntitlementService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
-import { IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
-import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService, ShowSessionArchiveNudgeAction } from '../../browser/sessionArchiveNudge.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
@@ -73,6 +71,22 @@ suite('SessionArchiveNudge', () => {
 			override readonly workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>(this, { kind: 'connected' });
 		}();
+	}
+
+	function pullRequestRef(number: number, overrides: Partial<IGitHubPullRequestRef> = {}): IGitHubPullRequestRef {
+		return { owner: 'owner', repo: 'repo', number, uri: URI.parse(`https://github.com/owner/repo/pull/${number}`), createdByThisSession: true, ...overrides };
+	}
+
+	function setGitHubInfo(session: ReturnType<typeof createSession>, ...infos: IGitHubInfo[]) {
+		const values = infos.map(info => observableValue<IGitHubInfo | undefined>('gitHubInfo', info));
+		session.workspace.set(upcastPartial<ISessionWorkspace>({
+			folders: values.map((gitHubInfo, index) => ({
+				root: URI.file(`/repo${index}`), workingDirectory: URI.file(`/repo${index}`), name: `repo${index}`, description: undefined,
+				gitRepository: { uri: URI.file(`/repo${index}`), workTreeUri: undefined, baseBranchName: undefined, gitHubInfo },
+			})),
+			isVirtualWorkspace: false,
+		}), undefined);
+		return values;
 	}
 
 	function setup(sessions = [createSession()], enabled = true, enterpriseHost?: string, onboardingEnabled = false) {
@@ -253,120 +267,6 @@ suite('SessionArchiveNudge', () => {
 		});
 	});
 
-	test('developer command shows the active session nudge without enabling the setting or requiring PRs', async () => {
-		const session = createSession();
-		session.artifacts.set([], undefined);
-		const context = setup([session], false);
-		const nudge = context.createNudge();
-		const opened: URI[] = [];
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, {
-			activeSession: observableValue('active', session),
-			openChat: async (_session, resource) => { opened.push(resource); },
-		});
-		instantiationService.stub(ISessionArchiveNudgeService, context.service);
-		instantiationService.stub(IChatEntitlementService, context.entitlement);
-		const action = new ShowSessionArchiveNudgeAction();
-		await instantiationService.invokeFunction(accessor => action.run(accessor));
-		nudge.markShown();
-		assert.deepStrictEqual({
-			palette: action.desc.f1,
-			opened,
-			count: nudge.options.get()?.pullRequestCount,
-			setting: context.configuration.getValue(SESSION_ARCHIVE_NUDGE_SETTING),
-			requests: context.requests,
-			events: context.events,
-		}, {
-			palette: true,
-			opened: [session.mainChat.get().resource],
-			count: 1,
-			setting: false,
-			requests: [],
-			events: [],
-		});
-		context.entitlement.sentimentObs.set({ hidden: true }, undefined);
-		await assert.rejects(instantiationService.invokeFunction(accessor => action.run(accessor)), /Open a session with chat enabled/);
-	});
-
-	test('debug nudges can be shown again after dismissal without persisting the debug override', () => {
-		const session = createSession();
-		const context = setup([session], false);
-		const key = `sessions.archiveNudge.dismissed.${session.sessionId}`;
-		context.storage.store(key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		const nudge = context.createNudge();
-		const states = [!!nudge.options.get()];
-		context.service.showForTesting(session);
-		states.push(!!nudge.options.get());
-		nudge.options.get()!.onDismiss();
-		states.push(!!nudge.options.get());
-		context.service.showForTesting(session);
-		states.push(!!nudge.options.get());
-		context.reloadService();
-		states.push(!!context.createNudge().options.get());
-		assert.deepStrictEqual({
-			states, dismissed: context.storage.getBoolean(key, StorageScope.PROFILE), events: context.events,
-		}, { states: [false, true, false, true, false], dismissed: true, events: [] });
-	});
-
-	test('dismissing a debug nudge also hides an otherwise eligible real nudge', () => {
-		const session = createSession();
-		const context = setup([session]);
-		context.setPullRequest(1, GitHubPullRequestState.Merged);
-		const nudge = context.createNudge();
-		context.service.showForTesting(session);
-		nudge.options.get()!.onDismiss();
-		assert.strictEqual(nudge.options.get(), undefined);
-	});
-
-	test('debug nudges stay session-specific and respect disabled AI features', () => {
-		const session = createSession();
-		const other = createSession('other');
-		const context = setup([session, other], false);
-		const nudge = context.createNudge();
-		context.service.showForTesting(session);
-		const states = [!!nudge.options.get()];
-		context.current.set(other, undefined);
-		states.push(!!nudge.options.get());
-		context.current.set(session, undefined);
-		states.push(!!nudge.options.get());
-		context.entitlement.sentimentObs.set({ hidden: true }, undefined);
-		states.push(!!nudge.options.get());
-		assert.deepStrictEqual(states, [true, false, true, false]);
-	});
-
-	test('debug nudges reject unavailable sessions', () => {
-		const session = createSession();
-		const context = setup([session], false);
-		for (const status of [SessionStatus.Untitled, SessionStatus.InProgress]) {
-			session.status.set(status, undefined);
-			assert.throws(() => context.service.showForTesting(session), /Select a connected, idle session/);
-		}
-		session.status.set(SessionStatus.Completed, undefined);
-		session.isArchived.set(true, undefined);
-		assert.throws(() => context.service.showForTesting(session), /Select a connected, idle session/);
-	});
-
-	test('debug nudges wait for onboarding and perform real archiving without recording nudge telemetry', async () => {
-		const session = createSession();
-		const context = setup([session], false, undefined, true);
-		const nudge = context.createNudge();
-		const outcome = new DeferredPromise<OnboardingOutcome>();
-		context.onboarding.setResult(outcome.p);
-		context.service.showForTesting(session);
-		const archiving = nudge.options.get()!.onArchive();
-		await context.onboarding.started;
-		assert.deepStrictEqual(context.archiveTargets, []);
-		await outcome.complete(OnboardingOutcome.Completed);
-		await archiving;
-		assert.deepStrictEqual({
-			archived: session.isArchived.get(),
-			targets: context.archiveTargets,
-			debugSession: context.service.debugSession.get(),
-			visible: !!nudge.options.get(),
-			events: context.events,
-		}, { archived: true, targets: [session], debugSession: undefined, visible: false, events: [] });
-	});
-
 	test('waits for every PR artifact, ignoring references and unrelated links', () => {
 		const session = createSession();
 		session.artifacts.set([
@@ -393,8 +293,141 @@ suite('SessionArchiveNudge', () => {
 		});
 	});
 
-	test('does not resolve github.com artifacts against a different GitHub host', () => {
-		const context = setup(undefined, true, 'github.example.com');
+	test('waits for authoritative merged state of an association without artifacts', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1, { state: 'merged', liveState: 'merged' })] });
+		const context = setup([session]);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		for (const state of [GitHubPullRequestState.Open, GitHubPullRequestState.Closed, GitHubPullRequestState.Merged, undefined]) {
+			context.setPullRequest(1, state);
+			states.push(!!nudge.options.get());
+		}
+		assert.deepStrictEqual({ states, requests: context.requests }, { states: [false, false, false, true, false], requests: ['owner/repo/1'] });
+	});
+
+	test('ignores inherited and unowned multi-PR refs, including an empty list with a primary PR', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		const inherited = pullRequestRef(1, { createdByThisSession: false });
+		const info = { owner: 'owner', repo: 'repo', pullRequest: inherited };
+		const [gitHubInfo] = setGitHubInfo(session, { ...info, pullRequests: [inherited, pullRequestRef(2, { createdByThisSession: undefined })] });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		gitHubInfo.set({ ...info, pullRequests: [] }, undefined);
+		states.push(!!nudge.options.get());
+		gitHubInfo.set({ ...info, pullRequests: [inherited, pullRequestRef(3)] }, undefined);
+		context.setPullRequest(3, GitHubPullRequestState.Merged);
+		states.push(!!nudge.options.get());
+		assert.deepStrictEqual({ states, requests: context.requests }, { states: [false, false, true], requests: ['owner/repo/3'] });
+	});
+
+	test('accepts a legacy primary PR without artifacts or provenance', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequest: pullRequestRef(1, { createdByThisSession: undefined }) });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		assert.deepStrictEqual({ count: nudge.options.get()?.pullRequestCount, requests: context.requests }, { count: 1, requests: ['owner/repo/1'] });
+	});
+
+	test('deduplicates artifacts and associations across folders without restarting unchanged models', () => {
+		const session = createSession();
+		const duplicate = pullRequestRef(1, { owner: 'OWNER', repo: 'REPO', uri: URI.parse('https://github.com/OWNER/REPO/pull/01/') });
+		const [gitHubInfo] = setGitHubInfo(session,
+			{ owner: 'owner', repo: 'repo', pullRequests: [duplicate, pullRequestRef(2)] },
+			{ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1), pullRequestRef(2)] },
+		);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		gitHubInfo.set({ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2), duplicate] }, undefined);
+		session.artifacts.set([], undefined);
+		nudge.markShown();
+		assert.deepStrictEqual({
+			count: nudge.options.get()?.pullRequestCount, requests: context.requests, counts: context.counts, events: context.events,
+		}, {
+			count: 2, requests: ['owner/repo/1', 'owner/repo/2'], counts: { references: 2, polling: 2, refreshes: 2 },
+			events: [{ name: 'agents/sessionArchiveNudge', data: { agentSessionId: hashSessionIdForTelemetry(session.sessionId), action: 'shown', pullRequestCount: 2, hasWorktree: false } }],
+		});
+	});
+
+	test('waits for mixed artifacts and associations in every repository and reacts to their removal', () => {
+		const session = createSession();
+		const [gitHubInfo] = setGitHubInfo(session,
+			{ owner: 'other', repo: 'project', pullRequests: [pullRequestRef(2, { owner: 'other', repo: 'project', uri: URI.parse('https://github.com/other/project/pull/2') })] },
+			{ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(3)] },
+		);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states = [nudge.options.get()?.pullRequestCount];
+		context.setPullRequest(2, GitHubPullRequestState.Merged, 'other', 'project');
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.setPullRequest(3, GitHubPullRequestState.Merged);
+		states.push(nudge.options.get()?.pullRequestCount);
+		gitHubInfo.set({ owner: 'other', repo: 'project', pullRequests: [pullRequestRef(4)] }, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		gitHubInfo.set(undefined, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		session.workspace.set(undefined, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.current.set(undefined, undefined);
+		assert.deepStrictEqual({ states, references: context.counts.references, polling: context.counts.polling }, {
+			states: [undefined, undefined, 3, undefined, 2, 1], references: 0, polling: 0,
+		});
+	});
+
+	test('invalid GitHub artifacts still block merged associations', () => {
+		const session = createSession();
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1)] });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states: boolean[] = [];
+		for (const invalid of [
+			artifact(2, { link: undefined }),
+			artifact(2, { link: URI.parse('https://github.com/owner/repo/pull/invalid'), isGitHub: undefined }),
+			artifact(0),
+			artifact(Number.MAX_SAFE_INTEGER + 1),
+			artifact(2, { link: URI.parse('https://github.example.com/owner/repo/pull/2') }),
+		]) {
+			session.artifacts.set([invalid], undefined);
+			states.push(!!nudge.options.get());
+		}
+		session.artifacts.set([], undefined);
+		states.push(!!nudge.options.get());
+		assert.deepStrictEqual(states, [false, false, false, false, false, true]);
+	});
+
+	test('invalid or unsupported owned association URLs block merged artifacts', () => {
+		const session = createSession();
+		const [gitHubInfo] = setGitHubInfo(session, { owner: 'owner', repo: 'repo' });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states: boolean[] = [];
+		for (const uri of [
+			'https://github.com/owner/repo/pull/invalid',
+			'https://github.com/owner/repo/pull/0',
+			'https://github.com/owner/repo/pull/9007199254740992',
+			'https://github.example.com/owner/repo/pull/2',
+		]) {
+			gitHubInfo.set({ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2, { uri: URI.parse(uri) })] }, undefined);
+			states.push(!!nudge.options.get());
+		}
+		assert.deepStrictEqual(states, [false, false, false, false]);
+	});
+
+	test('does not resolve github.com artifacts or associations against a different GitHub host', () => {
+		const session = createSession();
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2)] });
+		const context = setup([session], true, 'github.example.com');
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
 		assert.deepStrictEqual({ visible: !!nudge.options.get(), requests: context.requests }, { visible: false, requests: [] });

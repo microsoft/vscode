@@ -379,6 +379,16 @@ suite('multiplexProperties compression', function () {
 		expect(result).toEqual({ someField: 'small', other: 'x' });
 	});
 
+	test.each([0, 100, 8192, 8193, 20000])('always compresses a prompt of length %i while preserving its raw prefix', async length => {
+		const prompt = 'x'.repeat(length);
+		const result = await multiplexProperties({ prompt }, gzipBase64);
+
+		expect(result).toEqual({
+			prompt: prompt.slice(0, 8192),
+			promptChunk: await gzipBase64(prompt),
+		});
+	});
+
 	test('always emits a compressed chunk family for known-large fields even when they fit', async () => {
 		const result = await multiplexProperties({ diffsJSON: 'small', messagesJson: 'tiny', other: 'x' }, gzipBase64) as { [key: string]: string };
 

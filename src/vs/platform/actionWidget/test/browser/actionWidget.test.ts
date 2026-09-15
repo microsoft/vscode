@@ -162,7 +162,6 @@ suite('ActionWidgetService', () => {
 			kind: ActionListItemKind.Action,
 			label: 'Allow All',
 			section: 'permissions',
-			focusGroup: 'permissions',
 			item: toAction({
 				id: 'allowAll', label: 'Allow All', checked: true,
 				run: () => {
@@ -179,7 +178,7 @@ suite('ActionWidgetService', () => {
 			},
 		}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
 			anchorPosition: AnchorPosition.ABOVE,
-			initialFocusGroup: 'permissions',
+			initialFocusItemId: 'allowAll',
 		});
 		service.acceptSelected();
 		assert.deepStrictEqual({
@@ -189,37 +188,35 @@ suite('ActionWidgetService', () => {
 		}, { events: ['hide', 'warning'], warningFocused: true, visible: false });
 	});
 
-	test('keeps inline menus open across workbench layout changes from either initial focus group', () => {
+	test('keeps inline menus open across workbench layout changes with or without initial item focus', () => {
 		const { container, layout, service } = setup();
 		const states = [];
-		for (const initialFocusGroup of [undefined, 'permissions']) {
+		for (const initialFocusItemId of [undefined, 'manual']) {
 			let hides = 0;
 			service.show('mode', false, [{
 				kind: ActionListItemKind.Action,
 				label: 'Mode',
-				focusGroup: 'mode',
 				item: toAction({ id: 'mode', label: 'Mode', checked: true, run: () => { } }),
 			}, {
 				kind: ActionListItemKind.Action,
 				label: 'Manual',
-				focusGroup: 'permissions',
 				item: toAction({ id: 'manual', label: 'Manual', checked: true, run: () => { } }),
 			}], {
 				onSelect: () => { },
 				onHide: () => { hides++; },
 			}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
 				anchorPosition: AnchorPosition.ABOVE,
-				initialFocusGroup,
+				initialFocusItemId,
 				useFullHeight: true,
 			});
 			const openAfterInitialLayout = service.isVisible;
 			layout.fire({ container, dimension: { width: 900, height: 600 } });
-			states.push({ initialFocusGroup, openAfterInitialLayout, visibleAfterResize: service.isVisible, hides });
+			states.push({ initialFocusItemId, openAfterInitialLayout, visibleAfterResize: service.isVisible, hides });
 			service.hide();
 		}
 		assert.deepStrictEqual(states, [
-			{ initialFocusGroup: undefined, openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
-			{ initialFocusGroup: 'permissions', openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
+			{ initialFocusItemId: undefined, openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
+			{ initialFocusItemId: 'manual', openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
 		]);
 	});
 });

@@ -127,10 +127,12 @@ export interface IChatWidgetFixtureOptions {
 	readonly stickyScroll?: boolean;
 }
 
-interface IChatWidgetFixtureHandle {
+export interface IChatWidgetFixtureHandle {
+	readonly instantiationService: ReturnType<typeof createEditorServices>;
 	readonly inputPart: ChatInputPart;
 	readonly listWidget: ChatListWidget;
 	readonly model: ChatModel;
+	readonly viewModel: ChatViewModel;
 	readonly width: number;
 	readonly addTerminalConfirmation: (request: ReturnType<ChatModel['addRequest']>, command: string) => void;
 }
@@ -520,9 +522,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	}
 
 	options.onRendered?.({
+		instantiationService,
 		inputPart,
 		listWidget,
 		model,
+		viewModel,
 		width,
 		addTerminalConfirmation: (request, command) => {
 			model.acceptResponseProgress(request, new ChatToolInvocation(
@@ -677,8 +681,8 @@ async function renderKeyboardFocus(context: ComponentFixtureContext, target: 're
 	if (!focusTarget) {
 		throw new Error(`Missing keyboard focus target: ${target}`);
 	}
-	focusTarget.focus();
-	if (focusTarget.ownerDocument.activeElement !== focusTarget) {
+	context.focus(focusTarget);
+	if (context.overrideFocus && focusTarget.ownerDocument.activeElement !== focusTarget) {
 		throw new Error(`Could not focus keyboard target: ${target}`);
 	}
 }

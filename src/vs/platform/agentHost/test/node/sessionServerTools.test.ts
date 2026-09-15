@@ -134,7 +134,7 @@ suite('SessionServerTools', () => {
 			inputSchema: setWorkspaceDefinition?.inputSchema,
 		}, {
 			title: 'Set Workspace',
-			description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Immediately before every call to this tool, always use the available user-input tool to ask the user to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
+			description: 'Attach a real workspace only to modify its files or run commands requiring its project environment. Do not use for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. The session, chat, and history are preserved. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Set `isolation` to true for a managed Git worktree or false for the folder directly. After this turn, the host attaches the workspace and continues the original task. Make this the turn\'s final tool call.',
 			inputSchema: {
 				type: 'object',
 				properties: {

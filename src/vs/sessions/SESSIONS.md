@@ -111,6 +111,10 @@ Capabilities describe operations supported by the backing provider and remain ob
 
 Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
+Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only and returns repository and branch identity for submission to revalidate before mutations. Submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
+
+The form also supports requesting creation in the originating session's main chat through the normal send lifecycle, without invoking programmatic PR creation. The provider validates the same prepared identity without regenerating details before the message is sent. That message contains the PR details and GitHub merge instructions; submission choices travel separately as provider-owned request metadata. A host chat contribution applies Agent Merge choices only after the creation turn is admitted and while it is still active, so monitoring cannot capture the old branch during client-side request preparation. The Changes contribution remembers form options and the last-used submission method across sessions in profile storage; remembering choices does not itself change session configuration or retain PR content.
+
 Turn-level file changes route through `IChatResponseFileChangesService`. The editor workbench opens its standard multi-diff presentation; the Agents Window registers `SessionsChatResponseFileChangesService` to select its canonical Changes editor. Providers expose the data but do not choose the presentation.
 
 ### Artifacts, references, and customizations
@@ -187,6 +191,8 @@ user chooses a workspace and session type
 ```
 
 On first send, the provider creates or selects the chat, sends the request, and commits the session. Providers may preserve the draft facade or notify the management service through the separate replacement lifecycle. Consumers follow that lifecycle rather than assuming one strategy or a replacement field on a catalog event.
+
+Providers may expose an `ISessionConfigurationSnapshot` of resolved draft configuration. Providers normalize common properties, such as isolation, and retain the full provider-specific values separately in `providerConfig`. Management captures the snapshot before draft preparation or replacement and includes it in the successful first-request notification without interpreting provider values. Consumers use the typed common properties without knowing provider keys; the full snapshot is not a telemetry payload.
 
 ### Existing session
 

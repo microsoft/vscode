@@ -815,54 +815,51 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	parityTest('a GitHub remote with changes advertises pull request creation', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-pr-ops-');
 		execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/microsoft/vscode.git'], { cwd: workspace });
+		writeFileSync(join(workspace, 'pull-request.txt'), 'PR');
 		const sessionUri = await createSessionIn(workspace, 'changeset-pr-ops');
 		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-pr-materialize', 'Reply exactly "ready".', nextClientSeq());
-		await runBangTurn(sessionUri, 'turn-changeset-pr-ops', writeFileCommand('pull-request.txt', 'PR'), nextClientSeq());
 
 		await waitForOperation(uncommittedUri, 'create-pr');
-		const operations = (await changesetState(uncommittedUri)).operations ?? [];
-		const pullRequestOperations = operations
-			.filter(operation => operation.id.startsWith('create-pr') || operation.id === 'create-draft-pr')
+		const pullRequestOperations = async () => ((await changesetState(uncommittedUri)).operations ?? [])
+			.filter(operation => operation.group?.startsWith('pull-request'))
 			.map(operation => ({ id: operation.id, group: operation.group, scopes: operation.scopes }));
-
-		assert.deepStrictEqual(pullRequestOperations, [
-			{ id: 'create-pr', group: 'pull-request', scopes: ['changeset'] },
-			{ id: 'create-pr-auto-merge', group: 'pull-request', scopes: ['changeset'] },
-			{ id: 'create-pr-auto-squash', group: 'pull-request', scopes: ['changeset'] },
-			{ id: 'create-pr-auto-rebase', group: 'pull-request', scopes: ['changeset'] },
-			{ id: 'create-draft-pr', group: 'pull-request_draft', scopes: ['changeset'] },
-		]);
-	});
-
-	parityTest('enabling Agent Merge adds and removes its pull request operation', async function () {
-		const workspace = createGitWorkspace('ahp-changeset-agent-merge-');
-		execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/microsoft/vscode.git'], { cwd: workspace });
-		const sessionUri = await createSessionIn(workspace, 'changeset-agent-merge');
-		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-agent-merge-materialize', 'Reply exactly "ready".', nextClientSeq());
-		await runBangTurn(sessionUri, 'turn-changeset-agent-merge', writeFileCommand('agent-merge.txt', 'AGENT MERGE'), nextClientSeq());
-		await waitForOperation(uncommittedUri, 'create-pr');
-
+		const initialOperations = await pullRequestOperations();
+		let enabledOperations: Awaited<ReturnType<typeof pullRequestOperations>>;
 		try {
 			await setRootConfig({ [AgentMergeConfigKey.Enabled]: true });
-			const operation = await waitForOperation(uncommittedUri, 'create-pr-agent-merge');
-			assert.deepStrictEqual({
-				id: operation.id,
-				group: operation.group,
-				scopes: operation.scopes,
-			}, {
-				id: 'create-pr-agent-merge',
-				group: 'pull-request',
-				scopes: ['changeset'],
-			});
+			enabledOperations = await pullRequestOperations();
 		} finally {
 			await setRootConfig({ [AgentMergeConfigKey.Enabled]: false });
 		}
+		const disabledOperations = await pullRequestOperations();
+		const expectedOperations = [
+			{ id: 'create-pr', group: 'pull-request', scopes: ['changeset'] },
+			{ id: 'prepare-pull-request', group: 'pull-request', scopes: ['changeset'] },
+		];
 
-		await waitForOperationRemoved(uncommittedUri, 'create-pr-agent-merge');
+		assert.deepStrictEqual({
+			initial: initialOperations,
+			enabled: enabledOperations,
+			disabled: disabledOperations,
+		}, {
+			initial: expectedOperations,
+			enabled: expectedOperations,
+			disabled: expectedOperations,
+		});
+
+		// Invalid options exercise the consolidated operation without creating a real pull request.
+		for (const [options, error] of [
+			[{ draft: true, agentMerge: false, autoMergeMethod: 'MERGE' }, /Draft pull requests cannot use GitHub auto-merge/],
+			[{ draft: false, agentMerge: true }, /Agent Merge is disabled in the host configuration/],
+		] as const) {
+			await assert.rejects(context.client.call('invokeChangesetOperation', {
+				channel: uncommittedUri,
+				operationId: 'create-pr',
+				_meta: { 'vscode.pullRequest': { title: 'Pull request', description: 'Description', ...options } },
+			}, CHANGESET_OPERATION_TIMEOUT_MS), error);
+		}
 	});
 
 	conformanceTest(context, 'a folder session advertises commit on its branch changeset', async function () {

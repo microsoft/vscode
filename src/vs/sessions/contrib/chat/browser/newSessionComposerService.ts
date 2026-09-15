@@ -5,10 +5,13 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
+import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 
@@ -59,6 +62,10 @@ export interface INewSessionPromptOptionsController {
 
 export interface INewSessionComposer {
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
+	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
+	readonly onDidChangeWorkspaceSelection?: Event<void>;
+	readonly hasInput?: boolean;
+	readonly canApplyWorkspaceDefault?: boolean;
 	animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean>;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;
 	setPromptOptionsController?(controller: INewSessionPromptOptionsController): void;
@@ -70,6 +77,13 @@ export const INewSessionComposerService = createDecorator<INewSessionComposerSer
 export interface INewSessionComposerService {
 	readonly _serviceBrand: undefined;
 	readonly activeComposer: IObservable<INewSessionComposer | undefined>;
+	readonly workspaceSelection: IObservable<IWorkspaceSelectionSnapshot | undefined>;
+	readonly userWorkspaceSelectionVersion: IObservable<number>;
+	notifyUserWorkspaceSelection(): void;
+	readonly userNavigationVersion: IObservable<number>;
+	notifyUserNavigation(): void;
+	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
+	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void;
 	registerComposer(composer: INewSessionComposer): IDisposable;
 }
 
@@ -79,6 +93,29 @@ export class NewSessionComposerService extends Disposable implements INewSession
 	private readonly _composers = new Set<INewSessionComposer>();
 	private readonly _activeComposer = observableValue<INewSessionComposer | undefined>(this, undefined);
 	readonly activeComposer: IObservable<INewSessionComposer | undefined> = this._activeComposer;
+	private readonly _userWorkspaceSelectionVersion = observableValue(this, 0);
+	readonly userWorkspaceSelectionVersion: IObservable<number> = this._userWorkspaceSelectionVersion;
+	private readonly _userNavigationVersion = observableValue(this, 0);
+	readonly userNavigationVersion: IObservable<number> = this._userNavigationVersion;
+	private readonly _selectionChanged = derived(this, reader => observableSignalFromEvent(this, this.activeComposer.read(reader)?.onDidChangeWorkspaceSelection ?? Event.None));
+	readonly workspaceSelection = derived(this, reader => {
+		this._selectionChanged.read(reader).read(reader);
+		return this.activeComposer.read(reader)?.workspaceSelection;
+	});
+	private readonly _onWillSendRequest = this._register(new Emitter<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>());
+	readonly onWillSendRequest = this._onWillSendRequest.event;
+
+	notifyUserWorkspaceSelection(): void {
+		this._userWorkspaceSelectionVersion.set(this._userWorkspaceSelectionVersion.get() + 1, undefined);
+	}
+
+	notifyUserNavigation(): void {
+		this._userNavigationVersion.set(this._userNavigationVersion.get() + 1, undefined);
+	}
+
+	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void {
+		this._onWillSendRequest.fire({ options, selection });
+	}
 
 	registerComposer(composer: INewSessionComposer): IDisposable {
 		this._composers.add(composer);

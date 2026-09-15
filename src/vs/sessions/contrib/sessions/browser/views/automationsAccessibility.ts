@@ -12,11 +12,12 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AUTOMATION_TEMPLATES } from './automationTemplates.js';
+import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -27,13 +28,23 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const automationService = accessor.get(IAutomationService);
+		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
-		const templatesVisible = automationService.automations.get().length === 0;
+		const templates = readAutomationTemplates(agentPluginService.plugins.get());
+		const hasSavedAutomations = automationService.automations.get().length > 0;
+		const builtInTemplatesVisible = templates.some(template => !template.source);
+		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
-			...(templatesVisible ? [
-				localize('automationsCustomView.help.templates', "Starter templates are available. Tab to a template and press Enter or Space to open a New automation dialog with an editable name, prompt, and schedule."),
+			...(builtInTemplatesVisible ? [
+				hasSavedAutomations
+					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
+					: localize('automationsCustomView.help.builtInTemplatesExpanded', "The Built-in Templates section is expanded by default while there are no saved automations. Tab to a template and press Enter or Space to open a New automation dialog with an editable name, prompt, and schedule."),
 			] : []),
+			...(pluginTemplatesVisible ? [
+				localize('automationsCustomView.help.pluginTemplates', "The Templates from Plugins section is available whenever enabled plugins provide templates. Press Enter or Space on its disclosure control to expand or collapse it. A blue marker indicates templates added since the section was last expanded. Plugin templates start disabled."),
+			] : []),
+			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. Open a saved Automation's context menu and choose Export to save a portable blueprint."),
 			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Open a card's context menu{0} (for example Shift+F10). Duplicate opens a prefilled New automation dialog, Disable prevents scheduled runs, and Delete asks for confirmation. Run now starts a session immediately.", '<keybinding:editor.action.showContextMenu>'),
 			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name with a Working... description. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop, the configured Archive or Mark as Done action, or Delete when available. Open a row's context menu, for example with Shift+F10, to rename it, change its active or read state, or delete it. Delete permanently deletes the session and removes it from run history after confirmation."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
@@ -59,6 +70,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const automationService = accessor.get(IAutomationService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
@@ -71,6 +83,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					|| (!!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource))
 				),
 				automationService.catalogueState.get(),
+				readAutomationTemplates(agentPluginService.plugins.get()),
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -89,8 +102,10 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([])): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
+	const builtInTemplates = templates.filter(template => !template.source);
+	const pluginTemplates = templates.filter(template => !!template.source);
 	if (automations.length > 0) {
 		if (catalogueState === 'loading') {
 			lines.push(localize('automationsAccessibleView.partialLoading', "Additional automations are loading."));
@@ -116,11 +131,22 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	} else {
 		lines.push(localize('automationsAccessibleView.empty', "No automations."));
 	}
-	if (automations.length === 0) {
+	if (builtInTemplates.length > 0 || pluginTemplates.length > 0) {
 		lines.push('');
 		lines.push(localize('automationsAccessibleView.templates', "Available templates"));
-		for (const template of AUTOMATION_TEMPLATES) {
-			lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description));
+		if (builtInTemplates.length > 0) {
+			lines.push(localize('automationsAccessibleView.builtInTemplates', "Built-in Templates"));
+			for (const template of builtInTemplates) {
+				lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description));
+			}
+		}
+		if (pluginTemplates.length > 0) {
+			lines.push(localize('automationsAccessibleView.pluginTemplates', "Templates from Plugins"));
+			for (const template of pluginTemplates) {
+				if (template.source) {
+					lines.push(localize('automationsAccessibleView.pluginTemplate', "{0}, {1}. {2} From {3}.", template.name, formatSchedule(template.schedule), template.description, template.source.label));
+				}
+			}
 		}
 	}
 

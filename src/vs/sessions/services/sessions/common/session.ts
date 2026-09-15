@@ -368,7 +368,7 @@ export interface IGitHubPullRequestRef {
 	 */
 	readonly title?: string;
 	/**
-	 * Whether this pull request originated in the session, as opposed to being
+	 * Whether this pull request originated in or was explicitly associated with the session, as opposed to being
 	 * inherited from the checkout it started from or merely referenced by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
@@ -394,6 +394,13 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 	}];
 }
 
+/** Excludes inherited checkout PRs, while accepting the primary PR from providers without provenance. */
+export function getSessionOwnedGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	return gitHubInfo?.pullRequests
+		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
+		: getGitHubPullRequestRefs(gitHubInfo);
+}
+
 /** A GitHub issue referenced by a session. */
 export interface IGitHubIssueRef {
 	/** GitHub repository owner of the issue. */
@@ -404,6 +411,8 @@ export interface IGitHubIssueRef {
 	readonly number: number;
 	/** URI of the issue. */
 	readonly uri: URI;
+	/** Issue title recorded by the session, when known. */
+	readonly title?: string;
 }
 
 export interface ISessionChangesSummary {
@@ -1052,7 +1061,13 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
-		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
+		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			x.title === y.title);
 }
 
 /**

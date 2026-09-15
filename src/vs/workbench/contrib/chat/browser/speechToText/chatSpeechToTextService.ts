@@ -9,6 +9,7 @@ import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
@@ -155,6 +156,11 @@ type DictationBackend = 'nemo' | 'mai';
 
 export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: boolean, usesMai: boolean): boolean {
 	return !usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal;
+}
+
+export function resolveDictationBackend(configuredModel: string | undefined, policyModel: string | undefined, web: boolean): DictationBackend {
+	const model = policyModel ?? configuredModel;
+	return (web && policyModel === undefined) || model === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
 }
 
 /** How long to wait after `ptt_end` for the backend's final transcript before returning what we have. */
@@ -447,6 +453,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private readonly _recordingContextKey: IContextKey<boolean>;
 	private readonly _configuredContextKey: IContextKey<boolean>;
 	private readonly _preparingContextKey: IContextKey<boolean>;
+	private readonly _usesMaiContextKey: IContextKey<boolean>;
 
 	private _mediaStream: MediaStream | undefined;
 	private _audioContext: AudioContext | undefined;
@@ -555,6 +562,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
 		this._configuredContextKey = ChatContextKeys.speechToTextConfigured.bindTo(contextKeyService);
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
+		this._usesMaiContextKey = ChatContextKeys.speechToTextUsesMai.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
 		void this._refreshGitHubSession();
 		this._register(this._authenticationService.onDidChangeSessions(e => {
@@ -615,7 +623,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	/** Read the configured dictation backend, derived from the selected model. */
 	private _getBackend(): DictationBackend {
-		return this._configurationService.getValue<string>(DICTATION_MODEL_SETTING) === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
+		return resolveDictationBackend(
+			this._configurationService.getValue<string>(DICTATION_MODEL_SETTING),
+			this._configurationService.inspect<string>(DICTATION_MODEL_SETTING).policyValue,
+			isWeb,
+		);
 	}
 
 	private _isEntitledForBackend(backend: DictationBackend): boolean {
@@ -650,6 +662,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private _updateConfiguredContextKey(): void {
+		this._usesMaiContextKey.set(this._getBackend() === 'mai');
 		this._configuredContextKey.set(this.isConfigured);
 	}
 

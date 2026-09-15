@@ -27,8 +27,12 @@ import { IPullRequestResources } from '../../../github/common/pullRequestResourc
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
+import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
+import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
 
 let sessionCounter = 0;
 
@@ -146,6 +150,53 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('tool enablement preserves autonomous configuration injection and restoration', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		const tools = disposables.add(new AgentMergeTools(
+			() => configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true,
+			() => undefined,
+			new class extends mock<IGitHubService>() { }(),
+			new NullLogService(),
+			stateManager,
+			configurationService,
+		));
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: false, overrides: { fixCI: false } },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+
+		tools.setEnabled(session, true);
+		const enabled = configurationService.getSessionConfigValues(session);
+		tools.setEnabled(session, false);
+		const disabled = configurationService.getSessionConfigValues(session);
+
+		assert.deepStrictEqual({
+			enabled: {
+				mode: enabled?.[SessionConfigKey.Mode],
+				autoApprove: enabled?.[SessionConfigKey.AutoApprove],
+				agentMerge: enabled?.[SessionConfigKey.AgentMerge],
+			},
+			disabled: {
+				mode: disabled?.[SessionConfigKey.Mode],
+				autoApprove: disabled?.[SessionConfigKey.AutoApprove],
+				agentMerge: readAgentMergeSessionState(disabled),
+			},
+		}, {
+			enabled: {
+				mode: 'autopilot',
+				autoApprove: 'assisted',
+				agentMerge: { enabled: true, overrides: { fixCI: false } },
+			},
+			disabled: {
+				mode: 'interactive',
+				autoApprove: 'default',
+				agentMerge: { enabled: false, overrides: { fixCI: false } },
+			},
+		});
+	});
+
 	test('host-initiated disable restores injected configuration', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
 		configurationService.updateSessionConfig(session, {
@@ -249,6 +300,58 @@ suite('AgentMergeController', () => {
 			mode: 'interactive',
 			autoApprove: 'default',
 			injected: undefined,
+		});
+	});
+
+	test('PR chat preparation cannot capture the base branch or widen foreground permissions', async () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager));
+		const chat = buildDefaultChatUri(session);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+		});
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main', uncommittedChanges: 1 }));
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const prepared = new DeferredPromise<void>();
+		const turn = {
+			session, chat, turnId: 'create-pr',
+			message: {
+				text: 'Create a PR', origin: { kind: MessageKind.User },
+				_meta: createPullRequestOperationMeta({ title: 'PR title', description: '', draft: false, agentMerge: true }),
+			},
+		};
+		const send = (async () => {
+			await prepared.p;
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: turn.turnId, startedAt: new Date().toISOString(), message: turn.message });
+			contribution.onOutgoingTurn(turn);
+		})();
+		await timeout(0);
+		const beforeDispatch = readAgentMergeSessionState(configurationService.getSessionConfigValues(session));
+		await prepared.complete();
+		await send;
+		await timeout(0);
+		const values = configurationService.getSessionConfigValues(session);
+		const duringTurn = {
+			target: readAgentMergeSessionState(values)?.target,
+			mode: values?.[SessionConfigKey.Mode], autoApprove: values?.[SessionConfigKey.AutoApprove],
+		};
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature/new-pr', baseBranchName: 'main' }));
+		const captured = new DeferredPromise<void>();
+		disposables.add(stateManager.onDidChangeSessionConfig(event => {
+			if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.target) {
+				void captured.complete();
+			}
+		}));
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: turn.turnId, duration: 0 });
+		await captured.p;
+		const after = readAgentMergeSessionState(configurationService.getSessionConfigValues(session));
+		assert.deepStrictEqual({
+			beforeDispatch, duringTurn, enabled: after?.enabled, capturedBranch: after?.target?.branchName,
+		}, {
+			beforeDispatch: undefined,
+			duringTurn: { target: undefined, mode: 'interactive', autoApprove: 'default' },
+			enabled: true, capturedBranch: 'feature/new-pr',
 		});
 	});
 

@@ -45,6 +45,8 @@ suite('AgentFeedbackEditorWidget', () => {
 		/** Comment ids passed to `setNavigationAnchor`, in call order. */
 		readonly navigations: readonly string[];
 		readonly hiddenFeedbackIds: readonly string[];
+		readonly removedFeedbackIds: readonly string[];
+		readonly dismissedPRCommentIds: readonly string[];
 		readonly sourcePullRequests: readonly (IFeedbackPullRequest | undefined)[];
 		readonly domNode: HTMLElement;
 		/** Tears the widget down and builds a new one, as the contribution does on any feedback change. */
@@ -54,12 +56,15 @@ suite('AgentFeedbackEditorWidget', () => {
 	function withWidget(callback: (harness: ITestHarness) => void, testComment: ISessionEditorComment = comment): void {
 		const navigations: string[] = [];
 		const hiddenFeedbackIds: string[] = [];
+		const removedFeedbackIds: string[] = [];
+		const dismissedPRCommentIds: string[] = [];
 		const sourcePullRequests: (IFeedbackPullRequest | undefined)[] = [];
 		const services = new ServiceCollection();
 		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 			override setNavigationAnchor(_sessionResource: URI, commentId: string): void { navigations.push(commentId); }
 			override updateFeedback(): void { }
 			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void { hiddenFeedbackIds.push(feedbackId); }
+			override removeFeedback(_sessionResource: URI, feedbackId: string): void { removedFeedbackIds.push(feedbackId); }
 			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback {
 				sourcePullRequests.push(sourcePullRequest);
 				return {
@@ -79,6 +84,7 @@ suite('AgentFeedbackEditorWidget', () => {
 		});
 		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
 			override markPRReviewCommentConverted(): void { }
+			override dismissPRReviewComment(_sessionResource: URI, commentId: string): void { dismissedPRCommentIds.push(commentId); }
 		});
 		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
 
@@ -107,7 +113,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			};
 
 			try {
-				callback({ navigations, hiddenFeedbackIds, sourcePullRequests, domNode: createWidget(), rebuild });
+				callback({ navigations, hiddenFeedbackIds, removedFeedbackIds, dismissedPRCommentIds, sourcePullRequests, domNode: createWidget(), rebuild });
 			} finally {
 				widget?.getDomNode().remove();
 				store.dispose();
@@ -201,6 +207,28 @@ suite('AgentFeedbackEditorWidget', () => {
 				color: 'var(--vscode-button-foreground)',
 			});
 		}, createdComment);
+	});
+
+	test('deleting an Agent Host PR comment suppresses its raw source before removing it', () => {
+		const prComment: ISessionEditorComment = {
+			...comment,
+			kind: AgentFeedbackKind.PRReview,
+			state: AgentFeedbackState.Created,
+			sourcePRReviewCommentId: 'thread-1',
+		};
+		withWidget(({ domNode, dismissedPRCommentIds, removedFeedbackIds }) => {
+			const deleteButton = [...domNode.querySelectorAll<HTMLElement>('.agent-feedback-widget-actions-bar .monaco-button')]
+				.find(button => button.textContent === 'Delete');
+			deleteButton?.click();
+
+			assert.deepStrictEqual({
+				dismissedPRCommentIds,
+				removedFeedbackIds,
+			}, {
+				dismissedPRCommentIds: ['thread-1'],
+				removedFeedbackIds: [prComment.sourceId],
+			});
+		}, prComment);
 	});
 
 	function prReviewComment(sourcePullRequest: IFeedbackPullRequest): ISessionEditorComment {

@@ -9,6 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
@@ -590,6 +591,20 @@ export async function resolveByokSessionConfig(
 	return { providers, models };
 }
 
+/** Applies sandbox configuration to a new or running SDK session. */
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<void> {
+	try {
+		const result = await session.rpc.options.update({ sandboxConfig });
+		if (!result.success) {
+			throw new Error('Copilot SDK rejected sandbox config update');
+		}
+		logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
+	} catch (err) {
+		logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
+		throw err;
+	}
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -615,6 +630,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		const sandboxConfig = () => {
@@ -631,10 +647,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		let fallbackConfig = config;
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
-			const stopWatch = new StopWatch();
-			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await this._resumeSession(session, plan, config);
-			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
 		} catch (err) {
 			let resumeError = err;
@@ -675,11 +688,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
-		return this._sessionOpenTelemetry.withSdkResume(
-			session,
-			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
-		);
+	private async _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
+		const attemptId = generateUuid();
+		const stopWatch = new StopWatch();
+		let outcome = 'error';
+		this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession started: attemptId=${attemptId}`);
+		try {
+			const raw = await this._sessionOpenTelemetry.withSdkResume(
+				session,
+				() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
+			);
+			outcome = 'success';
+			return raw;
+		} finally {
+			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession settled: attemptId=${attemptId}, outcome=${outcome}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
+		}
 	}
 
 	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
@@ -687,7 +710,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: () => SandboxConfig | undefined): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: () => SandboxConfig): Promise<CopilotSessionWrapper> {
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
@@ -701,10 +724,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		try {
 			await this._applyScriptSafety(raw, sessionId);
-			await this._applySandboxConfig(raw, sandboxConfig(), sessionId);
+			await applySandboxConfig(raw, sandboxConfig(), sessionId, this._logService);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -716,7 +739,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyGpt56Customizations(raw, sessionId);
 		}
-		return new CopilotSessionWrapper(raw);
+		return new CopilotSessionWrapper(raw, this._logService);
 	}
 
 	/**
@@ -788,51 +811,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/**
-	 * Compute the SDK-shaped sandbox policy to push to the runtime for the
-	 * SDK's built-in shell tool.
-	 *
-	 * Returns `undefined` when {@link CopilotCliConfigKey.EnableCustomTerminalTool}
-	 * is ON — in that case the AgentHost provides its own shell tools, which
-	 * wrap commands via the host terminal sandbox engine, so no SDK-side
-	 * sandbox policy is needed. Otherwise the policy is derived from the
-	 * host's `sandbox` config bag (forwarded from the workbench's
-	 * `chat.agent.sandbox.*` settings), mirroring what
-	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
-	 */
-	private _computeSandboxConfig(session: string): SandboxConfig | undefined {
-		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
-		if (enableCustomTerminalTool) {
-			return undefined;
-		}
+	/** Computes the SDK sandbox policy from root settings and session overrides, including an explicit disabled state. */
+	private _computeSandboxConfig(session: string): SandboxConfig {
 		return buildSandboxConfigForSdk(process.platform, {
 			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
 			...getSessionSandboxOverrides(this._configurationService, session),
 		}) ?? { enabled: false };
-	}
-
-	/**
-	 * Forward the SDK-shaped sandbox policy to the runtime via
-	 * `session.options.update`, immediately after the session is created or
-	 * resumed.
-	 *
-	 * No-op when {@link _computeSandboxConfig} returned `undefined` (custom
-	 * terminal tool enabled, or the host sandbox config evaluates to disabled).
-	 */
-	private async _applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig | undefined, sessionId: string): Promise<void> {
-		if (!sandboxConfig) {
-			return;
-		}
-		try {
-			const result = await session.rpc.options.update({ sandboxConfig });
-			if (!result.success) {
-				throw new Error('Copilot SDK rejected sandbox config update');
-			}
-			this._logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
-		} catch (err) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
-			throw err;
-		}
 	}
 
 	/**
@@ -885,6 +869,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
+		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -1006,6 +991,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless

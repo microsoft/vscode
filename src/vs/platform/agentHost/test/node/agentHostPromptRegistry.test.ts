@@ -217,17 +217,19 @@ suite('AgentHostPromptRegistry', () => {
 	suite('workspace-less scratch/repoless wiring', () => {
 		test('prefers attaching a workspace over creating a replacement session', () => {
 			assert.deepStrictEqual({
-				usesSetWorkspace: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('project changes MUST first attach that repository with `set_workspace`'),
-				avoidsReplacementSession: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not create another session solely to move the work'),
-				blocksScratchMutation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('MUST NOT create, edit, or delete files'),
-				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('follow this exact sequence before using any shell or file-mutation tool'),
-				namesProviderTools: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` in Codex or `ask_user` in Copilot'),
-				combinesWorkspaceAndIsolation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('exactly one single-select question whose choices each combine an exact workspace with an isolation strategy'),
-				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not ask workspace and isolation as separate questions'),
+				usesSetWorkspace: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Use `set_workspace` only to modify a repository or run commands requiring its project environment'),
+				avoidsReplacementSession: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('do not create a replacement session'),
+				allowsScratchArtifacts: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('scratch changes alone do not require a workspace'),
+				keepsAttachmentWorkWorkspaceless: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Keep attachment-, pasted-, or generated-content work here'),
+				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('ask exactly one single-select question'),
+				namesProviderTools: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` (Codex) or `ask_user` (Copilot)'),
+				combinesWorkspaceAndIsolation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Each choice must pair an exact workspace with isolation'),
+				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not split the question'),
 			}, {
 				usesSetWorkspace: true,
 				avoidsReplacementSession: true,
-				blocksScratchMutation: true,
+				allowsScratchArtifacts: true,
+				keepsAttachmentWorkWorkspaceless: true,
 				requiresConfirmation: true,
 				namesProviderTools: true,
 				combinesWorkspaceAndIsolation: true,

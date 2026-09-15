@@ -593,7 +593,6 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	getBanner(_customizations, harnessLabel) {
 		return {
 			message: localize('mcpMigrationBannerMessage', "Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so {0} can discover them directly. Unsupported and unselected servers stay in their current files.", harnessLabel),
-			consequence: localize('mcpMigrationBannerConsequence', "Migrated entries are removed from .vscode/mcp.json only after the root .mcp.json entries are written successfully."),
 		};
 	},
 

@@ -98,6 +98,13 @@
 .interactive-session .chat-question-carousel-container .rendered-markdown a:hover,
 .interactive-session .chat-question-carousel-container .rendered-markdown a:active {
 	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+	text-decoration-thickness: 2px;
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
