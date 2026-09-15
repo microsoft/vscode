@@ -1,8 +1,4 @@
-{
-  "features": {
-    "ghcr.io/devcontainers/features/desktop-lite:": {
-      "version": "1.2.8",
-      "resolved": "ghcr.io/devcontainers/features/desktop-lite@sha256:14ac23fd59afab939e6562ba6a1f42a659a805e4c574a1be23b06f28eb3b0b71",
+{ktop-lite@sha256:14ac23fd59afab939e6562ba6a1f42a659a805e4c574a1be23b06f28eb3b0b71",
       "integrity": "sha256:14ac23fd59afab939e6562ba6a1f42a659a805e4c574a1be23b06f28eb3b0b71"
     },
     "ghcr.io/devcontainers/features/rust:": {
