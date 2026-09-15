@@ -20,6 +20,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -651,6 +652,52 @@ suite('WorkspacePicker - Connection Status', () => {
 			submenu: ['Use Local', 'Use Dev Container'],
 		});
 	});
+
+	for (const address of ['ssh:server', 'tunnel:server']) {
+		for (const consolidated of [false, true]) {
+			test(`offers Dev Container execution on ${address} in the ${consolidated ? 'consolidated' : 'tabbed'} picker`, async () => {
+				const folderUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/remote/project' });
+				const status = observableValue('connectionStatus', RemoteAgentHostConnectionStatus.connected);
+				const provider = createMockProvider('agenthost-remote-1', {
+					group: SESSION_WORKSPACE_GROUP_REMOTE,
+					connectionStatus: status,
+					remoteAddress: address,
+					browseActions: [makeBrowseAction('agenthost-remote-1', SESSION_WORKSPACE_GROUP_REMOTE)],
+					isDevContainerWorkspaceAvailable: async workspaceUri => extUri.isEqual(workspaceUri, folderUri),
+				});
+				providersService.setProviders([provider]);
+				const storage = disposables.add(new TestStorageService());
+				seedStorage(storage, [{ uri: folderUri, providerId: provider.id, checked: false }]);
+				const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage, consolidated);
+				const container = document.createElement('div');
+				picker.render(container);
+				const selectedModes: boolean[] = [];
+				disposables.add(picker.onDidSelectWorkspaceMode(mode => selectedModes.push(mode.preferDevContainer)));
+				picker.getItems();
+				await timeout(0);
+
+				const selectMode = (label: string) => consolidated
+					? picker.selectSubmenu('Remote', ['remote/project', label])
+					: picker.selectSubmenu('remote/project', label);
+				await selectMode('Use Dev Container');
+				const selected = {
+					providerId: picker.selectedResolved?.providerId,
+					label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+				};
+				await selectMode('Use Remote Host');
+
+				assert.deepStrictEqual({
+					selected,
+					selectedModes,
+					label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+				}, {
+					selected: { providerId: provider.id, label: 'remote/project - Dev Container' },
+					selectedModes: [true, false],
+					label: 'remote/project',
+				});
+			});
+		}
+	}
 
 	test('caches Dev Container availability across picker opens and invalidates when connector availability changes', async () => {
 		const folderUri = URI.file('/agent-host/project');
@@ -3859,15 +3906,20 @@ class TestablePicker extends WorkspacePicker {
 		await this._dispatchPickerItem(entry.item);
 	}
 
-	async selectSubmenu(parentLabel: string, childLabel: string): Promise<void> {
+	async selectSubmenu(parentLabel: string, childLabel: string | readonly string[]): Promise<void> {
 		const parent = this.getItems().find(candidate => candidate.label === parentLabel);
 		const submenu = parent?.submenuActions?.[0];
-		const child = submenu instanceof SubmenuAction
-			? submenu.actions.find(candidate => candidate.label === childLabel)
-			: parent?.submenuActions?.find(candidate => candidate.label === childLabel);
 		assert.ok(parent?.item, `Expected picker item '${parentLabel}'`);
-		assert.ok(child, `Expected submenu item '${childLabel}'`);
-		await child.run();
+		let actions = submenu instanceof SubmenuAction ? submenu.actions : parent.submenuActions;
+		for (const label of typeof childLabel === 'string' ? [childLabel] : childLabel) {
+			const child = actions?.find(candidate => candidate.label === label);
+			assert.ok(child, `Expected submenu item '${label}'`);
+			if (child instanceof SubmenuAction) {
+				actions = child.actions;
+			} else {
+				await child.run();
+			}
+		}
 		await this._dispatchPickerItem(parent.item);
 	}
 }
