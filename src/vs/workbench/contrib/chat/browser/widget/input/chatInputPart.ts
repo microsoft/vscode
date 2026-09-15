@@ -5031,10 +5031,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Scale the working/progress border comet animation duration with
+	 * Scale each working/progress border comet lap with
 	 * the input width so the comet's perceived linear travel speed (the
-	 * rate it sweeps along the perimeter in px/sec) stays roughly
-	 * constant. A fixed cycle time made wide inputs feel sluggish, but
+	 * rate it sweeps along the perimeter in px/sec) stays roughly constant.
+	 * The full Voice Mode sequence contains two laps: listening then speaking.
+	 * A fixed lap time made wide inputs feel sluggish, but
 	 * an aggressive inverse curve made narrow inputs feel slow because
 	 * their cycle was clamped while the comet had little distance to
 	 * cover. Sub-linear scaling with width (`sqrt(width)`) plus tight
@@ -5045,14 +5046,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this.inputContainer) {
 			return;
 		}
-		// Sub-linear scaling: cycle time grows with width but tapers off
+		// Sub-linear scaling: lap time grows with width but tapers off
 		// so wide inputs still feel snappy. Tuned so ~400px → ~1.7s and
 		// ~1000px → ~2.3s rather than ~4s.
 		const MIN_DURATION_S = 1.4;
 		const MAX_DURATION_S = 2.5;
 		const safeWidth = Math.max(50, width);
 		const raw = 0.55 + 0.075 * Math.sqrt(safeWidth);
-		const duration = Math.min(MAX_DURATION_S, Math.max(MIN_DURATION_S, raw));
+		const lapDuration = Math.min(MAX_DURATION_S, Math.max(MIN_DURATION_S, raw));
+		const duration = lapDuration * 2;
 
 		// Skip no-op updates (e.g. repeated layout calls during steady state).
 		if (this._lastAnimDurationS !== undefined && Math.abs(this._lastAnimDurationS - duration) < 0.05) {

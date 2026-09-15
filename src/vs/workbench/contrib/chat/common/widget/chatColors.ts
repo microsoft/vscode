@@ -135,14 +135,13 @@ export const chatInputWorkingBorderColor1 = registerColor(
 export const chatInputWorkingBorderColor2 = registerColor(
 	'chat.inputWorkingBorderColor2',
 	{ dark: darken(buttonBackground, 0.5), light: darken(buttonBackground, 0.3), hcDark: '#A0A0A0', hcLight: '#555555' },
-	localize('chat.inputWorkingBorderColor2', 'Unused secondary chat input accent color.'), false,
-	localize('chat.inputWorkingBorderColor2.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
+	localize('chat.inputWorkingBorderColor2', 'Secondary accent color of the animated chat input border shown while a request is in flight.'));
 
 export const chatInputWorkingBorderColor3 = registerColor(
 	'chat.inputWorkingBorderColor3',
 	{ dark: lighten(buttonBackground, 0.5), light: lighten(buttonBackground, 0.3), hcDark: '#000000', hcLight: '#000000' },
 	localize('chat.inputWorkingBorderColor3', 'Unused tertiary chat input accent color.'), false,
-	localize('chat.inputWorkingBorderColor3.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
+	localize('chat.inputWorkingBorderColor3.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' and 'chat.inputWorkingBorderColor2' to customize the animated chat input border."));
 
 // --- Voice Mode ambient glow -------------------------------------------------
 // The listening / processing / speaking glows are derived from a single base
