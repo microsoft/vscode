@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PendingRequestRegistry } from '../../../common/pendingRequestRegistry.js';
 import type { ToolDefinition } from '../../../common/state/protocol/state.js';
@@ -94,6 +95,15 @@ suite('claudeClientToolMcpServer / buildClientToolMcpServer', () => {
 		const handler = recorded[0]!.handler;
 		const result = await handler({ msg: 'hi' }, undefined);
 		assert.strictEqual(result.isError, true);
+	});
+
+	test('handler maps a rejected awaitResult to an isError result instead of throwing', async () => {
+		const { sdk, recorded } = makeSdk();
+		await buildClientToolMcpServer([tool()], () => Promise.reject(new CancellationError()), sdk);
+		const handler = recorded[0]!.handler;
+		const result = await handler({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_42' } });
+		assert.strictEqual(result.isError, true);
+		assert.match((result.content[0] as { type: string; text: string }).text, /cancel/i);
 	});
 
 	test('tools with missing description default to empty string (no crash)', async () => {
