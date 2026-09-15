@@ -273,6 +273,7 @@
 .project-board-card-context,
 .project-board-card-workspace,
 .project-board-card-warning,
+.project-board-card-metadata-note,
 .project-board-card-prompt,
 .project-board-card-recency {
 	margin-top: var(--vscode-spacing-size80);
@@ -303,6 +304,7 @@
 }
 
 .project-board-card-workspace,
+.project-board-card-metadata-note,
 .project-board-card-recency {
 	color: var(--vscode-descriptionForeground);
 }
