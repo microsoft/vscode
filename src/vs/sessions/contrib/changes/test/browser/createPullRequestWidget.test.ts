@@ -1361,7 +1361,7 @@ suite('CreatePullRequestWidget', () => {
 
 	for (const action of ['create', 'sendToChat'] as const) {
 		test(`failed ${action} preserves text after dismissal and reopening`, async () => {
-			const { host, anchor, contextView } = createContextView();
+			const { host, anchor, contextView, errors } = createContextView();
 			const fail = async () => { throw new Error('Submission failed'); };
 			const creation: ISessionPullRequestCreation = {
 				operationId: 'create-pr', prepare: async () => details,
@@ -1379,7 +1379,7 @@ suite('CreatePullRequestWidget', () => {
 				host.querySelector<HTMLElement>('.create-pr-submit')!.click();
 			}
 			await timeout(0);
-			const errorVisible = !host.querySelector<HTMLElement>('[role="alert"]')!.hidden;
+			const errorVisible = action === 'create' ? errors.length === 1 : !host.querySelector<HTMLElement>('[role="alert"]')!.hidden;
 			anchor.parentElement!.click();
 			contextView.show(anchor, creation);
 			await timeout(0);
@@ -1428,7 +1428,7 @@ suite('CreatePullRequestWidget', () => {
 			input.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true }));
 			const outside = dom.append(host, dom.$('button', undefined, 'Another action'));
 			outside.click();
-			const visibleWhileSubmitting = !!host.querySelector('[role="dialog"]');
+			const closedWhileSubmitting = !host.querySelector('[role="dialog"]');
 			contextView.close();
 			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => ({ ...details, title: 'Another session' }), prepareChatRequest: async query => ({ query }), create: async () => { } });
 			await timeout(0);
@@ -1442,15 +1442,41 @@ suite('CreatePullRequestWidget', () => {
 			}
 			await timeout(0);
 			assert.deepStrictEqual({
-				visibleWhileSubmitting,
+				closedWhileSubmitting,
 				title: host.querySelector<HTMLInputElement>('input')?.value,
 				focusRetained: dom.getActiveElement() === newInput,
 				errors,
 			}, {
-				visibleWhileSubmitting: true, title: 'Another session', focusRetained: true,
+				closedWhileSubmitting: true, title: 'Another session', focusRetained: true,
 				errors: outcome === 'failure' ? [error] : [],
 			});
 			contextView.close();
 		});
 	}
+
+	test('direct creation closes immediately, restores focus, and completes in the background', async () => {
+		const { host, anchor, contextView } = createContextView();
+		const completion = new DeferredPromise<void>();
+		const submissions: ISessionPullRequestOptions[] = [];
+		let created = 0;
+		anchor.focus();
+		contextView.show(anchor, {
+			operationId: 'create-pr', prepare: async () => details,
+			prepareChatRequest: async query => ({ query }),
+			create: async options => { submissions.push(options); await completion.p; },
+		}, undefined, () => created++);
+		await timeout(0);
+		host.querySelector<HTMLElement>('.create-pr-submit')!.click();
+		const duringCreation = {
+			closed: !host.querySelector('[role="dialog"]'),
+			focused: dom.getActiveElement() === anchor,
+			created,
+		};
+		await completion.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ duringCreation, created, submissions }, {
+			duringCreation: { closed: true, focused: true, created: 0 }, created: 1,
+			submissions: [{ title: details.title, description: details.description, draft: false, agentMerge: false }],
+		});
+	});
 });

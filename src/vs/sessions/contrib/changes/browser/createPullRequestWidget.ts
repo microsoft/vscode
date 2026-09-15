@@ -49,6 +49,7 @@ export interface ICreatePullRequestWidgetOptions {
 	readonly onDidChangePreferences?: (change: ICreatePullRequestPreferences) => void;
 	readonly onCancel: () => void;
 	readonly onDismiss?: () => void;
+	readonly onWillCreate?: () => void;
 	readonly onCreated: (options: ISessionPullRequestOptions, message: string | void) => void;
 	readonly onDidSendToChat?: () => void;
 	readonly onDetachedError: (error: Error) => void;
@@ -637,6 +638,7 @@ export class CreatePullRequestWidget extends Disposable {
 			if (action === 'sendToChat' && sendToChat) {
 				await sendToChat(options);
 			} else {
+				this.options.onWillCreate?.();
 				message = await this.options.creation.create(options);
 			}
 		} catch (error) {

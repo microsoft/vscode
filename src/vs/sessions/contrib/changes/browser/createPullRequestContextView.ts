@@ -56,6 +56,7 @@ export class CreatePullRequestContextView extends Disposable {
 		let active = true;
 		let restoreFocus = true;
 		let preserveContent = true;
+		let submittedContent: ICreatePullRequestFormContent | undefined;
 		const view = this.formContextView.showContextView({
 			getAnchor: () => anchor,
 			anchorAlignment: AnchorAlignment.RIGHT,
@@ -74,8 +75,20 @@ export class CreatePullRequestContextView extends Disposable {
 						this.close();
 					},
 					onDismiss: () => this.close(),
+					onWillCreate: () => {
+						submittedContent = widget.getFormContent();
+						this.savedContent.set(creation, {
+							branchName: options?.branchName,
+							baseBranchName: options?.baseBranchName,
+							content: submittedContent,
+						});
+						this.close();
+					},
 					onCreated: (options, message) => {
 						preserveContent = false;
+						if (submittedContent && this.savedContent.get(creation)?.content === submittedContent) {
+							this.savedContent.delete(creation);
+						}
 						if (message) {
 							this.notificationService.info(message);
 						}
