@@ -70,7 +70,12 @@
 	line-height: 1;
 }
 
-.sessions-chat-codicon-button:hover,
+.sessions-chat-codicon-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 .sessions-chat-codicon-button:focus-visible {
 	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
