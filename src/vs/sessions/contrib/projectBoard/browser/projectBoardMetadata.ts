@@ -6,7 +6,7 @@
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -29,6 +29,30 @@ export const projectBoardMetadataLimits = Object.freeze({
 export interface IProjectBoardContext {
 	readonly label: string;
 	readonly uri: URI;
+}
+
+/** Preserves unknown usage instead of treating an unsupported provider as zero cost. */
+function getProjectBoardCredits(model: IChatModel, reader?: IReader): number | undefined {
+	let reported = false;
+	for (const request of model.getRequests()) {
+		const usage = request.response?.usageObs.read(reader);
+		for (const value of [usage?.copilotCredits, usage?.sessionCopilotCredits]) {
+			if (value !== undefined) {
+				if (!Number.isFinite(value) || value < 0) {
+					throw new Error('Invalid reported AI credit usage');
+				}
+				reported = true;
+			}
+		}
+	}
+	if (!reported) {
+		return undefined;
+	}
+	const credits = model.sessionCost;
+	if (!Number.isFinite(credits) || credits < 0) {
+		throw new Error('Invalid session AI credit total');
+	}
+	return credits;
 }
 
 export type IProjectBoardMetadata =
@@ -85,6 +109,15 @@ export class ProjectBoardMetadata extends Disposable {
 	private readonly _metadata = observableValue<IProjectBoardMetadata>(this, Object.freeze({ kind: 'loading' }));
 	readonly metadata: IObservable<IProjectBoardMetadata> = this._metadata;
 	private readonly _modelStore = this._register(new DisposableStore());
+	private readonly includeCredits = observableValue(this, false);
+	private readonly _credits = observableValue<number | undefined>(this, undefined);
+	readonly credits: IObservable<number | undefined> = this._credits;
+	private readonly _creditsError = observableValue<string | undefined>(this, undefined);
+	readonly creditsError: IObservable<string | undefined> = this._creditsError;
+
+	setIncludeCredits(enabled: boolean): void {
+		this.includeCredits.set(enabled, undefined);
+	}
 
 	constructor(
 		chat: Pick<IChat, 'resource'>,
@@ -123,6 +156,7 @@ export class ProjectBoardMetadata extends Disposable {
 	private _observe(model: IChatModel): void {
 		const changed = observableSignalFromEvent(this, model.onDidChange);
 		this._modelStore.add(model.onDidDispose(() => {
+			this._credits.set(undefined, undefined);
 			this._unavailable(localize('projectBoard.metadata.modelDisposed', "Last submitted prompt unavailable because the conversation was closed."));
 			this._modelStore.dispose();
 		}));
@@ -138,6 +172,25 @@ export class ProjectBoardMetadata extends Disposable {
 				this._publish(request);
 			} catch (error) {
 				this._fail(error);
+			}
+		}));
+		this._modelStore.add(autorun(reader => {
+			try {
+				if (this.includeCredits.read(reader)) {
+					changed.read(reader);
+					model.lastRequestObs.read(reader);
+					this._credits.set(getProjectBoardCredits(model, reader), undefined);
+				} else {
+					this._credits.set(undefined, undefined);
+				}
+				this._creditsError.set(undefined, undefined);
+			} catch (error) {
+				this._credits.set(undefined, undefined);
+				const message = toErrorMessage(error);
+				if (this._creditsError.read(undefined) !== message) {
+					this._logService.error('[ProjectBoardMetadata] Could not read AI credits', error);
+					this._creditsError.set(message, undefined);
+				}
 			}
 		}));
 	}

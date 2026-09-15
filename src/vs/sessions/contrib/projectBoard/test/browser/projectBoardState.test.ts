@@ -67,6 +67,33 @@ suite('ProjectBoardState', () => {
 		assert.strictEqual(storage.get(key, StorageScope.APPLICATION), undefined);
 	});
 
+	test('PB-18 display toggles are opt-in, independent, immutable and persist with placements', () => {
+		const { state, storage } = create();
+		assert.strictEqual(state.configuration.get().display, undefined);
+		state.moveCard('chat', { rowId: 'general', columnId: 'p2' });
+		state.setDisplayOption('showStateDuration', true);
+		assert.deepStrictEqual(state.configuration.get().display, { showStateDuration: true, showCredits: false });
+		const other = create(storage).state;
+		other.setDisplayOption('showCredits', true);
+		state.setDisplayOption('showStateDuration', false);
+		assert.deepStrictEqual(other.configuration.get().display, { showStateDuration: false, showCredits: true });
+		assert.deepStrictEqual(create(storage).state.configuration.get(), state.configuration.get());
+		assert.deepStrictEqual(state.getPlacement('chat'), { rowId: 'general', columnId: 'p2' });
+		assert.ok(Object.isFrozen(state.configuration.get().display));
+		state.reset();
+		assert.strictEqual(state.configuration.get().display, undefined);
+	});
+
+	test('PB-18 failed preference writes preserve the last value and notify', () => {
+		const { state, storage, notifications } = create();
+		state.setDisplayOption('showCredits', true);
+		const previous = state.configuration.get();
+		sinon.stub(storage, 'store').throws(new Error('settings write failed'));
+		assert.throws(() => state.setDisplayOption('showCredits', false), /settings write failed/);
+		assert.strictEqual(state.configuration.get(), previous);
+		assert.strictEqual(notifications.length, 1);
+	});
+
 	for (const kind of ['row', 'column'] as const) {
 		test(`PB-10 ${kind} IDs remain stable through rename and reorder`, () => {
 			const { state } = create();
@@ -147,6 +174,10 @@ suite('ProjectBoardState', () => {
 
 	const placement = { cardId: 'chat', rowId: 'general', columnId: 'p0' };
 	const invalidStates: [string, unknown][] = [
+		['null display', { ...defaults, display: null }],
+		['missing display key', { ...defaults, display: { showCredits: true } }],
+		['invalid display toggle', { ...defaults, display: { showStateDuration: true, showCredits: 'yes' } }],
+		['unknown display key', { ...defaults, display: { showStateDuration: true, showCredits: true, other: false } }],
 		['null', null],
 		['array', []],
 		['unknown version', { ...defaults, version: 2 }],
