@@ -5,6 +5,7 @@
 
 import { addDisposableListener, addStandardDisposableListener, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -918,6 +919,19 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		};
 		this.cardElements.set(`draft:${draft.id}`, element);
+		this.createDeleteButton(document, element, localize('projectBoard.deleteDraft', "Delete Session Draft"), async () => {
+			const confirmed = await this.dialogService.confirm({
+				message: localize('projectBoard.deleteDraftConfirm', "Are you sure you want to delete this session draft?"),
+				detail: localize('projectBoard.deleteDraftDetail', "This action cannot be undone."),
+				primaryButton: localize('projectBoard.delete', "Delete"),
+			});
+			if (!confirmed.confirmed) {
+				return;
+			}
+			if (await this.chatWindows.deleteDraft(draft.id)) {
+				status(localize('projectBoard.draftDeleted', "Session draft deleted."));
+			}
+		}, store);
 		this.registerCardInteractions(element, openDraft, store);
 		return element;
 	}
@@ -938,6 +952,35 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		title.textContent = card.title;
 		store.add(this.hoverService.setupDelayedHover(title, { content: card.title }));
 		element.appendChild(title);
+
+		if (card.session.capabilities.get().supportsDelete) {
+			this.createDeleteButton(document, element, localize('projectBoard.deleteSession', "Delete Session"), async () => {
+				const confirmed = await this.dialogService.confirm({
+					message: localize('projectBoard.deleteSessionConfirm', "Are you sure you want to delete this session?"),
+					detail: localize('projectBoard.deleteSessionDetail', "This action cannot be undone."),
+					primaryButton: localize('projectBoard.delete', "Delete"),
+				});
+				if (!confirmed.confirmed) {
+					return;
+				}
+				const cardIds = this.model.cards.filter(candidate => candidate.session === card.session).map(candidate => candidate.id);
+				try {
+					await this.sessionsManagementService.deleteSession(card.session);
+				} catch (error) {
+					this.logService.error('[ProjectBoard] Failed to delete session', error);
+					this.notificationService.error(localize('projectBoard.deleteSessionFailed', "The session could not be deleted."));
+					return;
+				}
+				for (const cardId of cardIds) {
+					try {
+						this.boardState.moveCard(cardId, undefined);
+					} catch (error) {
+						this.logService.error('[ProjectBoard] Failed to remove deleted session placement', error);
+					}
+				}
+				status(localize('projectBoard.sessionDeleted', "Session deleted."));
+			}, store);
+		}
 
 		if (card.workspace) {
 			const workspace = document.createElement('div');
@@ -1145,6 +1188,24 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 
 		return element;
+	}
+
+	private createDeleteButton(document: Document, card: HTMLElement, label: string, run: () => Promise<void>, store: DisposableStore): void {
+		const actions = document.createElement('div');
+		actions.className = 'project-board-card-actions';
+		const button = store.add(new Button(actions, {
+			...defaultButtonStyles,
+			ariaLabel: label,
+			title: label,
+			secondary: true,
+		}));
+		button.icon = Codicon.trash;
+		store.add(button.onDidClick(event => {
+			event.preventDefault();
+			event.stopPropagation();
+			void run();
+		}));
+		card.appendChild(actions);
 	}
 
 	private createContextLink(container: HTMLElement, label: string, uri: URI, key: string, store: DisposableStore): void {

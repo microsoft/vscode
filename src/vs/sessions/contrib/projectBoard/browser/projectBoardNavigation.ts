@@ -221,6 +221,15 @@ export class ProjectBoardChatWindows extends Disposable {
 		this.drafts.set([...this.entries.values()].map(({ id, resource, hasContent, submitted }) => ({ id, resource, hasContent, submitted })), undefined);
 	}
 
+	async deleteDraft(id: string): Promise<boolean> {
+		const entry = this.entries.get(id);
+		if (!entry) {
+			return false;
+		}
+		await this.discardDraft(entry);
+		return this.entries.get(id) === undefined;
+	}
+
 	private async discardDraft(entry: IDraftEntry): Promise<void> {
 		this.entries.delete(entry.id);
 		this.publishDrafts();
