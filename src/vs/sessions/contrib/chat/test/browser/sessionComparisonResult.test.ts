@@ -9,12 +9,11 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { SessionComparisonResult } from '../../browser/sessionComparisonResult.js';
 
 suite('Sessions - Comparison Result', () => {
@@ -72,9 +71,11 @@ suite('Sessions - Comparison Result', () => {
 					options: [{
 						participantId: 'attempt-1',
 						approach: 'Throw structured errors.',
+						assessment: SessionComparisonDecisionAssessment.Worse,
 					}, {
 						participantId: 'attempt-2',
 						approach: 'Return typed diagnostics.',
+						assessment: SessionComparisonDecisionAssessment.Better,
 					}],
 					recommendedParticipantId: 'attempt-2',
 				}],
@@ -85,6 +86,7 @@ suite('Sessions - Comparison Result', () => {
 		let selected: string | undefined;
 		let opened: URI | undefined;
 		let synthesisPlan: ISessionComparisonSynthesisPlan | undefined;
+		const synthesisPlans: (ISessionComparisonSynthesisPlan | undefined)[] = [];
 		let synthesized = 0;
 		let layouts = 0;
 		const instantiationService = store.add(new TestInstantiationService());
@@ -95,6 +97,7 @@ suite('Sessions - Comparison Result', () => {
 			}
 			override setSynthesisPlan(_comparisonId: string, plan: ISessionComparisonSynthesisPlan | undefined): void {
 				synthesisPlan = plan;
+				synthesisPlans.push(plan);
 			}
 			override async synthesize(): Promise<void> {
 				synthesized++;
@@ -106,73 +109,100 @@ suite('Sessions - Comparison Result', () => {
 			}
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
-		instantiationService.stub(IContextViewService, upcastPartial<IContextViewService>({}));
 		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => layouts++));
 
 		const initialText = result.domNode.textContent ?? '';
 		const buttons = result.domNode.querySelectorAll<HTMLElement>('.monaco-button');
-		const plannedSynthesis = [...buttons].find(button => button.textContent === 'Start Planned Synthesis');
+		const customSynthesis = [...buttons].find(button => button.textContent === 'Custom Synthesis');
+		const useClaude = [...buttons].find(button => button.textContent === 'Use Claude');
+		const useCodex = [...buttons].find(button => button.textContent === 'Use Codex');
+		const synthesizerDecides = [...buttons].find(button => button.textContent === 'Synthesizer Decides');
+		const startCustomSynthesis = [...buttons].find(button => button.textContent === 'Start Custom Synthesis');
 		const title = result.domNode.querySelector<HTMLElement>('.session-comparison-result-title');
 		const strengthsTitle = result.domNode.querySelector<HTMLElement>('.session-comparison-result-subtitle:last-of-type');
-		const table = result.domNode.querySelector<HTMLElement>('.session-comparison-result-strengths');
+		const strengthsTable = result.domNode.querySelector<HTMLElement>('.session-comparison-result-strengths');
 		const actions = result.domNode.querySelector<HTMLElement>('.session-comparison-result-actions');
-		const synthesisPlanSummary = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan-summary');
-		const synthesisSelect = result.domNode.querySelector<HTMLElement>('[aria-label="Approach for Error handling"]');
+		const synthesisPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan');
+		const decisionTable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table');
+		const panelHiddenBefore = synthesisPanel?.hidden;
 		const accessibility = {
 			regionRole: result.domNode.getAttribute('role'),
 			regionLabelledBy: result.domNode.getAttribute('aria-labelledby'),
 			titleId: title?.id,
-			tableLabelledBy: table?.getAttribute('aria-labelledby'),
+			tableLabelledBy: strengthsTable?.getAttribute('aria-labelledby'),
 			strengthsTitleId: strengthsTitle?.id,
 			actionsRole: actions?.getAttribute('role'),
 			actionsLabel: actions?.getAttribute('aria-label'),
-			buttonLabels: [...buttons].map(button => button.getAttribute('aria-label')),
+			customControls: customSynthesis?.getAttribute('aria-controls'),
+			panelId: synthesisPanel?.id,
+			columnHeaders: [...decisionTable?.querySelectorAll('thead th') ?? []].map(header => header.textContent),
+			rowHeaderScope: decisionTable?.querySelector('tbody th')?.getAttribute('scope'),
 		};
 		buttons[0].click();
-		plannedSynthesis?.click();
+		customSynthesis?.click();
+		useClaude?.click();
+		synthesizerDecides?.click();
+		useCodex?.click();
+		startCustomSynthesis?.click();
 		await timeout(0);
+		const choiceState = {
+			customExpanded: customSynthesis?.getAttribute('aria-expanded'),
+			panelHidden: synthesisPanel?.hidden,
+			claudePressed: useClaude?.getAttribute('aria-pressed'),
+			codexPressed: useCodex?.getAttribute('aria-pressed'),
+			synthesizerPressed: synthesizerDecides?.getAttribute('aria-pressed'),
+			codexLabel: useCodex?.getAttribute('aria-label'),
+		};
 		currentSession.set(upcastPartial<ISession>({ resource: attempt1Resource }), undefined);
 
 		assert.deepStrictEqual({
 			content: {
 				winner: initialText.includes('Codex won'),
-				customize: initialText.includes('Customize Synthesis'),
+				customize: initialText.includes('Custom Synthesis'),
 				section: initialText.includes('Error handling'),
 				approach: initialText.includes('Return typed diagnostics.'),
-				filesHidden: !initialText.includes('src/parser.ts'),
+				files: initialText.includes('src/parser.ts'),
+				assessments: initialText.includes('Better choice') && initialText.includes('Worse choice'),
 			},
 			selected,
 			opened: opened?.toString(),
 			synthesized,
 			synthesisPlan,
+			synthesisPlans,
 			hiddenOutsideJudge: result.domNode.hidden,
 			layouts,
-			synthesisPlanSummary: synthesisPlanSummary?.textContent,
-			synthesisSelectLabel: synthesisSelect?.getAttribute('aria-label'),
-			synthesisSelect: {
-				hasAttemptNumber: synthesisSelect?.textContent?.includes('Attempt 2'),
-				hasHarness: synthesisSelect?.textContent?.includes('Codex'),
-			},
+			panelHiddenBefore,
+			choiceState,
 			accessibility,
 		}, {
 			content: {
 				winner: true,
 				customize: true,
 				section: true,
-				approach: false,
-				filesHidden: true,
+				approach: true,
+				files: true,
+				assessments: true,
 			},
 			selected: 'attempt-2',
 			opened: attempt2Resource.toString(),
 			synthesized: 1,
 			synthesisPlan: { selections: [{ sectionId: 'error-handling', participantId: 'attempt-2' }] },
+			synthesisPlans: [
+				{ selections: [{ sectionId: 'error-handling', participantId: 'attempt-1' }] },
+				{ selections: [{ sectionId: 'error-handling', participantId: undefined }] },
+				{ selections: [{ sectionId: 'error-handling', participantId: 'attempt-2' }] },
+				{ selections: [{ sectionId: 'error-handling', participantId: 'attempt-2' }] },
+			],
 			hiddenOutsideJudge: true,
-			layouts: 2,
-			synthesisPlanSummary: 'Customize Synthesis',
-			synthesisSelectLabel: 'Approach for Error handling',
-			synthesisSelect: {
-				hasAttemptNumber: false,
-				hasHarness: true,
+			layouts: 3,
+			panelHiddenBefore: true,
+			choiceState: {
+				customExpanded: 'true',
+				panelHidden: false,
+				claudePressed: 'false',
+				codexPressed: 'true',
+				synthesizerPressed: 'false',
+				codexLabel: 'Codex for Error handling. Better choice. Return typed diagnostics. Selected',
 			},
 			accessibility: {
 				regionRole: 'region',
@@ -182,11 +212,10 @@ suite('Sessions - Comparison Result', () => {
 				strengthsTitleId: strengthsTitle?.id,
 				actionsRole: 'group',
 				actionsLabel: 'Comparison result actions',
-				buttonLabels: [
-					'Focus winning session, Codex',
-					'Synthesize using the Judge recommendation',
-					'Start synthesis with the selected approaches',
-				],
+				customControls: synthesisPanel?.id,
+				panelId: synthesisPanel?.id,
+				columnHeaders: ['Decision', 'Claude', 'Codex', 'Synthesizer'],
+				rowHeaderScope: 'row',
 			},
 		});
 	});

@@ -100,7 +100,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { activation: true, nextButton: true });
 	});
 
-	test('describes Execute Parallel Agents only when enabled', async () => {
+	test('describes Run and Compare Agents only when enabled', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[COMPARE_AGENTS_ENABLED_SETTING]: false,
@@ -116,13 +116,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.deepStrictEqual({
-			disabled: disabledContent.includes('activate Execute Parallel Agents'),
-			enabled: enabledProvider.provideContent().includes('activate Execute Parallel Agents'),
-			workspaceAndBranch: enabledProvider.provideContent().includes('Choose the workspace and base branch'),
+			disabled: disabledContent.includes('activate Run and Compare Agents'),
+			enabled: enabledProvider.provideContent().includes('activate Run and Compare Agents'),
+			workspaceAndBranch: enabledProvider.provideContent().includes('Choose a Git repository with at least one commit and a remote, choose the base branch'),
 			permissions: enabledProvider.provideContent().includes('provider-specific Permissions selection'),
 			bulkPermissions: enabledProvider.provideContent().includes('Allow all permissions for every participant'),
 			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
 			latestStep: enabledProvider.provideContent().includes('follow the latest available step'),
+			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
+			choiceButtons: enabledProvider.provideContent().includes('Use Tab to move between the choice buttons'),
 		}, {
 			disabled: false,
 			enabled: true,
@@ -131,6 +133,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			bulkPermissions: true,
 			effort: true,
 			latestStep: true,
+			customSynthesis: true,
+			choiceButtons: true,
 		});
 	});
 });

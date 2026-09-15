@@ -64,12 +64,17 @@ import { COMPARE_AGENTS_ENABLED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
-import { ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from './sessionComparisonSetupDialog.js';
+import { getSessionComparisonWorkspaceError, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from './sessionComparisonSetupDialog.js';
 
 // #region --- New Chat Widget ---
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
+
+function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined): boolean | undefined {
+	const workspace = session?.workspace.get() ?? selectedWorkspace;
+	return workspace?.folders[0]?.gitRepository?.hasGitRemote;
+}
 
 export class NewChatWidget extends Disposable {
 
@@ -286,7 +291,7 @@ export class NewChatWidget extends Disposable {
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
 				additionalAction: {
 					id: 'sessions.runMultipleAgents',
-					label: localize('runMultipleAgents.label', "Execute Parallel Agents..."),
+					label: localize('runMultipleAgents.label', "Run and Compare Agents..."),
 					description: comparisonDescription,
 					icon: Codicon.layers,
 					isVisible: () => this._shouldShowComparisonAction(),
@@ -940,7 +945,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _shouldShowComparisonAction(): boolean {
-		return this._compareAgentsEnabled.get() && this._getComparisonBranch() !== undefined;
+		const session = this._session.get();
+		return this._compareAgentsEnabled.get()
+			&& this._getComparisonBranch(session) !== undefined
+			&& getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace) !== false;
 	}
 
 	private async _getComparisonBranches(session: IActiveSession, selectedBranch: string): Promise<readonly string[]> {
@@ -983,6 +991,7 @@ export class NewChatWidget extends Disposable {
 			workspace,
 			branch,
 			branches: branch ? await this._getComparisonBranches(session, branch) : [],
+			hasGitRemote: getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace),
 			defaultHarness: this._getComparisonDefaultHarness(workspace, session),
 		};
 	}
@@ -1188,8 +1197,9 @@ export class NewChatWidget extends Disposable {
 				return false;
 			}
 			const branch = this._comparisonBranch.get() ?? this._getComparisonBranch(session);
-			if (!branch) {
-				this.notificationService.error(localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit."));
+			const workspaceError = getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace));
+			if (workspaceError) {
+				this.notificationService.error(workspaceError);
 				return false;
 			}
 			const availableTypes = this.sessionsManagementService.getSessionTypesForFolder(workspace);

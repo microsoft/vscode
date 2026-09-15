@@ -23,8 +23,8 @@ import { aggregateChatUsage, IChatUsageSummary } from '../../../../workbench/con
 import { SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
-import { hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonAttemptJudged } from '../../../common/sessionsTelemetry.js';
+import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonAttemptJudged, logSessionComparisonStageCompleted } from '../../../common/sessionsTelemetry.js';
 
 const JUDGE_PROMPT_URI = FileAccess.asFileUri('vs/sessions/prompts/judge.md');
 const JUDGE_COMPARISON_ID_PLACEHOLDER = '{{comparisonId}}';
@@ -36,6 +36,12 @@ interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonPar
 interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'participants'> {
 	readonly workspace: string;
 	readonly participants: readonly IStoredSessionComparisonParticipant[];
+}
+
+function isDecisionAssessment(value: SessionComparisonDecisionAssessment | undefined): value is SessionComparisonDecisionAssessment {
+	return value === SessionComparisonDecisionAssessment.Better
+		|| value === SessionComparisonDecisionAssessment.Neutral
+		|| value === SessionComparisonDecisionAssessment.Worse;
 }
 
 export class SessionComparisonService extends Disposable implements ISessionComparisonService {
@@ -52,6 +58,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	private readonly _migratedAttemptTitles = new Set<string>();
 	private readonly _reportedExecutionTelemetry = new Set<string>();
 	private readonly _reportedOutcomeTelemetry = new Set<string>();
+	private readonly _reportedStageTelemetry = new Set<string>();
 	private _judgePromptTemplate: Promise<string> | undefined;
 
 	constructor(
@@ -190,17 +197,23 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const sectionIds = new Set<string>();
 		for (const section of verdict.decisionSections ?? []) {
 			const optionIds = new Set(section.options.map(option => option.participantId));
+			const hasAssessments = section.options.some(option => option.assessment !== undefined);
+			const recommendedOption = section.options.find(option => option.participantId === section.recommendedParticipantId);
 			if (sectionIds.has(section.id)
 				|| !attemptIds.has(section.recommendedParticipantId)
 				|| !optionIds.has(section.recommendedParticipantId)
 				|| optionIds.size !== section.options.length
-				|| section.options.some(option => !attemptIds.has(option.participantId))) {
+				|| section.options.some(option => !attemptIds.has(option.participantId))
+				|| hasAssessments && (recommendedOption?.assessment !== SessionComparisonDecisionAssessment.Better
+					|| section.options.some(option => !isDecisionAssessment(option.assessment)))) {
 				throw new Error('The comparison verdict contains an invalid synthesis decision section.');
 			}
 			sectionIds.add(section.id);
 		}
-		this._replaceComparison({ ...comparison, verdict, synthesisPlan: undefined });
+		const updated = { ...comparison, verdict, synthesisPlan: undefined };
+		this._replaceComparison(updated);
 		this._reportOutcomeTelemetry(comparison, verdict);
+		this._checkComparison(updated);
 	}
 
 	setSynthesisPlan(comparisonId: string, plan: ISessionComparisonSynthesisPlan | undefined): void {
@@ -269,10 +282,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				sessionResource: session?.resource,
 				...(!session ? { launchError: localize('sessionComparison.synthesisUnavailable', "The synthesis session did not start.") } : {}),
 			};
-			this._replaceComparison({
+			const updated = {
 				...this._requireComparison(comparisonId),
 				participants: [...this._requireComparison(comparisonId).participants, synthesis],
-			});
+			};
+			this._replaceComparison(updated);
+			this._checkComparison(updated);
 		} finally {
 			this._synthesisStarting.delete(comparisonId);
 		}
@@ -321,8 +336,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _checkComparison(comparison: ISessionComparison): void {
-		comparison = this._snapshotTerminalAttemptUsage(comparison);
+		comparison = this._snapshotTerminalParticipantUsage(comparison);
 		this._reportTerminalAttemptTelemetry(comparison);
+		this._reportStageTelemetry(comparison);
 		if (this._judgeStarting.has(comparison.id)
 			|| comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {
 			return;
@@ -346,7 +362,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (current && !current.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {
 				const harness = this._getJudgeHarness(current);
 				if (harness) {
-					this._replaceComparison({
+					const updated = {
 						...current,
 						participants: [...current.participants, {
 							id: generateUuid(),
@@ -354,16 +370,18 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 							harness,
 							launchError: error instanceof Error ? error.message : String(error),
 						}],
-					});
+					};
+					this._replaceComparison(updated);
+					this._checkComparison(updated);
 				}
 			}
 		}).finally(() => this._judgeStarting.delete(comparison.id));
 	}
 
-	private _snapshotTerminalAttemptUsage(comparison: ISessionComparison): ISessionComparison {
+	private _snapshotTerminalParticipantUsage(comparison: ISessionComparison): ISessionComparison {
 		let changed = false;
 		const participants = comparison.participants.map(participant => {
-			if (participant.role !== SessionComparisonParticipantRole.Attempt || participant.usage || !participant.sessionResource) {
+			if (participant.role === SessionComparisonParticipantRole.Coordinator || participant.usage || !participant.sessionResource) {
 				return participant;
 			}
 			const session = this.sessionsManagementService.getSession(participant.sessionResource);
@@ -453,6 +471,53 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 	}
 
+	private _reportStageTelemetry(comparison: ISessionComparison): void {
+		let changed = false;
+		for (const participant of comparison.participants) {
+			if (participant.role !== SessionComparisonParticipantRole.Judge && participant.role !== SessionComparisonParticipantRole.Synthesis) {
+				continue;
+			}
+			const key = `${comparison.id}/${participant.role}`;
+			if (this._reportedStageTelemetry.has(key)) {
+				continue;
+			}
+			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
+			const status = session?.status.get();
+			if (!participant.launchError && status !== SessionStatus.Completed && status !== SessionStatus.Error) {
+				continue;
+			}
+			if (participant.role === SessionComparisonParticipantRole.Judge && status === SessionStatus.Completed && !comparison.verdict) {
+				continue;
+			}
+			const winner = participant.role === SessionComparisonParticipantRole.Judge
+				? comparison.participants.find(candidate => candidate.id === comparison.verdict?.recommendedParticipantId)
+				: undefined;
+			const winnerSession = winner?.sessionResource ? this.sessionsManagementService.getSession(winner.sessionResource) : undefined;
+			logSessionComparisonStageCompleted(this.telemetryService, {
+				comparisonId: hashSessionIdForTelemetry(comparison.id),
+				agentSessionId: session?.sessionId,
+				stage: participant.role,
+				providerId: getSessionsTelemetryProviderId(participant.harness.providerId),
+				agentId: participant.harness.sessionTypeId,
+				modelId: session?.modelId.get() ?? participant.harness.modelId,
+				status: participant.launchError ? 'launchError' : status === SessionStatus.Completed ? 'completed' : 'error',
+				elapsedMs: session ? Math.max(0, session.updatedAt.get().getTime() - session.createdAt.getTime()) : undefined,
+				inputTokenCount: participant.usage?.inputTokens,
+				cachedInputTokenCount: participant.usage?.cachedTokens,
+				outputTokenCount: participant.usage?.outputTokens,
+				usageCompleteness: participant.usage ? participant.usage.isComplete ? 'complete' : 'partial' : 'unavailable',
+				winningProviderId: winner ? getSessionsTelemetryProviderId(winner.harness.providerId) : undefined,
+				winningAgentId: winner?.harness.sessionTypeId,
+				winningModelId: winnerSession?.modelId.get() ?? winner?.harness.modelId,
+			});
+			this._reportedStageTelemetry.add(key);
+			changed = true;
+		}
+		if (changed) {
+			this._saveTelemetryState();
+		}
+	}
+
 	private async _startJudge(comparison: ISessionComparison): Promise<void> {
 		const harness = this._getJudgeHarness(comparison);
 		if (!harness) {
@@ -488,7 +553,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			...(!session ? { launchError: localize('sessionComparison.judgeUnavailable', "The judge session did not start.") } : {}),
 		};
 		const current = this._requireComparison(comparison.id);
-		this._replaceComparison({ ...current, participants: [...current.participants, judge] });
+		const updated = { ...current, participants: [...current.participants, judge] };
+		this._replaceComparison(updated);
+		this._checkComparison(updated);
 	}
 
 	private async _getJudgePrompt(comparisonId: string): Promise<string> {
@@ -596,12 +663,15 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			return;
 		}
 		try {
-			const stored = JSON.parse(raw) as { readonly execution?: readonly string[]; readonly outcome?: readonly string[] };
+			const stored = JSON.parse(raw) as { readonly execution?: readonly string[]; readonly outcome?: readonly string[]; readonly stage?: readonly string[] };
 			for (const key of stored.execution ?? []) {
 				this._reportedExecutionTelemetry.add(key);
 			}
 			for (const key of stored.outcome ?? []) {
 				this._reportedOutcomeTelemetry.add(key);
+			}
+			for (const key of stored.stage ?? []) {
+				this._reportedStageTelemetry.add(key);
 			}
 		} catch (error) {
 			this.logService.error('[SessionComparisonService] Failed to restore comparison telemetry state.', error);
@@ -612,6 +682,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this.storageService.store(SessionComparisonService.TELEMETRY_STORAGE_KEY, JSON.stringify({
 			execution: [...this._reportedExecutionTelemetry],
 			outcome: [...this._reportedOutcomeTelemetry],
+			stage: [...this._reportedStageTelemetry],
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }

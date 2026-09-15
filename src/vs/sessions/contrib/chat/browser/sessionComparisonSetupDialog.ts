@@ -41,6 +41,7 @@ export interface ISessionComparisonSetupContext {
 	readonly workspace: URI;
 	readonly branch: string;
 	readonly branches: readonly string[];
+	readonly hasGitRemote?: boolean;
 	readonly renderWorkspacePicker: (container: HTMLElement) => IDisposable;
 	readonly onDidChangeWorkspace: Event<ISessionComparisonWorkspaceChange>;
 	readonly attachedContextCount: number;
@@ -52,6 +53,7 @@ export interface ISessionComparisonWorkspaceChange {
 	readonly workspace: URI;
 	readonly branch: string | undefined;
 	readonly branches: readonly string[];
+	readonly hasGitRemote?: boolean;
 	readonly defaultHarness: ISessionComparisonHarness | undefined;
 }
 
@@ -65,6 +67,16 @@ export interface ISessionComparisonSetupResult {
 
 function harnessKey(providerId: string, sessionTypeId: string): string {
 	return `${providerId}\0${sessionTypeId}`;
+}
+
+export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+	if (!branch) {
+		return localize('sessionComparisonSetup.gitRepositoryRequired', "Run and Compare Agents requires a Git repository with at least one commit.");
+	}
+	if (hasGitRemote === false) {
+		return localize('sessionComparisonSetup.gitRemoteRequired', "Comparisons require a Git remote.");
+	}
+	return undefined;
 }
 
 const SESSION_COMPARISON_DIALOG_WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
@@ -291,6 +303,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 		let workspace = context.workspace;
 		let branch: string | undefined = context.branch;
 		let branches = context.branches;
+		let hasGitRemote = context.hasGitRemote;
 		let judgeHarness = evaluatorState.judgeHarness;
 		let synthesisHarness = evaluatorState.synthesisHarness;
 		let evaluationExpanded = evaluatorState.expanded;
@@ -310,21 +323,21 @@ export class SessionComparisonSetupDialog extends Disposable {
 		const updateValidation = (): void => {
 			const count = attempts.length;
 			const hasPrompt = prompt.trim().length > 0;
-			const hasWorktreeBase = branch !== undefined;
+			const workspaceError = getSessionComparisonWorkspaceError(branch, hasGitRemote);
 			const hasHarnesses = getHarnesses().length > 0;
 			if (confirmButton) {
-				confirmButton.enabled = count >= 2 && hasPrompt && hasWorktreeBase && hasHarnesses;
+				confirmButton.enabled = count >= 2 && hasPrompt && !workspaceError && hasHarnesses;
 				confirmButton.label = localize('sessionComparisonSetup.runAttemptCount', "Run {0} attempts", count);
 			}
 			if (validationElement) {
-				validationElement.hidden = count >= 2 && hasPrompt && hasWorktreeBase && hasHarnesses;
-				validationElement.textContent = !hasWorktreeBase
-					? localize('sessionComparisonSetup.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.")
-					: !hasHarnesses
+				validationElement.hidden = count >= 2 && hasPrompt && !workspaceError && hasHarnesses;
+				validationElement.classList.toggle('error', workspaceError !== undefined);
+				validationElement.textContent = workspaceError
+					?? (!hasHarnesses
 						? localize('sessionComparisonSetup.noAvailableAgents', "No agents that support worktree isolation are available.")
 						: count < 2
 							? localize('sessionComparisonSetup.minimumSelection', "Add at least two attempts.")
-							: hasPrompt ? '' : localize('sessionComparisonSetup.promptRequired', "Enter a prompt to run the attempts.");
+							: hasPrompt ? '' : localize('sessionComparisonSetup.promptRequired', "Enter a prompt to run the attempts."));
 			}
 		};
 
@@ -440,13 +453,10 @@ export class SessionComparisonSetupDialog extends Disposable {
 				bulkPermissionCheckbox.domNode.setAttribute('aria-checked', String(checked));
 			};
 			rowsDisposables.add(bulkPermissionCheckbox.onChange(() => {
-				const selectPermission = (harness: ISessionComparisonHarness): ISessionComparisonHarness => {
-					const options = getPermissionOptions(harness);
-					const permission = options.find(option => (bulkPermissionCheckbox.checked === true ? option.isAllowAll : option.isDefault) && !option.locked);
-					return permission ? applyPermission(harness, permission) : harness;
-				};
-				attempts = attempts.map(attempt => ({ ...attempt, harness: selectPermission(attempt.harness) }));
-				judgeHarness = selectPermission(judgeHarness);
+				const selection = this._applyBulkPermissionSelection(attempts, judgeHarness, synthesisHarness, bulkPermissionCheckbox.checked === true);
+				attempts = [...selection.attempts];
+				judgeHarness = selection.judgeHarness;
+				synthesisHarness = selection.synthesisHarness;
 				renderRows();
 			}));
 
@@ -903,6 +913,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			workspace = change.workspace;
 			branch = change.branch;
 			branches = change.branches;
+			hasGitRemote = change.hasGitRemote;
 			if (change.defaultHarness) {
 				attempts = [
 					{ id: generateUuid(), harness: change.defaultHarness },
@@ -988,6 +999,32 @@ export class SessionComparisonSetupDialog extends Disposable {
 		return defaults?.judgeHarness && defaults.synthesisHarness
 			? { judgeHarness: defaults.judgeHarness, synthesisHarness: defaults.synthesisHarness }
 			: undefined;
+	}
+
+	private _applyBulkPermissionSelection(
+		attempts: readonly ISessionComparisonAttemptConfiguration[],
+		judgeHarness: ISessionComparisonHarness,
+		synthesisHarness: ISessionComparisonHarness,
+		allowAll: boolean,
+	): {
+		readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
+		readonly judgeHarness: ISessionComparisonHarness;
+		readonly synthesisHarness: ISessionComparisonHarness;
+	} {
+		const selectPermission = (harness: ISessionComparisonHarness): ISessionComparisonHarness => {
+			const options = this.sessionsProvidersService.getProvider(harness.providerId)?.getPermissionOptionsForCreation?.(harness.sessionTypeId) ?? [];
+			const permission = options.find(option => (allowAll ? option.isAllowAll : option.isDefault) && !option.locked);
+			return permission ? {
+				...harness,
+				permissionId: permission.id,
+				permissionLabel: permission.label,
+			} : harness;
+		};
+		return {
+			attempts: attempts.map(attempt => ({ ...attempt, harness: selectPermission(attempt.harness) })),
+			judgeHarness: selectPermission(judgeHarness),
+			synthesisHarness: selectPermission(synthesisHarness),
+		};
 	}
 
 	private _getInitialEvaluatorState(initialJudgeHarness: ISessionComparisonHarness, initialSynthesisHarness: ISessionComparisonHarness, useSavedDefaults: boolean) {

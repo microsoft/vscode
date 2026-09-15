@@ -64,6 +64,10 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.session-comparison-setup-validation.error {
+	color: var(--vscode-errorForeground);
+}
+
 .session-comparison-setup-section-title {
 	margin: 0 0 var(--vscode-spacing-size60);
 	font-size: var(--vscode-fontSize-body1);

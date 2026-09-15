@@ -55,42 +55,100 @@
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
 
+.session-comparison-result-actions > .monaco-button,
+.session-comparison-synthesis-plan-actions > .monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+}
+
 .session-comparison-synthesis-plan {
 	margin-top: var(--vscode-spacing-size120);
 	padding-top: var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
 
-.session-comparison-synthesis-plan-summary {
-	cursor: pointer;
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.session-comparison-synthesis-plan-description,
-.session-comparison-synthesis-section-description {
+.session-comparison-synthesis-plan-description {
 	margin: var(--vscode-spacing-size80) 0 0;
 }
 
-.session-comparison-synthesis-section {
+.session-comparison-synthesis-table-scroll {
+	overflow-x: auto;
 	margin-top: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size120);
+}
+
+.session-comparison-synthesis-table {
+	width: max-content;
+	min-width: 100%;
+	border-collapse: collapse;
+}
+
+.session-comparison-synthesis-table th,
+.session-comparison-synthesis-table td {
+	min-width: 12rem;
+	padding: var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	text-align: left;
+	vertical-align: top;
+}
+
+.session-comparison-synthesis-table th {
 	background: var(--vscode-sideBar-background);
 }
 
-.session-comparison-synthesis-section-title {
-	margin: 0;
-	font-size: var(--vscode-fontSize-body1);
+.session-comparison-synthesis-decision {
+	width: 14rem;
+}
+
+.session-comparison-synthesis-decision-title {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-comparison-synthesis-section-select {
-	margin-top: var(--vscode-spacing-size120);
+.session-comparison-synthesis-decision-description,
+.session-comparison-synthesis-decision-files,
+.session-comparison-synthesis-assessment {
+	margin-top: var(--vscode-spacing-size60);
 }
 
-.session-comparison-synthesis-section-select .monaco-select-box {
-	width: 100%;
+.session-comparison-synthesis-decision-description,
+.session-comparison-synthesis-decision-files,
+.session-comparison-synthesis-unavailable {
+	color: var(--vscode-descriptionForeground);
+	font-weight: normal;
+}
+
+.session-comparison-synthesis-decision-files {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.session-comparison-synthesis-approach {
+	min-height: 3em;
+}
+
+.session-comparison-synthesis-assessment {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-synthesis-assessment.better {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.session-comparison-synthesis-assessment.worse {
+	color: var(--vscode-testing-iconFailed);
+}
+
+.session-comparison-synthesis-assessment.neutral {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-synthesis-table .monaco-button {
+	width: auto;
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.session-comparison-synthesis-table .monaco-button.selected {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
 }
 
 .session-comparison-synthesis-plan-actions {

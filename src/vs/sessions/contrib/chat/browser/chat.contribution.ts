@@ -414,7 +414,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Execute Parallel Agents action is shown in eligible new-session agent pickers."),
+			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Run and Compare Agents action is shown in eligible new-session agent pickers."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

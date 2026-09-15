@@ -352,7 +352,7 @@ suite('SessionTypePicker', () => {
 		const picker = createPicker(disposables, session, management, storage, {
 			additionalAction: {
 				id: 'test.runMultiple',
-				label: 'Execute Parallel Agents...',
+				label: 'Run and Compare Agents...',
 				description: 'Run isolated attempts, then compare them.',
 				icon: Codicon.diffMultiple,
 				infoAction,
@@ -384,7 +384,7 @@ suite('SessionTypePicker', () => {
 			items: [
 				{ kind: ActionListItemKind.Action, label: 'Copilot', icon: 'terminal', toolbarActions: undefined },
 				{ kind: ActionListItemKind.Separator, label: '', icon: undefined, toolbarActions: undefined },
-				{ kind: ActionListItemKind.Action, label: 'Execute Parallel Agents...', icon: 'diff-multiple', toolbarActions: ['test.info'] },
+				{ kind: ActionListItemKind.Action, label: 'Run and Compare Agents...', icon: 'diff-multiple', toolbarActions: ['test.info'] },
 			],
 			runCount: 1,
 			selected: { providerId: 'copilot', sessionTypeId: 'cloud' },

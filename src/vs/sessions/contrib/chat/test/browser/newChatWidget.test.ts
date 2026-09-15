@@ -1423,6 +1423,41 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
+	test('hides comparison action when selected repository has no Git remote', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: false,
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_session: constObservable(session),
+			_workspacePicker: { selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
 	test('uses the workspace branch while Agent Host creation config is unresolved', () => {
 		const workspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
@@ -1707,7 +1742,68 @@ suite('NewChatWidget', () => {
 
 		assert.deepStrictEqual({ result, errors, startCount }, {
 			result: false,
-			errors: ['Comparisons require a Git repository with at least one commit.'],
+			errors: ['Run and Compare Agents requires a Git repository with at least one commit.'],
+			startCount: 0,
+		});
+	});
+
+	test('rejects comparisons when the selected repository has no Git remote', async () => {
+		const workspace = URI.file('/workspace');
+		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: workspace,
+				workingDirectory: workspace,
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: false,
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			workspace: constObservable(sessionWorkspace),
+			branch: constObservable('main'),
+		});
+		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
+			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+		];
+		const errors: unknown[] = [];
+		let startCount = 0;
+
+		const result = await send.call({
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable(attempts),
+			_comparisonBranch: constObservable('main'),
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				sendNewChatRequest: async () => { },
+			},
+			sessionComparisonService: {
+				startComparison: async () => {
+					startCount++;
+					return { id: 'comparison', participants: [] };
+				},
+			},
+			notificationService: { error: error => errors.push(error) },
+			logService: { error: () => { } },
+			_getComparisonBranch: () => 'main',
+			_getWorkspaceRoots: () => [],
+		}, 'compare implementations');
+
+		assert.deepStrictEqual({ result, errors, startCount }, {
+			result: false,
+			errors: ['Comparisons require a Git remote.'],
 			startCount: 0,
 		});
 	});

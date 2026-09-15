@@ -138,6 +138,7 @@ export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolea
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
 export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
 export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
+export const SessionGroupIsComparisonContext = new RawContextKey<boolean>('sessionGroup.isComparison', false);
 
 //#region Types
 
@@ -1764,6 +1765,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 		SessionGroupHasVisibleSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
 		SessionGroupIsEmptyContext.bindTo(template.contextKeyService).set(element.isEmpty);
+		SessionGroupIsComparisonContext.bindTo(template.contextKeyService).set(isComparison);
 
 		template.container.classList.toggle('session-group-editing', element.editing);
 		if (element.editing) {
@@ -3977,6 +3979,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * Archived (Done) sessions are ignored.
 	 */
 	createGroupFromSessions(sessions: ISession[]): void {
+		if (sessions.some(session => this.sessionComparisonService.getComparisonForSession(session.resource))) {
+			return;
+		}
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
 		if (groupSessions.length === 0) {
 			return;
@@ -4008,7 +4013,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Begin inline renaming of the group's header. */
 	beginRenameGroup(groupId: string): void {
-		if (!this._sessionGroupsService.getGroup(groupId)) {
+		if (!this._sessionGroupsService.getGroup(groupId) || this.isComparisonGroup(groupId)) {
 			return;
 		}
 		this._editingGroupId = groupId;
@@ -4016,6 +4021,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {
+		if (this.isComparisonGroup(groupId) || sessions.some(session => this.sessionComparisonService.getComparisonForSession(session.resource))) {
+			return;
+		}
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
 		this._sessionsListModelService.unpinSessions(groupSessions);
 		this._sessionGroupsService.addToGroup(groupSessions.map(s => s.sessionId), groupId);
@@ -4030,6 +4038,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * of that section.
 	 */
 	private removeSessionsFromGroup(sessions: ISession[], target?: ISession, position?: 'before' | 'after'): void {
+		if (sessions.some(session => this.sessionComparisonService.getComparisonForSession(session.resource))) {
+			return;
+		}
 		const groupedSessions = sessions.filter(session => this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined);
 		if (groupedSessions.length === 0) {
 			return;
@@ -4248,7 +4259,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private getGroupSessionActions(selected: ISession[]): IAction[] {
 		const actions: IAction[] = [];
-		if (selected.some(session => session.isArchived.get())) {
+		if (selected.some(session => session.isArchived.get() || this.sessionComparisonService.getComparisonForSession(session.resource))) {
 			return actions;
 		}
 
@@ -4335,20 +4346,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return this.sessions.filter(session => sessionIds.has(session.sessionId));
 			}), new Separator());
 		}
-		actions.push(
-			this.getCreateGroupAction(),
-			new Separator(),
-			toAction({
-				id: 'sessions.renameGroupAction',
-				label: localize('renameGroupAction', "Rename..."),
-				run: () => this.beginRenameGroup(groupItem.group.id),
-			}),
-			toAction({
-				id: 'sessions.deleteGroupAction',
-				label: localize('deleteGroupAction', "Delete Group"),
-				run: () => this._sessionGroupsService.deleteGroup(groupItem.group.id),
-			}),
-		);
+		actions.push(this.getCreateGroupAction());
+		if (!groupItem.comparison) {
+			actions.push(
+				new Separator(),
+				toAction({
+					id: 'sessions.renameGroupAction',
+					label: localize('renameGroupAction', "Rename..."),
+					run: () => this.beginRenameGroup(groupItem.group.id),
+				}),
+				toAction({
+					id: 'sessions.deleteGroupAction',
+					label: localize('deleteGroupAction', "Delete Group"),
+					run: () => this._sessionGroupsService.deleteGroup(groupItem.group.id),
+				}),
+			);
+		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => anchor,
@@ -4393,6 +4406,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isRenderedInCustomGroup(session: ISession): boolean {
 		return this.getRenderedSessionGroup(session) !== undefined;
+	}
+
+	private isComparisonGroup(groupId: string): boolean {
+		return this.sessionComparisonService.comparisons.get().some(comparison => comparison.groupId === groupId);
 	}
 
 	private shouldShowComparisonAttemptStatus(session: ISession, reader: IReader): boolean {

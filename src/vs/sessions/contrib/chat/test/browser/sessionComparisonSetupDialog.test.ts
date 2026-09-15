@@ -9,8 +9,8 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { SessionComparisonDialogResizeController, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
-import { ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonWorkspaceError, SessionComparisonDialogResizeController, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
+import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
 
 const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
 const HEIGHT_STORAGE_KEY = 'sessions.comparisonSetupDialog.height';
@@ -79,7 +79,7 @@ suite('SessionComparisonDialogResizeController', () => {
 		});
 	});
 
-	suite('evaluator defaults', () => {
+	suite('setup behavior', () => {
 		const saveDefaults = Reflect.get(SessionComparisonSetupDialog.prototype, '_saveEvaluatorDefaults') as (this: object, judgeHarness: ISessionComparisonHarness, synthesisHarness: ISessionComparisonHarness) => void;
 		const clearDefaults = Reflect.get(SessionComparisonSetupDialog.prototype, '_clearEvaluatorDefaults') as (this: object) => void;
 		const getInitialState = Reflect.get(SessionComparisonSetupDialog.prototype, '_getInitialEvaluatorState') as (this: object, judgeHarness: ISessionComparisonHarness, synthesisHarness: ISessionComparisonHarness, useSavedDefaults: boolean) => {
@@ -115,6 +115,60 @@ suite('SessionComparisonDialogResizeController', () => {
 				synthesisHarness: savedSynthesis,
 				expanded: false,
 				userKeys: ['sessions.comparisonSetupDialog.evaluatorDefaults'],
+			});
+		});
+
+		test('applies and clears bulk permissions for attempts and evaluators', () => {
+			const applyBulkPermissionSelection = Reflect.get(SessionComparisonSetupDialog.prototype, '_applyBulkPermissionSelection') as (
+				this: object,
+				attempts: readonly ISessionComparisonAttemptConfiguration[],
+				judgeHarness: ISessionComparisonHarness,
+				synthesisHarness: ISessionComparisonHarness,
+				allowAll: boolean,
+			) => {
+				readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
+				readonly judgeHarness: ISessionComparisonHarness;
+				readonly synthesisHarness: ISessionComparisonHarness;
+			};
+			const dialog = Object.create(SessionComparisonSetupDialog.prototype);
+			Reflect.set(dialog, 'sessionsProvidersService', {
+				getProvider: () => ({
+					getPermissionOptionsForCreation: () => [
+						{ id: 'default', label: 'Default', description: 'Default permissions', isDefault: true },
+						{ id: 'allowAll', label: 'Allow All', description: 'Allow all permissions', isAllowAll: true },
+					],
+				}),
+			});
+			const attempts = [
+				{ id: 'one', harness: { providerId: 'provider', sessionTypeId: 'one', label: 'One', permissionId: 'default', permissionLabel: 'Default' } },
+				{ id: 'two', harness: { providerId: 'provider', sessionTypeId: 'two', label: 'Two', permissionId: 'default', permissionLabel: 'Default' } },
+			];
+			const judgeHarness = { providerId: 'provider', sessionTypeId: 'judge', label: 'Judge', permissionId: 'default', permissionLabel: 'Default' };
+			const synthesisHarness = { providerId: 'provider', sessionTypeId: 'synthesis', label: 'Synthesizer', permissionId: 'default', permissionLabel: 'Default' };
+
+			const allowed = applyBulkPermissionSelection.call(dialog, attempts, judgeHarness, synthesisHarness, true);
+			const defaults = applyBulkPermissionSelection.call(dialog, allowed.attempts, allowed.judgeHarness, allowed.synthesisHarness, false);
+
+			assert.deepStrictEqual({
+				allowed: [...allowed.attempts.map(attempt => attempt.harness.permissionId), allowed.judgeHarness.permissionId, allowed.synthesisHarness.permissionId],
+				defaults: [...defaults.attempts.map(attempt => attempt.harness.permissionId), defaults.judgeHarness.permissionId, defaults.synthesisHarness.permissionId],
+			}, {
+				allowed: ['allowAll', 'allowAll', 'allowAll', 'allowAll'],
+				defaults: ['default', 'default', 'default', 'default'],
+			});
+		});
+
+		test('requires a Git remote after resolving the repository', () => {
+			assert.deepStrictEqual({
+				noRepository: getSessionComparisonWorkspaceError(undefined, false),
+				noRemote: getSessionComparisonWorkspaceError('main', false),
+				unknownRemote: getSessionComparisonWorkspaceError('main', undefined),
+				ready: getSessionComparisonWorkspaceError('main', true),
+			}, {
+				noRepository: 'Run and Compare Agents requires a Git repository with at least one commit.',
+				noRemote: 'Comparisons require a Git remote.',
+				unknownRemote: undefined,
+				ready: undefined,
 			});
 		});
 

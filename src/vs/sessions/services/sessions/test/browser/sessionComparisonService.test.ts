@@ -22,7 +22,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatInteractivity, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { ISessionGroup, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -201,18 +201,25 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
-	test('reports terminal usage and Judge outcomes once per attempt', async () => {
+	test('reports terminal usage, Judge outcomes, and the winning harness once', async () => {
 		const { service, sessionsManagementService, chatService, telemetryService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
 		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		const judgeStatus = observableValue('judgeStatus', SessionStatus.InProgress);
 		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
 		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
-		sessionsManagementService.enqueue(stubSession('judge'));
+		sessionsManagementService.enqueue(stubSession('judge', judgeStatus));
 		chatService.setUsage(URI.parse('test-chat:/attempt-one'), [{
 			kind: 'usage',
 			promptTokens: 10,
 			completionTokens: 2,
 			modelTotals: [{ model: 'Claude', inputTokens: 30, cachedTokens: 12, outputTokens: 8 }],
+		}]);
+		chatService.setUsage(URI.parse('test-chat:/judge'), [{
+			kind: 'usage',
+			promptTokens: 20,
+			completionTokens: 5,
+			modelTotals: [{ model: 'judge-model', inputTokens: 40, cachedTokens: 4, outputTokens: 9 }],
 		}]);
 
 		const comparison = await service.startComparison(startOptions());
@@ -223,19 +230,59 @@ suite('SessionComparisonService', () => {
 		const comparisonVerdict = verdict('attempt-two', ['attempt-one', 'attempt-two']);
 		service.submitVerdict(comparison.id, comparisonVerdict);
 		service.submitVerdict(comparison.id, comparisonVerdict);
+		judgeStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
 
-		assert.deepStrictEqual(telemetryService.events.map(event => ({
-			name: event.name,
-			attemptIndex: event.data.attemptIndex,
-			status: event.data.status,
-			recommended: event.data.recommended,
-			inputTokenCount: event.data.inputTokenCount,
-		})), [
-			{ name: 'agents/sessionComparisonAttemptCompleted', attemptIndex: 0, status: 'completed', recommended: undefined, inputTokenCount: 30 },
-			{ name: 'agents/sessionComparisonAttemptCompleted', attemptIndex: 1, status: 'error', recommended: undefined, inputTokenCount: undefined },
-			{ name: 'agents/sessionComparisonAttemptJudged', attemptIndex: 0, status: undefined, recommended: false, inputTokenCount: undefined },
-			{ name: 'agents/sessionComparisonAttemptJudged', attemptIndex: 1, status: undefined, recommended: true, inputTokenCount: undefined },
-		]);
+		const attemptEvents = telemetryService.events.filter(event => event.name !== 'agents/sessionComparisonStageCompleted');
+		const judgeTelemetry = telemetryService.events.find(event => event.data.stage === 'judge')?.data;
+		assert.deepStrictEqual({
+			attemptEvents: attemptEvents.map(event => ({
+				name: event.name,
+				attemptIndex: event.data.attemptIndex,
+				status: event.data.status,
+				recommended: event.data.recommended,
+				inputTokenCount: event.data.inputTokenCount,
+			})),
+			judge: judgeTelemetry && {
+				hasComparisonId: typeof judgeTelemetry.comparisonId === 'string',
+				agentSessionId: judgeTelemetry.agentSessionId,
+				stage: judgeTelemetry.stage,
+				providerId: judgeTelemetry.providerId,
+				agentId: judgeTelemetry.agentId,
+				modelId: judgeTelemetry.modelId,
+				status: judgeTelemetry.status,
+				inputTokenCount: judgeTelemetry.inputTokenCount,
+				cachedInputTokenCount: judgeTelemetry.cachedInputTokenCount,
+				outputTokenCount: judgeTelemetry.outputTokenCount,
+				usageCompleteness: judgeTelemetry.usageCompleteness,
+				winningProviderId: judgeTelemetry.winningProviderId,
+				winningAgentId: judgeTelemetry.winningAgentId,
+				winningModelId: judgeTelemetry.winningModelId,
+			},
+		}, {
+			attemptEvents: [
+				{ name: 'agents/sessionComparisonAttemptCompleted', attemptIndex: 0, status: 'completed', recommended: undefined, inputTokenCount: 30 },
+				{ name: 'agents/sessionComparisonAttemptCompleted', attemptIndex: 1, status: 'error', recommended: undefined, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptJudged', attemptIndex: 0, status: undefined, recommended: false, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptJudged', attemptIndex: 1, status: undefined, recommended: true, inputTokenCount: undefined },
+			],
+			judge: {
+				hasComparisonId: true,
+				agentSessionId: 'judge',
+				stage: 'judge',
+				providerId: 'other',
+				agentId: 'judge-type',
+				modelId: 'judge-model',
+				status: 'completed',
+				inputTokenCount: 40,
+				cachedInputTokenCount: 4,
+				outputTokenCount: 9,
+				usageCompleteness: 'complete',
+				winningProviderId: 'other',
+				winningAgentId: 'type-two',
+				winningModelId: 'model-two',
+			},
+		});
 	});
 
 	test('passes provider-local models to their harnesses', async () => {
@@ -499,10 +546,17 @@ suite('SessionComparisonService', () => {
 	});
 
 	test('synthesizes only after an explicit request with the configured harness', async () => {
-		const { service, sessionsManagementService } = createServices();
+		const { service, sessionsManagementService, chatService, telemetryService } = createServices();
+		const synthesisStatus = observableValue('synthesisStatus', SessionStatus.InProgress);
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
-		sessionsManagementService.enqueue(stubSession('synthesis'));
+		sessionsManagementService.enqueue(stubSession('synthesis', synthesisStatus));
+		chatService.setUsage(URI.parse('test-chat:/synthesis'), [{
+			kind: 'usage',
+			promptTokens: 30,
+			completionTokens: 10,
+			modelTotals: [{ model: 'synthesis-model', inputTokens: 55, cachedTokens: 5, outputTokens: 13 }],
+		}]);
 
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
@@ -522,8 +576,11 @@ suite('SessionComparisonService', () => {
 		});
 		assert.strictEqual(sessionsManagementService.createCalls.length, 2);
 		await service.synthesize(comparison.id);
+		synthesisStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
 
 		const current = service.getComparison(comparison.id);
+		const synthesisTelemetry = telemetryService.events.find(event => event.data.stage === 'synthesis')?.data;
 		assert.deepStrictEqual({
 			synthesisResource: current?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis)?.sessionResource?.toString(),
 			providerId: sessionsManagementService.createCalls[2].createOptions?.providerId,
@@ -531,6 +588,19 @@ suite('SessionComparisonService', () => {
 			modelId: sessionsManagementService.createCalls[2].createOptions?.modelId,
 			prompt: sessionsManagementService.createCalls[2].options.query,
 			plan: current?.synthesisPlan,
+			telemetry: synthesisTelemetry && {
+				hasComparisonId: typeof synthesisTelemetry.comparisonId === 'string',
+				agentSessionId: synthesisTelemetry.agentSessionId,
+				stage: synthesisTelemetry.stage,
+				providerId: synthesisTelemetry.providerId,
+				agentId: synthesisTelemetry.agentId,
+				modelId: synthesisTelemetry.modelId,
+				status: synthesisTelemetry.status,
+				inputTokenCount: synthesisTelemetry.inputTokenCount,
+				cachedInputTokenCount: synthesisTelemetry.cachedInputTokenCount,
+				outputTokenCount: synthesisTelemetry.outputTokenCount,
+				usageCompleteness: synthesisTelemetry.usageCompleteness,
+			},
 		}, {
 			synthesisResource: 'test:/synthesis',
 			providerId: 'synthesis-provider',
@@ -539,6 +609,19 @@ suite('SessionComparisonService', () => {
 			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. If the manifest includes a synthesisPlan, treat every selected section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nAttempt two is stronger.`,
 			plan: {
 				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
+			},
+			telemetry: {
+				hasComparisonId: true,
+				agentSessionId: 'synthesis',
+				stage: 'synthesis',
+				providerId: 'other',
+				agentId: 'synthesis-type',
+				modelId: 'synthesis-model',
+				status: 'completed',
+				inputTokenCount: 55,
+				cachedInputTokenCount: 5,
+				outputTokenCount: 13,
+				usageCompleteness: 'complete',
 			},
 		});
 	});
@@ -549,6 +632,26 @@ suite('SessionComparisonService', () => {
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		let invalidAssessments: string | undefined;
+		try {
+			service.submitVerdict(comparison.id, {
+				...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
+				decisionSections: [{
+					id: 'tests',
+					title: 'Test strategy',
+					description: 'Choose the preferred coverage structure.',
+					affectedFiles: ['test/parser.test.ts'],
+					options: attempts.map(attempt => ({
+						participantId: attempt.id,
+						approach: attempt.harness.label,
+						assessment: SessionComparisonDecisionAssessment.Neutral,
+					})),
+					recommendedParticipantId: attempts[1].id,
+				}],
+			});
+		} catch (error) {
+			invalidAssessments = error instanceof Error ? error.message : String(error);
+		}
 		service.submitVerdict(comparison.id, {
 			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
 			decisionSections: [{
@@ -582,12 +685,14 @@ suite('SessionComparisonService', () => {
 			live: service.getComparison(comparison.id)?.synthesisPlan,
 			stored: stored[0].synthesisPlan,
 			restored,
+			invalidAssessments,
 			unknownSection,
 			unknownAttempt,
 		}, {
 			live: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
 			stored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
 			restored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
+			invalidAssessments: 'The comparison verdict contains an invalid synthesis decision section.',
 			unknownSection: 'The synthesis plan contains an invalid section selection.',
 			unknownAttempt: 'The synthesis plan contains an invalid section selection.',
 		});

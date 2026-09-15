@@ -17,10 +17,11 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
@@ -34,33 +35,6 @@ class TestContextMenuService extends mock<IContextMenuService>() {
 
 	override showContextMenu(delegate: IContextMenuDelegate): void {
 		this.delegate = delegate;
-	}
-}
-
-class TestSessionGroupsService extends mock<ISessionGroupsService>() {
-	override readonly onDidChange = Event.None;
-
-	constructor(
-		private readonly groups: readonly ISessionGroup[],
-		private readonly membership: ReadonlyMap<string, string>,
-	) {
-		super();
-	}
-
-	override getGroups(): ISessionGroup[] {
-		return [...this.groups];
-	}
-
-	override getGroup(groupId: string): ISessionGroup | undefined {
-		return this.groups.find(group => group.id === groupId);
-	}
-
-	override getGroupOfSession(sessionId: string): string | undefined {
-		return this.membership.get(sessionId);
-	}
-
-	override getSessionIdsInGroup(groupId: string): string[] {
-		return [...this.membership].filter(([, id]) => id === groupId).map(([sessionId]) => sessionId);
 	}
 }
 
@@ -81,32 +55,45 @@ suite('Sessions list context menus', () => {
 	const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
 	const targetGroup: ISessionGroup = { id: 'target', name: 'Target', createdAt: 2 };
 
-	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session]) {
+	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], isComparison = false) {
 		const contextMenuService = new TestContextMenuService();
 		let menuDisposed = false;
-		const harness = createListHarness(disposables, sessions, instantiationService => {
-			const contextKeyService = instantiationService.get(IContextKeyService);
-			const commandService = instantiationService.get(ICommandService);
-			instantiationService.stub(IContextMenuService, contextMenuService);
-			instantiationService.stub(ISessionGroupsService, new TestSessionGroupsService(
-				[group, targetGroup],
-				grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
-			));
-			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-				override createMenu(): IMenu {
-					const disposable = toDisposable(() => menuDisposed = true);
-					const extensionAction = new MenuItemAction({
-						id: 'extension.action',
-						title: 'Extension Action',
-						source: { id: 'test.extension', title: 'Test Extension' },
-					}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
-					return {
-						onDidChange: Event.None,
-						getActions: () => includeExtensionAction ? [['extension', [extensionAction]]] : [],
-						dispose: () => disposable.dispose(),
-					};
-				}
-			});
+		const comparisons: readonly ISessionComparison[] = isComparison ? [{
+			id: 'comparison',
+			groupId: group.id,
+			title: 'Comparison',
+			createdAt: 1,
+			workspace: URI.file('/workspace'),
+			prompt: 'Implement',
+			participants: sessions.map((session, index) => ({
+				id: `attempt-${index}`,
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent' },
+				sessionResource: session.resource,
+			})),
+		}] : [];
+		const harness = createListHarness(disposables, sessions, {
+			groups: [group, targetGroup],
+			memberships: grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
+			comparisons,
+		});
+		const contextKeyService = harness.instantiationService.get(IContextKeyService);
+		const commandService = harness.instantiationService.get(ICommandService);
+		harness.instantiationService.stub(IContextMenuService, contextMenuService);
+		harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				const disposable = toDisposable(() => menuDisposed = true);
+				const extensionAction = new MenuItemAction({
+					id: 'extension.action',
+					title: 'Extension Action',
+					source: { id: 'test.extension', title: 'Test Extension' },
+				}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
+				return {
+					onDidChange: Event.None,
+					getActions: () => includeExtensionAction ? [['extension', [extensionAction]]] : [],
+					dispose: () => disposable.dispose(),
+				};
+			}
 		});
 		const container = harness.createContainer();
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -166,6 +153,32 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
 			ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
+		});
+	});
+
+	test('comparison groups and participants hide membership mutation actions', () => {
+		const session = createSession('Attempt').session;
+		const { container, contextMenuService } = createList(true, true, SessionsGrouping.Date, [session], true);
+		const sessionRow = container.querySelector<HTMLElement>('.session-item');
+		const groupHeader = container.querySelector<HTMLElement>('.session-comparison-group');
+		assert.ok(sessionRow);
+		assert.ok(groupHeader);
+
+		dispatchContextMenu(sessionRow);
+		const sessionActions = snapshotActions(contextMenuService.delegate!.getActions());
+		contextMenuService.delegate!.onHide?.(false);
+		dispatchContextMenu(groupHeader);
+		const groupActions = snapshotActions(contextMenuService.delegate!.getActions());
+
+		assert.deepStrictEqual({ sessionActions, groupActions }, {
+			sessionActions: {
+				ids: ['extension.action'],
+				disposableIds: [],
+			},
+			groupActions: {
+				ids: ['sessions.createGroup'],
+				disposableIds: [],
+			},
 		});
 	});
 

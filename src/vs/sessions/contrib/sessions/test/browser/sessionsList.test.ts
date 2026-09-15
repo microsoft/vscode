@@ -2056,7 +2056,7 @@ suite('Sessions - SessionsList', () => {
 			return { attempt1, attempt2, judge, synthesis, container, harness };
 		}
 
-		test('renders Judge and synthesis before connected compact attempts', () => {
+		test('renders synthesis and Judge before connected compact attempts', () => {
 			const { attempt1, attempt2, container } = renderComparison();
 			const parent = container.querySelector<HTMLElement>('.session-comparison-group');
 			const attempts = [...container.querySelectorAll<HTMLElement>('.session-comparison-attempt')];
@@ -2096,7 +2096,7 @@ suite('Sessions - SessionsList', () => {
 					layersIcon: true,
 					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
 				},
-				order: ['Judge', 'Synthesis', 'Copilot · Claude Opus 5', 'Codex · GPT-5'],
+				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5', 'Codex · GPT-5'],
 				attempts: [
 					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
 					{ title: 'Codex · GPT-5', ariaLabel: 'Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },

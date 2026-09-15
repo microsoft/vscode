@@ -81,6 +81,14 @@ export interface ISessionComparisonAttemptVerdict {
 export interface ISessionComparisonDecisionOption {
 	readonly participantId: string;
 	readonly approach: string;
+	/** Undefined for verdicts persisted before decision assessments were introduced. */
+	readonly assessment?: SessionComparisonDecisionAssessment;
+}
+
+export const enum SessionComparisonDecisionAssessment {
+	Better = 'better',
+	Neutral = 'neutral',
+	Worse = 'worse',
 }
 
 export interface ISessionComparisonDecisionSection {
@@ -174,9 +182,9 @@ export function getSessionComparisonHarnessDisplayLabel(harness: ISessionCompari
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {
 	const rolePriority = (role: SessionComparisonParticipantRole): number => {
 		switch (role) {
-			case SessionComparisonParticipantRole.Judge:
-				return 0;
 			case SessionComparisonParticipantRole.Synthesis:
+				return 0;
+			case SessionComparisonParticipantRole.Judge:
 				return 1;
 			case SessionComparisonParticipantRole.Attempt:
 				return 2;
