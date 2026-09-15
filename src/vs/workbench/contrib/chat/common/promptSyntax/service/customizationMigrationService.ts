@@ -17,6 +17,7 @@ export const ICustomizationMigrationService = createDecorator<ICustomizationMigr
 export enum CustomizationMigrationType {
 	UserData = 'userData',
 	PromptFiles = 'promptFiles',
+	AgentFiles = 'agentFiles',
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 }
@@ -25,6 +26,7 @@ export function getCustomizationMigrationEnablementSetting(type: CustomizationMi
 	switch (type) {
 		case CustomizationMigrationType.UserData: return ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled;
 		case CustomizationMigrationType.PromptFiles: return ChatConfiguration.ChatCustomizationsPromptMigrationEnabled;
+		case CustomizationMigrationType.AgentFiles: return ChatConfiguration.ChatCustomizationsAgentFilesMigrationEnabled;
 		case CustomizationMigrationType.ConfiguredLocations: return ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled;
 		case CustomizationMigrationType.McpServers: return ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled;
 	}
@@ -34,6 +36,7 @@ export interface MigratableConfiguration {
 	readonly uri: URI;
 	readonly type: PromptsType;
 	readonly storage: PromptsStorage;
+	readonly hasLocalHandoffs?: boolean;
 	readonly name?: string;
 	readonly description?: string;
 	readonly source?: PromptFileSource;
@@ -58,7 +61,14 @@ export function isConfiguredLocationMigrationCandidate(customization: Migratable
 		&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions || customization.type === PromptsType.skill);
 }
 
-export type FileCustomizationMigrationType = CustomizationMigrationType.UserData | CustomizationMigrationType.PromptFiles | CustomizationMigrationType.ConfiguredLocations;
+export function isAgentFileMigrationCandidate(customization: MigratableConfiguration): boolean {
+	return customization.type === PromptsType.agent
+		&& customization.hasLocalHandoffs === true
+		&& !isUserDataMigrationCandidate(customization)
+		&& (customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
+}
+
+export type FileCustomizationMigrationType = CustomizationMigrationType.UserData | CustomizationMigrationType.PromptFiles | CustomizationMigrationType.AgentFiles | CustomizationMigrationType.ConfiguredLocations;
 
 export interface FileCustomizationMigration {
 	readonly type: FileCustomizationMigrationType;

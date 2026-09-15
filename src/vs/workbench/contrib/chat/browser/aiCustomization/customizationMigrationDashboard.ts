@@ -54,7 +54,7 @@ export interface ICustomizationMigrationDashboardActivity {
 		readonly label: string;
 		readonly sourceLabel: string;
 		readonly targetLabel: string;
-		readonly operation: 'converted' | 'moved' | 'copied' | 'server';
+		readonly operation: 'converted' | 'moved' | 'copied' | 'updated' | 'server';
 	}[];
 }
 
@@ -294,7 +294,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				DOM.append(itemHeader, $('strong', {}, item.label));
 				const operation = item.operation === 'converted' ? localize('convertedToSkill', "Converted to skill")
 					: item.operation === 'copied' ? localize('copiedFile', "Copied file")
-						: item.operation === 'server' ? localize('movedServer', "Moved server") : localize('movedFile', "Moved file");
+						: item.operation === 'updated' ? localize('updatedFile', "Updated file")
+							: item.operation === 'server' ? localize('movedServer', "Moved server") : localize('movedFile', "Moved file");
 				DOM.append(itemHeader, $('span.migration-operation', {}, operation));
 				const paths = DOM.append(itemElement, $('dl.migration-paths'));
 				DOM.append(paths, $('dt', {}, localize('migrationFrom', "From")));
