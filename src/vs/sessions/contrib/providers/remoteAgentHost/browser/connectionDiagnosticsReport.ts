@@ -148,6 +148,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			}
 			const heading = dom.append(element, dom.$(section.collapsed ? 'summary' : 'h2'));
 			heading.textContent = section.title;
+			if (section.hostAddress) {
+				heading.dataset.hostAddress = section.hostAddress;
+			}
 			if (section.collapsed) {
 				this.bodyFocusTargets.push(heading);
 				(element as HTMLDetailsElement).open = openSections.has(section.hostAddress ?? section.title);
@@ -207,6 +210,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			button.label = `$(${icon.id})`;
 			button.element.dataset.hostId = host.id;
 			button.element.dataset.hostAction = action;
+			if (host.address) {
+				button.element.dataset.hostAddress = host.address;
+			}
 			button.enabled = !pending;
 			this.bodyFocusTargets.push(button.element);
 			this.managementStore.add(button.onDidClick(() => void this.runHostAction(host.id, action)));
@@ -226,8 +232,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			}
 		}
 		if (hostAddress && (action || summary)) {
-			const section = Array.from(this.content.querySelectorAll<HTMLElement>('[data-host-address]')).find(element => element.dataset.hostAddress === hostAddress);
-			section?.querySelector<HTMLElement>(action ? '[data-host-action]' : 'summary')?.focus();
+			const target = this.bodyFocusTargets.find(target => target.dataset.hostAddress === hostAddress
+				&& (action ? !!target.dataset.hostAction : target.tagName === 'SUMMARY'));
+			target?.focus();
 		}
 	}
 
