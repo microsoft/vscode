@@ -25,9 +25,12 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { CHAT_CARD_LARGE_CLASS, chatCardButtonStyles } from '../chatCard.js';
+import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
+import { ChatPermissionLevel } from '../../../common/constants.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -98,6 +101,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IModelService private readonly _modelService: IModelService,
 		@IFileService private readonly _fileService: IFileService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -750,6 +754,13 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		try {
 			if (action.permissionLevel === 'autopilot') {
 				const confirmed = await this.confirmAutopilot();
+				if (!confirmed) {
+					return;
+				}
+			} else if (action.permissionLevel === 'bypass') {
+				// Shared elevated-permission warning (Bypass Approvals): shown
+				// unless already confirmed this session or dismissed persistently.
+				const confirmed = await maybeConfirmElevatedPermissionLevel(ChatPermissionLevel.AutoApprove, this._dialogService, this._storageService);
 				if (!confirmed) {
 					return;
 				}

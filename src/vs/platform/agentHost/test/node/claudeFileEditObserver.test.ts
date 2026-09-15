@@ -132,6 +132,14 @@ suite('ClaudeFileEditObserver', () => {
 		]), 'turn-1', mapperState);
 		const afterSuccess = observer.lastPlanFileUri;
 
+		// The outside-the-plan-dir and nested candidates complete
+		// successfully too - only the path filter keeps them out.
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'tu-p2', content: 'ok' },
+			{ type: 'tool_result', tool_use_id: 'tu-p3', content: 'ok' },
+		]), 'turn-1', mapperState);
+		const afterNonPlanResults = observer.lastPlanFileUri;
+
 		// A denied or failed write must not replace the last good plan file.
 		observer.observeAssistant(assistantMessage([
 			{ type: 'tool_use', id: 'tu-p4', name: 'Write', input: { file_path: '/home/testuser/.claude/plans/plan-b.md', content: '# b' } },
@@ -143,10 +151,12 @@ suite('ClaudeFileEditObserver', () => {
 		assert.deepStrictEqual({
 			beforeResult: beforeResult?.toString(),
 			afterSuccess: afterSuccess?.toString(),
+			afterNonPlanResults: afterNonPlanResults?.toString(),
 			afterFailed: observer.lastPlanFileUri?.toString(),
 		}, {
 			beforeResult: undefined,
 			afterSuccess: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
+			afterNonPlanResults: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
 			afterFailed: URI.file('/home/testuser/.claude/plans/plan-a.md').toString(),
 		});
 	});

@@ -7390,7 +7390,11 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			requestId: 'tu_plan_ok',
 			planContent: '1. Read foo\n2. Edit foo',
 			planActions: ['approve', 'approveAcceptEdits', 'approveBypass'],
-			result: { behavior: 'allow', updatedInput: { plan: '1. Read foo\n2. Edit foo' } },
+			result: {
+				behavior: 'allow',
+				updatedInput: { plan: '1. Read foo\n2. Edit foo' },
+				updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
+			},
 			recordedModes: [],
 			persistedMode: 'acceptEdits',
 		});
@@ -7583,7 +7587,11 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			configChanges,
 			ownerPermissionMode: ctx.configService.getSessionConfigValues(session.toString())?.['permissionMode'],
 		}, {
-			result: { behavior: 'allow', updatedInput: { plan: 'peer plan' } },
+			result: {
+				behavior: 'allow',
+				updatedInput: { plan: 'peer plan' },
+				updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
+			},
 			// Exactly one config write, keyed by the owning session — never
 			// by the peer chat's own URI.
 			configChanges: [session.toString()],
@@ -7615,7 +7623,11 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			toolUseID: 'tu_plan_race',
 			requestId: 'tu_plan_race',
 		});
-		assert.deepStrictEqual(result, { behavior: 'allow', updatedInput: { plan: 'sync test' } });
+		assert.deepStrictEqual(result, {
+			behavior: 'allow',
+			updatedInput: { plan: 'sync test' },
+			updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
+		});
 	});
 
 	test('respondToUserInputRequest unknown id is silent', () => {

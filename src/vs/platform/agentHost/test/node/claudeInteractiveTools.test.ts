@@ -45,6 +45,7 @@ suite('claudeInteractiveTools', () => {
 			assert.strictEqual(planReview.answerQuestionId, exitPlanModeQuestionId('tool_use_42'));
 			assert.deepStrictEqual(planReview.actions.map(a => a.id), ['approve', 'approveAcceptEdits', 'approveBypass']);
 			assert.deepStrictEqual(planReview.actions.map(a => a.default), [true, undefined, undefined]);
+			assert.deepStrictEqual(planReview.actions.map(a => a.permissionLevel), [undefined, undefined, 'bypass']);
 		});
 
 		test('mirrors the actions onto a required single-select question with freeform input; omits planUri when untracked', () => {

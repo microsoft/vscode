@@ -93,6 +93,10 @@ export function buildExitPlanModeReviewRequest(planContent: string, planUri: URI
 				label: option.label,
 				...(option.description !== undefined ? { description: option.description } : {}),
 				...(idx === 0 ? { default: true } : {}),
+				// The bypass action enables auto-approval of every tool call;
+				// the marker makes the plan widget run the shared Bypass
+				// Approvals warning before submitting it.
+				...(option.id === ExitPlanModeAction.ApproveBypass ? { permissionLevel: 'bypass' as const } : {}),
 			})),
 			canProvideFeedback: true,
 			answerQuestionId: questionId,

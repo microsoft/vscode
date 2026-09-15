@@ -283,7 +283,20 @@ async function handleExitPlanMode(
 			deps.configurationService.updateSessionConfig(deps.configurationResource.toString(), {
 				[ClaudeSessionConfigKey.PermissionMode]: mode,
 			});
-			return { behavior: 'allow', updatedInput: input };
+			// Also hand the mode to the SDK on the allow result: the live
+			// query ignores server-originated config changes, so without
+			// this the implementation starting right after approval would
+			// run in the old mode until the next sendMessage forwards the
+			// persisted value. `updatedPermissions` is the SDK's own
+			// non-reentrant permission-update channel; the config write
+			// above keeps the AHP mode picker and later turns in sync.
+			return {
+				behavior: 'allow',
+				updatedInput: input,
+				...(mode !== 'default'
+					? { updatedPermissions: [{ type: 'setMode', mode, destination: 'session' } satisfies PermissionUpdate] }
+					: {}),
+			};
 		}
 		case 'feedback':
 			return { behavior: 'deny', message: claudePlanFeedbackMessage(resolved.feedback) };
