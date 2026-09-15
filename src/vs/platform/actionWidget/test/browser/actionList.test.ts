@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -322,42 +323,52 @@ suite('ActionListWidget', () => {
 		assert.deepStrictEqual(selected, ['second']);
 	});
 
-	test('clicking an opted-in submenu row opens its submenu without selecting it', () => {
-		const selected: string[] = [];
-		const widget = createActionListWidget(disposables, {
-			items: [{
-				...action('submenu-only'),
-				submenuActions: [toAction({ id: 'child', label: 'Child', run: () => { } })],
-				openSubmenuOnClick: true,
+	for (const activation of ['click', 'tap'] as const) {
+		test(`${activation} on an opted-in submenu row opens its submenu without selecting it`, () => {
+			const selected: string[] = [];
+			const widget = createActionListWidget(disposables, {
+				items: [{
+					...action('submenu-only'),
+					submenuActions: [toAction({ id: 'child', label: 'Child', run: () => { } })],
+					openSubmenuOnClick: true,
+				}, {
+					...action('actionable'),
+					submenuActions: [toAction({ id: 'option', label: 'Option', run: () => { } })],
+				}],
+				onSelect: item => selected.push(item.id),
+				listOptions: { showFilter: false },
+			});
+			const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+			const activate = (row: HTMLElement): void => {
+				if (activation === 'click') {
+					row.click();
+				} else {
+					const event = Object.assign(new CustomEvent(TouchEventType.Tap, { bubbles: true }), { initialTarget: row });
+					row.dispatchEvent(event);
+				}
+			};
+
+			activate(rows[0]);
+			const submenuOnlyState = {
+				selected: [...selected],
+				expanded: rows[0].getAttribute('aria-expanded'),
+				submenu: widget.domNode.querySelector('.action-list-submenu-panel .title')?.textContent,
+			};
+			activate(rows[1]);
+
+			assert.deepStrictEqual({
+				submenuOnlyState,
+				selected,
 			}, {
-				...action('actionable'),
-				submenuActions: [toAction({ id: 'option', label: 'Option', run: () => { } })],
-			}],
-			onSelect: item => selected.push(item.id),
-			listOptions: { showFilter: false },
+				submenuOnlyState: {
+					selected: [],
+					expanded: 'true',
+					submenu: 'Child',
+				},
+				selected: ['actionable'],
+			});
 		});
-		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
-
-		rows[0].click();
-		const submenuOnlyState = {
-			selected: [...selected],
-			expanded: rows[0].getAttribute('aria-expanded'),
-			submenu: widget.domNode.querySelector('.action-list-submenu-panel .title')?.textContent,
-		};
-		rows[1].click();
-
-		assert.deepStrictEqual({
-			submenuOnlyState,
-			selected,
-		}, {
-			submenuOnlyState: {
-				selected: [],
-				expanded: 'true',
-				submenu: 'Child',
-			},
-			selected: ['actionable'],
-		});
-	});
+	}
 
 	for (const activation of ['mousemove', 'mousedown'] as const) {
 		test(`stops mapping mouse moves after ${activation} enables hover`, () => {
