@@ -53,9 +53,9 @@ Moving a card changes only its placement. Chats sharing a session still share th
 ### Live cards
 
 - Render visible chats separately, including multiple chats from one session. Exclude provider-hidden internal workers; label visible read-only chats.
-- Display title, workspace, runtime state, optional current-step description, last prompt and available context links. Do not repeat the owning session title as a visible `Session:` line; preserve ownership in the accessible card label.
+- Display title, workspace, runtime state, current-step description when reported, optional last prompt and available context links. Do not repeat the owning session title as a visible `Session:` line; preserve ownership in the accessible card label.
 - Use themed state color plus text and a decorative indicator: Busy/Starting, Needs Input, Error and Idle. Split Idle into visited/unvisited.
-- Idle uses the standing-person indicator with sleeping `zzz`; keep visited/unvisited text and read semantics unchanged.
+- Idle uses one sleeping-face glyph when visited and one eyes glyph when unvisited to attract attention; keep visited/unvisited text and read semantics unchanged.
 - Busy/Starting uses the bundled running-person animation, with a static reduced-motion fallback.
 - Selecting, displaying, expanding or moving a card does not mark it read. Explicit opening follows provider-owned read marking.
 - A disconnected provider is a separate stale/unavailable warning, not a replacement runtime state or an empty successful board.
@@ -72,7 +72,10 @@ Moving a card changes only its placement. Chats sharing a session still share th
 
 ### Display settings
 
-- The top-right gear button opens Settings and independently toggles Time in State, AI Credits and Description. Metrics are off by default; Description is on by default. Persist the choices in profile-local board configuration and accept existing saved metrics preferences without resetting them.
+- The top-right gear button independently toggles Time in State, AI Credits, Last Prompt, Model Details, and Agent & Permissions. Last Prompt defaults on; other optional fields default off. Last Prompt replaces the earlier Description toggle, which targeted the often-empty provider action rather than the visible prompt. Migrate its saved choice without resetting other preferences.
+- Model Details is one compact row for the represented chat's selected model, thinking/configuration level, context size and harness. Agent & Permissions is a separate compact row for its agent, execution mode and permission setting. Long values truncate with full labeled values on hover.
+- Configuration rows are read-only: use chat-scoped input/model metadata, the provider's model catalogue and owning-session configuration schema/labels. Never use the main Agents selection or global model preferences. Current selection is not necessarily the model used by an earlier turn (especially Auto). Unknown/unreported values and preview limits remain explicit.
+- Configuration reuses at most sixteen retained metadata helpers; enable observation only while a configuration row is shown. Changes to input text or selections must not rebuild rows. Provider configuration changes update the represented session's row; reading it must not change permissions or select a chat.
 - Each live card ends in a wrapping status bar: last-prompt timestamp on the left, optional clock/state-time and `$` credit widgets on the right. Metrics have transparent backgrounds and theme-aware secondary foregrounds. Preserve readable labels and hover explanations; the credit icon does not imply a dollar charge. Credit hover includes the reported value, scope and unavailable-data meaning.
 - Time in State applies to non-archived live cards, not drafts. Track each chat's observed runtime transitions, independently of prompt/output updates, read state and placement. Update only timer text once per second; do not rebuild cards or disturb question input, focus or scroll.
 - The first observed state is a lower bound labeled `at least`; its real start may precede opening the board. An observed transition resets the timer. A disconnected provider shows unavailable; reconnecting starts a new lower bound. Reopening the board starts fresh observation, not a fabricated continuation across unseen transitions.
@@ -156,7 +159,8 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-15:** Interactive Ask User, custom answers, validation, exactly-once submission and refresh-safe input.
 - **PB-16:** Standalone creation, passive Agents draft discovery and publication without duplicates.
 - **PB-17:** Cleanup only of untouched owned drafts; preserve entered, attached, pending, failed and submitted work.
-- **PB-18:** Independent persisted display toggles, including backward-compatible default-visible Description; bottom status-bar layout and transparent metrics; state-duration transitions and lower bounds; reported zero versus unavailable credits; timer updates preserve focus/scroll and release on close.
+- **PB-18:** Independent persisted display toggles, including default-visible Last Prompt and migration of the old Description preference; bottom status-bar layout and transparent metrics; state-duration transitions and lower bounds; reported zero versus unavailable credits; timer updates preserve focus/scroll and release on close.
+- **PB-19:** Independent model/permission rows; exact chat/session configuration, bounded observation, no global-setting or sibling-chat substitution, live updates, and explicit unknown values.
 
 ### Resilience before optional P2
 
