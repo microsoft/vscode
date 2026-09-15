@@ -7,8 +7,8 @@ This Component Explorer fixture demonstrates a proposed HydraFusion orchestratio
 Fetch and switch to the shareable branch:
 
 ```bash
-git fetch origin eli/hydra-ui
-git switch --track origin/eli/hydra-ui
+git fetch upstream eli/hydra-ui
+git switch --track upstream/eli/hydra-ui
 ```
 
 From the repository root:
@@ -19,19 +19,13 @@ npm run compile-client
 npm run serve-out-rspack
 ```
 
-Open the port printed by the development server with this path:
+Open Component Explorer at the address printed by the development server, search for `HydraFusion`, and select:
 
 ```text
-/___explorer?search=HydraFusion&fixture=chat%2FhydraFusion%2FchatHydraFusionOrchestration%2FResearchPreview%2FDark
+chat / hydraFusion / chatHydraFusionOrchestration / ResearchPreview / Dark
 ```
 
-For the default port, the complete URL is:
-
-```text
-http://localhost:5123/___explorer?search=HydraFusion&fixture=chat%2FhydraFusion%2FchatHydraFusionOrchestration%2FResearchPreview%2FDark
-```
-
-If port 5123 is already in use, use the fallback port reported by the server. For example, the second local copy may be available on port 5124.
+If the default port is already in use, open the fallback port reported by the server.
 
 ## Explore the design
 
