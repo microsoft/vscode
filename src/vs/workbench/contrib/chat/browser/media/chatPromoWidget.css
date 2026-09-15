@@ -41,7 +41,7 @@
 	inset: 0;
 	pointer-events: none;
 	/* Left wash: fixed-length stop so every card gets the same leading edge. */
-		background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-button-background) 33%, transparent) 0%, transparent 110px);
+	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-button-background) 33%, transparent) 0%, transparent 110px);
 	z-index: 0;
 }
 
