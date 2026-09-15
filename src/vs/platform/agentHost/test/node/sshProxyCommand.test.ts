@@ -68,15 +68,18 @@ suite('SSH ProxyCommand', () => {
 		const forcefulModes: (boolean | undefined)[] = [];
 		const errors: Error[] = [];
 		for (const windows of [false, true]) {
-			const proxy = store.add(new SSHProxyCommand(proxyCommand, store.add(new NullLogService()), windows, async (pid, forceful) => {
-				await killTree(pid, isWindows);
+			let termination: Promise<void> | undefined;
+			const proxy = store.add(new SSHProxyCommand(proxyCommand, store.add(new NullLogService()), windows, (pid, forceful) => {
 				forcefulModes.push(forceful);
+				termination = killTree(pid, isWindows);
+				return termination;
 			}));
 			proxy.stream.on('error', error => errors.push(error));
 			await new Promise<void>(resolve => proxy.stream.once('data', () => resolve()));
 			const closed = new Promise<void>(resolve => proxy.stream.once('close', resolve));
 			proxy.dispose();
-			await closed;
+			assert.ok(termination, 'Expected disposal to terminate the proxy process tree');
+			await Promise.all([closed, termination]);
 		}
 		assert.deepStrictEqual({ forcefulModes, errors }, { forcefulModes: [false, true], errors: [] });
 	});
