@@ -486,6 +486,19 @@ export class SessionComparisonSetupDialog extends Disposable {
 				};
 			};
 			const bulkPermissionState = getBulkPermissionState();
+			const renderInfoButton = (container: HTMLElement, ariaLabel: string, description: string): HTMLButtonElement => {
+				const infoButton = dom.append(container, dom.$('button.session-comparison-setup-info')) as HTMLButtonElement;
+				infoButton.type = 'button';
+				infoButton.setAttribute('aria-label', ariaLabel);
+				const infoIcon = dom.append(infoButton, renderIcon(Codicon.info));
+				infoIcon.setAttribute('aria-hidden', 'true');
+				rowsDisposables.add(this.hoverService.setupDelayedHover(infoButton, { content: description }));
+				rowsDisposables.add(dom.addDisposableListener(infoButton, dom.EventType.CLICK, event => {
+					event.stopPropagation();
+					this._showInfoHover(infoButton, description);
+				}));
+				return infoButton;
+			};
 			const bulkPermissions = dom.append(attemptsStep, dom.$('.session-comparison-setup-bulk-permissions'));
 			const bulkPermissionLabel = localize('sessionComparisonSetup.permissions.allowAllParticipants', "Allow all permissions for every participant");
 			const bulkPermissionCheckbox = rowsDisposables.add(new TriStateCheckbox(bulkPermissionLabel, bulkPermissionState.checked, defaultCheckboxStyles));
@@ -498,19 +511,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 			const bulkPermissionDescription = bulkPermissionState.available
 				? localize('sessionComparisonSetup.permissions.allowAllParticipantsDescription', "Uses each selected agent's Allow all, Bypass Permissions, or Full Access option. Uncheck to restore every participant's default.")
 				: localize('sessionComparisonSetup.permissions.allowAllParticipantsUnavailable', "Unavailable for one or more selected agents or disabled by your organization.");
-			const bulkPermissionInfo = dom.append(bulkPermissions, dom.$('button.session-comparison-setup-bulk-permissions-info')) as HTMLButtonElement;
-			bulkPermissionInfo.type = 'button';
-			bulkPermissionInfo.setAttribute('aria-label', localize('sessionComparisonSetup.permissions.allowAllParticipantsInfo', "About allowing all permissions for every participant"));
-			const bulkPermissionInfoIcon = dom.append(bulkPermissionInfo, renderIcon(Codicon.info));
-			bulkPermissionInfoIcon.setAttribute('aria-hidden', 'true');
-			rowsDisposables.add(this.hoverService.setupDelayedHover(bulkPermissionInfo, { content: bulkPermissionDescription }));
-			rowsDisposables.add(dom.addDisposableListener(bulkPermissionInfo, dom.EventType.CLICK, event => {
-				event.stopPropagation();
-				this.hoverService.showInstantHover({
-					target: bulkPermissionInfo,
-					content: bulkPermissionDescription,
-				}, true);
-			}));
+			renderInfoButton(
+				bulkPermissions,
+				localize('sessionComparisonSetup.permissions.allowAllParticipantsInfo', "About allowing all permissions for every participant"),
+				bulkPermissionDescription,
+			);
 			const updateBulkPermissionCheckbox = () => {
 				const checked = getBulkPermissionState().checked;
 				bulkPermissionCheckbox.checked = checked;
@@ -871,10 +876,14 @@ export class SessionComparisonSetupDialog extends Disposable {
 			const judgeRow = dom.append(evaluator, dom.$('.session-comparison-setup-evaluator-step'));
 			judgeRow.setAttribute('role', 'group');
 			judgeRow.setAttribute('aria-label', localize('sessionComparisonSetup.judgeConfiguration', "Judge configuration"));
-			dom.append(judgeRow, dom.$('h4.session-comparison-setup-evaluator-step-title')).textContent =
+			const judgeHeader = dom.append(judgeRow, dom.$('.session-comparison-setup-evaluator-step-header'));
+			dom.append(judgeHeader, dom.$('h4.session-comparison-setup-evaluator-step-title')).textContent =
 				localize('sessionComparisonSetup.judge', "Judge");
-			dom.append(judgeRow, dom.$('.session-comparison-setup-evaluator-step-description')).textContent =
-				localize('sessionComparisonSetup.judgeDescription', "Reviews the finished attempts and recommends a result.");
+			renderInfoButton(
+				judgeHeader,
+				localize('sessionComparisonSetup.judgeInfo', "About the Judge"),
+				localize('sessionComparisonSetup.judgeDescription', "Reviews the finished attempts and recommends a result."),
+			);
 			const judgeControls = dom.append(judgeRow, dom.$('.session-comparison-setup-row-controls'));
 			renderHarnessControls(
 				judgeControls,
@@ -892,11 +901,17 @@ export class SessionComparisonSetupDialog extends Disposable {
 			);
 			const synthesisRow = dom.append(evaluator, dom.$('.session-comparison-setup-evaluator-step'));
 			synthesisRow.setAttribute('role', 'group');
-			synthesisRow.setAttribute('aria-label', localize('sessionComparisonSetup.synthesisConfiguration', "Synthesizer configuration"));
-			dom.append(synthesisRow, dom.$('h4.session-comparison-setup-evaluator-step-title')).textContent =
+			synthesisRow.setAttribute('aria-label', localize('sessionComparisonSetup.synthesisConfiguration', "Optional Synthesizer configuration"));
+			const synthesisHeader = dom.append(synthesisRow, dom.$('.session-comparison-setup-evaluator-step-header'));
+			dom.append(synthesisHeader, dom.$('h4.session-comparison-setup-evaluator-step-title')).textContent =
 				localize('sessionComparisonSetup.synthesizer', "Synthesizer");
-			dom.append(synthesisRow, dom.$('.session-comparison-setup-evaluator-step-description')).textContent =
-				localize('sessionComparisonSetup.synthesizerDescription', "Optional. Combines the strongest parts of the attempts after the Judge recommends a result.");
+			dom.append(synthesisHeader, dom.$('span.session-comparison-setup-evaluator-optional')).textContent =
+				localize('sessionComparisonSetup.optional', "Optional");
+			renderInfoButton(
+				synthesisHeader,
+				localize('sessionComparisonSetup.synthesizerInfo', "About the Synthesizer"),
+				localize('sessionComparisonSetup.synthesizerDescription', "Combines the strongest parts of the attempts after the Judge recommends a result."),
+			);
 			const synthesisControls = dom.append(synthesisRow, dom.$('.session-comparison-setup-row-controls'));
 			renderHarnessControls(
 				synthesisControls,
@@ -1061,11 +1076,13 @@ export class SessionComparisonSetupDialog extends Disposable {
 	}
 
 	private _registerFocusNavigation(dialogElement: HTMLElement, store: DisposableStore): void {
-		store.add(dom.addDisposableListener(dialogElement, dom.EventType.KEY_DOWN, event => {
+		store.add(dom.addDisposableListener(dom.getWindow(dialogElement), dom.EventType.KEY_DOWN, event => {
+			if (!dom.isHTMLElement(event.target) || !dialogElement.contains(event.target)) {
+				return;
+			}
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			const isArrowNavigation = keyboardEvent.equals(KeyCode.RightArrow) || keyboardEvent.equals(KeyCode.LeftArrow);
 			if (isArrowNavigation
-				&& dom.isHTMLElement(event.target)
 				&& event.target.closest('select, [role="combobox"], [role="listbox"], [role="radio"], [role="slider"], summary')) {
 				event.stopImmediatePropagation();
 				return;
@@ -1091,7 +1108,11 @@ export class SessionComparisonSetupDialog extends Disposable {
 			keyboardEvent.preventDefault();
 			event.stopImmediatePropagation();
 			focusableElements[nextIndex].focus();
-		}));
+		}, true));
+	}
+
+	private _showInfoHover(target: HTMLElement, content: string): void {
+		this.hoverService.showInstantHover({ target, content });
 	}
 
 	private _applyBulkPermissionSelection(

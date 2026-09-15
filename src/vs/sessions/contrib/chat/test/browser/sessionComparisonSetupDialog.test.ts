@@ -167,6 +167,8 @@ suite('SessionComparisonDialogResizeController', () => {
 			const store = disposables.add(new DisposableStore());
 			const registerFocusNavigation = Reflect.get(SessionComparisonSetupDialog.prototype, '_registerFocusNavigation') as (this: object, dialogElement: HTMLElement, store: DisposableStore) => void;
 			registerFocusNavigation.call(Object.create(SessionComparisonSetupDialog.prototype), dialogElement, store);
+			let fallbackEvents = 0;
+			store.add(dom.addDisposableListener(mainWindow, dom.EventType.KEY_DOWN, () => fallbackEvents++, true));
 
 			first.focus();
 			first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
@@ -182,11 +184,29 @@ suite('SessionComparisonDialogResizeController', () => {
 				afterTab,
 				afterWrap,
 				afterReverseWrap,
+				fallbackEvents,
 			}, {
 				afterTab: second,
 				afterWrap: first,
 				afterReverseWrap: third,
+				fallbackEvents: 0,
 			});
+		});
+
+		test('keeps focus on information buttons when showing their hover', () => {
+			const target = mainWindow.document.createElement('button');
+			let hoverFocus: boolean | undefined = true;
+			const dialog = Object.create(SessionComparisonSetupDialog.prototype);
+			Reflect.set(dialog, 'hoverService', {
+				showInstantHover: (_options: object, focus?: boolean) => {
+					hoverFocus = focus;
+				},
+			});
+			const showInfoHover = Reflect.get(SessionComparisonSetupDialog.prototype, '_showInfoHover') as (this: object, target: HTMLElement, content: string) => void;
+
+			showInfoHover.call(dialog, target, 'Description');
+
+			assert.strictEqual(hoverFocus, undefined);
 		});
 
 		test('requires a Git remote after resolving the repository', () => {
