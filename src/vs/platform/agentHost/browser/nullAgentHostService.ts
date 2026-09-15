@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import type { AgentCanvasInput, IAgentCanvas, IAgentCanvasType } from '../common/meta/agentCanvasMeta.js';
 import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo } from '../common/agentService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -62,6 +63,9 @@ export class NullAgentHostService implements IAgentHostService {
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async removeSessionArtifact(_session: URI, _artifactId: string): Promise<void> { return notSupported(); }
+	async closeCanvas(_session: URI, _chat: URI, _instanceId: string): Promise<void> { return notSupported(); }
+	async listCanvases(_session: URI, _chat: URI): Promise<readonly IAgentCanvasType[]> { return notSupported(); }
+	async openCanvas(_session: URI, _chat: URI, _extensionId: string, _canvasTypeId: string, _input?: AgentCanvasInput): Promise<IAgentCanvas> { return notSupported(); }
 	async createDetachedWorktree(_session: URI, _prompt: string): Promise<{ handle: string; worktree: URI }> { return notSupported(); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { return notSupported(); }
 	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { return notSupported(); }

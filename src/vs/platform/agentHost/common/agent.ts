@@ -1200,6 +1200,8 @@ export interface IAgent {
 
 	/** Exact-chat operations: create, send, abort, mutate, restore history, release, and dispose. */
 	readonly chats: IAgentChats;
+	/** Makes an existing chat's Canvas provider live without starting a model turn. */
+	prepareCanvasChat?(chat: URI, context: IAgentChatContext): Promise<void>;
 
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;

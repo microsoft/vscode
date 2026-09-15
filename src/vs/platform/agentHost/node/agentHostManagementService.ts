@@ -5,6 +5,7 @@
 
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
+import type { AgentCanvasInput, IAgentCanvas, IAgentCanvasType } from '../common/meta/agentCanvasMeta.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
@@ -35,6 +36,27 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
+	}
+
+	closeCanvas(session: URI, chat: URI, instanceId: string): Promise<void> {
+		if (!this._agentService.closeCanvas) {
+			throw new Error('Agent Host Canvas dismissal is unavailable');
+		}
+		return this._runMutation(() => this._agentService.closeCanvas!(session, chat, instanceId));
+	}
+
+	listCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasType[]> {
+		if (!this._agentService.listCanvases) {
+			throw new Error('Agent Host Canvas catalog is unavailable');
+		}
+		return this._runMutation(() => this._agentService.listCanvases!(session, chat));
+	}
+
+	openCanvas(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput): Promise<IAgentCanvas> {
+		if (!this._agentService.openCanvas) {
+			throw new Error('Agent Host Canvas opening is unavailable');
+		}
+		return this._runMutation(() => this._agentService.openCanvas!(session, chat, extensionId, canvasTypeId, input));
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {

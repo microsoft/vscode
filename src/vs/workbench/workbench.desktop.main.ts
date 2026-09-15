@@ -169,6 +169,7 @@ import './contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
 import './contrib/browserView/electron-browser/browserView.contribution.js';
+import './contrib/chat/electron-browser/agentHostCanvas.contribution.js';
 
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';

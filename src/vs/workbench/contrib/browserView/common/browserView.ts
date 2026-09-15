@@ -245,6 +245,10 @@ export interface IBrowserViewOpenHandler {
 }
 
 export interface IBrowserViewWorkbenchCreateOptions {
+	/** Optional stable identity for a caller-owned page that can be presented again. */
+	readonly id?: string;
+	/** The caller restores this page; do not persist its editor or transient URL. */
+	readonly transient?: boolean;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
 	readonly initialAudiences?: readonly IBrowserViewAudience[];

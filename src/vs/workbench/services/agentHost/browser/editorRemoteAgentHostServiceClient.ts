@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentCanvasInput, IAgentCanvas, IAgentCanvasType } from '../../../../platform/agentHost/common/meta/agentCanvasMeta.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -233,6 +234,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._requireClient().getSessionStateFile(session, chat);
+	}
+
+	closeCanvas(session: URI, chat: URI, instanceId: string): Promise<void> {
+		return this._requireClient().closeCanvas(session, chat, instanceId);
+	}
+
+	listCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasType[]> {
+		return this._requireClient().listCanvases(session, chat);
+	}
+
+	openCanvas(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput): Promise<IAgentCanvas> {
+		return this._requireClient().openCanvas(session, chat, extensionId, canvasTypeId, input);
 	}
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {

@@ -21,7 +21,8 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CloseCanvasExtensionMethod, closeCanvasParamsValidator, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ListCanvasesExtensionMethod, listCanvasesParamsValidator, OpenCanvasExtensionMethod, openCanvasParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { isAgentCanvasInput } from '../common/meta/agentCanvasMeta.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -679,7 +680,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: getAgentHostExtensionInitializeResultMeta(this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact),
+				_meta: getAgentHostExtensionInitializeResultMeta(
+					this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact,
+					this._config.allowExtensionMethods !== false && !!this._agentService.closeCanvas,
+					this._config.allowExtensionMethods !== false && !!this._agentService.listCanvases && !!this._agentService.openCanvas,
+				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
@@ -1936,6 +1941,65 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 				}
 				return this._agentService.removeSessionArtifact(session, artifactId);
+			}
+			case ListCanvasesExtensionMethod:
+			case OpenCanvasExtensionMethod: {
+				if (!this._agentService.listCanvases || !this._agentService.openCanvas) {
+					return undefined;
+				}
+				const validated = listCanvasesParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				let session: URI;
+				let chat: URI;
+				try {
+					session = URI.parse(validated.content.session, true);
+					chat = URI.parse(validated.content.chat, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session and chat must be valid URI strings'));
+				}
+				if (!AgentSession.provider(session) || session.authority || session.query || session.fragment
+					|| !session.path.startsWith('/') || session.path.length < 2 || parseChatUri(session)
+					|| parseChatUri(chat)?.session !== session.toString()) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Canvas requires an owning session and chat'));
+				}
+				if (method === ListCanvasesExtensionMethod) {
+					return this._agentService.listCanvases(session, chat);
+				}
+				const open = openCanvasParamsValidator.validate(params);
+				if (open.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, open.error.message));
+				}
+				const { extensionId, canvasTypeId, input } = open.content;
+				if (!extensionId.trim() || !canvasTypeId.trim() || (input !== undefined && !isAgentCanvasInput(input))) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Canvas requires a provider, type, and JSON input'));
+				}
+				return this._agentService.openCanvas(session, chat, extensionId, canvasTypeId, input);
+			}
+			case CloseCanvasExtensionMethod: {
+				if (!this._agentService.closeCanvas) {
+					return undefined;
+				}
+				const validated = closeCanvasParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				const { session: sessionParam, chat: chatParam, instanceId } = validated.content;
+				let session: URI;
+				let chat: URI;
+				try {
+					session = URI.parse(sessionParam, true);
+					chat = URI.parse(chatParam, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session and chat must be valid URI strings'));
+				}
+				if (!AgentSession.provider(session) || session.authority || session.query || session.fragment
+					|| !session.path.startsWith('/') || session.path.length < 2 || parseChatUri(session)
+					|| parseChatUri(chat)?.session !== session.toString() || !instanceId.trim()) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Canvas requires an owning session, chat, and non-empty instanceId'));
+				}
+				return this._agentService.closeCanvas(session, chat, instanceId);
 			}
 			case CreateAgentHostDetachedWorktreeExtensionMethod: {
 				if (!this._agentService.createDetachedWorktree) {

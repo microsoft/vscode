@@ -7,17 +7,21 @@ import './emptyFileEditor.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
+import { AgentHostCanvasCommandId } from '../../../../workbench/contrib/chat/common/actions/chatActions.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext, IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -28,6 +32,45 @@ import { Menus } from '../../../browser/menus.js';
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
 export const NEW_CHANGES_TAB_COMMAND_ID = 'workbench.action.agentSessions.newChangesTab';
+
+class CanvasTabAction extends Action2 {
+	constructor(id: string, title: ReturnType<typeof localize2>, private readonly canvasCommand: AgentHostCanvasCommandId, order: number) {
+		super({
+			id,
+			title,
+			category: SessionsCategories.Sessions,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsNewChatSessionContext.negate()),
+			menu: { id: Menus.SessionsEditorCanvases, group: 'navigation', order },
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const resource = accessor.get(ISessionsService).activeSession.get()?.activeChat.get()?.resource;
+		if (!resource) {
+			accessor.get(INotificationService).info(localize('canvas.selectChat', "Select a Copilot chat before opening a canvas."));
+			return;
+		}
+		await accessor.get(ICommandService).executeCommand(this.canvasCommand, resource);
+	}
+}
+
+export class NewCanvasTabAction extends CanvasTabAction {
+	constructor() {
+		super('workbench.action.agentSessions.newCanvasTab', localize2('canvas.open', "Open Canvas..."), AgentHostCanvasCommandId.Open, 0);
+	}
+}
+
+export class ReopenCanvasTabAction extends CanvasTabAction {
+	constructor() {
+		super('workbench.action.agentSessions.reopenCanvasTab', localize2('canvas.reopen', "Reopen Canvas..."), AgentHostCanvasCommandId.Reopen, 1);
+	}
+}
+
+export class CloseCanvasTabAction extends CanvasTabAction {
+	constructor() {
+		super('workbench.action.agentSessions.closeCanvasTab', localize2('canvas.close', "Close Canvas..."), AgentHostCanvasCommandId.Close, 2);
+	}
+}
 
 // The add-tab actions are only registered in the single-pane layout, so the
 // `when` clauses don't need to gate on the setting.

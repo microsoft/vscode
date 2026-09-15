@@ -9,9 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -33,15 +33,17 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
+import { CloseCanvasTabAction, NewBrowserTabAction, NewCanvasTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, ReopenCanvasTabAction } from '../../browser/addTabActions.js';
+import { AgentHostCanvasCommandId } from '../../../../../workbench/contrib/chat/common/actions/chatActions.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
@@ -310,6 +312,43 @@ suite('Sessions - Editor Contribution', () => {
 			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
 			searchInDockOnly: true,
 			searchInQuickChat: false,
+		});
+	});
+
+	test('Canvas actions target the active chat rather than the last focused widget', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const resource = URI.parse('agent-host-copilot:/session#second-chat');
+		const calls: { id: string; args: unknown[] }[] = [];
+		instantiationService.stub(ISessionsService, {
+			activeSession: constObservable(upcastPartial<IActiveSession>({
+				activeChat: constObservable(upcastPartial<IChat>({ resource })),
+			})),
+		});
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+				calls.push({ id, args });
+				return undefined;
+			}
+		});
+		for (const action of [new NewCanvasTabAction(), new ReopenCanvasTabAction(), new CloseCanvasTabAction()]) {
+			await action.run(instantiationService);
+		}
+		assert.deepStrictEqual(calls, [AgentHostCanvasCommandId.Open, AgentHostCanvasCommandId.Reopen, AgentHostCanvasCommandId.Close].map(id => ({ id, args: [resource] })));
+	});
+
+	test('Canvas actions are disabled when AI features are disabled', () => {
+		const actions = [new NewCanvasTabAction(), new ReopenCanvasTabAction(), new CloseCanvasTabAction()];
+		const evaluate = (enabled: boolean, newSession = false) => actions.map(action => action.desc.precondition?.evaluate({
+			getValue: <T extends ContextKeyValue>(key: string) => ({
+				[IsSessionsWindowContext.key]: true,
+				[ChatContextKeys.enabled.key]: enabled,
+				[IsNewChatSessionContext.key]: newSession,
+			}[key] as T | undefined),
+		}));
+		assert.deepStrictEqual({ enabled: evaluate(true), disabled: evaluate(false), newSession: evaluate(true, true) }, {
+			enabled: [true, true, true],
+			disabled: [false, false, false],
+			newSession: [false, false, false],
 		});
 	});
 

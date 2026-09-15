@@ -17,7 +17,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { CloseCanvasExtensionMethod, ListCanvasesExtensionMethod, OpenCanvasExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostCanvasClose, supportsAgentHostCanvasOpen, type AgentCanvasInput } from '../../common/meta/agentCanvasMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -156,6 +157,16 @@ class MockAgentService implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	readonly closeCanvasCalls: { session: string; chat: string; instanceId: string }[] = [];
+	readonly canvasCalls: object[] = [];
+	async listCanvases(session: URI, chat: URI) {
+		this.canvasCalls.push({ session: session.toString(), chat: chat.toString() });
+		return [{ extensionId: 'project:counter', canvasTypeId: 'main', displayName: 'Counter' }];
+	}
+	async openCanvas(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput) {
+		this.canvasCalls.push({ session: session.toString(), chat: chat.toString(), extensionId, canvasTypeId, input });
+		return { chat: chat.toString(), extensionId, canvasTypeId, instanceId: 'counter' };
+	}
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -266,6 +277,10 @@ class MockAgentService implements IAgentService {
 	}
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+	}
+
+	async closeCanvas(session: URI, chat: URI, instanceId: string): Promise<void> {
+		this.closeCanvasCalls.push({ session: session.toString(), chat: chat.toString(), instanceId });
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -475,6 +490,8 @@ suite('ProtocolServerHandler', () => {
 				'vscode.detachedWorktrees': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
+				'vscode.closeCanvas': true,
+				'vscode.canvasManagement': 1,
 			},
 		});
 	});
@@ -963,6 +980,94 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 20, result: null },
 			calls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
 		});
+
+	});
+
+		test('advertises and routes Canvas close through the extension request', async () => {
+			const transport = connectClient('canvas-close');
+			const initializeResponse = findResponse(transport.sent, 1);
+			assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
+			const params = { session: 'copilotcli:/session-1', chat: buildChatUri('copilotcli:/session-1', 'peer'), instanceId: 'one' };
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, CloseCanvasExtensionMethod, params));
+			assert.deepStrictEqual({
+				supported: supportsAgentHostCanvasClose(initializeResponse.result as InitializeResult),
+				response: await response,
+				calls: agentService.closeCanvasCalls,
+			}, {
+				supported: true,
+				response: { jsonrpc: '2.0', id: 20, result: null },
+				calls: [params],
+			});
+		});
+
+		test('rejects invalid Canvas close ownership before routing', async () => {
+			const transport = connectClient('canvas-close-invalid');
+			const params = { session: 'copilotcli:/session-1', chat: buildDefaultChatUri('copilotcli:/session-1'), instanceId: 'one' };
+			for (const [index, invalid] of [
+				null, {}, { ...params, instanceId: '' }, { ...params, instanceId: 1 },
+				{ ...params, session: 'copilotcli:/' }, { ...params, chat: 'copilotcli:/session-1' },
+				{ ...params, chat: buildDefaultChatUri('copilotcli:/other') },
+				{ ...params, session: 'copilotcli://remote/session-1' },
+				{ ...params, session: params.chat },
+			].entries()) {
+				const id = 20 + index;
+				const response = waitForResponse(transport, id);
+				transport.simulateMessage(request(id, CloseCanvasExtensionMethod, invalid));
+				const result = await response;
+				assert.ok(isJsonRpcResponse(result) && hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+			}
+			assert.deepStrictEqual(agentService.closeCanvasCalls, []);
+		});
+
+		test('propagates Canvas close errors', async () => {
+			const transport = connectClient('canvas-close-error');
+			const error = new Error('Canvas no longer live');
+			agentService.closeCanvas = async () => { throw error; };
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, CloseCanvasExtensionMethod, {
+				session: 'copilotcli:/session-1', chat: buildDefaultChatUri('copilotcli:/session-1'), instanceId: 'one',
+			}));
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack } });
+		});
+	test('advertises and routes direct Canvas catalog/open with schema input', async () => {
+		const transport = connectClient('canvas-management');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		assert.ok(supportsAgentHostCanvasOpen(initialized.result as InitializeResult));
+		const params = { session: 'copilotcli:/session-1', chat: buildDefaultChatUri('copilotcli:/session-1') };
+		const listing = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, ListCanvasesExtensionMethod, params));
+		const openParams = { ...params, extensionId: 'project:counter', canvasTypeId: 'main', input: { count: 2, nested: [null, true] } };
+		const opening = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, OpenCanvasExtensionMethod, openParams));
+		assert.deepStrictEqual({ listed: await listing, opened: await opening, calls: agentService.canvasCalls }, {
+			listed: { jsonrpc: '2.0', id: 20, result: [{ extensionId: 'project:counter', canvasTypeId: 'main', displayName: 'Counter' }] },
+			opened: { jsonrpc: '2.0', id: 21, result: { chat: params.chat, extensionId: 'project:counter', canvasTypeId: 'main', instanceId: 'counter' } },
+			calls: [params, openParams],
+		});
+	});
+
+	test('rejects invalid direct Canvas requests and preserves runtime failures', async () => {
+		const transport = connectClient('canvas-management-invalid');
+		const params = { session: 'copilotcli:/session-1', chat: buildDefaultChatUri('copilotcli:/session-1'), extensionId: 'project:counter', canvasTypeId: 'main' };
+		for (const [index, invalid] of [
+			{}, null, { ...params, extensionId: '' }, { ...params, canvasTypeId: 1 },
+			{ ...params, chat: buildDefaultChatUri('copilotcli:/other') },
+			{ ...params, session: 'copilotcli://remote/session-1' }, { ...params, input: { count: Infinity } },
+		].entries()) {
+			const id = 20 + index;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, OpenCanvasExtensionMethod, invalid));
+			const result = await response;
+			assert.ok(isJsonRpcResponse(result) && hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+		assert.deepStrictEqual(agentService.canvasCalls, []);
+		const error = new Error('Required input missing');
+		agentService.openCanvas = async () => { throw error; };
+		const response = waitForResponse(transport, 40);
+		transport.simulateMessage(request(40, OpenCanvasExtensionMethod, params));
+		assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 40, error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack } });
 	});
 
 	test('rejects invalid artifact removal extension params before routing', async () => {
@@ -1232,8 +1337,11 @@ suite('ProtocolServerHandler', () => {
 		const initializeResponse = findResponse(transport.sent, 1);
 		assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
 		assert.strictEqual(supportsAgentHostArtifactRemoval(initializeResponse.result as InitializeResult), false);
+		assert.strictEqual(supportsAgentHostCanvasOpen(initializeResponse.result as InitializeResult), false);
 		transport.sent.length = 0;
 		transport.simulateMessage(request(2, 'shutdown', {}));
+		transport.simulateMessage(request(3, ListCanvasesExtensionMethod, {}));
+		transport.simulateMessage(request(4, OpenCanvasExtensionMethod, {}));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		}));
@@ -1241,10 +1349,15 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
 			shutdownCalls: agentService.shutdownCalls,
+			canvasResponses: [findResponse(transport.sent, 3), findResponse(transport.sent, 4)],
 			managedSettingsPermissions: managedSettingsService.permissions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
+			canvasResponses: [
+				{ jsonrpc: '2.0', id: 3, error: { code: JsonRpcErrorCodes.MethodNotFound, message: `Method not found: ${ListCanvasesExtensionMethod}` } },
+				{ jsonrpc: '2.0', id: 4, error: { code: JsonRpcErrorCodes.MethodNotFound, message: `Method not found: ${OpenCanvasExtensionMethod}` } },
+			],
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		});
 	});

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -13,6 +14,19 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents Canvas browser presentation and reopening', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			open: help.includes('Chat: Open Canvas'),
+			menu: help.includes('Add Tab menu also has a Canvas submenu'),
+			cancel: help.includes('Escape to cancel'),
+			input: help.includes('prompt for JSON'),
+			reopen: help.includes('Chat: Reopen Canvas'),
+			keyboard: help.includes('select an open canvas with the arrow keys and Enter'),
+			lifecycle: help.includes('Closing a browser tab only hides the canvas'),
+		}, { open: !isWeb, menu: !isWeb, cancel: !isWeb, input: !isWeb, reopen: !isWeb, keyboard: !isWeb, lifecycle: !isWeb });
+	});
 
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);

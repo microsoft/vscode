@@ -45,6 +45,7 @@ const MAX_TITLE_LENGTH = 30;
  */
 export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
+	readonly transient?: boolean;
 	readonly associatedResource?: URI;
 	/** Whether the tab came from the default localhost link opener. Not serialized. */
 	readonly isDefaultLinkOpen?: boolean;
@@ -73,6 +74,7 @@ export class BrowserEditorInput extends EditorInput {
 	static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
+	readonly transient: boolean;
 	private readonly _associatedResource: URI | undefined;
 	private _initialData: IBrowserEditorInputData;
 
@@ -96,6 +98,7 @@ export class BrowserEditorInput extends EditorInput {
 	) {
 		super();
 		this._id = options.id;
+		this.transient = options.transient === true;
 		this._associatedResource = options.associatedResource;
 		this._initialData = options;
 	}
@@ -406,6 +409,7 @@ export class BrowserEditorInput extends EditorInput {
 	serialize(): IBrowserEditorInputData {
 		return {
 			id: this._id,
+			transient: this.transient || undefined,
 			associatedResource: this._associatedResource,
 			url: this.url,
 			title: this.title,
@@ -416,7 +420,7 @@ export class BrowserEditorInput extends EditorInput {
 
 export class BrowserEditorSerializer implements IEditorSerializer {
 	canSerialize(editorInput: EditorInput): editorInput is BrowserEditorInput {
-		return editorInput instanceof BrowserEditorInput;
+		return editorInput instanceof BrowserEditorInput && !editorInput.transient;
 	}
 
 	serialize(editorInput: EditorInput): string | undefined {
@@ -434,6 +438,7 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 				const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 				return browserViewWorkbenchService.getOrCreateLazy({
 					id: data.id,
+					transient: data.transient,
 					url: data.url,
 					title: data.title,
 					favicon: data.favicon,

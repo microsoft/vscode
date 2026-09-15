@@ -8,7 +8,9 @@ import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
 import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './diffEditor.sessions.contribution.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
+import { CloseCanvasTabAction, NewBrowserTabAction, NewCanvasTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, ReopenCanvasTabAction } from './addTabActions.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -88,6 +90,19 @@ class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContr
 		this._register(registerAction2(NewBrowserTabAction));
 		this._register(registerAction2(NewSearchTabAction));
 		this._register(registerAction2(NewChangesTabAction));
+		if (!isWeb) {
+			this._register(registerAction2(NewCanvasTabAction));
+			this._register(registerAction2(ReopenCanvasTabAction));
+			this._register(registerAction2(CloseCanvasTabAction));
+			this._register(MenuRegistry.appendMenuItem(Menus.SessionsEditorTabsBarAddTab, {
+				title: localize2('canvas.menu', "Canvas"),
+				icon: Codicon.layout,
+				submenu: Menus.SessionsEditorCanvases,
+				group: 'canvas',
+				order: 4,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated(), IsTopRightEditorGroupContext, ChatContextKeys.enabled),
+			}));
+		}
 	}
 }
 

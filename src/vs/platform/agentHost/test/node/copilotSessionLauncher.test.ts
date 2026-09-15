@@ -104,7 +104,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, extensionSdkPath?: string): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: CopilotCliConfigKey) => rootValues[key],
 		getSessionConfigValues: () => undefined,
@@ -112,6 +112,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		setSessionSandboxPolicy: () => { },
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
+		() => extensionSdkPath,
 		configurationService,
 		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
@@ -480,7 +481,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		// The launcher's other dependencies are unused by the BYOK path and
 		// resolve to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, () => '/bundled/copilot-sdk');
 	}
 
 	test('memoizes the handle, and disposeByokProxyHandle releases it so the next launch mints a fresh nonce', async () => {
@@ -593,7 +594,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(managedSettingsPermissions, {}, logService);
+		const launcher = createTestLauncher(managedSettingsPermissions, {}, logService, noopSessionOpenTelemetry, undefined, '/bundled/copilot-sdk');
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
@@ -678,6 +679,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessions.add(await launcher.launch(createPlan, testRuntime));
 			sessions.add(await launcher.launch(resumePlan, testRuntime));
 			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
+			sessions.add(await createTestLauncher().launch(createPlan, testRuntime));
+
+			assert.deepStrictEqual([createConfigs[0], resumeConfigs[0], createConfigs[1], createConfigs[2]].map(config => ({
+				canvases: config.canvases,
+				canvasProvider: config.canvasProvider,
+				requestCanvasRenderer: config.requestCanvasRenderer,
+				requestExtensions: config.requestExtensions,
+				extensionSdkPath: config.extensionSdkPath,
+			})), [
+				{ canvases: undefined, canvasProvider: undefined, requestCanvasRenderer: true, requestExtensions: true, extensionSdkPath: '/bundled/copilot-sdk' },
+				{ canvases: undefined, canvasProvider: undefined, requestCanvasRenderer: true, requestExtensions: true, extensionSdkPath: '/bundled/copilot-sdk' },
+				{ canvases: undefined, canvasProvider: undefined, requestCanvasRenderer: false, requestExtensions: false, extensionSdkPath: undefined },
+				{ canvases: undefined, canvasProvider: undefined, requestCanvasRenderer: true, requestExtensions: false, extensionSdkPath: undefined },
+			]);
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
@@ -1465,7 +1480,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		// The launcher's other dependencies are unused by this path and resolve
 		// to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, () => undefined);
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */

@@ -6,6 +6,12 @@
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { URI } from '../../../../../base/common/uri.js';
 
+export const enum AgentHostCanvasCommandId {
+	Open = 'workbench.action.chat.openCanvas',
+	Reopen = 'workbench.action.chat.reopenCanvas',
+	Close = 'workbench.action.chat.closeCanvas',
+}
+
 export interface IChatViewTitleActionContext {
 	readonly $mid: MarshalledId.ChatViewContext;
 	readonly sessionResource: URI;
