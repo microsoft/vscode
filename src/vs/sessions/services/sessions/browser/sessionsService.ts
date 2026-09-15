@@ -956,7 +956,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 			resolved.set(target.session.resource, target.session);
 		}
-		this._dismissCustomViewForNavigation('explicit');
+		this._beginNavigation('explicit');
 		this._snapshotVisibleSessionStates();
 		const slots = [...resolved.values()].map(session => ({
 			session,

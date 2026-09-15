@@ -2112,8 +2112,8 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				statuses: [undefined, ''],
 				ariaLabels: [
-					'Attempt 1: Copilot · Claude Opus 5, updated now, State: Completed, in Workspace',
-					'Attempt 2: Codex · GPT-5, updated now, State: In Progress',
+					'Copilot · Claude Opus 5, updated now, State: Completed, in Workspace',
+					'Codex · GPT-5, updated now, State: In Progress',
 				],
 			});
 			attempt2.status.set(SessionStatus.Completed, undefined);

@@ -1292,6 +1292,7 @@ suite('NewChatWidget', () => {
 		let comparisonOptions: IStartSessionComparisonOptions | undefined;
 
 		const result = await send.call({
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(configuredAttempts),
@@ -1650,6 +1651,7 @@ suite('NewChatWidget', () => {
 		let startCount = 0;
 
 		const result = await send.call({
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(attempts),

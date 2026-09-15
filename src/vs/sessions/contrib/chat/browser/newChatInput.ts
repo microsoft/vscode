@@ -1289,7 +1289,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					const label = this.options.sendButtonLabel?.read(reader);
 					sendButton.label = label ?? '';
 					sendButton.element.ariaLabel = label ?? localize('send', "Send");
-					sendButtonContainer.classList.toggle('labeled', !!label);
+					this._sendButtonContainer?.classList.toggle('labeled', !!label);
 				}));
 			}
 			// Hold Alt while clicking Send to start the session in the background.
