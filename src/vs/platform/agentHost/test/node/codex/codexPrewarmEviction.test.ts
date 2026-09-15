@@ -33,7 +33,7 @@ import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCrea
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, type StringOrMarkdown } from '../../../common/state/sessionState.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -52,7 +52,7 @@ import { CODEX_FILE_LINK_INSTRUCTIONS, type ICodexClientPlugin } from '../../../
 import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
+import { buildMcpChannel, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
@@ -828,6 +828,68 @@ suite('CodexAgent prewarm eviction', () => {
 			{ resource: session.toString(), type: ActionType.SessionCustomizationUpdated, id: customization.id },
 			{ resource: session.toString(), type: ActionType.SessionCustomizationRemoved, id: customization.id },
 		]);
+	});
+
+	test('client plugin republish preserves live MCP child state', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const { session } = await createSession(agent);
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const pluginDir = URI.file('/plugin');
+		entry.clientCustomizations.setClient('client-1', [{
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin' }, pluginDir },
+			parsed: {
+				format: PluginFormat.OpenPlugin,
+				hooks: [],
+				agents: [],
+				instructions: [],
+				skills: [],
+				mcpServers: [{
+					name: 'local',
+					uri: URI.file('/plugin/.mcp.json'),
+					configuration: { type: McpServerType.LOCAL, command: 'node' },
+					customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Stopped } },
+				}],
+			},
+		} satisfies ICodexClientPlugin]);
+
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: session.toString(),
+			provider: agent.id,
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+		stateManager.dispatchServerAction(session.toString(), {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: entry.clientCustomizations.toCustomizations(),
+		});
+		const chat = defaultChatOf(session);
+		const controller = new McpCustomizationController({ chatUri: chat, emit: () => { } }, stateManager);
+		entry.mcpController = controller;
+		controller.applyOne({ name: 'local', state: { kind: McpServerStatus.Ready } });
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated
+			? [{
+				name: signal.action.customization.name,
+				mcp: signal.action.customization.type === CustomizationType.Plugin ? signal.action.customization.children?.flatMap(child => child.type === CustomizationType.McpServer ? [{
+					state: child.state.kind,
+					channel: child.channel,
+				}] : []) : undefined,
+			}]
+			: []), [{
+				name: 'plugin',
+				mcp: [{
+					state: McpServerStatus.Ready,
+					channel: buildMcpChannel(chat, 'local'),
+				}],
+			}]);
 	});
 
 	test('owning runtime MCP state takes precedence over peer state in the shared session', async () => {
@@ -1843,6 +1905,44 @@ suite('CodexAgent prewarm eviction', () => {
 			requestsWhileFirstPending: 1,
 			requests: [[PLUGIN_SKILLS_ROOT], []],
 			runtime: AgentSession.id(session),
+		});
+	});
+
+	test('MCP inventory refreshes coalesce per thread', async () => {
+		const agent = await createAgent(disposables);
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		let requests = 0;
+		const client = {
+			request: async (method: string) => {
+				assert.strictEqual(method, 'mcpServerStatus/list');
+				requests++;
+				if (requests === 1) {
+					firstStarted.complete();
+					await releaseFirst.p;
+				}
+				return { data: [], nextCursor: null };
+			},
+		} as never;
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		const first = agent['_refreshMcpInventory'](client, null);
+		await firstStarted.p;
+		const second = agent['_refreshMcpInventory'](client, null);
+		const third = agent['_refreshMcpInventory'](client, null);
+		await new Promise(resolve => setImmediate(resolve));
+		const requestsWhileFirstPending = requests;
+		releaseFirst.complete();
+		await Promise.all([first, second, third]);
+
+		assert.deepStrictEqual({ requestsWhileFirstPending, requests }, {
+			requestsWhileFirstPending: 1,
+			requests: 2,
 		});
 	});
 

@@ -444,7 +444,14 @@ export class TunnelAgentHostConnector extends Disposable {
 			socket,
 			relayClient,
 			data => this._onDidRelayMessage.fire({ connectionId, data }),
-			event => this._logService.info(`${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${event.code}, reason=${event.reason || '(empty)'}`),
+			event => {
+				const message = `${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${event.code}, reason=${event.reason || '(empty)'}`;
+				if (event.error) {
+					this._logService.warn(`${message}, error=${event.error.message}`);
+				} else {
+					this._logService.info(message);
+				}
+			},
 		);
 		const onConnectionClose = connection.onDidClose(() => {
 			onConnectionClose.dispose();

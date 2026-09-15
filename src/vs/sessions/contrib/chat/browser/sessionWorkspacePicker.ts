@@ -1629,7 +1629,7 @@ export class WorkspacePicker extends Disposable {
 				&& this._directPickerAttachesContext !== true
 				? localize('workspacePicker.chooseFolder', "Choose Folder")
 				: this._useConsolidatedRemoteWorkspaces()
-					? action.label.replace(/(?:\.\.\.|…)$/, '')
+					? action.label.replace(/(?:\.\.\.|\u2026)$/, '')
 					: action.label;
 			const isUnavailable = this._isProviderUnavailable(action.providerId);
 			if (useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE) {

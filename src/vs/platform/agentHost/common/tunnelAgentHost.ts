@@ -449,6 +449,12 @@ export interface ITunnelAgentHostMainService {
 	disconnect(connectionId: string): Promise<void>;
 }
 
+/** Persisted tunnel IDs hidden from discovery or automatic connection. */
+export interface ITunnelVisibility {
+	readonly dismissed: readonly string[];
+	readonly autoConnectSuppressed: readonly string[];
+}
+
 /**
  * Renderer-side service that manages dev tunnel agent host connections.
  * Uses the shared-process {@link ITunnelAgentHostMainService} for
@@ -463,8 +469,11 @@ export interface ITunnelAgentHostService {
 
 	/**
 	 * Enumerate available dev tunnels with agent host support.
-	 * When {@link options.silent} is `true`, uses cached tokens without
-	 * prompting the user. Returns an empty array if no cached token.
+	 * Resolves to an empty array only when no tunnels should authoritatively be
+	 * exposed, such as after successful empty discovery or when discovery is
+	 * disabled. Rejects when discovery cannot complete, including when
+	 * authentication is unavailable. {@link options.silent} suppresses
+	 * authentication prompts but does not convert failures to empty results.
 	 */
 	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
 
@@ -510,6 +519,9 @@ export interface ITunnelAgentHostService {
 
 	/** Whether the user dismissed this tunnel from the remote-host picker. */
 	isTunnelDismissed(tunnelId: string): boolean;
+
+	/** Persisted visibility decisions, including IDs absent from the current cache and discovery results. */
+	getTunnelVisibility(): ITunnelVisibility;
 
 	/** Persist that the user dismissed this tunnel from the remote-host picker. */
 	dismissTunnel(tunnelId: string): void;

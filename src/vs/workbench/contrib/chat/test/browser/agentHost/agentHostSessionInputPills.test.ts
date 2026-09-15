@@ -85,6 +85,7 @@ suite('AgentHostSessionInputPills', () => {
 	test('partitions GitHub links, artifacts, and references without duplication', () => {
 		const entries: readonly ISessionArtifact[] = [
 			{ id: 'created-pr', type: SessionArtifactType.PullRequest, label: 'Created PR', link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true, isArtifact: true },
+			{ id: 'untitled-pr', type: SessionArtifactType.PullRequest, label: '', link: 'https://github.com/microsoft/vscode/pull/3', isGitHub: true, isArtifact: true },
 			{ id: 'duplicate-pr', type: SessionArtifactType.PullRequest, label: 'Existing PR', link: 'https://github.com/microsoft/vscode/pull/1/', isGitHub: true, isArtifact: false },
 			{ id: 'created-issue', type: SessionArtifactType.Issue, label: 'Created Issue', link: 'https://github.com/microsoft/vscode/issues/3', isGitHub: true, isArtifact: true },
 			{ id: 'issue-reference', type: SessionArtifactType.Issue, label: 'Related Issue', link: 'https://github.com/microsoft/vscode/issues/4', isGitHub: true, isArtifact: false },
@@ -109,6 +110,7 @@ suite('AgentHostSessionInputPills', () => {
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
 			pullRequestUrls: [
+				'https://github.com/microsoft/vscode/pull/3',
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
 			],
