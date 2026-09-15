@@ -36,8 +36,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Link } from '../../../../platform/opener/browser/link.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
@@ -57,7 +56,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
@@ -513,23 +512,6 @@ const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomati
 const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
 const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
 
-export function getAutomationTargetHint(target: Pick<IFormState, 'isQuickChat' | 'folderUri' | 'providerId' | 'sessionTypeId'>, sessionTypes: readonly IProviderSessionType[]): string | undefined {
-	if (!target.isQuickChat && !target.folderUri) {
-		return localize('automation.form.targetHint.choose', "Choose a workspace or No workspace to see which agents can run this automation.");
-	}
-	if (sessionTypes.length === 0) {
-		return localize('automation.form.targetHint.unavailable', "No agents are currently available for this target.");
-	}
-	if (sessionTypes.length === 1
-		&& sessionTypes[0].sessionType.id === target.sessionTypeId
-		&& (!target.providerId || sessionTypes[0].providerId === target.providerId)) {
-		return target.isQuickChat
-			? localize('automation.form.targetHint.singleQuickChat', "Only {0} is available without a workspace. Choose a workspace to use a different agent.", sessionTypes[0].sessionType.label)
-			: localize('automation.form.targetHint.singleWorkspace', "Only {0} is available for this workspace. Change the workspace to use a different agent.", sessionTypes[0].sessionType.label);
-	}
-	return undefined;
-}
-
 type BranchLoadState = 'noFolder' | 'loadingRepository' | 'noRepository' | 'loadingBranches' | 'ready' | 'empty' | 'error';
 
 function setAutomationControlVisible(container: HTMLElement, visible: boolean): void {
@@ -541,7 +523,7 @@ function setAutomationControlVisible(container: HTMLElement, visible: boolean): 
 	}
 }
 
-function getAutomationSessionToolbarResponsiveItems(toolbar: MenuWorkbenchToolBar, compactModelPicker?: ISettableObservable<boolean>): IChatInputPickerResponsiveLayoutItem[] {
+function getAutomationToolbarResponsiveItems(toolbar: MenuWorkbenchToolBar, options: { readonly canShrink?: boolean; readonly compactModelPicker?: ISettableObservable<boolean> } = {}): IChatInputPickerResponsiveLayoutItem[] {
 	const items: IChatInputPickerResponsiveLayoutItem[] = [];
 	for (let index = 0; index < toolbar.getItemsLength(); index++) {
 		const element = toolbar.getItemElement(index);
@@ -551,12 +533,12 @@ function getAutomationSessionToolbarResponsiveItems(toolbar: MenuWorkbenchToolBa
 		}
 		items.push({
 			element,
-			canShrink: true,
+			canShrink: options.canShrink ?? true,
 			isCompact: () => element.classList.contains('compact-picker'),
 			setCompact: compact => {
 				element.classList.toggle('compact-picker', compact);
 				if (action.id === 'sessions.modelPicker') {
-					compactModelPicker?.set(compact, undefined);
+					options.compactModelPicker?.set(compact, undefined);
 				}
 			},
 		});
@@ -922,12 +904,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/**
- * Renders a dialog-owned picker into a chat input secondary-toolbar slot. The
- * picker instance is owned by the dialog (registered on its disposables); this
- * view item only injects the picker's DOM into the toolbar container via the
- * supplied {@link renderPicker} callback.
- */
+/** Renders a dialog-owned picker into the target toolbar without taking ownership of it. */
 class AutomationPickerActionViewItem extends BaseActionViewItem {
 	private readonly visibilityWatch = this._register(new MutableDisposable<IDisposable>());
 
@@ -959,7 +936,7 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: MenuId.ChatInputSecondary,
+				id: Menus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -1,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -978,7 +955,7 @@ registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: MenuId.ChatInputSecondary,
+				id: Menus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -2,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -997,7 +974,7 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: MenuId.ChatInputSecondary,
+				id: Menus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: 2,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -1225,7 +1202,16 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const promptSection = DOM.append(formContent, $('.automation-prompt-section'));
+	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
+	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
+	const targetLabel = DOM.append(targetRow, $('span.automation-form-label', {
+		id: 'automation-target-label',
+	}, localize('automation.form.target', "Target")));
+	const targetContainer = DOM.append(targetRow, $('.automation-target-toolbar', {
+		role: 'group',
+		'aria-labelledby': targetLabel.id,
+	}));
+	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
 	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
@@ -1236,7 +1222,7 @@ export function renderForm(
 		const session = sessionsManagementService.automationSession.read(reader);
 		activeAutomationSession.set(session ? new VisibleSession(session, session.mainChat.read(reader)) : undefined, undefined);
 	}));
-	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(promptSection));
+	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(sessionSection));
 	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
@@ -1257,14 +1243,51 @@ export function renderForm(
 		usesCombinedConfigPicker.set(!!session && sessionsManagementService.usesCombinedNewSessionConfigPicker(session));
 	}));
 
+	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
+		ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
+		telemetrySource: 'automations.dialog',
+		hiddenItemStrategy: HiddenItemStrategy.NoHide,
+		responsiveBehavior: {
+			enabled: true,
+			kind: 'all',
+			actionMinWidth: 22,
+			allowOverflow: false,
+		},
+		actionViewItemProvider: (action, itemOptions) => {
+			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
+				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
+			}
+			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+				return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container), undefined, itemOptions);
+			}
+			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
+				return instantiationService.createInstance(
+					AutomationIsolationGroupActionViewItem,
+					action,
+					state,
+					isolationModel,
+					isolationModel.folderUriObs,
+					onDidChangeSessionTarget.event,
+					revalidate,
+					itemOptions,
+					workspaceControlsVisible,
+				);
+			}
+			return undefined;
+		},
+	}));
+	const targetLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.target', targetContainer, {
+		getItems: () => getAutomationToolbarResponsiveItems(targetToolbar, { canShrink: false }),
+		hasOverflow: () => targetToolbar.hasOverflow(),
+		relayout: () => targetToolbar.relayout(),
+	}));
+	targetLayout.layout();
+
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-input-background)',
 		listForeground: 'var(--vscode-foreground)',
 		listBackground: 'var(--vscode-input-background)',
 	};
-	let automationIsolationAction: IAction | undefined;
-	const overflowIsolationItem = disposables.add(new MutableDisposable<AutomationIsolationGroupActionViewItem>());
-
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -1291,61 +1314,6 @@ export function renderForm(
 		inputPartHorizontalPadding: 0,
 		editorOverflowWidgetsDomNode,
 		sessionTypePickerDelegate: sessionTypeDelegate,
-		secondaryToolbarOverflowActionHandler: (actionId, anchor) => {
-			if (actionId === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				sessionTypePicker.showPicker(anchor);
-				return true;
-			}
-			if (actionId === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				workspacePicker.showPicker(false, anchor);
-				return true;
-			}
-			if (actionId === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID && automationIsolationAction) {
-				const item = instantiationService.createInstance(
-					AutomationIsolationGroupActionViewItem,
-					automationIsolationAction,
-					state,
-					isolationModel,
-					isolationModel.folderUriObs,
-					onDidChangeSessionTarget.event,
-					revalidate,
-					undefined,
-					workspaceControlsVisible,
-				);
-				overflowIsolationItem.value = item;
-				item.render(DOM.$('.automation-overflow-isolation-picker'));
-				item.showPicker(anchor);
-				return true;
-			}
-			return false;
-		},
-		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
-			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
-			}
-			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => {
-					container.classList.add('chat-input-picker-item');
-					workspacePicker.render(container);
-				}, undefined, itemOptions);
-			}
-			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
-				automationIsolationAction = action;
-				const item = instantiationService.createInstance(
-					AutomationIsolationGroupActionViewItem,
-					action,
-					state,
-					isolationModel,
-					isolationModel.folderUriObs,
-					onDidChangeSessionTarget.event,
-					revalidate,
-					itemOptions,
-					workspaceControlsVisible,
-				);
-				return item;
-			}
-			return undefined;
-		},
 	};
 
 	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
@@ -1367,33 +1335,6 @@ export function renderForm(
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
-	const targetHint = DOM.append(promptSection, $('.automation-target-hint'));
-	const targetHintMessage = DOM.append(targetHint, $('span.automation-target-hint-message', {
-		role: 'status',
-		'aria-atomic': 'true',
-	}));
-	const chooseWorkspaceContainer = DOM.append(targetHint, $('span.automation-target-hint-action'));
-	disposables.add(instantiationService.createInstance(Link, chooseWorkspaceContainer, {
-		label: localize('automation.form.chooseWorkspace', "Choose Workspace"),
-		href: '#',
-	}, {
-		opener: () => workspacePicker.showPicker(),
-	}));
-	const selectedSessionTypeChanged = observableSignalFromEvent(targetHint, sessionTypePicker.onDidChangeSelectedPick);
-	disposables.add(autorun(reader => {
-		sessionTypesChanged.read(reader);
-		selectedSessionTypeChanged.read(reader);
-		const isQuickChat = isolationModel.isQuickChatObs.read(reader);
-		const folderUri = isolationModel.folderUriObs.read(reader);
-		const sessionTypes = isQuickChat
-			? sessionsManagementService.getQuickChatSessionTypes()
-			: folderUri ? sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
-		const message = getAutomationTargetHint(state, sessionTypes);
-		setAutomationControlVisible(targetHint, message !== undefined);
-		if (targetHintMessage.textContent !== (message ?? '')) {
-			targetHintMessage.textContent = message ?? '';
-		}
-	}));
 	const sessionConfigurationRow = DOM.append(promptSection, $('.automation-form-row'));
 	const sessionConfigurationLabel = DOM.append(sessionConfigurationRow, $('span.automation-form-label', {
 		id: 'automation-session-configuration-label',
@@ -1417,13 +1358,13 @@ export function renderForm(
 		localize('automation.form.sessionControls', "Session controls"),
 	));
 	const sessionConfigLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.sessionConfig', sessionConfigContainer, {
-		getItems: () => getAutomationSessionToolbarResponsiveItems(sessionConfigToolbar, compactModelPicker),
+		getItems: () => getAutomationToolbarResponsiveItems(sessionConfigToolbar, { compactModelPicker }),
 		hasOverflow: () => sessionConfigToolbar.hasOverflow(),
 		relayout: () => sessionConfigToolbar.relayout(),
 	}));
 	sessionConfigLayout.layout();
 	const sessionControlsLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.sessionControls', sessionControlsContainer, {
-		getItems: () => getAutomationSessionToolbarResponsiveItems(sessionControlsToolbar),
+		getItems: () => getAutomationToolbarResponsiveItems(sessionControlsToolbar),
 		hasOverflow: () => sessionControlsToolbar.hasOverflow(),
 		relayout: () => sessionControlsToolbar.relayout(),
 	}));
@@ -1451,7 +1392,7 @@ export function renderForm(
 		}
 		sessionConfigurationUnavailable.textContent = pending
 			? localize('automation.form.sessionConfigurationLoading', "Loading session configuration…")
-			: availability === 'unavailable'
+			: hasTarget && controlsUnavailable
 				? localize('automation.form.sessionConfigurationUnavailable', "Session configuration unavailable")
 				: '';
 	}));

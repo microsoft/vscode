@@ -8,6 +8,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { combinedDisposable, Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -29,9 +30,83 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+
+type DevContainerEnvironmentEvent = {
+	dockerAvailable: boolean;
+	devContainerFolderCount: number;
+	devContainerEnabled: boolean;
+};
+
+type DevContainerEnvironmentClassification = {
+	owner: 'chrmarti';
+	comment: 'Reports whether the Agents window can resolve Docker and how many recent local folders contain a default Dev Container configuration.';
+	dockerAvailable: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the Docker executable can be resolved from the user shell environment.' };
+	devContainerFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of unique recent local folders containing .devcontainer/devcontainer.json or .devcontainer.json.' };
+	devContainerEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Value of the chat.agentHost.devContainer.enabled setting when the event was emitted.' };
+};
+
+type DevContainerEnvironment = Omit<DevContainerEnvironmentEvent, 'devContainerEnabled'>;
+
+async function hasDevContainerConfiguration(workspaceUri: URI, fileService: IFileService): Promise<boolean> {
+	const configurations = await Promise.all([
+		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer', 'devcontainer.json')),
+		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer.json')),
+	]);
+	return configurations.some(exists => exists);
+}
+
+export async function getDevContainerEnvironment(
+	workspaceUris: readonly URI[],
+	fileService: IFileService,
+	mainService: IDevContainerAgentHostMainService,
+): Promise<DevContainerEnvironment> {
+	const [dockerAvailable, configurations] = await Promise.all([
+		mainService.isDockerAvailable(),
+		Promise.all(workspaceUris.map(workspaceUri => hasDevContainerConfiguration(workspaceUri, fileService))),
+	]);
+	return {
+		dockerAvailable,
+		devContainerFolderCount: configurations.filter(Boolean).length,
+	};
+}
+
+export async function reportDevContainerEnvironment(
+	recentWorkspacesService: ISessionsRecentWorkspacesService,
+	getEnvironment: (workspaceUris: readonly URI[]) => Promise<DevContainerEnvironment>,
+	configurationService: IConfigurationService,
+	telemetryService: ITelemetryService,
+): Promise<void> {
+	if (telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
+		return;
+	}
+	await waitForState(recentWorkspacesService.historyLoadState, state => state !== 'loading');
+	const workspaceUris: URI[] = [];
+	const seen = new Set<string>();
+	for (const { workspace } of recentWorkspacesService.getRecentWorkspaces()) {
+		const folderUri = workspace.folders[0]?.root;
+		if (folderUri?.scheme !== Schemas.file) {
+			continue;
+		}
+		const key = getComparisonKey(folderUri);
+		if (!seen.has(key)) {
+			seen.add(key);
+			workspaceUris.push(folderUri);
+		}
+	}
+	const environment = await getEnvironment(workspaceUris);
+	telemetryService.publicLog2<DevContainerEnvironmentEvent, DevContainerEnvironmentClassification>(
+		'vscodeAgents.devContainer/environment',
+		{
+			...environment,
+			devContainerEnabled: configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId),
+		},
+	);
+}
 
 /** Throws when Dev Container Agent Host connections are disabled. */
 export function ensureDevContainerAgentHostsEnabled(configurationService: IConfigurationService): void {
@@ -57,11 +132,7 @@ export async function isDevContainerWorkspaceAvailable(
 	) {
 		return false;
 	}
-	const hasConfiguration = await Promise.all([
-		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer', 'devcontainer.json')),
-		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer.json')),
-	]);
-	return hasConfiguration.some(exists => exists) && await mainService.isDockerAvailable();
+	return await hasDevContainerConfiguration(workspaceUri, fileService) && await mainService.isDockerAvailable();
 }
 
 class DevContainerOutputWriter extends Disposable {
@@ -134,6 +205,10 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 
 	async isAvailable(workspaceUri: URI): Promise<boolean> {
 		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
+	}
+
+	getEnvironment(workspaceUris: readonly URI[]): Promise<DevContainerEnvironment> {
+		return getDevContainerEnvironment(workspaceUris, this._fileService, this._mainService);
 	}
 
 	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
@@ -256,9 +331,20 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 	constructor(
 		@IDevContainerAgentHostService service: IDevContainerAgentHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
 	) {
 		super();
-		this._register(service.registerConnector(instantiationService.createInstance(DevContainerAgentHostConnector)));
+		const connector = instantiationService.createInstance(DevContainerAgentHostConnector);
+		this._register(service.registerConnector(connector));
+		void reportDevContainerEnvironment(
+			recentWorkspacesService,
+			workspaceUris => connector.getEnvironment(workspaceUris),
+			configurationService,
+			telemetryService,
+		).catch(error => logService.warn('[DevContainerAgentHostConnector] Failed to report Dev Container environment telemetry', error));
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -13,6 +14,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -206,6 +208,12 @@ suite('Workbench - TerminalInstance', () => {
 			return instance;
 		}
 
+		function dispatchFileDrop(container: HTMLElement): void {
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(['/test/file.txt']));
+			container.dispatchEvent(new DragEvent('drop', { dataTransfer }));
+		}
+
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
 			// Wait for the terminal instance to resolve shell launch config env.
@@ -386,6 +394,45 @@ suite('Workbench - TerminalInstance', () => {
 				{ disposalOrder, addonDisposeCount },
 				{ disposalOrder: ['onWillDispose', 'addon', 'xterm', 'onDisposed'], addonDisposeCount: 1 }
 			);
+		});
+
+		test('should stop handling file drops after detaching from a container', async () => {
+			const firstInstance = await createTerminalInstance();
+			const secondInstance = await createTerminalInstance();
+			const container = document.createElement('div');
+			const droppedOn: string[] = [];
+			firstInstance.focus = () => { };
+			firstInstance.sendPath = async () => { droppedOn.push('first'); };
+			secondInstance.focus = () => { };
+			secondInstance.sendPath = async () => { droppedOn.push('second'); };
+
+			firstInstance.attachToElement(container);
+			await timeout(0);
+			firstInstance.detachFromElement();
+			secondInstance.attachToElement(container);
+			await timeout(0);
+			dispatchFileDrop(container);
+
+			deepStrictEqual(droppedOn, ['second']);
+		});
+
+		test('should not start handling file drops after detaching before deferred initialization', async () => {
+			const firstInstance = await createTerminalInstance();
+			const secondInstance = await createTerminalInstance();
+			const container = document.createElement('div');
+			const droppedOn: string[] = [];
+			firstInstance.focus = () => { };
+			firstInstance.sendPath = async () => { droppedOn.push('first'); };
+			secondInstance.focus = () => { };
+			secondInstance.sendPath = async () => { droppedOn.push('second'); };
+
+			firstInstance.attachToElement(container);
+			firstInstance.detachFromElement();
+			secondInstance.attachToElement(container);
+			await timeout(0);
+			dispatchFileDrop(container);
+
+			deepStrictEqual(droppedOn, ['second']);
 		});
 
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {

@@ -58,11 +58,11 @@ there is no update service metadata to compare against.
 
 ### Timeouts
 
-Extension installation makes at most three attempts, each allowing 30 seconds to click Install and
-one minute to wait for completion, with a five-second delay between attempts. These waits total at
-most 4 minutes 40 seconds, leaving room for setup and cleanup within the default ten-minute test
-timeout. Mocha does not cancel timed-out async tests, so increasing these waits can cause a retry
-to start before the previous attempt has cleaned up.
+Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
+30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
+between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup and cleanup
+within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so
+increasing these waits can cause a retry to start before the previous attempt has cleaned up.
 
 ## Scripts
 
