@@ -55,7 +55,10 @@ const definitions: Record<string, IJSONSchema> = {
 	},
 	changeTypeRanges: {
 		...object({
-			changeType: nullable(reference('changeType')),
+			changeType: {
+				...nullable(reference('changeType')),
+				description: 'Type of these changed lines, not inherited from the hunk primary type. Every changed import declaration line, including multi-line continuations, is supporting, never logic, test, or generated.',
+			},
 			oldRanges: {
 				...array('reviewRange', 100),
 				description: 'Absolute baseline ranges for every changed line assigned this type. Use an empty array when this type exists only on the modified side.',
@@ -65,7 +68,7 @@ const definitions: Record<string, IJSONSchema> = {
 				description: 'Absolute modified-file ranges for every changed line assigned this type. Use an empty array when this type exists only on the baseline side.',
 			},
 		}),
-		description: 'Exhaustive changed-line classification for one primary or secondary type. Ranges contain changed lines only, do not overlap another type, and use absolute file coordinates.',
+		description: 'Exhaustive changed-line classification for one primary or secondary type. Ranges contain changed lines only, do not overlap another type, and use absolute file coordinates. Changed imports belong exclusively to the supporting entry on each side; other entries must exclude them even in a primarily logic or test hunk.',
 	},
 	source: {
 		...object({
@@ -111,7 +114,7 @@ const definitions: Record<string, IJSONSchema> = {
 			},
 			changeType: {
 				...nullable(reference('changeType')),
-				description: 'The best-supported primary change type. Import-only hunks are supporting, including imports in test or generated files. Changed imports mixed with non-import logic or test edits contribute supporting in secondaryChangeTypes while logic or test stays primary; unchanged imports in context do not count. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
+				description: 'The best-supported primary change type. Import-only hunks are supporting, including imports in test or generated files. Changed imports mixed with non-import logic or test edits contribute supporting in secondaryChangeTypes while logic or test stays primary; their actual coordinates must also be assigned supporting in changeTypeRanges, never copied into a logic or test range. Unchanged imports in context do not count. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
 			},
 			secondaryChangeTypes: { ...array('changeType', 3), uniqueItems: true },
 			summary: text(160), groupReason: reference('reason'), typeReason: reference('reason'),
@@ -147,7 +150,7 @@ const definitions: Record<string, IJSONSchema> = {
 		additions: reference('count'), deletions: reference('count'), classification: reference('classification'),
 		changeTypeRanges: {
 			...array('changeTypeRanges', 4),
-			description: 'One entry for the primary type followed by one entry for each secondary type. Together the ranges must classify every changed line on both sides exactly once. A hunk with an unresolved primary type uses one null entry.',
+			description: 'One entry for the primary type followed by one entry for each secondary type. Together the ranges must classify every changed line on both sides exactly once. Put changed imports in supporting ranges even when the hunk primary is logic or test; listing supporting only as a secondary type is insufficient. A hunk with an unresolved primary type uses one null entry.',
 		},
 		reviewFocus: {
 			...reference('reviewFocus'),

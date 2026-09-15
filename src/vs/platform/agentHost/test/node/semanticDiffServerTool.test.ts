@@ -7,7 +7,8 @@ import assert from 'assert';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { parseSemanticDiffToolResult, SEMANTIC_DIFF_TOOL_NAME } from '../../common/semanticDiff.js';
+import { buildSemanticDiffReport, parseSemanticDiffToolResult, SEMANTIC_DIFF_TOOL_NAME } from '../../common/semanticDiff.js';
+import { resolveSemanticDiffFile } from '../../common/semanticDiffProjection.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -133,6 +134,11 @@ suite('Semantic Diff Server Tool', () => {
 				'For every hunk, add changeTypeRanges',
 				'Assign every changed line on the baseline and modified sides exactly once',
 				'Put every changed import line in the supporting entry',
+				'Logic, test, and generated ranges must exclude import lines',
+				'Adding supporting to secondaryChangeTypes alone is insufficient',
+				'Hunk priority never overrides the type of an individual changed line',
+				'Do not copy a whole hunk or added block into a logic range when it also contains imports',
+				'zero times in logic, test, or generated ranges',
 				'Classify comments, whitespace, and structural separators by their own changed content',
 				'Recheck import edits before submission',
 			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
@@ -140,7 +146,52 @@ suite('Semantic Diff Server Tool', () => {
 			schemaMixedImports: schema.includes('supporting in secondaryChangeTypes while logic or test stays primary'),
 			schemaRequiresChangedLines: hunkSchema.required?.includes('changeTypeRanges'),
 			schemaExplainsExhaustiveRanges: schema.includes('classify every changed line on both sides exactly once'),
-		}, { missingPromptClauses: [], schemaImportOnly: true, schemaMixedImports: true, schemaRequiresChangedLines: true, schemaExplainsExhaustiveRanges: true });
+			schemaExcludesImportsFromOtherTypes: schema.includes('Changed imports belong exclusively to the supporting entry on each side'),
+		}, { missingPromptClauses: [], schemaImportOnly: true, schemaMixedImports: true, schemaRequiresChangedLines: true, schemaExplainsExhaustiveRanges: true, schemaExcludesImportsFromOtherTypes: true });
+	});
+
+	test('mixed-import prompt example preserves Supporting import lines through source validation and tool transport', async () => {
+		const hunkMatch = /Import example hunk:\n(?<hunk>\{[^\n]+\})/.exec(SEMANTIC_DIFF_CLASSIFICATION_PROMPT);
+		const patchMatch = /Import example \(illustrative only;[^\n]+\):\n(?<patch>@@[\s\S]+?)\nThe hunk/.exec(SEMANTIC_DIFF_CLASSIFICATION_PROMPT);
+		assert.ok(hunkMatch?.groups && patchMatch?.groups);
+		const exampleHunk: unknown = JSON.parse(hunkMatch.groups.hunk);
+		const file = { id: 'example-file', path: 'src/example.ts', oldPath: null, status: 'modified', contentKind: 'text' } as const;
+		const result = buildSemanticDiffReport({
+			schemaVersion: 1,
+			analysis: {
+				source: createSemanticDiffExample().analysis.source,
+				groups: [{ id: 'example-group', title: 'Return the helper result', description: 'Use the helper to determine the return value.' }],
+				files: [file], hunks: [exampleHunk], limitations: [],
+			},
+		});
+		assert.ok(result.ok);
+		const resolved = resolveSemanticDiffFile(file, result.report.analysis.hunks,
+			'export function run() {\n  return false;\n}\n',
+			'import { helper } from \'./helper.js\';\nexport function run() {\n  return helper();\n}\n',
+			`diff --git a/${file.path} b/${file.path}\nindex 1111111..2222222 100644\n--- a/${file.path}\n+++ b/${file.path}\n${patchMatch.groups.patch}\n`);
+		const input = { schemaVersion: 1, analysis: result.report.analysis };
+		const output = await createHost().executeTool(buildDefaultChatUri(session), SEMANTIC_DIFF_TOOL_NAME, input);
+		const restored = parseSemanticDiffToolResult(output, JSON.stringify(input));
+		assert.ok(restored.ok);
+		assert.deepStrictEqual({
+			primary: restored.report.analysis.hunks[0].classification.changeType,
+			secondary: restored.report.analysis.hunks[0].classification.secondaryChangeTypes,
+			restoredRanges: restored.report.analysis.hunks[0].changeTypeRanges,
+			verifiedRanges: resolved.hunks[0].changeTypeRanges,
+			focus: resolved.hunks[0].reviewFocus,
+		}, {
+			primary: 'logic',
+			secondary: ['supporting'],
+			restoredRanges: [
+				{ changeType: 'logic', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 3, count: 1 }] },
+				{ changeType: 'supporting', oldRanges: [], newRanges: [{ start: 1, count: 1 }] },
+			],
+			verifiedRanges: [
+				{ changeType: 'logic', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 3, count: 1 }] },
+				{ changeType: 'supporting', oldRanges: [], newRanges: [{ start: 1, count: 1 }] },
+			],
+			focus: { oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 3, count: 1 }], reason: 'The return statement changes the result.' },
+		});
 	});
 
 	test('prompt and schema request optional changed-line review focus without implying safety or confidence', () => {

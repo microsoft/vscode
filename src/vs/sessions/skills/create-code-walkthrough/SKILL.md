@@ -85,10 +85,45 @@ Intent and edit type are separate axes. Assign the best-supported primary `chang
 |---|---|
 | `logic` | Production behavior or a public contract, including public API renames and dependency manifest version changes. |
 | `test` | Hand-authored tests and fixtures. |
-| `supporting` | Changes with evidence of no intended behavior change, such as local formatting or a private coordinated rename. |
+| `supporting` | All import-statement edits, plus other changes with evidence of no intended behavior change, such as local formatting or a private coordinated rename. |
 | `generated` | Reproducible machine output, such as a package-manager lockfile generated from a manifest change. |
 
 When a hunk mixes types, choose the primary in this priority order: `logic`, `test`, `supporting`, `generated`. Put the remaining observed types in `secondaryChangeTypes` in that same order.
+
+**Import declarations are always Supporting.** This applies to additions, removals,
+reordering, paths, names/aliases, type-only and side-effect imports, and changed
+continuation lines in multi-line imports, including in test and generated files.
+Using an imported helper to implement new behavior does not make the import Logic.
+Record behavioral consequences in the explanation rather than changing its type.
+
+For every hunk, provide `changeTypeRanges`: one entry for the primary type followed
+by one entry per secondary type, with `changeType`, `oldRanges`, and `newRanges`.
+Each range is `{ "start": <absolute file line>, "count": <changed line count> }`.
+Use `[]` on a side with no changed lines of that type. Cover every changed line on
+both sides exactly once; exclude unchanged context and overlapping assignments.
+
+Every changed import line belongs exclusively to the Supporting entry.
+**Hunk priority never overrides an individual line's type.** Adding Supporting
+only to `secondaryChangeTypes` is insufficient: its import coordinates must be in
+`changeTypeRanges` and absent from Logic/Test/Generated ranges. Do not assign a
+whole added block to Logic just because it contains a function. Preserve the
+original Git hunk and partition the changed lines inside it, not hunk ownership.
+
+For example, this single mixed hunk contains a Supporting import and Logic change:
+
+```diff
+@@ -1,3 +1,4 @@
++import { helper } from './helper.js';
+ export function run() {
+-  return false;
++  return helper();
+ }
+```
+
+Its primary type is Logic, with Supporting secondary. The Logic entry covers
+old line 2 and new line 3; the Supporting entry covers new line 1 only. Unchanged
+lines are excluded. If providing optional `reviewFocus` for the behavioral core,
+use old line 2 and new line 3, not the accompanying import.
 
 For every hunk, provide:
 
@@ -119,6 +154,9 @@ Before invoking the tool, audit the inventory by file and old/new range:
 - Every observed file is present.
 - Every observed Git hunk appears exactly once.
 - Every hunk has one best-supported group and primary type wherever the evidence permits.
+- Every hunk has exhaustive `changeTypeRanges`, with changed imports assigned only
+  to Supporting on both sides. Repair any Logic/Test/Generated range containing
+  imports; a mixed hunk's primary type is not a line-level assignment.
 - Every low-confidence or null classification has an explicit uncertainty.
 - Every missing, inaccessible, truncated, unsupported, nontext, or stale source has a scoped limitation.
 
@@ -165,21 +203,33 @@ Submit one atomic payload after the investigation:
       {
         "id": "f-example:h1",
         "fileId": "f-example",
-        "oldRange": { "start": 10, "count": 4 },
-        "newRange": { "start": 10, "count": 5 },
+        "oldRange": { "start": 1, "count": 3 },
+        "newRange": { "start": 1, "count": 4 },
         "additions": 2,
         "deletions": 1,
         "classification": {
           "groupId": "semantic-intent",
           "changeType": "logic",
-          "secondaryChangeTypes": [],
-          "summary": "Describe this hunk.",
+          "secondaryChangeTypes": ["supporting"],
+          "summary": "Return the helper result.",
           "groupReason": "Explain why it belongs to this intent.",
-          "typeReason": "Explain why it changes production behavior.",
+          "typeReason": "The return value changes; the import is supporting wiring.",
           "groupConfidence": "high",
           "typeConfidence": "high",
           "uncertainty": null
-        }
+        },
+        "changeTypeRanges": [
+          {
+            "changeType": "logic",
+            "oldRanges": [{ "start": 2, "count": 1 }],
+            "newRanges": [{ "start": 3, "count": 1 }]
+          },
+          {
+            "changeType": "supporting",
+            "oldRanges": [],
+            "newRanges": [{ "start": 1, "count": 1 }]
+          }
+        ]
       }
     ],
     "limitations": []

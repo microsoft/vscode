@@ -65,6 +65,16 @@ each import hunk stays in its intent group rather than a separate imports group.
 For every hunk, verify that `changeTypeRanges` covers every changed line on both
 sides exactly once and assigns changed imports to Supporting even when the hunk
 is primarily Logic or Test.
+In particular, keep an added import close enough to a new function that Git emits
+one mixed hunk. Its import coordinates must be present only in the Supporting
+entry, never inside a broad Logic range covering the whole addition. Merely adding
+Supporting to `secondaryChangeTypes` is not sufficient. Repeat for removed imports
+and changed continuation lines of multi-line imports.
+Check the line hover/accessible classification or submitted `changeTypeRanges`,
+not the gutter hue alone: gutter hue and type filtering follow the whole hunk's
+primary type, so a primarily Logic hunk can still display Supporting import lines.
+The built-in `/create-code-walkthrough` skill uses the same rule and includes a
+mixed-import payload example; customized copies of the skill need the same update.
 Automated prompt tests protect this guidance; only live-model inspection assesses
 whether a particular classification follows it.
 
