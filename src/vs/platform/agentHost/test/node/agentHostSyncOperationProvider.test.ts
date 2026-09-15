@@ -131,6 +131,18 @@ suite('AgentHostSyncOperationContribution', () => {
 		assert.strictEqual(operations, undefined);
 	});
 
+	test('does not advertise sync when the upstream is a local branch', () => {
+		const provider = createContribution();
+		const operations = provider.getOperations({
+			sessionKey,
+			changesetUri: uncommittedChangesetUri,
+			changesetKind: ChangesetKind.Uncommitted,
+			gitState: { ...gitStateWithIncomingChanges, upstreamBranchName: 'main' },
+		});
+
+		assert.strictEqual(operations, undefined);
+	});
+
 	test('does not advertise incoming sync on a draft with uncommitted changes', () => {
 		const provider = createContribution(true);
 		const operations = provider.getOperations({
