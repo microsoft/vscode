@@ -1867,7 +1867,11 @@ suite('ChatService', () => {
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
 			const remoteAgent: IChatAgentImplementation = { invoke: opts.invoke ?? (async () => ({})) };
-			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgent(remoteScheme, {
+				...getAgentData(remoteScheme),
+				isDefault: true,
+				modes: [ChatModeKind.Ask, ChatModeKind.Agent],
+			}));
 			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, remoteAgent));
 
 			const service = createChatService();
@@ -1879,8 +1883,50 @@ suite('ChatService', () => {
 			return { resource, label: 'Test Session', timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined } };
 		}
 
+		function builtinModeInfo(kind: ChatModeKind.Ask | ChatModeKind.Agent) {
+			return {
+				kind,
+				isBuiltin: true,
+				modeInstructions: undefined,
+				telemetryModeId: kind,
+				applyCodeBlockSuggestionId: undefined,
+			} as const;
+		}
+
+		test('carries the selected mode from the untitled session to the materialized session', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-mode' });
+			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+			testDisposables.add(untitledRef);
+			untitledRef.object.inputModel.setState({ mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent } });
+			const result = await service.sendRequest(untitledResource, 'hello', {
+				agentId: remoteScheme,
+				modeInfo: {
+					kind: selectedMode.kind,
+					isBuiltin: false,
+					modeInstructions: {
+						uri: URI.parse(selectedMode.id),
+						name: 'Data',
+						content: '',
+						toolReferences: [],
+					},
+					telemetryModeId: 'custom',
+					applyCodeBlockSuggestionId: undefined,
+				},
+			});
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+
+			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, selectedMode);
+		});
+
 		test('two concurrent sends create a single real session and reject the duplicate', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-concurrent' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
 			let createCount = 0;
 			// Keep the agent turn pending so the first send's request stays in
 			// `_pendingRequests`, making the converged second send's rejection
@@ -1894,13 +1940,18 @@ suite('ChatService', () => {
 
 			// Fire two sends on the same untitled resource without awaiting between
 			// them, so both reach the materialization path concurrently.
-			const p1 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
-			const p2 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const p1 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme, modeInfo: askMode });
+			const p2 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme, modeInfo: agentMode });
 			const [r1, r2] = await Promise.all([p1, p2]);
+			const acceptedMode = ChatSendResult.isSent(r1) ? askMode : agentMode;
 
 			assert.strictEqual(createCount, 1, 'createNewChatSessionItem must run exactly once');
 			assert.deepStrictEqual([r1.kind, r2.kind].sort(), ['rejected', 'sent'], 'one send is accepted, the duplicate is rejected');
 			assert.ok(service.getSession(realResource), 'exactly one real session is materialized');
+			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, {
+				id: acceptedMode.kind,
+				kind: acceptedMode.kind,
+			});
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), [remoteScheme]);
 
 			agentGate.complete();
@@ -1962,13 +2013,15 @@ suite('ChatService', () => {
 
 		test('a late send still addressed to the untitled resource re-targets the real session', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-late' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
 			let createCount = 0;
 			const { service, untitledResource } = setupUntitledRemote({
 				createItem: async () => { createCount++; return realItem(realResource); },
 			});
 			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
 
-			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme });
+			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo: askMode });
 			ChatSendResult.assertSent(r1);
 			await r1.data.responseCompletePromise;
 
@@ -1980,13 +2033,14 @@ suite('ChatService', () => {
 			// swapped to the real resource) must NOT materialize a second session,
 			// and must report the real resource as the new session so the caller
 			// swaps its UI to the real session (mirroring the first send).
-			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme, modeInfo: agentMode });
 			ChatSendResult.assertSent(r2);
 			await r2.data.responseCompletePromise;
 
 			assert.strictEqual(createCount, 1, 'no second materialization for a stale untitled send');
 			assert.strictEqual(r2.newSessionResource?.toString(), realResource.toString(), 'late re-target reports the real resource as the new session');
 			assert.strictEqual(realModel.getRequests().length, requestsAfterFirst + 1, 'second request is routed to the real session');
+			assert.deepStrictEqual(realModel.inputModel.state.get()?.mode, { id: agentMode.kind, kind: agentMode.kind });
 		});
 
 		test('a late send to a read-only materialized session reports the real resource', async () => {
