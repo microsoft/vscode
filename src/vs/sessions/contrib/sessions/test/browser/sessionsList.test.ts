@@ -3878,7 +3878,7 @@ suite('Sessions - SessionsList', () => {
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
-				compact: () => !IsPhoneLayoutContext.getValue(contextKeyService),
+				compact: () => true,
 				onSessionOpen: () => { },
 			}));
 			list.layout(500, 400);
