@@ -111,6 +111,24 @@
 	pointer-events: auto;
 }
 
+.semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-has-review-focus {
+	border-left-color: color-mix(in srgb, var(--semantic-diff-type-color) 45%, var(--vscode-editor-background));
+}
+
+.semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-review-focus {
+	border-left-color: var(--semantic-diff-type-color);
+}
+
+.hc-black .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-has-review-focus,
+.hc-light .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-has-review-focus {
+	border-left-color: var(--semantic-diff-type-color);
+}
+
+.hc-black .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-review-focus,
+.hc-light .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-review-focus {
+	border-left-style: double;
+}
+
 .semantic-diff-editor .semantic-diff-body {
 	flex: 1;
 	min-width: 0;

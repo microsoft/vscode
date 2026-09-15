@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { buildSemanticDiffReport, ISemanticDiffAnalysis, SemanticDiffValidationResult, validateSemanticDiffReport } from '../../../../../platform/agentHost/common/semanticDiff.js';
 import { createSemanticDiffExample } from '../../../../../platform/agentHost/test/common/semanticDiffFixtures.js';
 import { ChatSemanticDiffResultSubPart } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatSemanticDiffResultSubPart.js';
 import { IChatSemanticDiffData, IChatToolInvocationSerialized } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { SemanticDiffCardMenu } from '../../../../contrib/chat/common/semanticDiffEditor.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { registerChatFixtureServices } from './chatFixtureUtils.js';
+import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 
-function renderResult({ container, disposableStore, theme, fileIconTheme }: ComponentFixtureContext, result: SemanticDiffValidationResult, options: { expanded?: 'files' | 'details'; narrow?: boolean; zoom?: boolean } = {}): void {
+function renderResult({ container, disposableStore, theme, fileIconTheme }: ComponentFixtureContext, result: SemanticDiffValidationResult, options: { expanded?: 'files' | 'details'; narrow?: boolean; zoom?: boolean; editorAction?: boolean } = {}): void {
 	container.style.width = options.narrow ? '320px' : '600px';
 	container.style.padding = '12px';
 	container.style.boxSizing = 'border-box';
@@ -27,9 +31,18 @@ function renderResult({ container, disposableStore, theme, fileIconTheme }: Comp
 		toolSpecificData: data,
 	});
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, fileIconTheme, additionalServices: registerChatFixtureServices });
+	if (options.editorAction) {
+		const menuService = instantiationService.createInstance(FixtureMenuService);
+		menuService.addItem(SemanticDiffCardMenu, {
+			command: { id: 'fixture.semanticDiff.open', title: 'Open Group Diff', icon: Codicon.diffMultiple },
+			group: 'navigation',
+		});
+		instantiationService.stub(IMenuService, menuService);
+	}
 	disposableStore.add(instantiationService.get(ILanguageService).registerLanguage({ id: 'javascript', extensions: ['.js'] }));
 	disposableStore.add(instantiationService.get(ILanguageService).registerLanguage({ id: 'json', extensions: ['.json'] }));
-	const part = disposableStore.add(instantiationService.createInstance(ChatSemanticDiffResultSubPart, invocation, data, {}, false, undefined));
+	const source = options.editorAction ? { sessionResource: URI.parse('agent-host-copilot:/fixture'), responseId: 'response', toolCallId: invocation.toolCallId } : undefined;
+	const part = disposableStore.add(instantiationService.createInstance(ChatSemanticDiffResultSubPart, invocation, data, {}, false, source));
 	container.appendChild(part.domNode);
 	if (options.expanded) {
 		part.domNode.querySelector<HTMLElement>('.semantic-diff-group-toggle')?.click();
@@ -95,6 +108,15 @@ export default defineThemedFixtureGroup({ path: 'chat/semanticDiff/' }, {
 			'Three collapsed intent cards lead with their titles and paragraph summaries. Each upper-right control shows a neutral file count followed by green additions and red deletions, with no chevron or duplicate totals beneath the summary. Equal inner padding and subtle ordinal accents distinguish intents, not change types.',
 		],
 		render: context => renderResult(context, paragraphResult()),
+	}),
+	EditorAction: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Each collapsed card has a multi-file diff icon immediately after its file/addition/deletion statistics in the upper-right corner. The icon has no visible text label and there is no action row below the summary.'],
+		render: context => renderResult(context, paragraphResult(), { editorAction: true }),
+	}),
+	NarrowEditorAction: defineComponentFixture({
+		expectedVisualDescriptions: ['At narrow width and doubled body text, titles and statistics wrap without horizontal overflow. Each upper-right multi-file diff icon remains separate from and after its statistics button. The first card shows its file list; other cards are collapsed.'],
+		render: context => renderResult(context, paragraphResult(), { editorAction: true, expanded: 'files', narrow: true, zoom: true }),
 	}),
 	BillingDetails: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

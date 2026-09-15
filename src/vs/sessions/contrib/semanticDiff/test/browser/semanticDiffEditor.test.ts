@@ -25,7 +25,7 @@ import { ISemanticDiffSourceResolverService } from '../../../../../workbench/con
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SemanticDiffEditorInput } from '../../browser/semanticDiffEditorInput.js';
 import { SemanticDiffEditorWidget } from '../../browser/semanticDiffEditorWidget.js';
-import { createSemanticDiffBoundaryData, createSemanticDiffContextData, createSemanticDiffEditorData } from './semanticDiffTestUtils.js';
+import { createSemanticDiffBoundaryData, createSemanticDiffContextData, createSemanticDiffEditorData, createSemanticDiffMixedImportData } from './semanticDiffTestUtils.js';
 
 suite('SemanticDiffEditorWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -171,6 +171,76 @@ suite('SemanticDiffEditorWidget', () => {
 		}, { count: 2, lefts: [widget.domNode.getBoundingClientRect().left], blocks });
 		input.setSelectedTypes([]);
 		assert.strictEqual(widget.domNode.querySelectorAll('.semantic-diff-hunk-decoration').length, 0);
+	});
+
+	test('review focus uses the full type color over a quieter surrounding marker', async () => {
+		const { widget } = await createWidget(createSemanticDiffContextData('', true));
+		widget.domNode.style.setProperty('--vscode-semanticDiff-logicForeground', 'rgb(120, 60, 180)');
+		widget.domNode.style.setProperty('--vscode-editor-background', 'rgb(0, 0, 0)');
+		widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
+		const targetWindow = getWindow(widget.domNode);
+		const surrounding = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-has-review-focus')];
+		const focus = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-review-focus')];
+		assert.deepStrictEqual({
+			surroundingCount: surrounding.length,
+			focusCount: focus.length,
+			surroundingColors: [...new Set(surrounding.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			focusColors: [...new Set(focus.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			focusInsideSurrounding: focus.every(element => {
+				const bounds = element.getBoundingClientRect();
+				return surrounding.some(candidate => {
+					const candidateBounds = candidate.getBoundingClientRect();
+					return bounds.top >= candidateBounds.top && bounds.bottom <= candidateBounds.bottom;
+				});
+			}),
+			accessible: widget.getAccessibleContent().includes('Review focus: The second replacement changes the guarded billing outcome.\nOriginal: line 4. Modified: line 5. This suggests where to begin reading, not which lines can be skipped.'),
+		}, {
+			surroundingCount: 2,
+			focusCount: 1,
+			surroundingColors: ['color(srgb 0.211765 0.105882 0.317647)'],
+			focusColors: ['rgb(120, 60, 180)'],
+			focusInsideSurrounding: true,
+			accessible: true,
+		});
+	});
+
+	test('mixed import and logic hunk uses shades of its primary type while preserving line types', async () => {
+		const { widget, input } = await createWidget(createSemanticDiffMixedImportData());
+		widget.domNode.style.setProperty('--vscode-semanticDiff-logicForeground', 'rgb(120, 60, 180)');
+		widget.domNode.style.setProperty('--vscode-semanticDiff-supportingForeground', 'rgb(130, 90, 50)');
+		widget.domNode.style.setProperty('--vscode-editor-background', 'rgb(0, 0, 0)');
+		widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
+		const targetWindow = getWindow(widget.domNode);
+		const quiet = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-hunk-decoration.semantic-diff-type-logic.semantic-diff-has-review-focus')];
+		const focus = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-hunk-decoration.semantic-diff-type-logic.semantic-diff-review-focus')];
+		const model = widget.diffWidget.tryGetCodeEditor(input.getProjectionUri('file', 'modified'))!.editor.getModel()!;
+		const annotations = model.getAllDecorations()
+			.filter(decoration => decoration.options.description === 'semantic-diff-hunk-type')
+			.map(decoration => ({
+				range: [decoration.range.startLineNumber, decoration.range.endLineNumber],
+				type: annotationType(decoration),
+			}));
+		assert.deepStrictEqual({
+			quietCount: quiet.length,
+			focusCount: focus.length,
+			supportingColorCount: widget.domNode.querySelectorAll('.semantic-diff-hunk-decoration.semantic-diff-type-supporting').length,
+			quietColors: [...new Set(quiet.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			focusColors: [...new Set(focus.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			annotations,
+			accessible: widget.getAccessibleContent().includes('Supporting changed lines. Original: none. Modified: lines 1-2, line 5, line 7.'),
+		}, {
+			quietCount: 3,
+			focusCount: 1,
+			supportingColorCount: 0,
+			quietColors: ['color(srgb 0.211765 0.105882 0.317647)'],
+			focusColors: ['rgb(120, 60, 180)'],
+			annotations: [
+				{ range: [1, 2], type: 'Supporting' },
+				{ range: [5, 5], type: 'Supporting' },
+				{ range: [6, 6], type: 'Logic' },
+			],
+			accessible: true,
+		});
 	});
 
 	test('hunk markers use projected ranges and primary types, and are replaced when filters change', async () => {

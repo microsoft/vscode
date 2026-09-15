@@ -61,6 +61,18 @@ export interface ISemanticDiffClassification {
 	uncertainty: string | null;
 }
 
+export interface ISemanticDiffReviewFocus {
+	oldRanges: ISemanticDiffRange[];
+	newRanges: ISemanticDiffRange[];
+	reason: string;
+}
+
+export interface ISemanticDiffChangeTypeRanges {
+	changeType: SemanticDiffChangeType | null;
+	oldRanges: ISemanticDiffRange[];
+	newRanges: ISemanticDiffRange[];
+}
+
 export interface ISemanticDiffHunk {
 	id: string;
 	fileId: string;
@@ -69,6 +81,8 @@ export interface ISemanticDiffHunk {
 	additions: number;
 	deletions: number;
 	classification: ISemanticDiffClassification;
+	changeTypeRanges?: ISemanticDiffChangeTypeRanges[];
+	reviewFocus?: ISemanticDiffReviewFocus;
 }
 
 export interface ISemanticDiffLimitation {
@@ -459,6 +473,62 @@ function validateRelationships(analysis: ISemanticDiffAnalysis, issues: Issues):
 		if (isSemanticDiffHunkUncertain(hunk) && classification.uncertainty === null) {
 			issues.add(`${path}/classification/uncertainty`, 'MISSING_UNCERTAINTY', localize('semanticDiff.missingUncertainty', "Explain uncertainty when an axis is unclassified or has low confidence."));
 		}
+		if (hunk.reviewFocus) {
+			const ranges = [
+				['oldRanges', hunk.reviewFocus.oldRanges, hunk.oldRange],
+				['newRanges', hunk.reviewFocus.newRanges, hunk.newRange],
+			] as const;
+			if (ranges.every(([, focusRanges]) => focusRanges.length === 0)) {
+				issues.add(`${path}/reviewFocus`, 'INVALID_RANGE', localize('semanticDiff.emptyReviewFocus', "A review focus requires at least one original or modified range."));
+			}
+			for (const [name, focusRanges, hunkRange] of ranges) {
+				let previousEnd = -1;
+				for (const [rangeIndex, range] of focusRanges.entries()) {
+					if (!contains(hunkRange, range) || range.start < previousEnd) {
+						issues.add(`${path}/reviewFocus/${name}/${rangeIndex}`, 'INVALID_RANGE', localize('semanticDiff.invalidReviewFocus', "Review focus ranges must be ordered, non-overlapping, and contained within the owning hunk."));
+					}
+					previousEnd = range.start + range.count;
+				}
+			}
+		}
+		if (hunk.changeTypeRanges) {
+			const expectedTypes: readonly (SemanticDiffChangeType | null)[] = classification.changeType === null
+				? [null]
+				: [classification.changeType, ...classification.secondaryChangeTypes];
+			if (hunk.changeTypeRanges.length !== expectedTypes.length ||
+				hunk.changeTypeRanges.some((ranges, rangesIndex) => ranges.changeType !== expectedTypes[rangesIndex])) {
+				issues.add(`${path}/changeTypeRanges`, 'INVALID_TYPE_COMBINATION', localize('semanticDiff.invalidChangeTypeRanges', "Changed-line types must match the primary type followed by the secondary types."));
+			}
+			for (const [rangesIndex, typeRanges] of hunk.changeTypeRanges.entries()) {
+				if (typeRanges.oldRanges.length === 0 && typeRanges.newRanges.length === 0) {
+					issues.add(`${path}/changeTypeRanges/${rangesIndex}`, 'INVALID_RANGE', localize('semanticDiff.emptyChangeTypeRanges', "A changed-line type requires at least one original or modified range."));
+				}
+				for (const [name, ranges, hunkRange] of [
+					['oldRanges', typeRanges.oldRanges, hunk.oldRange],
+					['newRanges', typeRanges.newRanges, hunk.newRange],
+				] as const) {
+					let previousEnd = -1;
+					for (const [rangeIndex, range] of ranges.entries()) {
+						if (!contains(hunkRange, range) || range.start < previousEnd) {
+							issues.add(`${path}/changeTypeRanges/${rangesIndex}/${name}/${rangeIndex}`, 'INVALID_RANGE', localize('semanticDiff.invalidChangeTypeRange', "Changed-line ranges must be ordered, non-overlapping, and contained within the owning hunk."));
+						}
+						previousEnd = range.start + range.count;
+					}
+				}
+			}
+			for (const [name, ranges] of [
+				['oldRanges', hunk.changeTypeRanges.flatMap(item => item.oldRanges)],
+				['newRanges', hunk.changeTypeRanges.flatMap(item => item.newRanges)],
+			] as const) {
+				const ordered = ranges.toSorted((left, right) => left.start - right.start);
+				for (let rangeIndex = 1; rangeIndex < ordered.length; rangeIndex++) {
+					if (ordered[rangeIndex].start < ordered[rangeIndex - 1].start + ordered[rangeIndex - 1].count) {
+						issues.add(`${path}/changeTypeRanges`, 'INVALID_RANGE', localize('semanticDiff.overlappingChangeTypeRanges', "Changed-line ranges for different types must not overlap on the {0}.", name === 'oldRanges' ? localize('semanticDiff.originalSide', "original side") : localize('semanticDiff.modifiedSide', "modified side")));
+						break;
+					}
+				}
+			}
+		}
 	}
 	for (const [index, group] of analysis.groups.entries()) {
 		if (!assignedGroups.has(group.id)) {
@@ -499,6 +569,10 @@ function overlaps(left: ISemanticDiffRange, right: ISemanticDiffRange): boolean 
 		return range.count > 0 && anchor.start > range.start && anchor.start < range.start + range.count - 1;
 	}
 	return left.start < right.start + right.count && right.start < left.start + left.count;
+}
+
+function contains(outer: ISemanticDiffRange, inner: ISemanticDiffRange): boolean {
+	return inner.count > 0 && inner.start >= outer.start && inner.start + inner.count <= outer.start + outer.count;
 }
 
 export function isSemanticDiffHunkUncertain(hunk: ISemanticDiffHunk): boolean {
@@ -740,6 +814,18 @@ export function formatSemanticDiffReport(report: ISemanticDiffReport): string {
 					localize('semanticDiff.hunkType', "Primary type: {0}; observed +{1}/-{2}.", getSemanticDiffChangeTypeLabel(classification.changeType), hunk.additions, hunk.deletions));
 				for (const type of classification.secondaryChangeTypes) {
 					lines.push(localize('semanticDiff.secondaryType', "Also: {0}", getSemanticDiffChangeTypeLabel(type)));
+				}
+				for (const typeRanges of hunk.changeTypeRanges ?? []) {
+					lines.push(localize('semanticDiff.changeTypeRanges', "{0} changed lines. Original: {1}. Modified: {2}.",
+						getSemanticDiffChangeTypeLabel(typeRanges.changeType),
+						typeRanges.oldRanges.map(range => formatSemanticDiffRange(range, 'old')).join(', ') || localize('semanticDiff.none', "none"),
+						typeRanges.newRanges.map(range => formatSemanticDiffRange(range, 'new')).join(', ') || localize('semanticDiff.none', "none")));
+				}
+				if (hunk.reviewFocus) {
+					lines.push(localize('semanticDiff.reviewFocus', "Review focus: {0}\nOriginal: {1}. Modified: {2}.",
+						hunk.reviewFocus.reason,
+						hunk.reviewFocus.oldRanges.map(range => formatSemanticDiffRange(range, 'old')).join(', ') || localize('semanticDiff.none', "none"),
+						hunk.reviewFocus.newRanges.map(range => formatSemanticDiffRange(range, 'new')).join(', ') || localize('semanticDiff.none', "none")));
 				}
 				lines.push(
 					localize('semanticDiff.groupReason', "Group reason: {0}", classification.groupReason),

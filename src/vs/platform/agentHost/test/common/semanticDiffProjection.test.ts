@@ -119,6 +119,30 @@ suite('Semantic diff projection', () => {
 		});
 	});
 
+	test('verifies exhaustive changed-line classifications and freezes their ranges', () => {
+		const item = hunk({
+			oldRange: { start: 1, count: 5 }, newRange: { start: 1, count: 6 }, additions: 3, deletions: 2,
+			classification: { ...hunk().classification, secondaryChangeTypes: ['supporting'] },
+			changeTypeRanges: [
+				{ changeType: 'logic', oldRanges: [{ start: 4, count: 1 }], newRanges: [{ start: 5, count: 1 }] },
+				{ changeType: 'supporting', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 2 }] },
+			],
+		});
+		const resolve = () => resolveSemanticDiffFile(file, [item], 'head\nold1\nmiddle\nold2\ntail\n', 'head\nnew1\nextra\nmiddle\nnew2\ntail\n',
+			patch('@@ -1,5 +1,6 @@\n head\n-old1\n+new1\n+extra\n middle\n-old2\n+new2\n tail\n'));
+		const resolved = resolve();
+		assert.deepStrictEqual({
+			ranges: resolved.hunks[0].changeTypeRanges,
+			frozen: [resolved.hunks[0].changeTypeRanges, ...resolved.hunks[0].changeTypeRanges,
+			...resolved.hunks[0].changeTypeRanges.flatMap(ranges => [ranges.oldRanges, ranges.newRanges, ...ranges.oldRanges, ...ranges.newRanges])].every(Object.isFrozen),
+		}, {
+			ranges: item.changeTypeRanges,
+			frozen: true,
+		});
+		item.changeTypeRanges![1].newRanges = [{ start: 2, count: 1 }];
+		assert.throws(resolve);
+	});
+
 	for (const first of ['insert', 'delete'] as const) {
 		test(`excluded earlier ${first} preserves canonical coordinates and adjusts projected coordinates`, () => {
 			const fixture = multiHunkFixture(first);
@@ -204,6 +228,11 @@ suite('Semantic diff projection', () => {
 		const fixture = multiHunkFixture();
 		const entry = { ...file, path: 'second.ts' };
 		const input = fixture.hunks[1];
+		input.reviewFocus = {
+			oldRanges: [{ start: 14, count: 1 }],
+			newRanges: [{ start: 15, count: 1 }],
+			reason: 'The replacement changes the result.',
+		};
 		const first = resolveSemanticDiffFile(entry, [input], fixture.original, fixture.modified, fixture.patch.replaceAll(file.path, entry.path));
 		const second = resolveSemanticDiffFile(file, fixture.hunks, fixture.original, fixture.modified, fixture.patch);
 		entry.path = 'mutated.ts';
@@ -216,11 +245,25 @@ suite('Semantic diff projection', () => {
 			hunks: projected.map(file => file.hunks.map(hunk => hunk.id)),
 			range: first.hunks[0].newRange,
 			secondary: first.hunks[0].classification.secondaryChangeTypes,
-			frozen: [first, first.file, first.hunks, first.hunks[0], first.hunks[0].newRange, first.hunks[0].classification, first.hunks[0].classification.secondaryChangeTypes, projected, projected[0], projected[0].mappings].every(Object.isFrozen)
+			reviewFocus: first.hunks[0].reviewFocus,
+			frozen: [first, first.file, first.hunks, first.hunks[0], first.hunks[0].newRange, first.hunks[0].classification, first.hunks[0].classification.secondaryChangeTypes,
+				first.hunks[0].reviewFocus, first.hunks[0].reviewFocus?.oldRanges, first.hunks[0].reviewFocus?.oldRanges[0], projected, projected[0], projected[0].mappings].every(Object.isFrozen)
 		}, {
 			files: ['second.ts', 'src/file.ts'], hunks: [['second'], ['second', 'third']],
-			range: { start: 12, count: 7 }, secondary: ['supporting'], frozen: true
+			range: { start: 12, count: 7 }, secondary: ['supporting'],
+			reviewFocus: { oldRanges: [{ start: 14, count: 1 }], newRanges: [{ start: 15, count: 1 }], reason: 'The replacement changes the result.' },
+			frozen: true
 		});
+	});
+
+	test('rejects review focus on unchanged hunk context', () => {
+		const fixture = multiHunkFixture();
+		fixture.hunks[1].reviewFocus = {
+			oldRanges: [{ start: 12, count: 1 }],
+			newRanges: [],
+			reason: 'This line is unchanged context.',
+		};
+		assert.throws(() => resolveSemanticDiffFile(file, fixture.hunks, fixture.original, fixture.modified, fixture.patch));
 	});
 
 	for (const status of ['added', 'deleted'] as const) {

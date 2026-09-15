@@ -19,8 +19,6 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
-import { TextOnlyMenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../../files/browser/views/explorerView.js';
@@ -232,8 +230,9 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 	private renderGroup(report: ISemanticDiffReport, projection: IGroupProjection, index: number): void {
 		const { group, files, hunks } = projection;
 		const card = dom.append(this.domNode, dom.$(`section.semantic-diff-card.semantic-diff-accent-${index % 4}`));
-		const heading = dom.append(card, dom.$('h3.semantic-diff-card-heading'));
-		const title = dom.append(heading, dom.$('span.semantic-diff-title', undefined, group.title));
+		const heading = dom.append(card, dom.$('.semantic-diff-card-heading'));
+		const title = dom.append(heading, dom.$('h3.semantic-diff-title', undefined, group.title));
+		const controls = dom.append(heading, dom.$('.semantic-diff-card-controls'));
 		title.id = `${this.idPrefix}-group-${index}`;
 		card.setAttribute('aria-labelledby', title.id);
 		dom.append(card, dom.$('p.semantic-diff-description', undefined, group.description));
@@ -247,20 +246,18 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 			this.renderLineCounts(hunks),
 		);
 		this.createDisclosure(
-			heading, card, summary, JSON.stringify(['group', group.id]), 'semantic-diff-group-toggle',
+			controls, card, summary, JSON.stringify(['group', group.id]), 'semantic-diff-group-toggle',
 			panel => this.renderFiles(panel, report, group.id, files),
 			localize('semanticDiff.groupDisclosureWithFiles', "{0}, {1} {2}, {3}", group.title, fileCount(files.length), lineCounts, hunkCount(hunks.length)),
 			false,
 		);
 		if (this.sourceContext) {
-			const actions = dom.append(card, dom.$('.semantic-diff-card-actions'));
+			const actions = dom.append(controls, dom.$('.semantic-diff-card-actions'));
 			const scopedContext = this._register(this.contextKeyService.createScoped(actions));
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
 			const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, SemanticDiffCardMenu, {
+				ariaLabel: localize('semanticDiff.groupActions', "Actions for {0}", group.title),
 				menuOptions: { shouldForwardArgs: true },
-				actionViewItemProvider: (action, options) => action instanceof MenuItemAction
-					? scopedInstantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, options)
-					: undefined,
 			}));
 			toolbar.context = { ...this.sourceContext, groupId: group.id, report } satisfies ISemanticDiffEditorRequest;
 			const updateVisibility = () => {

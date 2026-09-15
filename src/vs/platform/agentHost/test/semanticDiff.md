@@ -8,8 +8,11 @@ they cover, and one file can contribute different hunks to different groups.
 The prompt classifies import-statement edits as Supporting, even in test or
 generated files. Import-only hunks have no secondary types. Mixed hunks retain
 Logic/Test as primary and Supporting as secondary; unchanged imports in context
-do not affect classification. This is model guidance, not content-based server
-enforcement: the validation tool does not receive source text.
+do not affect classification. New tool submissions also classify every changed
+line exactly once through absolute `changeTypeRanges`, so a mixed hunk can render
+its imports and behavioral core with different emphasis while retaining the
+hunk's primary type color throughout the gutter. Source resolution verifies those
+ranges against the recorded Git patch; older stored reports remain supported.
 
 ## Automated checks
 
@@ -59,6 +62,9 @@ apart to remain distinct Git hunks with the documented context options:
 Run the walkthrough prompt below and inspect the submitted hunk classifications.
 Verify that actual Git ranges are preserved, no hunk is split or duplicated, and
 each import hunk stays in its intent group rather than a separate imports group.
+For every hunk, verify that `changeTypeRanges` covers every changed line on both
+sides exactly once and assigns changed imports to Supporting even when the hunk
+is primarily Logic or Test.
 Automated prompt tests protect this guidance; only live-model inspection assesses
 whether a particular classification follows it.
 
@@ -224,7 +230,10 @@ session and contain those objects. Use the classifier's canonical diff options
 --find-renames --src-prefix=a/ --dst-prefix=b/`) so submitted hunk boundaries can
 be verified against Git.
 
-1. In the Agents Window, activate **Open Group Diff** on an intent card.
+1. In the Agents Window, activate the **Open Group Diff** icon immediately after
+   the statistics in an intent card's upper-right corner. Its tooltip and accessible
+   name identify the action; there is no separate text action beneath the summary.
+   Check Tab navigation from statistics to the icon and Enter/Space activation.
    Card statistics still only toggle its file list, and file rows still reveal
    inline classifications.
 2. If the owning session has several repositories, select the correct one.

@@ -31,7 +31,7 @@
 }
 
 .chat-semantic-diff .semantic-diff-card-actions {
-	margin-top: var(--vscode-spacing-size80);
+	flex-shrink: 0;
 }
 
 .chat-semantic-diff .semantic-diff-card::before {
@@ -71,6 +71,16 @@
 .chat-semantic-diff .semantic-diff-title {
 	flex: 1;
 	min-width: 0;
+}
+
+.chat-semantic-diff .semantic-diff-card-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	max-width: 50%;
+	min-width: 0;
+	margin-inline-start: auto;
 }
 
 .chat-semantic-diff .semantic-diff-counts,
@@ -198,9 +208,7 @@
 }
 
 .chat-semantic-diff .semantic-diff-group-toggle {
-	flex-shrink: 0;
-	max-width: 50%;
-	margin-inline-start: auto;
+	flex-shrink: 1;
 	font-weight: var(--vscode-fontWeight-regular);
 }
 

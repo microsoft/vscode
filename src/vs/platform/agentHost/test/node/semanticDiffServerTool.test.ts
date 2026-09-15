@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { parseSemanticDiffToolResult, SEMANTIC_DIFF_TOOL_NAME } from '../../common/semanticDiff.js';
@@ -88,6 +89,13 @@ suite('Semantic Diff Server Tool', () => {
 
 	test('Claude schema conversion preserves the nested submission including nullable fields', () => {
 		const report = createSemanticDiffExample();
+		for (const hunk of report.analysis.hunks) {
+			hunk.changeTypeRanges = [{
+				changeType: hunk.classification.changeType,
+				oldRanges: hunk.oldRange.count > 0 ? [{ ...hunk.oldRange }] : [],
+				newRanges: hunk.newRange.count > 0 ? [{ ...hunk.newRange }] : [],
+			}];
+		}
 		const shape = jsonSchemaToZodRawShape(semanticDiffServerToolGroup.definitions[0].inputSchema);
 		assert.deepStrictEqual({
 			schemaVersion: shape.schemaVersion.parse(report.schemaVersion),
@@ -110,7 +118,9 @@ suite('Semantic Diff Server Tool', () => {
 	});
 
 	test('prompt and schema classify changed imports as supporting without demoting mixed logic or tests', () => {
-		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		const inputSchema = semanticDiffServerToolGroup.definitions[0].inputSchema as IJSONSchema;
+		const schema = JSON.stringify(inputSchema);
+		const hunkSchema = inputSchema.properties!.analysis.properties!.hunks.items as IJSONSchema;
 		assert.deepStrictEqual({
 			missingPromptClauses: [
 				'Always classify changed import statements as supporting',
@@ -120,11 +130,34 @@ suite('Semantic Diff Server Tool', () => {
 				'An import-only hunk has changeType: supporting and no secondaryChangeTypes',
 				'keep logic or test primary and include supporting in secondaryChangeTypes',
 				'do not split or duplicate a hunk to isolate its imports',
+				'For every hunk, add changeTypeRanges',
+				'Assign every changed line on the baseline and modified sides exactly once',
+				'Put every changed import line in the supporting entry',
+				'Classify comments, whitespace, and structural separators by their own changed content',
 				'Recheck import edits before submission',
 			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
 			schemaImportOnly: schema.includes('Import-only hunks are supporting'),
 			schemaMixedImports: schema.includes('supporting in secondaryChangeTypes while logic or test stays primary'),
-		}, { missingPromptClauses: [], schemaImportOnly: true, schemaMixedImports: true });
+			schemaRequiresChangedLines: hunkSchema.required?.includes('changeTypeRanges'),
+			schemaExplainsExhaustiveRanges: schema.includes('classify every changed line on both sides exactly once'),
+		}, { missingPromptClauses: [], schemaImportOnly: true, schemaMixedImports: true, schemaRequiresChangedLines: true, schemaExplainsExhaustiveRanges: true });
+	});
+
+	test('prompt and schema request optional changed-line review focus without implying safety or confidence', () => {
+		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		assert.deepStrictEqual({
+			missingPromptClauses: [
+				'narrower behavioral or contractual core',
+				'absolute baseline coordinates in oldRanges',
+				'absolute modified-file coordinates in newRanges',
+				'include changed lines only',
+				'Omit reviewFocus when the whole hunk deserves equal attention',
+				'never means that other lines are safe, approved, low-risk, or skippable',
+				'must not encode classification confidence',
+			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
+			schemaHasReviewFocus: schema.includes('"reviewFocus"'),
+			schemaExplainsReadingOrder: schema.includes('reading-order cue'),
+		}, { missingPromptClauses: [], schemaHasReviewFocus: true, schemaExplainsReadingOrder: true });
 	});
 
 	test('prompt and group schema request an evidence-based paragraph about the logical unit', () => {

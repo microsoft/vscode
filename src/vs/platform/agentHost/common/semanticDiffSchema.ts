@@ -10,7 +10,12 @@ type ObjectSchema = IJSONSchema & { type: 'object'; properties: Record<string, I
 const reference = (name: string): IJSONSchema => ({ $ref: `#/$defs/${name}` });
 const nullable = (schema: IJSONSchema): IJSONSchema => ({ anyOf: [schema, { type: 'null' }] });
 const text = (maxLength: number): IJSONSchema => ({ type: 'string', minLength: 1, maxLength, pattern: '\\S' });
-const object = (properties: Record<string, IJSONSchema>): ObjectSchema => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties });
+const object = (properties: Record<string, IJSONSchema>, optional: readonly string[] = []): ObjectSchema => ({
+	type: 'object',
+	additionalProperties: false,
+	required: Object.keys(properties).filter(name => !optional.includes(name)),
+	properties
+});
 const array = (name: string, maxItems: number): IJSONSchema => ({ type: 'array', maxItems, items: reference(name) });
 const count: IJSONSchema = { type: 'integer', minimum: 0, maximum: 2147483647 };
 
@@ -27,6 +32,41 @@ const definitions: Record<string, IJSONSchema> = {
 	changeType: { enum: ['logic', 'test', 'supporting', 'generated'] },
 	confidence: { enum: ['high', 'medium', 'low', null] },
 	range: object({ start: reference('count'), count: reference('count') }),
+	reviewRange: object({
+		start: reference('count'),
+		count: { type: 'integer', minimum: 1, maximum: 2147483647 }
+	}),
+	reviewFocus: {
+		...object({
+			oldRanges: {
+				...array('reviewRange', 20),
+				description: 'Absolute baseline ranges containing the changed lines that form the review focus. Use an empty array when the focus exists only on the modified side.',
+			},
+			newRanges: {
+				...array('reviewRange', 20),
+				description: 'Absolute modified-file ranges containing the changed lines that form the review focus. Use an empty array when the focus exists only on the baseline side.',
+			},
+			reason: {
+				...text(160),
+				description: 'A concise evidence-based explanation of why these changed lines are the best place to begin reviewing this hunk.',
+			},
+		}),
+		description: 'Optional review focus for a narrower behavioral or contractual core within a Git hunk. Include only changed lines and use absolute file coordinates. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
+	},
+	changeTypeRanges: {
+		...object({
+			changeType: nullable(reference('changeType')),
+			oldRanges: {
+				...array('reviewRange', 100),
+				description: 'Absolute baseline ranges for every changed line assigned this type. Use an empty array when this type exists only on the modified side.',
+			},
+			newRanges: {
+				...array('reviewRange', 100),
+				description: 'Absolute modified-file ranges for every changed line assigned this type. Use an empty array when this type exists only on the baseline side.',
+			},
+		}),
+		description: 'Exhaustive changed-line classification for one primary or secondary type. Ranges contain changed lines only, do not overlap another type, and use absolute file coordinates.',
+	},
 	source: {
 		...object({
 			repositoryLabel: text(120),
@@ -104,8 +144,16 @@ const definitions: Record<string, IJSONSchema> = {
 	},
 	hunk: object({
 		id: reference('id'), fileId: reference('id'), oldRange: reference('range'), newRange: reference('range'),
-		additions: reference('count'), deletions: reference('count'), classification: reference('classification')
-	}),
+		additions: reference('count'), deletions: reference('count'), classification: reference('classification'),
+		changeTypeRanges: {
+			...array('changeTypeRanges', 4),
+			description: 'One entry for the primary type followed by one entry for each secondary type. Together the ranges must classify every changed line on both sides exactly once. A hunk with an unresolved primary type uses one null entry.',
+		},
+		reviewFocus: {
+			...reference('reviewFocus'),
+			description: 'Optional review focus for a narrower behavioral or contractual core within this Git hunk. Include only changed lines, use absolute file coordinates, and omit this field when the whole hunk deserves equal attention or the evidence does not support a narrower focus. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
+		},
+	}, ['changeTypeRanges', 'reviewFocus']),
 	limitation: object({
 		code: { enum: ['incompleteInventory', 'truncatedDiff', 'missingContext', 'nonTextChange', 'excludedContent', 'unsupportedChange', 'staleSource'] },
 		message: reference('reason'), fileId: nullable(reference('id')), hunkId: nullable(reference('id'))
@@ -142,9 +190,13 @@ export const semanticDiffValidationSubmissionSchema: IJSONSchema = {
 };
 
 /** Provider schema bridges do not all resolve references or recognize const. */
+const providerAnalysisSchema = inlineSchema(definitions.analysis);
+const providerHunkSchema = providerAnalysisSchema.properties!.hunks.items as IJSONSchema;
+providerHunkSchema.required = [...providerHunkSchema.required!, 'changeTypeRanges'];
+
 export const semanticDiffSubmissionSchema: ObjectSchema = {
 	$schema: 'https://json-schema.org/draft/2020-12/schema',
-	...object({ schemaVersion: { const: 1, enum: [1] }, analysis: inlineSchema(definitions.analysis) })
+	...object({ schemaVersion: { const: 1, enum: [1] }, analysis: providerAnalysisSchema })
 };
 
 function inlineSchema(schema: IJSONSchema): IJSONSchema {

@@ -69,13 +69,20 @@ export function createSemanticDiffEditorData(types: readonly (SemanticDiffChange
 	};
 }
 
-export function createSemanticDiffContextData(lineSuffix = ''): ReturnType<typeof createSemanticDiffEditorData> {
+export function createSemanticDiffContextData(lineSuffix = '', withReviewFocus = false): ReturnType<typeof createSemanticDiffEditorData> {
 	const data = createSemanticDiffEditorData();
 	const file = data.request.report.analysis.files[0];
 	const template = data.request.report.analysis.hunks[1];
 	const hunks: ISemanticDiffHunk[] = [
 		{
 			...template, id: 'context', oldRange: { start: 1, count: 5 }, newRange: { start: 1, count: 6 }, additions: 3, deletions: 2,
+			...(withReviewFocus ? {
+				reviewFocus: {
+					oldRanges: [{ start: 4, count: 1 }],
+					newRanges: [{ start: 5, count: 1 }],
+					reason: 'The second replacement changes the guarded billing outcome.',
+				},
+			} : {}),
 		},
 		{
 			...template, id: 'deletion', oldRange: { start: 9, count: 3 }, newRange: { start: 10, count: 2 }, additions: 0, deletions: 1,
@@ -95,6 +102,45 @@ export function createSemanticDiffContextData(lineSuffix = ''): ReturnType<typeo
 	return {
 		request: { ...data.request, report: validated.report },
 		source: { repository: data.source.repository, files: [resolveSemanticDiffFile(file, hunks, original, modified, patch)] },
+	};
+}
+
+export function createSemanticDiffMixedImportData(): ReturnType<typeof createSemanticDiffEditorData> {
+	const data = createSemanticDiffEditorData();
+	const file = data.request.report.analysis.files[0];
+	const template = data.request.report.analysis.hunks[1];
+	const hunk: ISemanticDiffHunk = {
+		...template,
+		id: 'mixed-import-logic',
+		oldRange: { start: 1, count: 5 },
+		newRange: { start: 1, count: 10 },
+		additions: 5,
+		deletions: 0,
+		classification: {
+			...template.classification,
+			changeType: 'logic',
+			secondaryChangeTypes: ['supporting'],
+			summary: 'Detect linked-worktree metadata paths.',
+			typeReason: 'The matcher changes routing behavior; imports, documentation, and spacing support it.',
+		},
+		changeTypeRanges: [
+			{ changeType: 'logic', oldRanges: [], newRanges: [{ start: 6, count: 1 }] },
+			{ changeType: 'supporting', oldRanges: [], newRanges: [{ start: 1, count: 2 }, { start: 5, count: 1 }, { start: 7, count: 1 }] },
+		],
+	};
+	const original = `import { URI } from './uri.js';\n\nexport function findWindow() {\n\treturn undefined;\n}\n`;
+	const modified = `import * as fs from 'fs';\nimport { resolve } from './path.js';\nimport { URI } from './uri.js';\n\n// Matches linked-worktree metadata paths.\nconst gitWorktreeFilePathRegex = /worktrees/;\n\nexport function findWindow() {\n\treturn undefined;\n}\n`;
+	const patch = `diff --git a/${file.path} b/${file.path}\nindex 1111111..2222222 100644\n--- a/${file.path}\n+++ b/${file.path}\n@@ -1,5 +1,10 @@\n+import * as fs from 'fs';\n+import { resolve } from './path.js';\n import { URI } from './uri.js';\n \n+// Matches linked-worktree metadata paths.\n+const gitWorktreeFilePathRegex = /worktrees/;\n+\n export function findWindow() {\n \treturn undefined;\n }\n`;
+	const validated = buildSemanticDiffReport({
+		schemaVersion: 1,
+		analysis: { ...data.request.report.analysis, groups: [data.request.report.analysis.groups[0]], hunks: [hunk] },
+	});
+	if (!validated.ok) {
+		throw new Error(validated.error.error.message);
+	}
+	return {
+		request: { ...data.request, report: validated.report },
+		source: { repository: data.source.repository, files: [resolveSemanticDiffFile(file, [hunk], original, modified, patch)] },
 	};
 }
 

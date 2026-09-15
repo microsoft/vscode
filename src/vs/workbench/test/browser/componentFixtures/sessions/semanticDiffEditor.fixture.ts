@@ -16,9 +16,9 @@ import { SemanticDiffEditorInput } from '../../../../../sessions/contrib/semanti
 // eslint-disable-next-line local/code-import-patterns
 import { SemanticDiffEditorWidget } from '../../../../../sessions/contrib/semanticDiff/browser/semanticDiffEditorWidget.js';
 // eslint-disable-next-line local/code-import-patterns
-import { createSemanticDiffBoundaryData, createSemanticDiffContextData, createSemanticDiffEditorData } from '../../../../../sessions/contrib/semanticDiff/test/browser/semanticDiffTestUtils.js';
+import { createSemanticDiffBoundaryData, createSemanticDiffContextData, createSemanticDiffEditorData, createSemanticDiffMixedImportData } from '../../../../../sessions/contrib/semanticDiff/test/browser/semanticDiffTestUtils.js';
 
-async function renderSemanticDiff(context: ComponentFixtureContext, state: 'default' | 'all' | 'empty' | 'error' | 'loading' | 'unclassified' | 'partial' | 'counts' | 'generated' | 'context' | 'wrapped' | 'insert' | 'delete', width = 900): Promise<void> {
+async function renderSemanticDiff(context: ComponentFixtureContext, state: 'default' | 'all' | 'empty' | 'error' | 'loading' | 'unclassified' | 'partial' | 'counts' | 'generated' | 'context' | 'focus' | 'mixed' | 'wrapped' | 'insert' | 'delete', width = 900): Promise<void> {
 	const { container, disposableStore, disposableStackStore, theme } = context;
 	container.style.width = `${width}px`;
 	container.style.height = '680px';
@@ -29,8 +29,9 @@ async function renderSemanticDiff(context: ComponentFixtureContext, state: 'defa
 	const types = state === 'unclassified' ? ['supporting', 'test', null] as const
 		: state === 'counts' ? ['logic', 'logic', 'test'] as const
 			: state === 'generated' ? ['generated', 'logic', null] as const : undefined;
-	const { request, source } = state === 'context' || state === 'wrapped' ? createSemanticDiffContextData(state === 'wrapped' ? ' a long argument name'.repeat(6) : '')
-		: state === 'insert' || state === 'delete' ? createSemanticDiffBoundaryData(state) : createSemanticDiffEditorData(types);
+	const { request, source } = state === 'context' || state === 'focus' || state === 'wrapped' ? createSemanticDiffContextData(state === 'wrapped' ? ' a long argument name'.repeat(6) : '', state === 'focus')
+		: state === 'mixed' ? createSemanticDiffMixedImportData()
+			: state === 'insert' || state === 'delete' ? createSemanticDiffBoundaryData(state) : createSemanticDiffEditorData(types);
 	if (state === 'partial') {
 		request.report.analysis.source.inventoryComplete = false;
 		request.report.analysis.limitations.push({ code: 'incompleteInventory', message: 'Only the submitted billing hunks were classified.', fileId: null, hunkId: null });
@@ -80,6 +81,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/semanticDiff/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['Rounded-square type badges appear above inline changes without native plus/minus gutter signs. Removed and added lines have matching type markers in one far-left gutter, forming continuous bars across each replacement. Leading, trailing and internal unchanged context remain unmarked. The pure deletion is marked beside its original line number, not beside the surviving last line.'],
 		render: context => renderSemanticDiff(context, 'context'),
+	}),
+	ReviewFocus: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In regular themes, the first purple replacement marker uses a quiet shade while the second replacement marker has a full-color core segment. This establishes a reading order within one Logic hunk without changing the native red and green diff highlights. In high contrast themes, both markers retain the solid category color and the core segment uses a distinct double-line pattern.'],
+		render: context => renderSemanticDiff(context, 'focus'),
+	}),
+	MixedImportAndLogic: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['One Logic hunk contains added imports followed by a comment and matcher. The entire gutter uses only the purple Logic hue: imports and the comment use a quiet shade while the primary matcher uses the full shade, giving the behavioral core clear review emphasis without alternating category colors. In high contrast themes, the Logic color remains solid and the primary matcher uses a distinct double-line pattern.'],
+		render: context => renderSemanticDiff(context, 'mixed'),
 	}),
 	WrappedReplacement: defineComponentFixture({
 		expectedVisualDescriptions: ['A single far-left purple type bar spans the wrapped removed and added lines in the first replacement without gaps or horizontal jumps. Unchanged lines between replacements remain unmarked.'],

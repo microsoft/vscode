@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import {
 	buildSemanticDiffReport, formatSemanticDiffRange, formatSemanticDiffReport, getSemanticDiffChangeTypeLabel,
 	getSemanticDiffConfidenceLabel, ISemanticDiffErrorEnvelope, ISemanticDiffHunk, ISemanticDiffReport,
-	ISemanticDiffSubmission, parseSemanticDiffReport, parseSemanticDiffToolResult, serializeSemanticDiffToolResult, SEMANTIC_DIFF_INPUT_BYTE_LIMIT, SEMANTIC_DIFF_MIME_TYPE, SEMANTIC_DIFF_RESULT_BYTE_LIMIT,
+	ISemanticDiffChangeTypeRanges, ISemanticDiffReviewFocus, ISemanticDiffSubmission, parseSemanticDiffReport, parseSemanticDiffToolResult, serializeSemanticDiffToolResult, SEMANTIC_DIFF_INPUT_BYTE_LIMIT, SEMANTIC_DIFF_MIME_TYPE, SEMANTIC_DIFF_RESULT_BYTE_LIMIT,
 	SEMANTIC_DIFF_TOOL_NAME, SemanticDiffIssueCode, semanticDiffSubmissionSchema, validateSemanticDiffReport
 } from '../../common/semanticDiff.js';
 import { createSemanticDiffExample } from './semanticDiffFixtures.js';
@@ -109,6 +109,9 @@ suite('Semantic diff classification', () => {
 			version: semanticDiffSubmissionSchema.properties.schemaVersion.enum,
 			analysisType: analysis.type, required: analysis.required,
 			hunkType: hunk.type,
+			hunkRequired: hunk.required,
+			changeTypeRangesFields: Object.keys((hunk.properties!.changeTypeRanges.items as IJSONSchema).properties!),
+			reviewFocusFields: Object.keys(hunk.properties!.reviewFocus.properties!),
 			groupId: classification.properties!.groupId.anyOf?.map(schema => schema.type),
 			changeType: classification.properties!.changeType.anyOf?.map(schema => schema.enum ?? schema.type),
 			confidence: classification.properties!.groupConfidence.enum,
@@ -117,6 +120,9 @@ suite('Semantic diff classification', () => {
 		}, {
 			references: false, definitions: false, version: [1], analysisType: 'object',
 			required: ['source', 'groups', 'files', 'hunks', 'limitations'], hunkType: 'object',
+			hunkRequired: ['id', 'fileId', 'oldRange', 'newRange', 'additions', 'deletions', 'classification', 'changeTypeRanges'],
+			changeTypeRangesFields: ['changeType', 'oldRanges', 'newRanges'],
+			reviewFocusFields: ['oldRanges', 'newRanges', 'reason'],
 			groupId: ['string', 'null'], changeType: [['logic', 'test', 'supporting', 'generated'], 'null'],
 			confidence: ['high', 'medium', 'low', null], uncertainty: ['string', 'null'], target: ['string', 'null']
 		});
@@ -550,6 +556,68 @@ suite('Semantic diff classification', () => {
 			classification.uncertainty = 'Limited supporting context.';
 			assert.deepStrictEqual([success(input).status, success(input).summary.uncertainHunks, success(input).summary.mixedTypeHunks, success(input).summary.byChangeType],
 				['complete', 1, 1, { logic: 1, test: 0, supporting: 0, generated: 0, unknown: 0 }]);
+		});
+		test('review focus is optional, bounded by the hunk, and preserved in plain text', () => {
+			const input = minimalSubmission();
+			input.analysis.hunks[0].reviewFocus = {
+				oldRanges: [{ start: 2, count: 1 }],
+				newRanges: [{ start: 2, count: 1 }],
+				reason: 'The changed expression establishes the new behavior.',
+			};
+			const report = success(input);
+			assert.deepStrictEqual({
+				focus: report.analysis.hunks[0].reviewFocus,
+				text: formatSemanticDiffReport(report).includes('Review focus: The changed expression establishes the new behavior.\nOriginal: line 2. Modified: line 2.'),
+			}, { focus: input.analysis.hunks[0].reviewFocus, text: true });
+		});
+		test('review focus requires changed-side ranges ordered within the hunk', () => {
+			const cases: { reviewFocus: ISemanticDiffReviewFocus; path: string; code: SemanticDiffIssueCode }[] = [
+				{ reviewFocus: { oldRanges: [], newRanges: [], reason: 'Empty.' }, path: '/analysis/hunks/0/reviewFocus', code: 'INVALID_RANGE' },
+				{ reviewFocus: { oldRanges: [{ start: 0, count: 1 }], newRanges: [], reason: 'Outside.' }, path: '/analysis/hunks/0/reviewFocus/oldRanges/0', code: 'INVALID_RANGE' },
+				{ reviewFocus: { oldRanges: [{ start: 2, count: 2 }, { start: 3, count: 1 }], newRanges: [], reason: 'Overlap.' }, path: '/analysis/hunks/0/reviewFocus/oldRanges/1', code: 'INVALID_RANGE' },
+				{ reviewFocus: { oldRanges: [{ start: 2, count: 0 }], newRanges: [], reason: 'Zero.' }, path: '/analysis/hunks/0/reviewFocus/oldRanges/0/count', code: 'SCHEMA_VIOLATION' },
+			];
+			for (const { reviewFocus, path, code } of cases) {
+				const input = minimalSubmission();
+				input.analysis.hunks[0].reviewFocus = reviewFocus;
+				expectIssue(input, path, code);
+			}
+		});
+		test('changed-line classifications are optional for stored reports and preserve typed ranges in plain text', () => {
+			const input = minimalSubmission();
+			input.analysis.hunks[0].classification.changeType = 'logic';
+			input.analysis.hunks[0].classification.secondaryChangeTypes = ['supporting'];
+			input.analysis.hunks[0].changeTypeRanges = [
+				{ changeType: 'logic', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }] },
+				{ changeType: 'supporting', oldRanges: [{ start: 4, count: 1 }], newRanges: [{ start: 4, count: 1 }] },
+			];
+			const report = success(input);
+			assert.deepStrictEqual({
+				ranges: report.analysis.hunks[0].changeTypeRanges,
+				text: formatSemanticDiffReport(report).includes('Supporting changed lines. Original: line 4. Modified: line 4.'),
+			}, { ranges: input.analysis.hunks[0].changeTypeRanges, text: true });
+		});
+		test('changed-line classifications match declared types and do not overlap', () => {
+			const cases: { ranges: ISemanticDiffChangeTypeRanges[]; path: string; code: SemanticDiffIssueCode }[] = [
+				{
+					ranges: [{ changeType: 'supporting', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }] }],
+					path: '/analysis/hunks/0/changeTypeRanges', code: 'INVALID_TYPE_COMBINATION'
+				},
+				{
+					ranges: [
+						{ changeType: 'logic', oldRanges: [{ start: 2, count: 2 }], newRanges: [] },
+						{ changeType: 'supporting', oldRanges: [{ start: 3, count: 1 }], newRanges: [] },
+					],
+					path: '/analysis/hunks/0/changeTypeRanges', code: 'INVALID_RANGE'
+				},
+			];
+			for (const { ranges, path, code } of cases) {
+				const input = minimalSubmission();
+				input.analysis.hunks[0].classification.changeType = 'logic';
+				input.analysis.hunks[0].classification.secondaryChangeTypes = ['supporting'];
+				input.analysis.hunks[0].changeTypeRanges = ranges;
+				expectIssue(input, path, code);
+			}
 		});
 		for (const secondaryChangeTypes of [['logic'], ['test', 'test'], ['generated', 'test'], ['test', 'supporting', 'generated', 'logic']] as const) {
 			test(`rejects duplicate, repeated primary, unordered, or excess secondary types ${secondaryChangeTypes.join(',')}`, () => {

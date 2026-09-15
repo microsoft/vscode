@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -65,16 +66,16 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		document.getSelection()?.removeAllRanges();
 	});
 
-	test('Open Group Diff forwards the owning result and selected group without toggling the card', async () => {
+	test('Open Group Diff icon follows statistics and opens the owning group by mouse or keyboard without toggling the card', async () => {
 		const commandId = 'semanticDiff.test.open';
 		const title = 'Test Group Diff Action';
-		store.add(MenuRegistry.appendMenuItem(SemanticDiffCardMenu, { command: { id: commandId, title }, group: 'navigation' }));
+		store.add(MenuRegistry.appendMenuItem(SemanticDiffCardMenu, { command: { id: commandId, title, icon: Codicon.diffMultiple }, group: 'navigation' }));
 		const instantiationService = workbenchInstantiationService({
 			contextKeyService: () => store.add(new class extends MockContextKeyService {
 				override contextMatchesRules() { return true; }
 			}()),
 		}, store);
-		const called = new DeferredPromise<unknown>();
+		let called = new DeferredPromise<unknown>();
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override readonly onWillExecuteCommand = CommonEvent.None;
 			override readonly onDidExecuteCommand = CommonEvent.None;
@@ -93,13 +94,35 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		dom.append(document.body, part.domNode);
 		store.add(toDisposable(() => part.domNode.remove()));
 		const card = part.domNode.querySelectorAll<HTMLElement>('.semantic-diff-card')[1];
-		const action = [...card.querySelectorAll<HTMLElement>('.semantic-diff-card-actions .action-label')].find(element => element.textContent === title);
+		const action = [...card.querySelectorAll<HTMLElement>('.semantic-diff-card-actions .action-label')].find(element => element.getAttribute('aria-label') === title);
 		assert.ok(action);
 		action.click();
 		assert.deepStrictEqual({
 			request: await called.p,
 			expanded: button(card, '.semantic-diff-group-toggle').getAttribute('aria-expanded'),
-		}, { request: { ...source, groupId: report.analysis.groups[1].id, report }, expanded: 'false' });
+			headerControls: [...card.querySelector('.semantic-diff-card-controls')!.children].map(element => element.className),
+			iconOnly: action.classList.contains('codicon-diff-multiple') && action.textContent === '',
+			heading: card.querySelector('h3')?.textContent,
+			footerActions: card.querySelectorAll(':scope > .semantic-diff-card-actions').length,
+		}, {
+			request: { ...source, groupId: report.analysis.groups[1].id, report }, expanded: 'false',
+			headerControls: ['monaco-button semantic-diff-disclosure semantic-diff-group-toggle', 'semantic-diff-card-actions'],
+			iconOnly: true, heading: report.analysis.groups[1].title, footerActions: 0,
+		});
+		button(card, '.semantic-diff-group-toggle').click();
+		for (const keyCode of [13, 32]) {
+			called = new DeferredPromise<unknown>();
+			action.focus();
+			action.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', code: 'Tab', keyCode: 9, bubbles: true }));
+			const key = keyCode === 13 ? 'Enter' : ' ';
+			const code = keyCode === 13 ? 'Enter' : 'Space';
+			action.dispatchEvent(new KeyboardEvent('keydown', { key, code, keyCode, bubbles: true }));
+			action.dispatchEvent(new KeyboardEvent('keyup', { key, code, keyCode, bubbles: true }));
+			assert.deepStrictEqual({
+				request: await called.p,
+				expanded: button(card, '.semantic-diff-group-toggle').getAttribute('aria-expanded'),
+			}, { request: { ...source, groupId: report.analysis.groups[1].id, report }, expanded: 'true' });
+		}
 	});
 
 	test('projects the exact example by intent, preserving order and per-group counts', () => {
@@ -166,7 +189,7 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		assert.deepStrictEqual(cards.map(card => {
 			const toggle = button(card, '.semantic-diff-group-toggle');
 			return {
-				header: toggle.parentElement?.classList.contains('semantic-diff-card-heading'),
+				header: !!toggle.closest('.semantic-diff-card-heading'),
 				label: button(toggle, '.semantic-diff-disclosure-label').textContent,
 				accessibleLabel: toggle.getAttribute('aria-label'),
 				duplicateCounts: card.querySelector(':scope > .semantic-diff-counts') !== null,

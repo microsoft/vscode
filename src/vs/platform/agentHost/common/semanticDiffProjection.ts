@@ -5,10 +5,12 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
-import { ISemanticDiffFile, ISemanticDiffHunk, ISemanticDiffRange, SemanticDiffChangeType } from './semanticDiff.js';
+import { ISemanticDiffChangeTypeRanges, ISemanticDiffFile, ISemanticDiffHunk, ISemanticDiffRange, SemanticDiffChangeType } from './semanticDiff.js';
 
 /** A canonical classified hunk with its exact, context-inclusive source text. */
-export interface ISemanticDiffVerifiedHunk extends Readonly<ISemanticDiffHunk> {
+export interface ISemanticDiffVerifiedHunk extends Readonly<Omit<ISemanticDiffHunk, 'changeTypeRanges'>> {
+	readonly hasSubmittedChangeTypeRanges: boolean;
+	readonly changeTypeRanges: readonly Readonly<ISemanticDiffChangeTypeRanges>[];
 	readonly original: string;
 	readonly modified: string;
 	readonly originalChangedRanges: readonly Readonly<ISemanticDiffRange>[];
@@ -360,14 +362,54 @@ export function resolveSemanticDiffFile(file: ISemanticDiffFile, hunks: readonly
 		if (index <= previous || !actual || actual.additions !== hunk.additions || actual.deletions !== hunk.deletions) {
 			invalidHunk();
 		}
+		if (hunk.reviewFocus && (
+			!hunk.reviewFocus.oldRanges.every(range => actual.originalChangedRanges.some(changed => containsRange(changed, range))) ||
+			!hunk.reviewFocus.newRanges.every(range => actual.modifiedChangedRanges.some(changed => containsRange(changed, range)))
+		)) {
+			invalidHunk();
+		}
+		if (hunk.changeTypeRanges && (
+			!rangesExactlyCover(actual.originalChangedRanges, hunk.changeTypeRanges.flatMap(ranges => ranges.oldRanges)) ||
+			!rangesExactlyCover(actual.modifiedChangedRanges, hunk.changeTypeRanges.flatMap(ranges => ranges.newRanges))
+		)) {
+			invalidHunk();
+		}
 		previous = index;
 		const classification = { ...hunk.classification, secondaryChangeTypes: [...hunk.classification.secondaryChangeTypes] };
 		Object.freeze(classification.secondaryChangeTypes);
+		const changeTypeRanges = (hunk.changeTypeRanges ?? [{
+			changeType: hunk.classification.changeType,
+			oldRanges: actual.originalChangedRanges,
+			newRanges: actual.modifiedChangedRanges,
+		}]).map(ranges => {
+			const item = {
+				...ranges,
+				oldRanges: ranges.oldRanges.map(range => Object.freeze({ ...range })),
+				newRanges: ranges.newRanges.map(range => Object.freeze({ ...range })),
+			};
+			Object.freeze(item.oldRanges);
+			Object.freeze(item.newRanges);
+			return Object.freeze(item);
+		});
+		Object.freeze(changeTypeRanges);
+		const reviewFocus = hunk.reviewFocus && {
+			...hunk.reviewFocus,
+			oldRanges: hunk.reviewFocus.oldRanges.map(range => Object.freeze({ ...range })),
+			newRanges: hunk.reviewFocus.newRanges.map(range => Object.freeze({ ...range })),
+		};
+		if (reviewFocus) {
+			Object.freeze(reviewFocus.oldRanges);
+			Object.freeze(reviewFocus.newRanges);
+			Object.freeze(reviewFocus);
+		}
 		return Object.freeze({
 			...hunk,
 			oldRange: Object.freeze({ ...hunk.oldRange }),
 			newRange: Object.freeze({ ...hunk.newRange }),
 			classification: Object.freeze(classification),
+			hasSubmittedChangeTypeRanges: hunk.changeTypeRanges !== undefined,
+			changeTypeRanges,
+			reviewFocus,
 			original: actual.original.join(''),
 			modified: actual.modified.join(''),
 			originalChangedRanges: Object.freeze(actual.originalChangedRanges.map(range => Object.freeze({ ...range }))),
@@ -375,6 +417,33 @@ export function resolveSemanticDiffFile(file: ISemanticDiffFile, hunks: readonly
 		});
 	});
 	return Object.freeze({ file: Object.freeze({ ...file }), original, modified, hunks: Object.freeze(verified) });
+}
+
+function containsRange(outer: ISemanticDiffRange, inner: ISemanticDiffRange): boolean {
+	return inner.start >= outer.start && inner.start + inner.count <= outer.start + outer.count;
+}
+
+function rangesExactlyCover(expected: readonly ISemanticDiffRange[], ranges: readonly ISemanticDiffRange[]): boolean {
+	const normalize = (input: readonly ISemanticDiffRange[]): ISemanticDiffRange[] | undefined => {
+		const result: ISemanticDiffRange[] = [];
+		for (const range of input.toSorted((left, right) => left.start - right.start)) {
+			const previous = result.at(-1);
+			if (previous && range.start < previous.start + previous.count) {
+				return undefined;
+			}
+			if (previous && range.start === previous.start + previous.count) {
+				previous.count += range.count;
+			} else {
+				result.push({ ...range });
+			}
+		}
+		return result;
+	};
+	const normalizedExpected = normalize(expected);
+	const normalizedRanges = normalize(ranges);
+	return normalizedExpected !== undefined && normalizedRanges !== undefined &&
+		normalizedExpected.length === normalizedRanges.length &&
+		normalizedExpected.every((range, index) => range.start === normalizedRanges[index].start && range.count === normalizedRanges[index].count);
 }
 
 function groupHunks(files: readonly ISemanticDiffResolvedFile[], groupId: string): ISemanticDiffVerifiedHunk[] {
