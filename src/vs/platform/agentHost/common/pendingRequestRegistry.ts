@@ -128,6 +128,11 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 		return this._earlyResults.has(key);
 	}
 
+	/** Drop a result buffered by {@link respondOrBuffer} that no {@link register} ever consumed. No-op if absent. */
+	discardBufferedResult(key: string): void {
+		this._earlyResults.delete(key);
+	}
+
 	/**
 	 * Resolve every parked deferred with `denyValue` and clear the registry.
 	 *
