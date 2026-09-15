@@ -161,6 +161,7 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
+	isAutoUpdateConfigLockedByPolicy(): boolean;
 	isAutoUpdateDelayed(extension: IExtension): boolean;
 	getAutoUpdateDelayRemaining(extension: IExtension): number;
 	getAutoUpdateDelay(): number;
@@ -261,6 +262,7 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 // Context Keys
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
+export const AutoUpdateConfigLockedByPolicyContext = new RawContextKey<boolean>('autoUpdateConfigLockedByPolicy', false);
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
 export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
