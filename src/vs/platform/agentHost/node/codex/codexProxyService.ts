@@ -270,6 +270,7 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 		// against the Copilot CAPI (which does not expose `codex-auto-review`).
 		// All downstream handling (dump, logging, forward) uses the outbound
 		// body so logs reflect exactly what is sent upstream.
+		body = stripUnsupportedCodexServiceTier(body);
 		const remap = remapCodexReviewerModel(body, runtime.state);
 		if (remap.remappedFrom) {
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] remapped unsupported reviewer model '${remap.remappedFrom}' -> '${remap.remappedTo}'`);
@@ -471,6 +472,20 @@ function makeCodexHistoryPortable(body: string): string {
 
 function isResponseObject(value: JsonValue | undefined): value is { [key: string]: JsonValue | undefined } {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function stripUnsupportedCodexServiceTier(body: string): string {
+	let value: JsonValue;
+	try {
+		value = JSON.parse(body);
+	} catch {
+		return body;
+	}
+	if (!isResponseObject(value) || value.service_tier === undefined) {
+		return body;
+	}
+	delete value.service_tier;
+	return JSON.stringify(value);
 }
 
 /**
