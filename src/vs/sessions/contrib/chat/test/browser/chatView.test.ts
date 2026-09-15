@@ -639,12 +639,15 @@ suite('Sessions - Chat View', () => {
 			top: cell.style.top,
 			iconTransform: cell.querySelector<HTMLElement>('.codicon')?.style.transform,
 		}));
-		const initialButton = layer?.querySelector<HTMLElement>('.sessions-chat-codicon-button');
+		const initialButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
 		const buttonStyle = initialButton ? dom.getWindow(initialButton).getComputedStyle(initialButton) : undefined;
+		const backgroundStyle = backgroundLayer ? dom.getWindow(backgroundLayer).getComputedStyle(backgroundLayer) : undefined;
+		const initialButtonPosition = `${initialButton?.style.left}:${initialButton?.style.top}`;
 		initialButton?.focus();
 		initialButton?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', keyCode: 13 }));
 		const cellsAfter = layer ? [...layer.querySelectorAll<HTMLElement>('.sessions-chat-codicon-cell')] : [];
-		const nextButton = layer?.querySelector<HTMLElement>('.sessions-chat-codicon-button');
+		const nextButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const activationParent = activationTarget?.parentElement;
 		const layoutAfter = cellsAfter.map(cell => ({
 			left: cell.style.left,
 			top: cell.style.top,
@@ -654,51 +657,49 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			backgroundAriaHidden: backgroundLayer?.ariaHidden,
 			layerAriaHidden: layer?.ariaHidden,
-			buttonCount: layer?.querySelectorAll('.sessions-chat-codicon-button').length,
+			buttonCount: part.querySelectorAll(':scope > .sessions-chat-codicon-hit-target').length,
+			buttonIsOutsideBackground: !backgroundLayer?.contains(nextButton ?? null),
+			buttonChildCount: nextButton?.childElementCount,
 			role: nextButton?.getAttribute('role'),
 			tabIndex: nextButton?.tabIndex,
 			ariaLabel: nextButton?.getAttribute('aria-label'),
-			iconAriaHidden: nextButton?.querySelector<HTMLElement>('.codicon')?.ariaHidden,
-			display: buttonStyle?.display,
-			placeItems: buttonStyle?.placeItems,
+			buttonOpacity: buttonStyle?.opacity,
+			buttonZIndex: buttonStyle?.zIndex,
+			backgroundZIndex: backgroundStyle?.zIndex,
+			iconsAriaHidden: cellsAfter.every(cell => cell.ariaHidden === 'true' && cell.querySelector<HTMLElement>('.codicon')?.ariaHidden === 'true'),
 			activationTarget: activationTarget?.className,
-			activationTargetRetained: activationTarget?.parentElement === initialButton,
+			activationTargetRetained: activationParent ? cellsBefore.includes(activationParent) : false,
 			activations,
-			targetChanged: nextButton !== initialButton,
+			buttonReused: nextButton === initialButton,
+			targetPositionChanged: `${nextButton?.style.left}:${nextButton?.style.top}` !== initialButtonPosition,
 			focusTransferred: dom.getWindow(part).document.activeElement === nextButton,
 			cellElementsRetained: cellsAfter.length === cellsBefore.length && cellsAfter.every((cell, index) => cell === cellsBefore[index]),
 			layoutStable: layoutAfter,
-			initialButtonAfterActivation: {
-				ariaHidden: initialButton?.ariaHidden,
-				role: initialButton?.getAttribute('role'),
-				tabIndex: initialButton?.tabIndex,
-			},
 		}, {
-			backgroundAriaHidden: null,
-			layerAriaHidden: null,
+			backgroundAriaHidden: 'true',
+			layerAriaHidden: 'true',
 			buttonCount: 1,
+			buttonIsOutsideBackground: true,
+			buttonChildCount: 0,
 			role: 'button',
 			tabIndex: 0,
 			ariaLabel: 'Celebrate',
-			iconAriaHidden: 'true',
-			display: 'grid',
-			placeItems: 'center',
+			buttonOpacity: '0',
+			buttonZIndex: '3',
+			backgroundZIndex: '0',
+			iconsAriaHidden: true,
 			activationTarget: 'sessions-chat-codicon-button-animation',
 			activationTargetRetained: true,
 			activations: 1,
-			targetChanged: true,
+			buttonReused: true,
+			targetPositionChanged: true,
 			focusTransferred: true,
 			cellElementsRetained: true,
 			layoutStable: layoutBefore,
-			initialButtonAfterActivation: {
-				ariaHidden: 'true',
-				role: null,
-				tabIndex: -1,
-			},
 		});
 	});
 
-	test('keeps the confetti button fully inside the viewport', async () => {
+	test('keeps the confetti button fully inside the viewport and clear of conversation content', async () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		part.style.width = '850px';
@@ -723,28 +724,19 @@ suite('Sessions - Chat View', () => {
 		const renderer = disposables.add(new SessionsChatBackgroundRenderer(part, true, () => 0.999));
 		renderer.setBackground({ kind: 'codicons' });
 		const layer = part.querySelector<HTMLElement>(':scope > .sessions-chat-background > .sessions-chat-codicon-background');
-		const initialButton = layer?.querySelector<HTMLElement>('.sessions-chat-codicon-button');
+		const initialButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const initialButtonPosition = `${initialButton?.style.left}:${initialButton?.style.top}`;
 		const initialViewport = { width: part.clientWidth, height: part.clientHeight };
 		const initialCells = layer ? [...layer.querySelectorAll<HTMLElement>('.sessions-chat-codicon-cell')] : [];
-		const overlaps = (button: HTMLElement | null | undefined, left: number, width: number) => {
+		const overlapsBounds = (button: HTMLElement | null | undefined, left: number, top: number, width: number, height: number) => {
 			const centerX = Number.parseFloat(button?.style.left ?? '');
 			const centerY = Number.parseFloat(button?.style.top ?? '');
 			const horizontalRadius = (button?.offsetWidth ?? 0) / 2;
 			const verticalRadius = (button?.offsetHeight ?? 0) / 2;
 			return centerX - horizontalRadius < left + width && centerX + horizontalRadius > left
-				&& centerY - verticalRadius < 641 && centerY + verticalRadius > 0;
+				&& centerY - verticalRadius < top + height && centerY + verticalRadius > top;
 		};
-		const initialButtonOverlapsOccluder = overlaps(initialButton, occluderLeft, occluderWidth);
-		const hasOccludedCells = initialCells.some(cell => overlaps(cell, occluderLeft, occluderWidth));
-
-		occluderLeft = 0;
-		occluderWidth = 400;
-		occluder.style.left = '0';
-		occluder.style.width = '400px';
-		await timeout(20);
-		const refreshedButton = layer?.querySelector<HTMLElement>('.sessions-chat-codicon-button');
-		refreshedButton?.click();
-		const nextButton = layer?.querySelector<HTMLElement>('.sessions-chat-codicon-button');
+		const overlaps = (button: HTMLElement | null | undefined, left: number, width: number) => overlapsBounds(button, left, 0, width, 641);
 		const isFullyVisible = (button: HTMLElement | null | undefined, viewport: { width: number; height: number }) => {
 			const centerX = Number.parseFloat(button?.style.left ?? '');
 			const centerY = Number.parseFloat(button?.style.top ?? '');
@@ -755,31 +747,78 @@ suite('Sessions - Chat View', () => {
 				&& centerY - verticalRadius >= 0
 				&& centerY + verticalRadius <= viewport.height;
 		};
+		const initialButtonFullyVisible = isFullyVisible(initialButton, initialViewport);
+		const initialButtonOverlapsOccluder = overlaps(initialButton, occluderLeft, occluderWidth);
+		const hasOccludedCells = initialCells.some(cell => overlaps(cell, occluderLeft, occluderWidth));
+
+		occluderLeft = 0;
+		occluderWidth = 400;
+		occluder.style.left = '0';
+		occluder.style.width = '400px';
+		await timeout(20);
+		const refreshedButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const refreshedButtonPosition = `${refreshedButton?.style.left}:${refreshedButton?.style.top}`;
+		const refreshedButtonFullyVisible = isFullyVisible(refreshedButton, initialViewport);
+		const refreshedButtonOverlapsOccluder = overlaps(refreshedButton, occluderLeft, occluderWidth);
+		refreshedButton?.click();
+		const nextButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const nextButtonPosition = `${nextButton?.style.left}:${nextButton?.style.top}`;
+		const nextButtonFullyVisible = isFullyVisible(nextButton, initialViewport);
+		const nextButtonOverlapsOccluder = overlaps(nextButton, occluderLeft, occluderWidth);
+		const conversationLeft = Number.parseFloat(nextButton?.style.left ?? '') - 12;
+		const conversationTop = Number.parseFloat(nextButton?.style.top ?? '') - 12;
+		const conversation = dom.append(part, dom.$('.interactive-item-container.interactive-response'));
+		conversation.style.position = 'absolute';
+		conversation.style.left = `${conversationLeft}px`;
+		conversation.style.top = `${conversationTop}px`;
+		conversation.style.width = '24px';
+		conversation.style.height = '24px';
+		conversation.getBoundingClientRect = () => DOMRect.fromRect({
+			x: partBounds.left + conversationLeft,
+			y: partBounds.top + conversationTop,
+			width: 24,
+			height: 24,
+		});
+		await timeout(20);
+		const conversationSafeButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+		const conversationSafeButtonPosition = `${conversationSafeButton?.style.left}:${conversationSafeButton?.style.top}`;
 		const cells = layer ? [...layer.querySelectorAll<HTMLElement>('.sessions-chat-codicon-cell')] : [];
 		const refreshedViewport = { width: part.clientWidth, height: part.clientHeight };
 
 		assert.deepStrictEqual({
 			initialButtonSize: { width: initialButton?.offsetWidth, height: initialButton?.offsetHeight },
-			initialButtonFullyVisible: isFullyVisible(initialButton, initialViewport),
+			initialButtonFullyVisible,
 			initialButtonOverlapsOccluder,
-			targetChangedAfterOccluderMove: refreshedButton !== initialButton,
-			refreshedButtonFullyVisible: isFullyVisible(refreshedButton, refreshedViewport),
-			refreshedButtonOverlapsOccluder: overlaps(refreshedButton, occluderLeft, occluderWidth),
-			targetChangedAfterActivation: nextButton !== refreshedButton,
-			nextButtonFullyVisible: isFullyVisible(nextButton, refreshedViewport),
-			nextButtonOverlapsOccluder: overlaps(nextButton, occluderLeft, occluderWidth),
+			buttonReusedAfterOccluderMove: refreshedButton === initialButton,
+			targetChangedAfterOccluderMove: refreshedButtonPosition !== initialButtonPosition,
+			refreshedButtonFullyVisible,
+			refreshedButtonOverlapsOccluder,
+			buttonReusedAfterActivation: nextButton === refreshedButton,
+			targetChangedAfterActivation: nextButtonPosition !== refreshedButtonPosition,
+			nextButtonFullyVisible,
+			nextButtonOverlapsOccluder,
+			buttonReusedAfterConversationOverlap: conversationSafeButton === nextButton,
+			targetChangedAfterConversationOverlap: conversationSafeButtonPosition !== nextButtonPosition,
+			conversationSafeButtonFullyVisible: isFullyVisible(conversationSafeButton, refreshedViewport),
+			conversationSafeButtonOverlapsConversation: overlapsBounds(conversationSafeButton, conversationLeft, conversationTop, 24, 24),
 			hasClippedCells: cells.some(cell => !isFullyVisible(cell, refreshedViewport)),
 			hasOccludedCells,
 		}, {
 			initialButtonSize: { width: 24, height: 24 },
 			initialButtonFullyVisible: true,
 			initialButtonOverlapsOccluder: false,
+			buttonReusedAfterOccluderMove: true,
 			targetChangedAfterOccluderMove: true,
 			refreshedButtonFullyVisible: true,
 			refreshedButtonOverlapsOccluder: false,
+			buttonReusedAfterActivation: true,
 			targetChangedAfterActivation: true,
 			nextButtonFullyVisible: true,
 			nextButtonOverlapsOccluder: false,
+			buttonReusedAfterConversationOverlap: true,
+			targetChangedAfterConversationOverlap: true,
+			conversationSafeButtonFullyVisible: true,
+			conversationSafeButtonOverlapsConversation: false,
 			hasClippedCells: true,
 			hasOccludedCells: true,
 		});

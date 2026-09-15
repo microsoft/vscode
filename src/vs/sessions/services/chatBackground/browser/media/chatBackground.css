@@ -18,10 +18,6 @@
 	pointer-events: none;
 }
 
-.sessions-chat-background.sessions-chat-background-interactive {
-	z-index: auto;
-}
-
 .sessions-chat-background,
 .sessions-chat-background-replica-viewport {
 	inset: 0;
@@ -47,7 +43,8 @@
 }
 
 .sessions-chat-background > .sessions-chat-codicon-background > .codicon,
-.sessions-chat-codicon-cell {
+.sessions-chat-codicon-cell,
+.sessions-chat-codicon-hit-target {
 	position: absolute;
 }
 
@@ -60,9 +57,11 @@
 	place-items: center;
 }
 
-.sessions-chat-codicon-button {
+.sessions-chat-codicon-hit-target {
 	z-index: 3;
+	opacity: 0;
 	pointer-events: auto;
+	transform: translate(-50%, -50%);
 }
 
 .sessions-chat-codicon-button-animation {
@@ -70,11 +69,11 @@
 	line-height: 1;
 }
 
-.sessions-chat-codicon-button:hover {
+.sessions-chat-codicon-button-hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-codicon-button:focus-visible {
+.sessions-chat-codicon-button-focus-visible {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));

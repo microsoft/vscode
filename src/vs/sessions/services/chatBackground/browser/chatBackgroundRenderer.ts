@@ -18,7 +18,7 @@ import { ISessionsChatBackground } from './chatBackgroundService.js';
 const codiconCellSize = 80;
 const codiconButtonSize = 24;
 const codiconDefaults = { width: 960, height: 800 };
-const codiconButtonOccluderClasses = ['new-chat-input-container', 'new-chat-bottom-container', 'interactive-input-part'];
+const codiconButtonOccluderClasses = ['interactive-item-container', 'new-chat-input-container', 'new-chat-bottom-container', 'interactive-input-part'];
 const codiconButtonOccluderTags = new Set(['A', 'BUTTON', 'INPUT', 'SELECT', 'SUMMARY', 'TEXTAREA']);
 const codiconButtonOccluderRoles = new Set(['button', 'checkbox', 'combobox', 'link', 'menuitem', 'option', 'radio', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem']);
 const codiconChoices = [
@@ -103,7 +103,9 @@ function isCodiconButtonOccluder(element: HTMLElement): boolean {
 
 function* getCodiconButtonOccluders(element: HTMLElement): Iterable<HTMLElement> {
 	for (const child of element.children) {
-		if (!isHTMLElement(child) || child.classList.contains('sessions-chat-background')) {
+		if (!isHTMLElement(child)
+			|| child.classList.contains('sessions-chat-background')
+			|| child.classList.contains('sessions-chat-codicon-hit-target')) {
 			continue;
 		}
 		if (isCodiconButtonOccluder(child)) {
@@ -123,7 +125,6 @@ interface ICodiconCell {
 	readonly element: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly animationElement?: HTMLElement;
-	readonly disposable?: IDisposable;
 }
 
 export class SessionsChatBackgroundRenderer extends Disposable {
@@ -133,6 +134,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 	private readonly codiconCells = new Map<string, ICodiconCell>();
 	private readonly confettiCandidates = new Set<string>();
 	private readonly foregroundResizeObservations = new Map<HTMLElement, IDisposable>();
+	private readonly confettiButton: Button | undefined;
 	private readonly _onDidActivateCodicon = this._register(new Emitter<HTMLElement>());
 	readonly onDidActivateCodicon: Event<HTMLElement> = this._onDidActivateCodicon.event;
 	private readonly refreshScheduler: RunOnceScheduler;
@@ -140,6 +142,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 	private background: ISessionsChatBackground | undefined;
 	private codiconGridSize: string | undefined;
 	private confettiCell: string | undefined;
+	private confettiButtonHovered = false;
 
 	constructor(
 		private readonly element: HTMLElement,
@@ -153,17 +156,11 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		));
 
 		this.backgroundLayer = $('.sessions-chat-background');
-		if (!this.interactive) {
-			this.backgroundLayer.ariaHidden = 'true';
-		} else {
-			this.backgroundLayer.classList.add('sessions-chat-background-interactive');
-		}
+		this.backgroundLayer.ariaHidden = 'true';
 		this.backgroundLayer.hidden = true;
 
 		this.codiconLayer = $('.sessions-chat-codicon-background');
-		if (!this.interactive) {
-			this.codiconLayer.ariaHidden = 'true';
-		}
+		this.codiconLayer.ariaHidden = 'true';
 		this.codiconLayer.hidden = true;
 		this.backgroundLayer.appendChild(this.codiconLayer);
 		this.element.prepend(this.backgroundLayer);
@@ -172,6 +169,28 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			this.clearCodicons();
 			this.backgroundLayer.remove();
 		}));
+
+		if (this.interactive) {
+			const label = localize('sessionsChatBackground.confettiButton', "Celebrate");
+			this.confettiButton = this._register(new Button(this.element, { ariaLabel: label, title: label }));
+			this.confettiButton.element.classList.add('sessions-chat-codicon-hit-target');
+			this.confettiButton.element.style.width = `${codiconButtonSize}px`;
+			this.confettiButton.element.style.height = `${codiconButtonSize}px`;
+			this.confettiButton.element.hidden = true;
+			this._register(this.confettiButton.onDidClick(() => this.activateConfettiCell()));
+			this._register(addDisposableListener(this.confettiButton.element, EventType.MOUSE_OVER, () => {
+				this.confettiButtonHovered = true;
+				this.updateConfettiButtonPresentation();
+			}));
+			this._register(addDisposableListener(this.confettiButton.element, EventType.MOUSE_OUT, () => {
+				this.confettiButtonHovered = false;
+				this.updateConfettiButtonPresentation();
+			}));
+			this._register(addDisposableListener(this.confettiButton.element, EventType.FOCUS, () => this.updateConfettiButtonPresentation()));
+			this._register(addDisposableListener(this.confettiButton.element, EventType.BLUR, () => this.updateConfettiButtonPresentation()));
+		} else {
+			this.confettiButton = undefined;
+		}
 
 		this.resizeObserver = this._register(new DisposableResizeObserver(
 			'SessionsChatBackgroundRenderer',
@@ -188,7 +207,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 				childList: true,
 				subtree: true,
 			})(mutations => {
-				if (mutations.some(mutation => !this.backgroundLayer.contains(mutation.target))) {
+				if (mutations.some(mutation => !this.backgroundLayer.contains(mutation.target) && !this.confettiButton?.element.contains(mutation.target))) {
 					this.refreshScheduler.schedule();
 				}
 			}));
@@ -244,22 +263,19 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			}
 		}
 
-		const preserveFocus = !!this.confettiCell
-			&& this.codiconCells.get(this.confettiCell)?.element === getWindow(this.element).document.activeElement;
 		if (this.interactive && (!this.confettiCell || !this.confettiCandidates.has(this.confettiCell))) {
 			const candidates = [...this.confettiCandidates];
 			this.confettiCell = candidates.length ? candidates[Math.min(candidates.length - 1, Math.floor(this.random() * candidates.length))] : undefined;
 		}
 
 		if (gridSize === this.codiconGridSize) {
-			this.updateConfettiButtons(preserveFocus);
+			this.updateConfettiButton();
 			return;
 		}
 		this.codiconGridSize = gridSize;
 
 		for (const [cell, codiconCell] of this.codiconCells) {
 			if (!visibleCells.has(cell)) {
-				codiconCell.disposable?.dispose();
 				codiconCell.element.remove();
 				this.codiconCells.delete(cell);
 			}
@@ -273,7 +289,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			}
 
 			const icon = codiconChoices[hashCodiconCell(row, column, 1) % codiconChoices.length];
-			const codiconCell = this.interactive ? this.createCodiconButton(cell, icon) : this.createDecorativeCodicon(icon);
+			const codiconCell = this.interactive ? this.createInteractiveCodicon(icon) : this.createDecorativeCodicon(icon);
 			if (this.interactive) {
 				codiconCell.element.style.left = `${layout.left}px`;
 				codiconCell.element.style.top = `${layout.top}px`;
@@ -289,7 +305,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			this.codiconLayer.appendChild(codiconCell.element);
 		}
 
-		this.updateConfettiButtons(preserveFocus);
+		this.updateConfettiButton();
 	}
 
 	private getConfettiCandidateGeometry(): IConfettiCandidateGeometry {
@@ -338,29 +354,32 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		return { element, icon: element };
 	}
 
-	private createCodiconButton(cell: string, icon: ThemeIcon): ICodiconCell {
-		const disposables = new DisposableStore();
-		const button = disposables.add(new Button(this.codiconLayer, {}));
-		button.element.classList.add('sessions-chat-codicon-cell');
-		button.element.style.width = `${codiconButtonSize}px`;
-		button.element.style.height = `${codiconButtonSize}px`;
+	private createInteractiveCodicon(icon: ThemeIcon): ICodiconCell {
+		const element = $('.sessions-chat-codicon-cell');
+		element.ariaHidden = 'true';
 		const animationElement = $('.sessions-chat-codicon-button-animation');
-		const buttonIcon = renderIcon(icon);
-		buttonIcon.ariaHidden = 'true';
-		animationElement.appendChild(buttonIcon);
-		button.element.appendChild(animationElement);
-		disposables.add(button.onDidClick(event => {
-			if (this.confettiCell !== cell) {
-				return;
-			}
-
-			this._onDidActivateCodicon.fire(animationElement);
-			this.selectNextConfettiCell(cell, event.type === EventType.KEY_DOWN);
-		}));
-		return { element: button.element, icon: buttonIcon, animationElement, disposable: disposables };
+		const iconElement = renderIcon(icon);
+		iconElement.ariaHidden = 'true';
+		animationElement.appendChild(iconElement);
+		element.appendChild(animationElement);
+		return { element, icon: iconElement, animationElement };
 	}
 
-	private selectNextConfettiCell(currentCell: string, preserveFocus: boolean): void {
+	private activateConfettiCell(): void {
+		if (!this.confettiCell) {
+			return;
+		}
+
+		const cell = this.codiconCells.get(this.confettiCell);
+		if (!cell?.animationElement) {
+			return;
+		}
+
+		this._onDidActivateCodicon.fire(cell.animationElement);
+		this.selectNextConfettiCell(this.confettiCell);
+	}
+
+	private selectNextConfettiCell(currentCell: string): void {
 		const candidates = [...this.confettiCandidates].filter(cell => cell !== currentCell);
 		if (!candidates.length) {
 			return;
@@ -368,34 +387,43 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 
 		const candidateIndex = Math.min(candidates.length - 1, Math.floor(this.random() * candidates.length));
 		this.confettiCell = candidates[candidateIndex];
-		this.updateConfettiButtons(preserveFocus);
+		this.updateConfettiButton();
 	}
 
-	private updateConfettiButtons(preserveFocus = false): void {
-		const label = localize('sessionsChatBackground.confettiButton', "Celebrate");
-		for (const [cell, codiconCell] of this.codiconCells) {
-			if (!codiconCell.animationElement) {
-				continue;
-			}
-
-			const active = cell === this.confettiCell;
-			codiconCell.element.classList.toggle('sessions-chat-codicon-button', active);
-			codiconCell.element.tabIndex = active ? 0 : -1;
-			if (active) {
-				codiconCell.element.removeAttribute('aria-hidden');
-				codiconCell.element.setAttribute('role', 'button');
-				codiconCell.element.setAttribute('aria-label', label);
-				codiconCell.element.title = label;
-			} else {
-				codiconCell.element.blur();
-				codiconCell.element.ariaHidden = 'true';
-				codiconCell.element.removeAttribute('role');
-				codiconCell.element.removeAttribute('aria-label');
-				codiconCell.element.removeAttribute('title');
-			}
+	private updateConfettiButton(): void {
+		if (!this.confettiButton) {
+			return;
 		}
-		if (preserveFocus && this.confettiCell) {
-			this.codiconCells.get(this.confettiCell)?.element.focus();
+
+		const confettiCell = this.confettiCell;
+		const cell = confettiCell ? this.codiconCells.get(confettiCell) : undefined;
+		if (!confettiCell || !cell) {
+			this.confettiButtonHovered = false;
+			this.confettiButton.element.hidden = true;
+			delete this.confettiButton.element.dataset.confettiCell;
+			this.updateConfettiButtonPresentation();
+			return;
+		}
+
+		if (this.confettiButton.element.dataset.confettiCell !== confettiCell) {
+			this.confettiButtonHovered = false;
+		}
+		this.confettiButton.element.dataset.confettiCell = confettiCell;
+		this.confettiButton.element.style.left = cell.element.style.left;
+		this.confettiButton.element.style.top = cell.element.style.top;
+		this.confettiButton.element.hidden = false;
+		this.updateConfettiButtonPresentation();
+	}
+
+	private updateConfettiButtonPresentation(): void {
+		for (const cell of this.codiconCells.values()) {
+			cell.element.classList.remove('sessions-chat-codicon-button-hover', 'sessions-chat-codicon-button-focus-visible');
+		}
+
+		const cell = this.confettiCell ? this.codiconCells.get(this.confettiCell) : undefined;
+		if (cell && this.confettiButton && !this.confettiButton.element.hidden) {
+			cell.element.classList.toggle('sessions-chat-codicon-button-hover', this.confettiButtonHovered);
+			cell.element.classList.toggle('sessions-chat-codicon-button-focus-visible', this.confettiButton.element.matches(':focus-visible'));
 		}
 	}
 
@@ -404,8 +432,11 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			observation.dispose();
 		}
 		this.foregroundResizeObservations.clear();
-		for (const cell of this.codiconCells.values()) {
-			cell.disposable?.dispose();
+		if (this.confettiButton) {
+			this.confettiButtonHovered = false;
+			this.confettiButton.element.blur();
+			this.confettiButton.element.hidden = true;
+			delete this.confettiButton.element.dataset.confettiCell;
 		}
 		this.codiconCells.clear();
 		this.confettiCandidates.clear();
