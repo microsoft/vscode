@@ -4365,6 +4365,62 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 	});
 
+	test('new session config snapshots all resolved values without requiring a worktree', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const initialConfig = await provider.getNewSessionConfig(session.sessionId);
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		const providerOption = { enabled: true };
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'main', providerOption },
+		};
+		const changing = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		let captured = false;
+		const capture = provider.getNewSessionConfig(session.sessionId).then(config => {
+			captured = true;
+			return config;
+		});
+		await timeout(0);
+		const capturedBeforeResolution = captured;
+		await barrier.complete();
+		await changing;
+		const selectedConfig = await capture;
+		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		liveConfig.isolation = 'worktree';
+		providerOption.enabled = false;
+
+		assert.deepStrictEqual({
+			initialConfig,
+			capturedBeforeResolution,
+			selectedConfig,
+			hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
+		}, {
+			initialConfig: { isolation: 'worktree', providerConfig: { isolation: 'worktree' } },
+			capturedBeforeResolution: false,
+			selectedConfig: { isolation: 'folder', providerConfig: { isolation: 'folder', branch: 'main', providerOption: { enabled: true } } },
+			hasWorktree: false,
+		});
+	});
+
+	test('new session config leaves unrecognized isolation values provider-specific', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		const snapshots = [];
+		for (const isolation of ['unexpected', { kind: 'worktree' }, undefined]) {
+			liveConfig[SessionConfigKey.Isolation] = isolation;
+			snapshots.push(await provider.getNewSessionConfig(session.sessionId));
+		}
+
+		assert.deepStrictEqual(snapshots, [
+			{ isolation: undefined, providerConfig: { isolation: 'unexpected' } },
+			{ isolation: undefined, providerConfig: { isolation: { kind: 'worktree' } } },
+			{ isolation: undefined, providerConfig: { isolation: undefined } },
+		]);
+	});
+
 	test('maps the existing isolation setter to agent-host config without remembering it', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		agentHost.resolveSessionConfigResult = {

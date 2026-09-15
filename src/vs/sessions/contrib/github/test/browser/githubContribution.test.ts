@@ -336,14 +336,23 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
-	test('polls CI checks but not review threads for draft pull requests', () => {
-		sessionsManagementService.addSession('session', makeGitHubInfo(1));
+	test('refreshes but does not continuously poll CI checks for an inactive draft pull request', () => {
+		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
 		store.add(createContribution());
 
+		// Not the active session → CI is refreshed once but not polled on a
+		// timer, and review threads are skipped entirely for drafts.
 		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: true, headSha: 'sha1' });
-
 		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), {
-			ci: { 'owner/repo/1/sha1': { startPollingCalls: 1, refreshCalls: 1 } },
+			ci: { 'owner/repo/1/sha1': { startPollingCalls: 0, refreshCalls: 1 } },
+			reviewThreads: {},
+		});
+
+		// Becomes the active session → CI is refreshed again immediately and
+		// polling starts.
+		activeSession.set(session as unknown as IActiveSession, undefined);
+		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), {
+			ci: { 'owner/repo/1/sha1': { startPollingCalls: 1, refreshCalls: 2 } },
 			reviewThreads: {},
 		});
 	});

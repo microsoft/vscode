@@ -10,6 +10,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { deepClone } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, ITransaction, observableFromPromise, observableSignal, observableValue, observableValueOpts, runOnChange, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -30,7 +31,7 @@ import { AutomationModelConfiguration } from '../../../automations/browser/autom
 import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -2079,6 +2080,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (session && isChatPermissionLevel(level)) {
 			session.setPermissionLevel(level);
 		}
+	}
+
+	async getNewSessionConfig(sessionId: string): Promise<ISessionConfigurationSnapshot | undefined> {
+		const session = this._newSessions.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		const isolation = session.isolationMode.get();
+		return {
+			isolation: isolation === 'workspace' ? 'folder' : isolation,
+			providerConfig: deepClone({
+				...Object.fromEntries([...session.selectedOptions].map(([key, value]) => [key, value.id])),
+				...(session instanceof CopilotCLISession ? session.getAgentHostSessionConfig() : {}),
+			}),
+		};
 	}
 
 	async setIsolationMode(sessionId: string, mode: string): Promise<void> {
