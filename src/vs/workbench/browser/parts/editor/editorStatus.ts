@@ -945,8 +945,17 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IStatusbarService statusbarService: IStatusbarService,
 	) {
 		super();
+
+		this._register(statusbarService.addEntry({
+			name: localize('closeAllEditors', "Close All Editors"),
+			text: '$(close-all)',
+			ariaLabel: localize('closeAllEditors', "Close All Editors"),
+			tooltip: localize('closeAllEditors', "Close All Editors"),
+			command: 'workbench.action.closeAllEditors'
+		}, 'status.editor.closeAll', StatusbarAlignment.RIGHT, 98));
 
 		for (const part of editorGroupService.parts) {
 			this.createEditorStatus(part);
