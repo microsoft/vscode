@@ -15,8 +15,10 @@ import { assertIsResponseVM, IChatErrorDetailsPart, IChatRendererContent } from 
 import { IChatAccessibilityService, IChatWidgetService } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatErrorWidget } from './chatErrorContentPart.js';
+import { IChatRequestModel } from '../../../common/model/chatModel.js';
 
 const $ = dom.$;
+const pendingConfirmationRequests = new WeakSet<IChatRequestModel>();
 
 export class ChatErrorConfirmationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -52,8 +54,15 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 			button.label = buttonData.label;
 
 			this._register(button.onDidClick(async () => {
-				if (isRunning) {
+				if (isRunning || context.readOnly || context.canRunAction?.() === false) {
 					return;
+				}
+				const request = chatService.getSession(element.sessionResource)?.getRequests().find(request => request.id === element.requestId);
+				if (request && pendingConfirmationRequests.has(request)) {
+					return;
+				}
+				if (request) {
+					pendingConfirmationRequests.add(request);
 				}
 				isRunning = true;
 				buttons.forEach(button => button.enabled = false);
@@ -72,7 +81,6 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 					Object.assign(options, widget?.getModeRequestOptions());
 					this.chatAccessibilityService.acceptRequest(element.sessionResource);
 					if (buttonData.resend) {
-						const request = chatService.getSession(element.sessionResource)?.getRequests().find(request => request.id === element.requestId);
 						if (!request) {
 							throw new Error(`Cannot resend missing chat request: ${element.requestId}`);
 						}
@@ -83,7 +91,15 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 				} catch (error) {
 					isRunning = false;
 					buttons.forEach(button => button.enabled = true);
-					throw error;
+					if (context.onActionError) {
+						context.onActionError(error);
+					} else {
+						throw error;
+					}
+				} finally {
+					if (request) {
+						pendingConfirmationRequests.delete(request);
+					}
 				}
 			}));
 		});

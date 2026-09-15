@@ -38,6 +38,9 @@ import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoard
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
 import { IProjectBoardInputConfiguration, IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IProjectBoardPendingActions } from '../../common/projectBoardActions.js';
+import { ProjectBoardChatActions } from '../../browser/projectBoardChatActions.js';
+import { ProjectBoardWindow } from '../../browser/projectBoardWindow.js';
 import { IChatQuestionAnswers, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { submitChatQuestionCarousel } from '../../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
@@ -136,8 +139,9 @@ suite('ProjectBoardService', () => {
 		const credits = observableValue<number | undefined>('credits', undefined);
 		const creditsError = observableValue<string | undefined>('creditsError', undefined);
 		const configuration = observableValue<IProjectBoardInputConfiguration | undefined>('configuration', undefined);
+		const actions = observableValue<IProjectBoardPendingActions | undefined>('actions', undefined);
 		const includeCredits = sinon.spy();
-		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, credits, creditsError, configuration, setIncludeConfiguration() { }, setIncludeCredits: includeCredits, dispose() { } });
+		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, credits, creditsError, configuration, actions, setIncludeConfiguration() { }, setIncludeCredits: includeCredits, dispose() { } });
 		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProvider: () => undefined });
 		const openedContext: string[] = [];
 		instantiationService.stub(IOpenerService, {
@@ -188,6 +192,10 @@ suite('ProjectBoardService', () => {
 			}
 		});
 		let auxiliaryWindow: IAuxiliaryWindow | undefined;
+		instantiationService.stubInstance(ProjectBoardWindow, {
+			get content() { return auxiliaryWindow?.container ?? container; },
+			dispose() { },
+		});
 		let unload: Emitter<void>;
 		const service = store.add(new ProjectBoardService(
 			new class extends mock<IAuxiliaryWindowService>() {
@@ -243,7 +251,7 @@ suite('ProjectBoardService', () => {
 			contextMenu,
 		));
 		return {
-			service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, includeCredits, loadedModels, quickInput, pick,
+			service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -287,6 +295,38 @@ suite('ProjectBoardService', () => {
 			hasInlineHeader: false,
 			inlineControls: 0,
 		});
+	});
+
+	test('PB-20 live action controls retain focus across updates and never open or drag the card', async () => {
+		const { document } = createBoardDocument();
+		const chat = new TestChat('Pending approval');
+		const h = createBoard(document, [chat]);
+		const pending = new class extends mock<IProjectBoardPendingActions>() { }();
+		const actionElement = mainWindow.document.createElement('div');
+		actionElement.className = 'project-board-live-actions';
+		const button = mainWindow.document.createElement('button');
+		button.textContent = 'Approval boundary';
+		actionElement.appendChild(button);
+		let disposed = false;
+		h.instantiationService.stubInstance(ProjectBoardChatActions, {
+			source: pending, element: actionElement, rendersTools: true,
+			update() { }, dispose() { disposed = true; },
+		});
+		h.actions.set(pending, undefined);
+		await h.service.open();
+		button.focus();
+		chat.title.set('Updated approval card', undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-live-actions'), actionElement);
+		assert.strictEqual(document.activeElement, button);
+		button.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		const drag = new mainWindow.DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new mainWindow.DataTransfer() });
+		button.dispatchEvent(drag);
+		assert.strictEqual(drag.defaultPrevented, true);
+		assert.deepStrictEqual(h.opened, []);
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-live-actions'), null);
+		assert.strictEqual(disposed, true);
+		assert.strictEqual(chat.isRead.get(), false);
 	});
 
 	test('PB-18 top-right settings independently toggle metrics and restore across board reopen', async () => {

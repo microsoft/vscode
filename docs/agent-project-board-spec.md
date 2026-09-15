@@ -29,6 +29,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 ### Windows and navigation
 
 - `Agents: Open Project Board` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
+- Under custom-titlebar configuration, the board reuses the Sessions auxiliary titlebar and its standard native window controls, with a fixed Agent Project Board title and no session command center. Reserve the chrome height outside the board's scroll viewport and keep title/control routing scoped to that auxiliary window.
 - Invoking the command from an ordinary Editor hands off to that Agents window, rather than creating a separate board for the Editor's profile.
 - Double-click, Enter or Space opens the exact chat in a compact standalone chat editor. Reopening the same chat reuses its window; different chats get independent windows.
 - Standalone chat windows reuse `ChatEditorInput` and `ChatEditor`, not another full Agents workbench. Opening one preserves the main Agents selection.
@@ -90,7 +91,16 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Retain the widget for the original pending carousel so values, selection and focus survive board refreshes.
 - Submit to the exact request and original backend option values. Reject stale, duplicate or externally answered forms.
 - Merely displaying a form does not submit it or mark the conversation read.
-- Archived/read-only chats, oversized or unresolvable forms and permission approvals retain an explicit open-in-chat fallback.
+- Archived/read-only chats and oversized or unresolvable forms retain an explicit open-in-chat fallback.
+
+### Continuation and tool approvals
+
+- If the latest visible response offers Keep Going or another resumable-error confirmation, show the same `ChatErrorConfirmationContentPart` on its card. Preserve the original request, provider data and request-ID behavior rather than sending a fabricated continuation prompt.
+- Pending tool execution and result-review approvals use the actual `ChatToolInvocationPart`, including its normal tool-specific content, primary/secondary controls and split-button dropdown. Preserve provider option IDs, approval scopes, policy restrictions and risk information.
+- Merely rendering controls never approves, changes permission settings or marks the chat read. Card drag/open handlers do not consume nested control interactions.
+- Guard actions against newer requests, completed/canceled tools, archived/read-only or disconnected chats and disposed views. Duplicate continuation clicks across board/chat surfaces share an in-flight guard. Failed actions remain retryable and surface errors.
+- Board actions do not redirect focus to a chat widget in another window. Retain shared controls across unrelated card refreshes, including an open scope menu or focused input.
+- Reuse bounded retained metadata models; render at most eight pending tools per card with an explicit open-in-chat notice for additional actions. Authentication, standalone elicitation/confirmation types and unresolved actions keep their existing fallback rather than inventing partial approval controls.
 
 ### Creation and draft lifecycle
 
@@ -161,6 +171,8 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-17:** Cleanup only of untouched owned drafts; preserve entered, attached, pending, failed and submitted work.
 - **PB-18:** Independent persisted display toggles, including default-visible Last Prompt and migration of the old Description preference; bottom status-bar layout and transparent metrics; state-duration transitions and lower bounds; reported zero versus unavailable credits; timer updates preserve focus/scroll and release on close.
 - **PB-19:** Independent model/permission rows; exact chat/session configuration, bounded observation, no global-setting or sibling-chat substitution, live updates, and explicit unknown values.
+- **PB-20:** Shared Keep Going and tool approval controls, exact request/option IDs and approval scope, stale/duplicate protection, retryable failures, retained control identity, and no cross-window focus or accidental read marking.
+- **PB-21:** Themed auxiliary titlebar, fixed independent title, normal window controls, content sizing on resize/fullscreen, singleton behavior and disposal without orphaned chrome.
 
 ### Resilience before optional P2
 

@@ -34,6 +34,7 @@ import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTit
 import { SessionEditorTitle } from '../../services/title/browser/sessionEditorTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+import { localize } from '../../../nls.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 
@@ -97,6 +98,16 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
+	private auxiliaryWindowTitle: string | undefined;
+
+	protected get windowTitle(): string {
+		return this.auxiliaryWindowTitle ?? localize('agentsWindowTitle', "Agents");
+	}
+
+	setAuxiliaryWindowTitle(title: string): void {
+		this.auxiliaryWindowTitle = title;
+		this.updateEditorTitle(title);
+	}
 
 	constructor(
 		id: string,
@@ -178,18 +189,19 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				// macOS native: traffic lights are rendered by the OS at the top-left corner.
 				// Add a fixed-width spacer to push content past the traffic lights.
 				const spacer = append(this.leftContent, $('div.window-controls-container'));
+				const targetWindow = getWindow(parent);
 
 				// Hide spacer in fullscreen (traffic lights are not shown)
 				const updateSpacerVisibility = () => {
-					const fullscreen = isFullscreen(mainWindow);
+					const fullscreen = isFullscreen(targetWindow);
 					spacer.style.display = fullscreen ? 'none' : '';
 					this.leftSpacerWidth = fullscreen ? 0 : 70;
+					spacer.style.width = `${this.leftSpacerWidth}px`;
 				};
 				updateSpacerVisibility();
-				spacer.style.width = `${this.leftSpacerWidth}px`;
 				spacer.style.flexShrink = '0';
 				this._register(onDidChangeFullscreen(windowId => {
-					if (windowId === getWindowId(mainWindow)) {
+					if (windowId === getWindowId(targetWindow)) {
 						updateSpacerVisibility();
 					}
 				}));
@@ -206,6 +218,12 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
 				}
 			}
+		}
+
+		if (this.auxiliaryWindowTitle !== undefined) {
+			this.createCenterContent();
+			this.updateStyles();
+			return this.element;
 		}
 
 		// Left toolbar (driven by Menus.TitleBarLeft, rendered after window controls via CSS order)
@@ -266,8 +284,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private createCenterContent(): void {
-		if (getWindow(this.element) !== mainWindow) {
+		if (this.auxiliaryWindowTitle !== undefined || getWindow(this.element) !== mainWindow) {
 			this.editorTitleElement = append(this.centerContent, $('div.window-title.session-editor-title'));
+			this.editorTitleElement.textContent = this.auxiliaryWindowTitle ?? '';
 			return;
 		}
 		const centerNavContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-nav-container'));
@@ -478,26 +497,42 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 
 	//#region Auxiliary Titlebar Parts
 
-	createAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart {
+	createAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart {
+		return this.createAuxiliaryTitlebar(container, instantiationService);
+	}
+
+	/** Creates a fixed-title auxiliary window without session or editor actions. */
+	createAuxiliaryWindowTitlebarPart(container: HTMLElement, title: string, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart {
+		return this.createAuxiliaryTitlebar(container, instantiationService, title);
+	}
+
+	private createAuxiliaryTitlebar(container: HTMLElement, instantiationService: IInstantiationService, title?: string): IAuxiliaryTitlebarPart {
 		const titlebarPartContainer = $('.part.titlebar', { role: 'none' });
 		titlebarPartContainer.style.position = 'relative';
 		container.insertBefore(titlebarPartContainer, container.firstChild);
 
 		const disposables = new DisposableStore();
 
-		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer, instantiationService);
+		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, instantiationService);
 		disposables.add(this.registerPart(titlebarPart));
+		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
+
+		if (title !== undefined) {
+			titlebarPart.setAuxiliaryWindowTitle(title);
+		}
 
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
-		disposables.add(instantiationService.createInstance(SessionEditorTitle, getWindow(container).document, title => titlebarPart.updateEditorTitle(title)));
-
-		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
+		if (title === undefined) {
+			disposables.add(instantiationService.createInstance(SessionEditorTitle, getWindow(container).document, title => titlebarPart.updateEditorTitle(title)));
+		} else {
+			getWindow(container).document.title = title;
+		}
 
 		return titlebarPart;
 	}
 
-	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
+	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
 		return instantiationService.createInstance(AuxiliaryTitlebarPart, container, this.mainPart);
 	}
 
