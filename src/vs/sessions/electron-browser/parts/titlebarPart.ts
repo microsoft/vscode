@@ -21,11 +21,9 @@ import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkey
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
-import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { localize } from '../../../nls.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
 
@@ -60,8 +58,8 @@ export class NativeTitlebarPart extends TitlebarPart {
 		// appear in the "Windows" menu if the first `document.title`
 		// matches the BrowserWindow's initial title.
 		// See: https://github.com/microsoft/vscode/issues/191288
-		const window = getWindow(this.element);
-		const agentsTitle = localize('agentsWindowTitle', "Agents");
+		const window = getWindow(parent);
+		const agentsTitle = this.windowTitle;
 		if (isMacintosh) {
 			const initialTitle = this.productService.nameLong;
 			if (!window.document.title || window.document.title === initialTitle) {
@@ -254,7 +252,7 @@ export class NativeTitleService extends TitleService {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
 		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, this.mainPart);
 	}
 }

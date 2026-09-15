@@ -94,6 +94,7 @@ export interface IAbstractToolPrimaryAction extends IChatConfirmationButton<(() 
 }
 
 type AbstractToolPrimaryAction = IAbstractToolPrimaryAction | Separator;
+const pendingToolActions = new WeakSet<IChatToolInvocation>();
 
 /**
  * Base class for a tool confirmation.
@@ -140,8 +141,8 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		if (customOptions && customOptions.length > 0) {
 			buttons = this.buildCustomOptionButtons(toolInvocation, customOptions);
 		} else {
-			const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
-			const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
+			const allowTooltip = this.context.showActionKeybindings === false ? config.allowLabel : keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
+			const skipTooltip = this.context.showActionKeybindings === false ? config.skipLabel : keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
 
 			const additionalActions = this.additionalPrimaryActions();
 
@@ -215,8 +216,23 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		hasToolConfirmation.set(true);
 
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
-			button.data();
-			if (!isTouchClick) {
+			if (this.context.readOnly || this.context.canRunAction?.() === false || pendingToolActions.has(toolInvocation)) {
+				return;
+			}
+			pendingToolActions.add(toolInvocation);
+			try {
+				Promise.resolve(button.data())
+					.catch(error => this.context.onActionError ? this.context.onActionError(error) : onUnexpectedError(error))
+					.finally(() => pendingToolActions.delete(toolInvocation));
+			} catch (error) {
+				pendingToolActions.delete(toolInvocation);
+				if (this.context.onActionError) {
+					this.context.onActionError(error);
+				} else {
+					onUnexpectedError(error);
+				}
+			}
+			if (!isTouchClick && this.context.focusInputOnAction !== false) {
 				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 			}
 		}));
@@ -227,6 +243,9 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	}
 
 	protected confirmWith(toolInvocation: IChatToolInvocation, reason: ConfirmedReason): void {
+		if (this.context.readOnly || this.context.canRunAction?.() === false) {
+			return;
+		}
 		IChatToolInvocation.confirmWith(toolInvocation, reason);
 	}
 
