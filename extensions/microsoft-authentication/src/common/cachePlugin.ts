@@ -49,6 +49,19 @@ export class SecretStorageCachePlugin implements ICachePlugin, Disposable {
 		}
 	}
 
+	async afterCacheFailure(tokenCacheContext: TokenCacheContext): Promise<void> {
+		// Unlike a successful token response, a failed request does not reload the
+		// cache before changing it. Keep credentials written by another window
+		// while the request was in flight instead of overwriting them.
+		const data = await this._secretStorage.get(this._key);
+		if (data !== this._value) {
+			this._value = data;
+			tokenCacheContext.tokenCache.deserialize(data ?? '{}');
+			return;
+		}
+		await this.afterCacheAccess(tokenCacheContext);
+	}
+
 	dispose() {
 		this._disposable.dispose();
 	}
