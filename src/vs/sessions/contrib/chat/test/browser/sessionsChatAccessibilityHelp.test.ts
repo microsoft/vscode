@@ -118,9 +118,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Execute Parallel Agents'),
 			enabled: enabledProvider.provideContent().includes('activate Execute Parallel Agents'),
+			judgeFocus: enabledProvider.provideContent().includes('Focusing the Judge pane closes the other comparison panes'),
 		}, {
 			disabled: false,
 			enabled: true,
+			judgeFocus: true,
 		});
 	});
 });

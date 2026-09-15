@@ -295,7 +295,9 @@ export class SessionsPart extends Part {
 	}
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
-		this._multipleSessionsVisibleKey.set(visible.length > 1);
+		const multipleSessionsVisible = visible.length > 1;
+		this._multipleSessionsVisibleKey.set(multipleSessionsVisible);
+		this.element.classList.toggle('multiple-sessions-visible', multipleSessionsVisible);
 	}
 
 	/**

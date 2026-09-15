@@ -10,11 +10,13 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../workbench/common/contributions.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../common/sessionComparison.js';
 import { SessionComparisonToolContribution } from './sessionComparisonTool.js';
+import { SessionComparisonGridController } from './sessionComparisonGridController.js';
 import { ISessionComparisonViewService, SessionComparisonViewService } from './sessionComparisonViewService.js';
 
 registerSingleton(ISessionComparisonViewService, SessionComparisonViewService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(SessionComparisonToolContribution.ID, SessionComparisonToolContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(SessionComparisonGridController.ID, SessionComparisonGridController, WorkbenchPhase.Eventually);
 
 registerAction2(class extends Action2 {
 	constructor() {

@@ -83,7 +83,10 @@ suite('Session comparison chat grid', () => {
 				'attempt-0',
 				'attempt-1',
 			]],
-			hiddenParts: [{ hidden: true, part: Parts.EDITOR_PART }],
+			hiddenParts: [
+				{ hidden: true, part: Parts.EDITOR_PART },
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
 		});
 	});
 
@@ -107,7 +110,10 @@ suite('Session comparison chat grid', () => {
 				'synthesis-3',
 				'attempt-0',
 			]],
-			hiddenParts: [{ hidden: true, part: Parts.EDITOR_PART }],
+			hiddenParts: [
+				{ hidden: true, part: Parts.EDITOR_PART },
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
 		});
 	});
 

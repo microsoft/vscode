@@ -44,5 +44,6 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 		}
 		await this.sessionsService.openSessionsInGrid(sessions);
 		this.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}
 }
