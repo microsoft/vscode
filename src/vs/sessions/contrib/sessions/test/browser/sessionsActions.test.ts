@@ -101,7 +101,7 @@ suite('Sessions - Actions', () => {
 			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
 			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
 			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
-			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: "sessionsViewPane.grouping == 'date'" },
+			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
 		]);
 	});
 
