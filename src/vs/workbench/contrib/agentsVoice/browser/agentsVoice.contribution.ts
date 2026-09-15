@@ -447,12 +447,13 @@ registerAction2(class extends Action2 {
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM,
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_ENABLED,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
 					VOICE_ACTIVE_ON_SURFACE,
+					ChatContextKeys.inputHasFocus,
 				),
 			},
 		});
