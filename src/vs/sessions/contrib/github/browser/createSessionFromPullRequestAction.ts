@@ -16,6 +16,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -65,6 +66,7 @@ registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 		const picker = quickInputService.createQuickPick<IPullRequestQuickPickItem>({ useSeparators: true });
 		const store = new DisposableStore();
 		const pickerCts = store.add(new CancellationTokenSource());
@@ -87,7 +89,7 @@ registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 
 		let repository;
 		try {
-			repository = await resolvePullRequestSessionRepository(context.sessions);
+			repository = await resolvePullRequestSessionRepository(context.rootSessions);
 		} catch (error) {
 			picker.hide();
 			if (!isCancellationError(error)) {
@@ -104,7 +106,7 @@ registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 			return;
 		}
 
-		const existingPullRequests = getExistingPullRequests(sessionsManagementService.getSessions(), repository.owner, repository.repo, context.sessions);
+		const existingPullRequests = getExistingPullRequests(sessionsManagementService.getSessions(), repository, uriIdentityService.extUri);
 		picker.placeholder = localize('createSessionFromPullRequest.placeholder', "Choose a pull request");
 		picker.enabled = true;
 
