@@ -732,9 +732,11 @@ class ProjectBoardView extends Disposable {
 		describe(prompt);
 		prompt.textContent = metadata?.kind === 'ready' && metadata.prompt !== undefined
 			? metadata.prompt
-			: metadata?.kind === 'loading'
-				? localize('projectBoard.loadingPrompt', "Loading last prompt…")
-				: localize('projectBoard.promptUnavailable', "Prompt unavailable");
+			: metadata?.kind === 'ready'
+				? localize('projectBoard.noPromptText', "No prompt text")
+				: metadata?.kind === 'loading'
+					? localize('projectBoard.loadingPrompt', "Loading last prompt…")
+					: localize('projectBoard.promptUnavailable', "Prompt unavailable");
 		store.add(this.hoverService.setupDelayedHover(prompt, { content: prompt.textContent }));
 		element.appendChild(prompt);
 		const time = this.promptTimes.get(card.id);
@@ -750,7 +752,7 @@ class ProjectBoardView extends Disposable {
 		element.appendChild(recency);
 		if (metadata && metadata.kind !== 'loading' && metadata.message) {
 			const capability = document.createElement('div');
-			capability.className = 'project-board-card-warning';
+			capability.className = metadata.kind === 'ready' ? 'project-board-card-metadata-note' : 'project-board-card-warning';
 			capability.textContent = metadata.message;
 			element.appendChild(capability);
 		} else if (!metadata) {

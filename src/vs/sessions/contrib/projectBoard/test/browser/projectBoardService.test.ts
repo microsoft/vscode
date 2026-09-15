@@ -838,6 +838,19 @@ suite('ProjectBoardService', () => {
 			assert.ok(h.container.textContent?.includes('Recency unavailable'));
 		});
 
+		test('PB-11 empty prompt metadata is informational rather than an agent failure warning', async () => {
+			const h = createBoard(mainWindow.document, [new TestChat('Empty request')]);
+			h.metadata.set({ kind: 'ready', submittedAt: 1000, context: [], message: 'The latest request has no stored prompt text.' }, undefined);
+			await h.service.open();
+			assert.deepStrictEqual({
+				prompt: h.container.querySelector('.project-board-card-prompt')?.textContent,
+				note: h.container.querySelector('.project-board-card-metadata-note')?.textContent,
+				warnings: h.container.querySelectorAll('.project-board-card-warning').length,
+			}, {
+				prompt: 'No prompt text', note: 'The latest request has no stored prompt text.', warnings: 0,
+			});
+		});
+
 		test('PB-07 loaded overflow chats reorder on submission without loading hidden transcripts', async () => {
 			const chats = Array.from({ length: 4 }, (_, i) => new TestChat(`Recency ${i}`));
 			const h = createBoard(mainWindow.document, chats);
