@@ -468,6 +468,7 @@ async function promptForCredentialsAndConnect(
 	const authPicked = await quickInputService.pick(authPicks, {
 		title: localize('sshAuthTitle', "Authentication Method"),
 		placeHolder: localize('sshAuthPlaceholder', "Choose how to authenticate with {0}", host),
+		ignoreFocusLost: true,
 	});
 	if (!authPicked) {
 		return;

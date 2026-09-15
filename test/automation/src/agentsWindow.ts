@@ -122,7 +122,13 @@ export class AgentsWindow {
 		const page = this.code.driver.currentPage;
 		await this.quickaccess.runCommand('workbench.action.sessions.connectViaSSH', { keepOpen: true });
 		await this.fillQuickInput('Connect via SSH', `${options.username}@${options.host}:${options.port}`);
-		await page.locator('.quick-input-widget:visible').getByText('Password', { exact: true }).click();
+		const authPicker = page.locator('.quick-input-widget:visible').filter({
+			has: page.locator('.quick-input-title', { hasText: 'Authentication Method' }),
+		});
+		await authPicker.getByText('Password', { exact: true }).waitFor();
+		// Draft initialization can move focus back to the composer while authentication is open.
+		await page.locator(NEW_CHAT_EDITOR).click();
+		await authPicker.getByText('Password', { exact: true }).click();
 		await this.fillQuickInput('SSH Password', options.password);
 		await this.fillQuickInput('Name Remote', options.name);
 		const trustDialog = page.locator('.monaco-dialog-box').filter({ hasText: 'The authenticity of host' });
