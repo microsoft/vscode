@@ -37,6 +37,11 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { OpenFileAction } from '../../../browser/actions/workspaceActions.js';
+import { VariableKind } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
@@ -59,6 +64,15 @@ import { ConfigurationManager } from './debugConfigurationManager.js';
 import { DebugMemoryFileSystemProvider } from './debugMemory.js';
 import { DebugSession } from './debugSession.js';
 import { DebugTaskRunner, TaskRunResult } from './debugTaskRunner.js';
+
+const FILE_VARIABLES_REQUIRING_ACTIVE_FILE = new Set([
+	VariableKind.LineNumber, VariableKind.ColumnNumber, VariableKind.SelectedText,
+	VariableKind.File, VariableKind.FileWorkspaceFolder, VariableKind.FileWorkspaceFolderBasename,
+	VariableKind.RelativeFile, VariableKind.RelativeFileDirname, VariableKind.FileDirname,
+	VariableKind.FileExtname, VariableKind.FileBasename, VariableKind.FileBasenameNoExtension, VariableKind.FileDirnameBasename
+]);
+const configHasFileVariables = (config: IConfig): boolean =>
+	Iterable.some(ConfigurationResolverExpression.parse(config).unresolved(), replacement => FILE_VARIABLES_REQUIRING_ACTIVE_FILE.has(replacement.name as VariableKind));
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -507,6 +521,21 @@ export class DebugService implements IDebugService {
 		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config, initCancellationToken.token);
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
+			if (!this.hasActiveFileEditor() && configHasFileVariables(configByProviders)) {
+				// The resolved config depends on a variable that can only be resolved when a file is
+				// open in the active editor. Prompt the user to open a file up front instead of
+				// failing the launch later with an "unresolvable variable" error.
+				await this.dialogService.prompt({
+					type: severity.Error,
+					message: nls.localize('debug.startDebuggingNoFile', "You need to open a file to start a debug session."),
+					buttons: [{
+						label: nls.localize('debug.openFile', "Open a File"),
+						run: () => this.commandService.executeCommand(OpenFileAction.ID)
+					}],
+					cancelButton: true
+				});
+				return false;
+			}
 			try {
 				let resolvedConfig = await this.substituteVariables(launch, configByProviders);
 				if (!resolvedConfig) {
@@ -972,6 +1001,15 @@ export class DebugService implements IDebugService {
 		}
 
 		return Promise.all(sessions.map(s => disconnect ? s.disconnect(undefined, suspend) : s.terminate()));
+	}
+
+	/**
+	 * Returns true if a file is open in the active editor and can therefore be used to
+	 * resolve file-based variables. Mirrors `AbstractVariableResolverService.getFilePath`.
+	 */
+	private hasActiveFileEditor(): boolean {
+		const resource = this.editorService.activeEditor?.resource;
+		return !!resource && resource.scheme === Schemas.file;
 	}
 
 	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
