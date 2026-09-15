@@ -177,7 +177,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	layout(_width: number, height: number): void {
 		if (this.boardElement) {
-			this.boardElement.style.height = `${height}px`;
+			if (this.showHeader) {
+				this.boardElement.style.height = `${height}px`;
+			} else {
+				this.boardElement.style.minHeight = `${height}px`;
+			}
 		}
 	}
 

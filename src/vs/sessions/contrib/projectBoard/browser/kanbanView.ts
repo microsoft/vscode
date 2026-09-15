@@ -62,6 +62,7 @@ export class KanbanCustomViewContribution extends Disposable {
 		this._register(customViewService.registerCustomView({
 			id: KANBAN_CUSTOM_VIEW_ID,
 			ctor: new SyncDescriptor(KanbanCustomView),
+			horizontalScrolling: true,
 		}));
 	}
 }

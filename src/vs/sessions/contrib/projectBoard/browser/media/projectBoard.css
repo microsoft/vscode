@@ -20,6 +20,11 @@
 	padding: 0;
 }
 
+.kanban-custom-view .project-board {
+	height: auto;
+	overflow: visible;
+}
+
 .project-board-header h1 {
 	margin: 0;
 	font-size: 22px;
