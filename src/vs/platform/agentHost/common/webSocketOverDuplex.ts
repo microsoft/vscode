@@ -12,8 +12,8 @@ import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent
 
 const websocketAcceptGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const headerTerminator = VSBuffer.fromString('\r\n\r\n').buffer;
-// Browser tunnel responses may arrive in one frame; retain the existing 8 MiB message ceiling.
-const defaultMaxPayloadLength = 8 * 1024 * 1024;
+// Match the former web proxy and NodeTunnelSocketFactory's `ws` default maxPayload.
+const defaultMaxPayloadLength = 100 * 1024 * 1024;
 const defaultCloseTimeoutMs = 5000;
 /** Options used to establish a WebSocket connection over an existing tunnel stream. */
 export interface IWebSocketOverDuplexOptions {

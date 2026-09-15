@@ -87,14 +87,14 @@ suite('connectWebSocketOverDuplex', () => {
 		assert.deepStrictEqual([await message], ['round trip']);
 	});
 
-	test('accepts a text frame larger than 1 MiB across stream chunks', async () => {
+	test('accepts a text frame larger than 8 MiB across stream chunks', async () => {
 		const stream = new FakeDuplexStream();
 		const socketPromise = connect(stream);
 		stream.push(await createUpgradeResponse(stream.request));
 		const socket = store.add(await socketPromise);
 		const messages: string[] = [];
 		store.add(socket.onDidReceiveMessage(message => messages.push(message)));
-		const payload = 'x'.repeat(2 * 1024 * 1024);
+		const payload = 'x'.repeat(12 * 1024 * 1024);
 		const frame = createFrame(payload);
 		const chunkLength = 64 * 1024;
 
@@ -138,7 +138,7 @@ suite('connectWebSocketOverDuplex', () => {
 		assert.strictEqual(await message, 'fragmented');
 	});
 
-	test('accepts a fragmented text message at the 8 MiB default limit', async () => {
+	test('accepts a fragmented text message larger than 8 MiB', async () => {
 		const stream = new FakeDuplexStream();
 		const socketPromise = connect(stream);
 		stream.push(await createUpgradeResponse(stream.request));
@@ -147,14 +147,14 @@ suite('connectWebSocketOverDuplex', () => {
 		store.add(socket.onDidReceiveMessage(message => messages.push(message)));
 		const fragment = 'x'.repeat(1024 * 1024);
 
-		for (let index = 0; index < 8; index++) {
+		for (let index = 0; index < 12; index++) {
 			stream.push(createFrame(fragment, {
 				opcode: index === 0 ? WebSocketOpcode.Text : WebSocketOpcode.Continuation,
-				final: index === 7,
+				final: index === 11,
 			}));
 		}
 
-		assert.ok(messages.length === 1 && messages[0] === fragment.repeat(8));
+		assert.ok(messages.length === 1 && messages[0] === fragment.repeat(12));
 	});
 
 	test('replies to pings with a masked pong', async () => {
@@ -227,7 +227,7 @@ suite('connectWebSocketOverDuplex', () => {
 		});
 	});
 
-	test('rejects a frame above the 8 MiB default limit before receiving its payload', async () => {
+	test('rejects a frame above the 100 MiB default limit before receiving its payload', async () => {
 		const stream = new FakeDuplexStream();
 		const socketPromise = connect(stream);
 		stream.push(await createUpgradeResponse(stream.request));
@@ -238,7 +238,7 @@ suite('connectWebSocketOverDuplex', () => {
 		header.writeUInt8(0x81, 0);
 		header.writeUInt8(0x7f, 1);
 		header.writeUInt32BE(0, 2);
-		header.writeUInt32BE(8 * 1024 * 1024 + 1, 6);
+		header.writeUInt32BE(100 * 1024 * 1024 + 1, 6);
 		stream.push(header.buffer);
 
 		assert.deepStrictEqual({
@@ -247,13 +247,13 @@ suite('connectWebSocketOverDuplex', () => {
 		}, {
 			closes: [{
 				code: 1009,
-				error: 'WebSocket frame payload length 8388609 exceeds the configured limit of 8388608.',
+				error: 'WebSocket frame payload length 104857601 exceeds the configured limit of 104857600.',
 			}],
 			endCalls: 1,
 		});
 	});
 
-	test('rejects fragmented messages above the 8 MiB default limit', async () => {
+	test('rejects fragmented messages above the 100 MiB default limit', async () => {
 		const stream = new FakeDuplexStream();
 		const socketPromise = connect(stream);
 		stream.push(await createUpgradeResponse(stream.request));
@@ -263,7 +263,7 @@ suite('connectWebSocketOverDuplex', () => {
 		const fragment = 'x'.repeat(1024 * 1024);
 		stream.push(createFrame(fragment, { final: false }));
 		const continuation = createFrame(fragment, { opcode: WebSocketOpcode.Continuation, final: false });
-		for (let index = 1; index < 8; index++) {
+		for (let index = 1; index < 100; index++) {
 			stream.push(continuation);
 		}
 		const closesAtLimit = closes.length;
@@ -277,7 +277,7 @@ suite('connectWebSocketOverDuplex', () => {
 			closesAtLimit: 0,
 			closes: [{
 				code: 1009,
-				error: 'WebSocket message payload length 8388609 exceeds the configured limit of 8388608.',
+				error: 'WebSocket message payload length 104857601 exceeds the configured limit of 104857600.',
 			}],
 			endCalls: 1,
 		});

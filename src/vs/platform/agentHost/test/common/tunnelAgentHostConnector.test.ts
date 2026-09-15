@@ -311,7 +311,7 @@ suite('TunnelAgentHostConnector', () => {
 		try {
 			const { connectionId } = await connector.connect('token', 'github', 'failed', 'cluster');
 			logService.infoMessages.length = 0;
-			const error = new Error('WebSocket frame payload length 8388609 exceeds the configured limit of 8388608.');
+			const error = new Error('WebSocket frame payload length 104857601 exceeds the configured limit of 104857600.');
 			socket.fireClose({ error });
 
 			assert.deepStrictEqual({
