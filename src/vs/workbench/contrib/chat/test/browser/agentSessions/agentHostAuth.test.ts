@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -1283,6 +1284,92 @@ suite('authenticateProtectedResources', () => {
 		});
 
 		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token', expiresIn: 3600 }]);
+	});
+
+	test('allows a newly signed-in account after removing a quarantined session', async () => {
+		const account = { id: 'account-1', label: 'Account 1' };
+		const exactSession: AuthenticationSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
+		const broaderSession: AuthenticationSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
+		const newSession: AuthenticationSession = {
+			id: 'new-session', scopes: ['read'], accessToken: 'new-account-token',
+			account: { id: 'account-2', label: 'Account 2' },
+		};
+		let sessions = [exactSession, broaderSession];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'provider-1',
+			getSessions: async (_providerId, scopes) => scopes
+				? sessions.filter(session => scopes.length === session.scopes.length && scopes.every(scope => session.scopes.includes(scope)))
+				: sessions,
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const authTokenCache = new AgentHostAuthTokenCache();
+		const recovery = new AgentHostAuthenticationRecovery();
+		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [protectedResource] }];
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { tokens.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		sessions = [newSession];
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [exactSession, broaderSession], options);
+		const success = await instantiationService.invokeFunction(resolveAuthenticationInteractively, [protectedResource], options);
+
+		assert.deepStrictEqual({
+			success,
+			tokens,
+			prompts: commandService.calls.length,
+			quarantine: authTokenCache.getRejectedSession(protectedResource.resource, protectedResource.scopes_supported),
+		}, {
+			success: true,
+			tokens: ['stale-token', 'fresh-token', 'new-account-token'],
+			prompts: 0,
+			quarantine: undefined,
+		});
+	});
+
+	test('cancels a background lookup that returns a token quarantined while it was pending', async () => {
+		const account = { id: 'account-1', label: 'Account 1' };
+		const exactSession: AuthenticationSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
+		const broaderSession: AuthenticationSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
+		const lookupStarted = new DeferredPromise<void>();
+		const pendingSessions = new DeferredPromise<AuthenticationSession[]>();
+		let delayNextLookup = false;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'provider-1',
+			getSessions: async (_providerId, scopes) => {
+				if (scopes && delayNextLookup) {
+					delayNextLookup = false;
+					lookupStarted.complete();
+					return pendingSessions.p;
+				}
+				return scopes ? [exactSession] : [exactSession, broaderSession];
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [protectedResource] }];
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { tokens.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		delayNextLookup = true;
+		const backgroundAuthentication = instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		await lookupStarted.p;
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		const cancelled = assert.rejects(backgroundAuthentication, isCancellationError);
+		pendingSessions.complete([exactSession]);
+		await cancelled;
+
+		assert.deepStrictEqual(tokens, ['stale-token', 'fresh-token']);
 	});
 
 	test('forwards a token without a malformed session expiry', async () => {

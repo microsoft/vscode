@@ -163,6 +163,10 @@ export class AgentHostAuthTokenCache {
 		return this._rejectedSessions.get(this._key(resource, scopes));
 	}
 
+	clearRejectedSession(resource: string, scopes: readonly string[] | undefined): void {
+		this._rejectedSessions.delete(this._key(resource, scopes));
+	}
+
 	private _invalidateKey(key: string): void {
 		this._keyGenerations.set(key, (this._keyGenerations.get(key) ?? 0) + 1);
 	}
@@ -482,10 +486,15 @@ async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> | undefined,
+	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id'>>) | undefined,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
+	const rejectedSession = options.authTokenCache?.getRejectedSession(resource, scopes);
+	// The lookup may have started before this session was quarantined.
+	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
+		throw new CancellationError();
+	}
 	const expiresAfter = session?.expiresAfter;
 	const request: IAgentHostAuthenticateRequest = {
 		resource,
@@ -585,8 +594,13 @@ export async function revokeAuthenticationForRemovedSessions(
 			if (!await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
 				continue;
 			}
+			throwIfAuthenticationStale(options);
 			reconciledResources.add(key);
 
+			const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+			if (rejectedSession && removedSessions.some(session => session.id === rejectedSession.id)) {
+				options.authTokenCache?.clearRejectedSession(resource.resource, scopes);
+			}
 			const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 			throwIfAuthenticationStale(options);
 			if (resolution.kind === 'unavailable') {
