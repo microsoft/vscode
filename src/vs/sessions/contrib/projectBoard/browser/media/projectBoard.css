@@ -45,7 +45,24 @@
 	justify-content: flex-end;
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size40, 4px);
-	margin-bottom: var(--vscode-spacing-size40, 4px);
+	margin-left: auto;
+	max-width: 100%;
+}
+
+.project-board-card-status-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40, 4px) var(--vscode-spacing-size80, 8px);
+	margin-top: var(--vscode-spacing-size80, 8px);
+	padding-top: var(--vscode-spacing-size40, 4px);
+	border-top: 1px solid var(--vscode-panel-border);
+}
+
+.project-board-card-status-bar .project-board-card-recency {
+	flex: 1 1 120px;
+	min-width: 0;
+	margin-top: 0;
 }
 
 .project-board-header p {
@@ -190,12 +207,10 @@
 	gap: var(--vscode-spacing-size40, 4px);
 	box-sizing: border-box;
 	max-width: 100%;
-	padding: 2px 6px;
-	border: 1px solid var(--vscode-widget-border, transparent);
-	border-radius: var(--vscode-cornerRadius-small, 4px);
-	background: var(--vscode-badge-background);
+	padding: 2px 0;
+	background: transparent;
 	overflow-wrap: anywhere;
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1, 12px);
 	font-variant-numeric: tabular-nums;
 }
@@ -242,7 +257,6 @@
 	font-size: 13px;
 }
 
-.project-board-card-session,
 .project-board-card-status,
 .project-board-card-description {
 	margin-top: 4px;
