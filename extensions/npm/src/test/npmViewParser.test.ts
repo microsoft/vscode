@@ -92,6 +92,33 @@ suite('npmViewParser', () => {
 		assert.strictEqual(info!.time, undefined);
 	});
 
+	test('parses and semver-sorts versions array descending', () => {
+		const info = parseNpmViewOutput(JSON.stringify({
+			description: 'test pkg',
+			versions: ['1.0.0', '1.2.0', '2.0.0', '1.10.0', '2.0.0-beta.1', '0.9.0']
+		}));
+		assert.ok(info);
+		assert.deepStrictEqual(info!.versions, [
+			'2.0.0',
+			'2.0.0-beta.1',
+			'1.10.0',
+			'1.2.0',
+			'1.0.0',
+			'0.9.0'
+		]);
+		assert.strictEqual(info!.version, '2.0.0');
+	});
+
+	test('parses single version string into versions array', () => {
+		const info = parseNpmViewOutput(JSON.stringify({
+			description: 'test pkg',
+			versions: '1.0.0'
+		}));
+		assert.ok(info);
+		assert.deepStrictEqual(info!.versions, ['1.0.0']);
+		assert.strictEqual(info!.version, '1.0.0');
+	});
+
 	test('returns undefined for invalid JSON', () => {
 		assert.strictEqual(parseNpmViewOutput('not json'), undefined);
 		assert.strictEqual(parseNpmViewOutput('{'), undefined);

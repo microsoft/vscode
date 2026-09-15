@@ -11,9 +11,15 @@ import { Location } from 'jsonc-parser';
 import type * as cp from 'child_process';
 import { dirname } from 'path';
 import { fromNow } from './date';
-import { parseNpmViewOutput, ViewPackageInfo } from './npmViewParser';
+import { compareSemver, parseNpmViewOutput, ViewPackageInfo } from './npmViewParser';
 
 const LIMIT = 40;
+const MAX_HISTORICAL_VERSIONS = 50;
+
+const SORT_TEXT_LATEST = '00';
+const SORT_TEXT_CARET = '01';
+const SORT_TEXT_TILDE = '02';
+const SORT_PREFIX_HISTORICAL = '03-';
 
 const USER_AGENT = 'Visual Studio Code';
 
@@ -196,6 +202,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("The currently latest version of the package");
+					proposal.sortText = SORT_TEXT_LATEST;
 					result.add(proposal);
 
 					name = JSON.stringify('^' + info.version);
@@ -203,6 +210,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("Matches the most recent major version (1.x.x)");
+					proposal.sortText = SORT_TEXT_CARET;
 					result.add(proposal);
 
 					name = JSON.stringify('~' + info.version);
@@ -210,7 +218,23 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("Matches the most recent minor version (1.2.x)");
+					proposal.sortText = SORT_TEXT_TILDE;
 					result.add(proposal);
+
+					if (Array.isArray(info.versions)) {
+						const historicalVersions = info.versions
+							.filter(version => version && version !== info.version)
+							.slice(0, MAX_HISTORICAL_VERSIONS);
+						for (let i = 0; i < historicalVersions.length; i++) {
+							const version = historicalVersions[i];
+							const name = JSON.stringify(version);
+							const proposal = new CompletionItem(name);
+							proposal.kind = CompletionItemKind.Property;
+							proposal.insertText = name;
+							proposal.sortText = `${SORT_PREFIX_HISTORICAL}${i.toString().padStart(5, '0')}`;
+							result.add(proposal);
+						}
+					}
 				}
 			}
 		}
@@ -324,7 +348,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
+		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time', 'versions'];
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
 		return stdout ? parseNpmViewOutput(stdout) : undefined;
 	}
@@ -337,10 +361,12 @@ export class PackageJSONContribution implements IJSONContribution {
 				headers: { agent: USER_AGENT }
 			});
 			const obj = JSON.parse(success.responseText);
-			const version = obj['dist-tags']?.latest || Object.keys(obj.versions).pop() || '';
+			const versions = obj.versions ? Object.keys(obj.versions).sort((a, b) => compareSemver(b, a)) : undefined;
+			const version = obj['dist-tags']?.latest || (versions && versions[0]) || '';
 			return {
 				description: obj.description || '',
 				version,
+				versions,
 				time: obj.time?.[version],
 				homepage: obj.homepage || ''
 			};
