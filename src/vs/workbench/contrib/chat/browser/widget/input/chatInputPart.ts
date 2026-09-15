@@ -530,6 +530,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputContainer!: HTMLElement;
 	private inputAndSideToolbar!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
+	/** Tracks Chat input host visibility for deferred notification shown callbacks. */
+	private _inputVisible = true;
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
 	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
 	/** Fired when the user dismisses the autopilot goal banner. */
@@ -2212,6 +2214,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setVisible(visible: boolean): void {
+		this._inputVisible = visible;
+		this._notificationWidget.value?.setHostVisible(visible);
 		this._onDidChangeVisibility.fire(visible);
 	}
 
@@ -2889,6 +2893,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				focusInput: () => this.focus(),
 			});
 			this._notificationWidget.value.attachTo(this.chatInputNotificationContainer);
+			this._notificationWidget.value.setHostVisible(this._inputVisible);
 		}
 	}
 

@@ -1373,10 +1373,71 @@ suite('ChatPromoNotificationContribution', () => {
 		]);
 	});
 
-	test('does not log shown analytics when the promo card cannot open', () => {
+	test('does not dismiss or log shown analytics when the promo card cannot open', () => {
 		const telemetryService = new RecordingTelemetryService();
-		openPromoCard(telemetryService, false);
-		assert.deepStrictEqual(telemetryService.events, []);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const anchor = createStatusIcon(disposables);
+		const hover = createPromoHover(false);
+		disposables.add(createWidget(lmService, storageService, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+			telemetryService,
+			hoverService: hover.service,
+		}));
+
+		assert.ok(isPipArmed(anchor));
+		anchor.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+		assert.deepStrictEqual({
+			events: telemetryService.events,
+			pip: isPipArmed(anchor),
+			dismissed: storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION, ''),
+			contentBuilt: !!hover.content,
+		}, {
+			events: [],
+			pip: true,
+			dismissed: '',
+			contentBuilt: true,
+		});
+	});
+
+	test('exposes a sale offer aria-label while the pip is armed', () => {
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const anchor = createStatusIcon(disposables);
+		anchor.setAttribute('aria-label', 'Chat Status');
+		const label = dom.append(anchor, dom.$('span'));
+		label.setAttribute('aria-label', 'Chat Status');
+		disposables.add(createWidget(lmService, storageService, {
+			closedPromoNotification: ChatClosedPromoNotification.CopilotIconPopup,
+		}));
+
+		assert.deepStrictEqual({
+			pip: isPipArmed(anchor),
+			anchorAria: anchor.getAttribute('aria-label'),
+			labelAria: label.getAttribute('aria-label'),
+		}, {
+			pip: true,
+			anchorAria: 'Get 20% off. Open the sale offer.',
+			labelAria: 'Get 20% off. Open the sale offer.',
+		});
+
+		storageService.store('chat.dismissedPromoIds', JSON.stringify(['promo-1']), StorageScope.APPLICATION, 0);
+		assert.deepStrictEqual({
+			pip: isPipArmed(anchor),
+			anchorAria: anchor.getAttribute('aria-label'),
+			labelAria: label.getAttribute('aria-label'),
+		}, {
+			pip: false,
+			anchorAria: 'Chat Status',
+			labelAria: 'Chat Status',
+		});
 	});
 
 	test('the promo card shows the model vendor icon at its design size', () => {

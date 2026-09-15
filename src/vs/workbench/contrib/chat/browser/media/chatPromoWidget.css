@@ -10,6 +10,13 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-background);
 }
 
+.monaco-workbench.hc-black .monaco-hover.workbench-hover.chat-promo-widget-hover,
+.monaco-workbench.hc-black .monaco-hover.workbench-hover.chat-promo-widget-hover.with-pointer,
+.monaco-workbench.hc-light .monaco-hover.workbench-hover.chat-promo-widget-hover,
+.monaco-workbench.hc-light .monaco-hover.workbench-hover.chat-promo-widget-hover.with-pointer {
+	border-color: var(--vscode-contrastBorder);
+}
+
 .monaco-hover.workbench-hover.chat-promo-widget-hover .hover-contents {
 	padding: 0;
 	border-radius: inherit;
@@ -35,6 +42,11 @@
 	pointer-events: none;
 	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-button-background) 32%, transparent) 0%, transparent 58%);
 	z-index: 0;
+}
+
+.monaco-workbench.hc-black .chat-promo-widget::before,
+.monaco-workbench.hc-light .chat-promo-widget::before {
+	background: none;
 }
 
 .chat-promo-widget .body {

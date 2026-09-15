@@ -367,15 +367,47 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 
 	private applyPipIcon(anchor: HTMLElement): void {
 		const icon = findCopilotIcon(anchor);
-		if (!(icon instanceof HTMLElement) || icon.classList.contains('codicon-copilot-dot')) {
+		if (icon instanceof HTMLElement && !icon.classList.contains('codicon-copilot-dot')) {
+			if (!icon.dataset['chatPromoBaseClass']) {
+				icon.dataset['chatPromoBaseClass'] = icon.className;
+			}
+			icon.classList.remove('codicon-copilot', 'codicon-copilot-warning', 'codicon-copilot-unavailable', 'codicon-copilot-snooze');
+			for (const cls of ThemeIcon.asClassNameArray(Codicon.copilotDot)) {
+				icon.classList.add(cls);
+			}
+		}
+		this.applyPipAccessibleName(anchor);
+	}
+
+	private applyPipAccessibleName(anchor: HTMLElement): void {
+		if (!this.pendingPayload) {
 			return;
 		}
-		if (!icon.dataset['chatPromoBaseClass']) {
-			icon.dataset['chatPromoBaseClass'] = icon.className;
+		const promoLabel = localize('chat.promo.pipAria', "{0}. Open the sale offer.", this.pendingPayload.title);
+		for (const el of [anchor, ...anchor.querySelectorAll<HTMLElement>('[aria-label]')]) {
+			if (el.dataset['chatPromoBaseAriaLabel'] === undefined) {
+				el.dataset['chatPromoBaseAriaLabel'] = el.getAttribute('aria-label') ?? '';
+			}
+			el.setAttribute('aria-label', promoLabel);
 		}
-		icon.classList.remove('codicon-copilot', 'codicon-copilot-warning', 'codicon-copilot-unavailable', 'codicon-copilot-snooze');
-		for (const cls of ThemeIcon.asClassNameArray(Codicon.copilotDot)) {
-			icon.classList.add(cls);
+	}
+
+	private restorePipAccessibleName(anchor: HTMLElement): void {
+		const restore = (el: HTMLElement) => {
+			if (el.dataset['chatPromoBaseAriaLabel'] === undefined) {
+				return;
+			}
+			const base = el.dataset['chatPromoBaseAriaLabel'];
+			if (base) {
+				el.setAttribute('aria-label', base);
+			} else {
+				el.removeAttribute('aria-label');
+			}
+			delete el.dataset['chatPromoBaseAriaLabel'];
+		};
+		restore(anchor);
+		for (const el of anchor.querySelectorAll<HTMLElement>('[data-chat-promo-base-aria-label]')) {
+			restore(el);
 		}
 	}
 
@@ -392,6 +424,7 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 					icon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.copilotDot));
 				}
 			}
+			this.restorePipAccessibleName(this.pipAnchor);
 		}
 		this.pipAnchor = undefined;
 	}
@@ -425,8 +458,6 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 	}
 
 	private showChatPromo(info: IChatPromoCardInput): void {
-		this.persistOnIconClick(info);
-
 		const contentDisposables = new DisposableStore();
 		const content = this.buildContent(info, contentDisposables);
 		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
@@ -445,9 +476,11 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 			trapFocus: true,
 		}, true);
 		if (!hover) {
+			// Keep the pip armed so a locked/blocked hover does not permanently dismiss the sale.
 			contentDisposables.dispose();
 			return;
 		}
+		this.persistOnIconClick(info);
 		this.telemetryService.publicLog2<ChatPromoWidgetTelemetryEvent, ChatPromoWidgetTelemetryClassification>('chatPromoWidgetShown', { promoId: info.promoId });
 	}
 
