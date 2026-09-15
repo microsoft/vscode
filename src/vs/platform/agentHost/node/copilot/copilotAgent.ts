@@ -71,7 +71,7 @@ import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointServi
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -95,7 +95,7 @@ import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRoute
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, workspaceDirectoryHasHooks, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, workspaceDirectoryHasHooks, type IDiscoveredDirectory, type SessionDiscoveredCustomization } from './sessionCustomizationDiscovery.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
@@ -5980,7 +5980,7 @@ class SessionDiscoveredEntry extends Disposable {
 	private _refreshPromise: CancelablePromise<void> | null = null;
 	private _pendingRefreshNotify = false;
 
-	private _customizations: readonly DirectoryCustomization[] = [];
+	private _customizations: readonly SessionDiscoveredCustomization[] = [];
 	private _directories: readonly IDiscoveredDirectory[] | undefined;
 	private _settled: Promise<void>;
 
@@ -6015,7 +6015,7 @@ class SessionDiscoveredEntry extends Disposable {
 		return this._settled;
 	}
 
-	currentCustomizations(): readonly DirectoryCustomization[] {
+	currentCustomizations(): readonly SessionDiscoveredCustomization[] {
 		return this._customizations;
 	}
 
@@ -6652,7 +6652,8 @@ class SessionPluginController extends Disposable {
 			return children?.length ? children : undefined;
 		};
 		const discovered = entry?.currentCustomizations() ?? [];
-		const sessionPlugin = discovered.some(isEnabledForSdk) ? mapToParsedPlugin(discovered) : undefined;
+		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
+		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk) ? mapToParsedPlugin(discoveredDirectories) : undefined;
 		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({
 			...plugin,
 			pluginDir,
@@ -7039,41 +7040,7 @@ class SessionPluginController extends Disposable {
 	 * stable.
 	 */
 	private _projectForPublish<T extends Customization>(customization: T): T {
-		return this._overlayMcpState(this._applyEnablement(customization));
-	}
-
-	/**
-	 * Overlays the latest known MCP runtime `state`/`channel` (see
-	 * {@link mcpServerStates}) onto a customization and its children,
-	 * preserving object identity when nothing is overlaid so downstream
-	 * equality checks stay stable.
-	 */
-	private _overlayMcpState<T extends Customization>(customization: T): T {
-		const overlays = this.mcpServerStates.get();
-		if (overlays.size === 0) {
-			return customization;
-		}
-		if (customization.type === CustomizationType.McpServer) {
-			const overlay = overlays.get(customization.id);
-			return overlay ? { ...customization, state: overlay.state, channel: overlay.channel } : customization;
-		}
-		const children = customization.children;
-		if (!children || children.length === 0) {
-			return customization;
-		}
-		let changed = false;
-		const overlaidChildren = children.map(child => {
-			if (child.type !== CustomizationType.McpServer) {
-				return child;
-			}
-			const overlay = overlays.get(child.id);
-			if (!overlay) {
-				return child;
-			}
-			changed = true;
-			return { ...child, state: overlay.state, channel: overlay.channel };
-		});
-		return changed ? { ...customization, children: overlaidChildren } : customization;
+		return applyMcpServerRuntimeStates(this._applyEnablement(customization), this.mcpServerStates.get());
 	}
 }
 

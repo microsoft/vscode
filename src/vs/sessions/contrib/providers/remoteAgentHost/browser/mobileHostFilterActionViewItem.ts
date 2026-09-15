@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -13,8 +14,11 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
 import './media/hostPickerSheet.css';
 
@@ -37,9 +41,11 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		action: IAction,
 		@IAgentHostFilterService filterService: IAgentHostFilterService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 	) {
-		super(action, 'titlebar', filterService, contextMenuService, hoverService);
+		super(action, 'titlebar', filterService, contextMenuService, hoverService, commandService);
 	}
 
 	/**
@@ -109,12 +115,34 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			disposables.add({ dispose: () => clearTimeout(fallback) });
 		};
 
-		disposables.add({ dispose: () => overlay.remove() });
+		disposables.add({
+			dispose: () => {
+				overlay.remove();
+				this.focus();
+			}
+		});
 
 		// --- Header (drag-handle + title + close) ----------------------------
 		dom.append(sheet, $('div.host-picker-sheet-handle'));
 		const header = dom.append(sheet, $('div.host-picker-sheet-header'));
 		dom.append(header, $('div.host-picker-sheet-title')).textContent = localize('agentHostFilter.sheet.title', "Hosts");
+		if (!this.entitlementService.sentiment.hidden) {
+			const label = localize('agentHostFilter.sheet.diagnostics', "Show Connection Diagnostics");
+			const diagnostics = dom.append(header, $('button.host-picker-sheet-close.host-picker-sheet-diagnostics', {
+				type: 'button',
+				'aria-label': label,
+			})) as HTMLButtonElement;
+			diagnostics.append(...renderLabelWithIcons(`$(${Codicon.report.id})`));
+			disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), diagnostics, () => label));
+			const showDiagnostics = (event: Event) => {
+				dom.EventHelper.stop(event, true);
+				this._sheet.clear();
+				void this.commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
+			};
+			disposables.add(Gesture.addTarget(diagnostics));
+			disposables.add(dom.addDisposableListener(diagnostics, dom.EventType.CLICK, showDiagnostics));
+			disposables.add(dom.addDisposableListener(diagnostics, TouchEventType.Tap, showDiagnostics));
+		}
 		const closeBtn = dom.append(header, $('button.host-picker-sheet-close', { type: 'button' })) as HTMLButtonElement;
 		closeBtn.setAttribute('aria-label', localize('agentHostFilter.sheet.close', "Close"));
 		dom.append(closeBtn, $('span.codicon.codicon-close'));
@@ -180,7 +208,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		}));
 
 		// Focus the currently selected host when the sheet opens.
-		focusRefs.firstCheckedHost?.focus();
+		(focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover)?.focus();
 	}
 
 	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
@@ -189,7 +217,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 		if (hosts.length === 0) {
 			const empty = dom.append(body, $('div.host-picker-sheet-empty'));
-			empty.textContent = this._filterService.isDiscovering
+			dom.append(empty, $('span')).textContent = this._filterService.isDiscovering
 				? localize('agentHostFilter.sheet.searching', "Searching for hosts…")
 				: localize('agentHostFilter.sheet.empty', "No hosts found yet.");
 			return;

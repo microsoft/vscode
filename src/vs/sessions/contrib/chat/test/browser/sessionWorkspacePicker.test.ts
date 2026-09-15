@@ -4034,6 +4034,20 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('strips only trailing ellipses from unified browse action labels', () => {
+		const labels = ['Repository...', 'Repository\u2026', 'Repo...sitory', 'Repo\u2026sitory', 'Repository'];
+		providersService.setProviders([
+			createMockProvider('github', {
+				browseActions: labels.map(label => makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, label)),
+			}),
+		]);
+		const picker = createTestablePicker(disposables, providersService, false, {}, undefined, undefined, true);
+
+		picker.selectWorkspaceActions();
+
+		assert.deepStrictEqual(picker.getItemLabels(), ['Repository', 'Repository', 'Repo...sitory', 'Repo\u2026sitory', 'Repository']);
+	});
+
 	test('uses location icons and hides GitHub recents represented by local folders when enabled', () => {
 		const localRepositoryUri = URI.file('/local/vscode');
 		const nonGitHubRepositoryUri = URI.file('/local/gitlab');

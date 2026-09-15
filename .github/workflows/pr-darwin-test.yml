@@ -108,25 +108,11 @@ jobs:
       - name: Transpile client and extensions
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
-      - name: Download Electron
+      - name: Setup Electron
         if: ${{ inputs.electron_tests || inputs.remote_tests }}
-        run: |
-          set -e
-
-          for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
-            if npm run electron -- ${{ env.VSCODE_ARCH }}; then
-              echo "Download successful on attempt $i"
-              break
-            fi
-
-            if [ $i -eq 3 ]; then
-              echo "Download failed after 3 attempts" >&2
-              exit 1
-            fi
-
-            echo "Download failed on attempt $i, retrying..."
-            sleep 5 # optional: add a small delay between retries
-          done
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

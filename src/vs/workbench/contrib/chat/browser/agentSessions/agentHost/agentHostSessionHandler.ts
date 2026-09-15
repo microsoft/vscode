@@ -15,7 +15,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IRef
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
@@ -117,7 +117,7 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 export { toolDataToDefinition };
@@ -257,13 +257,8 @@ interface IObserveTurnOptions {
 	 * the session cost still includes them.
 	 */
 	readonly subAgentCreditsAccumulator?: ISettableObservable<number>;
-	/**
-	 * When set on a subagent turn observer, an observable that receives the
-	 * display name of the language model this subagent's turns ran on. Used to
-	 * surface the model on the subagent tool's hover (mirrors the local
-	 * subagent path, which sets `modelName` directly).
-	 */
-	readonly subAgentModelObservable?: ISettableObservable<string | undefined>;
+	/** Receives the child's model identity and display name for its pill and hover. */
+	readonly subAgentModelObservable?: ISettableObservable<ITurnModelInfo | undefined>;
 }
 
 interface IResumeTurnConfirmationData {
@@ -3629,24 +3624,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}));
 		}
 
-		// For subagent observers: surface the language model this subagent ran
-		// on so it can be shown on the subagent tool's hover. Like the credits
-		// observer above, this depends on the host reporting the model on the
-		// subagent's own child turns (hosts that bundle into the parent turn
-		// leave this empty).
+		// Show the child's selected model immediately, then refine it with reported routing/usage.
 		if (opts.subAgentInvocationId !== undefined && opts.subAgentModelObservable) {
 			const modelObservable = opts.subAgentModelObservable;
+			const modelsChanged = observableSignalFromEvent(this, this._languageModelsService.onDidChangeLanguageModels);
 			store.add(autorun(reader => {
+				modelsChanged.read(reader);
 				// Hold off while the treatment is unknown: naming the routed model
 				// cannot be taken back once it is on screen.
 				const hideAutoExplainability = this._hideAutoExplainability.read(reader);
 				if (hideAutoExplainability === undefined) {
 					return;
 				}
-				const modelName = this._createTurnModelLookup(opts.sessionResource, undefined, hideAutoExplainability)
-					.toBilledModelDisplayName?.(usage$.read(reader));
-				if (modelName && modelName !== modelObservable.read(undefined)) {
-					transaction(tx => modelObservable.set(modelName, tx));
+				const model = this._createTurnModelLookup(opts.sessionResource, turn$.read(reader)?.message.model?.id, hideAutoExplainability)
+					.toBilledModelInfo?.(usage$.read(reader));
+				if (model && !equals(model, modelObservable.read(undefined))) {
+					transaction(tx => modelObservable.set(model, tx));
 				}
 			}));
 		}
@@ -4359,11 +4352,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 
-		const perInvocationModel = observableValue<string | undefined>('subagentInvocationModel', undefined);
+		const perInvocationModel = observableValue<ITurnModelInfo | undefined>('subagentInvocationModel', undefined);
 		observationStore.add(autorun(reader => {
-			const modelName = perInvocationModel.read(reader);
-			if (modelName && invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.modelName !== modelName) {
-				invocation.toolSpecificData.modelName = modelName;
+			const model = perInvocationModel.read(reader);
+			if (model && invocation.toolSpecificData?.kind === 'subagent'
+				&& (invocation.toolSpecificData.modelName !== model.modelName || invocation.toolSpecificData.modelId !== model.modelId)) {
+				invocation.toolSpecificData.modelId = model.modelId;
+				invocation.toolSpecificData.modelName = model.modelName;
 				invocation.notifyToolSpecificDataChanged();
 			}
 		}));
@@ -5050,19 +5045,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 	}
 
-	/**
-	 * Writes a subagent's accumulated cost (AIC) and model — summed across its
-	 * child session's turns — onto its serialized subagent tool call so the
-	 * hover survives a reload. Mirrors the live observers in
-	 * {@link _setupServerToolCall}.
-	 */
+	/** Restores accumulated credits and the latest known child model, including selected models before usage arrives. */
 	private _applySubagentUsageToHistoryPart(part: IChatProgress, sessionResource: URI, childState: ISessionWithDefaultChat): void {
 		if ((part.kind !== 'toolInvocationSerialized' && part.kind !== 'toolInvocation') || part.toolSpecificData?.kind !== 'subagent') {
 			return;
 		}
 		let credits = 0;
-		let modelName: string | undefined;
-		const lookup = this._createTurnModelLookup(sessionResource, undefined);
+		let model: ITurnModelInfo | undefined;
 		const turns = childState.activeTurn && !childState.turns.some(turn => turn.id === childState.activeTurn?.id)
 			? [...childState.turns, childState.activeTurn]
 			: childState.turns;
@@ -5071,9 +5060,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (typeof turnCredits === 'number') {
 				credits += turnCredits;
 			}
-			const turnModelName = lookup.toBilledModelDisplayName?.(turn.usage);
-			if (turnModelName) {
-				modelName = turnModelName;
+			const turnModel = this._createTurnModelLookup(sessionResource, turn.message.model?.id).toBilledModelInfo?.(turn.usage);
+			if (turnModel) {
+				model = turnModel;
 			}
 		}
 		if (credits > 0) {
@@ -5081,8 +5070,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		// Overwrite rather than fill in: a name persisted under one explainability
 		// assignment must not outlive a change to that assignment.
-		if (modelName) {
-			part.toolSpecificData.modelName = modelName;
+		if (model) {
+			part.toolSpecificData.modelId = model.modelId;
+			part.toolSpecificData.modelName = model.modelName;
 		}
 		const timing = getSubagentTiming(childState);
 		part.toolSpecificData.hasStarted = !!childState.activeTurn || childState.turns.length > 0;
@@ -5188,7 +5178,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		disposables: SubagentChatObservation,
 		subagentContext: ISubagentContext,
 		perInvocationCreditsAccumulator: ISettableObservable<number>,
-		perInvocationModel: ISettableObservable<string | undefined>,
+		perInvocationModel: ISettableObservable<ITurnModelInfo | undefined>,
 	): Promise<void> {
 		const parentSessionUri = parentSession.toString();
 
@@ -6046,11 +6036,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				} : undefined;
 				return formatTurnResponseDetails(responseModel, billedModelId, usage);
 			},
-			toBilledModelDisplayName: usage => {
+			toBilledModelInfo: usage => {
 				// Auto names the model it picked, which is the one worth showing.
 				const chosenModel = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
-				const { resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage);
-				return resolved ? displayName(resolved) : undefined;
+				const { billedId, resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage);
+				const knownModel = resolved && (resolved.resolvedFromRaw || !billedId) ? resolved : undefined;
+				const modelId = knownModel?.identifier ?? this._toLanguageModelId(sessionResource, billedId ?? fallbackRawModelId);
+				const modelName = knownModel ? displayName(knownModel) : billedId ?? fallbackRawModelId;
+				return modelId && modelName ? { modelId, modelName } : undefined;
 			},
 			toAutoModeResolution: usage => {
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;
