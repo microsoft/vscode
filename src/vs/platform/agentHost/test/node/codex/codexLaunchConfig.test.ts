@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides } from '../../../node/codex/codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides, codexPermissionProfileReadRoots } from '../../../node/codex/codexLaunchConfig.js';
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -57,6 +57,18 @@ suite('CodexLaunchConfig', () => {
 		const expected = '{ otlp-grpc = { endpoint = "https://collector:4317", headers = { "authorization" = "Bearer test/token" } } }';
 		assert.ok(config.args.includes(`otel.exporter=${expected}`));
 		assert.ok(config.args.includes(`otel.metrics_exporter=${expected}`));
+	});
+
+	test('adds client skill read access without overriding the profiles existing restrictions', () => {
+		assert.deepStrictEqual(codexPermissionProfileReadRoots(['/plugins/cache'], 'darwin'), {
+			'permissions.vscode-workspace.filesystem': {
+				':root': 'deny',
+				':minimal': 'read',
+				':tmpdir': 'write',
+				':slash_tmp': 'deny',
+				'/plugins/cache': 'read',
+			},
+		});
 	});
 
 	test('defines workspace-scoped permission profiles after extra arguments', () => {
