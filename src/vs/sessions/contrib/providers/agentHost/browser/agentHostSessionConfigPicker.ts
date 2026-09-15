@@ -1749,6 +1749,9 @@ registerAction2(class extends Action2 {
 
 // ---- Running session config picker (ChatInputSecondary) ----
 
+// Chat editors use widget-backed pickers rather than the active Sessions context.
+const IsRunningSessionChat = ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ChatContextKeys.inChatEditor.negate());
+
 const RUNNING_SESSION_CONFIG_PICKER_ID = 'sessions.agentHost.runningSessionConfigPicker';
 
 registerAction2(class extends Action2 {
@@ -1761,7 +1764,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: IsRunningSessionChat,
 			}],
 		});
 	}
@@ -1781,7 +1784,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: IsRunningSessionChat,
 			}],
 		});
 	}
@@ -1806,7 +1809,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: IsRunningSessionChat,
 			}],
 		});
 	}
@@ -1830,7 +1833,7 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 9,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ChatContextKeys.hasPendingDelegationTarget.negate()),
+				when: ContextKeyExpr.and(IsRunningSessionChat, ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
 		});
 	}
