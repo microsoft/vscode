@@ -106,7 +106,7 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
-	private readonly _createdConnections = new Map<string, IRemoteAgentHostCreatedConnection[]>();
+	private readonly _createdConnections = new Map<string, Promise<IRemoteAgentHostCreatedConnection>[]>();
 	private readonly _failures = new Map<string, Error[]>();
 	private readonly _onDidCreateConnection = this._register(new Emitter<void>());
 	readonly onDidCreateConnection = this._onDidCreateConnection.event;
@@ -117,16 +117,27 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 		this.entries = this._entries;
 	}
 
-	stage(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): void {
+	stage(entry: IRemoteAgentHostEntry, connection: MockProtocolClient, transportDisposable?: IDisposable): void {
 		const address = getEntryAddress(entry);
 		const createdConnections = this._createdConnections.get(address) ?? [];
-		createdConnections.push({
+		createdConnections.push(Promise.resolve({
 			connection: connection as unknown as IRemoteAgentHostProtocolClient,
 			transportDisposable,
-			reconnectTransfersTransportOwnership,
-		});
+		}));
 		this._createdConnections.set(address, createdConnections);
 		this._entries.set([...this._entries.get(), entry], undefined);
+	}
+
+	stagePending(entry: IRemoteAgentHostEntry, connection: Promise<IRemoteAgentHostCreatedConnection>): void {
+		const address = getEntryAddress(entry);
+		const createdConnections = this._createdConnections.get(address) ?? [];
+		createdConnections.push(connection);
+		this._createdConnections.set(address, createdConnections);
+		this._entries.set([...this._entries.get(), entry], undefined);
+	}
+
+	clearEntries(): void {
+		this._entries.set([], undefined);
 	}
 
 	/** Stages a factory-level rejection, as a failed precondition check would produce. */
@@ -753,11 +764,11 @@ suite('RemoteAgentHostService', () => {
 			}
 		}
 
-		async function reconnectStagedConnection(factory: TestConnectionFactory, entry: IRemoteAgentHostEntry, client: MockProtocolClient, transportDisposable?: IDisposable, reconnectTransfersTransportOwnership = false): Promise<void> {
+		async function reconnectStagedConnection(factory: TestConnectionFactory, entry: IRemoteAgentHostEntry, client: MockProtocolClient, transportDisposable?: IDisposable): Promise<void> {
 			// Capture the target before staging: `reconnect` dials asynchronously and
 			// may already have created the connection by the time we start waiting.
 			const expectedConnectionCount = factory.createdConnectionCount + 1;
-			factory.stage(entry, client, transportDisposable, reconnectTransfersTransportOwnership);
+			factory.stage(entry, client, transportDisposable);
 			service.reconnect(getEntryAddress(entry));
 			const wait = service.waitForConnection(getEntryAddress(entry));
 			await waitForFactoryConnection(factory, expectedConnectionCount);
@@ -787,11 +798,12 @@ suite('RemoteAgentHostService', () => {
 				automaticCreates: 1,
 			});
 
+			const queuedUserClient = new MockProtocolClient('cloud:reconnect-budget');
+			factory.stage(entry, queuedUserClient);
 			service.reconnect(address, true);
 
-			// The user request joins the in-flight dial rather than starting a
-			// second one, but still restores the budget so a later failure is
-			// retried instead of being reported as exhausted.
+			// The explicit request is serialized behind the in-flight dial, so
+			// there is still only one factory call until that dial settles.
 			assert.deepStrictEqual({
 				automaticAttempts: internals._reconnectAttempts.get(address),
 				pendingReconnectCreates: factory.createdConnectionCount,
@@ -803,6 +815,8 @@ suite('RemoteAgentHostService', () => {
 			const automaticWait = service.waitForConnection(address);
 			await waitForFactoryConnection(factory, 1);
 			automaticClient.connectDeferred.complete();
+			await waitForFactoryConnection(factory, 2);
+			queuedUserClient.connectDeferred.complete();
 			await automaticWait;
 
 			const automaticDelays: number[] = [];
@@ -830,9 +844,79 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(internals._reconnectAttempts.get(address), undefined);
 
 			const userWait = service.waitForConnection(address);
-			await waitForFactoryConnection(factory, 2);
+			await waitForFactoryConnection(factory, 3);
 			userClient.connectDeferred.complete();
 			await userWait;
+		});
+
+		test('ensure retains a connecting or connected protocol client', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:ensure-retains');
+			const address = getEntryAddress(entry);
+			const client = new MockProtocolClient(address);
+			factory.stage(entry, client);
+			service.ensureConnection(address);
+			await waitForFactoryConnection(factory, 1);
+
+			service.ensureConnection(address);
+			assert.strictEqual(factory.createdConnectionCount, 1);
+
+			client.connectDeferred.complete();
+			await service.waitForConnection(address);
+			service.ensureConnection(address);
+
+			assert.strictEqual(factory.createdConnectionCount, 1);
+		});
+
+		test('factory failure preserves a queued reconnect marker through failure notification', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:queued-after-factory-failure');
+			const address = getEntryAddress(entry);
+			const firstFactoryResult = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+			factory.stagePending(entry, firstFactoryResult.p);
+			service.reconnect(address, false);
+			await waitForFactoryConnection(factory, 1);
+			const waiting = service.waitForConnection(address);
+
+			const replacement = new MockProtocolClient(address);
+			factory.stage(entry, replacement);
+			service.reconnect(address, true);
+			const listener = disposables.add(service.onDidChangeConnections(() => {
+				if (service.connections.find(connection => connection.address === address)?.status.kind === 'disconnected') {
+					service.ensureConnection(address);
+				}
+			}));
+
+			firstFactoryResult.error(new Error('factory failed'));
+			await waitForFactoryConnection(factory, 2);
+			replacement.connectDeferred.complete();
+			const connected = await waiting;
+			listener.dispose();
+
+			assert.deepStrictEqual({
+				createdConnectionCount: factory.createdConnectionCount,
+				connectedAddress: connected.address,
+			}, {
+				createdConnectionCount: 2,
+				connectedAddress: address,
+			});
+		});
+
+		test('waitForConnection rejects when an in-flight factory result is discarded', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:discarded');
+			const address = getEntryAddress(entry);
+			const factoryResult = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+			const client = new MockProtocolClient(address);
+			factory.stagePending(entry, factoryResult.p);
+			service.reconnect(address);
+			await waitForFactoryConnection(factory, 1);
+			const waiting = service.waitForConnection(address);
+
+			factory.clearEntries();
+			factoryResult.complete({ connection: client as unknown as IRemoteAgentHostProtocolClient });
+
+			await assert.rejects(waiting, /discarded because it is no longer active/);
 		});
 
 		test('surfaces a protocol reconnect backoff deadline', async () => {
@@ -892,7 +976,7 @@ suite('RemoteAgentHostService', () => {
 			});
 		});
 
-		test('falls back to a fresh dial when a retained entry has no client', async () => {
+		test('ensure starts a fresh dial when a retained entry has no client', async () => {
 			const factory = createFactory(RemoteAgentHostEntryType.WSL);
 			const entry: IRemoteAgentHostEntry = {
 				name: 'Ubuntu',
@@ -906,7 +990,7 @@ suite('RemoteAgentHostService', () => {
 
 			const client = new MockProtocolClient(address);
 			factory.stage(entry, client);
-			service.reconnectNow(address);
+			service.ensureConnection(address);
 			await waitForFactoryConnection(factory, 1);
 			client.connectDeferred.complete();
 			await waitForConnected();
@@ -926,6 +1010,10 @@ suite('RemoteAgentHostService', () => {
 			client.connectDeferred.error(new InitialAuthenticationError(new Error('Unsupported protocol version')));
 			await changed;
 			await assert.rejects(() => wait, /Initial authentication failed/);
+			const replacement = new MockProtocolClient('cloud:incompatible');
+			factory.stage(entry, replacement);
+			service.ensureConnection(getEntryAddress(entry));
+			await assert.rejects(() => service.waitForConnection(getEntryAddress(entry)), /Initial authentication failed/);
 
 			const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
 
@@ -940,6 +1028,13 @@ suite('RemoteAgentHostService', () => {
 				upgradeCalls: ['_vscodeUpgrade'],
 				upgradeResult: { ok: true, upgradeStarted: true },
 			});
+			assert.strictEqual(factory.createdConnectionCount, 1, 'ensure must retain the incompatible client and transport');
+
+			service.reconnect(getEntryAddress(entry));
+			await waitForFactoryConnection(factory, 2);
+			replacement.connectDeferred.complete();
+			await service.waitForConnection(getEntryAddress(entry));
+			assert.strictEqual(factory.createdConnectionCount, 2, 'explicit reconnect must replace the incompatible client');
 		});
 
 		test('retains a client-less disconnected entry when the factory rejects before a client exists', async () => {
@@ -1016,7 +1111,12 @@ suite('RemoteAgentHostService', () => {
 				connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' },
 			};
 			const client = new MockProtocolClient('wsl:Ubuntu');
-			await reconnectStagedConnection(factory, entry, client);
+			factory.stage(entry, client);
+			service.ensureConnection('wsl:Ubuntu');
+			await waitForFactoryConnection(factory, 1);
+			client.connectDeferred.complete();
+			await service.waitForConnection('wsl:Ubuntu');
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
 
 			const changed = Event.toPromise(service.onDidChangeConnections);
 			client.fireClose(AgentHostTransportFailureReason.HostNotRunning);
@@ -1025,7 +1125,13 @@ suite('RemoteAgentHostService', () => {
 			const afterClose = service.connections.find(connection => connection.address === 'wsl:Ubuntu')?.status;
 
 			// A host that comes back must stop claiming it is not running.
-			await reconnectStagedConnection(factory, entry, new MockProtocolClient('wsl:Ubuntu'));
+			const replacement = new MockProtocolClient('wsl:Ubuntu');
+			const expectedConnectionCount = factory.createdConnectionCount + 1;
+			factory.stage(entry, replacement);
+			service.ensureConnection('wsl:Ubuntu');
+			await waitForFactoryConnection(factory, expectedConnectionCount);
+			replacement.connectDeferred.complete();
+			await service.waitForConnection('wsl:Ubuntu');
 
 			assert.deepStrictEqual({
 				afterClose,
@@ -1048,16 +1154,16 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(service.getConnection('cloud:remove'), undefined);
 		});
 
-		test('does not dispose a previous transport when a replacement takes ownership', async () => {
+		test('disposes the previous transport before creating a replacement', async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:replacement');
 			const t1 = makeTransportDisposable();
-			await reconnectStagedConnection(factory, entry, new MockProtocolClient('cloud:replacement'), t1.disposable, true);
+			await reconnectStagedConnection(factory, entry, new MockProtocolClient('cloud:replacement'), t1.disposable);
 
 			const t2 = makeTransportDisposable();
-			await reconnectStagedConnection(factory, entry, new MockProtocolClient('cloud:replacement'), t2.disposable, true);
+			await reconnectStagedConnection(factory, entry, new MockProtocolClient('cloud:replacement'), t2.disposable);
 
-			assert.strictEqual(t1.disposed(), false, 'previous transport disposable is not run on replacement');
+			assert.strictEqual(t1.disposed(), true, 'previous transport disposable runs before replacement');
 			assert.strictEqual(t2.disposed(), false, 'new transport disposable is still alive');
 
 			await service.removeRemoteAgentHost('cloud:replacement');

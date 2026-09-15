@@ -23,6 +23,7 @@ import {
 	type IWSLConnectProgress,
 	type IWSLConnectResult,
 	type IWSLDistro,
+	WSLConnectionMode,
 } from '../common/wslRemoteAgentHost.js';
 import { resolveRemotePlatform } from './sshRemoteAgentHostHelpers.js';
 import {
@@ -173,30 +174,31 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
-	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
+	connect(config: IWSLAgentHostConfig, mode: WSLConnectionMode = WSLConnectionMode.Reuse): Promise<IWSLConnectResult> {
 		const distro = validateDistroName(config.distro);
 
-		// Idempotent: a second `connect` for an already-live distro returns
-		// the existing connection so the renderer-side `_setupConnection`
-		// reuses its handle (it dedupes by `connectionId`). Picking
-		// "WSL..." → same distro should be a no-op, not an error.
 		const existingId = this._distroToConnectionId.get(distro);
 		if (existingId) {
 			const existing = this._connections.get(existingId);
 			if (existing) {
-				return Promise.resolve({
-					connectionId: existing.connectionId,
-					address: existing.address,
-					distro: existing.distro,
-					name: existing.name,
-					connectionToken: existing.connectionToken,
-				});
+				if (mode === WSLConnectionMode.Reuse) {
+					return Promise.resolve({
+						connectionId: existing.connectionId,
+						address: existing.address,
+						distro: existing.distro,
+						name: existing.name,
+						connectionToken: existing.connectionToken,
+					});
+				}
+				this._closeConnection(existingId);
 			}
 		}
 
 		const existingPendingConnect = this._pendingConnects.get(distro);
 		if (existingPendingConnect) {
-			return existingPendingConnect;
+			return mode === WSLConnectionMode.Reuse
+				? existingPendingConnect
+				: existingPendingConnect.then(() => this.connect(config, WSLConnectionMode.Replace));
 		}
 
 		// Reserve synchronously, before _connectUnguarded reaches its first
@@ -460,14 +462,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	}
 
 	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean): Promise<IWSLConnectResult> {
-		const existingId = this._distroToConnectionId.get(distro);
-		if (existingId) {
-			this._closeConnection(existingId);
-		}
-		// A pending connection is already a fresh bootstrap. Joining it avoids
-		// starting a competing downloader; callers that reconnect after it
-		// fails receive that failure and a subsequent reconnect starts anew.
-		return this.connect({ distro, name, remoteAgentHostCommand, userInitiated });
+		return this.connect({ distro, name, remoteAgentHostCommand, userInitiated }, WSLConnectionMode.Replace);
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {

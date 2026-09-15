@@ -22,10 +22,15 @@ class MockWSLMainService {
 }
 
 class MockRemoteAgentHostService {
+	readonly ensureCalls: Array<{ readonly address: string; readonly userInitiated: boolean }> = [];
 	readonly reconnectCalls: Array<{ readonly address: string; readonly userInitiated: boolean }> = [];
 
 	registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
 		return toDisposable(() => undefined);
+	}
+
+	ensureConnection(address: string, userInitiated = true): void {
+		this.ensureCalls.push({ address, userInitiated });
 	}
 
 	reconnect(address: string, userInitiated = true): void {
@@ -82,6 +87,18 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('connect ensures a connection without forcing replacement', async () => {
+		await assert.rejects(() => service.connect({ distro: 'Ubuntu', name: 'Ubuntu' }), /not established/);
+
+		assert.deepStrictEqual({
+			ensureCalls: remoteAgentHostService.ensureCalls,
+			reconnectCalls: remoteAgentHostService.reconnectCalls,
+		}, {
+			ensureCalls: [{ address: 'wsl:Ubuntu', userInitiated: true }],
+			reconnectCalls: [],
+		});
+	});
 
 	test('forwards whether reconnect was user-initiated', async () => {
 		await assert.rejects(() => service.reconnect('Ubuntu', 'Ubuntu'), /not established/);

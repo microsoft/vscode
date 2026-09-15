@@ -78,6 +78,10 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		return this._delegate.connect(tunnel, authProvider, options);
 	}
 
+	reconnect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
+		return this._delegate.reconnect(tunnel, authProvider, options);
+	}
+
 	get canDeleteTunnels(): boolean {
 		return this._delegate.canDeleteTunnels;
 	}

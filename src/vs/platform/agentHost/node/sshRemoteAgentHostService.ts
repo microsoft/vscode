@@ -14,6 +14,7 @@ import { Disposable, DisposableMap, toDisposable } from '../../../base/common/li
 import { raceTimeout } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -21,6 +22,7 @@ import { ITelemetryService, TelemetryConfiguration } from '../../telemetry/commo
 import {
 	ISSHRemoteAgentHostMainService,
 	SSHAuthMethod,
+	SSHConnectionMode,
 	computeSSHConnectionKey,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConfigSanitized,
@@ -791,12 +793,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return this._nativeRequire;
 	}
 
-	async connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult> {
+	async connect(config: ISSHAgentHostConfig, mode: SSHConnectionMode = SSHConnectionMode.Reuse): Promise<ISSHConnectResult> {
 		const connectionKey = computeSSHConnectionKey(config);
 
 		const existing = this._connections.get(connectionKey);
 		if (existing) {
-			if (replaceRelay) {
+			if (mode === SSHConnectionMode.ReplaceRelay) {
 				// Tear down the old relay and create a fresh one, following
 				// the same dispose-and-recreate pattern as TunnelAgentHostMainService.
 				// The SSH client is detached so only the WebSocket relay is closed.
@@ -816,7 +818,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 				// Create fresh relay and connection. If relay creation fails,
 				// clean up the detached SSH client so it doesn't leak.
-				const connectionId = connectionKey;
+				const connectionId = generateUuid();
 				try {
 					let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
 					// Bound the relay creation: a silently dead SSH client
@@ -875,21 +877,25 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 			}
 
-			return {
-				connectionId: existing.connectionId,
-				address: existing.address,
-				name: existing.name,
-				connectionToken: existing.connectionToken,
-				config: existing.config,
-				sshConfigHost: config.sshConfigHost,
-				serverType: existing.serverType,
-				instanceId: existing.instanceId,
-				primary: true,
-				lifecycle: existing.lifecycle,
-			};
+			if (mode === SSHConnectionMode.Reuse) {
+				return {
+					connectionId: existing.connectionId,
+					address: existing.address,
+					name: existing.name,
+					connectionToken: existing.connectionToken,
+					config: existing.config,
+					sshConfigHost: config.sshConfigHost,
+					serverType: existing.serverType,
+					instanceId: existing.instanceId,
+					primary: true,
+					lifecycle: existing.lifecycle,
+				};
+			}
+
+			existing.dispose();
 		}
 
-		this._logService.info(`${LOG_PREFIX} ${replaceRelay ? 'Reconnecting' : 'Connecting'} to ${connectionKey}`);
+		this._logService.info(`${LOG_PREFIX} ${mode === SSHConnectionMode.Reuse ? 'Connecting' : 'Replacing connection'} to ${connectionKey}`);
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		let sshClient: SSHClient | undefined;
 
@@ -1073,7 +1079,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			// 4. Connect to the exact selected/spawned endpoint via WebSocket relay.
 			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
-			const connectionId = connectionKey;
+			const connectionId = generateUuid();
 			let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
 			let relay: { send: (data: string) => void; close: () => void };
 			try {
@@ -1176,7 +1182,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, mode: SSHConnectionMode = SSHConnectionMode.ReplaceConnection, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
@@ -1203,7 +1209,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 			userInitiated,
 			preferredAgentLocation,
-		}, /* replaceRelay */ true);
+		}, mode);
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {

@@ -10,7 +10,7 @@ import { type ITunnelApplicationConfig } from '../../../../../../base/common/pro
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type ITunnelConnectResult, type ITunnelGatewaySelection, type ITunnelGatewaySelectionSession, type ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { resolveGatewaySelection, type IGatewaySelectionRequest } from '../../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import type { ITunnelDuplexStream } from '../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
@@ -105,18 +105,40 @@ class FakeConnector implements ITunnelAgentHostConnector {
 	}
 }
 
-function createRemoteAgentHostService(): IRemoteAgentHostService {
-	return new class extends mock<IRemoteAgentHostService>() {
-		override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
-			return { dispose() { } };
-		}
-	}();
+class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() {
+	readonly ensureCalls: Array<{ address: string; userInitiated: boolean }> = [];
+	readonly reconnectCalls: Array<{ address: string; userInitiated: boolean }> = [];
+
+	override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
+		return { dispose() { } };
+	}
+
+	override ensureConnection(address: string, userInitiated = true): void {
+		this.ensureCalls.push({ address, userInitiated });
+	}
+
+	override reconnect(address: string, userInitiated = true): void {
+		this.reconnectCalls.push({ address, userInitiated });
+	}
+
+	override async waitForConnection(address: string) {
+		return {
+			address,
+			name: address,
+			status: RemoteAgentHostConnectionStatus.connected,
+		};
+	}
+}
+
+function createRemoteAgentHostService(): TestRemoteAgentHostService {
+	return new TestRemoteAgentHostService();
 }
 
 function createBrowserTunnelService(
 	store: Pick<DisposableStore, 'add'>,
 	sessions: readonly AuthenticationSession[],
 	listTunnels: () => Promise<readonly IDevTunnelsWebTunnel[]>,
+	remoteAgentHostService: IRemoteAgentHostService = createRemoteAgentHostService(),
 ): BrowserTunnelAgentHostService {
 	class FakeManagementClient implements IDevTunnelsWebManagementClient {
 		constructor(_userAgent: string, _apiVersion: object, _userTokenCallback: () => Promise<string>) {
@@ -155,7 +177,7 @@ function createBrowserTunnelService(
 	const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 
 	return store.add(new BrowserTunnelAgentHostService(
-		createRemoteAgentHostService(),
+		remoteAgentHostService,
 		new NullLogService(),
 		store.add(new TestInstantiationService()),
 		configurationService,
@@ -207,6 +229,30 @@ suite('BrowserTunnelAgentHostService', () => {
 		await assert.rejects(service.listTunnels(), /enumeration failed/);
 	});
 
+	test('browser tunnel connect ensures while reconnect explicitly replaces and refreshes metadata', async () => {
+		const remoteAgentHostService = createRemoteAgentHostService();
+		const service = createBrowserTunnelService(store, [], async () => [], remoteAgentHostService);
+
+		await service.connect(tunnel, 'github', { userInitiated: true });
+		await service.reconnect({ ...tunnel, clusterId: 'updated-cluster', name: 'Updated tunnel' }, 'microsoft', { userInitiated: true });
+
+		assert.deepStrictEqual({
+			ensureCalls: remoteAgentHostService.ensureCalls,
+			reconnectCalls: remoteAgentHostService.reconnectCalls,
+			cached: service.getCachedTunnels(),
+		}, {
+			ensureCalls: [{ address: 'tunnel:tunnel-id', userInitiated: true }],
+			reconnectCalls: [{ address: 'tunnel:tunnel-id', userInitiated: true }],
+			cached: [{
+				tunnelId: 'tunnel-id',
+				clusterId: 'updated-cluster',
+				name: 'Updated tunnel',
+				protocolVersion: 6,
+				authProvider: 'microsoft',
+			}],
+		});
+	});
+
 	test('rejects embedder tunnel discovery failures', async () => {
 		const discoveryProvider = new class extends mock<ITunnelDiscoveryProvider>() {
 			override async listTunnels(): Promise<IDiscoveredTunnel[]> {
@@ -227,6 +273,40 @@ suite('BrowserTunnelAgentHostService', () => {
 		));
 
 		await assert.rejects(service.listTunnels(), /authentication failed/);
+	});
+
+	test('web tunnel connect ensures while reconnect explicitly replaces and refreshes metadata', async () => {
+		const remoteAgentHostService = createRemoteAgentHostService();
+		const service = store.add(new WebTunnelAgentHostService(
+			remoteAgentHostService,
+			new class extends mock<IBrowserWorkbenchEnvironmentService>() {
+				override readonly options = { tunnelDiscoveryProvider: new class extends mock<ITunnelDiscoveryProvider>() { }() };
+			}(),
+			new NullLogService(),
+			store.add(new TestInstantiationService()),
+			new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }),
+			new class extends mock<IAuthenticationService>() { }(),
+			store.add(new InMemoryStorageService()),
+		));
+
+		await service.connect(tunnel, 'github', { userInitiated: true });
+		await service.reconnect({ ...tunnel, clusterId: 'updated-cluster', name: 'Updated tunnel' }, 'microsoft', { userInitiated: true });
+
+		assert.deepStrictEqual({
+			ensureCalls: remoteAgentHostService.ensureCalls,
+			reconnectCalls: remoteAgentHostService.reconnectCalls,
+			cached: service.getCachedTunnels(),
+		}, {
+			ensureCalls: [{ address: 'tunnel:tunnel-id', userInitiated: true }],
+			reconnectCalls: [{ address: 'tunnel:tunnel-id', userInitiated: true }],
+			cached: [{
+				tunnelId: 'tunnel-id',
+				clusterId: 'updated-cluster',
+				name: 'Updated tunnel',
+				protocolVersion: 6,
+				authProvider: 'microsoft',
+			}],
+		});
 	});
 
 	test('completes the version-six gateway selection returned by the browser picker', async () => {

@@ -119,6 +119,11 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 		}
 	}
 
+	clearStagedConnection(address: string): void {
+		this._stagedUserInitiated.delete(address);
+		this._stagedAuthProviders.delete(address);
+	}
+
 	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.Tunnel) {
 			throw new Error(`Tunnel factory cannot create a ${entry.connection.type} connection.`);
@@ -224,14 +229,30 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	}
 
 	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
+		await this._connect(tunnel, authProvider, options, false);
+	}
+
+	async reconnect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
+		await this._connect(tunnel, authProvider, options, true);
+	}
+
+	private async _connect(tunnel: ITunnelInfo, authProvider: 'github' | 'microsoft' | undefined, options: { readonly userInitiated?: boolean } | undefined, reconnect: boolean): Promise<void> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
 		const entry = this._connectionFactory.stageTunnel(tunnel, authProvider, options?.userInitiated ?? true);
 		const address = getEntryAddress(entry);
-		this._remoteAgentHostService.reconnect(address, options?.userInitiated ?? true);
-		await this._remoteAgentHostService.waitForConnection(address);
+		if (reconnect) {
+			this._remoteAgentHostService.reconnect(address, options?.userInitiated ?? true);
+		} else {
+			this._remoteAgentHostService.ensureConnection(address, options?.userInitiated ?? true);
+		}
+		try {
+			await this._remoteAgentHostService.waitForConnection(address);
+		} finally {
+			this._connectionFactory.clearStagedConnection(address);
+		}
 	}
 
 	private async _createConnection(entry: IRemoteAgentHostEntry, authProvider: 'github' | 'microsoft' | undefined, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
