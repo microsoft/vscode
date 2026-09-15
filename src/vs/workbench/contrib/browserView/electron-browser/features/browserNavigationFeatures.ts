@@ -8,6 +8,9 @@ import { $ } from '../../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -20,6 +23,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -41,6 +45,7 @@ import {
 	BrowserEditorContribution,
 	BrowserWidgetLocation,
 	CONTEXT_BROWSER_FOCUSED,
+	CONTEXT_BROWSER_HAS_ERROR,
 	CONTEXT_BROWSER_HAS_URL,
 	IBrowserEditorWidget,
 	IBrowserUrlSuggestionAction,
@@ -49,6 +54,12 @@ import { BrowserUrlBarWidget, IBrowserUrlBarHost, IUrlPickerItem } from '../widg
 
 const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
+
+function getSuggestedMhtmlFileName(title: string): string {
+	const sanitizedTitle = title.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_').slice(0, 100).replace(/[. ]+$/g, '');
+	const baseName = sanitizedTitle && isValidBasename(`${sanitizedTitle}.mhtml`, true) ? sanitizedTitle : 'page';
+	return `${baseName}.mhtml`;
+}
 
 /**
  * Browser navigation bar widget: nav toolbar (back/forward/etc), URL bar
@@ -536,6 +547,54 @@ class OpenInExternalBrowserAction extends Action2 {
 	}
 }
 
+class SavePageAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.SavePage;
+
+	constructor() {
+		super({
+			id: SavePageAction.ID,
+			title: localize2('browser.savePageAction', "Save Page As..."),
+			category: BrowserActionCategory,
+			icon: Codicon.saveAs,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: BrowserActionGroup.Tools,
+				order: 5,
+				isHiddenByDefault: true,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyS,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		const model = browserEditor instanceof BrowserEditor ? browserEditor.model : undefined;
+		if (!model) {
+			return;
+		}
+
+		const fileDialogService = accessor.get(IFileDialogService);
+		const defaultUri = joinPath(
+			await fileDialogService.defaultFilePath(Schemas.file),
+			getSuggestedMhtmlFileName(model.title)
+		);
+		const target = await fileDialogService.showSaveDialog({
+			title: localize('browser.savePageDialogTitle', "Save Page As"),
+			defaultUri,
+			filters: [{ name: localize('browser.mhtmlFileType', "MHTML Webpage"), extensions: ['mhtml'] }],
+			availableFileSystems: [Schemas.file],
+		});
+		if (target) {
+			await model.savePage(target.fsPath);
+		}
+	}
+}
+
 class OpenBrowserSettingsAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.OpenSettings;
 
@@ -567,5 +626,6 @@ registerAction2(ReloadAction);
 registerAction2(HardReloadAction);
 registerAction2(FocusUrlInputAction);
 
+registerAction2(SavePageAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(OpenBrowserSettingsAction);
