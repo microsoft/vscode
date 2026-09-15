@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { autorun, type ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, type ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -33,10 +33,16 @@ class FailingStaleRunRecoveryAutomationStore extends AutomationStore {
 
 class MutableCatalogueAutomationStore extends AutomationStore {
 	private readonly state = observableValue<AutomationCatalogueState>(this, 'ready');
+	private readonly knownAutomations = observableValue<boolean | undefined>(this, undefined);
 	override readonly catalogueState = this.state;
+	override readonly hasKnownAutomations = derived(this, reader => this.knownAutomations.read(reader) ?? this.automations.read(reader).length > 0);
 
 	setCatalogueState(state: AutomationCatalogueState, tx?: ITransaction): void {
 		this.state.set(state, tx);
+	}
+
+	setHasKnownAutomations(hasKnownAutomations: boolean, tx?: ITransaction): void {
+		this.knownAutomations.set(hasKnownAutomations, tx);
 	}
 }
 
@@ -250,6 +256,7 @@ suite('ProviderAutomationService', () => {
 			new NullLogService(),
 			automationStorage,
 		));
+		store.setHasKnownAutomations(true);
 		store.setCatalogueState('loading');
 		addProvider(upcastPartial<ISessionsProvider>({ id: 'stateful-provider', order: 1, automations: store }));
 		const loading = service.catalogueState.get();
@@ -327,6 +334,8 @@ suite('ProviderAutomationService', () => {
 		const { service, storage, automationStorage, addProvider } = createService();
 		const first = teardown.add(new MutableCatalogueAutomationStore('first', storage, new NullLogService(), automationStorage));
 		const second = teardown.add(new MutableCatalogueAutomationStore('second', storage, new NullLogService(), automationStorage));
+		first.setHasKnownAutomations(true);
+		second.setHasKnownAutomations(true);
 		addProvider(upcastPartial<ISessionsProvider>({ id: 'first', order: 1, automations: first }));
 		addProvider(upcastPartial<ISessionsProvider>({ id: 'second', order: 2, automations: second }));
 		let observedState: AutomationCatalogueState = 'ready';
@@ -393,7 +402,7 @@ suite('ProviderAutomationService', () => {
 		});
 	});
 
-	test('an unavailable remote catalogue does not block local automation operations', async () => {
+	test('ignores an unavailable provider without evidence of owned Automations', async () => {
 		const { service, providerStore, storage, automationStorage, addProvider } = createService();
 		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), automationStorage));
 		remote.setCatalogueState('unavailable');
@@ -417,13 +426,29 @@ suite('ProviderAutomationService', () => {
 			claimed: claim.claimed,
 			activeRunId: providerStore.getActiveRunFor(created.id)?.id,
 		}, {
-			catalogueState: 'unavailable',
+			catalogueState: 'ready',
 			localNames: ['Updated local review'],
 			remoteAutomations: [],
 			canRun: true,
 			canUpdate: true,
 			claimed: true,
 			activeRunId: claim.run.id,
+		});
+	});
+
+	test('reports unavailable when an offline provider is known to own Automations', () => {
+		const { service, storage, automationStorage, addProvider } = createService();
+		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), automationStorage));
+		remote.setHasKnownAutomations(true);
+		remote.setCatalogueState('unavailable');
+		addProvider(upcastPartial<ISessionsProvider>({ id: 'remote', order: 1, automations: remote }));
+
+		assert.deepStrictEqual({
+			catalogueState: service.catalogueState.get(),
+			remoteAutomations: remote.automations.get(),
+		}, {
+			catalogueState: 'unavailable',
+			remoteAutomations: [],
 		});
 	});
 

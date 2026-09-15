@@ -130,6 +130,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
+	readonly hasKnownAutomations: IObservable<boolean>;
 
 	constructor(
 		private readonly storageKey: string,
@@ -152,6 +153,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		this.automations = this._automations;
 		this.runs = this._runs;
 		this.catalogueState = this._catalogueState;
+		this.hasKnownAutomations = derived(this, reader => this._automations.read(reader).length > 0);
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(() => {
 			this.refreshFromStorage();

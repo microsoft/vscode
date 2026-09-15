@@ -33,10 +33,12 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private readonly _configurationChanged;
 	private readonly _authorityState = observableValue<AutomationAuthorityState>(this, { kind: 'disconnected' });
+	private readonly _lastKnownHostHasAutomations = observableValue(this, false);
 	private readonly _disposeCancellation = new CancellationTokenSource();
 
 	readonly automations = derived(this, reader => this._currentStore.read(reader)?.automations.read(reader) ?? this._legacySource?.automations.read(reader) ?? []);
 	readonly runs = derived(this, reader => this._currentStore.read(reader)?.runs.read(reader) ?? this._legacySource?.runs.read(reader) ?? []);
+	readonly hasKnownAutomations = derived(this, reader => (this._legacySource?.hasKnownAutomations.read(reader) ?? false) || this._lastKnownHostHasAutomations.read(reader));
 	readonly catalogueState: IObservable<AutomationCatalogueState> = derived(this, reader => {
 		const authorityState = this._authorityState.read(reader);
 		const legacyState = this._legacySource?.catalogueState.read(reader) ?? 'ready';
@@ -62,6 +64,12 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	) {
 		super();
 		this._configurationChanged = observableSignalFromEvent(this, this._configurationService.onDidChangeConfiguration);
+		this._register(autorun(reader => {
+			const state = this._authorityState.read(reader);
+			if (state.kind === 'supported' && state.store.catalogueState.read(reader) === 'ready') {
+				this._lastKnownHostHasAutomations.set(state.store.hasKnownAutomations.read(reader), undefined);
+			}
+		}));
 	}
 
 	override dispose(): void {

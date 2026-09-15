@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import type { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -130,6 +131,8 @@ export type IGuardedAutomationSnapshotRemovalResult =
 	| { readonly kind: 'missing' };
 
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Whether there is evidence that this provider owns at least one Automation, including cached authoritative state while unavailable. */
+	readonly hasKnownAutomations: IObservable<boolean>;
 	canRunAutomation?(automationId: string): boolean;
 	canUpdateAutomation?(automationId: string): boolean;
 	canDeleteAutomation?(automationId: string): boolean;

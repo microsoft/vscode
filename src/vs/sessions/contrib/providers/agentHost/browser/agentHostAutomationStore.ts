@@ -87,6 +87,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
+	readonly hasKnownAutomations: IObservable<boolean>;
 
 	constructor(
 		private readonly _providerId: string,
@@ -163,6 +164,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return distinctById([...this._projectRuns(), ...this._archivedRuns.read(reader)])
 				.sort((first, second) => second.startedAt.localeCompare(first.startedAt));
 		});
+		this.hasKnownAutomations = derived(this, reader => this.automations.read(reader).length > 0);
 	}
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
