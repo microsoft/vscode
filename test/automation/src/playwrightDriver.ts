@@ -44,6 +44,13 @@ export interface AccessibilityScanOptions {
 	excludeRules?: { [ruleId: string]: string[] };
 }
 
+export interface ElectronWindowBounds {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
 export class PlaywrightDriver {
 
 	private static traceCounter = 1;
@@ -109,6 +116,69 @@ export class PlaywrightDriver {
 			node: process.versions.node,
 			v8: process.versions.v8
 		}));
+	}
+
+	async getElectronWindowBounds(): Promise<ElectronWindowBounds> {
+		const application = this.getElectronApplication();
+		return application.evaluate(({ BrowserWindow }) => {
+			const window = BrowserWindow.getAllWindows()[0];
+			if (!window) {
+				throw new Error('No Electron BrowserWindow is available.');
+			}
+			return window.getBounds();
+		});
+	}
+
+	async setElectronWindowBounds(bounds: ElectronWindowBounds): Promise<void> {
+		const application = this.getElectronApplication();
+		await application.evaluate(async ({ BrowserWindow }, targetBounds) => {
+			const window = BrowserWindow.getAllWindows()[0];
+			if (!window) {
+				throw new Error('No Electron BrowserWindow is available.');
+			}
+			const currentBounds = window.getBounds();
+			if (
+				currentBounds.x === targetBounds.x &&
+				currentBounds.y === targetBounds.y &&
+				currentBounds.width === targetBounds.width &&
+				currentBounds.height === targetBounds.height
+			) {
+				return;
+			}
+			const events: Promise<void>[] = [];
+			if (currentBounds.width !== targetBounds.width || currentBounds.height !== targetBounds.height) {
+				events.push(new Promise<void>(resolve => window.once('resize', () => resolve())));
+			}
+			if (currentBounds.x !== targetBounds.x || currentBounds.y !== targetBounds.y) {
+				events.push(new Promise<void>(resolve => window.once('move', () => resolve())));
+			}
+			window.setBounds(targetBounds);
+			await Promise.all(events);
+		}, bounds);
+	}
+
+	async settleRendererAnimationFrames(count: number): Promise<void> {
+		await this.page.evaluate(frameCount => new Promise<void>(resolve => {
+			const waitForFrame = (remaining: number) => {
+				if (remaining === 0) {
+					resolve();
+					return;
+				}
+				requestAnimationFrame(() => waitForFrame(remaining - 1));
+			};
+			waitForFrame(frameCount);
+		}), count);
+	}
+
+	async markRendererPerformance(name: string): Promise<void> {
+		await this.page.evaluate(markName => performance.mark(markName), name);
+	}
+
+	private getElectronApplication(): playwright.ElectronApplication {
+		if (!('windows' in this.application)) {
+			throw new Error('This operation requires an Electron application.');
+		}
+		return this.application as playwright.ElectronApplication;
 	}
 
 	/**
@@ -680,7 +750,8 @@ export class PlaywrightDriver {
 		await this.page.reload();
 	}
 
-	async close() {
+	async close(options?: { throwOnError?: boolean }) {
+		let closeError: unknown;
 
 		// Stop tracing
 		try {
@@ -688,7 +759,7 @@ export class PlaywrightDriver {
 				await measureAndLog(() => this.context.tracing.stop(), 'stop tracing', this.options.logger);
 			}
 		} catch (error) {
-			// Ignore
+			this.options.logger.log(`Error stopping tracing (${error})`);
 		}
 
 		// Web: Extract client logs
@@ -705,11 +776,20 @@ export class PlaywrightDriver {
 			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
 		} catch (error) {
 			this.options.logger.log(`Error closing application (${error})`);
+			closeError ??= error;
 		}
 
 		// Server: via `teardown`
 		if (this.serverProcess) {
-			await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
+			try {
+				await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
+			} catch (error) {
+				closeError ??= error;
+			}
+		}
+
+		if (options?.throwOnError && closeError) {
+			throw closeError;
 		}
 	}
 

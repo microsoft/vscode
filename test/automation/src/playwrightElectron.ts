@@ -9,6 +9,7 @@ import { PlaywrightDriver } from './playwrightDriver';
 import { IElectronConfiguration, resolveElectronConfiguration } from './electron';
 import { measureAndLog } from './logger';
 import { ChildProcess } from 'child_process';
+import { isProcessAlive, teardownAndWait } from './processes';
 
 /**
  * Upper bound for how long we wait for the Electron process to launch and for
@@ -45,6 +46,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	const videoSize = { width: 1920, height: 1080 };
 
 	const playwrightImpl = options.playwright ?? playwright;
+	const launchStartedAt = Date.now();
 	let electron;
 	try {
 		electron = await measureAndLog(() => playwrightImpl._electron.launch({
@@ -62,6 +64,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		throw enrichLaunchError(error, options);
 	}
 	const electronProcess = electron.process();
+	options.electronLaunchObserver?.onElectronLaunch?.();
 	options.electronLaunchObserver?.onProcessSpawn?.(electronProcess);
 	electronProcess.once('exit', (code, signal) => options.electronLaunchObserver?.onFailure?.({
 		type: 'processExit',
@@ -73,11 +76,14 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	let window = electron.windows()[0];
 	if (!window) {
 		try {
-			window = await measureAndLog(() => electron.waitForEvent('window', { timeout: launchTimeout }), 'playwright-electron#firstWindow', logger);
+			const noWindowTimeout = Math.max(1, launchTimeout - (Date.now() - launchStartedAt));
+			window = await measureAndLog(() => electron.waitForEvent('window', { timeout: noWindowTimeout }), 'playwright-electron#firstWindow', logger);
 		} catch (error) {
+			await cleanupFailedElectronLaunch(electron, electronProcess, options);
 			throw enrichLaunchError(error, options);
 		}
 	}
+
 	options.electronLaunchObserver?.onFirstWindow?.();
 	const whenLoaded = window.waitForLoadState('load');
 	if (options.videosPath) {
@@ -143,6 +149,32 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	}));
 
 	return { electron, context, page: window, whenLoaded, videoStartedAt };
+}
+
+interface ClosableElectronApplication {
+	close(): Promise<void>;
+}
+
+export async function cleanupFailedElectronLaunch(electron: ClosableElectronApplication, electronProcess: ChildProcess, options: LaunchOptions): Promise<void> {
+	let handle: NodeJS.Timeout | undefined;
+	try {
+		await Promise.race([
+			electron.close(),
+			new Promise<never>((_, reject) => {
+				handle = setTimeout(() => reject(new Error('Playwright close timed out.')), 5_000);
+			})
+		]);
+	} catch (error) {
+		options.logger.log(`Playwright (Electron): Failed to close a partial launch (${error}). Terminating the process tree.`);
+	} finally {
+		if (handle) {
+			clearTimeout(handle);
+		}
+	}
+	const pid = electronProcess.pid;
+	if (typeof pid === 'number' && isProcessAlive(pid)) {
+		await teardownAndWait(electronProcess, options.logger, 10_000);
+	}
 }
 
 /**
