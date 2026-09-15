@@ -3671,6 +3671,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(connectCalls, 0);
 	});
 
+	test('waits for preferred Dev Container availability before preparing a request', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const events: string[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override isAvailable(): Promise<boolean> { return availability.p; }
+			}(),
+			requestWorkspaceTrust: async () => {
+				events.push('container trust');
+				return false;
+			},
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		provider.preferDevContainer(session.sessionId);
+		const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello').then(
+			() => events.push('host request'),
+			error => {
+				assert.ok(error instanceof WorkspaceNotTrustedError);
+				events.push('trust declined');
+			},
+		);
+		await timeout(0);
+		events.push('availability resolved');
+		availability.complete(true);
+		await preparation;
+
+		assert.deepStrictEqual(events, ['availability resolved', 'container trust', 'trust declined']);
+	});
+
 	test('prepareNewSession releases the Dev Container connection when post-connect setup fails', async () => {
 		const remoteWorkspace = URI.parse('agent-host://devcontainer/workspaces/project');
 		const setupError = new Error('failed to trust mapped workspace');

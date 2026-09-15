@@ -58,6 +58,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	private readonly _devContainerAvailableDrafts = new Set<string>();
 	private readonly _devContainerDrafts = new Set<string>();
 	private readonly _pendingDevContainerEnablement = new Set<string>();
+	private readonly _devContainerAvailability = new Map<string, Promise<void>>();
 	private readonly _devContainerAvailabilityListener = this._register(new MutableDisposable());
 	private readonly _onDidChangeDevContainerAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeDevContainerAvailability = this._onDidChangeDevContainerAvailability.event;
@@ -77,7 +78,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		for (const session of this.getKnownSessions()) {
 			const workspaceUri = session.workspace.get()?.folders[0]?.root;
 			if (workspaceUri && this._getNewSession(session.sessionId)) {
-				void this._resolveDevContainerAvailability(session.sessionId, workspaceUri);
+				this._resolveDevContainerAvailability(session.sessionId, workspaceUri);
 			}
 		}
 		this._onDidChangeDevContainerAvailability.fire();
@@ -87,11 +88,21 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 	override createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		const session = super.createNewSession(workspaceUri, sessionTypeId, options);
-		void this._resolveDevContainerAvailability(session.sessionId, workspaceUri);
+		this._resolveDevContainerAvailability(session.sessionId, workspaceUri);
 		return session;
 	}
 
-	private async _resolveDevContainerAvailability(sessionId: string, workspaceUri: URI): Promise<void> {
+	private _resolveDevContainerAvailability(sessionId: string, workspaceUri: URI): void {
+		const resolution = this._updateDevContainerAvailability(sessionId, workspaceUri);
+		this._devContainerAvailability.set(sessionId, resolution);
+		void resolution.finally(() => {
+			if (this._devContainerAvailability.get(sessionId) === resolution) {
+				this._devContainerAvailability.delete(sessionId);
+			}
+		});
+	}
+
+	private async _updateDevContainerAvailability(sessionId: string, workspaceUri: URI): Promise<void> {
 		try {
 			const available = await this.isDevContainerWorkspaceAvailable(workspaceUri);
 			if (!available || !this._getNewSession(sessionId)) {
@@ -174,6 +185,10 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	}
 
 	async prepareNewSession(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession> {
+		const availability = this._devContainerAvailability.get(sessionId);
+		if (availability && this._pendingDevContainerEnablement.has(sessionId)) {
+			await raceCancellationError(availability, token);
+		}
 		const draft = this._getNewSession(sessionId);
 		if (!draft) {
 			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
@@ -341,6 +356,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	}
 
 	override deleteNewSession(sessionId: string): void {
+		this._devContainerAvailability.delete(sessionId);
 		this._devContainerAvailableDrafts.delete(sessionId);
 		this._devContainerDrafts.delete(sessionId);
 		this._pendingDevContainerEnablement.delete(sessionId);
@@ -348,6 +364,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	}
 
 	protected override _disposeAllNewSessions(): void {
+		this._devContainerAvailability.clear();
 		this._devContainerAvailableDrafts.clear();
 		this._devContainerDrafts.clear();
 		this._pendingDevContainerEnablement.clear();

@@ -1102,6 +1102,63 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(connects, 0);
 	});
 
+	for (const address of ['ssh:test-host', 'tunnel:test-host']) {
+		test(`waits for preferred Dev Container availability before preparing a request on ${address}`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const events: string[] = [];
+			const provider = createProvider(disposables, connection, { address });
+			provider.initializeDevContainerSupport(
+				new class extends mock<IDevContainerAgentHostService>() {
+					override readonly onDidChangeAvailability = Event.None;
+					override isAvailable(): Promise<boolean> { return availability.p; }
+				}(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IWorkspaceTrustRequestService>() {
+					override async requestResourcesTrust(): Promise<boolean> {
+						events.push('container trust');
+						return false;
+					}
+				}(),
+			);
+			const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority(address)), provider.sessionTypes[0].id);
+			provider.preferDevContainer(draft.sessionId);
+			const preparation = provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Fix it').then(
+				() => events.push('host request'),
+				error => {
+					assert.ok(error instanceof WorkspaceNotTrustedError);
+					events.push('trust declined');
+				},
+			);
+			await timeout(0);
+			events.push('availability resolved');
+			availability.complete(true);
+			await preparation;
+
+			assert.deepStrictEqual(events, ['availability resolved', 'container trust', 'trust declined']);
+		});
+	}
+
+	test('cancels preparation while preferred Dev Container availability is pending', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const provider = createProvider(disposables, connection);
+		provider.initializeDevContainerSupport(
+			new class extends mock<IDevContainerAgentHostService>() {
+				override readonly onDidChangeAvailability = Event.None;
+				override isAvailable(): Promise<boolean> { return availability.p; }
+			}(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IWorkspaceTrustRequestService>() { }(),
+		);
+		const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority('localhost:4321')), provider.sessionTypes[0].id);
+		provider.preferDevContainer(draft.sessionId);
+		const preparation = provider.prepareNewSession(draft.sessionId, cancellation.token, 'Fix it');
+		cancellation.cancel();
+
+		await assert.rejects(preparation, /Canceled/);
+		availability.complete(false);
+	});
+
 	test('releases a remote Dev Container when cancellation arrives during connection', async () => {
 		connection.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'folder' } };
 		const provider = createProvider(disposables, connection);
