@@ -1017,7 +1017,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
-		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
+		// Ask git for the upstream remote: a local upstream (branch.<name>.remote = .) has none.
+		const upstreamRemote = status.upstreamBranchName && status.branchName
+			? await this._getUpstreamRemote(repositoryRoot, status.branchName)
+			: undefined;
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
 		// has no upstream tracking ref; Git still reports the branch's push remote,
 		// which can be a remote name or the literal fork URL.
@@ -1051,6 +1054,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			isDetachedHead: status.isDetachedHead,
 			baseBranchName,
 			upstreamBranchName: status.upstreamBranchName,
+			upstreamRemote,
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
@@ -1062,6 +1066,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
 		return stripUndefined(result);
+	}
+
+	private async _getUpstreamRemote(repositoryRoot: URI, branchName: string): Promise<string | undefined> {
+		const remote = (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(upstream:remotename)', `refs/heads/${branchName}`]))?.trim();
+		return remote && remote !== '.' ? remote : undefined;
 	}
 
 	private async _getPushRemote(repositoryRoot: URI, branchName: string): Promise<string | undefined> {

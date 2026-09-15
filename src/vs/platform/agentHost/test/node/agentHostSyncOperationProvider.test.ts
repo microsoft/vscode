@@ -19,6 +19,7 @@ const uncommittedChangesetUri = buildUncommittedChangesetUri(sessionKey);
 const gitStateWithOutgoingChanges: ISessionGitState = {
 	branchName: 'feature/test',
 	upstreamBranchName: 'origin/feature/test',
+	upstreamRemote: 'origin',
 	outgoingChanges: 2,
 };
 
@@ -133,14 +134,14 @@ suite('AgentHostSyncOperationContribution', () => {
 
 	test('does not advertise sync when the upstream is a local branch', () => {
 		const provider = createContribution();
-		const operations = provider.getOperations({
+		const operations = ['main', 'feature/base'].map(upstreamBranchName => provider.getOperations({
 			sessionKey,
 			changesetUri: uncommittedChangesetUri,
 			changesetKind: ChangesetKind.Uncommitted,
-			gitState: { ...gitStateWithIncomingChanges, upstreamBranchName: 'main' },
-		});
+			gitState: { ...gitStateWithIncomingChanges, upstreamBranchName, upstreamRemote: undefined },
+		}));
 
-		assert.strictEqual(operations, undefined);
+		assert.deepStrictEqual(operations, [undefined, undefined]);
 	});
 
 	test('does not advertise incoming sync on a draft with uncommitted changes', () => {

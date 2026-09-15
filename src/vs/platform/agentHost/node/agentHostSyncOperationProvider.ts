@@ -7,7 +7,6 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from './agentHostSyncOperationHandler.js';
@@ -41,7 +40,7 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 		}
 
 		// No remote-tracking upstream branch (a local upstream cannot be synced)
-		if (!parseUpstreamBranchName(gitState?.upstreamBranchName)) {
+		if (!gitState?.upstreamBranchName || !gitState.upstreamRemote) {
 			return undefined;
 		}
 

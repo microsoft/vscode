@@ -120,11 +120,32 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			githubHeadOwner: result?.githubHeadOwner,
 			githubRepo: result?.githubRepo,
 			upstreamBranchName: result?.upstreamBranchName,
+			upstreamRemote: result?.upstreamRemote,
 		}, {
 			githubOwner: 'base-owner',
 			githubHeadOwner: 'fork-owner',
 			githubRepo: 'repo',
 			upstreamBranchName: 'fork/feature',
+			upstreamRemote: 'fork',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports no upstream remote when the upstream is a local branch', async () => {
+		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
+		cp.execFileSync('git', ['branch', 'feature/base'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'topic'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '--set-upstream-to', 'feature/base'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			upstreamBranchName: result?.upstreamBranchName,
+			upstreamRemote: result?.upstreamRemote,
+			incomingChanges: result?.incomingChanges,
+		}, {
+			upstreamBranchName: 'feature/base',
+			upstreamRemote: undefined,
+			incomingChanges: 0,
 		});
 	});
 
