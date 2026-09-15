@@ -26,6 +26,7 @@ suite('ProjectBoardState', () => {
 			{ id: 'p2', label: 'P2' }, { id: 'p3', label: 'P3' },
 		],
 		placements: [],
+		autoIncludeSessions: true,
 	};
 
 	teardown(() => sinon.restore());
@@ -60,7 +61,7 @@ suite('ProjectBoardState', () => {
 		const restoredStorage = disposables.add(new InMemoryStorageService());
 		restoredStorage.store(key, saved, StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(create(restoredStorage).state.configuration.get(), state.configuration.get());
-		assert.deepStrictEqual(Object.keys(JSON.parse(saved)).sort(), ['columns', 'placements', 'rows', 'version']);
+		assert.deepStrictEqual(Object.keys(JSON.parse(saved)).sort(), ['autoIncludeSessions', 'columns', 'placements', 'rows', 'version']);
 		assert.deepStrictEqual(storage.keys(StorageScope.PROFILE, StorageTarget.MACHINE), [key]);
 		assert.deepStrictEqual(storage.keys(StorageScope.PROFILE, StorageTarget.USER), []);
 		assert.strictEqual(storage.get(key, StorageScope.WORKSPACE), undefined);
@@ -82,6 +83,29 @@ suite('ProjectBoardState', () => {
 		assert.ok(Object.isFrozen(state.configuration.get().display));
 		state.reset();
 		assert.strictEqual(state.configuration.get().display, undefined);
+	});
+
+	test('auto-include sessions defaults on, persists, and legacy configuration remains enabled', () => {
+		const { state, storage } = create();
+		state.setAutoIncludeSessions(false);
+		assert.strictEqual(create(storage).state.configuration.get().autoIncludeSessions, false);
+		const legacy = {
+			version: defaults.version,
+			rows: defaults.rows,
+			columns: defaults.columns,
+			placements: defaults.placements,
+		};
+		storage.store(key, JSON.stringify(legacy), StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.strictEqual(create(storage).state.configuration.get().autoIncludeSessions, true);
+	});
+
+	test('batch placement explicitly includes every visible chat from a dropped session', () => {
+		const { state } = create();
+		state.moveCards(['first', 'second'], { rowId: 'general', columnId: 'p1' });
+		assert.deepStrictEqual(state.configuration.get().placements, [
+			{ cardId: 'first', rowId: 'general', columnId: 'p1' },
+			{ cardId: 'second', rowId: 'general', columnId: 'p1' },
+		]);
 	});
 
 	test('PB-18 failed preference writes preserve the last value and notify', () => {
@@ -196,6 +220,7 @@ suite('ProjectBoardState', () => {
 		['invalid description toggle', { ...defaults, display: { showStateDuration: true, showCredits: false, showDescription: 'yes' } }],
 		['invalid model details toggle', { ...defaults, display: { showStateDuration: true, showCredits: false, showModelDetails: 1 } }],
 		['unknown display key', { ...defaults, display: { showStateDuration: true, showCredits: true, other: false } }],
+		['invalid auto-include sessions option', { ...defaults, autoIncludeSessions: 'yes' }],
 		['null', null],
 		['array', []],
 		['unknown version', { ...defaults, version: 2 }],

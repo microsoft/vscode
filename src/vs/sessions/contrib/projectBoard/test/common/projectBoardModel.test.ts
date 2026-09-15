@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IProjectBoardConfiguration } from '../../common/projectBoardConfiguration.js';
 import { ProjectBoardModel } from '../../common/projectBoardModel.js';
 
 suite('ProjectBoardModel', () => {
@@ -48,6 +49,32 @@ suite('ProjectBoardModel', () => {
 
 		model.moveCard(model.cards[0].id, undefined);
 		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['first', 'second']);
+	});
+
+	test('shows only explicitly placed cards when sessions are not auto-included', () => {
+		const first = createChat('first', ChatInteractivity.Full);
+		const second = createChat('second', ChatInteractivity.Full);
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(first, second)]);
+		const configuration: IProjectBoardConfiguration = {
+			version: 1,
+			rows: [{ id: 'general', label: 'General' }],
+			columns: [{ id: 'p0', label: 'P0' }],
+			placements: [{ cardId: model.cards[0].id, rowId: 'general', columnId: 'p0' }],
+			autoIncludeSessions: false,
+		};
+
+		model.updateConfiguration(configuration);
+
+		assert.deepStrictEqual({
+			unassigned: model.getUnassignedCards().map(card => card.title),
+			placed: model.getCards('general', 'p0').map(card => card.title),
+			allCards: model.cards.map(card => card.title),
+		}, {
+			unassigned: [],
+			placed: ['first'],
+			allCards: ['first', 'second'],
+		});
 	});
 
 	test('PB-04 updates live state without changing placement or read state', () => {
