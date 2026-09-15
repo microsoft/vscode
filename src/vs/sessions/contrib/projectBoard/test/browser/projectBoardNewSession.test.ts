@@ -60,7 +60,7 @@ suite('ProjectBoardNewSession', () => {
 		const inputChanged = store.add(new Emitter<void>());
 		const submitted = store.add(new Emitter<void>());
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
-		const state = { text: '', submitted: false, references: 0, deletedProvisional: 0, attachments: [] as IChatRequestVariableEntry[], materialized: undefined as URI | undefined, published: undefined as URI | undefined, provisional: undefined as URI | undefined };
+		const state = { text: '', submitted: false, references: 0, deletedProvisional: 0, closeAllowed: true, closeCount: 0, attachments: [] as IChatRequestVariableEntry[], materialized: undefined as URI | undefined, published: undefined as URI | undefined, provisional: undefined as URI | undefined };
 		const input = new class extends mock<ChatEditorInput>() {
 			override readonly resource = resource;
 			override readonly onWillDispose = closing.event;
@@ -93,15 +93,23 @@ suite('ProjectBoardNewSession', () => {
 		}();
 		const pane = sinon.createStubInstance(ChatEditor);
 		sinon.stub(pane, 'widget').get(() => widget);
-		Object.defineProperty(pane, 'group', { value: new class extends mock<IEditorGroup>() {
+		const group = new class extends mock<IEditorGroup>() {
 			override readonly id = 7;
 			override readonly windowId = windowId;
-		}() });
+			override async closeEditor(): Promise<boolean> {
+				if (state.closeAllowed) {
+					state.closeCount++;
+					input.dispose();
+				}
+				return state.closeAllowed;
+			}
+		}();
+		Object.defineProperty(pane, 'group', { value: group });
 		pane.getId.returns(ChatEditorInput.EditorID);
 		const openEditor = sinon.stub().resolves(pane);
 		instantiation.stubInstance(ChatEditorInput, input);
 		instantiation.stub(IEditorService, { openEditor, findEditors: () => [], isOpened: () => true });
-		instantiation.stub(IEditorGroupsService, { groups: [] });
+		instantiation.stub(IEditorGroupsService, { groups: [], getGroup: id => id === group.id ? group : undefined });
 		instantiation.stub(IHostService, { focus: async () => { } });
 		instantiation.stub(ISessionsManagementService, {
 			markRead: async () => { },
@@ -138,6 +146,37 @@ suite('ProjectBoardNewSession', () => {
 		const opener = store.add(instantiation.createInstance(ProjectBoardChatWindows));
 		return { opener, state, closing, inputChanged, submitted, openEditor, sessionsChanged, instantiation };
 	}
+
+	test('explicit draft deletion closes its editor and disposes the backend exactly once', async () => {
+		const h = setup();
+		h.state.provisional = URI.parse('agent-host:/owned-draft');
+		await h.opener.createNewSession();
+		const id = h.opener.drafts.get()[0].id;
+		h.state.closeAllowed = false;
+		assert.strictEqual(await h.opener.deleteDraft(id), false);
+		assert.strictEqual(h.opener.drafts.get().length, 1);
+		assert.strictEqual(h.state.deletedProvisional, 0);
+		h.state.closeAllowed = true;
+		assert.strictEqual(await h.opener.deleteDraft(id), true);
+		assert.strictEqual(h.state.closeCount, 1);
+		assert.strictEqual(h.state.deletedProvisional, 1);
+		assert.strictEqual(h.opener.drafts.get().length, 0);
+		assert.strictEqual(h.state.references, 0);
+	});
+
+	test('failed editor closure reports draft deletion failure without removing the draft', async () => {
+		const h = setup();
+		h.state.provisional = URI.parse('agent-host:/owned-draft');
+		await h.opener.createNewSession();
+		const notifications: string[] = [];
+		sinon.stub(h.instantiation.invokeFunction(accessor => accessor.get(INotificationService)), 'error').callsFake(error => notifications.push(String(error)));
+		const pane = await h.openEditor.lastCall.returnValue;
+		sinon.stub(pane.group, 'closeEditor').rejects(new Error('Expected close failure'));
+		assert.strictEqual(await h.opener.deleteDraft(h.opener.drafts.get()[0].id), false);
+		assert.strictEqual(h.opener.drafts.get().length, 1);
+		assert.strictEqual(h.state.deletedProvisional, 0);
+		assert.deepStrictEqual(notifications, ['The session draft could not be deleted.']);
+	});
 
 	test('PB-03/PB-05 send hi, close, move to General/P1 and reopen retains the published chat identity and title', async () => {
 		const h = setup();
