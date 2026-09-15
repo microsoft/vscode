@@ -128,7 +128,7 @@ suite('ProjectBoardMetadata', () => {
 		}
 	});
 
-	test('empty model is unavailable while attachment-only submitted input keeps its real time', () => {
+	test('empty model is unavailable while empty-text requests keep their real time without implying failure', () => {
 		const { model, request, create } = setup();
 		const metadata = create();
 		assert.strictEqual(metadata.metadata.get().kind, 'unavailable');
@@ -136,7 +136,17 @@ suite('ProjectBoardMetadata', () => {
 		const result = metadata.metadata.get();
 		assert.strictEqual(result.kind, 'ready');
 		assert.deepStrictEqual([result.prompt, result.submittedAt], [undefined, 100]);
-		assert.ok(result.message);
+		assert.strictEqual(result.message, 'The latest request has no stored prompt text.');
+	});
+
+	test('attachment context remains available when a request has no text prompt', () => {
+		const { model, request, create } = setup();
+		const uri = URI.file('/test/plan.md');
+		model.lastRequestObs.set(request('', 100, { variableData: { variables: [{ kind: 'file', id: 'plan', name: 'plan.md', value: uri }] } }), undefined);
+		const result = create().metadata.get();
+		assert.strictEqual(result.kind, 'ready');
+		assert.deepStrictEqual(result.context, [{ label: 'plan.md', uri }]);
+		assert.strictEqual(result.message, 'The latest request has attached context but no stored prompt text.');
 	});
 
 	test('hidden and system initiated requests are skipped in a bounded tail', () => {
