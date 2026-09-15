@@ -26,7 +26,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -406,11 +406,11 @@ async function connectToConfiguredSSHHost(
 			name: suggestedName,
 			sshConfigHost: hostAlias,
 		};
-		const connection = await instantiationService.invokeFunction(accessor =>
+		const connectionAddress = await instantiationService.invokeFunction(accessor =>
 			connectWithProgress(accessor, config, suggestedName)
 		);
-		if (connection) {
-			await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+		if (connectionAddress) {
+			await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connectionAddress));
 		}
 		return;
 	}
@@ -529,23 +529,29 @@ async function promptForCredentialsAndConnect(
 		name: name.trim(),
 	};
 
-	const connection = await instantiationService.invokeFunction(accessor =>
+	const connectionAddress = await instantiationService.invokeFunction(accessor =>
 		connectWithProgress(accessor, config, host)
 	);
-	if (connection) {
-		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+	if (connectionAddress) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connectionAddress));
 	}
 }
 
-async function connectWithProgress(
+export async function connectWithProgress(
 	accessor: ServicesAccessor,
 	config: ISSHAgentHostConfig,
 	displayHost: string,
-): Promise<ISSHAgentHostConnection | undefined> {
+): Promise<string | undefined> {
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
+	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const notificationService = accessor.get(INotificationService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const stopwatch = StopWatch.create(false);
+
+	const address = computeSSHConnectionKey(config);
+	if (remoteAgentHostService.connections.some(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status))) {
+		return address;
+	}
 
 	const handle = notificationService.notify({
 		severity: Severity.Info,
@@ -553,14 +559,8 @@ async function connectWithProgress(
 		progress: { infinite: true },
 	});
 
-	// Build the expected connection key to filter progress events.
-	// Must match the key logic in the shared process service.
-	const expectedKey = config.sshConfigHost
-		? `ssh:${config.sshConfigHost}`
-		: `${config.username}@${config.host}:${config.port ?? 22}`;
-
 	const progressListener = sshService.onDidReportConnectProgress?.(progress => {
-		if (progress.connectionKey === expectedKey) {
+		if (progress.connectionKey === address) {
 			handle.updateMessage(progress.message);
 		}
 	});
@@ -576,7 +576,7 @@ async function connectWithProgress(
 			willRetry: false,
 		});
 		handle.close();
-		return connection;
+		return connection.localAddress;
 	} catch (err) {
 		logSSHConnectAttempt(telemetryService, {
 			operation: 'connect',
@@ -607,14 +607,14 @@ async function connectWithProgress(
  */
 async function promptForRemoteFolder(
 	accessor: ServicesAccessor,
-	connection: ISSHAgentHostConnection,
+	address: string,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The factory-backed entry fires onDidChangeConnections before its handshake completes, so the provider should exist by now.
-	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
+	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === address);
 	if (!provider) {
 		return;
 	}
