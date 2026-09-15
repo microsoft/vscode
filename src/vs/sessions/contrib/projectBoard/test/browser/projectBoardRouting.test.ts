@@ -117,10 +117,12 @@ suite('Project Board Agents routing', () => {
 			id: registered?.id,
 			hasConstructor: !!registered?.ctor,
 			actions: registered?.actions,
+			horizontalScrolling: registered?.horizontalScrolling,
 		}, {
 			id: KANBAN_CUSTOM_VIEW_ID,
 			hasConstructor: true,
 			actions: undefined,
+			horizontalScrolling: true,
 		});
 	});
 });
