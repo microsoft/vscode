@@ -86,7 +86,7 @@ No maintainer tokens, private planning workspace or synthetic provider is requir
 - Verify Escape dismisses a popup first and preserves unsent text across close/reopen.
 - Use Ctrl/Cmd+Shift+M for the searchable placement picker. Axis menus remain, but card menus should not enumerate cells.
 - For Ask User testing, request a bounded interactive question with named options and a permitted custom answer. Verify answering resumes the real provider exactly once.
-- Open the top-right gear menu and independently enable Time in State and AI Credits. Check the clock and `$` pills in the card's top-right wrapping row, and hover credits for usage details. Verify a live state change resets its timer, output alone does not, and toggles survive closing/reopening the board. An initial `≥` duration means the board did not observe that state's start; unavailable credits mean no reported usage or an active metadata-preview limit, not free usage.
+- Open the top-right gear menu and independently toggle Time in State, AI Credits and Description. Description starts visible; hiding it does not hide the prompt or runtime state. Check the last-prompt timestamp on the left of the bottom status bar, with transparent clock and `$` widgets on the right; hover credits for usage details. Verify a live state change resets its timer, output alone does not, and toggles survive closing/reopening the board. An initial `≥` duration means the board did not observe that state's start; unavailable credits mean no reported usage or an active metadata-preview limit, not free usage.
 
 The full P0/P1/resilience checklist is in the [design](agent-project-board-spec.md#scenario-gates). Unsent Agents-created drafts are passive previews; enter their first message in Agents.
 
