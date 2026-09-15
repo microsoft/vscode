@@ -33,8 +33,9 @@ import { IsNewChatSessionContext, SessionsBoardVisibleContext } from '../../../c
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
-import { ISessionReviewOptions, ISessionReviewState, SESSION_BOARD_VIEW_ID, SessionReviewSection } from '../common/sessionReview.js';
+import { ISessionReviewOpenOptions, ISessionReviewOptions, ISessionReviewState, SESSION_BOARD_VIEW_ID, SessionReviewSection } from '../common/sessionReview.js';
 import { ISessionInputDraftService } from './sessionInputDraftService.js';
+import { ISessionWorkTrackingService } from './sessionWorkTrackingService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -181,7 +182,7 @@ export interface ISessionsService {
 	setSessionBoardVisible(visible: boolean): void;
 
 	readonly sessionReview: IObservable<ISessionReviewState | undefined>;
-	openSessionReview(session: ISession, section: SessionReviewSection, options?: ISessionReviewOptions): Promise<void>;
+	openSessionReview(session: ISession, section: SessionReviewSection, options?: ISessionReviewOpenOptions): Promise<void>;
 	closeSessionReview(): void;
 	setSessionReviewSection(section: SessionReviewSection, options?: ISessionReviewOptions): void;
 
@@ -422,6 +423,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@ISessionInputDraftService private readonly inputDraftService: ISessionInputDraftService,
+		@ISessionWorkTrackingService private readonly workTrackingService: ISessionWorkTrackingService,
 	) {
 		super();
 
@@ -615,7 +617,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	async openSessionReview(session: ISession, section: SessionReviewSection, options?: ISessionReviewOptions): Promise<void> {
+	async openSessionReview(session: ISession, section: SessionReviewSection, options?: ISessionReviewOpenOptions): Promise<void> {
 		this._cancelRestore();
 		const token = this._startOpenSession();
 		const resource = await this.sessionsManagementService.resolveSessionResource(session.resource, 'open');
@@ -636,11 +638,26 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (token.isCancellationRequested) {
 			return;
 		}
+		const { chatResource, ...reviewOptions } = options ?? {};
+		const resolvedChatResource = chatResource && this.uriIdentityService.extUri.isEqual(chatResource, session.mainChat.get().resource)
+			? target.mainChat.get().resource : chatResource;
+		const requestedChat = resolvedChatResource
+			? target.chats.get().find(chat => this.uriIdentityService.extUri.isEqual(chat.resource, resolvedChatResource))
+			: undefined;
+		if (resolvedChatResource && !requestedChat) {
+			throw new Error(localize('sessionReview.missingChat', "The requested conversation is no longer part of this session."));
+		}
 		this.setSessionBoardVisible(true);
 		transaction(tx => {
 			this._activate(target, true);
-			this._sessionReview.set({ ...options, sessionResource: target.resource, section }, tx);
+			if (requestedChat) {
+				this._visibility.openChat(target, requestedChat);
+				this._visibility.setActiveChat(target, requestedChat);
+				this._setChatVisibilityState(target, requestedChat, true);
+			}
+			this._sessionReview.set({ ...reviewOptions, sessionResource: target.resource, section }, tx);
 		});
+		this.workTrackingService.markOpened(target.resource);
 	}
 
 	closeSessionReview(): void {
@@ -943,9 +960,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (options?.source) {
 			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
 				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
-			return;
+		} else {
+			await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
 		}
-		await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
+		if (intent === 'explicit' && !token.isCancellationRequested) {
+			this.workTrackingService.markOpened(session.resource);
+		}
 	}
 
 	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
@@ -965,7 +985,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
 		}
-
 		// Find the chat and update active chat
 		let chat: IChat | undefined;
 		const activeSession = this._visibility.activeSession.get();
@@ -1094,6 +1113,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			);
 			this._showSession(sessionData, options);
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
+			if (intent === 'explicit' && !token.isCancellationRequested) {
+				this.workTrackingService.markOpened(sessionData.resource);
+			}
 		});
 	}
 
@@ -1102,6 +1124,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._dismissCustomViewForNavigation('explicit', true);
 		this._startOpenSession();
 		this._showSession(this._getSession(sessionResource), options);
+		this.workTrackingService.markOpened(sessionResource);
 	}
 
 	async canOpenSession(session: ISession, options?: { readonly silent?: boolean }): Promise<boolean> {

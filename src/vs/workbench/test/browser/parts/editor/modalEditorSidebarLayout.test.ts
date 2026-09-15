@@ -12,7 +12,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IModalEditorSidebar } from '../../../../../platform/editor/common/editor.js';
+import { ConfirmResult, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IModalEditorContentFooter, IModalEditorSidebar } from '../../../../../platform/editor/common/editor.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorPartModalContext, EditorPartModalSidebarVisibleContext } from '../../../../common/contextkeys.js';
@@ -21,7 +22,7 @@ import { EditorService } from '../../../../services/editor/browser/editorService
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, MODAL_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { createEditorParts, registerTestEditor, TestFileEditorInput, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { createEditorParts, registerTestEditor, TestFileDialogService, TestFileEditorInput, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 suite('Modal Editor Sidebar Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,7 +54,7 @@ suite('Modal Editor Sidebar Layout', () => {
 		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 		return {
-			parts, editorService,
+			parts, editorService, instantiationService,
 			resize: (width: number, height: number = viewport.height) => {
 				layoutService.mainContainerDimension = { width, height };
 				layoutChanged.fire(layoutService.mainContainerDimension);
@@ -91,13 +92,19 @@ suite('Modal Editor Sidebar Layout', () => {
 		return { sidebar, state };
 	}
 
-	async function createHarness(options: Omit<IModalEditorSidebar, 'render'> = {}, viewport?: IDimension, size: IDimension = { width: 900, height: 600 }) {
+	function createFooter(height = 180) {
+		const content = createSidebar({});
+		return { contentFooter: { height, render: content.sidebar.render } satisfies IModalEditorContentFooter, state: content.state };
+	}
+
+	async function createHarness(options: Omit<IModalEditorSidebar, 'render'> = {}, viewport?: IDimension, size: IDimension = { width: 900, height: 600 }, contentFooter?: IModalEditorContentFooter) {
 		const services = await createServices(viewport);
 		const content = createSidebar(options);
 		const modal = await services.parts.createModalEditorPart({
 			maximized: false,
 			size,
 			sidebar: content.sidebar,
+			contentFooter,
 		});
 		assert.ok(content.state.container);
 		const container = content.state.container.parentElement;
@@ -324,6 +331,178 @@ suite('Modal Editor Sidebar Layout', () => {
 			duringReview: { main: original, modal: review, bottom: true },
 			mainAfterClose: original, modalAfterClose: undefined, disposals: 1,
 		});
+	});
+
+	suite('Content footer', () => {
+		test('occupies only the editor column while the left sidebar spans both rows', async () => {
+			const footer = createFooter();
+			const h = await createHarness({ sidebarWidth: 240 }, undefined, undefined, footer.contentFooter);
+			const sidebar = h.state.container!.getBoundingClientRect();
+			const editor = h.editor.getBoundingClientRect();
+			const content = footer.state.container!;
+			const footerRect = content.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				sameHost: content.parentElement === h.container,
+				aligned: editor.left === footerRect.left && editor.width === footerRect.width && sidebar.right === footerRect.left,
+				belowEditor: editor.bottom === footerRect.top,
+				sidebarSpansFooter: sidebar.bottom === footerRect.bottom,
+				editorPrecedesFooter: !!(h.editor.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING),
+				sidebarLayout: h.state.layouts.at(-1),
+				footerLayout: footer.state.layouts.at(-1),
+				renders: footer.state.renders,
+			}, {
+				sameHost: true, aligned: true, belowEditor: true, sidebarSpansFooter: true, editorPrecedesFooter: true,
+				sidebarLayout: { width: 223, height: 549 }, footerLayout: { width: 658, height: 179 }, renders: 1,
+			});
+			await h.modal.close();
+		});
+
+		test('supports a footer without a sidebar through the public editor open route', async () => {
+			const services = await createServices();
+			const footer = createFooter();
+			const input = store.add(new TestFileEditorInput(URI.file('/footer.txt'), editorInputId));
+			await services.editorService.openEditor(input, { pinned: true, modal: { contentFooter: footer.contentFooter } }, MODAL_GROUP);
+			const modal = services.parts.activeModalEditorPart!;
+			const container = footer.state.container!;
+			const editor = container.parentElement!.querySelector<HTMLElement>(':scope > .content')!;
+			const editorRect = editor.getBoundingClientRect();
+			const footerRect = container.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				hasSidebar: modal.hasSidebar,
+				aligned: footerRect.left === editorRect.left && footerRect.width === editorRect.width,
+				belowEditor: footerRect.top === editorRect.bottom,
+				modalContext: footer.state.context?.getContextKeyValue(EditorPartModalContext.key),
+				activeEditor: modal.activeGroup.activeEditor,
+			}, { hasSidebar: false, aligned: true, belowEditor: true, modalContext: true, activeEditor: input });
+			await modal.close();
+			assert.strictEqual(footer.state.disposals, 1);
+		});
+
+		test('keeps the same footer and focused draft across resizing, maximizing and sidebar visibility', async () => {
+			const footer = createFooter();
+			const h = await createHarness({ sidebarWidth: 240 }, undefined, undefined, footer.contentFooter);
+			const container = footer.state.container!;
+			const input = footer.state.input!;
+			input.focus();
+			input.setSelectionRange(2, 8);
+			h.modal.toggleSidebar();
+			const hiddenSidebarWidth = footer.state.layouts.at(-1)?.width;
+			h.modal.toggleSidebar();
+			h.modal.toggleMaximized();
+			h.modal.toggleMaximized();
+			h.resize(390, 260);
+			const smallModal = h.container.getBoundingClientRect();
+			const smallSidebar = h.state.container!.getBoundingClientRect();
+			const smallFooter = container.getBoundingClientRect();
+			const smallEditor = h.editor.getBoundingClientRect();
+			h.resize(1200, 800);
+
+			assert.deepStrictEqual({
+				sameContainer: footer.state.container === container && container.parentElement === h.container,
+				focused: mainWindow.document.activeElement === input,
+				draft: input.value, selection: [input.selectionStart, input.selectionEnd],
+				hiddenSidebarWidth,
+				small: {
+					insideViewport: smallModal.left >= 0 && smallModal.right <= 390 && smallModal.bottom <= 260,
+					leftNavigation: smallSidebar.right === smallFooter.left && !h.container.classList.contains('sidebar-bottom'),
+					visibleEditor: smallEditor.height > 0 && smallEditor.bottom <= smallFooter.top,
+					visibleFooter: smallFooter.height > 0 && smallFooter.bottom <= smallModal.bottom,
+				},
+				restoredSidebarWidth: h.state.container!.getBoundingClientRect().width,
+				preferredSidebarWidth: h.modal.sidebarWidth,
+				validLayouts: footer.state.layouts.every(size => size.width >= 0 && size.height >= 0),
+				renders: footer.state.renders, disposals: footer.state.disposals,
+			}, {
+				sameContainer: true, focused: true, draft: 'persistent reply', selection: [2, 8], hiddenSidebarWidth: 898,
+				small: { insideViewport: true, leftNavigation: true, visibleEditor: true, visibleFooter: true },
+				restoredSidebarWidth: 240, preferredSidebarWidth: 240, validLayouts: true, renders: 1, disposals: 0,
+			});
+			await h.modal.close();
+			const layoutCount = footer.state.layouts.length;
+			h.resize(1000);
+			assert.deepStrictEqual({ disposals: footer.state.disposals, layoutsAfterClose: footer.state.layouts.length - layoutCount },
+				{ disposals: 1, layoutsAfterClose: 0 });
+		});
+
+		test('places a bottom sidebar after the content footer without changing its lifetime', async () => {
+			const footer = createFooter(120);
+			const h = await createHarness({ placement: 'bottom', sidebarHeight: 160 }, undefined, undefined, footer.contentFooter);
+			const editor = h.editor.getBoundingClientRect();
+			const footerRect = footer.state.container!.getBoundingClientRect();
+			const sidebar = h.state.container!.getBoundingClientRect();
+			assert.deepStrictEqual({
+				belowEditor: editor.bottom === footerRect.top,
+				aboveSidebar: footerRect.bottom === sidebar.top,
+				fullWidth: footerRect.width === sidebar.width,
+				footerLayout: footer.state.layouts.at(-1),
+				sidebarHeight: sidebar.height,
+			}, { belowEditor: true, aboveSidebar: true, fullWidth: true, footerLayout: { width: 898, height: 119 }, sidebarHeight: 160 });
+			await h.modal.close();
+			assert.deepStrictEqual({ footerDisposals: footer.state.disposals, sidebarDisposals: h.state.disposals },
+				{ footerDisposals: 1, sidebarDisposals: 1 });
+		});
+
+		test('does not add a footer to an existing modal or replace an existing footer', async () => {
+			const h = await createHarness();
+			const ignored = createFooter();
+			await h.parts.createModalEditorPart({ contentFooter: ignored.contentFooter });
+			const absent = { hasFooter: !!h.container.querySelector('.modal-editor-content-footer'), renders: ignored.state.renders };
+			await h.modal.close();
+			const original = createFooter();
+			const modal = await h.parts.createModalEditorPart({ contentFooter: original.contentFooter });
+			await h.parts.createModalEditorPart({ contentFooter: ignored.contentFooter });
+			assert.deepStrictEqual({
+				absent, originalRenders: original.state.renders, ignoredRenders: ignored.state.renders, originalDisposals: original.state.disposals,
+			}, { absent: { hasFooter: false, renders: 0 }, originalRenders: 1, ignoredRenders: 0, originalDisposals: 0 });
+			await modal.close();
+		});
+
+		test('retains the footer when dirty-editor close is cancelled and disposes it on confirmed close', async () => {
+			const footer = createFooter();
+			const h = await createHarness({}, undefined, undefined, footer.contentFooter);
+			const dialogs = h.instantiationService.get(IFileDialogService);
+			assert.ok(dialogs instanceof TestFileDialogService);
+			const input = store.add(new TestFileEditorInput(URI.file('/dirty-footer.txt'), editorInputId));
+			await h.editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+			input.setDirty();
+			dialogs.setConfirmResult(ConfirmResult.CANCEL);
+			const cancelled = await h.modal.close();
+			const retained = { connected: footer.state.container!.isConnected, disposals: footer.state.disposals };
+			dialogs.setConfirmResult(ConfirmResult.DONT_SAVE);
+			const closed = await h.modal.close();
+
+			assert.deepStrictEqual({ cancelled, retained, closed, disposals: footer.state.disposals },
+				{ cancelled: false, retained: { connected: true, disposals: 0 }, closed: true, disposals: 1 });
+		});
+
+		test('cleans up the native modal when the footer renderer throws', async () => {
+			const services = await createServices();
+			const sidebar = createSidebar({});
+			const modalCount = document.querySelectorAll('.monaco-modal-editor-block').length;
+			await assert.rejects(services.parts.createModalEditorPart({
+				sidebar: sidebar.sidebar,
+				contentFooter: { height: 180, render: () => { throw new Error('footer render failed'); } },
+			}), /footer render failed/);
+			assert.deepStrictEqual({
+				modalCount: document.querySelectorAll('.monaco-modal-editor-block').length,
+				sidebarDisposals: sidebar.state.disposals, modal: services.parts.activeModalEditorPart,
+			}, { modalCount, sidebarDisposals: 1, modal: undefined });
+		});
+
+		for (const height of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+			test(`rejects invalid footer height ${height} before attaching a modal`, async () => {
+				const services = await createServices();
+				const footer = createFooter(height);
+				const modalCount = document.querySelectorAll('.monaco-modal-editor-block').length;
+				await assert.rejects(services.parts.createModalEditorPart({ contentFooter: footer.contentFooter }), /positive finite number/);
+				assert.deepStrictEqual({
+					modalCount: document.querySelectorAll('.monaco-modal-editor-block').length,
+					renders: footer.state.renders, modal: services.parts.activeModalEditorPart,
+				}, { modalCount, renders: 0, modal: undefined });
+			});
+		}
 	});
 
 	for (const sidebarHeight of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {

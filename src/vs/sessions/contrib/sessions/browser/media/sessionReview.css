@@ -28,7 +28,6 @@
 }
 
 .session-review-context {
-	height: 100%;
 	overflow: hidden;
 }
 
@@ -80,11 +79,13 @@
 
 .session-review-status .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
+	color: inherit;
 }
 
 .session-review-status.needs-input { color: var(--vscode-list-warningForeground); }
-.session-review-status.in-progress { color: var(--vscode-progressBar-background); }
+.session-review-status.in-progress { color: var(--vscode-textLink-foreground); }
 .session-review-status.failed { color: var(--vscode-errorForeground); }
+.session-review-status.completed .codicon { color: var(--vscode-charts-green); }
 
 .session-review-summary,
 .session-review-selected-label {
@@ -93,11 +94,13 @@
 	white-space: nowrap;
 }
 
-.session-review-sidebar .action-label {
+.session-review-sidebar .action-label,
+.session-review-reply .action-label {
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.session-review-sidebar .action-label.session-review-action {
+.session-review-sidebar .action-label.session-review-action,
+.session-review-reply .action-label.session-review-action {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
@@ -124,6 +127,20 @@
 
 .session-review-navigation .action-label {
 	color: var(--vscode-descriptionForeground);
+}
+
+.session-review-navigation .monaco-action-bar.vertical .actions-container {
+	align-items: stretch;
+}
+
+.session-review-navigation .monaco-action-bar.vertical .action-item,
+.session-review-navigation .monaco-action-bar.vertical .action-label {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.session-review-navigation .monaco-action-bar.vertical .action-label {
+	justify-content: flex-start;
 }
 
 .session-review-sections {
@@ -171,44 +188,57 @@
 	outline-offset: -1px;
 }
 
-.session-review-selected {
+.session-review-reply {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size80);
+	height: 100%;
 	min-width: 0;
-	flex-shrink: 0;
-	padding-bottom: var(--vscode-spacing-size160);
+	min-height: 0;
+	overflow: hidden;
 }
 
-.session-review-selected-title {
-	font-size: var(--vscode-fontSize-body2);
-	color: var(--vscode-descriptionForeground);
+.session-review-reply > .monaco-scrollable-element {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+.session-review-reply-content {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	box-sizing: border-box;
 }
 
 .session-review-selected-label {
 	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: var(--vscode-spacing-size60);
 }
 
-.session-review-selected-row {
+.session-review-reply-header {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
+	margin-bottom: var(--vscode-spacing-size80);
 }
 
-.session-review-selected-row > .session-review-selected-label {
+.session-review-reply-title {
 	flex: 1;
 	min-width: 0;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .session-review-selected-actions {
 	flex-shrink: 0;
 }
 
-.session-review-reply {
-	margin-top: auto;
-	min-width: 0;
-	flex-shrink: 0;
+.session-review-reply .session-review-action > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .session-review-reply-hint {
@@ -218,17 +248,26 @@
 	margin-top: var(--vscode-spacing-size60);
 }
 
-.session-review-reply-title {
-	margin-bottom: var(--vscode-spacing-size80);
-	font-size: var(--vscode-fontSize-label1);
-	color: var(--vscode-descriptionForeground);
-}
-
 .session-review-composer {
 	min-width: 0;
 }
 
-.session-review-sidebar [hidden] {
+.session-review-reply.compact .session-review-reply-content {
+	padding-top: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
+}
+
+.session-review-reply.compact .session-review-reply-header {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.session-review-reply.compact .session-review-selected-label,
+.session-review-reply.compact .session-review-reply-hint {
+	display: none;
+}
+
+.session-review-sidebar [hidden],
+.session-review-reply [hidden] {
 	display: none;
 }
 
@@ -237,56 +276,16 @@
 	gap: var(--vscode-spacing-size80);
 }
 
-.session-review-sidebar.compact .session-review-header {
-	flex-direction: row;
-	align-items: center;
-	gap: var(--vscode-spacing-size120);
-}
-
-.session-review-sidebar.compact .session-review-context-scroll {
-	flex: 0 1 auto;
-}
-
-.session-review-sidebar.compact .session-review-context {
-	height: auto;
-	max-height: 104px;
-}
-
 .session-review-sidebar.compact .session-review-sections {
 	margin-top: var(--vscode-spacing-size80);
 }
 
 .session-review-sidebar.compact .session-review-navigation {
-	margin: 0;
-	flex-shrink: 0;
-}
-
-.session-review-sidebar.compact .session-review-metadata,
-.session-review-sidebar.compact .session-review-selected-title,
-.session-review-sidebar.compact .session-review-reply-title,
-.session-review-sidebar.compact .session-review-reply-hint,
-.session-review-sidebar.compact .session-review-sections .session-review-action > .codicon {
-	display: none;
-}
-
-.session-review-sidebar.compact .session-review-sections .actions-container {
-	display: flex;
-	flex-wrap: wrap;
+	margin-bottom: var(--vscode-spacing-size80);
 }
 
 .session-review-sidebar.compact .session-review-sections .action-label {
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
-}
-
-.session-review-sidebar.compact .session-review-selected {
-	border-top: 0;
-	padding-top: 0;
-	padding-bottom: var(--vscode-spacing-size80);
-}
-
-.session-review-sidebar.compact .session-review-selected-label {
-	flex: 1;
-	min-width: 0;
 }
 
 .session-review-content-editor {

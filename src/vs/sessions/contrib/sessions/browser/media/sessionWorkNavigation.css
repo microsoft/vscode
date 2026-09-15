@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-work-navigation .session-work-navigation-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	height: 100%;
+}
+
+.session-work-navigation .session-work-navigation-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.session-work-navigation .session-work-navigation-row > span:first-child {
+	display: flex;
+	flex-shrink: 0;
+}

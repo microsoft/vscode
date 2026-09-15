@@ -37,15 +37,17 @@ import { IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../../.
 import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { SessionReviewHasSelectionContext, SessionReviewSectionContext, SessionReviewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionInputDraftService } from '../../../services/sessions/browser/sessionInputDraftService.js';
+import { ISessionWorkTrackingService } from '../../../services/sessions/browser/sessionWorkTrackingService.js';
 import { ISessionReviewSelection, ISessionReviewService } from '../../../services/sessions/browser/sessionReviewService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, IGitHubPullRequestRef, ISession, sessionHasChanges } from '../../../services/sessions/common/session.js';
 import { ISessionReviewState, SessionReviewSection } from '../../../services/sessions/common/sessionReview.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { OPEN_PULL_REQUEST_REVIEW_ACTION_ID } from '../../github/common/types.js';
 import { getArtifactPullRequest, getSessionReviewPullRequests } from '../common/sessionReviewResources.js';
 import { SessionReviewEditorInput } from './sessionReviewEditor.js';
+import { SessionReviewComposer } from './sessionReviewComposer.js';
 import { SessionReviewSidebar } from './sessionReviewSidebar.js';
 
 /** Coordinates native editor opens; it never owns or reparents an editor's DOM. */
@@ -57,11 +59,13 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 	readonly section: IObservable<SessionReviewSection | undefined> = this._section;
 	private readonly _opens = new Sequencer();
 	private readonly _openToken = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _selectionListener = this._register(new MutableDisposable());
 	private readonly _sending = new ResourceSet();
 	private readonly _metadataInputs = this._register(new DisposableMap<SessionReviewSection, SessionReviewEditorInput>());
 	private _modal: IModalEditorPart | undefined;
 	private _group: IEditorGroup | undefined;
 	private _sidebar: SessionReviewSidebar | undefined;
+	private _composer: SessionReviewComposer | undefined;
 	private _owner: URI | undefined;
 	private _shownState: ISessionReviewState | undefined;
 	private _lease = 0;
@@ -71,6 +75,7 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly managementService: ISessionsManagementService,
 		@ISessionInputDraftService private readonly drafts: ISessionInputDraftService,
+		@ISessionWorkTrackingService private readonly workTracking: ISessionWorkTrackingService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ISessionChangesService private readonly changesService: ISessionChangesService,
@@ -170,7 +175,7 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 			this._owner = state.sessionResource;
 			const modal = await this.editorGroupsService.createModalEditorPart(this._modalOptions(session, ++this._lease));
 			if (token.isCancellationRequested && modal !== this.editorGroupsService.activeModalEditorPart) { return; }
-			if (modal !== this.editorGroupsService.activeModalEditorPart || !this._sidebar) {
+			if (modal !== this.editorGroupsService.activeModalEditorPart || !this._sidebar || !this._composer) {
 				throw new Error(localize('sessionReview.modalUnavailable', "The session review could not attach to its native editor window."));
 			}
 			this._modal = modal;
@@ -210,7 +215,7 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 		const previousEditor = this._group.activeEditor;
 		try {
 			if (state.section === SessionReviewSection.Changes) {
-				await this.changesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } }, this._group);
+				await this.changesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } }, MODAL_GROUP);
 			} else if (pullRequest) {
 				await this.commandService.executeCommand(OPEN_PULL_REQUEST_REVIEW_ACTION_ID, pullRequest, { pinned: true } satisfies IEditorOptions, MODAL_GROUP);
 			} else {
@@ -255,9 +260,8 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 	private _modalOptions(session: IActiveSession, lease: number): IModalEditorPartOptions {
 		return {
 			sidebar: {
-				placement: 'auto',
-				sidebarWidth: 320,
-				sidebarHeight: 320,
+				placement: 'left',
+				sidebarWidth: 240,
 				sidebarHidden: false,
 				render: (container, onDidLayout, contextKeyService) => {
 					if (!isHTMLElement(container)) { throw new Error('Expected a native modal sidebar container'); }
@@ -265,6 +269,16 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 					const instantiation = store.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 					const sidebar = store.add(instantiation.createInstance(SessionReviewSidebar, container, onDidLayout, session));
 					this._sidebar = sidebar;
+					return store;
+				},
+			},
+			contentFooter: {
+				height: 220,
+				render: (container, onDidLayout, contextKeyService) => {
+					if (!isHTMLElement(container)) { throw new Error('Expected a native modal content footer container'); }
+					const store = new DisposableStore();
+					const instantiation = store.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+					this._composer = store.add(instantiation.createInstance(SessionReviewComposer, container, onDidLayout, session));
 					store.add(toDisposable(() => {
 						if (this._lease === lease) {
 							this._clearOwnedReview();
@@ -278,6 +292,7 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 	}
 
 	private _updateSelection(): void {
+		this._selectionListener.clear();
 		this._group = this._modal?.activeGroup;
 		const editor = this._group?.activeEditor;
 		let state = editor && this._editorStates.get(editor);
@@ -292,12 +307,18 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 			return;
 		}
 		const resource = state.artifact?.uri ?? state.artifact?.link ?? state.pullRequest?.uri ?? editor.resource;
+		const section = state.section;
+		const sessionResource = state.sessionResource;
 		this._shownState = state;
-		transaction(tx => {
-			this._section.set(state.section, tx);
-			this._selection.set(resource && !(editor instanceof SessionReviewEditorInput)
-				? { resource, label: editor.getName() }
-				: undefined, tx);
+		this._selectionListener.value = autorun(reader => {
+			const session = this.sessionsService.visibleSessions.read(reader).find(session => session && isEqual(session.resource, sessionResource));
+			const emptyChanges = section === SessionReviewSection.Changes && (!session || !sessionHasChanges(session, reader));
+			transaction(tx => {
+				this._section.set(section, tx);
+				this._selection.set(resource && !emptyChanges && !(editor instanceof SessionReviewEditorInput)
+					? { resource, label: editor.getName() }
+					: undefined, tx);
+			});
 		});
 	}
 
@@ -328,11 +349,13 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 	}
 
 	private _clearOwnedReview(): void {
+		this._selectionListener.clear();
 		this._modal = undefined;
 		this._group = undefined;
 		this._owner = undefined;
 		this._shownState = undefined;
 		this._sidebar = undefined;
+		this._composer = undefined;
 		this._metadataInputs.clearAndDisposeAll();
 		this._editorStates = new WeakMap();
 		transaction(tx => {
@@ -377,7 +400,7 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 		this.focusReply();
 	}
 
-	async send(session: IActiveSession, chat: IChat, query: string, attachments: readonly IChatRequestVariableEntry[]): Promise<boolean> {
+	async send(session: ISession, chat: IChat, query: string, attachments: readonly IChatRequestVariableEntry[]): Promise<boolean> {
 		this._assertCanReply(session, chat);
 		if (!query.trim()) { return false; }
 		if (this._sending.has(chat.resource)) {
@@ -389,13 +412,14 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 			if (!await this.sessionsService.canOpenSession(session)) { return false; }
 			this._assertCanReply(session, chat);
 			await this.managementService.sendRequest(session, chat, { query, attachedContext });
+			this.workTracking.markOpened(session.resource);
 			return true;
 		} finally {
 			this._sending.delete(chat.resource);
 		}
 	}
 
-	private _assertCanReply(session: IActiveSession, chat: IChat): void {
+	private _assertCanReply(session: ISession, chat: IChat): void {
 		if (!isEqual(session.mainChat.get().resource, chat.resource) && !session.chats.get().some(candidate => isEqual(candidate.resource, chat.resource))) {
 			throw new Error(localize('sessionReview.chatChanged', "This chat no longer belongs to the selected session."));
 		}
@@ -404,7 +428,7 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 		}
 	}
 
-	focusReply(): void { this._sidebar?.focus(); }
+	focusReply(): void { this._composer?.focus(); }
 
 	override dispose(): void {
 		this._openToken.value?.cancel();

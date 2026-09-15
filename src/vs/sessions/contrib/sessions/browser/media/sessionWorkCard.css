@@ -1,0 +1,137 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-work-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	min-width: 0;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-agentsPanel-background);
+	color: var(--vscode-foreground);
+	line-height: normal;
+}
+
+.session-work-card:hover {
+	border-color: var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+}
+
+.session-work-card:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+.session-work-card.selected {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-activeSelectionForeground);
+	outline-offset: -1px;
+}
+
+.session-work-card-header {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	height: 38px;
+	flex: 0 0 38px;
+	gap: var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size80);
+	cursor: grab;
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.session-work-card-header:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.session-work-card-header .session-work-title {
+	flex: 1;
+	min-width: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	display: block;
+	width: auto;
+	padding: 0;
+	border: none;
+	text-align: left;
+	line-height: 20px;
+}
+
+.session-work-card-actions {
+	flex: 0 0 auto;
+	opacity: 0;
+}
+
+.session-work-card:hover .session-work-card-actions,
+.session-work-card:focus-within .session-work-card-actions {
+	opacity: 1;
+}
+
+.session-work-card-transcript {
+	min-height: 0;
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+}
+
+.session-work-card-reply {
+	flex: 0 0 70px;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0 var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.session-work-card-input {
+	flex: 1;
+	min-width: 0;
+}
+
+.session-work-card-input .monaco-inputbox {
+	width: 100%;
+}
+
+.session-work-card-reply > .monaco-button {
+	flex: 0 0 24px;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+}
+
+.session-work-card-references,
+.session-work-card-unavailable {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.session-work-card-references {
+	flex-basis: 100%;
+}
+
+.session-work-card-unavailable {
+	padding: var(--vscode-spacing-size80);
+}
+
+.session-work-card.archive-inspection .session-work-card-unavailable {
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	white-space: normal;
+	line-height: 16px;
+}
+
+.session-work-card [hidden] {
+	display: none;
+}

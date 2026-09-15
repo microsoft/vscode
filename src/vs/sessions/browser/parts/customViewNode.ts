@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/customViewGridPart.css';
-import { $, addDisposableListener, EventType, getWindow, isAncestorOfActiveElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, DisposableResizeObserver, EventType, getWindow, isAncestorOfActiveElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
@@ -35,6 +35,7 @@ export class CustomViewNode extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private readonly _view: AbstractCustomView;
 	private readonly _maxWidth: number;
+	private readonly _viewportScheduler = this._register(new AnimationFrameScheduler(this.element, () => this._updateViewport()));
 
 	private _lastLayout: { readonly width: number; readonly height: number } | undefined;
 
@@ -109,13 +110,17 @@ export class CustomViewNode extends Disposable {
 		}));
 		this._scrollable.getDomNode().classList.add('custom-view-body');
 		this.element.appendChild(this._scrollable.getDomNode());
+		this._register(this._scrollable.onScroll(() => this._viewportScheduler.schedule()));
 
 		this._view.render(this._contentEl);
 
 		// The content grows and shrinks as the view loads, so keep the scrollbar in sync with it.
-		const resizeObserver = new ResizeObserver(() => this._scrollable.scanDomNode());
-		resizeObserver.observe(this._contentEl);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
+		const resizeObserver = this._register(new DisposableResizeObserver('CustomViewNode.content', () => {
+			this._scrollable.scanDomNode();
+			this._viewportScheduler.schedule();
+		}, getWindow(this.element)));
+		this._register(resizeObserver.observe(this._contentEl));
+		this._register(resizeObserver.observe(this._scrollable.getDomNode()));
 
 		this._register(autorun(reader => {
 			const title = this._view.title.read(reader);
@@ -160,5 +165,21 @@ export class CustomViewNode extends Disposable {
 		// how much room is left below the header.
 		this._view.layout(bandWidth, Math.max(0, height - this._headerEl.offsetHeight));
 		this._scrollable.scanDomNode();
+		this._updateViewport();
+	}
+
+	private _updateViewport(): void {
+		if (!this._lastLayout || !this.element.isConnected) { return; }
+		const viewport = this._scrollable.getDomNode().getBoundingClientRect();
+		const content = this._contentEl.getBoundingClientRect();
+		this._view.setViewport({
+			top: viewport.top - content.top,
+			height: viewport.height,
+			scrollBy: delta => {
+				if (!Number.isFinite(delta)) { throw new Error('Invalid custom view scroll delta'); }
+				this._scrollable.scanDomNode();
+				this._scrollable.setScrollPosition({ scrollTop: this._scrollable.getScrollPosition().scrollTop + delta });
+			},
+		});
 	}
 }

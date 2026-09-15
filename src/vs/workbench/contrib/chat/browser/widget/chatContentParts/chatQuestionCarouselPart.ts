@@ -22,7 +22,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
-import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
+import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
 import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -125,6 +125,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	private _currentIndex = 0;
 	private readonly _answers = new Map<string, IChatQuestionAnswerValue>();
+	private _lastSavedDraftAnswers: IChatQuestionAnswers | undefined;
 	private _isCollapsed = false;
 
 	private _questionContainer: HTMLElement | undefined;
@@ -200,6 +201,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Restore draft state from transient runtime fields when available.
 		if (carousel instanceof ChatQuestionCarouselData) {
+			this._lastSavedDraftAnswers = carousel.draftAnswers;
 			if (typeof carousel.draftCurrentIndex === 'number') {
 				this._currentIndex = Math.max(0, Math.min(carousel.draftCurrentIndex, carousel.questions.length - 1));
 			}
@@ -362,7 +364,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		this.carousel.draftAnswers = Object.fromEntries(this._answers.entries());
+		this.carousel.draftAnswers = this._lastSavedDraftAnswers = Object.fromEntries(this._answers.entries());
 		this.carousel.draftCurrentIndex = this._currentIndex;
 		this.carousel.draftCollapsed = this._isCollapsed;
 	}
@@ -1117,10 +1119,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				}
 			} : undefined,
 		}));
-		this._inputBoxes.add(inputBox.onDidChange(() => {
-			this.saveCurrentAnswer();
-		}));
-
 		// Restore previous answer if exists
 		const previousAnswer = this._answers.get(question.id);
 		if (previousAnswer !== undefined) {
@@ -1130,6 +1128,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this._textInputBoxes.set(question.id, inputBox);
+		this._inputBoxes.add(inputBox.onDidChange(() => {
+			this.saveCurrentAnswer();
+		}));
 
 		// Focus on input when rendered using proper DOM scheduling
 		if (this._shouldAutoFocus()) {
@@ -1975,7 +1976,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	override dispose(): void {
-		if (!this._isSkipped && !this.carousel.isUsed) {
+		// Another view of this form may have saved a newer draft since our last edit.
+		const ownsDraft = !(this.carousel instanceof ChatQuestionCarouselData) || this.carousel.draftAnswers === this._lastSavedDraftAnswers;
+		if (!this._isSkipped && !this.carousel.isUsed && ownsDraft) {
 			this.saveCurrentAnswer();
 		}
 

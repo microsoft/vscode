@@ -96,6 +96,7 @@ import { PullRequestReviewEditorInput } from '../../../github/browser/pullReques
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubCICheck } from '../../../github/common/types.js';
 import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { SessionReviewSidebar } from '../../browser/sessionReviewSidebar.js';
+import { SessionReviewComposer } from '../../browser/sessionReviewComposer.js';
 import { SessionReviewEditorInput } from '../../browser/sessionReviewEditor.js';
 
 interface IReviewFixtureOptions {
@@ -103,7 +104,6 @@ interface IReviewFixtureOptions {
 	readonly height?: number;
 	readonly result?: boolean;
 	readonly longDraft?: boolean;
-	readonly nativeHost?: boolean;
 	readonly resize?: boolean;
 	readonly conversation?: boolean;
 	readonly empty?: boolean;
@@ -127,8 +127,8 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 			disposableStore.dispose();
 		}
 	}));
-	const width = options.width ?? (options.nativeHost ? 1000 : 320);
-	const height = options.height ?? (options.nativeHost ? 700 : 640);
+	const width = options.width ?? 1000;
+	const height = options.height ?? 700;
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
@@ -164,7 +164,7 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 			requiresWorkspaceTrust: false, isVirtualWorkspace: false,
 		}),
 	};
-	const section = observableValue('section', options.conversation ? SessionReviewSection.Conversation : options.changes ? SessionReviewSection.Changes : options.pullRequest ? SessionReviewSection.PullRequest : options.nativeHost ? SessionReviewSection.Artifacts : options.result ? SessionReviewSection.Changes : SessionReviewSection.Conversation);
+	const section = observableValue('section', options.conversation ? SessionReviewSection.Conversation : options.changes ? SessionReviewSection.Changes : options.pullRequest ? SessionReviewSection.PullRequest : SessionReviewSection.Artifacts);
 	const draft = observableValue<ISessionInputDraft>('draft', {
 		inputText: options.longDraft ? 'Keep the confirmation behavior consistent across every entry point.\n'.repeat(12) : '',
 		attachments: options.manyReferences
@@ -313,7 +313,7 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 	SessionsBoardVisibleContext.bindTo(keys).set(true);
 	SessionReviewVisibleContext.bindTo(keys).set(true);
 	SessionReviewHasSelectionContext.bindTo(keys).set(!!options.result || !!options.changes || !!options.pullRequest);
-	if (options.nativeHost) {
+	{
 		container.style.position = 'relative';
 		const nativeDisposables = disposableStore.add(new DisposableStore());
 		const editors = workbenchInstantiationService(undefined, nativeDisposables);
@@ -323,6 +323,8 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 		layoutService.activeContainer = container;
 		layoutService.containers = [container];
 		layoutService.mainContainerDimension = { width, height };
+		const layoutChanged = nativeDisposables.add(new Emitter<{ readonly width: number; readonly height: number }>());
+		layoutService.onDidLayoutMainContainer = layoutChanged.event;
 		editors.stub(IWorkbenchLayoutService, layoutService);
 		editors.stub(IContextKeyService, keys);
 		editors.stub(IThemeService, instantiation.get(IThemeService));
@@ -380,14 +382,21 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 		await parts.createModalEditorPart({
 			maximized: true,
 			sidebar: {
-				placement: 'auto',
-				sidebarWidth: 320,
-				sidebarHeight: 320,
+				placement: 'left',
+				sidebarWidth: 240,
 				sidebarHidden: false,
 				render: (parent, layout, context) => {
 					if (!isHTMLElement(parent)) { throw new Error('Expected a native modal sidebar container'); }
 					const scoped: IInstantiationService = nativeDisposables.add(instantiation.createChild(new ServiceCollection([IContextKeyService, context])));
 					return scoped.createInstance(SessionReviewSidebar, parent, layout, session);
+				},
+			},
+			contentFooter: {
+				height: 220,
+				render: (parent, layout, context) => {
+					if (!isHTMLElement(parent)) { throw new Error('Expected a native modal content footer container'); }
+					const scoped: IInstantiationService = nativeDisposables.add(instantiation.createChild(new ServiceCollection([IContextKeyService, context])));
+					return scoped.createInstance(SessionReviewComposer, parent, layout, session);
 				},
 			},
 		});
@@ -418,10 +427,6 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 			const input = nativeDisposables.add(options.pullRequest ? new PullRequestReviewEditorInput(pullRequest) : new SessionReviewEditorInput(session.resource, section.get()));
 			await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 		}
-	} else {
-		const layout = disposableStore.add(new Emitter<{ readonly width: number; readonly height: number }>());
-		disposableStore.add(instantiation.createInstance(SessionReviewSidebar, container, layout.event, session));
-		layout.fire({ width, height });
 		if (options.resize) {
 			const input = container.querySelector('.session-review-composer .monaco-editor');
 			draft.set({ inputText: 'Keep this reply while I inspect another result.', attachments: [toFileVariableEntry(resource)] }, undefined);
@@ -432,19 +437,20 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 			if (getWindow(container).document.activeElement !== actions[1]) {
 				throw new Error('The vertical review toolbar must navigate with the Down Arrow key.');
 			}
-			for (const dimension of [{ width: 800, height: 300 }, { width: 360, height: 300 }, { width, height }]) {
+			for (const dimension of [{ width: 800, height: 300 }, { width: 390, height: 300 }, { width, height }]) {
 				container.style.width = `${dimension.width}px`;
 				container.style.height = `${dimension.height}px`;
-				layout.fire(dimension);
+				layoutService.mainContainerDimension = dimension;
+				layoutChanged.fire(dimension);
 				await new Promise<void>(resolve => disposableStore.add(scheduleAtNextAnimationFrame(getWindow(container), () => resolve())));
 				if (container.querySelector('.session-review-composer .monaco-editor') !== input) {
-					throw new Error('Changing review sections or sidebar placement must not recreate the reply editor.');
+					throw new Error('Changing review sections or modal size must not recreate the reply editor.');
 				}
 				if (draft.get().inputText !== 'Keep this reply while I inspect another result.' || draft.get().attachments.length !== 1) {
-					throw new Error('Changing review sections or sidebar placement must preserve the reply and its reference.');
+					throw new Error('Changing review sections or modal size must preserve the reply and its reference.');
 				}
 				if (getWindow(container).document.activeElement?.querySelector('.session-review-action-name')?.textContent !== 'Artifacts') {
-					throw new Error('Changing toolbar orientation must retain keyboard focus on the same review section.');
+					throw new Error('Resizing must retain keyboard focus on the same review section.');
 				}
 			}
 		}
@@ -484,6 +490,21 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 	if (container.querySelector('.session-review-navigation .action-label.codicon, .session-review-selected-actions .action-label.codicon')) {
 		throw new Error('Review action labels must not render text in the icon font.');
 	}
+	const footer = container.querySelector<HTMLElement>('.modal-editor-content-footer');
+	const editor = footer?.parentElement?.querySelector<HTMLElement>(':scope > .content');
+	const sidebar = container.querySelector<HTMLElement>('.modal-editor-sidebar');
+	if (!footer || !editor || !sidebar || !footer.querySelector('.session-review-composer') || sidebar.querySelector('.session-review-composer')) {
+		throw new Error('Only the native content footer may host the review composer; the sidebar is navigation only.');
+	}
+	const footerRect = footer.getBoundingClientRect();
+	const editorRect = editor.getBoundingClientRect();
+	const sidebarRect = sidebar.getBoundingClientRect();
+	if (footerRect.left !== editorRect.left || footerRect.width !== editorRect.width || footerRect.top < editorRect.bottom || sidebarRect.right > footerRect.left) {
+		throw new Error('The native reply footer must stay below the editor content column, with navigation on its left.');
+	}
+	if (container.querySelectorAll('.session-review-composer').length !== 1) {
+		throw new Error('Changing native review editors must never create a second reply composer.');
+	}
 	const selectedSection = container.querySelector<HTMLElement>('.session-review-sections .action-label.checked');
 	const selectedStyle = selectedSection && getWindow(container).getComputedStyle(selectedSection);
 	if (!selectedStyle || selectedStyle.backgroundColor === 'rgba(0, 0, 0, 0)' && selectedStyle.outlineColor === 'rgba(0, 0, 0, 0)') {
@@ -493,24 +514,24 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 
 const expectedVisualDescriptions = [
 	'The session title and a readable selected section establish the review context. Back to Board is separate from result actions.',
-	'A visible native reply editor is anchored beneath the review controls, with attachments and send controls inside the composer.',
-	'Text actions do not overlap, and the compact bottom layout keeps the reply visible without a new-session reveal wrapper.',
+	'One native reply editor stays below the editor content column, with a named chat target, explicit Add to Reply action, attachments, and send controls.',
+	'Navigation stays on the left at every size; the footer scrolls independently when the window is short.',
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/SessionReview/', labels: { kind: 'screenshot' } }, {
-	Conversation: defineComponentFixture({ render: context => renderReview(context), expectedVisualDescriptions, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	Conversation: defineComponentFixture({ render: context => renderReview(context, { conversation: true }), expectedVisualDescriptions, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	Result: defineComponentFixture({ render: context => renderReview(context, { result: true }), expectedVisualDescriptions }),
 	Bottom: defineComponentFixture({ render: context => renderReview(context, { width: 800, height: 300, result: true }), expectedVisualDescriptions }),
 	Narrow: defineComponentFixture({ render: context => renderReview(context, { width: 360, height: 300, result: true }), expectedVisualDescriptions }),
 	LongReply: defineComponentFixture({ render: context => renderReview(context, { longDraft: true, result: true }), expectedVisualDescriptions }),
-	NativeWorkspace: defineComponentFixture({ render: context => renderReview(context, { nativeHost: true }), expectedVisualDescriptions }),
-	NativeNarrowWorkspace: defineComponentFixture({ render: context => renderReview(context, { nativeHost: true, width: 390 }), expectedVisualDescriptions }),
-	NativeConversation: defineComponentFixture({ render: context => renderReview(context, { nativeHost: true, conversation: true }), expectedVisualDescriptions }),
-	NativeChanges: defineComponentFixture({ render: context => renderReview(context, { nativeHost: true, changes: true }), expectedVisualDescriptions }),
-	NativePullRequest: defineComponentFixture({ render: context => renderReview(context, { nativeHost: true, pullRequest: true }), expectedVisualDescriptions }),
-	NativeJourney: defineComponentFixture({ render: context => renderReview(context, { nativeHost: true, conversation: true, exerciseNavigation: true }), expectedVisualDescriptions }),
+	NativeWorkspace: defineComponentFixture({ render: context => renderReview(context), expectedVisualDescriptions }),
+	NativeNarrowWorkspace: defineComponentFixture({ render: context => renderReview(context, { width: 390 }), expectedVisualDescriptions }),
+	NativeConversation: defineComponentFixture({ render: context => renderReview(context, { conversation: true }), expectedVisualDescriptions }),
+	NativeChanges: defineComponentFixture({ render: context => renderReview(context, { changes: true }), expectedVisualDescriptions }),
+	NativePullRequest: defineComponentFixture({ render: context => renderReview(context, { pullRequest: true }), expectedVisualDescriptions }),
+	NativeJourney: defineComponentFixture({ render: context => renderReview(context, { conversation: true, exerciseNavigation: true }), expectedVisualDescriptions }),
 	ShortWindow: defineComponentFixture({ render: context => renderReview(context, { height: 260, result: true, longDraft: true }), expectedVisualDescriptions }),
 	ManyReferences: defineComponentFixture({ render: context => renderReview(context, { result: true, manyReferences: true }), expectedVisualDescriptions }),
-	EmptyArtifacts: defineComponentFixture({ render: context => renderReview(context, { nativeHost: true, empty: true }), expectedVisualDescriptions }),
+	EmptyArtifacts: defineComponentFixture({ render: context => renderReview(context, { empty: true }), expectedVisualDescriptions }),
 	ResizeAndSwitch: defineComponentFixture({ render: context => renderReview(context, { resize: true, result: true }), expectedVisualDescriptions }),
 });

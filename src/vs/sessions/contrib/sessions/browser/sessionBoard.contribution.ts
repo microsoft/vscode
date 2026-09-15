@@ -18,6 +18,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -33,12 +35,13 @@ import { ICustomViewGridPartService } from '../../../services/customView/browser
 import { ISessionGroupsService } from '../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionInputDraftService } from '../../../services/sessions/browser/sessionInputDraftService.js';
 import { ISessionReviewService } from '../../../services/sessions/browser/sessionReviewService.js';
-import { ISessionsBoardOptions, ISessionsBoardService } from '../../../services/sessions/browser/sessionsBoardService.js';
+import { ISessionsBoardService } from '../../../services/sessions/browser/sessionsBoardService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, SessionStatus } from '../../../services/sessions/common/session.js';
 import { SESSION_BOARD_VIEW_ID, SessionReviewSection } from '../../../services/sessions/common/sessionReview.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getSessionWorkViewLabel, SESSION_WORK_VIEWS } from '../../../services/sessions/common/sessionWorkQuery.js';
 import { SessionBoardView } from './views/sessionBoardView.js';
 
 const boardEnabled = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionsBoardVisibleContext);
@@ -48,7 +51,7 @@ registerAction2(class ShowSessionBoard extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.showSessionBoard',
-			title: localize2('sessionBoard.show', "Show Sessions Board"),
+			title: localize2('sessionBoard.show', "Show Work Overview"),
 			category: SessionsCategories.Sessions,
 			icon: Codicon.layout,
 			f1: true,
@@ -58,8 +61,129 @@ registerAction2(class ShowSessionBoard extends Action2 {
 	}
 	override run(accessor: ServicesAccessor): void {
 		if (accessor.get(IChatEntitlementService).sentiment.hidden) { return; }
+		accessor.get(ISessionsBoardService).updateOptions({ view: 'overview', collection: undefined, status: undefined, filter: '' });
 		accessor.get(ISessionsService).setSessionBoardVisible(true);
 		accessor.get(ICustomViewGridPartService).focusActiveView();
+	}
+});
+
+registerAction2(class CreateWorkCollection extends Action2 {
+	constructor() {
+		super({ id: 'sessions.work.createCollection', title: localize2('sessionsWork.createCollection', "Create Collection"), icon: Codicon.newFolder, precondition: boardEnabled, f1: true });
+	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const groups = accessor.get(ISessionGroupsService);
+		const board = accessor.get(ISessionsBoardService);
+		const name = await accessor.get(IQuickInputService).input({
+			prompt: localize('sessionsWork.collectionName', "Collection name"),
+			validateInput: async value => value.trim() ? undefined : localize('sessionsWork.nameRequired', "Enter a collection name."),
+		});
+		if (name) {
+			const group = groups.createGroup(name.trim());
+			board.updateOptions({ view: 'all', collection: group.id, filter: '', status: undefined });
+		}
+	}
+});
+
+registerAction2(class ManageWorkCollection extends Action2 {
+	constructor() {
+		super({ id: 'sessions.work.manageCollection', title: localize2('sessionsWork.manageCollection', "Manage Collection"), precondition: boardEnabled });
+	}
+	override async run(accessor: ServicesAccessor, id: string): Promise<void> {
+		const groups = accessor.get(ISessionGroupsService);
+		const quickInput = accessor.get(IQuickInputService);
+		const dialog = accessor.get(IDialogService);
+		const board = accessor.get(ISessionsBoardService);
+		const group = groups.getGroup(id);
+		if (!group) { throw new Error(localize('sessionsWork.missingCollection', "This collection no longer exists.")); }
+		const choice = await quickInput.pick([
+			{ id: 'rename', label: localize('sessionsWork.renameCollection', "Rename Collection") },
+			{ id: 'remove', label: localize('sessionsWork.removeCollection', "Remove Collection") },
+		], { placeHolder: group.name });
+		if (choice?.id === 'rename') {
+			const name = await quickInput.input({ value: group.name, prompt: localize('sessionsWork.collectionName', "Collection name"), validateInput: async value => value.trim() ? undefined : localize('sessionsWork.nameRequired', "Enter a collection name.") });
+			if (name) { groups.renameGroup(id, name.trim()); }
+		} else if (choice?.id === 'remove') {
+			const result = await dialog.confirm({ message: localize('sessionsWork.confirmRemoveCollection', "Remove the collection '{0}'?", group.name), detail: localize('sessionsWork.removeCollectionDetail', "Its sessions will remain available in All sessions."), primaryButton: localize('sessionsWork.removeCollection', "Remove Collection") });
+			if (result.confirmed) {
+				groups.deleteGroup(id);
+				if (board.options.get().collection === id) { board.updateOptions({ collection: undefined }); }
+			}
+		}
+	}
+});
+
+registerAction2(class NewWork extends Action2 {
+	constructor() {
+		super({ id: 'sessions.work.newSession', title: localize2('sessionsWork.newSession', "New Work"), icon: Codicon.add, precondition: boardEnabled, f1: true });
+	}
+	override run(accessor: ServicesAccessor): void {
+		const sessions = accessor.get(ISessionsService);
+		const board = accessor.get(ISessionsBoardService);
+		const groups = accessor.get(ISessionGroupsService);
+		const notification = accessor.get(INotificationService);
+		if (accessor.get(IChatEntitlementService).sentiment.hidden) { return; }
+		const collection = board.options.get().collection;
+		const session = sessions.openQuickChat();
+		if (!session) {
+			notification.warn(localize('sessionsWork.noQuickChatProvider', "No provider is currently available for workspace-less work. Choose a provider in New Session and try again."));
+			return;
+		}
+		if (collection) { groups.setPendingNewSessionGroup(collection); }
+	}
+});
+
+registerAction2(class RemoveSavedWorkView extends Action2 {
+	constructor() {
+		super({ id: 'sessions.work.removeSavedView', title: localize2('sessionsWork.removeSavedView', "Remove Saved View"), precondition: boardEnabled });
+	}
+	override async run(accessor: ServicesAccessor, id: string): Promise<void> {
+		const board = accessor.get(ISessionsBoardService);
+		const view = board.savedViews.get().find(view => view.id === id);
+		if (!view) { throw new Error(localize('sessionsWork.missingSavedView', "This saved view no longer exists.")); }
+		const confirmation = await accessor.get(IDialogService).confirm({
+			message: localize('sessionsWork.removeSavedViewConfirm', "Remove the saved view '{0}'?", view.name),
+			detail: localize('sessionsWork.removeSavedViewDetail', "Only the saved filters are removed. No sessions are changed."),
+			primaryButton: localize('sessionsWork.removeSavedView', "Remove Saved View"),
+		});
+		if (confirmation.confirmed) { board.deleteView(id); }
+	}
+});
+
+registerAction2(class SearchWork extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.work.search', title: localize2('sessionsWork.search', "Find Work"), precondition: boardEnabled, f1: true,
+			keybinding: { primary: KeyMod.CtrlCmd | KeyCode.KeyF, weight: KeybindingWeight.SessionsContrib, when: ContextKeyExpr.and(boardEnabled, SessionsBoardFocusContext, SessionReviewVisibleContext.negate()) },
+		});
+	}
+	override run(accessor: ServicesAccessor): void { accessor.get(ISessionsBoardService).activeView.get()?.focusSearch?.(); }
+});
+
+registerAction2(class SelectReviewChat extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.review.selectChat',
+			title: localize2('sessionReview.selectChat', "Choose Conversation"),
+			icon: Codicon.commentDiscussion,
+			precondition: reviewEnabled,
+			menu: { id: Menus.SessionReviewNavigation, group: 'navigation', order: 2 },
+		});
+	}
+	override async run(accessor: ServicesAccessor, session: IActiveSession): Promise<void> {
+		const sessions = accessor.get(ISessionsService);
+		const state = sessions.sessionReview.get();
+		if (!state || !isEqual(state.sessionResource, session.resource)) { return; }
+		const selected = await accessor.get(IQuickInputService).pick(session.chats.get().filter(chat => chat.interactivity.get() !== ChatInteractivity.Hidden).map(chat => ({
+			label: chat.title.get() || localize('sessionReview.untitledConversation', "Untitled Conversation"),
+			description: getSessionConversationStatusLabel(chat.status.get()),
+			chat,
+		})), { placeHolder: localize('sessionReview.chooseConversation', "Choose the conversation to read and reply to") });
+		if (selected && sessions.sessionReview.get() === state) {
+			await sessions.openSessionReview(session, state.section, {
+				artifact: state.artifact, resource: state.resource, pullRequest: state.pullRequest, chatResource: selected.chat.resource,
+			});
+		}
 	}
 });
 
@@ -189,33 +313,17 @@ registerAction2(class BoardViewOptions extends Action2 {
 		const board = accessor.get(ISessionsBoardService);
 		const quickInput = accessor.get(IQuickInputService);
 		const choice = await quickInput.pick([
-			{ id: 'project', label: localize('sessionBoard.groupProject', "Group by Project") },
-			{ id: 'collection', label: localize('sessionBoard.groupCollection', "Group by Collection") },
+			...SESSION_WORK_VIEWS.filter(view => view !== 'cards').map(view => ({ id: `view:${view}`, label: getSessionWorkViewLabel(view) })),
 			{ id: 'created', label: localize('sessionBoard.sortCreated', "Sort by Creation Time") },
 			{ id: 'updated', label: localize('sessionBoard.sortUpdated', "Sort by Last Activity") },
-			{ id: 'compact', label: localize('sessionBoard.compact', "Toggle Compact Cards") },
-			{ id: 'fields', label: localize('sessionBoard.fields', "Choose Card Fields...") },
 			{ id: 'status', label: localize('sessionBoard.filterStatus', "Filter by Status...") },
 			...board.savedViews.get().map(view => ({ id: view.id, label: view.name, description: localize('sessionBoard.savedView', "Saved view") })),
 		], { placeHolder: localize('sessionBoard.chooseOptions', "Customize the session board") });
 		if (!choice) { return; }
-		if (choice.id === 'project' || choice.id === 'collection') { board.updateOptions({ grouping: choice.id }); }
+		const workView = SESSION_WORK_VIEWS.find(view => choice.id === `view:${view}`);
+		if (workView) { board.updateOptions({ view: workView }); }
 		else if (choice.id === 'created' || choice.id === 'updated') { board.updateOptions({ sort: choice.id }); }
-		else if (choice.id === 'compact') { board.updateOptions({ compact: !board.options.get().compact }); }
-		else if (choice.id === 'fields') {
-			const fields: { key: keyof ISessionsBoardOptions; label: string }[] = [
-				{ key: 'showChanges', label: localize('sessionBoard.fieldChanges', "Changed Files") },
-				{ key: 'showArtifacts', label: localize('sessionBoard.fieldArtifacts', "Artifacts") },
-				{ key: 'showPullRequest', label: localize('sessionBoard.fieldPR', "Pull Requests") },
-				{ key: 'showReply', label: localize('sessionBoard.fieldReply', "Reply Input") },
-				{ key: 'showBranch', label: localize('sessionBoard.fieldBranch', "Branch") },
-			];
-			const selected = await quickInput.pick(fields.map(field => ({ ...field, picked: !!board.options.get()[field.key] })), { canPickMany: true, placeHolder: localize('sessionBoard.selectFields', "Fields shown on compact cards") });
-			if (selected) {
-				const chosen = new Set(selected.map(field => field.key));
-				board.updateOptions({ showChanges: chosen.has('showChanges'), showArtifacts: chosen.has('showArtifacts'), showPullRequest: chosen.has('showPullRequest'), showReply: chosen.has('showReply'), showBranch: chosen.has('showBranch') });
-			}
-		} else if (choice.id === 'status') {
+		else if (choice.id === 'status') {
 			const selected = await quickInput.pick([
 				{ status: undefined, label: localize('sessionBoard.allStatuses', "All Statuses") },
 				...[SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Completed, SessionStatus.Error].map(status => ({ status, label: getSessionConversationStatusLabel(status) })),
@@ -274,11 +382,13 @@ class SessionBoardAccessibility implements IAccessibleViewImplementation {
 	getProvider(accessor: ServicesAccessor) {
 		const board = accessor.get(ISessionsBoardService);
 		return new AccessibleContentProvider(AccessibleViewProviderId.SessionsBoard, { type: this.type }, () => this.type === AccessibleViewType.Help
-			? [
-				localize('sessionBoard.help', "The session board shows compact cards grouped by project or collection. Cards do not load chat history until expanded. Use Tab to reach the grouping, search, status and saved-view controls, then the session cards. Card actions appear on keyboard focus or hover. Enter sends from a compact reply field. Use View Options to choose sorting, density and card fields, and Save View in the toolbar menu to keep those choices. Expand Chat shows the existing chat view. Artifacts, Changes and Pull Request open a session review with a persistent reply. Use Move to Collection in the card menu to organize a session."),
-				localize('sessionBoard.resizeHelp', "Compact cards use equal-width columns and fit their content. With a card header action focused, use {0} or {1} to expand and resize chat output by a column, and {2} or {3} to change how much output is visible. Collapsing restores the compact column while remembering the expanded size. These commands are also available in the Command Palette.", '<keybinding:sessions.board.increaseWidth>', '<keybinding:sessions.board.decreaseWidth>', '<keybinding:sessions.board.increaseHeight>', '<keybinding:sessions.board.decreaseHeight>'),
+			? board.activeView.get()?.getAccessibilityHelp?.() ?? [
+				localize('sessionBoard.help', "My work contains Needs you, Needs review, In progress, and a collapsed All sessions section. Every session is a compact card. Ordinary cards show metadata and a lightweight reply input without loading conversations. Visible cards waiting for input load their real approval or question controls automatically; a decision always requires your action. Use arrow keys to navigate the tree and Tab to enter card controls. Enter opens focused review from a card header and sends from its reply input; Shift+Enter adds a line. Find Work filters titles and workspaces without performing actions."),
+				localize('sessionBoard.collectionsHelp', "Pin as Automatic Collection adds a section to the sidebar while keeping it in My work. Automatic collections update as sessions change and do not accept manual drops. Drag a card header onto a manual collection, or use Move to Collection in the card menu. This changes its manual collection, not its status or repository. Removing a collection leaves its sessions available in All sessions. Save View stores filter criteria. More Actions provides archive suggestions, archived sessions, and view options."),
+				localize('sessionBoard.resizeHelp', "Drag the right or bottom edge of a card to resize it. Increasing height reveals the conversation above the reply; reducing height returns to the compact card without losing its draft. With a card header focused, use {0} or {1} to resize its width and {2} or {3} to show more or less conversation. Expand or Collapse Conversation is also available in the card menu. These resize commands are available in the Command Palette.", '<keybinding:sessions.board.increaseWidth>', '<keybinding:sessions.board.decreaseWidth>', '<keybinding:sessions.board.increaseHeight>', '<keybinding:sessions.board.decreaseHeight>'),
+				localize('sessionBoard.reviewArchiveHelp', "Mark Results Reviewed records a review checkpoint, not approval or task completion. Consider Archiving uses explicit local activity and known outcomes; automatic card loading does not count as human activity. Missing data requires inspection. Select cards with their checkboxes, or press Space on a card header. Archive Selected previews effects and rechecks each session; Keep Selected dismisses suggestions."),
 			].join('\n\n')
-			: (board.activeView.get()?.sessions ?? []).map(session => localize('sessionBoard.accessibleSession', "{0}. {1}. {2}.", session.title.get(), session.workspace.get()?.label ?? '', getSessionConversationStatusLabel(session.status.get()))).join('\n\n'),
+			: board.activeView.get()?.getAccessibleContent?.() ?? (board.activeView.get()?.sessions ?? []).map(session => localize('sessionBoard.accessibleSession', "{0}. {1}. {2}.", session.title.get(), session.workspace.get()?.label ?? '', getSessionConversationStatusLabel(session.status.get()))).join('\n\n'),
 			restoreFocus(accessor), AccessibilityVerbositySettingId.SessionsBoard);
 	}
 }
@@ -293,7 +403,7 @@ class SessionReviewAccessibility implements IAccessibleViewImplementation {
 		const review = accessor.get(ISessionReviewService);
 		return new AccessibleContentProvider(AccessibleViewProviderId.SessionReview, { type: this.type }, () => {
 			if (this.type === AccessibleViewType.Help) {
-				return localize('sessionReview.help', "Session review keeps your reply next to native result editors, or below them in a narrow window. Back to Board is at the start of the review controls. Use Tab to move between the controls and the reply. Use Up and Down Arrow in the vertical section list, or Left and Right Arrow when the sections are arranged horizontally. The selected section is highlighted and available result counts are shown. Add to Reply places the current file, changes, or link in the reply without changing its text or sending a message. The current result and this action stay next to the reply. References remain attached when switching results. An empty artifact catalog offers Open Conversation. Back to Board closes the native modal editor and returns to the same board. The native editor's Escape and close actions also return to the board. Enter sends a reply; Shift+Enter adds a line. Chat history is loaded only for Conversation or when needed to send.");
+				return localize('sessionReview.help', "Session review keeps navigation on the left and your reply below the native result editor. The reply identifies its target conversation and remains in the same place when switching results. Back to Board is at the start of the review controls. Choose Conversation selects another chat in this session; each chat keeps its own draft and references. Use Tab to move between the controls and the reply, and Up and Down Arrow in the section list. The selected section is highlighted and available result counts are shown. Add to Reply places the current file, changes, or link in the reply without changing its text or sending a message. References remain attached when switching results. An empty artifact catalog offers Open Conversation. Back to Board closes the native modal editor and returns to the same work overview. The native editor's Escape and close actions also return to the overview. Enter sends a reply; Shift+Enter adds a line. Chat history is loaded only for Conversation or when needed to send.");
 			}
 			const session = sessions.activeSession.get();
 			if (!session) { return ''; }
@@ -324,6 +434,8 @@ class SessionBoardContribution extends Disposable {
 		@ISessionsService sessions: ISessionsService,
 		@IChatEntitlementService entitlement: IChatEntitlementService,
 		@ISessionReviewService _review: ISessionReviewService,
+		@ISessionsManagementService management: ISessionsManagementService,
+		@ISessionsBoardService board: ISessionsBoardService,
 	) {
 		super();
 		this._register(customViews.registerCustomView({ id: SESSION_BOARD_VIEW_ID, ctor: new SyncDescriptor(SessionBoardView), actions: { style: 'toolbar', menuId: Menus.SessionsBoardToolbar } }, { restore: false }));
@@ -335,6 +447,8 @@ class SessionBoardContribution extends Disposable {
 		this._register(entitlement.onDidChangeSentiment(() => {
 			if (entitlement.sentiment.hidden) { sessions.setSessionBoardVisible(false); }
 		}));
+		this._register(management.onDidReplaceSession(({ from, to }) => board.rebindCardSession(from.sessionId, to.sessionId)));
+		this._register(management.onDidDeleteSession(session => board.removeCardSession(session.sessionId)));
 	}
 }
 registerWorkbenchContribution2(SessionBoardContribution.ID, SessionBoardContribution, WorkbenchPhase.BlockRestore);

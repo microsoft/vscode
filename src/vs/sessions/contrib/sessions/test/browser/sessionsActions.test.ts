@@ -18,6 +18,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { DEFAULT_SESSIONS_BOARD_OPTIONS, ISessionsBoardService, ISessionsBoardView } from '../../../../services/sessions/browser/sessionsBoardService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -111,7 +112,7 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('shows pinned sessions in the session toolbar navigation group', () => {
+	test('shows pinned sessions in the session toolbar navigation group outside the board', () => {
 		const pinItems = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'sessions.chatCompositeBar.togglePin')
@@ -127,13 +128,31 @@ suite('Sessions - Actions', () => {
 			title: 'Pin',
 			group: 'navigation',
 			order: 10,
-			when: 'sessionIsCreated && sessionIsSticky && !sessionIsArchived',
+			when: 'sessionIsCreated && sessionIsSticky && !sessionIsArchived && !sessionsBoardVisible',
 		}, {
 			title: 'Pin',
 			group: 'secondary/4_pin',
 			order: 10,
-			when: 'sessionIsCreated && !sessionIsArchived',
+			when: 'sessionIsCreated && !sessionIsArchived && !sessionsBoardVisible',
 		}]);
+	});
+
+	test('position shortcuts focus metadata rows without opening or activating archived work', async () => {
+		const instantiation = disposables.add(new TestInstantiationService());
+		const archived = createTestSession('Archived work', { isArchived: true }).session;
+		const focused: (string | undefined)[] = [];
+		let activations = 0;
+		instantiation.stub(ISessionsBoardService, {
+			options: constObservable({ ...DEFAULT_SESSIONS_BOARD_OPTIONS, view: 'archived' }),
+			activeView: constObservable(new class extends mock<ISessionsBoardView>() {
+				override readonly sessions = [archived];
+				override focusSession(id: string | undefined): void { focused.push(id); }
+			}()),
+		});
+		instantiation.stub(ISessionsService, { visibleSessions: constObservable([]), setActive: () => { activations++; } });
+		instantiation.stub(ISessionsPartService, { focusSession: () => { throw new Error('A metadata row must not mount a session view'); } });
+		await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.focusSessionInGrid1')!.handler(accessor));
+		assert.deepStrictEqual({ focused, activations }, { focused: [archived.sessionId], activations: 0 });
 	});
 
 	test('keeps the Command Palette delete action explicit', () => {

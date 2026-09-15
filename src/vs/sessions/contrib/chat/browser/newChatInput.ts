@@ -1122,7 +1122,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._syncInputGitHubContext();
-			this._updateDraftState();
+			if (this.options.draft) {
+				this._updateAndSaveDraftState();
+			} else {
+				this._updateDraftState();
+			}
 			this._updateSendButtonState();
 			this._updateEditorFontFamily();
 			this._promptOptionsWidget.value?.setInputValue(this._editor.getValue());

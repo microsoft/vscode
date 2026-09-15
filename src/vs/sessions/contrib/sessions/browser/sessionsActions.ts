@@ -523,7 +523,8 @@ for (let index = 0; index < 9; index++) {
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
-			const board = accessor.get(ISessionsBoardService).activeView.get();
+			const boardService = accessor.get(ISessionsBoardService);
+			const board = boardService.activeView.get();
 			const visible = board?.sessions ?? sessionsService.visibleSessions.get();
 			const targetIndex = isLast ? visible.length - 1 : index;
 			if (targetIndex < 0 || targetIndex >= visible.length) {
@@ -531,9 +532,13 @@ for (let index = 0; index < 9; index++) {
 			}
 
 			const session = visible[targetIndex];
-			sessionsService.setActive(session);
-			if (board) { board.focusSession(session?.sessionId); }
-			else { sessionsPartService.focusSession(session); }
+			if (board) {
+				board.focusSession(session?.sessionId);
+				return;
+			}
+			const activeSession = sessionsService.visibleSessions.get()[targetIndex];
+			sessionsService.setActive(activeSession);
+			sessionsPartService.focusSession(activeSession);
 		}
 	});
 }

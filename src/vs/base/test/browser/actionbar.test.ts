@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ActionBar, prepareActions } from '../../browser/ui/actionbar/actionbar.js';
+import { ActionBar, ActionsOrientation, prepareActions } from '../../browser/ui/actionbar/actionbar.js';
 import { Action, Separator } from '../../common/actions.js';
+import { timeout } from '../../common/async.js';
+import { toDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 import { createToggleActionViewItemProvider, ToggleActionViewItem, unthemedToggleStyles } from '../../browser/ui/toggle/toggle.js';
 import { ActionViewItem } from '../../browser/ui/actionbar/actionViewItems.js';
@@ -62,6 +64,35 @@ suite('Actionbar', () => {
 		actionbar.clear();
 		assert.strictEqual(actionbar.hasAction(a1), false);
 	});
+
+	for (const { name, orientation, keyCode } of [
+		{ name: 'horizontal', orientation: ActionsOrientation.HORIZONTAL, keyCode: 39 },
+		{ name: 'vertical', orientation: ActionsOrientation.VERTICAL, keyCode: 40 },
+	]) {
+		test(`arrow navigation follows native focus when re-entering a ${name} toolbar`, async () => {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const actionbar = store.add(new ActionBar(container, { orientation }));
+			actionbar.push(['First', 'Second', 'Third'].map(label => store.add(new Action(label, label))));
+			const outside = document.createElement('button');
+			container.appendChild(outside);
+			const labels = [...container.querySelectorAll<HTMLElement>('.action-label')];
+
+			actionbar.focus(1);
+			outside.focus();
+			await timeout(0);
+			labels[0].focus();
+			labels[0].dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Tab', keyCode: 9, shiftKey: true }));
+			labels[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, keyCode }));
+			labels[0].dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, keyCode }));
+
+			assert.deepStrictEqual({
+				focused: document.activeElement?.getAttribute('aria-label'),
+				tabStops: labels.filter(label => label.tabIndex === 0).map(label => label.getAttribute('aria-label')),
+			}, { focused: 'Second', tabStops: ['Second'] });
+		});
+	}
 
 	suite('ToggleActionViewItemProvider', () => {
 

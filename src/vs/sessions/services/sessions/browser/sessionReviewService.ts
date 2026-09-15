@@ -7,9 +7,8 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
 import { SessionReviewSection } from '../common/sessionReview.js';
-import { IChat } from '../common/session.js';
+import { IChat, ISession } from '../common/session.js';
 
 export interface ISessionReviewSelection {
 	readonly resource: URI;
@@ -22,7 +21,7 @@ export interface ISessionReviewService {
 	readonly section: IObservable<SessionReviewSection | undefined>;
 	close(): Promise<boolean>;
 	discuss(): void;
-	send(session: IActiveSession, chat: IChat, query: string, attachments: readonly IChatRequestVariableEntry[]): Promise<boolean>;
+	send(session: ISession, chat: IChat, query: string, attachments: readonly IChatRequestVariableEntry[]): Promise<boolean>;
 	focusReply(): void;
 }
 

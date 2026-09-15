@@ -77,6 +77,16 @@ Surfaces that can represent a session other than the window-global active sessio
 
 Compact board inputs and the review composer use that shared draft contract. The existing Sessions composer accepts a host-owned draft instead of using the new-session composer's private storage. Explicit result references remain in the draft until removed or successfully sent; changing the viewed artifact, diff, or pull request does not replace them.
 
+### Work overview and review checkpoints
+
+The optional work overview is a metadata projection of the management service's catalog, not another provider or session store. Structured view criteria, saved filters, and promoted automatic collections belong to `ISessionsBoardService`; old card-mode preferences migrate to the unified overview. All groups use the same compact card presentation. Conversation models are acquired only by visible expanded cards or visible cards waiting for input, never by search or catalog enumeration. Automatic loading does not change active-session selection or record human interaction. Searching only filters known title/workspace metadata; it neither invokes a model nor performs a session operation.
+
+`ISessionWorkTrackingService` owns local opening/interaction timestamps, explicit result-review checkpoints, and dismissed archive suggestions. These are client-local presentation records, separate from provider activity timestamps, read/unread state, runtime status, and approval. Missing historical use data remains unknown. Explicit session opens and successful replies from the board/review UI update the timestamp; catalog discovery, background streaming, and unattributed programmatic sends do not imply that the user opened or reviewed a result.
+
+Archive recommendations distinguish suggested, excluded, and uncertain work. They consume known metadata without loading conversation history or polling external services. An archive operation captures an explicit selection, confirms provider/worktree/grouping effects, and revalidates the selected sessions before routing through management. Query changes cannot add sessions to an already-confirmed batch.
+
+Queued-request checks may inspect already-loaded chat models, but missing models remain unknown rather than triggering hydration. File-change or produced-PR sessions require inspection when publication state cannot be verified without resolving provider GitHub presentation. This does not replace the existing per-session merged-PR archive nudge.
+
 ## Domain model
 
 Provider-neutral interfaces live in `services/sessions/common/session.ts`.

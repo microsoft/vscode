@@ -1,0 +1,91 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-work-overview {
+	min-width: 0;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80);
+}
+
+.session-work-controls {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.session-work-search {
+	flex: 1 1 240px;
+	min-width: 160px;
+}
+
+.session-work-search .monaco-inputbox { width: 100%; }
+.session-work-age-filter { min-width: 0; max-width: 100%; }
+.session-work-controls .monaco-select-box { max-width: 100%; }
+
+.session-work-section { min-width: 0; margin-bottom: var(--vscode-spacing-size160); }
+.session-work-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-height: 32px;
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.session-work-section-header .session-work-section-toggle {
+	width: auto;
+	flex: 1;
+	min-width: 0;
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size40) 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-align: left;
+}
+
+.session-work-section-toggle .monaco-button-mdlabel {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-work-section-count {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-work-section-actions { opacity: 0; }
+.session-work-section-header:hover .session-work-section-actions,
+.session-work-section-header:focus-within .session-work-section-actions { opacity: 1; }
+
+.session-work-section.nested { margin-top: var(--vscode-spacing-size80); }
+.session-work-section.nested > .session-work-section-header .session-work-section-toggle {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.session-work-section-cards, .session-work-section-children { min-width: 0; }
+.session-work-icon { flex: 0 0 var(--vscode-codiconFontSize); }
+
+.session-work-overview-description, .session-work-empty {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	padding: var(--vscode-spacing-size80) 0;
+}
+
+.session-work-batch {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+.session-work-batch .monaco-button { width: auto; }
+.session-work-selection-label { flex: 1; min-width: 180px; color: var(--vscode-descriptionForeground); font-size: var(--vscode-fontSize-label1); }
+.session-work-overview [hidden] { display: none; }

@@ -243,6 +243,10 @@ export interface IChatListItemRendererOptions {
 	readonly editable?: boolean;
 	/** Whether the chat is read-only, independently of whether request editing is enabled. */
 	readonly readOnly?: boolean;
+	/** Render live input requests without the rest of a response. */
+	readonly renderPendingOnly?: boolean;
+	/** Keep input controls in this renderer instead of docking them in another widget's composer. */
+	readonly renderInputControlsInline?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);

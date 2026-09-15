@@ -375,6 +375,12 @@ export interface IModalEditorPartOptions {
 	 * after the modal editor is opened.
 	 */
 	readonly sidebar?: IModalEditorSidebar;
+
+	/**
+	 * Optional content below the editor column, independent of the sidebar.
+	 * Created once when opening the modal and disposed when it closes; ignored by later option updates.
+	 */
+	readonly contentFooter?: IModalEditorContentFooter;
 }
 
 /**
@@ -446,6 +452,16 @@ export interface IModalEditorSidebar {
 	 * 		has focus.
 	 * @returns A disposable to clean up when the modal closes.
 	 */
+	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => IDisposable;
+}
+
+/** Content hosted below the native editor column, without spanning a left sidebar. */
+export interface IModalEditorContentFooter {
+
+	/** Preferred positive, finite height including the separator; reduced when needed to keep the editor visible. */
+	readonly height: number;
+
+	/** Renders once in a modal-scoped container and receives its available content dimensions. */
 	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => IDisposable;
 }
 

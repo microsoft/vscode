@@ -83,6 +83,7 @@ interface IUpdateDraftStateHarness extends IDraftStateHarness {
 
 interface IUpdateAndSaveDraftStateHarness extends IUpdateDraftStateHarness {
 	readonly _sending: boolean;
+	readonly _applyingDraft?: boolean;
 	_updateDraftState(): void;
 	saveState(): void;
 }
@@ -417,6 +418,34 @@ suite('NewChatInputWidget', () => {
 		assert.deepStrictEqual({ draft: state.get(), writes }, {
 			draft: { inputText: 'Explain this change', attachments: [attachment] },
 			writes: [],
+		});
+	});
+
+	test('saves text edits and clearing to the host draft without writing new-session storage', () => {
+		const state = observableValue<INewChatInputDraftState>('reviewDraft', { inputText: '', attachments: [] });
+		const writes: string[] = [];
+		let editorValue = 'An unsent reply';
+		const harness: IUpdateAndSaveDraftStateHarness = {
+			options: { draft: { state, save: value => state.set(value, undefined) } },
+			storageService: { get: () => undefined, store: key => writes.push(key) },
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => editorValue }) },
+			_contextAttachments: { attachments: [] },
+			_updateDraftState() { updateDraftState.call(this); },
+			saveState() { saveState.call(this); },
+		};
+
+		updateAndSaveDraftState.call(harness);
+		const edited = state.get().inputText;
+		editorValue = '';
+		updateAndSaveDraftState.call(harness);
+		const cleared = state.get().inputText;
+		editorValue = 'An intermediate model value';
+		updateAndSaveDraftState.call({ ...harness, _applyingDraft: true });
+		updateAndSaveDraftState.call({ ...harness, _sending: true });
+
+		assert.deepStrictEqual({ edited, cleared, afterProgrammaticUpdates: state.get().inputText, writes }, {
+			edited: 'An unsent reply', cleared: '', afterProgrammaticUpdates: '', writes: [],
 		});
 	});
 

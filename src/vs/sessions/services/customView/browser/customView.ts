@@ -30,6 +30,13 @@ export interface ICustomViewDescriptor {
 	readonly actions?: ICustomViewActions;
 }
 
+/** The host's visible range, relative to the view's content origin. */
+export interface ICustomViewViewport {
+	readonly top: number;
+	readonly height: number;
+	scrollBy(delta: number): void;
+}
+
 /**
  * A full-surface view hosted in the custom view grid, in place of the sessions
  * grid. The host renders the surrounding chrome (header with title, description
@@ -55,6 +62,8 @@ export abstract class AbstractCustomView extends Disposable {
 
 	/** Called whenever the available content area changes. */
 	abstract layout(width: number, height: number): void;
+
+	setViewport(_viewport: ICustomViewViewport): void { }
 
 	focus(): void { }
 }

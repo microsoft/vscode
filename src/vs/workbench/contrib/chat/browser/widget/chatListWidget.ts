@@ -900,6 +900,9 @@ export class ChatListWidget extends Disposable {
 					},
 				}
 			});
+			if (!this._useTreeHierarchy) {
+				this._tree.refilter();
+			}
 		});
 	}
 

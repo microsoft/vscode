@@ -58,17 +58,19 @@ Multiple visible sessions share the available Sessions Part width. Opening, clos
 
 ### Sessions board
 
-The board is a contributed `AbstractCustomView`, hosted by the existing Custom View Grid rather than by a second workbench or a replacement editor group. `ISessionsService` supplies the non-archived, committed session catalog while it is open and retains the regular visible-session arrangement for restoration. The Sessions Part does not bind the board's catalog to its ordinary chat grid. Saving while the board is open persists the regular arrangement, not a chat column for every card.
+The board is a contributed `AbstractCustomView`, hosted by the existing Custom View Grid rather than by a second workbench or a replacement editor group. The overview projects the management service's catalog; `ISessionsService` owns board visibility and retains the regular visible-session arrangement for restoration. The Sessions Part does not bind the board's catalog to its ordinary chat grid. Saving while the board is open persists the regular arrangement, not a chat column for every card.
 
-Cards show provider-neutral metadata and a lightweight native input. A card creates the existing `SessionView` only after explicit expansion. Native input drafts are shared through `ISessionInputDraftService`, so compact cards and review composers do not acquire chat models merely to display or edit a draft. Custom collections reuse `ISessionGroupsService`; saved board-view preferences belong to `ISessionsBoardService`.
+All work groups use viewport-mounted, wrapping session cards. Each section's board owns placement, resize and reorder gestures, and the matching card and drop-placeholder bounds; cards are not children of full-width tree rows. Ordinary compact cards show provider-neutral metadata and a lightweight native input without acquiring a conversation model. A visible card acquires native conversation content only after explicit expansion or when its owning chat is waiting for input. Pending-input content uses the existing request controls and response path; visibility never approves a request or counts as a human open. Card-owned renderers and model references have viewport-scoped lifetimes rather than catalog-scoped lifetimes, and never dispose a model owned by another surface. Collapsed sections do not mount boards; an active card interaction may retain its controls beyond the viewport.
+
+Native input drafts are shared through `ISessionInputDraftService`, so resizing, regrouping, or recycling a card cannot replace its chat-scoped draft with a separate input state. The reply remains below expanded content. Custom collections reuse `ISessionGroupsService`; saved queries and promoted automatic sections belong to `ISessionsBoardService`. A session can occur in more than one query without gaining another backend identity or manual collection membership.
 
 ### Session review
 
-Review uses the native modal editor part and its sidebar-content extension point. It does not create an editor group in an arbitrary DOM container or move workbench-owned DOM. The sidebar hosts the existing Sessions composer, bound to one session's selected chat. The modal's optional adaptive placement keeps that same composer below the editor when a side-by-side layout cannot fit. Conversation and artifact catalog inputs are registered editor panes; artifacts use native resource editors, changes use the existing changes editor, and pull requests use a read-only native review editor with an explicit external-open action.
+Review uses the native modal editor part's sidebar and content-footer extension points. It does not create an editor group in an arbitrary DOM container or move workbench-owned DOM. Navigation stays in the left sidebar; the content footer hosts the existing Sessions composer below the editor column, bound to one session's selected chat. Both extensions are created for the modal's lifetime, independent of its active editor. Conversation and artifact catalog inputs are registered editor panes; artifacts use native resource editors, changes use the existing changes editor, and pull requests use a read-only native review editor with an explicit external-open action.
 
-`ISessionsService.sessionReview` owns the requested session and review section. The editor integration owns the native modal's lifetime and current result selection. Changing the selected result does not change the draft's references; Discuss adds explicit references through the draft service. Sending captures the owning session and chat before asynchronous work and delegates execution to `ISessionsManagementService`.
+`ISessionsService.sessionReview` owns the requested session and review section. The editor integration owns the native modal's lifetime and current result selection. Changing the selected result does not change the draft's references; Add to Reply adds explicit references through the draft service. Sending captures the owning session and chat before asynchronous work and delegates execution to `ISessionsManagementService`.
 
-The board remains mounted behind the modal, and its controls are retained so native modal closing can restore the initiating focus. The normal session grid and other workbench parts remain under the existing custom-view visibility contract. Opening, changing, or closing review does not archive, delete, or stop a session.
+The board remains mounted behind the modal, and its controls are retained so native modal closing can restore the initiating focus. Its native conversation renderers and model references are suspended while covered by review. The normal session grid and other workbench parts remain under the existing custom-view visibility contract. Opening, changing, or closing review does not archive, delete, or stop a session.
 
 ## Editor presentation
 
@@ -97,6 +99,8 @@ Session providers register internal per-session directories as resource label ho
 ## Custom views
 
 `ICustomViewService` owns the active contributed full-surface view.
+
+`CustomViewNode` owns the shared header and outer scrollbar. It supplies `AbstractCustomView.setViewport` with the visible vertical range relative to the view's render container and a host-owned scrolling callback. Viewport-mounted children translate this range into their own coordinates; they do not inspect private host DOM or add a second outer scrollbar. The host updates the range on layout, scrolling, and content-size changes.
 
 A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
 

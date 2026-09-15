@@ -44,6 +44,7 @@ import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { ISessionInputDraftService } from '../../browser/sessionInputDraftService.js';
+import { ISessionWorkTrackingService } from '../../browser/sessionWorkTrackingService.js';
 import { SESSION_BOARD_VIEW_ID, SessionReviewSection } from '../../common/sessionReview.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
@@ -315,6 +316,12 @@ function createView(
 		setDraft: () => { },
 		addAttachments: () => { },
 		rebindDraft: () => { },
+	});
+	instantiationService.stub(ISessionWorkTrackingService, {
+		getState: () => constObservable({}),
+		markOpened: () => { },
+		markReviewed: () => { },
+		keep: () => { },
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
@@ -1399,6 +1406,27 @@ suite('SessionsManagementService', () => {
 	});
 
 	suite('Sessions board', () => {
+		test('reviewing an attention item selects its owning peer chat without loading history', async () => {
+			const resource = URI.parse('test:/attention');
+			const main = { ...stubChat, resource: resource.with({ fragment: 'main' }), status: constObservable(SessionStatus.Completed) };
+			const peer = { ...stubChat, resource: resource.with({ fragment: 'peer' }), status: constObservable(SessionStatus.NeedsInput) };
+			const session = stubSession({ resource, sessionId: 'attention', providerId: 'test', status: constObservable(SessionStatus.NeedsInput), mainChat: constObservable(main), chats: constObservable([main, peer]) });
+			const { view, chatService } = createSessionsManagementService(session, disposables);
+			await view.openSessionReview(session, SessionReviewSection.Artifacts, { chatResource: peer.resource });
+			assert.deepStrictEqual({
+				session: view.sessionReview.get()?.sessionResource,
+				chat: view.activeSession.get()?.activeChat.get().resource,
+				loads: chatService.loadedResources,
+			}, { session: resource, chat: peer.resource, loads: [] });
+		});
+
+		test('review rejects a chat outside the session without changing the active work', async () => {
+			const session = stubSession({ sessionId: 'attention', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const { view } = createSessionsManagementService(session, disposables);
+			await assert.rejects(() => view.openSessionReview(session, SessionReviewSection.Artifacts, { chatResource: URI.parse('test:/foreign') }), /no longer part of this session/);
+			assert.strictEqual(view.sessionReview.get(), undefined);
+		});
+
 		test('review navigation keeps the canonical session and does not acquire a chat model', async () => {
 			const session = stubSession({ sessionId: 'review', providerId: 'test', status: constObservable(SessionStatus.Completed) });
 			const { view, chatService, customViewService } = createSessionsManagementService(session, disposables);

@@ -284,7 +284,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
 			const elem = this.actionsList.children[i];
 			if (DOM.isAncestor(DOM.getActiveElement(), elem)) {
+				if (this.previouslyFocusedItem !== undefined && this.previouslyFocusedItem !== i) {
+					this.viewItems[this.previouslyFocusedItem]?.blur();
+				}
 				this.focusedItem = i;
+				// Native Tab navigation can move focus without going through updateFocus.
+				this.previouslyFocusedItem = i;
 				this.viewItems[this.focusedItem]?.showHover?.();
 				break;
 			}

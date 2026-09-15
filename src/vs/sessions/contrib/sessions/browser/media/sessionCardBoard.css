@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-card-board {
+	position: relative;
+	min-width: 0;
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+}
+
+.session-card-board-empty {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	pointer-events: none;
+}
+
+.session-card-board-empty[hidden] { display: none; }
+
+.session-card-board-items {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.session-card-board.collection-drop-target,
+.session-card-board.empty-drop-target {
+	border: var(--vscode-strokeThickness) dashed var(--vscode-contrastBorder, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.session-card-board.collection-drop-target {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	background: var(--vscode-list-dropBackground);
+}
+
+.session-card-board-slot,
+.session-card-board-placeholder {
+	position: absolute;
+	top: 0;
+	left: 0;
+	box-sizing: border-box;
+}
+
+.session-card-board-slot > .session-work-card {
+	background: var(--vscode-editor-background);
+	border-color: var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+}
+
+.session-card-board-slot > .session-work-card:hover {
+	border-color: var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+}
+
+.session-card-board-slot > .session-work-card:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+.session-card-board-slot.drag-source {
+	opacity: 0;
+}
+
+.session-card-board-placeholder {
+	z-index: 2;
+	pointer-events: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: var(--vscode-strokeThickness) dashed var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	background: var(--vscode-list-dropBackground);
+}
+
+.session-card-board-placeholder[hidden] {
+	display: none;
+}
+
+.session-card-board.resizing .session-card-board-placeholder {
+	background: transparent;
+}
+
+.session-card-board-drag-image {
+	position: absolute;
+	top: -10000px;
+	left: -10000px;
+	max-width: 320px;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-list-activeSelectionForeground);
+	background: var(--vscode-list-activeSelectionBackground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-focusBorder));
+	border-radius: var(--vscode-cornerRadius-medium);
+}

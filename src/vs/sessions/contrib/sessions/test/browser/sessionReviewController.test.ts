@@ -30,14 +30,16 @@ import { IChatEntitlementService, IChatSentiment } from '../../../../../workbenc
 import { IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, MODAL_GROUP, PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionInputDraftService } from '../../../../services/sessions/browser/sessionInputDraftService.js';
+import { ISessionWorkTrackingService } from '../../../../services/sessions/browser/sessionWorkTrackingService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionArtifact, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { ISessionReviewState, SessionReviewSection } from '../../../../services/sessions/common/sessionReview.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
+import { makeChange, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { OPEN_PULL_REQUEST_REVIEW_ACTION_ID } from '../../../github/common/types.js';
 import { SessionReviewController } from '../../browser/sessionReviewController.js';
+import { SessionReviewComposer } from '../../browser/sessionReviewComposer.js';
 import { SessionReviewEditorInput } from '../../browser/sessionReviewEditor.js';
 import { SessionReviewSidebar } from '../../browser/sessionReviewSidebar.js';
 
@@ -69,6 +71,7 @@ suite('SessionReviewController', () => {
 		const editorChanged = store.add(new Emitter<void>());
 		const opens: { input: EditorInput; options: IEditorOptions | undefined; target: PreferredGroup | undefined }[] = [];
 		const modalOptions: (IModalEditorPartOptions | undefined)[] = [];
+		const changesTargets: (PreferredGroup | undefined)[] = [];
 		const closes: boolean[] = [];
 		const errors: unknown[] = [];
 		const commands: { id: string; args: readonly unknown[] }[] = [];
@@ -77,6 +80,8 @@ suite('SessionReviewController', () => {
 		let modal: IModalEditorPart | undefined;
 		let modalCount = 0;
 		let sidebarCount = 0;
+		let footerCount = 0;
+		let replyFocusCount = 0;
 		let canClose = true;
 		let hidden = false;
 		let trust = Promise.resolve(true);
@@ -87,6 +92,7 @@ suite('SessionReviewController', () => {
 			modalOptions.push(options);
 			const group = new ReviewGroup();
 			let sidebar: IDisposable = Disposable.None;
+			let footer: IDisposable = Disposable.None;
 			const part = new class extends mock<IModalEditorPart>() {
 				override readonly activeGroup = group;
 				override readonly groups = [group];
@@ -95,6 +101,7 @@ suite('SessionReviewController', () => {
 					if (!canClose && !options?.mergeAllEditorsToMainPart) { return false; }
 					if (modal === part) { modal = undefined; }
 					sidebar.dispose();
+					footer.dispose();
 					return true;
 				}
 			}();
@@ -103,6 +110,10 @@ suite('SessionReviewController', () => {
 			if (options?.sidebar) {
 				sidebarCount++;
 				sidebar = store.add(options.sidebar.render(document.createElement('div'), Event.None, context));
+			}
+			if (options?.contentFooter) {
+				footerCount++;
+				footer = store.add(options.contentFooter.render(document.createElement('div'), Event.None, context));
 			}
 			return part;
 		}
@@ -169,8 +180,15 @@ suite('SessionReviewController', () => {
 		instantiation.stub(ISessionInputDraftService, {
 			addAttachments: (resource, entries) => { references.push({ resource, entries }); },
 		});
+		const localReplies: URI[] = [];
+		instantiation.stub(ISessionWorkTrackingService, {
+			markOpened: resource => localReplies.push(resource),
+		});
 		instantiation.stub(ISessionChangesService, {
-			openChangesEditor: async () => { await editors.openEditor(store.add(new ResourceInput(URI.parse('test-changes:/session'))), {}, MODAL_GROUP); },
+			openChangesEditor: async (_resource, _options, group) => {
+				changesTargets.push(group);
+				await editors.openEditor(store.add(new ResourceInput(URI.parse('test-changes:/session'))), {}, group);
+			},
 		});
 		instantiation.stub(ICommandService, {
 			executeCommand: async (id, ...args) => {
@@ -192,12 +210,14 @@ suite('SessionReviewController', () => {
 		instantiation.stub(IQuickInputService, {
 			pick: async picks => { const items = await picks; return pickerIndex === undefined ? undefined : items[pickerIndex]; },
 		});
-		instantiation.stubInstance(SessionReviewSidebar, { dispose: () => { }, focus: () => { } });
+		instantiation.stubInstance(SessionReviewSidebar, { dispose: () => { } });
+		instantiation.stubInstance(SessionReviewComposer, { dispose: () => { }, focus: () => { replyFocusCount++; } });
 		const controller = store.add(instantiation.createInstance(SessionReviewController));
 		return {
-			controller, review, session, sessions, activeSession, opens, closes, errors, commands, replies, references, modalOptions,
+			controller, review, session, sessions, activeSession, opens, closes, errors, commands, replies, references, modalOptions, localReplies, changesTargets,
 			modal: () => modal,
-			counts: () => ({ modalCount, sidebarCount }),
+			counts: () => ({ modalCount, sidebarCount, footerCount }),
+			replyFocusCount: () => replyFocusCount,
 			setCanClose: (value: boolean) => { canClose = value; },
 			setHidden: (value: boolean) => { hidden = value; },
 			setTrust: (value: Promise<boolean>) => { trust = value; },
@@ -207,7 +227,7 @@ suite('SessionReviewController', () => {
 		};
 	}
 
-	test('opens a native catalog and keeps one reply sidebar across result switches', async () => {
+	test('opens a native catalog and keeps one reply footer across result switches', async () => {
 		const harness = setup();
 		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Artifacts }, undefined);
 		await timeout(0);
@@ -219,10 +239,19 @@ suite('SessionReviewController', () => {
 			override: harness.opens[1].options?.override,
 			selected: harness.controller.selection.get()?.resource.toString(),
 			errors: harness.errors,
-		}, { counts: { modalCount: 1, sidebarCount: 1 }, targets: [MODAL_GROUP, MODAL_GROUP], override: BrowserViewEditorId, selected: 'https://example.com/result', errors: [] });
+		}, { counts: { modalCount: 1, sidebarCount: 1, footerCount: 1 }, targets: [MODAL_GROUP, MODAL_GROUP], override: BrowserViewEditorId, selected: 'https://example.com/result', errors: [] });
 	});
 
-	test('opts into the native adaptive sidebar without replacing native modal layout', async () => {
+	test('changes explicitly target the modal rather than passing a group that native routing redirects', async () => {
+		const harness = setup();
+		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Conversation }, undefined);
+		await timeout(0);
+		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Changes }, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ changesTargets: harness.changesTargets, editorTarget: harness.opens.at(-1)?.target, closes: harness.closes }, { changesTargets: [MODAL_GROUP], editorTarget: MODAL_GROUP, closes: [] });
+	});
+
+	test('uses a left navigation sidebar and a separate native content footer', async () => {
 		const harness = setup();
 		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Artifacts }, undefined);
 		await timeout(0);
@@ -230,9 +259,45 @@ suite('SessionReviewController', () => {
 		assert.deepStrictEqual({
 			placement: sidebar?.placement,
 			width: sidebar?.sidebarWidth,
-			height: sidebar?.sidebarHeight,
 			hidden: sidebar?.sidebarHidden,
-		}, { placement: 'auto', width: 320, height: 320, hidden: false });
+			footerHeight: harness.modalOptions[0]?.contentFooter?.height,
+		}, { placement: 'left', width: 240, hidden: false, footerHeight: 220 });
+	});
+
+	test('an empty Changes editor does not offer a result reference to add to the reply', async () => {
+		const harness = setup();
+		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Changes }, undefined);
+		await timeout(0);
+		assert.strictEqual(harness.controller.selection.get(), undefined);
+	});
+
+	test('changes arriving or clearing update the result action without switching editors', async () => {
+		const session = makeSession(URI.parse('test:/session'));
+		const changes = observableValue('changes', session.changes.get());
+		const harness = setup({ ...session, changes });
+		harness.review.set({ sessionResource: session.resource, section: SessionReviewSection.Changes }, undefined);
+		await timeout(0);
+		const selections = [!!harness.controller.selection.get()];
+		changes.set([makeChange('/repo/result.ts')], undefined);
+		selections.push(!!harness.controller.selection.get());
+		changes.set([], undefined);
+		selections.push(!!harness.controller.selection.get());
+		await harness.controller.close();
+		changes.set([makeChange('/repo/result.ts')], undefined);
+		selections.push(!!harness.controller.selection.get());
+		assert.deepStrictEqual(selections, [false, true, false, false]);
+	});
+
+	test('keeps the composer across every review section without adding references implicitly', async () => {
+		const harness = setup();
+		for (const section of [SessionReviewSection.Conversation, SessionReviewSection.Artifacts, SessionReviewSection.Changes, SessionReviewSection.PullRequest]) {
+			harness.review.set({ sessionResource: harness.session.resource, section }, undefined);
+			await timeout(0);
+		}
+		harness.controller.focusReply();
+		assert.deepStrictEqual({
+			counts: harness.counts(), replyFocus: harness.replyFocusCount(), references: harness.references, errors: harness.errors,
+		}, { counts: { modalCount: 1, sidebarCount: 1, footerCount: 1 }, replyFocus: 1, references: [], errors: [] });
 	});
 
 	test('Back to Board respects native dirty-editor cancellation', async () => {
@@ -257,7 +322,7 @@ suite('SessionReviewController', () => {
 		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Artifacts }, undefined);
 		await timeout(0);
 		assert.deepStrictEqual({ originalRetained: harness.modal() === original, counts: harness.counts(), opens: harness.opens.length, state: harness.review.get() }, {
-			originalRetained: true, counts: { modalCount: 1, sidebarCount: 0 }, opens: 0, state: undefined,
+			originalRetained: true, counts: { modalCount: 1, sidebarCount: 0, footerCount: 0 }, opens: 0, state: undefined,
 		});
 	});
 
@@ -267,7 +332,7 @@ suite('SessionReviewController', () => {
 		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Artifacts }, undefined);
 		await timeout(0);
 		assert.deepStrictEqual({ replaced: harness.modal() !== original, counts: harness.counts(), closes: harness.closes, errors: harness.errors }, {
-			replaced: true, counts: { modalCount: 2, sidebarCount: 1 }, closes: [false], errors: [],
+			replaced: true, counts: { modalCount: 2, sidebarCount: 1, footerCount: 1 }, closes: [false], errors: [],
 		});
 	});
 
@@ -296,7 +361,7 @@ suite('SessionReviewController', () => {
 		await gate.complete();
 		await harness.controller.close();
 		assert.deepStrictEqual({ state: harness.review.get(), modal: harness.modal(), selection: harness.controller.selection.get(), counts: harness.counts(), errors: harness.errors }, {
-			state: undefined, modal: undefined, selection: undefined, counts: { modalCount: 1, sidebarCount: 1 }, errors: [],
+			state: undefined, modal: undefined, selection: undefined, counts: { modalCount: 1, sidebarCount: 1, footerCount: 1 }, errors: [],
 		});
 	});
 
@@ -354,7 +419,32 @@ suite('SessionReviewController', () => {
 		harness.review.set({ sessionResource: harness.session.resource, section: SessionReviewSection.Artifacts, resource }, undefined);
 		await timeout(0);
 		harness.controller.discuss();
-		assert.deepStrictEqual(harness.references, [{ resource: harness.session.activeChat.get().resource, entries: [toFileVariableEntry(resource)] }]);
+		assert.deepStrictEqual({ references: harness.references, replyFocus: harness.replyFocusCount() },
+			{ references: [{ resource: harness.session.activeChat.get().resource, entries: [toFileVariableEntry(resource)] }], replyFocus: 1 });
+	});
+
+	test('only a successful explicit review reply records local interaction', async () => {
+		const harness = setup();
+		harness.setTrust(Promise.resolve(false));
+		await harness.controller.send(harness.session, harness.session.mainChat.get(), 'Not sent', []);
+		const before = [...harness.localReplies];
+		harness.setTrust(Promise.resolve(true));
+		await harness.controller.send(harness.session, harness.session.mainChat.get(), 'Send this reply', []);
+		assert.deepStrictEqual({ before, after: harness.localReplies }, { before: [], after: [harness.session.resource] });
+	});
+
+	test('a compact catalog reply does not need an active-session presentation', async () => {
+		const harness = setup();
+		const chat = harness.session.mainChat.get();
+		const metadata = {
+			...harness.session,
+			get activeChat(): never { throw new Error('Sending must use the explicitly captured chat'); },
+		};
+		await harness.controller.send(metadata, chat, 'Reply without opening a view', []);
+		assert.deepStrictEqual({
+			replies: harness.replies,
+			modalCount: harness.counts().modalCount,
+		}, { replies: [{ chat, query: 'Reply without opening a view', attachments: [] }], modalCount: 0 });
 	});
 
 	test('sending keeps the captured chat and attachments while trust is pending', async () => {

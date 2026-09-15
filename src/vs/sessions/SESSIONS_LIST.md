@@ -4,7 +4,7 @@
 
 ## Scope
 
-The Sessions list is the primary navigation surface in the Agents Window. It aggregates provider-neutral sessions into a grouped, filterable tree and owns user presentation state such as pins, custom groups, ordering, and collapsed sections.
+The Sessions list is the standard session navigator in the Agents Window. It aggregates provider-neutral sessions into a grouped, filterable tree and owns user presentation state such as pins, custom groups, ordering, and collapsed sections. While the optional work overview is active, the same sidebar content slot presents work views, collections, and saved filters; leaving the overview restores the existing session list.
 
 This specification defines stable placement and state-ownership rules. Row styling, labels, icons, action placement, animation, picker workflows, and implementation algorithms belong in code and focused tests.
 
@@ -15,10 +15,16 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Session catalog and lifecycle | `ISessionsManagementService` |
 | Pin and per-sort ordering state | `ISessionsListModelService` |
 | Custom groups and membership | `ISessionGroupsService` |
+| Saved work queries and promoted automatic collections | `ISessionsBoardService` |
+| Scoped work-card order, size intent, and section collapse state | `ISessionsBoardService` |
 | Top-level group/workspace order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
+
+Manual collections in the work overview use the existing custom groups and membership service. They are not filesystem folders, execution boundaries, or additional session identities. Automatic collections are promoted work queries, not manually maintained membership sets; their sections also remain in My work. Saved queries may overlap without creating additional group memberships. Removing a manual group, automatic shortcut, or saved view never deletes its sessions.
+
+Work-card layouts are workspace-local presentation state, scoped by view/section or manual collection and sort mode. They store logical order, column-span intent, and optional expanded height, independently of the sidebar's sort keys. Filtering merges visible edits into the unfiltered order without discarding hidden sizes or temporarily unavailable sessions. Canonical session replacement transfers this intent; definitive deletion removes it. Section collapse choices are saved independently of temporary search expansion.
 
 ## Inputs
 
@@ -93,6 +99,7 @@ Drag and drop changes only list-owned presentation state or opens sessions throu
 
 - sessions may reorder within valid sections;
 - sessions may move into user-created groups;
+- work cards share the native session drag payload with the sidebar; only manual collections accept membership drops, while automatic query collections reject them;
 - non-archived sessions may move into the pinned section;
 - user groups and workspace sections may reorder where the grouping mode allows;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.

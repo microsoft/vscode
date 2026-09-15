@@ -46,6 +46,7 @@ import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../..
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { SessionWorkNavigation } from './sessionWorkNavigation.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -102,6 +103,8 @@ export class SessionsView extends ViewPane {
 	private sidebarSplitView: SplitView | undefined;
 	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private sessionsControlContainer: HTMLElement | undefined;
+	private workNavigationContainer: HTMLElement | undefined;
+	private workNavigation: SessionWorkNavigation | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
 	private headerRow: HTMLElement | undefined;
 	private headerLabel: HTMLElement | undefined;
@@ -219,6 +222,9 @@ export class SessionsView extends ViewPane {
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		this.workNavigationContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		this.workNavigationContainer.style.display = 'none';
+		this.workNavigation = this._register(this.instantiationService.createInstance(SessionWorkNavigation, this.workNavigationContainer));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
@@ -256,7 +262,16 @@ export class SessionsView extends ViewPane {
 				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
-		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible && !this.sessionsService.isSessionBoardVisible.get())));
+		this._register(autorun(reader => {
+			const boardVisible = this.sessionsService.isSessionBoardVisible.read(reader);
+			this.sessionsControlContainer!.style.display = boardVisible ? 'none' : '';
+			this.workNavigationContainer!.style.display = boardVisible ? '' : 'none';
+			sessionsControl.setVisible(this.isBodyVisible() && !boardVisible);
+			if (boardVisible) { sessionsControl.closeFind(); }
+			if (this.headerLabel) { this.headerLabel.textContent = boardVisible ? localize('sessionsHeader.work', "Work") : localize('sessionsHeader', "Sessions"); }
+			this.layoutSidebarSplitView();
+		}));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
@@ -336,6 +351,7 @@ export class SessionsView extends ViewPane {
 			layout: height => {
 				sessionsSection.style.height = `${height}px`;
 				this.sessionsControl?.layout(this.sessionsControlContainer?.offsetHeight ?? 0, this.currentBodyWidth);
+				this.workNavigation?.layout(this.workNavigationContainer?.offsetHeight ?? 0, this.currentBodyWidth);
 			},
 		};
 
@@ -645,8 +661,11 @@ export class SessionsView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-
-		this.sessionsControl?.focus();
+		if (this.sessionsService.isSessionBoardVisible.get()) {
+			this.workNavigation?.focus();
+		} else {
+			this.sessionsControl?.focus();
+		}
 	}
 
 	refresh(): void {

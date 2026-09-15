@@ -30,3 +30,7 @@ export interface ISessionReviewOptions {
 	readonly pullRequest?: IGitHubPullRequestRef;
 	readonly resource?: URI;
 }
+
+export interface ISessionReviewOpenOptions extends ISessionReviewOptions {
+	readonly chatResource?: URI;
+}

@@ -78,6 +78,54 @@
 		min-width: 0;
 		min-height: 0;
 	}
+
+	&.has-content-footer {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr) auto;
+
+		> .content {
+			grid-column: 1;
+			grid-row: 2;
+		}
+
+		&.has-sidebar {
+			grid-template-columns: auto minmax(0, 1fr);
+
+			> .content,
+			> .modal-editor-content-footer {
+				grid-column: 2;
+			}
+
+			> .modal-editor-sidebar {
+				grid-row: 2 / 4;
+			}
+
+			&.sidebar-bottom {
+				grid-template-columns: minmax(0, 1fr);
+				grid-template-rows: auto minmax(0, 1fr) auto auto;
+
+				> .content,
+				> .modal-editor-content-footer {
+					grid-column: 1;
+				}
+
+				> .modal-editor-sidebar {
+					grid-row: 4;
+				}
+			}
+		}
+	}
+}
+
+.monaco-modal-editor-block .modal-editor-content-footer {
+	grid-column: 1;
+	grid-row: 3;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	box-sizing: border-box;
+	border-top: var(--vscode-strokeThickness, 1px) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	background-color: var(--vscode-editor-background);
 }
 
 /** Modal Editor Sidebar */

@@ -1,0 +1,41 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-work-card-content {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.session-work-card-content > .session-work-card-content-list {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+.session-work-card-content > .session-work-card-content-list[hidden] {
+	display: none;
+}
+
+.session-work-card-content-state {
+	box-sizing: border-box;
+	min-width: 0;
+	padding: var(--vscode-spacing-size120);
+	overflow: auto;
+}
+
+.session-work-card-content-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.session-work-card-content-actions > .monaco-button {
+	width: auto;
+}
