@@ -394,12 +394,10 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		const cell = confettiCell ? this.codiconCells.get(confettiCell) : undefined;
 		if (!confettiCell || !cell) {
 			this.confettiButton.element.hidden = true;
-			delete this.confettiButton.element.dataset.confettiCell;
 			this.updateActiveConfettiCell();
 			return;
 		}
 
-		this.confettiButton.element.dataset.confettiCell = confettiCell;
 		this.confettiButton.element.style.left = cell.element.style.left;
 		this.confettiButton.element.style.top = cell.element.style.top;
 		this.confettiButton.element.hidden = false;
@@ -420,7 +418,6 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		if (this.confettiButton) {
 			this.confettiButton.element.blur();
 			this.confettiButton.element.hidden = true;
-			delete this.confettiButton.element.dataset.confettiCell;
 		}
 		this.codiconCells.clear();
 		this.confettiCandidates.clear();
