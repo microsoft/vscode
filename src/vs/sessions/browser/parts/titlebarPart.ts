@@ -31,6 +31,7 @@ import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
+import { SessionEditorTitle } from '../../services/title/browser/sessionEditorTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 
@@ -83,6 +84,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftContent!: HTMLElement;
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
+	private editorTitleElement: HTMLElement | undefined;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
@@ -140,6 +142,12 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	updateOptions(_options: { compact: boolean }): void {
 		// No compact mode support in agent sessions titlebar
+	}
+
+	updateEditorTitle(title: string): void {
+		if (this.editorTitleElement) {
+			this.editorTitleElement.textContent = title;
+		}
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -209,42 +217,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Center section: [nav toolbar] [command center box] [actions toolbar]
-		// All live inside .titlebar-center so the cluster is window-centered.
-
-		// Navigation toolbar (Back/Forward), rendered left of the command center.
-		const centerNavContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-nav-container'));
-		const centerNavToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerNavContainer, Menus.TitleBarCenterLeft, {
-			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'titlePart.centerLeft',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
-
-		// Center toolbar - command center (renders session picker via IActionViewItemService)
-		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
-		const windowTitle = append(this.centerContent, $('div.window-title'));
-		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
-		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
-			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'commandCenter',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(commandCenterContextKeys)) {
-				centerToolbar.refresh();
-			}
-		}));
-
-		// Actions toolbar (Open in VS Code), rendered right of the command center.
-		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
-		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
-			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'titlePart.centerRight',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
+		this.createCenterContent();
 
 		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
 		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-right-layout-container'));
@@ -278,8 +251,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		updateScreenReaderButtonBar();
 
 		this.overflowManagedToolBarElements.push(screenReaderToolBarElement);
-		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
-		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
 
@@ -292,6 +263,42 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.updateStyles();
 
 		return this.element;
+	}
+
+	private createCenterContent(): void {
+		if (getWindow(this.element) !== mainWindow) {
+			this.editorTitleElement = append(this.centerContent, $('div.window-title.session-editor-title'));
+			return;
+		}
+		const centerNavContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-nav-container'));
+		const centerNavToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerNavContainer, Menus.TitleBarCenterLeft, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.centerLeft',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+		const windowTitle = append(this.centerContent, $('div.window-title'));
+		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
+		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'commandCenter',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(commandCenterContextKeys)) {
+				centerToolbar.refresh();
+			}
+		}));
+		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
+		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.centerRight',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
+		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 	}
 
 	override updateStyles(): void {
@@ -483,6 +490,7 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
+		disposables.add(instantiationService.createInstance(SessionEditorTitle, getWindow(container).document, title => titlebarPart.updateEditorTitle(title)));
 
 		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
 
