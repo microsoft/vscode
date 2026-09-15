@@ -29,6 +29,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 ### Windows and navigation
 
 - `Agents: Open Project Board` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
+- The Sessions sidebar's Kanban entry embeds the same board inside the Agents window, using the custom view's styled scrolling and accessibility support. Both presentations share profile configuration; they are not separate named boards. Their view lifetimes, accessibility content and focus return must remain independent when both are open.
 - Under custom-titlebar configuration, the board reuses the Sessions auxiliary titlebar and its standard native window controls, with a fixed Agent Project Board title and no session command center. Reserve the chrome height outside the board's scroll viewport and keep title/control routing scoped to that auxiliary window.
 - Invoking the command from an ordinary Editor hands off to that Agents window, rather than creating a separate board for the Editor's profile.
 - Double-click, Enter or Space opens the exact chat in a compact standalone chat editor. Reopening the same chat reuses its window; different chats get independent windows.
@@ -45,6 +46,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Support adding, renaming, reordering and deleting both axes. Persist stable IDs rather than labels.
 - Keep at least one row and column; require nonempty labels.
 - A chat has one placement or is Unassigned. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
+- Hover/focus reveals the card Delete action where supported. Deletion requires confirmation and deletes the backing session (including its chats), not merely its board placement. Draft deletion closes its editor through the normal close lifecycle before discarding the owned draft; canceling either confirmation preserves it.
 - Card context menus do not enumerate every destination. Axis-edit menus remain.
 - Deleting an occupied axis requires confirmation and returns affected placements to Unassigned, including archived placements. Cancellation changes nothing.
 - Arrow keys follow the visible card geometry. Home/End focus the first/last card and scroll it into view.

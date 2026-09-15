@@ -166,17 +166,17 @@ Use your own topic branch/fork and follow the [upstream contribution process](ht
 
 Include the scenario IDs, tested revision, commands/counts, platform, exercised providers, native evidence and known gaps in your handoff. Never commit profiles, tokens, transcripts, debug captures or generated build output.
 
-### Maintainer integration without switching the working tree
+### Rebase onto the feature integration baseline
 
-Bryan's existing worktree stays on `copilot/vscode/agent-project-board-phase-1`; `origin/bryanchen-d/agents-board-view` is the shared integration target. The working branch tracks that shared branch for incoming changes.
+Treat `bryanchen-d/agents-board-view` as this feature's main branch. Bryan's existing worktree stays on `copilot/vscode/agent-project-board-phase-1`; the working branch tracks the shared branch for incoming changes.
 
 After committing a validated change on the working branch:
 
 ```powershell
 git fetch origin
-git merge --no-edit origin/bryanchen-d/agents-board-view
+git rebase origin/bryanchen-d/agents-board-view
 # Resolve any conflicts and run the relevant regression gates before publishing.
 git push origin HEAD:refs/heads/bryanchen-d/agents-board-view
 ```
 
-This integrates other contributors' changes locally before advancing the shared branch, without checking it out or renaming the working branch. Use the explicit push target because the local and shared branch names differ. If another contributor advances the remote, fetch, merge and validate again; never force-push past their commits. Contributors without write access should use a pull request targeting the shared branch.
+Rebase only the unpublished personal commits; preserve all published contributor commits. Resolve conflicts by retaining both behaviors and rerun the relevant tests and native scenarios before advancing the shared branch. Use the explicit push target because the local and shared branch names differ. If another contributor advances the remote, fetch, rebase and validate again; never force-push past their commits. Contributors without write access should use a pull request targeting the shared branch.
