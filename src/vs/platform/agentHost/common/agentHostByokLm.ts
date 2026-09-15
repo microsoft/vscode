@@ -122,6 +122,7 @@ export type IByokLmOutputItem =
 
 export interface IByokLmChatResult {
 	readonly output: IByokLmOutputItem[];
+	/** Opaque provider state identifier. Present only when a subsequent request can resume it. */
 	readonly responseId?: string;
 	readonly usage?: {
 		readonly inputTokens?: number;
