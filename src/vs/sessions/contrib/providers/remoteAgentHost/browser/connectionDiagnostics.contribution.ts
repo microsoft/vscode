@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -24,11 +25,13 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { CopyConnectionDiagnosticsCommandId, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 import './connectionDiagnosticsService.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
 
 const connectionDiagnosticsFocused = new RawContextKey<boolean>('connectionDiagnosticsFocused', false);
+const phoneLayoutContextKeys = new Set([IsPhoneLayoutContext.key]);
 
 interface IActiveConnectionDiagnostics {
 	readonly report: ConnectionDiagnosticsReport;
@@ -79,8 +82,9 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		let active: IActiveConnectionDiagnostics | undefined;
 		await showConnectionDiagnosticsSheet(container, snapshot ?? this.diagnosticsService.getSnapshot(), this.instantiationService, {
 			autoFocus: false,
+			enableHostManagement: isWeb,
+			rediscoverOnRefresh: isWeb,
 			onDidCreate: (report, api) => {
-				api.overlay.classList.add(isPhoneLayout(this.layoutService) ? 'phone-layout' : 'desktop-layout');
 				active = this.active = { report, overlay: api.overlay, close: () => api.close(), restoreFocus: true, returnFocus: dom.isHTMLElement(previouslyFocused) ? previouslyFocused : undefined };
 				return this.attachModal(container, report, api);
 			},
@@ -92,6 +96,17 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 
 	private attachModal(container: HTMLElement, report: ConnectionDiagnosticsReport, api: IMobileContentSheetApi): DisposableStore {
 		const store = new DisposableStore();
+		const updateLayoutClass = () => {
+			const phoneLayout = isPhoneLayout(this.layoutService);
+			api.overlay.classList.toggle('phone-layout', phoneLayout);
+			api.overlay.classList.toggle('desktop-layout', !phoneLayout);
+		};
+		updateLayoutClass();
+		store.add(this.contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(phoneLayoutContextKeys)) {
+				updateLayoutClass();
+			}
+		}));
 		const context = store.add(this.contextKeyService.createScoped(api.sheet));
 		connectionDiagnosticsFocused.bindTo(context).set(true);
 		for (const sibling of Array.from(container.children).filter(dom.isHTMLElement)) {

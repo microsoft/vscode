@@ -56,7 +56,7 @@ export interface IConnectionDiagnosticsService {
 	getSnapshot(): IConnectionDiagnosticsSnapshot;
 	getHostManagementState(): IConnectionHostManagementState;
 	runHostAction(hostId: string, action: ConnectionHostManagementAction): Promise<void>;
-	rediscover(): Promise<void>;
+	rediscover(): Promise<boolean>;
 	/** Observe an existing discovery operation without changing its result or error. */
 	trackDiscovery(trigger: string, discover: () => Promise<ITunnelInfo[]>): Promise<ITunnelInfo[]>;
 	recordHostAction(address: string, action: 'connect' | 'disconnect', userInitiated: boolean): void;

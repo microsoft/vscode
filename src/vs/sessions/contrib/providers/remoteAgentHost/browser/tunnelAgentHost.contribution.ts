@@ -222,6 +222,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			name,
 			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
 			disconnectOnDemand: () => this._disconnectTunnel(address),
+			removeOnDemand: () => this._removeTunnel(address),
 		},
 		);
 	}
@@ -347,6 +348,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._diagnosticsService.recordHostAction(address, 'disconnect', true);
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		this._tunnelService.suppressAutoConnect(tunnelId);
+		await this._tunnelService.disconnect(address);
+	}
+
+	private async _removeTunnel(address: string): Promise<void> {
+		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
+		this._tunnelService.dismissTunnel(tunnelId);
+		this._tunnelService.removeCachedTunnel(tunnelId);
 		await this._tunnelService.disconnect(address);
 	}
 

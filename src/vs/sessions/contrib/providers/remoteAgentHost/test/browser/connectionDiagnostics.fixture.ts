@@ -146,12 +146,14 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 					};
 				}
 				override async runHostAction(): Promise<void> { }
-				override async rediscover(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 		},
 	});
 	void showConnectionDiagnosticsSheet(container, snapshot, instantiationService, {
 		autoFocus: false,
+		enableHostManagement: true,
+		rediscoverOnRefresh: true,
 		onDidCreate: (report, api) => {
 			disposableStore.add(toDisposable(() => api.close()));
 			api.overlay.style.height = '100%';
@@ -192,7 +194,7 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 				override readonly onDidChangeDiscovering = Event.None;
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
-				override async rediscover(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };

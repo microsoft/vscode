@@ -206,16 +206,16 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			throw new Error(localize('connectionDiagnostics.hostNotManageable', "The host does not have manual connection controls."));
 		}
 		if (action === 'disconnect') {
-			this._filterService.disconnect(current.id);
+			await this._filterService.disconnect(current.id);
 			return;
 		}
 		if (current.address?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
 			this._tunnelService.clearAutoConnectSuppression(current.address.slice(TUNNEL_ADDRESS_PREFIX.length));
 		}
-		this._filterService.reconnect(current.id);
+		await this._filterService.reconnect(current.id);
 	}
 
-	rediscover(): Promise<void> {
+	rediscover(): Promise<boolean> {
 		return this._filterService.rediscover();
 	}
 

@@ -246,7 +246,7 @@ class StubSessionsProvidersService extends Disposable {
 class StubFilterService {
 	declare readonly _serviceBrand: undefined;
 	registerDiscoveryHandler(_handler: () => Promise<void>): IDisposable { return toDisposable(() => { }); }
-	async rediscover(): Promise<void> { /* noop — production routes through the discovery handler */ }
+	async rediscover(): Promise<boolean> { return true; }
 }
 
 class TestTunnelContribution extends TunnelAgentHostContribution {
@@ -486,6 +486,7 @@ suite('TunnelAgentHostContribution', () => {
 		tunnelService.setListed([tunnel]);
 		const testable = contribution as unknown as {
 			_disconnectTunnel(address: string): Promise<void>;
+			_removeTunnel(address: string): Promise<void>;
 			_silentStatusCheck(): Promise<void>;
 		};
 
@@ -494,7 +495,7 @@ suite('TunnelAgentHostContribution', () => {
 			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
 			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
 			autoConnectSuppressed: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
-			disconnectCalls: tunnelService.disconnectCalls,
+			disconnectCalls: [...tunnelService.disconnectCalls],
 			providers: providersService.getProviders().map(provider => provider.id),
 		};
 		await testable._silentStatusCheck();
@@ -504,10 +505,17 @@ suite('TunnelAgentHostContribution', () => {
 			autoConnectSuppressed: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
 			providers: providersService.getProviders().map(provider => provider.id),
 		};
+		await testable._removeTunnel(address);
+		const afterRemove = {
+			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
+			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
+			providers: providersService.getProviders().map(provider => provider.id),
+		};
 
 		assert.deepStrictEqual({
 			afterDisconnect,
 			afterDiscovery,
+			afterRemove,
 		}, {
 			afterDisconnect: {
 				cached: [tunnel.tunnelId],
@@ -521,6 +529,11 @@ suite('TunnelAgentHostContribution', () => {
 				dismissed: false,
 				autoConnectSuppressed: true,
 				providers: [`agenthost-${address}`],
+			},
+			afterRemove: {
+				cached: [],
+				dismissed: true,
+				providers: [],
 			},
 		});
 	});

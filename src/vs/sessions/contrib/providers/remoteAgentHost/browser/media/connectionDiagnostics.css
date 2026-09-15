@@ -89,10 +89,12 @@
 }
 
 .connection-diagnostics-host-section summary {
-	padding-right: var(--vscode-spacing-size400);
+	padding-right: calc(2 * var(--vscode-spacing-size400) + var(--vscode-spacing-size80));
 }
 
 .connection-diagnostics-host-actions {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
 	position: absolute;
 	top: var(--vscode-spacing-size80);
 	right: 0;

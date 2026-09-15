@@ -77,9 +77,9 @@ suite('ConnectionDiagnosticsService', () => {
 			readonly reconnects: string[] = [];
 			readonly disconnects: string[] = [];
 			rediscoverCount = 0;
-			override reconnect(id: string): void { this.reconnects.push(id); }
-			override disconnect(id: string): void { this.disconnects.push(id); }
-			override async rediscover(): Promise<void> { this.rediscoverCount++; }
+			override async reconnect(id: string): Promise<void> { this.reconnects.push(id); }
+			override async disconnect(id: string): Promise<void> { this.disconnects.push(id); }
+			override async rediscover(): Promise<boolean> { this.rediscoverCount++; return true; }
 		}();
 		instantiation.stub(IAgentHostFilterService, filter);
 		instantiation.stub(IProductService, { version: '1.139.0', commit: 'test-commit' });

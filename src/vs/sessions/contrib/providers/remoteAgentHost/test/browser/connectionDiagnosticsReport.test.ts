@@ -59,7 +59,11 @@ suite('ConnectionDiagnosticsReport', () => {
 		text: 'No hosts found\nDiscovery\nDetail: <script>not markup</script>\nThis client\nEnvironment: Web browser',
 	};
 
-	function createReport(writeText: (text: string) => Promise<void>, download: typeof dom.triggerDownload = () => { }) {
+	function createReport(
+		writeText: (text: string) => Promise<void>,
+		download: typeof dom.triggerDownload = () => { },
+		options: { readonly enableHostManagement?: boolean; readonly rediscoverOnRefresh?: boolean; readonly discoverySucceeded?: boolean } = {},
+	) {
 		const container = dom.$('div');
 		let current = snapshot;
 		let rediscoveries = 0;
@@ -68,12 +72,15 @@ suite('ConnectionDiagnosticsReport', () => {
 			override getSnapshot(): IConnectionDiagnosticsSnapshot { return current; }
 			override getHostManagementState() { return { hosts: [], isDiscovering: false }; }
 			override async runHostAction(): Promise<void> { }
-			override async rediscover(): Promise<void> { rediscoveries++; }
+			override async rediscover(): Promise<boolean> { rediscoveries++; return options.discoverySucceeded !== false; }
 		}();
 		const clipboard = new class extends mock<IClipboardService>() {
 			override writeText = writeText;
 		}();
-		const report = store.add(new ConnectionDiagnosticsReport(container, snapshot, download, service, clipboard));
+		const report = store.add(new ConnectionDiagnosticsReport(container, snapshot, download, {
+			enableHostManagement: options.enableHostManagement !== false,
+			rediscoverOnRefresh: options.rediscoverOnRefresh !== false,
+		}, service, clipboard));
 		return { container, report, service, clipboard, update: (next: IConnectionDiagnosticsSnapshot) => { current = next; }, rediscoveries: () => rediscoveries };
 	}
 
@@ -170,9 +177,39 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual({ copied, snapshot: report.getSnapshot(), rediscoveries: rediscoveries() }, { copied: [snapshot.text, next.text], snapshot: next, rediscoveries: 1 });
 	});
 
+	test('refresh reports discovery failure without failing the local snapshot refresh', async () => {
+		const { container, report, rediscoveries } = createReport(async () => { }, () => { }, { discoverySucceeded: false });
+		await report.refresh();
+		assert.deepStrictEqual({
+			message: container.querySelector('[role="status"]')?.textContent,
+			rediscoveries: rediscoveries(),
+		}, {
+			message: 'Snapshot refreshed, but one or more host discovery operations failed.',
+			rediscoveries: 1,
+		});
+	});
+
+	test('native presentation remains snapshot-only', async () => {
+		const { container, report, rediscoveries } = createReport(async () => { }, () => { }, { enableHostManagement: false, rediscoverOnRefresh: false });
+		await report.refresh();
+		assert.deepStrictEqual({
+			actions: container.querySelectorAll('.connection-diagnostics-host-actions').length,
+			message: container.querySelector('[role="status"]')?.textContent,
+			rediscoveries: rediscoveries(),
+		}, {
+			actions: 0,
+			message: 'Snapshot refreshed.',
+			rediscoveries: 0,
+		});
+	});
+
 	test('renders live actions beside matching diagnostic host sections', async () => {
 		const container = dom.$('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 		const actions: string[] = [];
+		let status: 'connected' | 'disconnected' = 'connected';
+		let hidden = false;
 		const hostSnapshot: IConnectionDiagnosticsSnapshot = {
 			capturedAt: snapshot.capturedAt,
 			sections: [{
@@ -192,54 +229,71 @@ suite('ConnectionDiagnosticsReport', () => {
 						id: 'work',
 						label: 'Work laptop',
 						address: 'tunnel:work',
-						status: 'connected' as const,
+						status,
 						selectable: true,
 						selected: true,
-						hidden: false,
+						hidden,
 						autoConnectSuppressed: false,
 						connectable: true,
-						hideable: true,
+						hideable: !hidden,
 					}],
 					isDiscovering: false,
 				};
 			}
 			override async runHostAction(hostId: string, action: ConnectionHostManagementAction): Promise<void> {
 				actions.push(`${hostId}:${action}`);
+				if (action === 'disconnect') {
+					status = 'disconnected';
+				} else if (action === 'hide') {
+					hidden = true;
+				}
 			}
-			override async rediscover(): Promise<void> { }
+			override async rediscover(): Promise<boolean> { return true; }
 		}();
 		const report = store.add(new ConnectionDiagnosticsReport(
 			container,
 			hostSnapshot,
 			() => { },
+			{ enableHostManagement: true, rediscoverOnRefresh: true },
 			service,
 			new class extends mock<IClipboardService>() { },
 		));
 		const hostSection = container.querySelector<HTMLElement>('[data-host-address="tunnel:work"]')!;
 		const disconnect = hostSection.querySelector<HTMLElement>('[aria-label="Disconnect Work laptop"]')!;
+		const disconnectInsideSummary = disconnect.closest('summary') === hostSection.querySelector('summary');
 		let hide = hostSection.querySelector<HTMLElement>('[aria-label="Hide Work laptop"]')!;
+		disconnect.focus();
 		disconnect.click();
 		await Promise.resolve();
 		await Promise.resolve();
-		hide = container.querySelector<HTMLElement>('[aria-label="Hide Work laptop"]')!;
+		const focusAfterDisconnect = dom.getActiveElement()?.getAttribute('aria-label');
+		const updatedHostSection = container.querySelector<HTMLElement>('[data-host-address="tunnel:work"]')!;
+		hide = updatedHostSection.querySelector<HTMLElement>('[aria-label="Hide Work laptop"]')!;
+		const hideInsideSummary = hide.closest('summary') === updatedHostSection.querySelector('summary');
+		hide.focus();
 		hide.click();
 		await Promise.resolve();
 		await Promise.resolve();
 		assert.deepStrictEqual({
 			actions,
+			actionsInsideSummary: disconnectInsideSummary && hideInsideSummary,
+			focusAfterDisconnect,
+			focusAfterHide: dom.getActiveElement()?.getAttribute('aria-label'),
 			focusTargets: report.getFocusTargets().map(target => target.classList.contains('connection-diagnostics-content')
 				? target.tagName
-				: `${target.tagName}:${target.getAttribute('aria-label') ?? target.textContent}`),
+				: `${target.tagName}:${target.getAttribute('aria-label') ?? target.childNodes[0]?.textContent}`),
 			actionContainers: hostSection.querySelectorAll('.connection-diagnostics-host-actions').length,
 			standaloneHostLists: container.querySelectorAll('.connection-diagnostics-hosts').length,
 			snapshot: report.getSnapshot().text,
 		}, {
 			actions: ['work:disconnect', 'work:hide'],
+			actionsInsideSummary: true,
+			focusAfterDisconnect: 'Reconnect Work laptop',
+			focusAfterHide: 'Restore Work laptop',
 			focusTargets: [
 				'DIV',
 				'SUMMARY:Work laptop - connected, selectable',
-				'A:Disconnect Work laptop',
-				'A:Hide Work laptop',
+				'A:Restore Work laptop',
 			],
 			actionContainers: 1,
 			standaloneHostLists: 0,
