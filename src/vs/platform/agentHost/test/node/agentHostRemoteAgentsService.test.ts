@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { type IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostRemoteAgentsEnabledConfigKey, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -13,6 +14,7 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostRemoteAgentsService, type IAgentHostRemoteAgentsActivationContext } from '../../node/agentHostRemoteAgentsService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 
 suite('AgentHostRemoteAgentsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,7 +24,8 @@ suite('AgentHostRemoteAgentsService', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
-		const service = disposables.add(new AgentHostRemoteAgentsService(configurationService, managedSettingsService, logService));
+		const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
+		const service = disposables.add(new AgentHostRemoteAgentsService(configurationService, managedSettingsService, storageService, logService));
 		return { configurationService, managedSettingsService, service };
 	}
 
@@ -225,6 +228,35 @@ suite('AgentHostRemoteAgentsService', () => {
 				staleDisposalCount: 1,
 				currentDisposalCount: 1,
 			},
+		});
+	});
+
+	test('rolls back connectors registered by a contribution that fails activation', async () => {
+		const { configurationService, managedSettingsService, service } = createService();
+		disposables.add(service.registerContribution({
+			activate: context => {
+				context.registerTargetConnector({
+					connectorId: 'failing-contribution',
+					targets: constObservable([{ internalKey: 'target', targetId: 'failing:target', label: 'Failing' }]),
+					async createConnection() {
+						throw new Error('Connection should be rolled back');
+					},
+				});
+				throw new Error('Contribution activation failed');
+			},
+		}));
+		disposables.add(service.activate());
+		managedSettingsService.setClientRemoteAgentHostsEnabled('client', true);
+		configurationService.updateRootConfig({ [AgentHostRemoteAgentsEnabledConfigKey]: true });
+		await flushMicrotasks();
+		await flushMicrotasks();
+
+		assert.deepStrictEqual({
+			targets: service.targets.get(),
+			active: service.enabled.get(),
+		}, {
+			targets: [],
+			active: true,
 		});
 	});
 });

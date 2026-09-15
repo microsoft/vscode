@@ -133,12 +133,15 @@ Each change should remain independently reviewable and testable.
 Current prototype status:
 
 - [x] PR 1: headless AHP client core.
-- [x] PR 2: runtime controls and shared activation (pending review).
-- [ ] PR 3: target contribution boundary and complete Person 2 handoff.
+- [x] PR 2: runtime controls and shared activation.
+- [x] PR 3: target contribution boundary and complete Person 2 handoff (pending
+  review).
 
-Person 2 can begin fake-backed provider and chat work now, but must not depend
-directly on `AgentHostProtocolClientCore`. The stable connection interface and
-fake implementation remain the PR 3 handoff checkpoint.
+Person 2 can consume
+[`IAgentHostRemoteTargetHandle`](./common/agentHostRemoteAgents.ts) and the
+reusable test connector without depending directly on
+`AgentHostProtocolClientCore`. The handoff is implemented locally and becomes
+available on the shared branch after review and push.
 
 ### PR 1: Extract the headless AHP client core - complete
 

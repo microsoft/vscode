@@ -130,14 +130,16 @@ The headless AHP client extraction is complete. Person 2 can begin provider
 catalog and workspace-less chat work against a local fake of the proposed
 connection contract.
 
-The runtime controls and shared activation lifecycle are implemented locally
-and pending review. The lifecycle remains disabled until both the persisted
-master setting and a connected client's managed-policy snapshot allow it.
+The runtime controls, shared activation lifecycle, stable target handles, and
+connector boundary are implemented locally and pending review. The lifecycle
+remains disabled until both the persisted master setting and a connected
+client's managed-policy snapshot allow it.
 
-Person 2 is not fully unblocked yet and must not depend directly on
-`AgentHostProtocolClientCore`. The full handoff occurs when Person 1's target
-contribution boundary supplies the stable connection interface and fake
-implementation.
+Person 2 can consume
+[`IAgentHostRemoteTargetHandle`](./common/agentHostRemoteAgents.ts) and
+[`TestAgentHostRemoteTargetConnector`](./test/node/agentHostRemoteTargetsTestUtils.ts)
+without depending directly on `AgentHostProtocolClientCore`. The handoff becomes
+available on the shared branch after review and push.
 
 Person 1 delivers one lifetime-owned connection per admitted target:
 

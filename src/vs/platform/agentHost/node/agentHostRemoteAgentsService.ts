@@ -10,13 +10,18 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { IObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import type { IAgentHostRemoteTargetConnector, IAgentHostRemoteTargetHandle } from '../common/agentHostRemoteAgents.js';
 import { AgentHostRemoteAgentsEnabledConfigKey, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
+import { AgentHostRemoteTargetRegistry } from './agentHostRemoteTargetRegistry.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
 
 export interface IAgentHostRemoteAgentsActivationContext {
 	readonly cancellationToken: CancellationToken;
 	readonly tunnelDiscoveryEnabled: IObservable<boolean>;
+	/** Registers a connector for this activation lifetime. */
+	registerTargetConnector(connector: IAgentHostRemoteTargetConnector): void;
 }
 
 export interface IAgentHostRemoteAgentsContribution {
@@ -29,6 +34,7 @@ export interface IAgentHostRemoteAgentsService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
 	readonly tunnelDiscoveryEnabled: IObservable<boolean>;
+	readonly targets: IObservable<readonly IAgentHostRemoteTargetHandle[]>;
 	activate(): IDisposable;
 	registerContribution(contribution: IAgentHostRemoteAgentsContribution): IDisposable;
 }
@@ -39,6 +45,7 @@ class RemoteAgentsContributionRegistration extends Disposable {
 	constructor(
 		private readonly _contribution: IAgentHostRemoteAgentsContribution,
 		private readonly _tunnelDiscoveryEnabled: IObservable<boolean>,
+		private readonly _registerTargetConnector: (connector: IAgentHostRemoteTargetConnector) => IDisposable,
 		private readonly _logService: ILogService,
 	) {
 		super();
@@ -62,6 +69,11 @@ class RemoteAgentsContributionRegistration extends Disposable {
 			return this._contribution.activate({
 				cancellationToken: cancellation.token,
 				tunnelDiscoveryEnabled: this._tunnelDiscoveryEnabled,
+				registerTargetConnector: connector => {
+					if (!cancellation.token.isCancellationRequested) {
+						activation.add(this._registerTargetConnector(connector));
+					}
+				},
 			});
 		}).then(disposable => {
 			if (!disposable) {
@@ -75,6 +87,7 @@ class RemoteAgentsContributionRegistration extends Disposable {
 		}, error => {
 			if (!cancellation.token.isCancellationRequested && !isCancellationError(error)) {
 				this._logService.error('[AgentHostRemoteAgents] Contribution activation failed', error);
+				this._activation.clear();
 			}
 		});
 	}
@@ -90,14 +103,19 @@ export class AgentHostRemoteAgentsService extends Disposable implements IAgentHo
 	readonly tunnelDiscoveryEnabled: IObservable<boolean> = this._tunnelDiscoveryEnabled;
 
 	private readonly _contributions = new Set<RemoteAgentsContributionRegistration>();
+	private readonly _targetRegistry: AgentHostRemoteTargetRegistry;
+	readonly targets: IObservable<readonly IAgentHostRemoteTargetHandle[]>;
 	private _active = false;
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
+		@IAgentHostStorageService storageService: IAgentHostStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._targetRegistry = this._register(new AgentHostRemoteTargetRegistry(storageService, _logService));
+		this.targets = this._targetRegistry.targets;
 		this._register(Event.any(this._configurationService.onDidRootConfigChange, this._managedSettingsService.onDidChange)(() => this._refresh()));
 		this._refresh();
 	}
@@ -118,7 +136,12 @@ export class AgentHostRemoteAgentsService extends Disposable implements IAgentHo
 	}
 
 	registerContribution(contribution: IAgentHostRemoteAgentsContribution): IDisposable {
-		const registration = new RemoteAgentsContributionRegistration(contribution, this.tunnelDiscoveryEnabled, this._logService);
+		const registration = new RemoteAgentsContributionRegistration(
+			contribution,
+			this.tunnelDiscoveryEnabled,
+			connector => this._targetRegistry.registerConnector(connector),
+			this._logService,
+		);
 		this._contributions.add(registration);
 		registration.setEnabled(this._active && this._enabled.get());
 		return toDisposable(() => {

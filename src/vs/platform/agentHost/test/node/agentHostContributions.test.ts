@@ -46,6 +46,7 @@ class TestRemoteAgentsService implements IAgentHostRemoteAgentsService {
 	declare readonly _serviceBrand: undefined;
 	readonly enabled = constObservable(false);
 	readonly tunnelDiscoveryEnabled = constObservable(false);
+	readonly targets = constObservable([]);
 	activationCount = 0;
 	disposalCount = 0;
 
