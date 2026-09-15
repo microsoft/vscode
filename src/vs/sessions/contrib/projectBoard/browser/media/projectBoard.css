@@ -139,12 +139,33 @@
 }
 
 .project-board-card {
+	position: relative;
 	box-sizing: border-box;
 	width: min(260px, 100%);
 	padding: 9px;
 	border: 1px solid var(--vscode-panel-border);
 	border-left-width: 3px;
 	background: var(--vscode-editorWidget-background);
+}
+
+.project-board-card-actions {
+	position: absolute;
+	top: var(--vscode-spacing-size40, 4px);
+	right: var(--vscode-spacing-size40, 4px);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.project-board-card:hover > .project-board-card-actions,
+.project-board-card:focus-within > .project-board-card-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.project-board-card-actions .monaco-button {
+	width: 22px;
+	height: 22px;
+	padding: 0;
 }
 
 .project-board-grid .project-board-card {
@@ -264,6 +285,7 @@
 
 .project-board-card h4 {
 	margin: 0 0 6px;
+	padding-right: var(--vscode-spacing-size280, 28px);
 	font-size: 13px;
 }
 
