@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -21,16 +21,18 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
-import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -50,6 +52,7 @@ import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent }
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
+import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1532,6 +1535,140 @@ suite('ChatListRenderer', () => {
 
 		disposables.dispose();
 	});
+
+	for (const { incremental, remount } of [false, true].flatMap(incremental => ([undefined, 'afterUpdate', 'withoutUpdate'] as const).map(remount => ({ incremental, remount })))) {
+		test(`keeps Mermaid output mounted while the rest of a response streams (incremental=${incremental}, remount=${remount})`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
+			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+			instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => undefined! });
+			const outputStates = new Map<string, IOutputPartState>();
+			instantiationService.stub(IChatOutputPartStateCache, {
+				get: key => outputStates.get(key),
+				set: (key, state) => outputStates.set(key, state),
+			});
+			const frames: HTMLIFrameElement[] = [];
+			const loads: Promise<void>[] = [];
+			let reinitializations = 0;
+			instantiationService.stub(IChatOutputRendererService, {
+				hasCodeBlockRenderer: identifier => identifier === 'mermaid',
+				renderCodeBlock: async (_identifier, _data, parent) => {
+					const iframe = mainWindow.document.createElement('iframe');
+					frames.push(iframe);
+					loads.push(new Promise<void>(resolve => {
+						disposables.add(dom.addDisposableListener(iframe, 'load', () => resolve()));
+					}));
+					iframe.srcdoc = '<!DOCTYPE html><html><body>Rendered diagram</body></html>';
+					parent.appendChild(iframe);
+					return {
+						webview: upcastPartial<RenderedOutputPart['webview']>({ onDidUpdateState: Event.None }),
+						onDidChangeHeight: Event.None,
+						reinitialize: () => { reinitializations++; },
+						dispose: () => iframe.remove(),
+					};
+				},
+			});
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const request = model.addRequest({
+				text: 'Diagram',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'Diagram')],
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer, {} as ChatEditorOptions, {},
+				{
+					getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+					currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+				},
+				undefined, viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```mermaid\ngraph TD\n```') });
+			renderer.renderElement(node, 0, template);
+			assert.strictEqual(frames.length, 1);
+			await loads[0];
+			let originalDocument = frames[0].contentDocument;
+			assert.ok(originalDocument);
+			const originalPart = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+			assert.ok(originalPart);
+			const documentsPreserved = [];
+
+			if (remount) {
+				renderer.disposeElement(node, 0, template);
+				container.remove();
+				if (remount === 'afterUpdate') {
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nOffscreen update') });
+					await timeout(500);
+				}
+				const reloaded = new Promise<void>(resolve => {
+					disposables.add(dom.addDisposableListener(frames[0], 'load', () => resolve()));
+				});
+				mainWindow.document.body.appendChild(container);
+				assert.strictEqual(template.renderedPartsMounted, false);
+				renderer.renderElement(node, 0, template);
+				await retry(async () => {
+					assert.strictEqual(reinitializations, 1);
+				}, 10, 100);
+				await reloaded;
+				originalDocument = frames[0].contentDocument;
+				assert.ok(originalDocument);
+			}
+
+			for (let i = 0; i < 3; i++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\nFollowing ${i}`) });
+				renderer.renderElement(node, 0, template);
+				await retry(async () => {
+					assert.ok(template.value.textContent?.includes(`Following ${i}`));
+				}, 10, 100);
+				documentsPreserved.push(frames[0].contentDocument === originalDocument);
+			}
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\n```mermaid\ngraph LR\n```') });
+			renderer.renderElement(node, 0, template);
+			await retry(async () => {
+				assert.strictEqual(frames.length, 2);
+			}, 10, 100);
+			await loads[1];
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await retry(async () => {
+				assert.strictEqual(response.renderData, undefined);
+			}, 10, 100);
+
+			assert.deepStrictEqual({
+				documentsPreserved,
+				preservedAfterCompletion: frames[0].contentDocument === originalDocument,
+				frameCount: frames.length,
+				reinitializations,
+				partPreserved: template.renderedParts?.includes(originalPart) ?? false,
+				codeBlockIndices: renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex),
+				finalTextRendered: template.value.textContent?.includes('Following 2'),
+			}, {
+				documentsPreserved: [true, true, true],
+				preservedAfterCompletion: true,
+				frameCount: 2,
+				reinitializations: remount ? 1 : 0,
+				partPreserved: true,
+				codeBlockIndices: [0, 1],
+				finalTextRendered: true,
+			});
+		});
+	}
 
 	test('disposing a sticky row preserves code block mappings owned by the rendered row', async () => {
 		const disposables = store.add(new DisposableStore());
