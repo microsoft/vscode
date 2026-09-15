@@ -81,7 +81,7 @@ suite('Sessions list context menus', () => {
 	const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
 	const targetGroup: ISessionGroup = { id: 'target', name: 'Target', createdAt: 2 };
 
-	function createList(grouped: boolean, includeExtensionAction: boolean) {
+	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date) {
 		const { session } = createSession('Session');
 		const contextMenuService = new TestContextMenuService();
 		let menuDisposed = false;
@@ -111,12 +111,12 @@ suite('Sessions list context menus', () => {
 		});
 		const container = harness.createContainer();
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-			grouping: () => SessionsGrouping.Date,
+			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, managementService: harness.managementService, menuDisposed: () => menuDisposed };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -168,6 +168,34 @@ suite('Sessions list context menus', () => {
 			ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
+	});
+
+	test('workspace and custom-group headers mark all rendered sessions as read', async () => {
+		for (const grouped of [false, true]) {
+			const { container, contextMenuService, managementService } = createList(grouped, false, SessionsGrouping.Workspace);
+			const header = [...container.querySelectorAll<HTMLElement>('.session-section')]
+				.find(element => element.querySelector('.session-section-label')?.textContent === (grouped ? group.name : 'Workspace'));
+			assert.ok(header);
+
+			dispatchContextMenu(header);
+			const actions = contextMenuService.delegate!.getActions();
+			await actions[0].run();
+
+			assert.deepStrictEqual({
+				grouped,
+				actions: snapshotActions(actions),
+				readSessions: managementService.readSessions.map(session => session.title.get()),
+			}, {
+				grouped,
+				actions: {
+					ids: grouped
+						? ['sessionsViewPane.markAllRenderedRead', 'vs.actions.separator', 'sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
+						: ['sessionsViewPane.markAllRenderedRead', 'vs.actions.separator', 'sessions.createGroup'],
+					disposableIds: [],
+				},
+				readSessions: ['Session'],
+			});
+		}
 	});
 
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {

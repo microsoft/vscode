@@ -124,7 +124,6 @@ export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.sh
 export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions.list.showUnreadInCollapsedSections';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
-export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
@@ -980,7 +979,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
-		SessionItemHasBranchNameContext.bindTo(template.contextKeyService).set(!!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim());
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -4006,8 +4004,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.showChatContextMenu(element, e.anchor);
 			return;
 		}
-		if (!element || isSessionSection(element) || isSessionShowMore(element) || isSessionPlaceholder(element)) {
+		if (!element || isSessionShowMore(element) || isSessionPlaceholder(element)) {
 			this.showCreateGroupContextMenu(e.anchor);
+			return;
+		}
+
+		if (isSessionSection(element)) {
+			this.showSectionContextMenu(element, e.anchor);
 			return;
 		}
 
@@ -4023,7 +4026,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.isRead.get()],
-			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
@@ -4157,8 +4159,32 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	private getMarkAllRenderedSessionsReadAction(sessions: readonly ISession[]): IAction {
+		return toAction({
+			id: 'sessionsViewPane.markAllRenderedRead',
+			label: localize('markAllRenderedRead', "Mark All as Read"),
+			run: () => this._sessionsManagementService.markAllRead(sessions),
+		});
+	}
+
+	private showSectionContextMenu(section: ISessionSection, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
+		const actions: IAction[] = [];
+		if (this.options.grouping() === SessionsGrouping.Workspace && section.id.startsWith('workspace:')) {
+			actions.push(this.getMarkAllRenderedSessionsReadAction(section.sessions), new Separator());
+		}
+		actions.push(this.getCreateGroupAction());
+		this.contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getAnchor: () => anchor,
+		});
+	}
+
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
-		const actions: IAction[] = [
+		const actions: IAction[] = [];
+		if (this.options.grouping() === SessionsGrouping.Workspace && groupItem.sessions.length > 0) {
+			actions.push(this.getMarkAllRenderedSessionsReadAction(groupItem.sessions), new Separator());
+		}
+		actions.push(
 			this.getCreateGroupAction(),
 			new Separator(),
 			toAction({
@@ -4171,7 +4197,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				label: localize('deleteGroupAction', "Delete Group"),
 				run: () => this._sessionGroupsService.deleteGroup(groupItem.group.id),
 			}),
-		];
+		);
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => anchor,
