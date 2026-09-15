@@ -49,6 +49,7 @@ interface IDraftEntry {
 	group?: number;
 	hasContent: boolean;
 	submitted: boolean;
+	deleting: boolean;
 }
 
 export class ProjectBoardChatWindows extends Disposable {
@@ -123,7 +124,7 @@ export class ProjectBoardChatWindows extends Disposable {
 			id: resource.toString(), resource, lifetime,
 			editorListeners: lifetime.add(new MutableDisposable<DisposableStore>()),
 			modelRef: lifetime.add(new MutableDisposable<IChatModelReference>()),
-			hasContent: false, submitted: false,
+			hasContent: false, submitted: false, deleting: false,
 		};
 		this.entries.set(entry.id, entry);
 		this.publishDrafts();
@@ -165,7 +166,7 @@ export class ProjectBoardChatWindows extends Disposable {
 			entry.submitted ||= !!model?.hasRequests;
 			entry.input = undefined;
 			entry.group = undefined;
-			if (!entry.hasContent && !entry.submitted) {
+			if (!entry.hasContent && !entry.submitted && !entry.deleting) {
 				void this.discardDraft(entry);
 			} else {
 				entry.editorListeners.clear();
@@ -223,11 +224,29 @@ export class ProjectBoardChatWindows extends Disposable {
 
 	async deleteDraft(id: string): Promise<boolean> {
 		const entry = this.entries.get(id);
-		if (!entry) {
+		if (!entry || entry.deleting) {
 			return false;
 		}
-		await this.discardDraft(entry);
-		return this.entries.get(id) === undefined;
+		entry.deleting = true;
+		try {
+			if (entry.input && entry.group !== undefined) {
+				const group = this.editorGroupsService.getGroup(entry.group);
+				if (!group) {
+					throw new Error(localize('projectBoard.draftEditorMissing', "The draft editor group is no longer available."));
+				}
+				if (!await group.closeEditor(entry.input)) {
+					return false;
+				}
+			}
+			await this.discardDraft(entry);
+			return this.entries.get(id) === undefined;
+		} catch (error) {
+			this.logService.error('[ProjectBoard] Failed to close draft for deletion', error);
+			this.notificationService.error(localize('projectBoard.deleteDraftFailed', "The session draft could not be deleted."));
+			return false;
+		} finally {
+			entry.deleting = false;
+		}
 	}
 
 	private async discardDraft(entry: IDraftEntry): Promise<void> {

@@ -894,6 +894,30 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.state.openCount, 1);
 	});
 
+	test('PB-06 embedded Kanban keeps accessibility and focus when an auxiliary board also exists', async () => {
+		const nativeFocus = sinon.stub(mainWindow.document, 'hasFocus').returns(true);
+		store.add(toDisposable(() => nativeFocus.restore()));
+		const chat = new TestChat('Shared surface chat');
+		const h = createBoard(mainWindow.document, [chat]);
+		const embeddedContainer = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(embeddedContainer);
+		store.add(toDisposable(() => embeddedContainer.remove()));
+		const embedded = store.add(h.service.createView(embeddedContainer));
+		await h.service.open();
+		embedded.focus();
+		embeddedContainer.querySelector<HTMLElement>('[data-chat-resource]')!.focus();
+		assert.ok(embeddedContainer.contains(mainWindow.document.activeElement), 'Embedded focus is established before closing the chat');
+		h.state.closedResource = chat.resource;
+		await h.service.closeSession(12345);
+		assert.strictEqual(h.state.ownerFocusCount, 1, 'Close targets the owner hosting the embedded board');
+		assert.ok(embeddedContainer.contains(mainWindow.document.activeElement), 'Return to the focused embedded board, not a different surface');
+		h.closeBoard();
+		await Promise.resolve();
+		assert.ok(h.service.getAccessibleContent().includes('Shared surface chat'));
+		embedded.dispose();
+		assert.strictEqual(h.service.getAccessibleContent(), 'Kanban is not currently open.');
+	});
+
 	test('PB-05 a closing draft restores focus by its stable ID after its model resource changes', async () => {
 		const { document } = createBoardDocument();
 		const h = createBoard(document);
