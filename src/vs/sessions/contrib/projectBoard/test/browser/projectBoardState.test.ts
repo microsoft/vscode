@@ -94,6 +94,21 @@ suite('ProjectBoardState', () => {
 		assert.strictEqual(notifications.length, 1);
 	});
 
+	test('PB-18 legacy metrics preferences remain editable and description visibility persists independently', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(key, JSON.stringify({ ...defaults, display: { showStateDuration: true, showCredits: true } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { state, notifications } = create(storage);
+		assert.strictEqual(state.canEdit, true);
+		assert.strictEqual(state.configuration.get().display?.showDescription, undefined);
+		state.setDisplayOption('showDescription', false);
+		assert.deepStrictEqual(create(storage).state.configuration.get().display, { showStateDuration: true, showCredits: true, showDescription: false });
+		state.setDisplayOption('showCredits', false);
+		assert.strictEqual(state.configuration.get().display?.showDescription, false);
+		state.setDisplayOption('showDescription', true);
+		assert.strictEqual(create(storage).state.configuration.get().display?.showDescription, true);
+		assert.deepStrictEqual(notifications, []);
+	});
+
 	for (const kind of ['row', 'column'] as const) {
 		test(`PB-10 ${kind} IDs remain stable through rename and reorder`, () => {
 			const { state } = create();
@@ -177,6 +192,7 @@ suite('ProjectBoardState', () => {
 		['null display', { ...defaults, display: null }],
 		['missing display key', { ...defaults, display: { showCredits: true } }],
 		['invalid display toggle', { ...defaults, display: { showStateDuration: true, showCredits: 'yes' } }],
+		['invalid description toggle', { ...defaults, display: { showStateDuration: true, showCredits: false, showDescription: 'yes' } }],
 		['unknown display key', { ...defaults, display: { showStateDuration: true, showCredits: true, other: false } }],
 		['null', null],
 		['array', []],

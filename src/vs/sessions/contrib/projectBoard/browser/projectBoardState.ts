@@ -45,7 +45,7 @@ export class ProjectBoardState extends Disposable {
 
 	setDisplayOption(key: keyof IProjectBoardDisplayOptions, enabled: boolean): void {
 		this.mutate(configuration => {
-			if ((key !== 'showStateDuration' && key !== 'showCredits') || typeof enabled !== 'boolean') {
+			if ((key !== 'showStateDuration' && key !== 'showCredits' && key !== 'showDescription') || typeof enabled !== 'boolean') {
 				throw new Error(localize('projectBoard.invalidDisplayOption', "The board display option is invalid."));
 			}
 			return {
@@ -249,10 +249,15 @@ function parseConfiguration(raw: string): IProjectBoardConfiguration {
 	}
 	let display: IProjectBoardDisplayOptions | undefined;
 	if (Object.hasOwn(value, 'display')) {
-		if (!hasKeys(value.display, ['showStateDuration', 'showCredits']) || typeof value.display.showStateDuration !== 'boolean' || typeof value.display.showCredits !== 'boolean') {
+		if ((!hasKeys(value.display, ['showStateDuration', 'showCredits']) && !hasKeys(value.display, ['showStateDuration', 'showCredits', 'showDescription']))
+			|| typeof value.display.showStateDuration !== 'boolean' || typeof value.display.showCredits !== 'boolean'
+			|| (Object.hasOwn(value.display, 'showDescription') && typeof value.display.showDescription !== 'boolean')) {
 			throw new Error(localize('projectBoard.invalidDisplayOptions', "The saved board display options are invalid."));
 		}
-		display = { showStateDuration: value.display.showStateDuration, showCredits: value.display.showCredits };
+		display = {
+			showStateDuration: value.display.showStateDuration, showCredits: value.display.showCredits,
+			...(typeof value.display.showDescription === 'boolean' ? { showDescription: value.display.showDescription } : {}),
+		};
 	}
 	const validAxes = (axes: unknown): axes is IProjectBoardAxis[] => {
 		if (!Array.isArray(axes) || axes.length === 0) {

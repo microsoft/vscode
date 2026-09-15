@@ -24,4 +24,5 @@ export interface IProjectBoardConfiguration {
 export interface IProjectBoardDisplayOptions {
 	readonly showStateDuration: boolean;
 	readonly showCredits: boolean;
+	readonly showDescription?: boolean;
 }

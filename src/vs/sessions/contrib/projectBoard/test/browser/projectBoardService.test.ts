@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -48,7 +49,7 @@ class TestChat extends mock<IChat>() {
 	override readonly isRead = observableValue('read', false);
 	override readonly isArchived = observableValue('archived', false);
 	override readonly interactivity = observableValue('interactivity', ChatInteractivity.Full);
-	override readonly description = observableValue('description', undefined);
+	override readonly description = observableValue<IMarkdownString | undefined>('description', undefined);
 	override readonly resource = URI.parse(`test-chat:session#${this.name}`);
 
 	constructor(private readonly name: string) { super(); }
@@ -268,7 +269,9 @@ suite('ProjectBoardService', () => {
 		h.credits.set(12.5, undefined);
 		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 12.5 credits');
 		const metrics = h.container.querySelector('.project-board-card-metrics')!;
-		assert.strictEqual(metrics.parentElement?.firstElementChild, metrics);
+		assert.ok(metrics.parentElement?.classList.contains('project-board-card-status-bar'));
+		assert.strictEqual(metrics.parentElement?.lastElementChild, metrics);
+		assert.strictEqual(metrics.parentElement?.parentElement?.lastElementChild, metrics.parentElement);
 		assert.strictEqual(metrics.querySelector('.project-board-card-credits')?.textContent, '$12.5 credits');
 		assert.ok(metrics.querySelector('.codicon-clock[aria-hidden="true"]'));
 		assert.strictEqual(document.activeElement?.getAttribute('data-board-control'), 'settings');
@@ -285,7 +288,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(chat.isRead.get(), false);
 	});
 
-	test('PB-18 corner pills wrap inside narrow cards and credit hover explains the reported value', async () => {
+	test('PB-18 bottom status bar wraps transparent metrics after the timestamp and retains credit hover', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Metrics layout')]);
 		const hover = sinon.spy(h.instantiationService.invokeFunction(accessor => accessor.get(IHoverService)), 'setupDelayedHover');
 		store.add(toDisposable(() => hover.restore()));
@@ -298,6 +301,10 @@ suite('ProjectBoardService', () => {
 		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
 		const metrics = card.querySelector<HTMLElement>('.project-board-card-metrics')!;
 		const credits = metrics.querySelector<HTMLElement>('.project-board-card-credits')!;
+		const statusBar = card.querySelector<HTMLElement>('.project-board-card-status-bar')!;
+		const timestamp = statusBar.querySelector<HTMLElement>('.project-board-card-recency')!;
+		assert.strictEqual(card.lastElementChild, statusBar);
+		assert.strictEqual(statusBar.firstElementChild, timestamp);
 		const options = hover.getCalls().findLast(call => call.args[0] === credits)?.args[1];
 		const hoverContent = (typeof options === 'function' ? options() : options)?.content;
 		assert.ok(typeof hoverContent === 'string');
@@ -309,11 +316,43 @@ suite('ProjectBoardService', () => {
 			const bounds = metrics.getBoundingClientRect();
 			const pills = [...metrics.children].map(pill => pill.getBoundingClientRect());
 			assert.ok(pills.every(pill => pill.left >= bounds.left && pill.right <= bounds.right + 1));
-			assert.ok(card.querySelector('h4')!.getBoundingClientRect().top >= bounds.bottom);
+			assert.ok(card.querySelector('h4')!.getBoundingClientRect().bottom <= bounds.top);
+			assert.ok(timestamp.getBoundingClientRect().left < bounds.left || timestamp.getBoundingClientRect().bottom <= bounds.top);
+			assert.ok(bounds.right <= statusBar.getBoundingClientRect().right + 1);
 			assert.ok(Math.max(...pills.map(pill => pill.right)) >= bounds.right - 1, 'Pills align to the right');
 		}
 		assert.strictEqual(mainWindow.getComputedStyle(metrics).flexWrap, 'wrap');
+		for (const pill of metrics.children) {
+			assert.strictEqual(mainWindow.getComputedStyle(pill).backgroundColor, 'rgba(0, 0, 0, 0)');
+		}
 		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('PB-18 description defaults visible, toggles independently, and restores without hiding prompts or state', async () => {
+		const chat = new TestChat('Description');
+		const h = createBoard(mainWindow.document, [chat]);
+		chat.description.set({ value: 'Planning the next step' }, undefined);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelector('.project-board-card-description')?.textContent, 'Planning the next step');
+		const toggle = async (expected: boolean) => {
+			h.currentContainer.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+			const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.description')!;
+			assert.strictEqual(action.checked, expected);
+			await action.run();
+		};
+		await toggle(true);
+		chat.description.set({ value: 'Updated while hidden' }, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-description'), null);
+		assert.ok(h.container.querySelector('.project-board-card-prompt'));
+		assert.ok(h.container.querySelector('.project-board-card-status'));
+		assert.strictEqual(h.container.querySelector('.project-board-card-metrics'), null);
+		h.closeBoard();
+		await h.service.open();
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-description'), null);
+		await toggle(false);
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-description')?.textContent, 'Updated while hidden');
+		assert.deepStrictEqual(h.opened, []);
+		assert.strictEqual(chat.isRead.get(), false);
 	});
 
 	test('PB-18 timer ticks update only text and preserve focused cards, state age and scroll', async () => {
@@ -755,7 +794,8 @@ suite('ProjectBoardService', () => {
 		await service.open();
 		child.title.set('Renamed child', undefined);
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('h4'), element => element.textContent), ['Renamed child', 'main']);
-		assert.strictEqual(container.querySelectorAll('.project-board-card-session').length, 2);
+		assert.strictEqual(container.querySelectorAll('.project-board-card-session').length, 0);
+		assert.ok([...container.querySelectorAll('[data-chat-resource]')].every(card => card.getAttribute('aria-label')?.includes('Owning session')));
 	});
 
 	test('PB-03 preserves keyboard focus across movement and live updates', async () => {
@@ -896,8 +936,8 @@ suite('ProjectBoardService', () => {
 			[SessionStatus.InProgress, false, '\u{1F3C3}', 'Busy'],
 			[SessionStatus.NeedsInput, false, '\u{1F64B}', 'Needs Input'],
 			[SessionStatus.Error, false, '\u26A0\uFE0F', 'Error'],
-			[SessionStatus.Completed, false, '\u{1F9CD}', 'Idle, unvisited'],
-			[SessionStatus.Completed, true, '\u{1F9CD}', 'Idle, visited'],
+			[SessionStatus.Completed, false, '\u{1F9CD}\u{1F4A4}', 'Idle, unvisited'],
+			[SessionStatus.Completed, true, '\u{1F9CD}\u{1F4A4}', 'Idle, visited'],
 		] as const) {
 			chat.status.set(status, undefined);
 			chat.isRead.set(isRead, undefined);

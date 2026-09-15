@@ -53,8 +53,9 @@ Moving a card changes only its placement. Chats sharing a session still share th
 ### Live cards
 
 - Render visible chats separately, including multiple chats from one session. Exclude provider-hidden internal workers; label visible read-only chats.
-- Display title, owning session/workspace, runtime state, current step, last prompt and available context links.
+- Display title, workspace, runtime state, optional current-step description, last prompt and available context links. Do not repeat the owning session title as a visible `Session:` line; preserve ownership in the accessible card label.
 - Use themed state color plus text and a decorative indicator: Busy/Starting, Needs Input, Error and Idle. Split Idle into visited/unvisited.
+- Idle uses the standing-person indicator with sleeping `zzz`; keep visited/unvisited text and read semantics unchanged.
 - Busy/Starting uses the bundled running-person animation, with a static reduced-motion fallback.
 - Selecting, displaying, expanding or moving a card does not mark it read. Explicit opening follows provider-owned read marking.
 - A disconnected provider is a separate stale/unavailable warning, not a replacement runtime state or an empty successful board.
@@ -71,8 +72,8 @@ Moving a card changes only its placement. Chats sharing a session still share th
 
 ### Display settings
 
-- The top-right gear button opens Settings and independently toggles Time in State and AI Credits. Both are off by default; persist the choices in profile-local board configuration.
-- Enabled metrics form a right-aligned, wrapping row at the top of each live card: a clock with elapsed state time and a `$` credit pill. Preserve readable labels and hover explanations; the credit icon does not imply a dollar charge. Credit hover includes the reported value, scope and unavailable-data meaning.
+- The top-right gear button opens Settings and independently toggles Time in State, AI Credits and Description. Metrics are off by default; Description is on by default. Persist the choices in profile-local board configuration and accept existing saved metrics preferences without resetting them.
+- Each live card ends in a wrapping status bar: last-prompt timestamp on the left, optional clock/state-time and `$` credit widgets on the right. Metrics have transparent backgrounds and theme-aware secondary foregrounds. Preserve readable labels and hover explanations; the credit icon does not imply a dollar charge. Credit hover includes the reported value, scope and unavailable-data meaning.
 - Time in State applies to non-archived live cards, not drafts. Track each chat's observed runtime transitions, independently of prompt/output updates, read state and placement. Update only timer text once per second; do not rebuild cards or disturb question input, focus or scroll.
 - The first observed state is a lower bound labeled `at least`; its real start may precede opening the board. An observed transition resets the timer. A disconnected provider shows unavailable; reconnecting starts a new lower bound. Reopening the board starts fresh observation, not a fabricated continuation across unseen transitions.
 - AI Credits uses the existing chat model's cumulative session cost, including provider-reported backend totals and subagent costs. It is scoped to that card's chat, not an account balance or an aggregate across sibling chats in the owning session.
@@ -155,7 +156,7 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-15:** Interactive Ask User, custom answers, validation, exactly-once submission and refresh-safe input.
 - **PB-16:** Standalone creation, passive Agents draft discovery and publication without duplicates.
 - **PB-17:** Cleanup only of untouched owned drafts; preserve entered, attached, pending, failed and submitted work.
-- **PB-18:** Independent persisted display toggles; state-duration transitions and lower bounds; reported zero versus unavailable credits; timer updates preserve focus/scroll and release on close.
+- **PB-18:** Independent persisted display toggles, including backward-compatible default-visible Description; bottom status-bar layout and transparent metrics; state-duration transitions and lower bounds; reported zero versus unavailable credits; timer updates preserve focus/scroll and release on close.
 
 ### Resilience before optional P2
 
