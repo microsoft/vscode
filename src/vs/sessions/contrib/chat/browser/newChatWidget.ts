@@ -110,6 +110,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
 	private readonly _comparisonAttempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(this, []);
 	private readonly _comparisonJudgeHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
+	private readonly _comparisonSynthesisHarness = observableValue<ISessionComparisonHarness | undefined>(this, undefined);
 	private readonly _comparisonBranch = observableValue<string | undefined>(this, undefined);
 	private readonly _comparisonSetupDialog = this._register(new MutableDisposable<SessionComparisonSetupDialog>());
 	private readonly _onDidChangeComparisonWorkspace = this._register(new Emitter<ISessionComparisonWorkspaceChange>());
@@ -1023,6 +1024,12 @@ export class NewChatWidget extends Disposable {
 		if (!initialJudgeHarness) {
 			return;
 		}
+		const retainedSynthesisHarness = this._comparisonSynthesisHarness.get();
+		const initialSynthesisHarness = retainedSynthesisHarness ?? currentHarness ?? initialAttempts[0]?.harness;
+		if (!initialSynthesisHarness) {
+			return;
+		}
+		const useSavedEvaluatorDefaults = this._comparisonJudgeHarness.get() === undefined && retainedSynthesisHarness === undefined;
 		const setupDialog = this._comparisonSetupDialog.value = this.instantiationService.createInstance(SessionComparisonSetupDialog);
 		let shouldRefocusInput = true;
 		try {
@@ -1044,14 +1051,16 @@ export class NewChatWidget extends Disposable {
 				attachedContextCount: this._newChatInput.attachments.length,
 				prompt: this._newChatInput.getInputValue(),
 				setPrompt: prompt => this._newChatInput.setInputValue(prompt),
-			}, initialAttempts, initialJudgeHarness);
+			}, initialAttempts, initialJudgeHarness, initialSynthesisHarness, useSavedEvaluatorDefaults);
 			this._comparisonAttempts.set(result.attempts, undefined);
 			this._comparisonJudgeHarness.set(result.judgeHarness, undefined);
+			this._comparisonSynthesisHarness.set(result.synthesisHarness, undefined);
 			this._comparisonBranch.set(result.branch, undefined);
 			if (result.confirmed) {
 				if (await this._newChatInput.submit()) {
 					this._comparisonAttempts.set([], undefined);
 					this._comparisonJudgeHarness.set(undefined, undefined);
+					this._comparisonSynthesisHarness.set(undefined, undefined);
 					this._comparisonBranch.set(undefined, undefined);
 					shouldRefocusInput = false;
 				}
@@ -1237,6 +1246,16 @@ export class NewChatWidget extends Disposable {
 				this.notificationService.error(localize('sessionComparison.judgeModelUnavailable', "The selected Judge model is no longer available. Edit the comparison setup and choose another model."));
 				return false;
 			}
+			const selectedSynthesisHarness = this._comparisonSynthesisHarness.get();
+			const synthesisHarness = selectedSynthesisHarness ? resolveHarness(selectedSynthesisHarness) : undefined;
+			if (!selectedSynthesisHarness || !synthesisHarness) {
+				this.notificationService.error(localize('sessionComparison.synthesisHarnessUnavailable', "The selected Synthesizer agent no longer supports this workspace or worktree isolation. Edit the comparison setup and choose another agent."));
+				return false;
+			}
+			if (selectedSynthesisHarness.modelId && !synthesisHarness.modelId) {
+				this.notificationService.error(localize('sessionComparison.synthesisModelUnavailable', "The selected Synthesizer model is no longer available. Edit the comparison setup and choose another model."));
+				return false;
+			}
 			try {
 				this.sessionsService.unsetNewSession();
 				const comparison = await this.sessionComparisonService.startComparison({
@@ -1245,6 +1264,7 @@ export class NewChatWidget extends Disposable {
 					attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
 					attempts,
 					judgeHarness,
+					synthesisHarness,
 					branch,
 				});
 				await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
@@ -1391,6 +1411,7 @@ export class NewChatWidget extends Disposable {
 		if (this._comparisonAttempts.get().length > 0 && (!folderUri || !currentFolderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))) {
 			this._comparisonAttempts.set([], undefined);
 			this._comparisonJudgeHarness.set(undefined, undefined);
+			this._comparisonSynthesisHarness.set(undefined, undefined);
 			this._comparisonBranch.set(undefined, undefined);
 		}
 		const refreshingPromptOptions = !!currentFolderUri

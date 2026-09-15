@@ -99,6 +99,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			branch: options.branch,
 			permissionLevel: options.permissionLevel,
 			judgeHarness: options.judgeHarness,
+			synthesisHarness: options.synthesisHarness,
 			participants: [],
 		};
 		this._addComparison(comparison);
@@ -236,6 +237,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (!recommended) {
 			throw new Error('A selected or recommended attempt is required before synthesis.');
 		}
+		const harness = comparison.synthesisHarness ?? recommended.harness;
 
 		this._synthesisStarting.add(comparisonId);
 		try {
@@ -244,11 +246,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
 			}, {
-				providerId: recommended.harness.providerId,
-				sessionTypeId: recommended.harness.sessionTypeId,
-				modelId: recommended.harness.modelId,
-				modelConfiguration: recommended.harness.modelConfiguration,
-				...this._permissionOptions(recommended.harness, comparison.permissionLevel),
+				providerId: harness.providerId,
+				sessionTypeId: harness.sessionTypeId,
+				modelId: harness.modelId,
+				modelConfiguration: harness.modelConfiguration,
+				...this._permissionOptions(harness, comparison.permissionLevel),
 				isolationMode: 'worktree',
 				branch: comparison.branch,
 				metadata: withSessionComparisonMetadata(undefined, {
@@ -263,7 +265,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			const synthesis: ISessionComparisonParticipant = {
 				id: generateUuid(),
 				role: SessionComparisonParticipantRole.Synthesis,
-				harness: recommended.harness,
+				harness,
 				sessionResource: session?.resource,
 				...(!session ? { launchError: localize('sessionComparison.synthesisUnavailable', "The synthesis session did not start.") } : {}),
 			};

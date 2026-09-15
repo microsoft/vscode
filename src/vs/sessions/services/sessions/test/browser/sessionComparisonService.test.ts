@@ -147,6 +147,7 @@ suite('SessionComparisonService', () => {
 				providerId: 'judge-provider',
 				sessionTypeId: 'judge-type',
 				modelId: 'judge-model',
+				modelConfiguration: undefined,
 				permissionLevel: 'allowedTools',
 				isolationMode: 'worktree',
 				branch: undefined,
@@ -280,6 +281,7 @@ suite('SessionComparisonService', () => {
 		const comparison = await service.startComparison({
 			...base,
 			judgeHarness: { ...base.judgeHarness, modelConfiguration: { thinkingLevel: 'max' } },
+			synthesisHarness: { ...base.synthesisHarness, modelConfiguration: { thinkingLevel: 'medium' } },
 			attempts: [
 				{ ...base.attempts[0], harness: { ...base.attempts[0].harness, modelConfiguration: { thinkingLevel: 'high' } } },
 				{ ...base.attempts[1], harness: { ...base.attempts[1].harness, modelConfiguration: { thinkingLevel: 'xhigh' } } },
@@ -300,7 +302,7 @@ suite('SessionComparisonService', () => {
 			{ title: 'One · High', modelConfiguration: { thinkingLevel: 'high' } },
 			{ title: 'Two · Extra High', modelConfiguration: { thinkingLevel: 'xhigh' } },
 			{ title: `Judge: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'max' } },
-			{ title: `Synthesis: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'xhigh' } },
+			{ title: `Synthesis: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'medium' } },
 		]);
 	});
 
@@ -415,6 +417,7 @@ suite('SessionComparisonService', () => {
 				{ ...options.attempts[1], harness: { ...options.attempts[1].harness, permissionId: 'default', permissionLabel: 'Default Permissions' } },
 			],
 			judgeHarness: { ...options.judgeHarness, permissionId: 'bypassPermissions', permissionLabel: 'Bypass Permissions' },
+			synthesisHarness: { ...options.synthesisHarness, permissionId: 'autoApprove', permissionLabel: 'Allow all' },
 		});
 		firstStatus.set(SessionStatus.Completed, undefined);
 		secondStatus.set(SessionStatus.Completed, undefined);
@@ -431,7 +434,7 @@ suite('SessionComparisonService', () => {
 			{ permissionId: 'autoApprove', permissionLevel: undefined },
 			{ permissionId: 'default', permissionLevel: undefined },
 			{ permissionId: 'bypassPermissions', permissionLevel: undefined },
-			{ permissionId: 'default', permissionLevel: undefined },
+			{ permissionId: 'autoApprove', permissionLevel: undefined },
 		]);
 	});
 
@@ -495,7 +498,7 @@ suite('SessionComparisonService', () => {
 		}]);
 	});
 
-	test('synthesizes only after an explicit request with the recommended harness', async () => {
+	test('synthesizes only after an explicit request with the configured harness', async () => {
 		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
@@ -530,9 +533,9 @@ suite('SessionComparisonService', () => {
 			plan: current?.synthesisPlan,
 		}, {
 			synthesisResource: 'test:/synthesis',
-			providerId: 'provider-two',
-			sessionTypeId: 'type-two',
-			modelId: 'model-two',
+			providerId: 'synthesis-provider',
+			sessionTypeId: 'synthesis-type',
+			modelId: 'synthesis-model',
 			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. If the manifest includes a synthesisPlan, treat every selected section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nAttempt two is stronger.`,
 			plan: {
 				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
@@ -747,6 +750,7 @@ function startOptions() {
 		workspace: URI.file('/workspace'),
 		prompt: 'Implement the feature',
 		judgeHarness: { providerId: 'judge-provider', sessionTypeId: 'judge-type', label: 'Judge', modelId: 'judge-model' },
+		synthesisHarness: { providerId: 'synthesis-provider', sessionTypeId: 'synthesis-type', label: 'Synthesizer', modelId: 'synthesis-model' },
 		attempts: [
 			{
 				id: 'attempt-one',

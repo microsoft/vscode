@@ -121,6 +121,7 @@ export interface ISessionComparison {
 	/** Retained for comparisons persisted before execution presets were introduced. */
 	readonly permissionLevel?: string;
 	readonly judgeHarness?: ISessionComparisonHarness;
+	readonly synthesisHarness?: ISessionComparisonHarness;
 	readonly participants: readonly ISessionComparisonParticipant[];
 	readonly selectedParticipantId?: string;
 	readonly verdict?: ISessionComparisonVerdict;
@@ -133,6 +134,7 @@ export interface IStartSessionComparisonOptions {
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
 	readonly judgeHarness: ISessionComparisonHarness;
+	readonly synthesisHarness?: ISessionComparisonHarness;
 	readonly permissionLevel?: string;
 	readonly branch?: string;
 }

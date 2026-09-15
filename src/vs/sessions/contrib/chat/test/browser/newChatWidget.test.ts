@@ -167,6 +167,7 @@ interface ISendHarness {
 	readonly _feedbackItems: IObservable<readonly never[]>;
 	readonly _comparisonAttempts: IObservable<readonly ISessionComparisonAttemptConfiguration[]>;
 	readonly _comparisonJudgeHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
+	readonly _comparisonSynthesisHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
 	readonly _comparisonBranch?: IObservable<string | undefined>;
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
@@ -219,6 +220,10 @@ interface IConfigureComparisonHarness {
 		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
 		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
 	};
+	readonly _comparisonSynthesisHarness: {
+		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
+	};
 	readonly _comparisonBranch: {
 		get(): string | undefined;
 		set(value: string | undefined, transaction: undefined): void;
@@ -246,6 +251,8 @@ interface IConfigureComparisonHarness {
 				context: ISessionComparisonSetupContext,
 				initialAttempts: readonly ISessionComparisonAttemptConfiguration[],
 				initialJudgeHarness: ISessionComparisonAttemptConfiguration['harness'],
+				initialSynthesisHarness?: ISessionComparisonAttemptConfiguration['harness'],
+				useSavedEvaluatorDefaults?: boolean,
 			): Promise<ISessionComparisonSetupResult>;
 			dispose(): void;
 		};
@@ -1297,6 +1304,7 @@ suite('NewChatWidget', () => {
 			_feedbackItems: constObservable([]),
 			_comparisonAttempts: constObservable(configuredAttempts),
 			_comparisonJudgeHarness: constObservable(configuredAttempts[0].harness),
+			_comparisonSynthesisHarness: constObservable(configuredAttempts[1].harness),
 			_comparisonBranch: constObservable('feature/modal'),
 			_workspacePicker: {
 				selectedFolderUri: workspace,
@@ -1353,11 +1361,13 @@ suite('NewChatWidget', () => {
 			result,
 			attempts: comparisonOptions?.attempts,
 			judgeHarness: comparisonOptions?.judgeHarness,
+			synthesisHarness: comparisonOptions?.synthesisHarness,
 			branch: comparisonOptions?.branch,
 		}, {
 			result: true,
 			attempts: configuredAttempts,
 			judgeHarness: configuredAttempts[0].harness,
+			synthesisHarness: configuredAttempts[1].harness,
 			branch: 'feature/modal',
 		});
 	});
@@ -1447,9 +1457,12 @@ suite('NewChatWidget', () => {
 		const harnessSelection = { providerId: 'provider', sessionTypeId: 'agent', label: 'Copilot', modelId: undefined, modelLabel: undefined, permissionId: undefined, permissionLabel: undefined };
 		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, []);
 		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
+		const synthesisHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
 		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
 		let openedAttempts: readonly ISessionComparisonAttemptConfiguration[] = [];
 		let openedJudge: ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		let openedSynthesis: ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		let openedWithSavedDefaults = false;
 		let openedContext: ISessionComparisonSetupContext | undefined;
 		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
 			value: undefined,
@@ -1477,6 +1490,7 @@ suite('NewChatWidget', () => {
 			},
 			_comparisonAttempts: attempts,
 			_comparisonJudgeHarness: judgeHarness,
+			_comparisonSynthesisHarness: synthesisHarness,
 			_comparisonBranch: comparisonBranch,
 			_comparisonSetupDialog: dialogSlot,
 			_onDidChangeComparisonWorkspace: { event: Event.None },
@@ -1491,11 +1505,13 @@ suite('NewChatWidget', () => {
 			},
 			instantiationService: {
 				createInstance: () => ({
-					show: async (context, initialAttempts, initialJudgeHarness) => {
+					show: async (context, initialAttempts, initialJudgeHarness, initialSynthesisHarness, useSavedEvaluatorDefaults) => {
 						openedContext = context;
 						openedAttempts = initialAttempts;
 						openedJudge = initialJudgeHarness;
-						return { confirmed: false, attempts: initialAttempts, judgeHarness: initialJudgeHarness, branch: 'feature/comparison' };
+						openedSynthesis = initialSynthesisHarness;
+						openedWithSavedDefaults = useSavedEvaluatorDefaults ?? false;
+						return { confirmed: false, attempts: initialAttempts, judgeHarness: initialJudgeHarness, synthesisHarness: initialSynthesisHarness ?? initialJudgeHarness, branch: 'feature/comparison' };
 					},
 					dispose: () => { },
 				}),
@@ -1518,6 +1534,8 @@ suite('NewChatWidget', () => {
 			distinctIds: new Set(openedAttempts.map(attempt => attempt.id)).size,
 			harnesses: openedAttempts.map(attempt => attempt.harness),
 			judge: openedJudge,
+			synthesis: openedSynthesis,
+			useSavedEvaluatorDefaults: openedWithSavedDefaults,
 		}, {
 			branch: 'main',
 			branches: ['main', 'feature/comparison'],
@@ -1526,6 +1544,8 @@ suite('NewChatWidget', () => {
 			distinctIds: 2,
 			harnesses: [harnessSelection, harnessSelection],
 			judge: harnessSelection,
+			synthesis: harnessSelection,
+			useSavedEvaluatorDefaults: true,
 		});
 	});
 
@@ -1543,14 +1563,16 @@ suite('NewChatWidget', () => {
 			},
 		];
 		const editedJudge = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'judge-model', modelLabel: 'Judge Model', permissionId: 'allowAll', permissionLabel: 'Allow all' };
+		const editedSynthesis = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'synthesis-model', modelLabel: 'Synthesis Model', permissionId: 'default', permissionLabel: 'Default' };
 		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, [initialAttempt]);
 		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
+		const synthesisHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
 		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
 		const openedWith: (readonly ISessionComparisonAttemptConfiguration[])[] = [];
 		const openedBranches: string[] = [];
 		const results: ISessionComparisonSetupResult[] = [
-			{ confirmed: false, attempts: editedAttempts, judgeHarness: editedJudge, branch: 'feature/first' },
-			{ confirmed: true, attempts: editedAttempts, judgeHarness: editedJudge, branch: 'feature/second' },
+			{ confirmed: false, attempts: editedAttempts, judgeHarness: editedJudge, synthesisHarness: editedSynthesis, branch: 'feature/first' },
+			{ confirmed: true, attempts: editedAttempts, judgeHarness: editedJudge, synthesisHarness: editedSynthesis, branch: 'feature/second' },
 		];
 		let submitCount = 0;
 		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
@@ -1580,6 +1602,7 @@ suite('NewChatWidget', () => {
 			},
 			_comparisonAttempts: attempts,
 			_comparisonJudgeHarness: judgeHarness,
+			_comparisonSynthesisHarness: synthesisHarness,
 			_comparisonBranch: comparisonBranch,
 			_comparisonSetupDialog: dialogSlot,
 			_onDidChangeComparisonWorkspace: { event: Event.None },
@@ -1609,12 +1632,14 @@ suite('NewChatWidget', () => {
 			firstOpen: openedWith[0],
 			draftAttempts: attempts.get(),
 			draftJudge: judgeHarness.get(),
+			draftSynthesis: synthesisHarness.get(),
 			draftBranch: comparisonBranch.get(),
 			submitCount,
 		}, {
 			firstOpen: [initialAttempt],
 			draftAttempts: editedAttempts,
 			draftJudge: editedJudge,
+			draftSynthesis: editedSynthesis,
 			draftBranch: 'feature/first',
 			submitCount: 0,
 		});
@@ -1625,6 +1650,7 @@ suite('NewChatWidget', () => {
 			openedBranches,
 			draftAttempts: attempts.get(),
 			draftJudge: judgeHarness.get(),
+			draftSynthesis: synthesisHarness.get(),
 			draftBranch: comparisonBranch.get(),
 			submitCount,
 		}, {
@@ -1632,6 +1658,7 @@ suite('NewChatWidget', () => {
 			openedBranches: ['main', 'feature/first'],
 			draftAttempts: [],
 			draftJudge: undefined,
+			draftSynthesis: undefined,
 			draftBranch: undefined,
 			submitCount: 1,
 		});

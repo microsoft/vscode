@@ -59,6 +59,7 @@ export interface ISessionComparisonSetupResult {
 	readonly confirmed: boolean;
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
 	readonly judgeHarness: ISessionComparisonHarness;
+	readonly synthesisHarness: ISessionComparisonHarness;
 	readonly branch: string | undefined;
 }
 
@@ -68,6 +69,7 @@ function harnessKey(providerId: string, sessionTypeId: string): string {
 
 const SESSION_COMPARISON_DIALOG_WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
 const SESSION_COMPARISON_DIALOG_HEIGHT_STORAGE_KEY = 'sessions.comparisonSetupDialog.height';
+const SESSION_COMPARISON_EVALUATOR_DEFAULTS_STORAGE_KEY = 'sessions.comparisonSetupDialog.evaluatorDefaults';
 const SESSION_COMPARISON_DIALOG_MIN_WIDTH = 480;
 const SESSION_COMPARISON_DIALOG_MIN_HEIGHT = 240;
 const SESSION_COMPARISON_DIALOG_VIEWPORT_RATIO = 0.9;
@@ -268,20 +270,30 @@ export class SessionComparisonSetupDialog extends Disposable {
 		super();
 	}
 
-	async show(context: ISessionComparisonSetupContext, initialAttempts: readonly ISessionComparisonAttemptConfiguration[], initialJudgeHarness: ISessionComparisonHarness): Promise<ISessionComparisonSetupResult> {
+	async show(
+		context: ISessionComparisonSetupContext,
+		initialAttempts: readonly ISessionComparisonAttemptConfiguration[],
+		initialJudgeHarness: ISessionComparisonHarness,
+		initialSynthesisHarness: ISessionComparisonHarness = initialJudgeHarness,
+		useSavedEvaluatorDefaults = false,
+	): Promise<ISessionComparisonSetupResult> {
 		const disposables = new DisposableStore();
 		this.activeDialog.value = disposables;
 		const rowsDisposables = disposables.add(new DisposableStore());
+		const evaluatorState = this._getInitialEvaluatorState(initialJudgeHarness, initialSynthesisHarness, useSavedEvaluatorDefaults);
+		let savedEvaluatorDefaults = evaluatorState.savedDefaults;
 		let attempts = [...initialAttempts];
 		let content: HTMLElement | undefined;
+		let contentScrollable: DomScrollableElement | undefined;
 		let confirmButton: IButton | undefined;
 		let validationElement: HTMLElement | undefined;
 		let prompt = context.prompt;
 		let workspace = context.workspace;
 		let branch: string | undefined = context.branch;
 		let branches = context.branches;
-		let judgeHarness = initialJudgeHarness;
-		let evaluationExpanded = false;
+		let judgeHarness = evaluatorState.judgeHarness;
+		let synthesisHarness = evaluatorState.synthesisHarness;
+		let evaluationExpanded = evaluatorState.expanded;
 		let renderedEvaluation: HTMLDetailsElement | undefined;
 
 		const getHarnesses = (): readonly ISessionComparisonHarness[] => this.sessionsManagementService.getSessionTypesForFolder(workspace)
@@ -345,6 +357,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				context.setPrompt(value);
 				updateValidation();
 			}));
+			rowsDisposables.add(promptInput.onDidHeightChange(() => contentScrollable?.scanDomNode()));
 			const contextSummary = dom.append(content, dom.$('.session-comparison-setup-context-summary'));
 			dom.append(contextSummary, dom.$('span')).textContent = localize('sessionComparisonSetup.startingFrom', "Starting from");
 			rowsDisposables.add(context.renderWorkspacePicker(contextSummary));
@@ -395,7 +408,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				permissionId: permission.id,
 				permissionLabel: permission.label,
 			});
-			const participantHarnesses = () => [...attempts.map(attempt => attempt.harness), judgeHarness];
+			const participantHarnesses = () => [...attempts.map(attempt => attempt.harness), judgeHarness, synthesisHarness];
 			const getBulkPermissionState = () => {
 				const harnesses = participantHarnesses();
 				const allowAllPermissions = harnesses.map(harness =>
@@ -466,14 +479,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			actionsHeader.setAttribute('aria-label', localize('sessionComparisonSetup.actions', "Actions"));
 			const rows = dom.$('.session-comparison-setup-rows');
 			rows.setAttribute('role', 'rowgroup');
-			const rowsScrollable = rowsDisposables.add(new DomScrollableElement(rows, {
-				horizontal: ScrollbarVisibility.Hidden,
-				vertical: ScrollbarVisibility.Auto,
-				useShadows: true,
-				consumeMouseWheelIfScrollbarIsNeeded: true,
-			}));
-			rowsScrollable.getDomNode().classList.add('session-comparison-setup-rows-scroll');
-			dom.append(table, rowsScrollable.getDomNode());
+			dom.append(table, rows);
 			const harnesses = getHarnesses();
 			if (harnesses.length === 0) {
 				const empty = dom.append(rows, dom.$('.session-comparison-setup-empty'));
@@ -672,7 +678,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 						showUnavailableFeatured: false,
 						showManageModelsAction: false,
 						showAutoModel: true,
-						showModelIcon: true,
+						showModelIcon: false,
 					}),
 					isCacheWarm: () => false,
 				};
@@ -768,8 +774,6 @@ export class SessionComparisonSetupDialog extends Disposable {
 				}
 			}
 
-			rowsScrollable.scanDomNode();
-
 			const addButton = rowsDisposables.add(new Button(attemptsSection, {
 				...defaultButtonStyles,
 				secondary: true,
@@ -788,21 +792,32 @@ export class SessionComparisonSetupDialog extends Disposable {
 				renderRows(attempt.id);
 			}));
 
-			const evaluation = dom.append(content, dom.$('details.session-comparison-setup-evaluation')) as HTMLDetailsElement;
+			const evaluator = dom.append(content, dom.$('.session-comparison-setup-evaluator'));
+			const evaluation = dom.append(evaluator, dom.$('details.session-comparison-setup-evaluation')) as HTMLDetailsElement;
 			renderedEvaluation = evaluation;
 			evaluation.open = evaluationExpanded;
 			const evaluationSummary = dom.append(evaluation, dom.$('summary.session-comparison-setup-evaluation-summary'));
 			dom.append(evaluationSummary, dom.$('span.session-comparison-setup-label')).textContent =
 				localize('sessionComparisonSetup.evaluation', "Evaluation");
-			const getJudgeLabel = (): string => judgeHarness.modelId
-				? getSessionComparisonHarnessDisplayLabel(judgeHarness)
-				: localize('sessionComparisonSetup.judgeHarnessAuto', "{0} · Auto", judgeHarness.label);
-			const judgeValue = dom.append(evaluationSummary, dom.$('span.session-comparison-setup-evaluation-value'));
-			judgeValue.textContent = getJudgeLabel();
-			const judgeRow = dom.append(evaluation, dom.$('.session-comparison-setup-judge'));
+			const getHarnessLabel = (harness: ISessionComparisonHarness): string => harness.modelId
+				? getSessionComparisonHarnessDisplayLabel(harness)
+				: localize('sessionComparisonSetup.evaluatorHarnessAuto', "{0} · Auto", harness.label);
+			const evaluationValue = dom.append(evaluationSummary, dom.$('span.session-comparison-setup-evaluation-value'));
+			const updateEvaluationValue = (): void => {
+				evaluationValue.textContent = localize(
+					'sessionComparisonSetup.evaluatorSummary',
+					"Judge: {0} · Synthesizer: {1}",
+					getHarnessLabel(judgeHarness),
+					getHarnessLabel(synthesisHarness),
+				);
+			};
+			updateEvaluationValue();
+			const judgeRow = dom.append(evaluation, dom.$('.session-comparison-setup-evaluator-step'));
 			judgeRow.setAttribute('role', 'group');
 			judgeRow.setAttribute('aria-label', localize('sessionComparisonSetup.judgeConfiguration', "Judge configuration"));
-			dom.append(judgeRow, dom.$('.session-comparison-setup-judge-description')).textContent =
+			dom.append(judgeRow, dom.$('h4.session-comparison-setup-evaluator-step-title')).textContent =
+				localize('sessionComparisonSetup.judge', "Judge");
+			dom.append(judgeRow, dom.$('.session-comparison-setup-evaluator-step-description')).textContent =
 				localize('sessionComparisonSetup.judgeDescription', "Reviews the finished attempts and recommends a result.");
 			renderHarnessControls(
 				dom.append(judgeRow, dom.$('.session-comparison-setup-row-controls')),
@@ -816,11 +831,66 @@ export class SessionComparisonSetupDialog extends Disposable {
 				localize('sessionComparisonSetup.judgePermissionReset', "The selected Judge permission is no longer available. The agent default will be used."),
 				harness => {
 					judgeHarness = harness;
-					judgeValue.textContent = getJudgeLabel();
+					updateEvaluationValue();
 				},
 			);
+			const synthesisRow = dom.append(evaluation, dom.$('.session-comparison-setup-evaluator-step'));
+			synthesisRow.setAttribute('role', 'group');
+			synthesisRow.setAttribute('aria-label', localize('sessionComparisonSetup.synthesisConfiguration', "Synthesizer configuration"));
+			dom.append(synthesisRow, dom.$('h4.session-comparison-setup-evaluator-step-title')).textContent =
+				localize('sessionComparisonSetup.synthesizer', "Synthesizer");
+			dom.append(synthesisRow, dom.$('.session-comparison-setup-evaluator-step-description')).textContent =
+				localize('sessionComparisonSetup.synthesizerDescription', "Combines the strongest parts of the attempts after the Judge recommends a result.");
+			renderHarnessControls(
+				dom.append(synthesisRow, dom.$('.session-comparison-setup-row-controls')),
+				synthesisHarness,
+				localize('sessionComparisonSetup.agentForSynthesizer', "Agent for the Synthesizer"),
+				localize('sessionComparisonSetup.modelForSynthesizer', "Model for the Synthesizer"),
+				localize('sessionComparisonSetup.permissionsForSynthesizer', "Permissions for the Synthesizer"),
+				localize('sessionComparisonSetup.synthesizerAgentReset', "The Synthesizer agent is no longer available. The first available agent will be used."),
+				localize('sessionComparisonSetup.synthesizerModelReset', "The selected Synthesizer model is no longer available. The agent default will be used."),
+				localize('sessionComparisonSetup.synthesizerModelConfigurationReset', "The selected Synthesizer model configuration is no longer supported. The model defaults will be used."),
+				localize('sessionComparisonSetup.synthesizerPermissionReset', "The selected Synthesizer permission is no longer available. The agent default will be used."),
+				harness => {
+					synthesisHarness = harness;
+					updateEvaluationValue();
+				},
+			);
+			const evaluatorActions = dom.append(evaluator, dom.$('.session-comparison-setup-evaluator-actions'));
+			const saveDefaultsButton = rowsDisposables.add(new Button(evaluatorActions, {
+				ariaLabel: localize('sessionComparisonSetup.saveEvaluatorDefaultsAriaLabel', "Save the current Judge and Synthesizer settings as defaults"),
+			}));
+			saveDefaultsButton.label = localize('sessionComparisonSetup.saveEvaluatorDefaults', "Save as Defaults");
+			const clearDefaultsButton = rowsDisposables.add(new Button(evaluatorActions, {
+				secondary: true,
+				ariaLabel: localize('sessionComparisonSetup.clearEvaluatorDefaultsAriaLabel', "Clear the saved Judge and Synthesizer defaults"),
+			}));
+			clearDefaultsButton.label = localize('sessionComparisonSetup.clearEvaluatorDefaults', "Clear Defaults");
+			const updateEvaluatorActions = (): void => {
+				saveDefaultsButton.element.hidden = !evaluation.open;
+				clearDefaultsButton.element.hidden = savedEvaluatorDefaults === undefined;
+			};
+			updateEvaluatorActions();
+			rowsDisposables.add(saveDefaultsButton.onDidClick(() => {
+				this._saveEvaluatorDefaults(judgeHarness, synthesisHarness);
+				savedEvaluatorDefaults = { judgeHarness, synthesisHarness };
+				evaluationExpanded = false;
+				evaluation.open = false;
+				updateEvaluatorActions();
+				status(localize('sessionComparisonSetup.evaluatorDefaultsSaved', "Judge and Synthesizer defaults saved."));
+			}));
+			rowsDisposables.add(clearDefaultsButton.onDidClick(() => {
+				this._clearEvaluatorDefaults();
+				savedEvaluatorDefaults = undefined;
+				evaluationExpanded = true;
+				evaluation.open = true;
+				updateEvaluatorActions();
+				status(localize('sessionComparisonSetup.evaluatorDefaultsCleared', "Judge and Synthesizer defaults cleared."));
+			}));
 			rowsDisposables.add(dom.addDisposableListener(evaluation, 'toggle', () => {
 				evaluationExpanded = evaluation.open;
+				updateEvaluatorActions();
+				contentScrollable?.scanDomNode();
 			}));
 
 			validationElement = dom.append(content, dom.$('.session-comparison-setup-validation'));
@@ -838,7 +908,8 @@ export class SessionComparisonSetupDialog extends Disposable {
 					{ id: generateUuid(), harness: change.defaultHarness },
 					{ id: generateUuid(), harness: change.defaultHarness },
 				];
-				judgeHarness = change.defaultHarness;
+				judgeHarness = savedEvaluatorDefaults?.judgeHarness ?? change.defaultHarness;
+				synthesisHarness = savedEvaluatorDefaults?.synthesisHarness ?? change.defaultHarness;
 			} else {
 				attempts = [];
 			}
@@ -870,13 +941,25 @@ export class SessionComparisonSetupDialog extends Disposable {
 					}],
 					renderBody: container => {
 						container.classList.add('session-comparison-setup-body');
-						content = dom.append(container, dom.$('.session-comparison-setup-content'));
+						content = dom.$('.session-comparison-setup-content');
+						contentScrollable = disposables.add(new DomScrollableElement(content, {
+							horizontal: ScrollbarVisibility.Hidden,
+							vertical: ScrollbarVisibility.Auto,
+							useShadows: true,
+							consumeMouseWheelIfScrollbarIsNeeded: true,
+						}));
+						contentScrollable.getDomNode().classList.add('session-comparison-setup-content-scroll');
+						dom.append(container, contentScrollable.getDomNode());
+						const resizeObserver = new (dom.getWindow(container).ResizeObserver)(() => contentScrollable?.scanDomNode());
+						disposables.add({ dispose: () => resizeObserver.disconnect() });
+						resizeObserver.observe(container);
 						const dialogElement = container.closest<HTMLElement>('.session-comparison-setup-dialog');
 						if (!dialogElement) {
 							throw new Error('Session comparison setup dialog element not found.');
 						}
 						disposables.add(new SessionComparisonDialogResizeController(dialogElement, container, this.storageService));
 						renderRows();
+						contentScrollable.scanDomNode();
 					},
 				},
 			));
@@ -887,7 +970,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			disposables.add(this.sessionsManagementService.onDidChangeSessionTypes(() => renderRows()));
 
 			const result = await dialog.show();
-			return { confirmed: result.button === 0, attempts, judgeHarness, branch };
+			return { confirmed: result.button === 0, attempts, judgeHarness, synthesisHarness, branch };
 		} finally {
 			if (this.activeDialog.value === disposables) {
 				this.activeDialog.clear();
@@ -895,5 +978,38 @@ export class SessionComparisonSetupDialog extends Disposable {
 				disposables.dispose();
 			}
 		}
+	}
+
+	private _getSavedEvaluatorDefaults(): { judgeHarness: ISessionComparisonHarness; synthesisHarness: ISessionComparisonHarness } | undefined {
+		const defaults = this.storageService.getObject<{ judgeHarness?: ISessionComparisonHarness; synthesisHarness?: ISessionComparisonHarness }>(
+			SESSION_COMPARISON_EVALUATOR_DEFAULTS_STORAGE_KEY,
+			StorageScope.PROFILE,
+		);
+		return defaults?.judgeHarness && defaults.synthesisHarness
+			? { judgeHarness: defaults.judgeHarness, synthesisHarness: defaults.synthesisHarness }
+			: undefined;
+	}
+
+	private _getInitialEvaluatorState(initialJudgeHarness: ISessionComparisonHarness, initialSynthesisHarness: ISessionComparisonHarness, useSavedDefaults: boolean) {
+		const savedDefaults = this._getSavedEvaluatorDefaults();
+		return {
+			savedDefaults,
+			judgeHarness: useSavedDefaults ? savedDefaults?.judgeHarness ?? initialJudgeHarness : initialJudgeHarness,
+			synthesisHarness: useSavedDefaults ? savedDefaults?.synthesisHarness ?? initialSynthesisHarness : initialSynthesisHarness,
+			expanded: savedDefaults === undefined,
+		};
+	}
+
+	private _saveEvaluatorDefaults(judgeHarness: ISessionComparisonHarness, synthesisHarness: ISessionComparisonHarness): void {
+		this.storageService.store(
+			SESSION_COMPARISON_EVALUATOR_DEFAULTS_STORAGE_KEY,
+			JSON.stringify({ judgeHarness, synthesisHarness }),
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+	}
+
+	private _clearEvaluatorDefaults(): void {
+		this.storageService.remove(SESSION_COMPARISON_EVALUATOR_DEFAULTS_STORAGE_KEY, StorageScope.PROFILE);
 	}
 }
