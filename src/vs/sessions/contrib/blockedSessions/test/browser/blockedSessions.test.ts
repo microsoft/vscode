@@ -16,6 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -37,15 +38,15 @@ suite('BlockedSessions', () => {
 		const management = new TestSessionsManagementService(sessions as unknown as ISession[]);
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+		const provider: ISessionsProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';
 			override getAgentMergeClientStateObservable(sessionId: string) {
 				return sessions.find(session => session.sessionId === sessionId)!.agentMergeState;
 			}
 		};
 		const providers = new class extends mock<ISessionsProvidersService>() {
-			override getProvider(providerId: string) {
-				return providerId === provider.id ? provider : undefined;
+			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+				return providerId === provider.id ? provider as T : undefined;
 			}
 		};
 		const service = store.add(new BlockedSessions(management as unknown as ISessionsManagementService, gitHubService as unknown as IGitHubService, new NullLogService(), providers, configuration));
