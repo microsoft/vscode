@@ -317,6 +317,22 @@
 	padding-left: var(--vscode-spacing-size40, 4px);
 }
 
+.project-board-live-actions {
+	min-width: 0;
+	max-width: 100%;
+	margin-top: var(--vscode-spacing-size80, 8px);
+}
+
+.project-board-live-actions .chat-error-confirmation .chat-buttons-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
+.project-board-live-actions .chat-error-confirmation .monaco-button {
+	width: auto;
+}
+
 .project-board-card-description {
 	display: -webkit-box;
 	overflow: hidden;

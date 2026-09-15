@@ -17,6 +17,8 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChat } from '../../../services/sessions/common/session.js';
+import { getProjectBoardPendingActions, IProjectBoardPendingActions } from '../common/projectBoardActions.js';
+import { equals as arrayEquals } from '../../../../base/common/arrays.js';
 
 export const projectBoardMetadataLimits = Object.freeze({
 	activeHelpers: 16,
@@ -120,6 +122,8 @@ export class ProjectBoardMetadata extends Disposable {
 	private readonly includeConfiguration = observableValue(this, false);
 	private readonly _configuration = observableValue<IProjectBoardInputConfiguration | undefined>(this, undefined);
 	readonly configuration: IObservable<IProjectBoardInputConfiguration | undefined> = this._configuration;
+	private readonly _actions = observableValue<IProjectBoardPendingActions | undefined>(this, undefined);
+	readonly actions: IObservable<IProjectBoardPendingActions | undefined> = this._actions;
 
 	setIncludeConfiguration(enabled: boolean): void {
 		this.includeConfiguration.set(enabled, undefined);
@@ -166,6 +170,7 @@ export class ProjectBoardMetadata extends Disposable {
 	private _observe(model: IChatModel): void {
 		const changed = observableSignalFromEvent(this, model.onDidChange);
 		this._modelStore.add(model.onDidDispose(() => {
+			this._actions.set(undefined, undefined);
 			this._configuration.set(undefined, undefined);
 			this._credits.set(undefined, undefined);
 			this._unavailable(localize('projectBoard.metadata.modelDisposed', "Last submitted prompt unavailable because the conversation was closed."));
@@ -181,6 +186,12 @@ export class ProjectBoardMetadata extends Disposable {
 					observableSignalFromEvent(this, request.response.onDidChange).read(reader);
 				}
 				this._publish(request);
+				const actions = getProjectBoardPendingActions(model, reader);
+				const previous = this._actions.read(undefined);
+				if (previous?.request !== actions?.request || previous?.response !== actions?.response || previous?.error !== actions?.error || previous?.limited !== actions?.limited
+					|| !arrayEquals(previous?.tools ?? [], actions?.tools ?? [])) {
+					this._actions.set(actions, undefined);
+				}
 			} catch (error) {
 				this._fail(error);
 			}
@@ -260,6 +271,7 @@ export class ProjectBoardMetadata extends Disposable {
 	}
 
 	private _unavailable(message: string): void {
+		this._actions.set(undefined, undefined);
 		const previous = this._metadata.get();
 		if (previous.kind !== 'unavailable' || previous.message !== message) {
 			this._metadata.set(Object.freeze({ kind: 'unavailable', message }), undefined);
@@ -267,6 +279,7 @@ export class ProjectBoardMetadata extends Disposable {
 	}
 
 	private _fail(error: unknown): void {
+		this._actions.set(undefined, undefined);
 		const detail = toErrorMessage(error);
 		const previous = this._metadata.get();
 		if (previous.kind === 'error' && previous.error === detail) {

@@ -38,6 +38,7 @@ suite('ProjectBoardMetadata', () => {
 			override get sessionResource() { return resource; }
 			override readonly onDidChange = changed.event;
 			override readonly onDidDispose = disposed.event;
+			override readonly requestInProgress = observableValue('requestInProgress', false);
 			override readonly lastRequestObs = observableValue<ChatRequestModel | undefined>('lastRequest', undefined);
 			override get lastRequest() { return this.lastRequestObs.get(); }
 			override get sessionCost() { return state.credits; }
@@ -98,6 +99,26 @@ suite('ProjectBoardMetadata', () => {
 		const result = metadata.metadata.get();
 		assert.strictEqual(result.kind, 'ready');
 		assert.deepStrictEqual([result.prompt, result.submittedAt], ['Second', 500]);
+	});
+
+	test('PB-20 interrupted-response actions are discovered from the retained metadata model and clear on replacement', () => {
+		const h = setup();
+		const request = h.request();
+		const response = store.add(new ChatResponseModel({ session: h.model, requestId: request.id, responseContent: [], codeBlockInfos: undefined }));
+		request.response = response;
+		h.model.lastRequestObs.set(request, undefined);
+		const metadata = h.create();
+		response.setResult({ errorDetails: {
+			message: 'Interrupted',
+			confirmationButtons: [{ label: 'Keep Going', data: { agentHostResumeTurn: true }, resend: true, preserveRequestId: true }],
+		} });
+		response.complete();
+		assert.strictEqual(metadata.actions.get()?.request, request);
+		assert.strictEqual(metadata.actions.get()?.error?.confirmationButtons?.[0].label, 'Keep Going');
+		assert.strictEqual(h.state.acquired, 1);
+		h.model.lastRequestObs.set(h.request('New request'), undefined);
+		assert.strictEqual(metadata.actions.get(), undefined);
+		assert.strictEqual(h.state.scans, 0);
 	});
 
 	test('PB-19 configuration uses the retained model without propagating input text or cursor changes', () => {
