@@ -12,14 +12,14 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
-import { buildDefaultChatUri, getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 function stringOrMarkdownText(value: StringOrMarkdown | undefined): string | undefined {
@@ -210,12 +210,25 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				3,
 			);
 
+			const state = await fetchSessionWithChat(context.client, sessionUri);
 			assert.deepStrictEqual({
 				fileExists: existsSync(join(workspace, 'cancelled.txt')),
 				replacement: replacement.responseText.trim(),
+				turns: state.turns.map(turn => ({ id: turn.id, state: turn.state })),
+				pendingApprovals: state.turns.flatMap(turn => turn.responseParts.filter(part =>
+					part.kind === ResponsePartKind.ToolCall && (part.toolCall.status === ToolCallStatus.PendingConfirmation || part.toolCall.status === ToolCallStatus.PendingResultConfirmation))),
+				activeTurn: state.activeTurn,
+				inputNeeded: state.inputNeeded,
 			}, {
 				fileExists: false,
 				replacement: 'replacement',
+				turns: [
+					{ id: turnId, state: TurnState.Cancelled },
+					{ id: 'turn-after-file-approval-cancel', state: TurnState.Complete },
+				],
+				pendingApprovals: [],
+				activeTurn: undefined,
+				inputNeeded: undefined,
 			});
 		});
 	}
