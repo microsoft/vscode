@@ -22,10 +22,13 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
 import { CHAT_CARD_LARGE_CLASS } from '../../../../workbench/contrib/chat/browser/widget/chatCard.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
@@ -34,7 +37,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBoardModel } from '../common/projectBoardModel.js';
 import { ProjectBoardState } from './projectBoardState.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
-import { ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
+import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
 import './media/projectBoard.css';
 
@@ -61,6 +64,13 @@ class ProjectBoardView extends Disposable {
 	private drafts: readonly IProjectBoardDraft[] = [];
 	private readonly questionPreviews = this._register(new DisposableMap<string, ProjectBoardQuestionPreview>());
 	private readonly questionChats = new Map<string, IChat>();
+	private readonly questionWidgets = this._register(new DisposableMap<IChatQuestionCarousel, {
+		readonly cardId: string;
+		readonly owner: ProjectBoardQuestionPreview;
+		readonly element: HTMLElement;
+		readonly part: ChatQuestionCarouselPart;
+		dispose(): void;
+	}>());
 	private readonly previewStates = new Map<string, ProjectBoardQuestionPreviewState>();
 	private readonly notifiedPreviewErrors = new Map<string, string>();
 	private readonly metadataPreviews = this._register(new DisposableMap<string, ProjectBoardMetadata>());
@@ -98,6 +108,7 @@ class ProjectBoardView extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.sessionsManagementService = services.sessionsManagementService;
@@ -194,6 +205,7 @@ class ProjectBoardView extends Disposable {
 			}
 		}
 		this.previewStates.clear();
+		const activeQuestions = new Set<IChatQuestionCarousel>();
 		for (const card of this.model.cards) {
 			if (card.status !== SessionStatus.NeedsInput) {
 				continue;
@@ -210,12 +222,53 @@ class ProjectBoardView extends Disposable {
 				this.questionChats.set(card.id, card.chat);
 			}
 			const state = this.questionPreviews.get(card.id)!.preview.read(reader);
+			const owner = this.questionPreviews.get(card.id)!;
+			const questions = owner.questionCarousels.read(reader);
+			if (!card.archived && !card.readOnly) {
+				for (const question of questions) {
+					activeQuestions.add(question.carousel);
+					if (this.questionWidgets.get(question.carousel)?.owner !== owner) {
+						this.createQuestionWidget(card.id, owner, question);
+					}
+				}
+			}
 			this.previewStates.set(card.id, state);
 			if (state.kind === 'error' && this.notifiedPreviewErrors.get(card.id) !== state.error) {
 				this.notifiedPreviewErrors.set(card.id, state.error);
 				this.notificationService.error(state.message);
 			}
 		}
+		for (const carousel of this.questionWidgets.keys()) {
+			if (!activeQuestions.has(carousel)) {
+				this.questionWidgets.deleteAndDispose(carousel);
+			}
+		}
+	}
+
+	private createQuestionWidget(cardId: string, owner: ProjectBoardQuestionPreview, question: IProjectBoardPendingQuestion): void {
+		const store = new DisposableStore();
+		const element = mainWindow.document.createElement('div');
+		element.className = 'project-board-live-question interactive-input-part';
+		const container = mainWindow.document.createElement('div');
+		container.className = 'chat-question-carousel-widget-container';
+		element.appendChild(container);
+		const scope = store.add(this.contextKeyService.createScoped(element));
+		const instantiation = store.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scope])));
+		const part = store.add(instantiation.createInstance(ChatQuestionCarouselPart, question.carousel, undefined, {
+			shouldAutoFocus: false,
+			onSubmit: answers => {
+				const current = this.model.cards.find(card => card.id === cardId);
+				if (!current || current.archived || current.readOnly || !owner.submit(question, answers)) {
+					if (owner.preview.get().kind !== 'error') {
+						this.notificationService.warn(localize('projectBoard.staleQuestion', "This question can no longer be answered here. Open the chat to check its current state."));
+					}
+					return false;
+				}
+				return true;
+			},
+		}));
+		container.appendChild(part.domNode);
+		this.questionWidgets.set(question.carousel, { cardId, owner, element, part, dispose: () => store.dispose() });
 	}
 
 	private cellKey(placement: IProjectBoardPlacement): string {
@@ -242,6 +295,7 @@ class ProjectBoardView extends Disposable {
 		const activeElement = ownerDocument.hasFocus() ? ownerDocument.activeElement : null;
 		const focusedCreate = activeElement === this.createSessionButton?.element;
 		const focusedControl = activeElement?.getAttribute('data-board-control');
+		const focusedQuestion = activeElement && [...this.questionWidgets.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
 		const focusedCard = [...this.cardElements].find(([, element]) => activeElement && element.contains(activeElement));
 		const store = new DisposableStore();
 		this.renderDisposables.value = store;
@@ -360,7 +414,9 @@ class ProjectBoardView extends Disposable {
 		this.boardElement = board;
 		this.rendering = false;
 		if (ownerDocument.hasFocus()) {
-			if (focusedControl) {
+			if (focusedQuestion?.isConnected && isHTMLElement(focusedQuestion)) {
+				focusedQuestion.focus({ preventScroll: true });
+			} else if (focusedControl) {
 				const fallback = focusedControl.startsWith('more:') ? focusedControl.replace('more:', 'less:') : focusedControl.replace('less:', 'more:');
 				(this.controlElements.get(focusedControl) ?? this.controlElements.get(fallback))?.focus({ preventScroll: true });
 			} else if (focusedCard) {
@@ -740,7 +796,7 @@ class ProjectBoardView extends Disposable {
 		this.cardElements.set(card.id, element);
 		const preview = this.previewStates.get(card.id);
 		if (preview && preview.kind !== 'inactive') {
-			const previewElement = this.createQuestionPreview(document, preview, store);
+			const previewElement = this.createQuestionPreview(document, preview, store, card.id);
 			previewElement.id = `project-board-input-${generateUuid()}`;
 			descriptions.push(previewElement.id);
 			element.appendChild(previewElement);
@@ -748,6 +804,10 @@ class ProjectBoardView extends Disposable {
 		element.setAttribute('aria-describedby', descriptions.join(' '));
 
 		store.add(addDisposableListener(element, EventType.DRAG_START, event => {
+			if (event.composedPath().some(target => isHTMLElement(target) && target.classList.contains('project-board-live-question'))) {
+				event.preventDefault();
+				return;
+			}
 			this.dragging = true;
 			this.model.setSortingDeferred(true);
 			event.dataTransfer?.setData(projectBoardDragDataType, card.id);
@@ -761,6 +821,9 @@ class ProjectBoardView extends Disposable {
 			this.observeSessions();
 		}));
 		this.registerCardInteractions(element, () => this.openCard(card), store, () => this.showMoveMenu(card, element));
+		if ([...this.questionWidgets.values()].some(widget => widget.cardId === card.id)) {
+			element.setAttribute('role', 'group');
+		}
 
 		return element;
 	}
@@ -790,7 +853,7 @@ class ProjectBoardView extends Disposable {
 		}
 	}
 
-	private createQuestionPreview(document: Document, preview: ProjectBoardQuestionPreviewState, store: DisposableStore): HTMLElement {
+	private createQuestionPreview(document: Document, preview: ProjectBoardQuestionPreviewState, store: DisposableStore, cardId: string): HTMLElement {
 		const container = document.createElement('section');
 		container.className = 'project-board-card-input interactive-session';
 		container.setAttribute('aria-label', localize('projectBoard.pendingInput', "Pending input"));
@@ -816,7 +879,14 @@ class ProjectBoardView extends Disposable {
 		} else if (preview.kind === 'unavailable' || preview.kind === 'error') {
 			text(preview.message);
 		} else if (preview.kind === 'ready') {
+			const interactive = [...this.questionWidgets.values()].filter(widget => widget.cardId === cardId);
+			for (const widget of interactive) {
+				container.appendChild(widget.element);
+			}
 			for (const question of preview.questions) {
+				if (interactive.some(widget => widget.part.carousel.questions.some(item => item.id === question.id))) {
+					continue;
+				}
 				const questionCard = document.createElement('div');
 				questionCard.className = `chat-question-carousel-container chat-question-carousel-preview ${CHAT_CARD_LARGE_CLASS}`;
 				const content = document.createElement('div');
@@ -843,7 +913,11 @@ class ProjectBoardView extends Disposable {
 			if (preview.truncated) {
 				text(localize('projectBoard.moreInputDetails', "More details are available in the chat."));
 			}
-			text(localize('projectBoard.respondInChat', "Open the chat to respond."));
+			if (!interactive.length && preview.questions.length) {
+				text(localize('projectBoard.inlineAnswerUnavailable', "Inline answering is unavailable for this question. Open the chat to respond."));
+			} else if (!interactive.length || preview.permissions.length || preview.unsupported.length || preview.truncated) {
+				text(localize('projectBoard.respondInChat', "Open the chat to respond."));
+			}
 		}
 		return container;
 	}
@@ -855,7 +929,7 @@ class ProjectBoardView extends Disposable {
 			? localize('projectBoard.cardInstructions', "Double-click or press Enter or Space to open this chat. Drag to move, or use the context menu with Shift+F10.")
 			: localize('projectBoard.draftInstructions', "Double-click or press Enter or Space to open this session draft."));
 		store.add(addDisposableListener(element, EventType.DBLCLICK, event => {
-			if (event.composedPath().some(target => target !== element && isHTMLElement(target) && target.matches('a, button, input, select, textarea, summary, [role="button"]'))) {
+			if (event.composedPath().some(target => target !== element && isHTMLElement(target) && target.matches('a, button, input, select, textarea, summary, [role="button"], .project-board-live-question'))) {
 				return;
 			}
 			void open();
@@ -876,6 +950,9 @@ class ProjectBoardView extends Disposable {
 		}));
 		if (showMoveMenu) {
 			store.add(addDisposableListener(element, EventType.CONTEXT_MENU, event => {
+				if (event.composedPath().some(target => isHTMLElement(target) && target.classList.contains('project-board-live-question'))) {
+					return;
+				}
 				event.preventDefault();
 				event.stopPropagation();
 				element.focus();

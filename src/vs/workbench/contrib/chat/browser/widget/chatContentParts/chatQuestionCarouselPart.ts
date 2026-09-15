@@ -51,7 +51,8 @@ import './media/chatQuestionCarousel.css';
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
 const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
 export interface IChatQuestionCarouselOptions {
-	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
+	/** A synchronous false rejects the submission without displaying an answered summary. */
+	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void | boolean | Promise<void>;
 	onDidDismiss?: (answers: ReadonlyMap<string, IChatQuestionAnswerValue>) => void;
 	dismissLabel?: string;
 	submissionAcknowledgement?: {
@@ -171,6 +172,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	constructor(
 		public readonly carousel: IChatQuestionCarousel,
+		/** Standalone hosts omit the transcript context and use the plain answer summary. */
 		private readonly _context: IChatContentPartRenderContext | undefined,
 		private readonly _options: IChatQuestionCarouselOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -428,6 +430,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Either advances to the next question or submits when on the last question.
 	 */
 	private handleNextOrSubmit(): void {
+		if (this._isSkipped || this.carousel.isUsed) {
+			return;
+		}
 		this.saveCurrentAnswer();
 
 		if (!this.validateCurrentQuestion()) {
@@ -444,8 +449,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (!this.validateRequiredFields()) {
 				return;
 			}
-			this._options.onSubmit(this._answers);
-			this.hideAndShowSummary();
+			if (this._options.onSubmit(this._answers) !== false) {
+				this.hideAndShowSummary();
+			}
 		}
 	}
 
@@ -453,6 +459,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Handles explicit submit action from the dedicated submit button.
 	 */
 	private submit(): void {
+		if (this._isSkipped || this.carousel.isUsed) {
+			return;
+		}
 		this.saveCurrentAnswer();
 		if (!this.validateCurrentQuestion()) {
 			return;
@@ -460,8 +469,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (!this.validateRequiredFields()) {
 			return;
 		}
-		this._options.onSubmit(this._answers);
-		this.hideAndShowSummary();
+		if (this._options.onSubmit(this._answers) !== false) {
+			this.hideAndShowSummary();
+		}
 	}
 
 	/**
@@ -644,7 +654,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		const defaults = this.getDefaultAnswers();
-		this._options.onSubmit(defaults);
+		if (this._options.onSubmit(defaults) === false) {
+			return false;
+		}
 
 		// Reset answers to match submitted defaults for summary display
 		this._answers.clear();
@@ -666,10 +678,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return false;
 		}
 		this.saveCurrentAnswer();
+		if (this._options.onSubmit(undefined) === false) {
+			return false;
+		}
 		this._options.onDidDismiss?.(new Map(this._answers));
 		this._isSkipped = true;
-
-		this._options.onSubmit(undefined);
 
 		// Dispose interactive UI and clear DOM
 		this.clearInteractiveResources();
@@ -1609,16 +1622,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private renderSummary(): void {
 		// If no answers, show the terminal-state (Skipped/Answered) message
 		if (this._answers.size === 0) {
-			if (this.carousel.answerPresentation === 'conversation') {
+			if (this.carousel.answerPresentation === 'conversation' && this._context) {
 				if (this.carousel.autoReply) {
-					this.renderConversationSummary({
+					this.renderConversationSummary(this._context, {
 						answerFallback: localize('chat.questionCarousel.answeredAutomatically', "Answered automatically"),
 						answerIcon: Codicon.copilotCompact,
 					});
 				} else if (this.carousel.answeredExternally) {
 					this.renderTerminalStateMessage();
 				} else if (this.carousel.isUsed) {
-					this.renderConversationSummary({
+					this.renderConversationSummary(this._context, {
 						answerFallback: localize('chat.questionCarousel.skippedConversation', "Skipped question"),
 						answerIcon: Codicon.closeCompact,
 						hideAnswerPrefix: true,
@@ -1632,8 +1645,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		if (this.carousel.answerPresentation === 'conversation') {
-			this.renderConversationSummary();
+		if (this.carousel.answerPresentation === 'conversation' && this._context) {
+			this.renderConversationSummary(this._context);
 			return;
 		}
 
@@ -1668,11 +1681,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.appendChild(summaryContainer);
 	}
 
-	private renderConversationSummary(options?: { answerFallback?: string; answerIcon?: ThemeIcon; hideAnswerPrefix?: boolean }): void {
-		if (!this._context) {
-			return;
-		}
-
+	private renderConversationSummary(context: IChatContentPartRenderContext, options?: { answerFallback?: string; answerIcon?: ThemeIcon; hideAnswerPrefix?: boolean }): void {
 		const summaryStore = new DisposableStore();
 		this._interactiveUIStore.value = summaryStore;
 		const summaryContainer = dom.$('.chat-question-carousel-summary.chat-question-carousel-conversation-summary');
@@ -1701,9 +1710,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				? localize('chat.questionCarousel.conversationAnswer', "{0} {1}", answerPrefix, answerValue)
 				: answerValue;
 			const collapsibleContext = {
-				...this._context,
-				content: this._context.content ?? [],
-				contentIndex: this._context.contentIndex ?? 0,
+				...context,
+				content: context.content ?? [],
+				contentIndex: context.contentIndex ?? 0,
 			};
 			const answerPart = summaryStore.add(new ChatQuestionAnswerCollapsiblePart(
 				answerTitle,
