@@ -109,7 +109,7 @@ jobs:
           sudo apt install -y \
             build-essential pkg-config \
             libx11-dev libx11-xcb-dev libxkbfile-dev \
-            libnotify-bin libkrb5-dev \
+            libnotify-bin libkrb5-dev libglib2.0-dev \
             xvfb sqlite3 \
             libnss3 libatk1.0-0 libatk-bridge2.0-0 \
             libcups2t64 libdrm2 libxcomposite1 libxdamage1 \
@@ -228,7 +228,7 @@ jobs:
           sudo apt install -y \
             build-essential pkg-config \
             libx11-dev libx11-xcb-dev libxkbfile-dev \
-            libnotify-bin libkrb5-dev \
+            libnotify-bin libkrb5-dev libglib2.0-dev \
             xvfb sqlite3 \
             libnss3 libatk1.0-0 libatk-bridge2.0-0 \
             libcups2t64 libdrm2 libxcomposite1 libxdamage1 \
@@ -410,7 +410,7 @@ jobs:
           sudo apt install -y \
             build-essential pkg-config \
             libx11-dev libx11-xcb-dev libxkbfile-dev \
-            libnotify-bin libkrb5-dev \
+            libnotify-bin libkrb5-dev libglib2.0-dev \
             xvfb \
             libnss3 libatk1.0-0 libatk-bridge2.0-0 \
             libcups2t64 libdrm2 libxcomposite1 libxdamage1 \

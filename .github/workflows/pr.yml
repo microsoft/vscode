@@ -41,7 +41,7 @@ jobs:
 
       - name: Install build tools
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libglib2.0-dev libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'

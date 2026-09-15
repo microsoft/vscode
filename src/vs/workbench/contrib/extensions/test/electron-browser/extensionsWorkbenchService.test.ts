@@ -5,6 +5,7 @@
 
 import * as sinon from 'sinon';
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
@@ -157,7 +158,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
-		instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: Event.None });
+		instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, whenInitialized: Promise.resolve(), onDidChangeIsConnectionMetered: Event.None });
 	});
 
 	test('test gallery extension', async () => {
@@ -1776,6 +1777,31 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
+	});
+
+	test('waits for metered connection initialization before checking for updates automatically', async () => {
+		const initialized = new DeferredPromise<void>();
+		instantiationService.stub(IMeteredConnectionService, {
+			isConnectionMetered: false,
+			whenInitialized: initialized.p,
+			onDidChangeIsConnectionMetered: Event.None,
+		});
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
+		let getExtensionsCount = 0;
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async () => {
+			getExtensionsCount++;
+			return [];
+		});
+
+		testObject = await aWorkbenchService();
+		await timeout(0);
+		assert.strictEqual(getExtensionsCount, 0);
+
+		initialized.complete();
+		await timeout(0);
+		await timeout(0);
+
+		assert.strictEqual(getExtensionsCount, 1);
 	});
 
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {

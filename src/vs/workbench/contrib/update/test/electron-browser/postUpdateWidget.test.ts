@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -38,7 +38,7 @@ class TestRequestService extends mock<IRequestService>() {
 suite('PostUpdateWidgetContribution (Electron)', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(isConnectionMetered: boolean): TestRequestService {
+	function createContribution(isConnectionMetered: boolean, whenInitialized: Promise<void> = Promise.resolve()): TestRequestService {
 		const requestService = new TestRequestService();
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -55,6 +55,7 @@ suite('PostUpdateWidgetContribution (Electron)', () => {
 			new class extends mock<IMarkdownRendererService>() { },
 			new class extends mock<IMeteredConnectionService>() {
 				override readonly isConnectionMetered = isConnectionMetered;
+				override readonly whenInitialized = whenInitialized;
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<IProductService>() {
@@ -76,6 +77,19 @@ suite('PostUpdateWidgetContribution (Electron)', () => {
 	test('requests update info automatically after a version change when unmetered', async () => {
 		const requestService = createContribution(false);
 
+		await timeout(0);
+
+		assert.strictEqual(requestService.requestCount, 1);
+	});
+
+	test('waits for metered connection initialization before requesting update info automatically', async () => {
+		const initialized = new DeferredPromise<void>();
+		const requestService = createContribution(false, initialized.p);
+
+		await timeout(0);
+		assert.strictEqual(requestService.requestCount, 0);
+
+		initialized.complete();
 		await timeout(0);
 
 		assert.strictEqual(requestService.requestCount, 1);

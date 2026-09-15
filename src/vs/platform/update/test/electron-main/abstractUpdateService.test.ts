@@ -31,7 +31,7 @@ class TestMeteredConnectionService extends Disposable implements IMeteredConnect
 
 	constructor(
 		public isConnectionMetered: boolean,
-		readonly whenConnectionStateInitialized?: Promise<void>,
+		readonly whenInitialized: Promise<void> = Promise.resolve(),
 	) {
 		super();
 	}
