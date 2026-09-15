@@ -37,6 +37,22 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { keyboard: true, filterRecovery: true });
 	});
 
+	test('distinguishes independent child sessions and explains tree navigation', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+
+		assert.strictEqual(
+			provider.provideContent().split('\n').find(line => line.startsWith('Independent sessions')),
+			'Independent sessions created by an agent appear beneath their creator when their pin and group placement allows it, including sessions in other repositories. These are full sessions, not chats or subagents. Use the right and left arrow keys to expand or collapse a branch, the up and down arrow keys to navigate, and Enter to open a session. Actions on a session do not automatically apply to its children.',
+		);
+	});
+
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
