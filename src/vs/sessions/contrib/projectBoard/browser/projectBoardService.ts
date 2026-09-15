@@ -50,9 +50,10 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
-import { KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
 import { IProjectBoardDisplayOptions } from '../common/projectBoardConfiguration.js';
 import { ProjectBoardWindow } from './projectBoardWindow.js';
+import { getSessionDragData, SessionsDataTransfers } from '../../../browser/dnd.js';
 import './media/projectBoard.css';
 
 const projectBoardDragDataType = 'application/vnd.code.project-board-card';
@@ -70,6 +71,7 @@ export interface IProjectBoardService {
 	addAxis(kind: 'row' | 'column'): Promise<void>;
 	toggleArchived(): void;
 	createSession(): Promise<void>;
+	toggleAutoIncludeSessions(): void;
 	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void;
 }
 
@@ -128,6 +130,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly instantiationService: IInstantiationService;
 	private readonly customViewContexts: {
 		readonly editable: IContextKey<boolean>;
+		readonly autoIncludeSessions: IContextKey<boolean>;
 		readonly showArchived: IContextKey<boolean>;
 		readonly showStateDuration: IContextKey<boolean>;
 		readonly showCredits: IContextKey<boolean>;
@@ -166,6 +169,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (!showHeader) {
 			this.customViewContexts = {
 				editable: KanbanBoardEditableContext.bindTo(contextKeyService),
+				autoIncludeSessions: KanbanAutoIncludeSessionsContext.bindTo(contextKeyService),
 				showArchived: KanbanShowArchivedContext.bindTo(contextKeyService),
 				showStateDuration: KanbanShowStateDurationContext.bindTo(contextKeyService),
 				showCredits: KanbanShowCreditsContext.bindTo(contextKeyService),
@@ -249,6 +253,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.createSessionButton.enabled = true;
 			}
 		}
+	}
+
+	toggleAutoIncludeSessions(): void {
+		const configuration = this.boardState.configuration.get();
+		this.changeBoard(() => this.boardState.setAutoIncludeSessions(!configuration.autoIncludeSessions));
 	}
 
 	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void {
@@ -609,8 +618,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			settings.icon = Codicon.settingsGear;
 			settings.element.classList.add('project-board-settings');
 			settings.element.setAttribute('aria-haspopup', 'menu');
-			settings.element.setAttribute('aria-label', localize('projectBoard.displaySettings', "Board display settings"));
-			store.add(this.hoverService.setupDelayedHover(settings.element, { content: localize('projectBoard.displaySettings', "Board display settings") }));
+			settings.element.setAttribute('aria-label', localize('projectBoard.boardSettings', "Board settings"));
+			store.add(this.hoverService.setupDelayedHover(settings.element, { content: localize('projectBoard.boardSettings', "Board settings") }));
 			settings.enabled = this.boardState.canEdit;
 			store.add(settings.onDidClick(() => this.showSettings(settings.element)));
 			board.appendChild(header);
@@ -720,6 +729,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			getAnchor: () => anchor,
 			getActions: () => [
 				toAction({
+					id: 'projectBoard.settings.autoIncludeSessions',
+					label: localize('projectBoard.autoIncludeSessions', "Auto-include Sessions"),
+					checked: this.boardState.configuration.get().autoIncludeSessions,
+					run: () => this.toggleAutoIncludeSessions(),
+				}),
+				toAction({
 					id: 'projectBoard.settings.stateDuration',
 					label: localize('projectBoard.showStateDuration', "Show Time in State"),
 					checked: !!display?.showStateDuration,
@@ -770,6 +785,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		const display = this.boardState.configuration.get().display;
 		this.customViewContexts.editable.set(this.boardState.canEdit);
+		this.customViewContexts.autoIncludeSessions.set(this.boardState.configuration.get().autoIncludeSessions);
 		this.customViewContexts.showArchived.set(this.showArchived);
 		this.customViewContexts.showStateDuration.set(!!display?.showStateDuration);
 		this.customViewContexts.showCredits.set(!!display?.showCredits);
@@ -899,9 +915,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 		const list = document.createElement('div');
 		list.className = 'project-board-card-list';
+		const autoIncludeSessions = this.boardState.configuration.get().autoIncludeSessions;
 		const missing = placement ? this.boardState.configuration.get().placements.filter(item => item.rowId === placement.rowId && item.columnId === placement.columnId && !this.model.hasChat(item.cardId)) : [];
 		const totalCount = cards.length + missing.length;
-		if (!placement) {
+		if (!placement && autoIncludeSessions) {
 			if (this.agentsDraft) {
 				list.appendChild(this.createAgentsDraftCard(document, this.agentsDraft));
 			}
@@ -932,7 +949,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			store.add(remove.onDidClick(() => this.changeBoard(() => this.boardState.moveCard(placement.cardId, undefined))));
 			list.appendChild(unavailable);
 		}
-		if (totalCount === 0 && (placement || (this.drafts.length === 0 && !this.agentsDraft))) {
+		if (totalCount === 0 && (placement || !autoIncludeSessions || (this.drafts.length === 0 && !this.agentsDraft))) {
 			const empty = document.createElement('span');
 			empty.className = 'project-board-empty';
 			empty.textContent = localize('projectBoard.empty', "Drop a chat here");
@@ -967,20 +984,35 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 
 		store.add(addDisposableListener(group, EventType.DRAG_OVER, event => {
-			if (event.dataTransfer?.types.includes(projectBoardDragDataType)) {
+			if (event.dataTransfer?.types.includes(projectBoardDragDataType)
+				|| (placement && event.dataTransfer?.types.includes(SessionsDataTransfers.SESSION))) {
 				event.preventDefault();
 				event.dataTransfer.dropEffect = 'move';
 			}
 		}));
 		store.add(addDisposableListener(group, EventType.DROP, event => {
 			const cardId = event.dataTransfer?.getData(projectBoardDragDataType);
-			if (!cardId) {
+			if (cardId) {
+				event.preventDefault();
+				this.dragging = false;
+				this.model.setSortingDeferred(false);
+				this.moveCard(cardId, placement);
+				return;
+			}
+			const session = placement && getSessionDragData(event);
+			if (!session) {
 				return;
 			}
 			event.preventDefault();
-			this.dragging = false;
-			this.model.setSortingDeferred(false);
-			this.moveCard(cardId, placement);
+			const resource = URI.parse(session.resource);
+			const cardIds = this.model.cards
+				.filter(card => card.session.sessionId === session.sessionId && isEqual(card.session.resource, resource))
+				.map(card => card.id);
+			if (!cardIds.length) {
+				this.notificationService.warn(localize('projectBoard.sessionHasNoChats', "This session has no chats that can be added to the board."));
+				return;
+			}
+			this.changeBoard(() => this.boardState.moveCards(cardIds, placement));
 		}));
 
 		return group;
@@ -1688,6 +1720,10 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 
 	toggleArchived(): void {
 		this.customView?.toggleArchived();
+	}
+
+	toggleAutoIncludeSessions(): void {
+		this.customView?.toggleAutoIncludeSessions();
 	}
 
 	async createSession(): Promise<void> {

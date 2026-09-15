@@ -22,7 +22,7 @@ import { KanbanCustomViewContribution } from './kanbanView.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Menus } from '../../../browser/menus.js';
 import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../common/projectBoard.js';
-import { KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
 
 registerWorkbenchContribution2(KanbanCustomViewContribution.ID, KanbanCustomViewContribution, WorkbenchPhase.BlockRestore);
 
@@ -89,11 +89,27 @@ registerAction2(class NewKanbanSessionAction extends Action2 {
 
 MenuRegistry.appendMenuItem(Menus.CustomViewKanban, {
 	submenu: Menus.CustomViewKanbanSettings,
-	title: localize2('projectBoard.displaySettings', "Board Display Settings"),
+	title: localize2('projectBoard.boardSettings', "Board Settings"),
 	icon: Codicon.settingsGear,
 	group: 'navigation',
 	order: 5,
 	when: KanbanBoardEditableContext,
+});
+
+registerAction2(class ToggleKanbanAutoIncludeSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.autoIncludeSessions',
+			title: localize2('projectBoard.autoIncludeSessions', "Auto-include Sessions"),
+			precondition: KanbanBoardEditableContext,
+			toggled: KanbanAutoIncludeSessionsContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 1 }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleAutoIncludeSessions();
+	}
 });
 
 registerAction2(class ToggleKanbanStateDurationAction extends Action2 {
@@ -103,7 +119,7 @@ registerAction2(class ToggleKanbanStateDurationAction extends Action2 {
 			title: localize2('projectBoard.showStateDuration', "Show Time in State"),
 			precondition: KanbanBoardEditableContext,
 			toggled: KanbanShowStateDurationContext,
-			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 1 }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 2 }],
 		});
 	}
 
@@ -119,7 +135,7 @@ registerAction2(class ToggleKanbanCreditsAction extends Action2 {
 			title: localize2('projectBoard.showCredits', "Show AI Credits"),
 			precondition: KanbanBoardEditableContext,
 			toggled: KanbanShowCreditsContext,
-			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 2 }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 3 }],
 		});
 	}
 
@@ -135,7 +151,7 @@ registerAction2(class ToggleKanbanLastPromptAction extends Action2 {
 			title: localize2('projectBoard.showLastPrompt', "Show Last Prompt"),
 			precondition: KanbanBoardEditableContext,
 			toggled: KanbanShowLastPromptContext,
-			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 3 }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 4 }],
 		});
 	}
 
@@ -151,7 +167,7 @@ registerAction2(class ToggleKanbanModelDetailsAction extends Action2 {
 			title: localize2('projectBoard.showModelDetails', "Show Model Details"),
 			precondition: KanbanBoardEditableContext,
 			toggled: KanbanShowModelDetailsContext,
-			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 4 }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 5 }],
 		});
 	}
 
@@ -167,7 +183,7 @@ registerAction2(class ToggleKanbanPermissionDetailsAction extends Action2 {
 			title: localize2('projectBoard.showPermissionDetails', "Show Agent & Permissions"),
 			precondition: KanbanBoardEditableContext,
 			toggled: KanbanShowPermissionDetailsContext,
-			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 5 }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 6 }],
 		});
 	}
 
