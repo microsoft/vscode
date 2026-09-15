@@ -73,6 +73,7 @@ Create mutually exclusive semantic groups that explain why the edits work togeth
 - Keep supporting and generated hunks with the logical change that caused them.
 - Let different hunks from one file belong to different groups when they serve different intents.
 - Give every assigned hunk exactly one `groupId`. For a mixed hunk, choose the best-supported primary intent and explain incidental effects instead of duplicating the hunk.
+- A repeated symbol substitution is not sufficient evidence for one semantic group. Compare the observable contract at each call site, split independent APIs or lifecycle behaviors, and do not attach an empty or mechanical test fixture to a production group unless it exercises that behavior.
 - Merge overlapping groups and remove groups with no hunks.
 
 Order `analysis.groups` as the recommended walkthrough. Put prerequisite contracts, data shapes, and foundational behavior before dependent consumers. Among independent groups, put higher-impact behavior and failure-path changes before routine cleanup. The client preserves this array order, so do not sort mechanically by path, title, diff size, or change type.
@@ -157,8 +158,15 @@ Before invoking the tool, audit the inventory by file and old/new range:
 - Every hunk has exhaustive `changeTypeRanges`, with changed imports assigned only
   to Supporting on both sides. Repair any Logic/Test/Generated range containing
   imports; a mixed hunk's primary type is not a line-level assignment.
+- Reinspect the first and last changed line of every Logic and Test range. Move blank separators, formatting-only lines, license text, and non-behavioral comments into Supporting ranges, adding Supporting as a secondary type when necessary.
 - Every low-confidence or null classification has an explicit uncertainty.
 - Every missing, inaccessible, truncated, unsupported, nontext, or stale source has a scoped limitation.
+
+Before submission, audit every behavioral or contractual claim in each group description against the inspected evidence. For each claim, identify the changed condition, state transition, data flow, API contract, or test that proves it; revise claims supported only by an abstraction name, a familiar pattern, or presumed motivation.
+
+Trace lifecycle-sensitive replacements through construction, buffering, consumption, completion, and repeated use before describing timing, replay, retention, or loss. State the narrow observable contrast the source establishes, and preserve uncertainty when the motivating workload or compatibility expectation is not evidenced.
+
+This audit is semantic, not structural: do not change hunk ownership, types, ranges, inventory completeness, or confidence merely to make the prose easier to justify. A description may summarize several hunks, but each asserted consequence must follow from their inspected mechanics or an explicit contract. If the evidence proves only equivalence for a boundary path, describe that path as mechanical rather than generalizing equivalence to live or non-empty behavior.
 
 Revisit unresolved hunks by reading targeted before/after context, callers, related tests, or generation metadata. Prefer a defensible low-confidence assignment over an avoidable unknown, but never force a guess or omit a difficult hunk to make the summary appear complete.
 

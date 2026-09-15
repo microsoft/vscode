@@ -219,6 +219,33 @@ suite('Semantic Diff Server Tool', () => {
 		}, { missingPromptClauses: [], schemaGuidance: true });
 	});
 
+	test('prompt and group schema require source-grounded semantic claims', () => {
+		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		assert.deepStrictEqual({
+			missingPromptClauses: [
+				'audit every behavioral or contractual claim',
+				'changed condition, state transition, data flow, API contract, or test',
+				'construction, buffering, consumption, completion, and repeated use',
+				'narrow observable contrast',
+				'equivalence for a boundary path',
+				'rather than generalizing equivalence to live or non-empty behavior',
+			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
+			schemaGrounding: schema.includes('Every behavioral or contractual claim must follow from inspected mechanics'),
+			schemaLifecycleClaims: schema.includes('timing, replay, retention, loss, or motivation'),
+		}, { missingPromptClauses: [], schemaGrounding: true, schemaLifecycleClaims: true });
+	});
+
+	test('prompt rejects symbol-based umbrella grouping and behavioral boundary-line typing', () => {
+		assert.deepStrictEqual([
+			'A repeated symbol substitution is not sufficient evidence for one semantic group',
+			'split independent APIs or lifecycle behaviors',
+			'unless it exercises that behavior',
+			'Reinspect the first and last changed line of every logic and test range',
+			'blank separators, formatting-only lines, license text, and non-behavioral comments',
+			'adding supporting as a secondary type when necessary',
+		].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)), []);
+	});
+
 	test('prompt and group schema specify dependency-aware review order rather than a mechanical sort', () => {
 		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
 		assert.deepStrictEqual({

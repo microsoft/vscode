@@ -91,7 +91,7 @@ const definitions: Record<string, IJSONSchema> = {
 		title: text(100),
 		description: {
 			...text(600),
-			description: 'A self-contained review brief of 2-3 sentences, at most 600 characters. Lead with the logical unit\'s purpose and resulting behavior or contract, explain how the related edits work together, and include an evidence-supported boundary case, compatibility constraint, dependency, or test coverage. Focus on intent and impact, not a file/hunk inventory or a restatement of the title. Do not invent motivation or claim tests passed without evidence.',
+			description: 'A self-contained review brief of 2-3 sentences, at most 600 characters. Lead with the logical unit\'s purpose and resulting behavior or contract, explain how the related edits work together, and include an evidence-supported boundary case, compatibility constraint, dependency, or test coverage. Every behavioral or contractual claim must follow from inspected mechanics, an explicit contract, or a test; do not infer timing, replay, retention, loss, or motivation from an abstraction name or familiar pattern. Focus on intent and impact, not a file/hunk inventory or a restatement of the title. Do not invent motivation or claim tests passed without evidence.',
 		},
 	}),
 	file: {
