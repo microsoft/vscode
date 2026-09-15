@@ -275,6 +275,8 @@ export interface ISSHResolvedConfig {
 	readonly port: number;
 	readonly identityFile: string[];
 	readonly identityAgent: string | undefined;
+	/** Command providing the raw SSH connection over standard input/output. */
+	readonly proxyCommand?: string;
 	readonly forwardAgent: boolean;
 	/**
 	 * `UserKnownHostsFile` paths, in priority order. `ssh -G` emits these as a
