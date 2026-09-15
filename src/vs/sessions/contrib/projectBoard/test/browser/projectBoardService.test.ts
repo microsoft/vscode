@@ -30,10 +30,12 @@ import { ChatInteractivity, IChat, ISession, ISessionArtifact, SessionArtifactKi
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { IProjectBoardCard } from '../../common/projectBoardModel.js';
-import { ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
+import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
 import { IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
-import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatQuestionAnswers, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { submitChatQuestionCarousel } from '../../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 
@@ -112,7 +114,21 @@ suite('ProjectBoardService', () => {
 			},
 		});
 		const questionPreview = observableValue<ProjectBoardQuestionPreviewState>('questionPreview', { kind: 'inactive' });
-		instantiationService.stubInstance(ProjectBoardQuestionPreview, { preview: questionPreview, dispose() { } });
+		const questionCarousels = observableValue<readonly IProjectBoardPendingQuestion[]>('questionCarousels', []);
+		const submittedAnswers: { requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }[] = [];
+		instantiationService.stubInstance(ProjectBoardQuestionPreview, {
+			preview: questionPreview, questionCarousels, dispose() { },
+			submit(question, answers) {
+				const result = submitChatQuestionCarousel(question.carousel, question.requestId, answers, {
+					notifyQuestionCarouselAnswer: (requestId, resolveId, answers) => submittedAnswers.push({ requestId, resolveId, answers }),
+				});
+				if (result) {
+					questionCarousels.set([], undefined);
+					questionPreview.set({ kind: 'unavailable', reason: 'noPendingInput', message: 'Answered' }, undefined);
+				}
+				return result;
+			},
+		});
 		instantiationService.stubInstance(ProjectBoardChatWindows, {
 			drafts,
 			dispose() { },
@@ -152,6 +168,7 @@ suite('ProjectBoardService', () => {
 			instantiationService,
 			new class extends mock<INotificationService>() {
 				override error(message: string): void { errors.fire(message); }
+				override warn(message: string): void { errors.fire(message); }
 			}(),
 			store.add(new NullLogService()),
 			new class extends mock<IHostService>() {
@@ -166,7 +183,7 @@ suite('ProjectBoardService', () => {
 			}(),
 			contextMenu,
 		));
-		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, openedContext, instantiationService, metadata, loadedModels };
+		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, loadedModels };
 	}
 
 	test('PB-01 renders in an auxiliary document and reuses the window', async () => {
@@ -545,6 +562,96 @@ suite('ProjectBoardService', () => {
 		assert.ok(container.querySelectorAll('.project-board-card-input')[8].textContent?.includes('Open this chat'));
 		sessionsChanged.fire({ added: [], removed: [], changed: [] });
 		assert.strictEqual(notifications.length, 8);
+	});
+
+	test('PB-15 pending questions offer selectable options and a custom answer textbox', async () => {
+		const chat = new TestChat('Interactive question');
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		h.questionPreview.set({ kind: 'ready', questions: [{
+			id: 'layout', type: 'singleSelect', title: 'Layout', text: 'Choose a layout', description: undefined,
+			options: [{ id: 'list', label: 'List' }, { id: 'grid', label: 'Grid' }],
+			allowFreeformInput: true, allowSkip: false,
+		}], permissions: [], unsupported: [], truncated: false }, undefined);
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'layout', type: 'singleSelect', title: 'Layout', message: 'Choose a layout',
+			options: [{ id: 'list', label: 'List', value: 'list-value' }, { id: 'grid', label: 'Grid', value: 'grid-value' }],
+			allowFreeformInput: true,
+		}], false, 'resolve-layout');
+		h.questionCarousels.set([{ carousel, requestId: 'request-layout' }], undefined);
+		await h.service.open();
+		assert.ok(h.container.querySelector('.chat-question-freeform-textarea'), 'The shared Ask User widget must expose its custom-answer input');
+		assert.strictEqual(h.container.querySelectorAll('[role="option"]').length, 2);
+		h.container.querySelector('[role="option"]')!.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
+		assert.deepStrictEqual(h.submittedAnswers, [{ requestId: 'request-layout', resolveId: 'resolve-layout', answers: { layout: { selectedValue: 'list-value', freeformValue: undefined } } }]);
+		assert.strictEqual(h.container.querySelector('.project-board-live-question'), null);
+		assert.deepStrictEqual(h.opened, []);
+		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-15 custom answers and focus survive board refreshes and submit through the shared widget', async () => {
+		const { document } = createBoardDocument();
+		const chat = new TestChat('Custom question');
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		const h = createBoard(document, [chat]);
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'layout', type: 'singleSelect', title: 'Layout', message: 'Choose a layout',
+			options: [{ id: 'list', label: 'List', value: 'list-value' }], allowFreeformInput: true,
+		}], false, 'custom-layout');
+		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+		h.questionCarousels.set([{ carousel, requestId: 'custom-request' }], undefined);
+		await h.service.open();
+		const textarea = h.container.querySelector<HTMLTextAreaElement>('textarea')!;
+		textarea.focus();
+		textarea.value = 'Calendar layout';
+		textarea.setSelectionRange(3, 7);
+		textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		chat.title.set('Updated question title', undefined);
+		h.sessionsChanged.fire({ added: [], removed: [], changed: [h.session] });
+		assert.deepStrictEqual({
+			sameInput: h.container.querySelector('textarea') === textarea,
+			focused: document.activeElement === textarea,
+			text: textarea.value,
+			selection: [textarea.selectionStart, textarea.selectionEnd],
+			submissions: h.submittedAnswers.length,
+		}, { sameInput: true, focused: true, text: 'Calendar layout', selection: [3, 7], submissions: 0 });
+		textarea.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, ctrlKey: true, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual(h.submittedAnswers, [{ requestId: 'custom-request', resolveId: 'custom-layout', answers: { layout: { selectedValue: undefined, freeformValue: 'Calendar layout' } } }]);
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('PB-15 multiple questions retain answers until the final step and archived cards cannot answer', async () => {
+		const chat = new TestChat('Multiple questions');
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		const carousel = new ChatQuestionCarouselData([
+			{ id: 'one', type: 'singleSelect', title: 'First choice', options: [{ id: 'first', label: 'First', value: 'first-value' }], allowFreeformInput: false },
+			{ id: 'two', type: 'multiSelect', title: 'Second choice', options: [{ id: 'a', label: 'A', value: 'a-value' }, { id: 'b', label: 'B', value: 'b-value' }], allowFreeformInput: true },
+		], false, 'multiple');
+		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+		h.questionCarousels.set([{ carousel, requestId: 'multiple-request' }], undefined);
+		await h.service.open();
+		h.container.querySelector('[role="option"]')!.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
+		assert.strictEqual(h.submittedAnswers.length, 0);
+		for (const option of h.container.querySelectorAll<HTMLElement>('[role="option"]')) {
+			option.click();
+		}
+		h.container.querySelector<HTMLElement>('.chat-question-submit-button')!.click();
+		assert.strictEqual(h.submittedAnswers.length, 1);
+		assert.deepStrictEqual(h.submittedAnswers[0].answers, {
+			one: { selectedValue: 'first-value', freeformValue: undefined },
+			two: { selectedValues: ['a-value', 'b-value'], freeformValue: undefined },
+		});
+		h.questionCarousels.set([{ carousel: new ChatQuestionCarouselData([{ id: 'archived', type: 'text', title: 'Archived' }], false), requestId: 'archived' }], undefined);
+		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+		assert.ok(h.container.querySelector('.project-board-live-question'));
+		chat.isArchived.set(true, undefined);
+		h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+		assert.strictEqual(h.container.querySelector('.project-board-live-question'), null);
+		chat.isArchived.set(false, undefined);
+		assert.ok(h.container.querySelector('.project-board-live-question'));
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-live-question'), null);
 	});
 
 	test('PB-08 eight cards expand three at a time and include hidden Needs Input in the count', async () => {
