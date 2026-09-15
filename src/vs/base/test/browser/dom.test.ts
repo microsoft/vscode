@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, ModifierKeyEmitter, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -734,6 +734,27 @@ suite('dom', () => {
 				'context must be cleared at the next frame so a later rendering update does not inherit stale observers',
 			);
 			observer.dispose();
+		});
+	});
+
+	suite('ModifierKeyEmitter', () => {
+
+		test('only resets on window blur when the document lost focus (#199998)', async () => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			try {
+				mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+				assert.strictEqual(emitter.keyStatus.altKey, true);
+
+				mainWindow.dispatchEvent(new FocusEvent('blur'));
+				await timeout(20);
+
+				// The window also blurs when focus moves into an embedded iframe, in
+				// which case the document keeps focus and the state must be preserved.
+				// Only when the document really lost focus the state must be reset.
+				assert.strictEqual(emitter.keyStatus.altKey, mainWindow.document.hasFocus());
+			} finally {
+				ModifierKeyEmitter.disposeInstance();
+			}
 		});
 	});
 
