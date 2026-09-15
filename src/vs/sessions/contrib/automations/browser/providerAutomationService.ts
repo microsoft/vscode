@@ -53,7 +53,12 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this.catalogueState = derived(this, reader => {
 			this.providersChanged.read(reader);
-			const states = this.getStores().map(entry => entry.store.catalogueState.read(reader));
+			const states = this.getStores().map(entry => {
+				const state = entry.store.catalogueState.read(reader);
+				return entry.providerId !== undefined && state === 'unavailable' && !entry.store.hasKnownAutomations.read(reader)
+					? 'ready'
+					: state;
+			});
 			if (!initialProvidersSettled.read(reader)) {
 				states.push('loading');
 			}

@@ -2220,26 +2220,30 @@ suite('AgentHostAutomationStore', () => {
 				catalogueState: store.catalogueState.read(reader),
 			});
 		}));
-		const initiallyDisconnected = store.catalogueState.get();
+		const initiallyDisconnected = { state: store.catalogueState.get(), hasKnownAutomations: store.hasKnownAutomations.get() };
 		const emissionsBeforeConnect = emissions.length;
 		store.setConnection(connection);
 		const connectEmissions = emissions.slice(emissionsBeforeConnect);
-		await store.createAutomation({
+		const created = await store.createAutomation({
 			name: 'Host automation',
 			prompt: 'Review changes.',
 			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 		});
-		const connected = store.catalogueState.get();
+		const connected = { state: store.catalogueState.get(), hasKnownAutomations: store.hasKnownAutomations.get() };
 		const emissionsBeforeDisconnect = emissions.length;
 		store.clearConnection();
 		const disconnectEmissions = emissions.slice(emissionsBeforeDisconnect);
-		const afterDisconnect = store.catalogueState.get();
+		const afterDisconnect = { state: store.catalogueState.get(), hasKnownAutomations: store.hasKnownAutomations.get() };
 		connection.setCatalogAvailable(false);
 		store.setConnection(connection);
-		const duringReconnect = { state: store.catalogueState.get(), count: store.automations.get().length };
+		const duringReconnect = { state: store.catalogueState.get(), count: store.automations.get().length, hasKnownAutomations: store.hasKnownAutomations.get() };
 		connection.setCatalogAvailable();
 		await store.completeMigration();
+		const afterReconnect = { state: store.catalogueState.get(), count: store.automations.get().length, hasKnownAutomations: store.hasKnownAutomations.get() };
+		await store.deleteAutomation(created.id);
+		const afterDelete = { state: store.catalogueState.get(), count: store.automations.get().length, hasKnownAutomations: store.hasKnownAutomations.get() };
+		store.clearConnection();
 
 		assert.deepStrictEqual({
 			initiallyDisconnected,
@@ -2248,18 +2252,22 @@ suite('AgentHostAutomationStore', () => {
 			afterDisconnect,
 			disconnectEmissions,
 			duringReconnect,
-			afterReconnect: { state: store.catalogueState.get(), count: store.automations.get().length },
+			afterReconnect,
+			afterDelete,
+			afterEmptyDisconnect: { state: store.catalogueState.get(), count: store.automations.get().length, hasKnownAutomations: store.hasKnownAutomations.get() },
 		}, {
-			initiallyDisconnected: 'unavailable',
+			initiallyDisconnected: { state: 'unavailable', hasKnownAutomations: false },
 			connectEmissions: [
 				{ automationCount: 0, catalogueState: 'loading' },
 				{ automationCount: 0, catalogueState: 'ready' },
 			],
-			connected: 'ready',
-			afterDisconnect: 'unavailable',
+			connected: { state: 'ready', hasKnownAutomations: true },
+			afterDisconnect: { state: 'unavailable', hasKnownAutomations: true },
 			disconnectEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
-			duringReconnect: { state: 'loading', count: 0 },
-			afterReconnect: { state: 'ready', count: 1 },
+			duringReconnect: { state: 'loading', count: 0, hasKnownAutomations: true },
+			afterReconnect: { state: 'ready', count: 1, hasKnownAutomations: true },
+			afterDelete: { state: 'ready', count: 0, hasKnownAutomations: false },
+			afterEmptyDisconnect: { state: 'unavailable', count: 0, hasKnownAutomations: false },
 		});
 	});
 
@@ -2276,15 +2284,23 @@ suite('AgentHostAutomationStore', () => {
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const store = disposables.add(new ReconnectableAgentHostAutomationStore('remote-agent-host', legacy, undefined, instantiationService, new NullLogService(), new TestConfigurationService()));
-		const availableRows = { state: store.catalogueState.get(), names: store.automations.get().map(automation => automation.name) };
+		const availableRows = {
+			state: store.catalogueState.get(),
+			names: store.automations.get().map(automation => automation.name),
+			hasKnownAutomations: store.hasKnownAutomations.get(),
+		};
 		storage.store(storageKey, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		assert.deepStrictEqual({
 			availableRows,
-			afterError: { state: store.catalogueState.get(), names: store.automations.get().map(automation => automation.name) },
+			afterError: {
+				state: store.catalogueState.get(),
+				names: store.automations.get().map(automation => automation.name),
+				hasKnownAutomations: store.hasKnownAutomations.get(),
+			},
 		}, {
-			availableRows: { state: 'unavailable', names: ['Legacy automation'] },
-			afterError: { state: 'error', names: ['Legacy automation'] },
+			availableRows: { state: 'unavailable', names: ['Legacy automation'], hasKnownAutomations: true },
+			afterError: { state: 'error', names: ['Legacy automation'], hasKnownAutomations: true },
 		});
 	});
 

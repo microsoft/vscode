@@ -107,7 +107,7 @@ Every Automation store exposes whether its complete catalogue is `loading`, `rea
 
 Provider stores map their connection and persistence lifecycle into this provider-neutral state. Agent Host stores become ready when an authoritative catalogue snapshot and every source still participating in the projection are readable, independently of migration authority. Known disconnect, disabled capability, and unsupported capability are unavailable rather than perpetually loading.
 
-`ProviderAutomationService` keeps the initial aggregate loading until all AfterRestored workbench contributions have completed provider registration. A provider-less window then settles to its legacy-store state, so a legacy-only empty catalogue can be authoritative. After provider settlement, the aggregate reports `error` when any current store fails, otherwise `loading` while any store is loading, `unavailable` while any store is unavailable, and `ready` only when all current stores are ready.
+`ProviderAutomationService` keeps the initial aggregate loading until all AfterRestored workbench contributions have completed provider registration. A provider-less window then settles to its legacy-store state, so a legacy-only empty catalogue can be authoritative. After provider settlement, the aggregate reports `error` when any current store fails, otherwise `loading` while any store is loading, and `unavailable` while an unavailable provider has evidence that it owns Automations. Provider-scoped legacy rows and the last authoritative provider catalogue supply that evidence. An unavailable provider with no ownership evidence does not make the aggregate catalogue incomplete.
 
 ## Multi-host routing
 
