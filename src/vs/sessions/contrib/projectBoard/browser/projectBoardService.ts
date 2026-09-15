@@ -10,7 +10,10 @@ import { toAction } from '../../../../base/common/actions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -59,9 +62,11 @@ class ProjectBoardView extends Disposable {
 	private readonly controlElements = new Map<string, HTMLElement>();
 	private readonly renderDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly sessionObserver = this._register(new MutableDisposable());
+	private readonly movePicker = this._register(new MutableDisposable<DisposableStore>());
 	private creatingSession = false;
 	private createSessionButton: Button | undefined;
 	private drafts: readonly IProjectBoardDraft[] = [];
+	private agentsDraft: { resource: URI; title: string; workspace: string | undefined; starting: boolean } | undefined;
 	private readonly questionPreviews = this._register(new DisposableMap<string, ProjectBoardQuestionPreview>());
 	private readonly questionChats = new Map<string, IChat>();
 	private readonly questionWidgets = this._register(new DisposableMap<IChatQuestionCarousel, {
@@ -140,7 +145,15 @@ class ProjectBoardView extends Disposable {
 			this.model.setSortingDeferred(this.dragging || this.menuOpen || this.hasFocusedCard());
 			this.drafts = this.chatWindows.drafts.read(reader);
 			this.model.updateConfiguration(this.boardState.configuration.read(reader));
-			this.model.updateSessions(this.sessionsManagementService.getSessions(), reader);
+			const newSession = this.sessionsManagementService.newSession.read(reader);
+			this.agentsDraft = newSession && !this.drafts.some(draft => isEqual(draft.resource, newSession.resource)) ? {
+				resource: newSession.resource,
+				title: newSession.title.read(reader) || localize('projectBoard.newSession', "New Session"),
+				workspace: newSession.workspace?.read(reader)?.label,
+				starting: !!newSession.isNewSessionRequestInProgress?.read(reader) || newSession.status.read(reader) === SessionStatus.InProgress,
+			} : undefined;
+			const sessions = this.sessionsManagementService.getSessions().filter(session => !newSession || session.providerId !== newSession.providerId || !isEqual(session.resource, newSession.resource));
+			this.model.updateSessions(sessions, reader);
 			this.updateMetadata(reader);
 			this.updateQuestionPreviews(reader);
 			this.render();
@@ -562,6 +575,9 @@ class ProjectBoardView extends Disposable {
 		const missing = placement ? this.boardState.configuration.get().placements.filter(item => item.rowId === placement.rowId && item.columnId === placement.columnId && !this.model.hasChat(item.cardId)) : [];
 		const totalCount = cards.length + missing.length;
 		if (!placement) {
+			if (this.agentsDraft) {
+				list.appendChild(this.createAgentsDraftCard(document, this.agentsDraft));
+			}
 			for (const draft of this.drafts) {
 				list.appendChild(this.createDraftCard(document, draft, store));
 			}
@@ -589,7 +605,7 @@ class ProjectBoardView extends Disposable {
 			store.add(remove.onDidClick(() => this.changeBoard(() => this.boardState.moveCard(placement.cardId, undefined))));
 			list.appendChild(unavailable);
 		}
-		if (totalCount === 0 && (placement || this.drafts.length === 0)) {
+		if (totalCount === 0 && (placement || (this.drafts.length === 0 && !this.agentsDraft))) {
 			const empty = document.createElement('span');
 			empty.className = 'project-board-empty';
 			empty.textContent = localize('projectBoard.empty', "Drop a chat here");
@@ -641,6 +657,27 @@ class ProjectBoardView extends Disposable {
 		}));
 
 		return group;
+	}
+
+	private createAgentsDraftCard(document: Document, draft: NonNullable<ProjectBoardView['agentsDraft']>): HTMLElement {
+		const element = document.createElement('article');
+		element.className = 'project-board-card project-board-card-draft project-board-agents-draft';
+		element.dataset.agentsDraftResource = draft.resource.toString();
+		element.setAttribute('role', 'group');
+		const title = document.createElement('h4');
+		title.textContent = draft.title;
+		element.appendChild(title);
+		element.appendChild(this.createStatus(document, draft.starting ? localize('projectBoard.startingSession', "Starting…") : localize('projectBoard.sessionDraft', "Draft"), draft.starting ? '\u{1F3C3}' : '\u270F\uFE0F', draft.starting));
+		const detail = document.createElement('p');
+		detail.textContent = localize('projectBoard.agentsDraft', "Draft in the Agents window. Send its first message there to start the chat.");
+		element.appendChild(detail);
+		if (draft.workspace) {
+			const workspace = document.createElement('div');
+			workspace.className = 'project-board-card-workspace';
+			workspace.textContent = draft.workspace;
+			element.appendChild(workspace);
+		}
+		return element;
 	}
 
 	private createDraftCard(document: Document, draft: IProjectBoardDraft, store: DisposableStore): HTMLElement {
@@ -823,7 +860,7 @@ class ProjectBoardView extends Disposable {
 			this.model.setSortingDeferred(false);
 			this.observeSessions();
 		}));
-		this.registerCardInteractions(element, () => this.openCard(card), store, () => this.showMoveMenu(card, element));
+		this.registerCardInteractions(element, () => this.openCard(card), store, () => { void this.pickPlacement(card); });
 		if ([...this.questionWidgets.values()].some(widget => widget.cardId === card.id)) {
 			element.setAttribute('role', 'group');
 		}
@@ -925,12 +962,15 @@ class ProjectBoardView extends Disposable {
 		return container;
 	}
 
-	private registerCardInteractions(element: HTMLElement, open: () => Promise<void>, store: DisposableStore, showMoveMenu?: () => void): void {
+	private registerCardInteractions(element: HTMLElement, open: () => Promise<void>, store: DisposableStore, move?: () => void): void {
 		element.tabIndex = 0;
 		element.setAttribute('role', 'button');
-		element.setAttribute('aria-description', showMoveMenu
-			? localize('projectBoard.cardInstructions', "Double-click or press Enter or Space to open this chat. Drag to move, or use the context menu with Shift+F10.")
+		element.setAttribute('aria-description', move
+			? localize('projectBoard.cardInstructions', "Double-click or press Enter or Space to open this chat. Drag to move, or press {0} to choose a destination.", isMacintosh ? 'Command+Shift+M' : 'Ctrl+Shift+M')
 			: localize('projectBoard.draftInstructions', "Double-click or press Enter or Space to open this session draft."));
+		if (move) {
+			element.setAttribute('aria-keyshortcuts', isMacintosh ? 'Meta+Shift+M' : 'Control+Shift+M');
+		}
 		store.add(addDisposableListener(element, EventType.DBLCLICK, event => {
 			if (event.composedPath().some(target => target !== element && isHTMLElement(target) && target.matches('a, button, input, select, textarea, summary, [role="button"], .project-board-live-question'))) {
 				return;
@@ -945,59 +985,61 @@ class ProjectBoardView extends Disposable {
 				event.preventDefault();
 				event.stopPropagation();
 				void open();
-			} else if (showMoveMenu && (event.equals(KeyMod.Shift | KeyCode.F10) || event.equals(KeyCode.ContextMenu))) {
+			} else if (move && event.equals(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM)) {
 				event.preventDefault();
 				event.stopPropagation();
-				showMoveMenu();
+				move();
 			}
 		}));
-		if (showMoveMenu) {
-			store.add(addDisposableListener(element, EventType.CONTEXT_MENU, event => {
-				if (event.composedPath().some(target => isHTMLElement(target) && target.classList.contains('project-board-live-question'))) {
-					return;
-				}
-				event.preventDefault();
-				event.stopPropagation();
-				element.focus();
-				showMoveMenu();
-			}));
-		}
 	}
 
-	private showMoveMenu(card: IProjectBoardCard, element: HTMLElement): void {
+	private async pickPlacement(card: IProjectBoardCard): Promise<void> {
+		if (!this.boardState.canEdit) {
+			this.notificationService.warn(localize('projectBoard.moveUnavailable', "Board editing is unavailable until the saved board data is recovered."));
+			return;
+		}
+		const lifetime = new DisposableStore();
+		this.movePicker.value = lifetime;
+		const cancellation = new CancellationTokenSource();
+		lifetime.add(toDisposable(() => cancellation.dispose(true)));
 		const placement = this.model.getPlacement(card.id);
+		const items: { label: string; placement: IProjectBoardPlacement | undefined }[] = [
+			{ label: localize('projectBoard.unassigned', "Unassigned"), placement: undefined },
+			...this.model.rows.flatMap(row => this.model.columns.map(column => ({
+				label: localize('projectBoard.cell', "{0}, {1}", row.label, column.label),
+				placement: { rowId: row.id, columnId: column.id },
+			}))),
+		];
 		this.menuOpen = true;
 		const generation = ++this.menuGeneration;
-		this.contextMenuService.showContextMenu({
-			domForShadowRoot: this.container,
-			getAnchor: () => element,
-			getActions: () => [
-				toAction({
-					id: 'projectBoard.move.unassigned',
-					label: localize('projectBoard.moveUnassigned', "Move to Unassigned"),
-					checked: !placement,
-					enabled: this.boardState.canEdit,
-					run: () => this.moveCard(card.id, undefined),
-				}),
-				...this.model.rows.flatMap(row => this.model.columns.map(column => toAction({
-					id: `projectBoard.move.${row.id}.${column.id}`,
-					label: localize('projectBoard.moveToCell', "Move to {0}, {1}", row.label, column.label),
-					checked: placement?.rowId === row.id && placement.columnId === column.id,
-					enabled: this.boardState.canEdit,
-					run: () => this.moveCard(card.id, { rowId: row.id, columnId: column.id }),
-				}))),
-			],
-			onHide: () => {
-				if (generation !== this.menuGeneration) {
-					return;
-				}
+		try {
+			const selected = await this.quickInputService.pick(items, {
+				placeHolder: localize('projectBoard.pickDestination', "Move chat to…"),
+				ignoreFocusLost: true,
+				activeItem: items.find(item => item.placement?.rowId === placement?.rowId && item.placement?.columnId === placement?.columnId),
+			}, cancellation.token);
+			if (!selected || cancellation.token.isCancellationRequested || this._store.isDisposed) {
+				return;
+			}
+			if (!this.model.cards.some(candidate => candidate.id === card.id)) {
+				throw new Error(localize('projectBoard.chatGone', "This chat is no longer available."));
+			}
+			this.moveCard(card.id, selected.placement);
+		} catch (error) {
+			this.logService.error('[ProjectBoard] Failed to choose a destination', error);
+			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved on the project board."));
+		} finally {
+			if (this.movePicker.value === lifetime) {
+				this.movePicker.clear();
+			}
+			if (generation === this.menuGeneration && !this._store.isDisposed) {
 				this.menuOpen = false;
 				this.refreshAfterMenu();
 				if (this.container.ownerDocument.hasFocus()) {
 					this.cardElements.get(card.id)?.focus({ preventScroll: true });
 				}
-			},
-		});
+			}
+		}
 	}
 
 	private createStatus(document: Document, label: string, glyph: string, running: boolean): HTMLElement {
