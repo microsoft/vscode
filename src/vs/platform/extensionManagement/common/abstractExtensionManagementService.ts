@@ -22,7 +22,8 @@ import {
 	DidUpdateExtensionMetadata,
 	UninstallExtensionInfo,
 	ExtensionSignatureVerificationCode,
-	IAllowedExtensionsService
+	IAllowedExtensionsService,
+	InstallExtensionProgressEvent
 } from './extensionManagement.js';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, isMalicious } from './extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
@@ -92,6 +93,7 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 	}
 
 	abstract readonly onInstallExtension: Event<InstallExtensionEvent>;
+	abstract readonly onInstallExtensionProgress: Event<InstallExtensionProgressEvent>;
 	abstract readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	abstract readonly onUninstallExtension: Event<UninstallExtensionEvent>;
 	abstract readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
@@ -128,6 +130,9 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
 	get onInstallExtension() { return this._onInstallExtension.event; }
+
+	private readonly _onInstallExtensionProgress = this._register(new Emitter<InstallExtensionProgressEvent>());
+	get onInstallExtensionProgress() { return this._onInstallExtensionProgress.event; }
 
 	protected readonly _onDidInstallExtensions = this._register(new Emitter<InstallExtensionResult[]>());
 	get onDidInstallExtensions() { return this._onDidInstallExtensions.event; }
@@ -323,7 +328,11 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				}
 				uninstallTaskToWaitFor = this.uninstallingExtensions.get(this.getUninstallExtensionTaskKey(extension.identifier, options.profileLocation));
 			}
-			const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
+			const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options, progress => this._onInstallExtensionProgress.fire({
+				identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
+				profileLocation: options.profileLocation,
+				...progress,
+			}));
 			const key = `${getGalleryExtensionId(manifest.publisher, manifest.name)}-${options.profileLocation.toString()}`;
 			installingExtensionsMap.set(key, { task: installExtensionTask, root, uninstallTaskToWaitFor });
 			this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension, profileLocation: options.profileLocation });
@@ -1015,7 +1024,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 	}
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
-	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
+	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions, progress: (progress: Omit<InstallExtensionProgressEvent, 'identifier' | 'profileLocation'>) => void): IInstallExtensionTask;
 	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
 	protected abstract copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
 	protected abstract moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
