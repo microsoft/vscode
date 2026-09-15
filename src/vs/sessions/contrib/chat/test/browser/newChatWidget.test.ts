@@ -14,7 +14,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
@@ -141,6 +141,7 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const configureComparison = Reflect.get(NewChatWidget.prototype, '_configureComparison') as (this: IConfigureComparisonHarness) => Promise<void>;
+const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession) => string | undefined;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -240,6 +241,19 @@ interface IConfigureComparisonHarness {
 		};
 	};
 	_getComparisonBranch(session: ISession | undefined): string | undefined;
+}
+
+interface IGetComparisonBranchHarness {
+	readonly _session: IObservable<ISession | undefined>;
+	readonly _workspacePicker: {
+		readonly selectedResolved: { readonly workspace: ISessionWorkspace } | undefined;
+	};
+	readonly sessionsProvidersService: {
+		getProvider(providerId: string): {
+			readonly id: string;
+			getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
+		} | undefined;
+	};
 }
 
 interface IRenderSessionTypePickerHarness {
@@ -1341,6 +1355,35 @@ suite('NewChatWidget', () => {
 		}));
 
 		assert.strictEqual(workspacePickerOpened, 1);
+	});
+
+	test('uses the workspace branch while Agent Host creation config is unresolved', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({ branchName: 'main' }),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IGetComparisonBranchHarness = {
+			_session: constObservable(session),
+			_workspacePicker: { selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+				}),
+			},
+		};
+
+		assert.strictEqual(getComparisonBranch.call(harness), 'main');
 	});
 
 	test('opens a new comparison with two attempts from the composer selection', async () => {

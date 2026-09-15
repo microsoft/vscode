@@ -926,7 +926,11 @@ export class NewChatWidget extends Disposable {
 			return undefined;
 		}
 		const branch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
-		return typeof branch === 'string' ? branch : undefined;
+		if (typeof branch === 'string' && branch.trim()) {
+			return branch;
+		}
+		const workspace = session.workspace.get() ?? this._workspacePicker.selectedResolved?.workspace;
+		return workspace?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
