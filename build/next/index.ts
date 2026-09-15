@@ -116,12 +116,6 @@ const codeEntryPoints = [
 	'vs/sessions/electron-browser/sessions',
 ];
 
-// Web entry points (used in server-web and vscode-web)
-const webEntryPoints = [
-	'vs/workbench/workbench.web.main.internal',
-	'vs/code/browser/workbench/workbench',
-];
-
 // Additional web-only entry points (CDN build only, not in server-web)
 const sessionsWebEntryPoint = 'vs/sessions/sessions.web.main.internal';
 const webOnlyEntryPoints = [
@@ -176,7 +170,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 			return [
 				...serverEntryPoints,
 				...workerEntryPoints,
-				...webEntryPoints,
+				'vs/code/browser/workbench/workbench', // Includes workbench.web.main.internal.
 				...keyboardMapEntryPoints,
 			];
 		case 'web':
@@ -224,7 +218,6 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 			return new Set(); // Server has no UI
 		case 'server-web':
 			return new Set([
-				'vs/workbench/workbench.web.main.internal',
 				'vs/code/browser/workbench/workbench',
 			]);
 		case 'web':
