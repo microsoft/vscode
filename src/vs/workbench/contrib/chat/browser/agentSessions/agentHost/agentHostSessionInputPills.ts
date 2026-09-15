@@ -32,6 +32,7 @@ import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../..
 import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
@@ -272,7 +273,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
 			sessionResolutionChanged.read(reader);
 			const resource = sessionResource.read(reader);
-			return resource ? connectionsService.resolveSessionResource(resource) : undefined;
+			return resource && !isUntitledChatSession(resource) ? connectionsService.resolveSessionResource(resource) : undefined;
 		});
 		const sessionStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
