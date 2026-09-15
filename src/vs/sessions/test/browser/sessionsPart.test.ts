@@ -34,6 +34,16 @@ interface ISessionsPartTestHarness {
 	};
 }
 
+interface ICodiconActivationTestHarness {
+	readonly accessibilityService: {
+		isMotionReduced(): boolean;
+		status(message: string): void;
+	};
+	readonly telemetryService: {
+		publicLog2(eventName: string, data: object): void;
+	};
+}
+
 class TestSessionView implements IDisposable {
 	readonly element = document.createElement('div');
 	readonly minimumWidth = 200;
@@ -49,6 +59,7 @@ suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const createSlot = Reflect.get(SessionsPart.prototype, '_createSlot') as (this: ISessionsPartTestHarness) => ITestGridSlot;
+	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
 
 	function assertActivation(eventFactory: () => Event): void {
 		const minimizedView = new TestSessionView();
@@ -122,6 +133,30 @@ suite('Sessions - Sessions Part', () => {
 		}, {
 			sessionView: [false, false, false, true],
 			part: [false, true],
+		});
+	});
+
+	test('announces and logs Codicon confetti activation', () => {
+		const statuses: string[] = [];
+		const telemetryEvents: { name: string; data: object }[] = [];
+		const host: ICodiconActivationTestHarness = {
+			accessibilityService: {
+				isMotionReduced: () => true,
+				status: message => statuses.push(message),
+			},
+			telemetryService: {
+				publicLog2: (name, data) => telemetryEvents.push({ name, data }),
+			},
+		};
+
+		activateCodicon.call(host, document.createElement('span'));
+
+		assert.deepStrictEqual({
+			statuses,
+			telemetryEvents,
+		}, {
+			statuses: ['Confetti!'],
+			telemetryEvents: [{ name: 'vscodeAgents.codiconBackground/confetti', data: {} }],
 		});
 	});
 });

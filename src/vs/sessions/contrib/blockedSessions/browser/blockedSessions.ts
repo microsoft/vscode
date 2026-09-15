@@ -6,7 +6,10 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -37,7 +40,7 @@ export interface IBlockedSession {
  * attention. A session is considered blocked when it:
  *
  * - needs input (`SessionStatus.NeedsInput`), or
- * - has failing CI checks while not in progress.
+ * - has failing CI checks while not in progress and not handled by Agent Merge.
  *
  * Archived (done) sessions are never reported as blocked.
  */
@@ -55,6 +58,8 @@ export class BlockedSessions extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -140,6 +145,10 @@ export class BlockedSessions extends Disposable {
 
 		const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
 		if (ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure) {
+			const agentMerge = getSessionAgentMergeConfigurationObservable(session, this._sessionsProvidersService, this._configurationService).read(reader);
+			if (agentMerge?.enabled && agentMerge.actions.fixCI) {
+				return undefined;
+			}
 			return {
 				session,
 				reason: BlockedSessionReason.FailingCI,
