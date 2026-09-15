@@ -292,6 +292,71 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				});
 			}
 		});
+		test('should skip Windows-style PATH entries on non-Windows platforms', async () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext', {
+					map: deserializeEnvironmentVariableCollection([
+						['PATH', { value: 'C:\\Users\\foo\\bin;', type: EnvironmentVariableMutatorType.Prepend, variable: 'PATH' }]
+					])
+				}]
+			]));
+			const env: IProcessEnvironment = { PATH: '/usr/local/bin:/usr/bin' };
+			await merged.applyToProcessEnvironment(env, undefined);
+			if (isWindows) {
+				deepStrictEqual(env, { PATH: 'C:\\Users\\foo\\bin;/usr/local/bin:/usr/bin' });
+			} else {
+				// On non-Windows the Windows-style path should be ignored to prevent PATH corruption
+				deepStrictEqual(env, { PATH: '/usr/local/bin:/usr/bin' });
+			}
+		});
+
+		test('should skip Windows-style PATH entries using forward-slash drive on non-Windows', async () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext', {
+					map: deserializeEnvironmentVariableCollection([
+						['PATH', { value: 'C:/Users/foo/bin:', type: EnvironmentVariableMutatorType.Prepend, variable: 'PATH' }]
+					])
+				}]
+			]));
+			const env: IProcessEnvironment = { PATH: '/usr/local/bin:/usr/bin' };
+			await merged.applyToProcessEnvironment(env, undefined);
+			if (isWindows) {
+				deepStrictEqual(env, { PATH: 'C:/Users/foo/bin:/usr/local/bin:/usr/bin' });
+			} else {
+				deepStrictEqual(env, { PATH: '/usr/local/bin:/usr/bin' });
+			}
+		});
+
+		test('should skip Windows-style PATH entries for applyAtShellIntegration on non-Windows', async () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext', {
+					map: deserializeEnvironmentVariableCollection([
+						['PATH', { value: 'C:\\Users\\foo\\bin;', type: EnvironmentVariableMutatorType.Prepend, variable: 'PATH', options: { applyAtProcessCreation: false, applyAtShellIntegration: true } }]
+					])
+				}]
+			]));
+			const env: IProcessEnvironment = { PATH: '/usr/local/bin:/usr/bin' };
+			await merged.applyToProcessEnvironment(env, undefined);
+			if (isWindows) {
+				strictEqual(env['VSCODE_ENV_PREPEND'] !== undefined, true);
+			} else {
+				// Windows-style path should not appear in the shell integration env var
+				strictEqual(env['VSCODE_ENV_PREPEND'], undefined);
+			}
+		});
+
+		test('should still apply non-Windows paths to PATH on non-Windows', async () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext', {
+					map: deserializeEnvironmentVariableCollection([
+						['PATH', { value: '/home/user/bin:', type: EnvironmentVariableMutatorType.Prepend, variable: 'PATH' }]
+					])
+				}]
+			]));
+			const env: IProcessEnvironment = { PATH: '/usr/local/bin:/usr/bin' };
+			await merged.applyToProcessEnvironment(env, undefined);
+			deepStrictEqual(env, { PATH: '/home/user/bin:/usr/local/bin:/usr/bin' });
+		});
 	});
 
 	suite('diff', () => {
