@@ -768,23 +768,34 @@ suite('Sessions - Chat View', () => {
 		const nextButtonPosition = `${nextButton?.style.left}:${nextButton?.style.top}`;
 		const nextButtonFullyVisible = isFullyVisible(nextButton, initialViewport);
 		const nextButtonOverlapsOccluder = overlaps(nextButton, occluderLeft, occluderWidth);
-		const conversationLeft = Number.parseFloat(nextButton?.style.left ?? '') - 12;
-		const conversationTop = Number.parseFloat(nextButton?.style.top ?? '') - 12;
-		const conversation = dom.append(part, dom.$('.interactive-item-container.interactive-response'));
-		conversation.style.position = 'absolute';
-		conversation.style.left = `${conversationLeft}px`;
-		conversation.style.top = `${conversationTop}px`;
-		conversation.style.width = '24px';
-		conversation.style.height = '24px';
-		conversation.getBoundingClientRect = () => DOMRect.fromRect({
-			x: partBounds.left + conversationLeft,
-			y: partBounds.top + conversationTop,
-			width: 24,
-			height: 24,
-		});
-		await timeout(20);
-		const conversationSafeButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
-		const conversationSafeButtonPosition = `${conversationSafeButton?.style.left}:${conversationSafeButton?.style.top}`;
+		const dynamicOccluderRelocations = [];
+		for (const selector of ['.interactive-item-container.interactive-response', '.scrollbar', '.monaco-sash']) {
+			const currentButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+			const currentButtonPosition = `${currentButton?.style.left}:${currentButton?.style.top}`;
+			const left = Number.parseFloat(currentButton?.style.left ?? '') - 12;
+			const top = Number.parseFloat(currentButton?.style.top ?? '') - 12;
+			const dynamicOccluder = dom.append(part, dom.$(selector));
+			dynamicOccluder.style.position = 'absolute';
+			dynamicOccluder.style.left = `${left}px`;
+			dynamicOccluder.style.top = `${top}px`;
+			dynamicOccluder.style.width = '24px';
+			dynamicOccluder.style.height = '24px';
+			dynamicOccluder.getBoundingClientRect = () => DOMRect.fromRect({
+				x: partBounds.left + left,
+				y: partBounds.top + top,
+				width: 24,
+				height: 24,
+			});
+			await timeout(20);
+			const relocatedButton = part.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-hit-target');
+			dynamicOccluderRelocations.push({
+				className: dynamicOccluder.className,
+				buttonReused: relocatedButton === currentButton,
+				targetChanged: `${relocatedButton?.style.left}:${relocatedButton?.style.top}` !== currentButtonPosition,
+				buttonFullyVisible: isFullyVisible(relocatedButton, initialViewport),
+				buttonOverlapsOccluder: overlapsBounds(relocatedButton, left, top, 24, 24),
+			});
+		}
 		const cells = layer ? [...layer.querySelectorAll<HTMLElement>('.sessions-chat-codicon-cell')] : [];
 		const refreshedViewport = { width: part.clientWidth, height: part.clientHeight };
 
@@ -800,10 +811,7 @@ suite('Sessions - Chat View', () => {
 			targetChangedAfterActivation: nextButtonPosition !== refreshedButtonPosition,
 			nextButtonFullyVisible,
 			nextButtonOverlapsOccluder,
-			buttonReusedAfterConversationOverlap: conversationSafeButton === nextButton,
-			targetChangedAfterConversationOverlap: conversationSafeButtonPosition !== nextButtonPosition,
-			conversationSafeButtonFullyVisible: isFullyVisible(conversationSafeButton, refreshedViewport),
-			conversationSafeButtonOverlapsConversation: overlapsBounds(conversationSafeButton, conversationLeft, conversationTop, 24, 24),
+			dynamicOccluderRelocations,
 			hasClippedCells: cells.some(cell => !isFullyVisible(cell, refreshedViewport)),
 			hasOccludedCells,
 		}, {
@@ -818,10 +826,29 @@ suite('Sessions - Chat View', () => {
 			targetChangedAfterActivation: true,
 			nextButtonFullyVisible: true,
 			nextButtonOverlapsOccluder: false,
-			buttonReusedAfterConversationOverlap: true,
-			targetChangedAfterConversationOverlap: true,
-			conversationSafeButtonFullyVisible: true,
-			conversationSafeButtonOverlapsConversation: false,
+			dynamicOccluderRelocations: [
+				{
+					className: 'interactive-item-container interactive-response',
+					buttonReused: true,
+					targetChanged: true,
+					buttonFullyVisible: true,
+					buttonOverlapsOccluder: false,
+				},
+				{
+					className: 'scrollbar',
+					buttonReused: true,
+					targetChanged: true,
+					buttonFullyVisible: true,
+					buttonOverlapsOccluder: false,
+				},
+				{
+					className: 'monaco-sash',
+					buttonReused: true,
+					targetChanged: true,
+					buttonFullyVisible: true,
+					buttonOverlapsOccluder: false,
+				},
+			],
 			hasClippedCells: true,
 			hasOccludedCells: true,
 		});

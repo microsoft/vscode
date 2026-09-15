@@ -18,7 +18,14 @@ import { ISessionsChatBackground } from './chatBackgroundService.js';
 const codiconCellSize = 80;
 const codiconButtonSize = 24;
 const codiconDefaults = { width: 960, height: 800 };
-const codiconButtonOccluderClasses = ['interactive-item-container', 'new-chat-input-container', 'new-chat-bottom-container', 'interactive-input-part'];
+const codiconButtonOccluderClasses = [
+	'interactive-item-container',
+	'monaco-sash',
+	'new-chat-input-container',
+	'new-chat-bottom-container',
+	'interactive-input-part',
+	'scrollbar',
+];
 const codiconButtonOccluderTags = new Set(['A', 'BUTTON', 'INPUT', 'SELECT', 'SUMMARY', 'TEXTAREA']);
 const codiconButtonOccluderRoles = new Set(['button', 'checkbox', 'combobox', 'link', 'menuitem', 'option', 'radio', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem']);
 const codiconChoices = [
