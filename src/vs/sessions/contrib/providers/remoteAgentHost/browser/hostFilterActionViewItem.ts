@@ -48,6 +48,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	private _labelElement: HTMLElement | undefined;
 	private _chevronElement: HTMLElement | undefined;
 	private _connectElement: HTMLElement | undefined;
+	private _diagnosticsElement: HTMLElement | undefined;
 	private _sidebarButton: Button | undefined;
 	private _sidebarLeadingIcon: HTMLElement | undefined;
 	private _titlebarLeadingIcon: HTMLElement | undefined;
@@ -134,7 +135,8 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// --- Passive connection status + information button --------------------
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._renderDiagnosticsButton(dom.append(this.element, dom.$('div.agent-host-filter-diagnostics')));
+		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
+		this._renderDiagnosticsButton(this._diagnosticsElement);
 	}
 
 	/**
@@ -201,7 +203,8 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// Connection state is passive; the adjacent information control opens management.
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._renderDiagnosticsButton(dom.append(this.element, dom.$('div.agent-host-filter-diagnostics')));
+		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
+		this._renderDiagnosticsButton(this._diagnosticsElement);
 	}
 
 	private _renderDiagnosticsButton(element: HTMLElement): void {
@@ -413,24 +416,41 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._connectElement.classList.remove('connected', 'connecting', 'disconnected', 'rediscover', 'hidden');
 
 		let iconId: string;
+		let status: string;
 		switch (selected?.status) {
 			case AgentHostFilterConnectionStatus.Connected:
 				iconId = Codicon.debugConnected.id;
+				status = localize('agentHostFilter.status.connected', "Connected");
 				this._connectElement.classList.add('connected');
 				break;
 			case AgentHostFilterConnectionStatus.Connecting:
 				iconId = Codicon.debugConnected.id;
+				status = localize('agentHostFilter.status.connecting', "Connecting");
 				this._connectElement.classList.add('connecting');
 				break;
 			case AgentHostFilterConnectionStatus.Disconnected:
 				iconId = Codicon.debugDisconnect.id;
+				status = localize('agentHostFilter.status.disconnected', "Disconnected");
 				this._connectElement.classList.add('disconnected');
 				break;
 			default:
 				this._connectElement.classList.add('hidden');
+				this._updateDiagnosticsLabel();
 				return;
 		}
 		this._connectElement.append(...renderLabelWithIcons(`$(${iconId})`));
+		this._updateDiagnosticsLabel(status);
+	}
+
+	private _updateDiagnosticsLabel(status?: string): void {
+		if (!this._diagnosticsElement) {
+			return;
+		}
+		const label = status
+			? localize('agentHostFilter.connectionInformationWithStatus', "Open Connection Information. Current host status: {0}.", status)
+			: localize('agentHostFilter.connectionInformation', "Open Connection Information");
+		this._diagnosticsElement.setAttribute('aria-label', label);
+		this._diagnosticsHover.value = this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._diagnosticsElement, () => label);
 	}
 
 	protected _showMenu(e: Event): void {

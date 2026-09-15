@@ -44,6 +44,7 @@ suite('ConnectionDiagnosticsService', () => {
 			cached: ICachedTunnel[] = [];
 			dismissed = new Set<string>();
 			suppressed = new Set<string>();
+			disconnects: string[] = [];
 			list: (() => Promise<ITunnelInfo[]>) | undefined;
 			override readonly canDeleteTunnels = false;
 			override getCachedTunnels(): ICachedTunnel[] { return this.cached; }
@@ -51,7 +52,9 @@ suite('ConnectionDiagnosticsService', () => {
 			override isAutoConnectSuppressed(id: string): boolean { return this.suppressed.has(id); }
 			override getTunnelVisibility() { return { dismissed: [...this.dismissed], autoConnectSuppressed: [...this.suppressed] }; }
 			override clearTunnelDismissal(id: string): void { this.dismissed.delete(id); }
+			override dismissTunnel(id: string): void { this.dismissed.add(id); }
 			override clearAutoConnectSuppression(id: string): void { this.suppressed.delete(id); }
+			override async disconnect(address: string): Promise<void> { this.disconnects.push(address); }
 			override listTunnels(): Promise<ITunnelInfo[]> {
 				if (!this.list) {
 					throw new Error('Diagnostics must not make discovery requests');
@@ -138,57 +141,62 @@ suite('ConnectionDiagnosticsService', () => {
 			disconnected: 'Mock host - disconnected, selectable',
 			allCollapsed: true,
 		});
+	});
 
-		test('manages selectable and hidden hosts from current state', async () => {
-			const { service, remote, filter, tunnels } = createService();
-			remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status: RemoteAgentHostConnectionStatus.connected }];
-			filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected }];
-			tunnels.suppressed.add('mock');
-			tunnels.dismissed.add('hidden');
+	test('manages selectable and hidden hosts from current state', async () => {
+		const { service, remote, filter, tunnels } = createService();
+		remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status: RemoteAgentHostConnectionStatus.connected }];
+		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected }];
+		tunnels.suppressed.add('mock');
+		tunnels.dismissed.add('hidden');
 
-			const before = service.getHostManagementState();
-			await service.runHostAction('host', 'disconnect');
-			await service.runHostAction('host', 'reconnect');
-			await service.runHostAction('tunnel:hidden', 'restore');
+		const before = service.getHostManagementState();
+		await service.runHostAction('host', 'disconnect');
+		await service.runHostAction('host', 'reconnect');
+		await service.runHostAction('host', 'hide');
+		await service.runHostAction('tunnel:hidden', 'restore');
 
-			assert.deepStrictEqual({
-				before,
-				disconnects: filter.disconnects,
-				reconnects: filter.reconnects,
-				suppressed: [...tunnels.suppressed],
-				dismissed: [...tunnels.dismissed],
-				rediscoverCount: filter.rediscoverCount,
-			}, {
-				before: {
-					hosts: [{
-						id: 'host',
-						label: 'Mock host',
-						address: 'tunnel:mock',
-						status: 'connected',
-						selectable: true,
-						selected: false,
-						hidden: false,
-						autoConnectSuppressed: true,
-						connectable: true,
-					}, {
-						id: 'tunnel:hidden',
-						label: 'hidden',
-						address: 'tunnel:hidden',
-						status: 'disconnected',
-						selectable: false,
-						selected: false,
-						hidden: true,
-						autoConnectSuppressed: false,
-						connectable: false,
-					}],
-					isDiscovering: false,
-				},
-				disconnects: ['host'],
-				reconnects: ['host'],
-				suppressed: [],
-				dismissed: [],
-				rediscoverCount: 1,
-			});
+		assert.deepStrictEqual({
+			before,
+			filterDisconnects: filter.disconnects,
+			tunnelDisconnects: tunnels.disconnects,
+			reconnects: filter.reconnects,
+			suppressed: [...tunnels.suppressed],
+			dismissed: [...tunnels.dismissed],
+			rediscoverCount: filter.rediscoverCount,
+		}, {
+			before: {
+				hosts: [{
+					id: 'host',
+					label: 'Mock host',
+					address: 'tunnel:mock',
+					status: 'connected',
+					selectable: true,
+					selected: false,
+					hidden: false,
+					autoConnectSuppressed: true,
+					connectable: true,
+					hideable: true,
+				}, {
+					id: 'tunnel:hidden',
+					label: 'hidden',
+					address: 'tunnel:hidden',
+					status: 'disconnected',
+					selectable: false,
+					selected: false,
+					hidden: true,
+					autoConnectSuppressed: false,
+					connectable: false,
+					hideable: false,
+				}],
+				isDiscovering: false,
+			},
+			filterDisconnects: ['host'],
+			tunnelDisconnects: ['tunnel:mock'],
+			reconnects: ['host'],
+			suppressed: [],
+			dismissed: ['mock'],
+			rediscoverCount: 1,
 		});
 	});
 

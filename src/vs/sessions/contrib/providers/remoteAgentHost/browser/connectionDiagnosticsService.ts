@@ -156,6 +156,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				hidden: false,
 				autoConnectSuppressed: tunnelId !== undefined && visibility.autoConnectSuppressed.includes(tunnelId),
 				connectable: host.connectable,
+				hideable: tunnelId !== undefined,
 			};
 		});
 		for (const tunnelId of visibility.dismissed) {
@@ -173,6 +174,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				hidden: true,
 				autoConnectSuppressed: visibility.autoConnectSuppressed.includes(tunnelId),
 				connectable: false,
+				hideable: false,
 			});
 		}
 		return { hosts, isDiscovering: this._filterService.isDiscovering };
@@ -189,6 +191,15 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			}
 			this._tunnelService.clearTunnelDismissal(current.address.slice(TUNNEL_ADDRESS_PREFIX.length));
 			await this._filterService.rediscover();
+			return;
+		}
+		if (action === 'hide') {
+			if (!current.selectable || !current.address?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+				throw new Error(localize('connectionDiagnostics.hostNotHideable', "The host cannot be hidden."));
+			}
+			await this._tunnelService.disconnect(current.address);
+			this._tunnelService.dismissTunnel(current.address.slice(TUNNEL_ADDRESS_PREFIX.length));
+			this._record(localize('connectionDiagnostics.hostHidden', "{0}: hidden by the user.", safeAddress(current.address)));
 			return;
 		}
 		if (!current.selectable || !current.connectable) {

@@ -6,11 +6,13 @@
 import './media/connectionDiagnostics.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -25,9 +27,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 
 	private readonly managementStore = this._register(new DisposableStore());
 	private readonly content: HTMLElement;
+	private readonly scrollable: DomScrollableElement;
 	private readonly message: HTMLElement;
-	private readonly sectionFocusTargets: HTMLElement[] = [];
-	private readonly actionFocusTargets: HTMLElement[] = [];
+	private readonly bodyFocusTargets: HTMLElement[] = [];
 	private snapshot: IConnectionDiagnosticsSnapshot;
 	private pendingHostId: string | undefined;
 	private actionError: { readonly hostId: string; readonly message: string } | undefined;
@@ -44,10 +46,19 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		container.classList.add('connection-diagnostics');
 		this.message = dom.append(container, dom.$('div.connection-diagnostics-message', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
 		this.message.hidden = true;
-		this.content = dom.append(container, dom.$('div.connection-diagnostics-content'));
+		this.content = dom.$('div.connection-diagnostics-content');
 		this.content.tabIndex = 0;
 		this.content.setAttribute('role', 'region');
 		this.content.setAttribute('aria-label', localize('connectionDiagnostics.report', "Connection diagnostics report"));
+		this.scrollable = this._register(new DomScrollableElement(this.content, {
+			className: 'connection-diagnostics-scrollable',
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		dom.append(container, this.scrollable.getDomNode());
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ConnectionDiagnosticsReport.scrollable', () => this.scrollable.scanDomNode()));
+		this._register(resizeObserver.observe(this.scrollable.getDomNode()));
 		this.render();
 		this._register(this.diagnosticsService.onDidChangeHostManagement(() => this.render()));
 	}
@@ -61,7 +72,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 	}
 
 	getFocusTargets(): readonly HTMLElement[] {
-		return [this.content, ...this.sectionFocusTargets, ...this.actionFocusTargets];
+		return [this.content, ...this.bodyFocusTargets];
 	}
 
 	async refresh(): Promise<void> {
@@ -114,8 +125,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		const focusedAction = dom.isHTMLElement(activeElement) ? activeElement.dataset.hostAction : undefined;
 		this.managementStore.clear();
 		dom.clearNode(this.content);
-		this.sectionFocusTargets.length = 0;
-		this.actionFocusTargets.length = 0;
+		this.bodyFocusTargets.length = 0;
 		const managementByAddress = new Map(this.diagnosticsService.getHostManagementState().hosts.flatMap(host => host.address ? [[host.address, host] as const] : []));
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot. Review host names and addresses before sharing.");
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.captured', "Captured: {0}", this.snapshot.capturedAt);
@@ -128,8 +138,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			const heading = dom.append(element, dom.$(section.collapsed ? 'summary' : 'h2'));
 			heading.textContent = section.title;
 			if (section.collapsed) {
-				this.sectionFocusTargets.push(heading);
+				this.bodyFocusTargets.push(heading);
 				(element as HTMLDetailsElement).open = openSections.has(section.hostAddress ?? section.title);
+				this.managementStore.add(dom.addDisposableListener(element, 'toggle', () => this.scrollable.scanDomNode()));
 			}
 			const host = section.hostAddress ? managementByAddress.get(section.hostAddress) : undefined;
 			if (host) {
@@ -146,39 +157,49 @@ export class ConnectionDiagnosticsReport extends Disposable {
 				dom.append(entries, dom.$('dd')).textContent = entry.value;
 			}
 		}
+		this.scrollable.scanDomNode();
 		this._onDidChangeFocusTargets.fire();
 		this.restoreManagementFocus(focusedHostId, focusedAction);
 	}
 
 	private renderHostManagementAction(container: HTMLElement, host: IConnectionHostManagementEntry): void {
 		const pending = this.pendingHostId === host.id;
-		let action: ConnectionHostManagementAction | undefined;
-		let label: string | undefined;
-		let icon: ThemeIcon | undefined;
+		const actions: { action: ConnectionHostManagementAction; label: string; icon: ThemeIcon }[] = [];
 		if (host.hidden) {
-			action = 'restore';
-			label = localize('connectionDiagnostics.restoreHost', "Restore {0}", host.label);
-			icon = Codicon.add;
+			actions.push({
+				action: 'restore',
+				label: localize('connectionDiagnostics.restoreHost', "Restore {0}", host.label),
+				icon: Codicon.add,
+			});
 		} else if (host.connectable && (host.status === 'connected' || host.status === 'connecting' || host.status === 'reconnecting')) {
-			action = 'disconnect';
-			label = localize('connectionDiagnostics.disconnectHost', "Disconnect {0}", host.label);
-			icon = Codicon.debugDisconnect;
+			actions.push({
+				action: 'disconnect',
+				label: localize('connectionDiagnostics.disconnectHost', "Disconnect {0}", host.label),
+				icon: Codicon.debugDisconnect,
+			});
 		} else if (host.connectable && host.status === 'disconnected') {
-			action = 'reconnect';
-			label = localize('connectionDiagnostics.reconnectHost', "Reconnect {0}", host.label);
-			icon = Codicon.debugStart;
+			actions.push({
+				action: 'reconnect',
+				label: localize('connectionDiagnostics.reconnectHost', "Reconnect {0}", host.label),
+				icon: Codicon.debugStart,
+			});
 		}
-		if (!action || !label || !icon) {
-			return;
+		if (host.hideable) {
+			actions.push({
+				action: 'hide',
+				label: localize('connectionDiagnostics.hideHost', "Hide {0}", host.label),
+				icon: Codicon.eyeClosed,
+			});
 		}
-		const button = this.managementStore.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: true }));
-		button.label = `$(${icon.id})`;
-		button.element.setAttribute('aria-label', label);
-		button.element.dataset.hostId = host.id;
-		button.element.dataset.hostAction = action;
-		button.enabled = !pending;
-		this.actionFocusTargets.push(button.element);
-		this.managementStore.add(button.onDidClick(() => void this.runHostAction(host.id, action)));
+		for (const { action, label, icon } of actions) {
+			const button = this.managementStore.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: label, ariaLabel: label }));
+			button.label = `$(${icon.id})`;
+			button.element.dataset.hostId = host.id;
+			button.element.dataset.hostAction = action;
+			button.enabled = !pending;
+			this.bodyFocusTargets.push(button.element);
+			this.managementStore.add(button.onDidClick(() => void this.runHostAction(host.id, action)));
+		}
 		if (this.actionError?.hostId === host.id) {
 			const error = dom.append(container, dom.$('span.connection-diagnostics-host-error', { role: 'alert' }));
 			error.textContent = this.actionError.message;
@@ -187,7 +208,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 
 	private restoreManagementFocus(hostId: string | undefined, action: string | undefined): void {
 		if (action) {
-			this.actionFocusTargets.find(target => target.dataset.hostId === hostId && target.dataset.hostAction === action)?.focus();
+			this.bodyFocusTargets.find(target => target.dataset.hostId === hostId && target.dataset.hostAction === action)?.focus();
 		}
 	}
 

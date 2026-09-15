@@ -29,9 +29,17 @@
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
+.connection-diagnostics-overlay .mobile-content-sheet-body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
 .connection-diagnostics-overlay .connection-diagnostics {
 	display: flex;
 	flex-direction: column;
+	flex: 1 1 auto;
 	min-height: 0;
 	overflow: hidden;
 	padding: 0;
@@ -39,11 +47,15 @@
 	line-height: 1.5;
 }
 
-.connection-diagnostics-content {
-	flex: 1;
+.connection-diagnostics-scrollable {
+	flex: 1 1 auto;
 	min-height: 0;
-	overflow-y: auto;
-	overscroll-behavior: contain;
+}
+
+.connection-diagnostics-content {
+	box-sizing: border-box;
+	height: 100%;
+	width: 100%;
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
 	overflow-wrap: anywhere;
 	user-select: text;

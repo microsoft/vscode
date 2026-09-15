@@ -114,6 +114,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			feedbackHidden: container.querySelector<HTMLElement>('[role="status"]')?.hidden,
 			scripts: container.querySelectorAll('script').length,
 			buttons: container.querySelectorAll('button, [role="button"]').length,
+			scrollables: container.querySelectorAll('.monaco-scrollable-element.connection-diagnostics-scrollable').length,
 		}, {
 			headings: ['Discovery', 'This client'],
 			details: ['<script>not markup</script>', 'Web browser'],
@@ -122,6 +123,34 @@ suite('ConnectionDiagnosticsReport', () => {
 			feedbackHidden: true,
 			scripts: 0,
 			buttons: 0,
+			scrollables: 1,
+		});
+	});
+
+	test('mouse wheel scrolls and is consumed by the report scrollable', () => {
+		const { container } = createReport(async () => { });
+		const content = container.querySelector<HTMLElement>('.connection-diagnostics-content')!;
+		const scrollable = container.querySelector<HTMLElement>('.connection-diagnostics-scrollable')!;
+		let scrollTop = 0;
+		Object.defineProperties(content, {
+			clientHeight: { configurable: true, value: 100 },
+			scrollHeight: { configurable: true, value: 1000 },
+			scrollTop: {
+				configurable: true,
+				get: () => scrollTop,
+				set: value => scrollTop = value,
+			},
+		});
+		container.querySelector<HTMLDetailsElement>('details')!.dispatchEvent(new mainWindow.Event('toggle'));
+		const event = new mainWindow.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 100 });
+		Object.defineProperty(event, 'wheelDeltaY', { value: -120 });
+		scrollable.dispatchEvent(event);
+		assert.deepStrictEqual({
+			consumed: event.defaultPrevented,
+			scrolled: content.scrollTop > 0,
+		}, {
+			consumed: true,
+			scrolled: true,
 		});
 	});
 
@@ -141,7 +170,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual({ copied, snapshot: report.getSnapshot(), rediscoveries: rediscoveries() }, { copied: [snapshot.text, next.text], snapshot: next, rediscoveries: 1 });
 	});
 
-	test('renders live actions beside matching diagnostic host sections', () => {
+	test('renders live actions beside matching diagnostic host sections', async () => {
 		const container = dom.$('div');
 		const actions: string[] = [];
 		const hostSnapshot: IConnectionDiagnosticsSnapshot = {
@@ -169,6 +198,7 @@ suite('ConnectionDiagnosticsReport', () => {
 						hidden: false,
 						autoConnectSuppressed: false,
 						connectable: true,
+						hideable: true,
 					}],
 					isDiscovering: false,
 				};
@@ -186,14 +216,31 @@ suite('ConnectionDiagnosticsReport', () => {
 			new class extends mock<IClipboardService>() { },
 		));
 		const hostSection = container.querySelector<HTMLElement>('[data-host-address="tunnel:work"]')!;
-		hostSection.querySelector<HTMLElement>('[aria-label="Disconnect Work laptop"]')!.click();
+		const disconnect = hostSection.querySelector<HTMLElement>('[aria-label="Disconnect Work laptop"]')!;
+		let hide = hostSection.querySelector<HTMLElement>('[aria-label="Hide Work laptop"]')!;
+		disconnect.click();
+		await Promise.resolve();
+		await Promise.resolve();
+		hide = container.querySelector<HTMLElement>('[aria-label="Hide Work laptop"]')!;
+		hide.click();
+		await Promise.resolve();
+		await Promise.resolve();
 		assert.deepStrictEqual({
 			actions,
+			focusTargets: report.getFocusTargets().map(target => target.classList.contains('connection-diagnostics-content')
+				? target.tagName
+				: `${target.tagName}:${target.getAttribute('aria-label') ?? target.textContent}`),
 			actionContainers: hostSection.querySelectorAll('.connection-diagnostics-host-actions').length,
 			standaloneHostLists: container.querySelectorAll('.connection-diagnostics-hosts').length,
 			snapshot: report.getSnapshot().text,
 		}, {
-			actions: ['work:disconnect'],
+			actions: ['work:disconnect', 'work:hide'],
+			focusTargets: [
+				'DIV',
+				'SUMMARY:Work laptop - connected, selectable',
+				'A:Disconnect Work laptop',
+				'A:Hide Work laptop',
+			],
 			actionContainers: 1,
 			standaloneHostLists: 0,
 			snapshot: hostSnapshot.text,
@@ -491,7 +538,17 @@ suite('ConnectionDiagnosticsReport', () => {
 			new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly onDidChangeDiscovering = Event.None;
-				override readonly hosts = [];
+				override readonly hosts = [{
+					id: 'work',
+					label: 'Work laptop',
+					providerIds: ['mock'],
+					grouped: false,
+					address: 'tunnel:work',
+					icon: Codicon.remote,
+					status: AgentHostFilterConnectionStatus.Connected,
+					connectable: true,
+				}];
+				override readonly selectedHost = this.hosts[0];
 				override readonly isDiscovering = false;
 			}(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -525,7 +582,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		}, {
 			statusAriaHidden: 'true',
 			statusRole: null,
-			diagnosticsLabel: 'Open Connection Information',
+			diagnosticsLabel: 'Open Connection Information. Current host status: Connected.',
 			commands: [ShowConnectionDiagnosticsCommandId],
 		});
 	});

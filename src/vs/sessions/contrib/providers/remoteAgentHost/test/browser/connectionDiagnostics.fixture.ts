@@ -118,6 +118,7 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 							hidden: false,
 							autoConnectSuppressed: false,
 							connectable: true,
+							hideable: true,
 						}, {
 							id: 'disconnected',
 							label: 'Home server',
@@ -128,6 +129,7 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 							hidden: false,
 							autoConnectSuppressed: true,
 							connectable: true,
+							hideable: true,
 						}, {
 							id: 'tunnel:hidden',
 							label: 'Build machine',
@@ -138,6 +140,7 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 							hidden: true,
 							autoConnectSuppressed: false,
 							connectable: false,
+							hideable: false,
 						}],
 						isDiscovering: false,
 					};
