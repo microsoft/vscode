@@ -8,7 +8,8 @@
 import { DeferredPromise, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, IReference, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -19,7 +20,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { CancelAgentHostCanvasApprovalExtensionMethod, CancelCanvasChatInitializationExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, InitializeCanvasChatExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostCanvasApprovalExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostCanvasChatInitialization, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type InitializeCanvasChatParams } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -27,7 +28,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, parseChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -36,6 +37,7 @@ import { isClientTransport, NonReconnectableTransportError, type AgentHostTransp
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import type { CloseCanvasParams, InvokeCanvasActionParams, InvokeCanvasActionResult, ListCanvasTypesParams, ListCanvasTypesResult, OpenCanvasParams, OpenCanvasResult, ResolveCanvasSourceParams, ResolveCanvasSourceResult, RestartCanvasProviderParams } from '../common/state/protocol/channels-canvas/commands.js';
 import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
@@ -56,10 +58,20 @@ import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectA
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
+import { IDialogService } from '../../dialogs/common/dialogs.js';
+import { isCanvasRecord } from '../common/agentHostCanvasValidation.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 // AHP 0.9 changed the automation catalog wire shape, so VS Code cannot safely negotiate 0.8.
 const CLIENT_SUPPORTED_PROTOCOL_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0');
+
+function canvasApprovalCancellation(message: unknown): string | undefined {
+	if (isCanvasRecord(message) && message.jsonrpc === '2.0' && message.method === CancelAgentHostCanvasApprovalExtensionMethod
+		&& !Object.hasOwn(message, 'id') && isCanvasRecord(message.params) && typeof message.params.requestId === 'string') {
+		return message.params.requestId;
+	}
+	return undefined;
+}
 
 /**
  * After this much inbound silence, send an application-level `ping` to
@@ -262,6 +274,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
+	private readonly _canvasApprovals = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
 	readonly onDidScheduleReconnect = this._onDidScheduleReconnect.event;
 
@@ -407,8 +420,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		@IWorkspaceTrustEnablementService private readonly _workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
+		this._register(this.onDidChangeConnectionState(state => {
+			if (state !== AgentHostClientState.Connected) {
+				this._canvasApprovals.clearAndDisposeAll();
+			}
+		}));
 		this._resourceIdentity = identity;
 		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = options?.clientId ?? generateUuid();
@@ -570,6 +589,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
 				protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
+				capabilities: { canvases: {} },
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -909,6 +929,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
 			protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
+			capabilities: { canvases: {} },
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
@@ -1631,6 +1652,69 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return await this._sendRequest('invokeChangesetOperation', params);
 	}
 
+	async listCanvasTypes(params: ListCanvasTypesParams): Promise<ListCanvasTypesResult> {
+		this._assertCanvasConnection();
+		return this._sendRequest('listCanvasTypes', params);
+	}
+
+	async initializeCanvasChat(params: InitializeCanvasChatParams, token: CancellationToken = CancellationToken.None): Promise<void> {
+		this._assertCanvasConnection();
+		if (!supportsAgentHostCanvasChatInitialization(this.initializeResult.get())) {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Canvas chat initialization was not negotiated.');
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const connection = this._state;
+		const request = this._sendExtensionRequest(InitializeCanvasChatExtensionMethod, params);
+		const cancellation = token.onCancellationRequested(() => {
+			if (this._state === connection && this._state.kind === AgentHostClientState.Connected) {
+				void this._sendExtensionRequest(CancelCanvasChatInitializationExtensionMethod, params).catch(error => {
+					this._logService.warn('[AgentHost] Canvas initialization cancellation was not acknowledged', error);
+				});
+			}
+		});
+		try {
+			await request;
+		} finally {
+			cancellation.dispose();
+		}
+	}
+
+	async openCanvas(params: OpenCanvasParams): Promise<OpenCanvasResult> {
+		this._assertCanvasConnection();
+		return this._sendRequest('openCanvas', params);
+	}
+
+	async resolveCanvasSource(params: ResolveCanvasSourceParams): Promise<ResolveCanvasSourceResult> {
+		this._assertCanvasConnection();
+		return this._sendRequest('resolveCanvasSource', params);
+	}
+
+	async invokeCanvasAction(params: InvokeCanvasActionParams): Promise<InvokeCanvasActionResult> {
+		this._assertCanvasConnection();
+		return this._sendRequest('invokeCanvasAction', params);
+	}
+
+	async restartCanvasProvider(params: RestartCanvasProviderParams): Promise<void> {
+		this._assertCanvasConnection();
+		await this._sendRequest('restartCanvasProvider', params);
+	}
+
+	async closeCanvas(params: CloseCanvasParams): Promise<void> {
+		this._assertCanvasConnection();
+		await this._sendRequest('closeCanvas', params);
+	}
+
+	private _assertCanvasConnection(): void {
+		if (this._state.kind !== AgentHostClientState.Connected) {
+			throw new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, 'Canvas requests require a live connection and are never queued for replay.');
+		}
+		if (!this._initializeResult.get()?.canvases) {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Canvas support was not negotiated.');
+		}
+	}
+
 	/**
 	 * Send a request on an `mcp://` AHP side channel. The agent-host
 	 * routes by `params.channel` so we inject it automatically.
@@ -1816,7 +1900,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._lastReadTime = Date.now();
 		this._resetLivenessTimers();
 
-		if (isJsonRpcRequest(msg)) {
+		const cancelledApproval = canvasApprovalCancellation(msg);
+		if (cancelledApproval !== undefined) {
+			this._canvasApprovals.deleteAndDispose(cancelledApproval);
+		} else if (isJsonRpcRequest(msg)) {
 			this._handleReverseRequest(msg.id, msg.method, msg.params);
 		} else if (isJsonRpcResponse(msg)) {
 			const pending = this._pendingRequests.get(msg.id);
@@ -1998,6 +2085,29 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void (async () => {
 			try {
 				switch (method) {
+					case RequestAgentHostCanvasApprovalExtensionMethod: {
+						if (typeof p.requestId !== 'string' || !p.requestId.length || p.requestId.length > 256 || this._canvasApprovals.has(p.requestId)
+							|| typeof p.chat !== 'string' || p.chat.length > 8192 || !parseChatUri(p.chat)
+							|| typeof p.message !== 'string' || !p.message.length || p.message.length > 16384 || this._canvasApprovals.size >= 32) {
+							throw new Error('Invalid canvas approval request.');
+						}
+						const cancellation = new CancellationTokenSource();
+						this._canvasApprovals.set(p.requestId, toDisposable(() => cancellation.dispose(true)));
+						try {
+							const result = await this._dialogService.confirm({
+								type: 'warning', title: localize('canvas.sourcePermission', "Canvas Permission"),
+								message: p.message,
+								detail: localize('canvas.sourcePermissionDetail', "This permission applies to chat {0} on agent host {1}. It is not a Workspace Trust grant.", p.chat, this._address),
+								primaryButton: localize('canvas.allowSource', "Allow"),
+								cancelButton: localize('canvas.denySource', "Don't Allow"),
+								custom: true, token: cancellation.token,
+							});
+							sendResult({ requestId: p.requestId, approved: result.confirmed && !cancellation.token.isCancellationRequested } satisfies IAgentHostExtensionServerCommandMap[typeof RequestAgentHostCanvasApprovalExtensionMethod]['result']);
+						} finally {
+							this._canvasApprovals.deleteAndDispose(p.requestId);
+						}
+						break;
+					}
 					case RequestAgentHostWorkspaceTrustExtensionMethod: {
 						if (typeof p.workspace !== 'string') {
 							throw new Error('Missing workspace');
@@ -2211,7 +2321,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw this._state.error;
 			}
 			const { request, result } = this._createRequest<TResult>(method, params);
-			this._transport.send(request);
+			this._writeRequest(request);
 			return result;
 		}
 		if (!options.bypassInitializeQueue && isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
@@ -2247,8 +2357,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 
 		const { request, result } = this._createRequest<TResult>(method, params);
-		this._transport.send(request);
+		this._writeRequest(request);
 		return result;
+	}
+
+	private _writeRequest(request: JsonRpcRequest): void {
+		try {
+			this._transport.send(request);
+		} catch (error) {
+			const pending = this._pendingRequests.get(request.id);
+			this._pendingRequests.delete(request.id);
+			pending?.deferred.error(error);
+		}
 	}
 
 	private _createRequest<TResult>(method: string, params: unknown): { request: JsonRpcRequest; result: Promise<TResult> } {

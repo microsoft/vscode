@@ -8,6 +8,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -35,7 +36,8 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
-import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { CopilotSessionEventBuffer, CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import type { CopilotCanvases, ICopilotCanvasLaunch } from './copilotCanvases.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
@@ -190,6 +192,8 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 }
 
 export interface ICopilotSessionRuntime {
+	/** Installs host event handlers before effectful native extension initialization. */
+	onSessionStarting?(wrapper: CopilotSessionWrapper): void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
 	readonly chatUri: URI;
 	/** Opaque scope shared by chats whose session configuration is shared. */
@@ -617,6 +621,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
 
 	constructor(
+		private readonly _canvases: CopilotCanvases | undefined = undefined,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
@@ -629,8 +634,31 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+		const canvas = plan.isEphemeral ? undefined : this._canvases?.beginLaunch(plan.sessionId, runtime.chatUri.toString());
+		let wrapper: CopilotSessionWrapper | undefined;
+		const cancellation = canvas?.token.onCancellationRequested(() => wrapper?.dispose());
+		try {
+			if (canvas && runtime.onSessionStarting) {
+				wrapper = new CopilotSessionWrapper(plan.sessionId);
+				runtime.onSessionStarting(wrapper);
+			}
+			const launched = this._launch(plan, runtime, canvas, wrapper);
+			wrapper = await (canvas ? raceCancellationError(launched, canvas.token) : launched);
+			await canvas?.attach(wrapper);
+			return wrapper;
+		} catch (error) {
+			canvas?.dispose();
+			wrapper?.dispose();
+			throw error;
+		} finally {
+			cancellation?.dispose();
+		}
+	}
+
+	private async _launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, canvas: ICopilotCanvasLaunch | undefined, pendingWrapper?: CopilotSessionWrapper): Promise<CopilotSessionWrapper> {
 		let managedSettingsResolved = false;
-		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
+		const earlyEvents = canvas && !pendingWrapper ? new CopilotSessionEventBuffer() : undefined;
+		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; }, canvas, earlyEvents, pendingWrapper);
 		const sandboxConfig = () => {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
@@ -638,7 +666,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			return this._computeSandboxConfig(runtime.configurationResource.toString());
 		};
 		if (plan.kind === 'create') {
-			return this._createSession(plan, config, sandboxConfig);
+			return this._createSession(plan, config, sandboxConfig, earlyEvents, pendingWrapper);
 		}
 
 		let fallbackPlan = plan;
@@ -649,7 +677,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await this._resumeSession(session, plan, config);
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
-			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
+			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id, earlyEvents, pendingWrapper);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -661,7 +689,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
-					return this._finalizeSession(raw, sandboxConfig, plan.sessionId, fallbackPlan.fallback.model?.id);
+					return this._finalizeSession(raw, sandboxConfig, plan.sessionId, fallbackPlan.fallback.model?.id, earlyEvents, pendingWrapper);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -682,7 +710,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				model: fallbackPlan.fallback.model,
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
-			}, fallbackConfig, sandboxConfig);
+			}, fallbackConfig, sandboxConfig, earlyEvents, pendingWrapper);
 			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
@@ -701,7 +729,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: () => SandboxConfig): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: () => SandboxConfig, earlyEvents?: CopilotSessionEventBuffer, pendingWrapper?: CopilotSessionWrapper): Promise<CopilotSessionWrapper> {
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
@@ -712,10 +740,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
-		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id);
+		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id, earlyEvents, pendingWrapper);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, sessionId: string, modelId: string | undefined, earlyEvents?: CopilotSessionEventBuffer, pendingWrapper?: CopilotSessionWrapper): Promise<CopilotSessionWrapper> {
 		try {
 			await this._applyScriptSafety(raw, sessionId);
 			await applySandboxConfig(raw, sandboxConfig(), sessionId, this._logService);
@@ -730,33 +758,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyGpt56Customizations(raw, sessionId);
 		}
-		return new CopilotSessionWrapper(raw);
+		if (pendingWrapper) {
+			await pendingWrapper.attachSession(raw);
+			return pendingWrapper;
+		}
+		return new CopilotSessionWrapper(raw, earlyEvents);
 	}
 
-	/**
-	 * Enables the runtime's shell-script safety classifier, which managed permissions
-	 * depend on to govern shell operations.
-	 *
-	 * Without it the runtime short-circuits the classifier, so a shell command reaches
-	 * the permission layer with an empty `possiblePaths` and `hasWriteFileRedirection:
-	 * false`. Managed `Read(...)`/`Edit(...)` rules then cannot match a redirect target,
-	 * letting `echo ... >> denied/path` bypass a managed deny. The Copilot CLI opts in at
-	 * session creation; the SDK exposes it to hosts only through `options.update`, so it
-	 * is applied here to cover both created and resumed sessions.
-	 *
-	 * This fails the launch closed unconditionally. The host cannot tell whether a
-	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
-	 * legacy VS Code settings bridge, which is itself behind a false-by-default
-	 * compatibility setting, while server and MDM policy is discovered by the runtime
-	 * itself under `enableManagedSettings`. Gating a security control on that signal
-	 * would leave exactly the enterprise sessions it protects unprotected, so the
-	 * option is treated as required for every session.
-	 *
-	 * The client-level `managedSettings.read` is not a usable substitute: it discovers
-	 * only device sources (MDM and managed-file), so a session governed solely by
-	 * GitHub org policy would still read as unmanaged. Approximating the boundary is
-	 * worse than not drawing one.
-	 */
+	/** Reaffirms runtime shell-script classification after startup and fails launch if it is rejected. */
 	private async _applyScriptSafety(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
 		try {
 			const result = await session.rpc.options.update({ enableScriptSafety: true });
@@ -768,7 +777,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// problems by failing the request, so this is the path a genuine failure
 			// takes. Log the reason before it propagates: the launch is aborted below
 			// and the raw RPC error alone would not say which option was refused.
-			this._logService.error(`[Copilot:${sessionId}] Could not enable script safety; managed permissions cannot govern shell paths`, err);
+			this._logService.error(`[Copilot:${sessionId}] Could not enable script safety classification`, err);
 			throw err;
 		}
 	}
@@ -854,7 +863,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> {
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void, canvas: ICopilotCanvasLaunch | undefined, earlyEvents?: CopilotSessionEventBuffer, pendingWrapper?: CopilotSessionWrapper): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
@@ -973,6 +982,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...byok,
 			...disabledMcpServers,
 			onEvent: event => {
+				earlyEvents?.capture(event);
+				if (pendingWrapper && !pendingWrapper.isReady) {
+					pendingWrapper.acceptSessionEvent(event);
+				}
+				canvas?.onEvent(event);
 				const owner = runtime.configurationResource.toString();
 				if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data));
@@ -994,8 +1008,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
-			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
-			onPermissionRequest: request => runtime.handlePermissionRequest(request),
+			enableScriptSafety: true,
+			requestExtensions: canvas !== undefined,
+			...(canvas ? { requestCanvasRenderer: true } : {}),
+			onPermissionRequest: async request => await canvas?.permission(request) ?? runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),

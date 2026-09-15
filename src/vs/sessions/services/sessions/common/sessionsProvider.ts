@@ -14,6 +14,7 @@ import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/co
 import { IAutomationDescriptor, IAutomationRun, IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import type { ISessionCanvases } from './sessionCanvases.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -204,6 +205,8 @@ export interface ISessionsProvider {
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
+	/** Live canvas state for the exact session and chat, when supported by this provider. */
+	getSessionCanvases?(sessionId: string, chat: URI): ISessionCanvases | undefined;
 	/**
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */

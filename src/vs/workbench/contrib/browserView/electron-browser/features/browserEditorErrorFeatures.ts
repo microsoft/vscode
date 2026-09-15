@@ -93,7 +93,8 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 		const error = model.error;
 		this._updateCertState();
 
-		if (!error) {
+		if (!error || error.fileAccessDenied) {
+			this._clearContent();
 			this._element.style.display = 'none';
 			return;
 		}

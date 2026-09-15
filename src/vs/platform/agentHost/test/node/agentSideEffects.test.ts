@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { unavailableCanvases } from '../common/agentHostCanvasesTestUtils.js';
+import { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
@@ -180,6 +182,7 @@ function createTestSideEffects(
 		[ISessionDataService, options.sessionDataService],
 		[IAgentHostWorktreeIsolation, new NoopWorktreeIsolation()],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostCanvasesService, unavailableCanvases],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,

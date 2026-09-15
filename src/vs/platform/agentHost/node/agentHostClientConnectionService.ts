@@ -5,7 +5,8 @@
 
 import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentHostCanvasApprovalRequest, IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import type { CancellationToken } from '../../../base/common/cancellation.js';
 
 export const AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION = 30_000 * 10;
 
@@ -19,7 +20,9 @@ export interface IAgentHostClientConnectionSource {
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number>;
+	getSubscribedClients?(resource: string): readonly string[];
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
+	requestCanvasApproval?(clientId: string, request: IAgentHostCanvasApprovalRequest, token: CancellationToken): Promise<boolean>;
 }
 
 export const IAgentHostClientConnectionService = createDecorator<IAgentHostClientConnectionService>('agentHostClientConnectionService');
@@ -30,7 +33,9 @@ export interface IAgentHostClientConnectionService {
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
 	getConnectionCounts(clientId: string): IAgentHostClientConnectionCounts;
+	getSubscribedClients(resource: string): readonly string[];
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
+	requestCanvasApproval(clientId: string, request: IAgentHostCanvasApprovalRequest, token: CancellationToken): Promise<boolean>;
 }
 
 export class AgentHostClientConnectionService extends Disposable implements IAgentHostClientConnectionService {
@@ -95,5 +100,18 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 			}
 		}
 		return Promise.reject(new Error(`Cannot request workspace trust because client ${clientId} is not connected.`));
+	}
+
+	requestCanvasApproval(clientId: string, request: IAgentHostCanvasApprovalRequest, token: CancellationToken): Promise<boolean> {
+		for (const source of this._sources) {
+			if (source.isClientConnected(clientId)) {
+				return source.requestCanvasApproval?.(clientId, request, token) ?? Promise.resolve(false);
+			}
+		}
+		return Promise.resolve(false);
+	}
+
+	getSubscribedClients(resource: string): readonly string[] {
+		return [...new Set([...this._sources].flatMap(source => source.getSubscribedClients?.(resource) ?? []))];
 	}
 }

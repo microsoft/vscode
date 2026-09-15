@@ -311,6 +311,74 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('canvas initialization prepares and persists a worktree without a model prompt', async () => {
+		let modelCalls = 0;
+		branchExists = false;
+		const isolation = createIsolation(disposables, {
+			branchNameGenerator: new AgentBranchNameGenerator({
+				...createNullCopilotApiService(),
+				utilityChatCompletion: async () => { modelCalls++; throw new Error('No model prompt is available.'); },
+			}, new NullLogService()),
+		});
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { isolation: 'worktree', branch: 'main' } };
+		isolation.notePending(sessionId);
+		const first = await isolation.resolveForInitialization(request);
+		const second = await isolation.resolveForInitialization(request);
+		assert.deepStrictEqual({
+			modelCalls, created: addWorktreeCalls.length, same: first.toString() === second.toString(),
+			persisted: (await isolation.readWorktreeMetadata(sessionUri))?.worktreePath?.toString(),
+			resolved: first.toString(), pending: isolation.isWorkingDirectoryPending(sessionId),
+		}, { modelCalls: 0, created: 1, same: true, persisted: first.toString(), resolved: first.toString(), pending: false });
+	});
+
+	test('canvas initialization rejects a folder fallback even when first-send cleared its pending marker', async () => {
+		const isolation = createIsolation(disposables);
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { isolation: 'worktree' } };
+		isolation.notePending(sessionId);
+		await isolation.resolveOnFirstSend(request);
+		assert.strictEqual(isolation.isWorkingDirectoryPending(sessionId), false);
+		await assert.rejects(isolation.resolveForInitialization(request), /not prepared and persisted/);
+		assert.deepStrictEqual([addWorktreeCalls, isolation.getResolvedWorktree(sessionId)], [[], undefined]);
+	});
+
+	test('canvas initialization preserves a worktree creation failure and does not clear pending', async () => {
+		const error = new Error('checkout failed');
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(), addWorktree: async () => { throw error; },
+			}
+		});
+		isolation.notePending(sessionId);
+		await assert.rejects(isolation.resolveForInitialization({
+			sessionUri, sessionId, workingDirectory: repoRoot, config: { isolation: 'worktree', branch: 'main' },
+		}), candidate => candidate === error);
+		assert.strictEqual(isolation.isWorkingDirectoryPending(sessionId), true);
+	});
+
+	test('canvas initialization rejects a created worktree whose metadata was not durably written', async () => {
+		const failing = new class extends TestSessionDatabase {
+			override async setMetadata(): Promise<void> { throw new Error('storage unavailable'); }
+		}();
+		const isolation = createIsolation(disposables, { sessionDataService: createSessionDataService(failing) });
+		isolation.notePending(sessionId);
+		await assert.rejects(isolation.resolveForInitialization({
+			sessionUri, sessionId, workingDirectory: repoRoot, config: { isolation: 'worktree', branch: 'main' },
+		}), /not prepared and persisted/);
+		assert.deepStrictEqual([addWorktreeCalls.length, isolation.isWorkingDirectoryPending(sessionId)], [1, true]);
+	});
+
+	test('canvas initialization cannot reuse a worktree after a failed deletion', async () => {
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(), removeWorktree: async () => { throw new Error('worktree busy'); },
+			}
+		});
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { isolation: 'worktree', branch: 'main' } };
+		const worktree = await isolation.resolveForInitialization(request);
+		await assert.rejects(isolation.removeSessionWorktree(sessionId, { repositoryRoot: repoRoot, worktree }), /worktree busy/);
+		await assert.rejects(isolation.resolveForInitialization(request), /cleanup is pending/);
+	});
+
 	test('resolveWorkingDirectory creates a worktree, persists metadata, queues the announcement, and is idempotent', async () => {
 		const isolation = createIsolation(disposables);
 		const config = { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' };

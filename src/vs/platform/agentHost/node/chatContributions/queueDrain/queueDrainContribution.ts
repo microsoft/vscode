@@ -18,8 +18,10 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostSt
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { startTurn } from '../../agentHostTurnStarter.js';
 import { ISessionWorkspaceConversionService } from '../sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostCanvasesService } from '../../agentHostCanvasesService.js';
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
+const InitializationFailed = createChatMementoKey<boolean>('queueDrain.initializationFailed', () => false);
 
 /** Owns queued-message sender state and decides when a queued turn can be admitted. */
 export class QueueDrainContribution extends Disposable implements IAgentHostChatContribution {
@@ -35,8 +37,14 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
+		@IAgentHostCanvasesService private readonly _canvases: IAgentHostCanvasesService,
 	) {
 		super();
+		this._register(this._canvases.onDidReleaseHold(session => {
+			for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+				this._tryConsumeNextQueuedMessage(chat.resource);
+			}
+		}));
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -77,6 +85,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _syncPendingMessages(channel: ProtocolURI): void {
+		this._context.memento(InitializationFailed, channel).set(false, undefined);
 		const state = this._stateManager.getSessionState(channel);
 		if (!state) {
 			return;
@@ -91,7 +100,8 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _tryConsumeNextQueuedMessage(channel: ProtocolURI): void {
-		if (this._conversionService.isPending(channel)) {
+		if (this._conversionService.isPending(channel) || this._canvases.isChatInitializing(channel) || this._stateManager.getDeferredTurnId(channel)
+			|| this._context.memento(InitializationFailed, channel).get()) {
 			return;
 		}
 		if (this._stateManager.getActiveTurnId(channel)) {
@@ -119,20 +129,49 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		};
 		// Drop the entry rather than blanking it: the memento is keyed by message
 		// id, so a long-lived chat would otherwise retain one per message queued.
-		this._context.deleteMemento(QueuedSender, channel, message.id);
 		this._admitQueuedTurn(host, channel, message.message, message.id, sender);
 	}
 
-	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender): void {
+	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender, turnId = generateUuid(), prepared = false): void {
 		const sessionChannel = parseRequiredSessionUriFromChatUri(channel);
-		const turnId = generateUuid();
-		this._stateManager.dispatchServerAction(channel, {
+		if (!prepared && this._canvases.needsTurnInitialization(channel)) {
+			const disposition = this._chatContributions.incomingRequest({
+				phase: 'preparation', session: sessionChannel, chat: channel, turnChannel: channel, turnId, message,
+				source: 'queued', clientId: sender.clientId, clientContext: sender.clientContext,
+			});
+			if (disposition.kind === 'reject') {
+				return;
+			}
+			if (disposition.kind === 'accept') {
+				const preparation = this._canvases.beginTurnPreparation(channel, turnId, sender.clientId);
+				const generation = this._stateManager.getChatGeneration(channel);
+				void preparation.run(message.text).then(() => {
+					preparation.commit();
+					if (this._stateManager.getChatState(channel)?.queuedMessages?.some(queued => queued.id === messageId)) {
+						this._admitQueuedTurn(host, channel, message, messageId, sender, turnId, true);
+					}
+				}).catch(error => {
+					if (generation === this._stateManager.getChatGeneration(channel)) {
+						this._context.memento(InitializationFailed, channel).set(true, undefined);
+					}
+					this._logService.warn('[QueueDrainContribution] Canvas initialization failed; the queued message was not sent', error);
+				}).finally(() => preparation.dispose());
+				return;
+			}
+		}
+		this._context.deleteMemento(QueuedSender, channel, messageId);
+		const action = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: new Date().toISOString(),
 			message,
 			queuedMessageId: messageId,
-		});
+		} as const;
+		if (prepared && this._providerService.getProviderForSession(sessionChannel)?.canvases?.defersHostTurnStart) {
+			this._stateManager.deferTurn(channel, action, undefined, sender.clientContext, () => { });
+		} else {
+			this._stateManager.dispatchServerAction(channel, action);
+		}
 		const turnStopWatch = StopWatch.create(false);
 		const started = this._instantiationService.invokeFunction(startTurn, {
 			session: sessionChannel,

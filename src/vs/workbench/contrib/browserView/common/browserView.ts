@@ -59,6 +59,8 @@ import {
 	IBrowserElementSelectionState,
 	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
+	IBrowserViewExternalPresentation,
+	IBrowserViewAccessibilitySnapshot,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -332,6 +334,9 @@ export interface IBrowserViewWorkbenchService {
 	/** Creates and resolves a browser view, optionally requesting editor presentation. */
 	createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput>;
 
+	/** An externally owned model, never registered as an ordinary browser editor or API tab. */
+	getOrCreateExternalBrowserView(id: string, resource: URI, initialUrl: string): Promise<IBrowserViewModel>;
+
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
@@ -386,6 +391,7 @@ export interface IBrowserViewCDPService {
  */
 export interface IBrowserViewModel extends IDisposable {
 	readonly id: string;
+	readonly presentation?: IBrowserViewExternalPresentation;
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource: URI | undefined;
@@ -446,6 +452,7 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
+	getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot>;
 	focus(force?: boolean): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
@@ -518,6 +525,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
+		readonly presentation: IBrowserViewExternalPresentation | undefined = undefined,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -694,7 +702,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get isRemoteSession(): boolean { return this._isRemoteSession; }
 	get sharingState(): BrowserViewSharingState {
-		if (!this.browserViewWorkbenchService.isSharingAvailable) {
+		if (this.presentation || !this.browserViewWorkbenchService.isSharingAvailable) {
 			return BrowserViewSharingState.Unavailable;
 		}
 		if (this._audiences.some(audience => audience.type === 'agent')) {
@@ -706,7 +714,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return BrowserViewSharingState.Available;
 	}
 	get isDirectlyShareable(): boolean {
-		return isBrowserViewStorageScopeShareableWithAgent(this.storageScope, this.agentNetworkFilterService.isEnabled());
+		return !this.presentation && isBrowserViewStorageScopeShareableWithAgent(this.storageScope, this.agentNetworkFilterService.isEnabled());
 	}
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
@@ -817,6 +825,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._screenshot = result;
 		}
 		return result;
+	}
+
+	async getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot> {
+		return this.browserViewService.getAccessibilitySnapshot(this.id, this.host.windowId);
 	}
 
 	async focus(force?: boolean): Promise<void> {
@@ -967,6 +979,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
 
 	async setSharedWithAgent(shared: boolean): Promise<IBrowserViewModel | undefined> {
+		if (shared && this.presentation) {
+			throw new Error('Externally presented pages cannot be shared through browser tools.');
+		}
 		if (!shared) {
 			await this.browserViewService.setAudience(this.id, { type: 'agent' }, false);
 			return this;
@@ -1095,6 +1110,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	override dispose(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._onWillDispose.fire();
 
 		// Clean up the browser view when the model is disposed

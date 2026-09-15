@@ -21,6 +21,7 @@ import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSub
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
+import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus } from '../../common/state/protocol/channels-canvas/state.js';
 
 suite('AgentSessionResidency', () => {
 	const disposables = new DisposableStore();
@@ -38,7 +39,7 @@ suite('AgentSessionResidency', () => {
 		releaseHold = disposables.add(new Emitter<string>());
 		released = [];
 		evicted = [];
-		subscriptions = new AgentHostSubscriptionService();
+		subscriptions = new AgentHostSubscriptionService(stateManager);
 		delegate = {
 			isReleaseBlocked: () => false,
 			whenSessionDataIdle: async () => { },
@@ -58,6 +59,24 @@ suite('AgentSessionResidency', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a canvas-only subscriber holds its exact owner without initializing another session', async () => {
+		const owner = createUsedSession('canvas-owner');
+		const canvas = URI.parse('ahp-canvas:/resident');
+		stateManager.registerCanvas({
+			resource: canvas.toString(),
+			identity: { chat: buildDefaultChatUri(owner), source: { kind: CanvasSourceKind.Extension, extensionId: 'project:counter' }, canvasType: 'counter', instanceId: 'main', incarnation: 'first' },
+			title: 'Counter', availability: { status: CanvasAvailabilityStatus.Ready, actions: [] }, trust: { status: CanvasTrustStatus.Trusted }, revision: 1,
+		});
+		subscriptions.addSubscriber(canvas, 'canvas-view');
+		residency.dispose();
+		residency = createResidency(0);
+		residency.touch(canvas);
+		await residency.reconcile();
+		assert.deepStrictEqual([subscriptions.hasSessionSubscribers(owner), released], [true, []]);
+		subscriptions.removeSubscriber(canvas, 'canvas-view');
+		await residency.reconcile();
+		assert.deepStrictEqual(released, [owner.toString()]);
+	});
 	function createResidency(limit: number, releaseRetryMs = 30_000): AgentSessionResidency {
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],

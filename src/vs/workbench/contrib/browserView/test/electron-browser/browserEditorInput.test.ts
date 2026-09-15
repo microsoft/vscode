@@ -64,6 +64,10 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		throw new Error('Not implemented for this test.');
 	}
 
+	async getOrCreateExternalBrowserView(): Promise<IBrowserViewModel> {
+		throw new Error('Not implemented for this test.');
+	}
+
 	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput {
 		this.lastCreate = {
 			id: data.id,

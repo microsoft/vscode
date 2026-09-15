@@ -15,6 +15,7 @@ import type { AnnotationsState } from '../channels-annotations/state.js';
 import type { ChatState } from '../channels-chat/state.js';
 import type { AutomationState } from '../channels-automation/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
+import type { CanvasState } from '../channels-canvas/state.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
@@ -334,7 +335,7 @@ export interface Snapshot {
 	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | AutomationState | AutomationRunState;
+	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | AutomationState | AutomationRunState | CanvasState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

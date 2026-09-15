@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
@@ -22,10 +22,11 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, type ISessionLookupOptions, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
+import type { ISessionCanvases } from '../common/sessionCanvases.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -165,6 +166,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _handleDidReplaceSession(from: ISession, to: ISession): void {
+		if (to.status.get() !== SessionStatus.Untitled) {
+			transaction(tx => {
+				if (this._newSession.get() === from) {
+					this._newSession.set(undefined, tx);
+				}
+				if (this._automationSession.get() === from) {
+					this._automationSession.set(undefined, tx);
+				}
+			});
+		}
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Notify the view service so it can update the visible grid slot.
 		this._onDidReplaceSession.fire({ from, to });
@@ -272,13 +283,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource);
 	}
 
-	getSession(resource: URI): ISession | undefined {
+	getSession(resource: URI, options?: ISessionLookupOptions): ISession | undefined {
 		const unlistedSession = this._unlistedNewSessions.get(resource);
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this._getMergedSessions().find(s =>
+		const session = this._getMergedSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
+		);
+		if (session || !options?.includeDrafts) {
+			return session;
+		}
+		return [this._newSession.get(), this._automationSession.get()].find(draft =>
+			draft && this.uriIdentityService.extUri.isEqual(draft.resource, resource)
 		);
 	}
 
@@ -295,6 +312,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return undefined;
+	}
+
+	getSessionCanvases(sessionResource: URI, chatResource: URI): ISessionCanvases | undefined {
+		const session = this.getSession(sessionResource, { includeDrafts: true });
+		if (!session || !session.chats.get().some(chat => this.uriIdentityService.extUri.isEqual(chat.resource, chatResource))) {
+			return undefined;
+		}
+		return this._getProvider(session)?.getSessionCanvases?.(session.sessionId, chatResource);
 	}
 
 	getAllSessionTypes(): ISessionType[] {

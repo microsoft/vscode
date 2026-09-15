@@ -10,7 +10,7 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionWorkingDirectoryReplacedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionWorkingDirectoryReplacedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction, SessionCanvasSetAction, SessionCanvasRemovedAction } from '../channels-session/actions.js';
 
 import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatTurnResumeAction, ChatActivityChangedAction, ChatWorkingDirectorySetAction, ChatWorkingDirectoryRemovedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
 
@@ -23,6 +23,7 @@ import type { TerminalDataAction, TerminalInputAction, TerminalResizedAction, Te
 import type { ResourceWatchChangedAction } from '../channels-resource-watch/actions.js';
 import type { AutomationCreateRequestedAction, AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from '../channels-automation/actions.js';
 import type { AutomationRunLifecycleChangedAction, AutomationRunSessionSetAction, AutomationRunSessionRemovedAction, AutomationRunPrimarySessionChangedAction, AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
+import type { CanvasAvailabilityChangedAction, CanvasTrustChangedAction, CanvasIncarnationChangedAction, CanvasTitleChangedAction, CanvasIconChangedAction } from '../channels-canvas/actions.js';
 
 // ─── Action Type Enum ────────────────────────────────────────────────────────
 
@@ -129,6 +130,13 @@ export const enum ActionType {
 	AutomationRunSessionRemoved = 'automationRun/sessionRemoved',
 	AutomationRunPrimarySessionChanged = 'automationRun/primarySessionChanged',
 	AutomationRunCancelRequested = 'automationRun/cancelRequested',
+	SessionCanvasSet = 'session/canvasSet',
+	SessionCanvasRemoved = 'session/canvasRemoved',
+	CanvasAvailabilityChanged = 'canvas/availabilityChanged',
+	CanvasTrustChanged = 'canvas/trustChanged',
+	CanvasIncarnationChanged = 'canvas/incarnationChanged',
+	CanvasTitleChanged = 'canvas/titleChanged',
+	CanvasIconChanged = 'canvas/iconChanged',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -197,6 +205,8 @@ export type StateAction =
 	| SessionChangesetsChangedAction
 	| SessionConfigChangedAction
 	| SessionMetaChangedAction
+	| SessionCanvasSetAction
+	| SessionCanvasRemovedAction
 	| ChatTurnStartedAction
 	| ChatDeltaAction
 	| ChatResponsePartAction
@@ -260,4 +270,9 @@ export type StateAction =
 	| AutomationRunSessionSetAction
 	| AutomationRunSessionRemovedAction
 	| AutomationRunPrimarySessionChangedAction
-	| AutomationRunCancelRequestedAction;
+	| AutomationRunCancelRequestedAction
+	| CanvasAvailabilityChangedAction
+	| CanvasTrustChangedAction
+	| CanvasIncarnationChangedAction
+	| CanvasTitleChangedAction
+	| CanvasIconChangedAction;

@@ -12,6 +12,7 @@ import { IBrowserViewEditorOpenOptions } from '../../../../platform/browserView/
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
+import { URI } from '../../../../base/common/uri.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
@@ -49,6 +50,10 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	}
 
 	async createBrowserView(_options: IBrowserViewWorkbenchCreateOptions, _editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput> {
+		throw new Error('Integrated Browser is not available in web.');
+	}
+
+	async getOrCreateExternalBrowserView(_id: string, _resource: URI, _initialUrl: string): Promise<IBrowserViewModel> {
 		throw new Error('Integrated Browser is not available in web.');
 	}
 

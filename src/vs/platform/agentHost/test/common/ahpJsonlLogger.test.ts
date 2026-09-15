@@ -17,6 +17,26 @@ suite('AhpJsonlLogger', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('canvas presentation credentials are never written, even when the request was not logged', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), connectionId: 'canvas', transport: 'message_port' },
+			fileService, new NullLogService(),
+		));
+		const source = { url: 'http://127.0.0.1:8123/app?credential=preview-secret', expiresAt: '2026-01-01T00:00:00Z' };
+		const response = { jsonrpc: '2.0', id: 42, result: { availability: 'ready', incarnation: 'instance', revision: 1, source } };
+		logger.log(response, 's2c');
+		logger.log({ ...response, padding: 'x'.repeat(1024 * 1024) }, 's2c');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		assert.deepStrictEqual({
+			sources: content.trim().split('\n').map(line => JSON.parse(line).result.source),
+			credentialsPersisted: content.includes('preview-secret'),
+			wireSourceUnchanged: response.result.source === source && response.result.source.url.endsWith('preview-secret'),
+		}, { sources: [{ redacted: true }, { redacted: true }], credentialsPersisted: false, wireSourceUnchanged: true });
+	});
+
 	test('writes canonical JSON-RPC JSONL with metadata at the root', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));

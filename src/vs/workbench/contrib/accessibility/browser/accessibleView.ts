@@ -91,6 +91,8 @@ export class AccessibleView extends Disposable {
 	private _title: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
 	private readonly _toolbarMenu = this._register(new MutableDisposable<IMenu>());
+	private readonly _renderDisposables = this._register(new MutableDisposable<IDisposable>());
+	private readonly _viewDisposables = this._register(new DisposableStore());
 
 	private _currentProvider: AccesibleViewContentProvider | undefined;
 	private _currentContent: string | undefined;
@@ -309,9 +311,11 @@ export class AccessibleView extends Disposable {
 				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
+				this._renderDisposables.clear();
+				this._viewDisposables.clear();
+				this._viewContainer = undefined;
 				this._toolbarMenu.clear();
 				if (!showAccessibleViewHelp) {
-					this._updateLastProvider();
 					// Save cursor position before disposing so it can be restored on reopen
 					if (this._currentProvider) {
 						const currentPosition = this._editorWidget.getPosition();
@@ -339,7 +343,7 @@ export class AccessibleView extends Disposable {
 			this.showSymbol(this._currentProvider, symbol);
 		}
 		if (provider instanceof AccessibleContentProvider && provider.onDidRequestClearLastProvider) {
-			this._register(provider.onDidRequestClearLastProvider((id: string) => {
+			this._viewDisposables.add(provider.onDidRequestClearLastProvider((id: string) => {
 				if (this._lastProvider?.options.id === id) {
 					this._lastProvider = undefined;
 				}
@@ -351,13 +355,13 @@ export class AccessibleView extends Disposable {
 			this._lastProvider = provider;
 		}
 		if (provider.id === AccessibleViewProviderId.PanelChat || provider.id === AccessibleViewProviderId.QuickChat) {
-			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
+			this._viewDisposables.add(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
 		}
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 		if (provider.onDidChangeContent) {
-			this._register(provider.onDidChangeContent(() => {
+			this._viewDisposables.add(provider.onDidChangeContent(() => {
 				if (this._viewContainer) { this._render(provider, this._viewContainer, showAccessibleViewHelp); }
 			}));
 		}
@@ -600,6 +604,8 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
+		const disposableStore = new DisposableStore();
+		this._renderDisposables.value = disposableStore;
 		const isSameProvider = this._currentProvider?.id === provider.id;
 		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
 		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
@@ -612,7 +618,7 @@ export class AccessibleView extends Disposable {
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
 		const stableUri = this._getStableUri(provider.id);
 		this._getTextModel(stableUri).then((model) => {
-			if (!model) {
+			if (!model || disposableStore.isDisposed || this._currentProvider !== provider) {
 				return;
 			}
 			// Update the content of the existing model instead of creating a new one
@@ -700,6 +706,7 @@ export class AccessibleView extends Disposable {
 				e?.stopPropagation();
 				return;
 			}
+			this._renderDisposables.clear();
 			if (!this._isInQuickPick) {
 				provider.onClose();
 			}
@@ -719,7 +726,6 @@ export class AccessibleView extends Disposable {
 			this._currentProvider?.dispose();
 			this._currentProvider = undefined;
 		};
-		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Enter) {
 				this._commandService.executeCommand('editor.action.openLink');

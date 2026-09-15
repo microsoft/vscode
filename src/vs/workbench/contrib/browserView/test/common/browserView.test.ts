@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { browserZoomDefaultIndex, BrowserViewStorageScope, IBrowserViewAudience, IBrowserViewService, IBrowserViewState } from '../../../../../platform/browserView/common/browserView.js';
@@ -51,13 +52,14 @@ suite('BrowserViewModel', () => {
 			onDidChangeZoom: Event.None,
 		});
 
-		const createModel = (storageScope: BrowserViewStorageScope, audiences: IBrowserViewAudience[]) => store.add(new BrowserViewModel(
+		const createModel = (storageScope: BrowserViewStorageScope, audiences: IBrowserViewAudience[], external = false) => store.add(new BrowserViewModel(
 			`browser-${storageScope}-${audiences.length}`,
 			{ windowId: 1 },
 			{ type: 'user' },
 			undefined,
 			createInitialState(storageScope, audiences),
 			browserViewService,
+			external ? { type: 'external', resource: URI.parse('test-canvas:/instance') } : undefined,
 			browserViewWorkbenchService,
 			upcastPartial<ITelemetryService>({}),
 			upcastPartial<IDialogService>({}),
@@ -71,10 +73,12 @@ suite('BrowserViewModel', () => {
 			sharedWorkspace: createModel(BrowserViewStorageScope.Workspace, [{ type: 'agent' }]).sharingState,
 			unsharedWorkspace: createModel(BrowserViewStorageScope.Workspace, []).sharingState,
 			unsharedAgent: createModel(BrowserViewStorageScope.Agent, []).sharingState,
+			external: createModel(BrowserViewStorageScope.Agent, [], true).sharingState,
 		}, {
 			sharedWorkspace: BrowserViewSharingState.Shared,
 			unsharedWorkspace: BrowserViewSharingState.BlockedByNetworkPolicy,
 			unsharedAgent: BrowserViewSharingState.Available,
+			external: BrowserViewSharingState.Unavailable,
 		});
 	});
 });

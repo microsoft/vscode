@@ -52,6 +52,16 @@ Imported prompts retain Automation provenance through `MessageKind.Automation`. 
 
 The browser fallback and host-owned executor both create sessions from this template. A draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
 
+## Canvases
+
+The local desktop provider can project the optional provider-neutral [canvas facet](../../canvases/README.md) for supported Copilot CLI sessions when presentation is opted in and the connection negotiates canvas support. Other providers and agent types do not inherit that authority from a root capability alone.
+
+The provider owns exact session/chat resource translation and the canonical six-route canvas connection. Session state supplies logical membership; full canvas subscriptions and source pulls are separate. Catalog/source reads do not keep a session backing alive or initialize/recover a provider. Explicit effects use their captured revision/incarnation and unique request identity, without automatic retries.
+
+Collections follow session/chat membership and connection generations, including local host replacements that reuse the service object. Stable-ID draft promotion retains the collection; discarded/replaced drafts and removed chats/sessions release it. Editor visibility is not a provider-membership signal.
+
+Explicit open and provider initialization wait for the owning draft's configuration and eager AHP session creation. The provider promotes a canvas-first draft only when authoritative ready session state contains membership for a known chat or host-retained execution intent, and the host has published its actual session summary. Retained intent preserves an initialized owner even if no canvas was opened and the picker is subsequently dismissed. Promotion preserves the logical owner, selection, configuration, and canvas collection and acquires the running state lease before releasing the draft lease. It uses the normal replacement lifecycle without a model request; outstanding first-request preparation settles before that promotion.
+
 ## Identity
 
 The local provider uses:

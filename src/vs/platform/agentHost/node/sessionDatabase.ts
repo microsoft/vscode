@@ -158,6 +158,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			SELECT '${AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}', 'true'
 			WHERE EXISTS (SELECT 1 FROM turn_workspace_transition)`,
 	},
+	{
+		version: 13,
+		sql: `CREATE TABLE IF NOT EXISTS turn_message_origin (
+			turn_id TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			origin TEXT NOT NULL
+		)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -544,6 +551,29 @@ export class SessionDatabase implements ISessionDatabase {
 
 	setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void> {
 		return this.setWorkspaceConversion(turnId, transition, {});
+	}
+
+	setTurnMessageOrigin(turnId: string, origin: string): Promise<void> {
+		return this._mutateMetadataAndTurnUsage(async db => {
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_message_origin (turn_id, origin) VALUES (?, ?)', [turnId, origin]);
+		});
+	}
+
+	getTurnMessageOrigins(): Promise<Map<string, string>> {
+		return this._metadataSequencer.queue(() => this._turnUsageSequencer.queue(() => this._queueOperation(async db => {
+			const rows = await dbAll(db, 'SELECT o.turn_id, t.event_id, o.origin FROM turn_message_origin o JOIN turns t ON t.id = o.turn_id', []);
+			const result = new Map<string, string>();
+			for (const row of rows) {
+				if (typeof row.origin === 'string' && typeof row.turn_id === 'string') {
+					result.set(row.turn_id, row.origin);
+					if (typeof row.event_id === 'string') {
+						result.set(row.event_id, row.origin);
+					}
+				}
+			}
+			return result;
+		})));
 	}
 
 	setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void> {
@@ -973,6 +1003,7 @@ export class SessionDatabase implements ISessionDatabase {
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE turn_message_origin SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);

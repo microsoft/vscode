@@ -693,6 +693,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/canvases",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/changes",
 			"project": "vscode-sessions"
 		},
