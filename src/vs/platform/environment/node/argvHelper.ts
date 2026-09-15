@@ -7,8 +7,32 @@ import assert from 'assert';
 import { dirname, resolve } from '../../../base/common/path.js';
 import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
+import { IUpdateCliRequest } from '../../cli/common/cliControl.js';
 import { NativeParsedArgs } from '../common/argv.js';
 import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from './argv.js';
+
+export class CliUsageError extends Error {
+	readonly exitCode = 2;
+}
+
+export function getUpdateCliRequest(args: NativeParsedArgs): IUpdateCliRequest | undefined {
+	if (args.update?.status) {
+		return {
+			command: 'status',
+			json: args.update.status.json
+		};
+	}
+
+	if (args.update?.install) {
+		return {
+			command: 'install',
+			version: args.update.install.version,
+			force: args.update.install.force
+		};
+	}
+
+	return undefined;
+}
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const onMultipleValues = (id: string, val: string) => {
@@ -20,19 +44,28 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 	const onDeprecatedOption = (deprecatedOption: string, message: string) => {
 		console.warn(localize('deprecatedArgument', "Option '{0}' is deprecated: {1}", deprecatedOption, message));
 	};
-	const getSubcommandReporter = (command: string) => ({
-		onUnknownOption: (id: string) => {
-			if (!(NATIVE_CLI_COMMANDS as readonly string[]).includes(command)) {
-				console.warn(localize('unknownSubCommandOption', "Warning: '{0}' is not in the list of known options for subcommand '{1}'", id, command));
-			}
-		},
-		onMultipleValues,
-		onEmptyValue,
-		onDeprecatedOption,
-		getSubcommandReporter: (NATIVE_CLI_COMMANDS as readonly string[]).includes(command) ? getSubcommandReporter : undefined
-	});
+	const getSubcommandReporter = (command: string, parentCommand?: string): ErrorReporter => {
+		const commandPath = parentCommand ? `${parentCommand} ${command}` : command;
+		return {
+			onUnknownOption: (id: string) => {
+				if (commandPath.startsWith('update')) {
+					throw new CliUsageError(localize('unknownUpdateCommandOption', "Option '{0}' is not valid for '{1}'.", id, commandPath));
+				}
+				if (!(NATIVE_CLI_COMMANDS as readonly string[]).includes(commandPath)) {
+					console.warn(localize('unknownSubCommandOption', "Warning: '{0}' is not in the list of known options for subcommand '{1}'", id, command));
+				}
+			},
+			onMultipleValues,
+			onEmptyValue,
+			onDeprecatedOption,
+			getSubcommandReporter: (NATIVE_CLI_COMMANDS as readonly string[]).includes(commandPath) || commandPath === 'update' ? nestedCommand => getSubcommandReporter(nestedCommand, commandPath) : undefined
+		};
+	};
 	const errorReporter: ErrorReporter = {
 		onUnknownOption: (id) => {
+			if (id === 'close' || id === 'force-close') {
+				throw new CliUsageError(localize('removedCloseOption', "Option '{0}' is not supported.", id));
+			}
 			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
 		},
 		onMultipleValues,
@@ -45,8 +78,37 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}:?$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
+	validateUpdateArguments(args);
 
 	return args;
+}
+
+function validateUpdateArguments(args: NativeParsedArgs): void {
+	const update = args.update;
+	if (!update) {
+		return;
+	}
+
+	if (update._.length) {
+		throw new CliUsageError(localize('unknownUpdateSubcommand', "Unknown update subcommand '{0}'.", update._[0]));
+	}
+
+	const command = update.status ?? update.install;
+	if (!command) {
+		if (!update.help) {
+			throw new CliUsageError(localize('missingUpdateSubcommand', "The update command requires either the 'status' or 'install' subcommand."));
+		}
+		return;
+	}
+
+	if (command._.length) {
+		throw new CliUsageError(localize('updatePathsUnsupported', "The update command does not accept file or folder paths."));
+	}
+
+	const version = update.install?.version;
+	if (version && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+		throw new CliUsageError(localize('invalidUpdateVersion', "Version '{0}' is invalid. Use MAJOR.MINOR.PATCH format, for example '1.105.0'.", version));
+	}
 }
 
 function stripAppPath(argv: string[]): string[] | undefined {

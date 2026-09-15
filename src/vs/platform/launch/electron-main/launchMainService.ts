@@ -34,6 +34,8 @@ export interface ILaunchMainService {
 	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 
 	getMainProcessId(): Promise<number>;
+
+	getCliCapabilities(): Promise<{ readonly update: boolean }>;
 }
 
 export class LaunchMainService implements ILaunchMainService {
@@ -228,6 +230,10 @@ export class LaunchMainService implements ILaunchMainService {
 				whenDeleted(waitMarkerFileURI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}
+	}
+
+	async getCliCapabilities(): Promise<{ readonly update: boolean }> {
+		return { update: true };
 	}
 
 	async getMainProcessId(): Promise<number> {

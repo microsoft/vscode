@@ -16,7 +16,7 @@ import { findFreePort } from '../../base/node/ports.js';
 import { watchFileContents } from '../../platform/files/node/watcher/nodejs/nodejsWatcherLib.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { buildHelpMessage, buildStdinMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from '../../platform/environment/node/argv.js';
-import { addArg, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { addArg, CliUsageError, getUpdateCliRequest, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
 import { combineUriFlags } from './cliArgs.js';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
@@ -30,6 +30,12 @@ import { addUNCHostToAllowlist } from '../../base/node/unc.js';
 import { URI } from '../../base/common/uri.js';
 import { DeferredPromise } from '../../base/common/async.js';
 
+class CliExitError extends Error {
+	constructor(readonly exitCode: number) {
+		super(`CLI process exited with code ${exitCode}.`);
+	}
+}
+
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
@@ -42,14 +48,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 }
 
 export async function main(argv: string[]): Promise<void> {
-	let args: NativeParsedArgs;
-
-	try {
-		args = parseCLIProcessArgv(argv);
-	} catch (err) {
-		console.error(err.message);
-		return;
-	}
+	const args = parseCLIProcessArgv(argv);
 
 	for (const subcommand of NATIVE_CLI_COMMANDS) {
 		if (args[subcommand]) {
@@ -98,7 +97,25 @@ export async function main(argv: string[]): Promise<void> {
 	// Help (chat)
 	else if (args.chat?.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.chat.options, { isChat: true }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.chat.options, { isChat: true, commandPath: ['chat'] }));
+	}
+
+	// Help (update)
+	else if (args.update?.help) {
+		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options, { noInputFiles: true, noPipe: true, commandPath: ['update'] }));
+	}
+
+	// Help (update status)
+	else if (args.update?.status?.help) {
+		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options.status.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'status'] }));
+	}
+
+	// Help (update install)
+	else if (args.update?.install?.help) {
+		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options.install.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'install'] }));
 	}
 
 	// Version Info
@@ -229,17 +246,24 @@ export async function main(argv: string[]): Promise<void> {
 		delete env['ELECTRON_RUN_AS_NODE'];
 
 		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];
+		const updateCliRequest = getUpdateCliRequest(args);
 
 		if (args.verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 		}
 
-		if (args.verbose || args.status) {
+		if (args.verbose || args.status || updateCliRequest) {
 			processCallbacks.push(async child => {
-				child.stdout?.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
-				child.stderr?.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stdout?.on('data', (data: Buffer) => process.stdout.write(data));
+				child.stderr?.on('data', (data: Buffer) => updateCliRequest ? process.stderr.write(data) : process.stdout.write(data));
 
-				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
+				const exit = await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal })));
+				if (updateCliRequest && exit.code !== 0) {
+					if (exit.code === null) {
+						console.error(`Update command process terminated by ${exit.signal ?? 'an unknown signal'}.`);
+					}
+					throw new CliExitError(exit.code ?? 1);
+				}
 			});
 		}
 
@@ -489,8 +513,8 @@ export async function main(argv: string[]): Promise<void> {
 
 		let child: ChildProcess;
 		if (!isMacintosh) {
-			if (!args.verbose && args.status) {
-				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
+			if (!args.verbose && (args.status || updateCliRequest)) {
+				options['stdio'] = updateCliRequest ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'pipe', 'ignore'];
 			}
 
 			// On Windows, Chromium filters standalone URL-like argv tokens (containing "://")
@@ -515,13 +539,13 @@ export async function main(argv: string[]): Promise<void> {
 			const spawnArgs = ['-n', '-g'];
 			spawnArgs.push('-a', process.execPath); // -a opens the given application.
 
-			if (args.verbose || args.status) {
+			if (args.verbose || args.status || updateCliRequest) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
 
 				// The open command only allows for redirecting stderr and stdout to files,
 				// so we make it redirect those to temp files, and then use a logger to
 				// redirect the file output to the console
-				for (const outputType of args.verbose ? ['stdout', 'stderr'] : ['stdout']) {
+				for (const outputType of args.verbose || updateCliRequest ? ['stdout', 'stderr'] : ['stdout']) {
 
 					// Tmp file to target output to
 					const tmpName = randomPath(tmpdir(), `code-${outputType}`);
@@ -592,6 +616,8 @@ function eventuallyExit(code: number): void {
 main(process.argv)
 	.then(() => eventuallyExit(0))
 	.then(null, err => {
-		console.error(err.message || err.stack || err);
-		eventuallyExit(1);
+		if (!(err instanceof CliExitError)) {
+			console.error(err.message || err.stack || err);
+		}
+		eventuallyExit(err instanceof CliUsageError || err instanceof CliExitError ? err.exitCode : 1);
 	});
