@@ -28,7 +28,7 @@ export interface ILabelService {
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
-	/** Returns the display home containing `resource`. */
+	/** Returns the display home containing `resource`, preserving its path casing and omitting query and fragment. */
 	getUriHome(resource: URI): URI | undefined;
 
 	registerFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): IDisposable;
