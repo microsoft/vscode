@@ -485,7 +485,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private async createExtensionScannerInput(location: URI, profile: boolean, type: ExtensionType, language: string | undefined, validate: boolean, profileScanOptions: IProfileExtensionsScanOptions | undefined, productVersion: IProductVersion): Promise<ExtensionScannerInput> {
-		const translations = await this.getTranslations(language ?? platform.language);
+		// Fall back to the platform language so that extensions scanned without an explicit
+		// language (e.g. the incremental scan after an install/update) are still localized.
+		const resolvedLanguage = language ?? platform.language;
+		const translations = await this.getTranslations(resolvedLanguage);
 		const mtime = await this.getMtime(location);
 		const applicationExtensionsLocation = profile && !this.uriIdentityService.extUri.isEqual(location, this.userDataProfilesService.defaultProfile.extensionsResource) ? this.userDataProfilesService.defaultProfile.extensionsResource : undefined;
 		const applicationExtensionsLocationMtime = applicationExtensionsLocation ? await this.getMtime(applicationExtensionsLocation) : undefined;
@@ -502,7 +505,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			productVersion.date,
 			this.productService.commit,
 			!this.environmentService.isBuilt,
-			language,
+			resolvedLanguage,
 			translations,
 		);
 	}
