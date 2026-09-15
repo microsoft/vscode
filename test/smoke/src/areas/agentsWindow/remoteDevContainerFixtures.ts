@@ -330,8 +330,14 @@ function createAppEnvironment(options: IRemoteDevContainerFixtureOptions, resour
 function createHostRuntime(options: IRemoteDevContainerFixtureOptions, resources: FixtureResources): IHostRuntime {
 	const appRoot = options.appOptions.codePath ? path.dirname(getBuildProductPath(options.appOptions.codePath)) : repositoryRoot;
 	const executable = options.appOptions.codePath ? getBuildElectronPath(options.appOptions.codePath) : getDevElectronPath();
-	const entry = path.join(appRoot, 'out/vs/platform/agentHost/node/agentHostServerMain.js');
-	for (const file of [executable, entry]) {
+	const entry = options.appOptions.codePath
+		? path.join(appRoot, 'out/bootstrap-fork.js')
+		: path.join(appRoot, 'out/vs/platform/agentHost/node/agentHostServerMain.js');
+	const packagedLauncher = path.join(__dirname, 'fixtures/packagedAgentHost.js');
+	const requiredFiles = options.appOptions.codePath
+		? [executable, entry, path.join(appRoot, 'out/vs/platform/agentHost/node/agentHostMain.js'), packagedLauncher]
+		: [executable, entry];
+	for (const file of requiredFiles) {
 		if (!fs.existsSync(file)) {
 			throw new Error(`Remote Dev Container smoke fixture requires an existing compiled Agent Host and its matching Electron runtime: ${file}`);
 		}
@@ -372,8 +378,10 @@ function createHostRuntime(options: IRemoteDevContainerFixtureOptions, resources
 	});
 	return {
 		executable, env, token,
-		args: [entry, '--host', '127.0.0.1', '--port', '0', '--connection-token-file', tokenFile,
-			'--user-data-dir', path.join(resources.root, 'host-user-data'), '--log', 'trace', '--disable-telemetry'],
+		args: options.appOptions.codePath
+			? [packagedLauncher, entry, tokenFile, path.join(resources.root, 'host-user-data')]
+			: [entry, '--host', '127.0.0.1', '--port', '0', '--connection-token-file', tokenFile,
+				'--user-data-dir', path.join(resources.root, 'host-user-data'), '--log', 'trace', '--disable-telemetry'],
 	};
 }
 

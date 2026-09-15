@@ -657,7 +657,9 @@ function setupAgentHostSuite(logger: Logger, config: {
 	let logsPath: string;
 	let workspacePath: string | undefined;
 	let remoteFixture: IRemoteDevContainerFixture | undefined;
+	let remoteFixtureSetup: Promise<IRemoteDevContainerFixture> | undefined;
 	let fixtureDataPath: string | undefined;
+	let tearingDown = false;
 
 	before(async function () {
 		const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
@@ -676,6 +678,9 @@ function setupAgentHostSuite(logger: Logger, config: {
 	installDiagnosticsHandler(logger);
 
 	before(async function () {
+		if (config.remoteTransport) {
+			this.timeout(5 * 60 * 1000);
+		}
 		const suiteName = this.test?.parent?.title ?? 'unknown';
 		const defaultOptions: ApplicationOptions = {
 			...this.defaultOptions,
@@ -689,7 +694,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		if (config.remoteTransport) {
 			assert.ok(defaultOptions.userDataDir, 'Expected an isolated smoke user-data directory');
 			fixtureDataPath = fs.mkdtempSync(path.join(path.dirname(defaultOptions.userDataDir), 'remote-devcontainer-'));
-			remoteFixture = await createRemoteDevContainerFixture({
+			remoteFixtureSetup = createRemoteDevContainerFixture({
 				transport: config.remoteTransport,
 				workspacePath,
 				testDataPath: fixtureDataPath,
@@ -697,6 +702,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 				mockServerUrl: getMockLlmServerUrl(mockServer),
 				appOptions: defaultOptions,
 			}, logger);
+			remoteFixture = await remoteFixtureSetup;
+			if (tearingDown) {
+				return;
+			}
 		}
 		this.app = createApp(defaultOptions, opts => ({
 			...opts,
@@ -752,7 +761,14 @@ function setupAgentHostSuite(logger: Logger, config: {
 	});
 
 	installAppAfterHandler(undefined, async () => {
+		tearingDown = true;
 		try {
+			if (remoteFixtureSetup && !remoteFixture) {
+				await remoteFixtureSetup.then(
+					fixture => { remoteFixture = fixture; },
+					error => logger.log(`Remote fixture setup failed during teardown: ${error instanceof Error ? error.message : String(error)}`),
+				);
+			}
 			await remoteFixture?.dispose();
 		} finally {
 			try {
