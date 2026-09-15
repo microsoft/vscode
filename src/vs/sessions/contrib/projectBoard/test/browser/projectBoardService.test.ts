@@ -26,7 +26,7 @@ import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbe
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionArtifact, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionArtifact, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { IProjectBoardCard } from '../../common/projectBoardModel.js';
@@ -75,6 +75,7 @@ suite('ProjectBoardService', () => {
 			override readonly chats = observableValue<readonly IChat[]>('chats', chats);
 			override readonly isArchived = observableValue('archived', false);
 			override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
+			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
 		}();
 		const state = { focusCount: 0, ownerFocusCount: 0, openCount: 0, disposeCount: 0, createdCount: 0, sessions: chats.length ? [session] : [], navigationError: undefined as Error | undefined };
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
@@ -147,19 +148,29 @@ suite('ProjectBoardService', () => {
 				onOpened.fire(card.chat.resource);
 			}
 		});
-		const auxiliaryWindow = new class extends mock<IAuxiliaryWindow>() {
-			override readonly window = new class extends mock<CodeWindow>() {
-				override readonly document = document;
-				override readonly focus = () => { };
-			}();
-			override readonly container = container;
-			override readonly whenStylesHaveLoaded = Promise.resolve();
-			override readonly onUnload = Event.None;
-			override dispose(): void { state.disposeCount++; }
-		}();
+		let auxiliaryWindow: IAuxiliaryWindow | undefined;
+		let unload: Emitter<void>;
 		const service = store.add(new ProjectBoardService(
 			new class extends mock<IAuxiliaryWindowService>() {
-				override async open() { state.openCount++; return auxiliaryWindow; }
+				override async open() {
+					const targetContainer = state.openCount++ === 0 ? container : mainWindow.document.createElement('div');
+					if (targetContainer !== container) {
+						document.body.appendChild(targetContainer);
+						store.add(toDisposable(() => targetContainer.remove()));
+					}
+					unload = store.add(new Emitter<void>());
+					auxiliaryWindow = new class extends mock<IAuxiliaryWindow>() {
+						override readonly window = new class extends mock<CodeWindow>() {
+							override readonly document = document;
+							override readonly focus = () => { };
+						}();
+						override readonly container = targetContainer;
+						override readonly whenStylesHaveLoaded = Promise.resolve();
+						override readonly onUnload = unload.event;
+						override dispose(): void { state.disposeCount++; targetContainer.remove(); }
+					}();
+					return auxiliaryWindow;
+				}
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
@@ -176,14 +187,17 @@ suite('ProjectBoardService', () => {
 					if (target === mainWindow) {
 						state.ownerFocusCount++;
 					} else {
-						assert.strictEqual(target, auxiliaryWindow.window);
+						assert.strictEqual(target, auxiliaryWindow?.window);
 						state.focusCount++;
 					}
 				}
 			}(),
 			contextMenu,
 		));
-		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, loadedModels };
+		return { service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, loadedModels,
+			closeBoard: () => unload.fire(),
+			get currentContainer() { return auxiliaryWindow?.container ?? container; },
+		};
 	}
 
 	test('PB-01 renders in an auxiliary document and reuses the window', async () => {
@@ -208,6 +222,114 @@ suite('ProjectBoardService', () => {
 		chat.title.set('After disposal', undefined);
 		assert.strictEqual(state.disposeCount, 1);
 		assert.strictEqual(container.textContent, rendered);
+	});
+
+	test('PB-13 close/reopen preserves placements, resets expansion and releases the old view', async () => {
+		const chats = Array.from({ length: 8 }, (_, index) => new TestChat(`Lifecycle ${index}`));
+		const h = createBoard(mainWindow.document, chats);
+		await h.service.open();
+		for (const chat of chats) {
+			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
+			const dataTransfer = new mainWindow.DataTransfer();
+			card.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer }));
+			h.container.querySelector('[aria-label="General, P1"]')!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		}
+		h.container.querySelector<HTMLElement>('[aria-label="General, P1"] .project-board-more')!.click();
+		assert.strictEqual(h.container.querySelectorAll('[aria-label="General, P1"] .project-board-card').length, 6);
+		h.closeBoard();
+		await Promise.resolve();
+		const closedText = h.container.textContent;
+		chats[0].title.set('Changed while board closed', undefined);
+		assert.strictEqual(h.container.textContent, closedText);
+		await h.service.open();
+		await h.service.open();
+		const reopened = h.currentContainer;
+		assert.notStrictEqual(reopened, h.container);
+		assert.deepStrictEqual({
+			openCount: h.state.openCount,
+			disposeCount: h.state.disposeCount,
+			boards: reopened.querySelectorAll('.project-board').length,
+			cards: reopened.querySelectorAll('[aria-label="General, P1"] .project-board-card').length,
+			more: reopened.querySelector('[aria-label="General, P1"] .project-board-more')?.textContent,
+			firstTitle: reopened.querySelector('[aria-label="General, P1"] h4')?.textContent,
+			openedChats: h.opened.length,
+			read: chats.some(chat => chat.isRead.get()),
+		}, { openCount: 2, disposeCount: 1, boards: 1, cards: 3, more: '+5 more', firstTitle: 'Changed while board closed', openedChats: 0, read: false });
+		chats[0].title.set('Fresh view update', undefined);
+		assert.strictEqual(reopened.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Fresh view update');
+		assert.strictEqual(h.container.textContent, closedText);
+	});
+
+	test('PB-12 disconnect/reconnect preserves runtime state, identity and placement without duplicate cards', async () => {
+		const chat = new TestChat('Remote work');
+		const h = createBoard(mainWindow.document, [chat]);
+		h.metadata.set({ kind: 'ready', prompt: 'Known prompt', submittedAt: 1000, context: [] }, undefined);
+		await h.service.open();
+		h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true }));
+		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.move.general.p1')!.run();
+		for (const connection of [
+			{ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown },
+			{ kind: 'reconnecting' },
+			{ kind: 'connected' },
+		] satisfies SessionRemoteConnectionStatus[]) {
+			h.session.remoteConnectionStatus.set(connection, undefined);
+			const card = h.container.querySelector('[aria-label="General, P1"] .project-board-card')!;
+			assert.deepStrictEqual({
+				count: h.container.querySelectorAll('.project-board-card').length,
+				resource: card.getAttribute('data-chat-resource'),
+				title: card.querySelector('h4')?.textContent,
+				status: card.querySelector('.project-board-card-status-label')?.textContent,
+				warning: card.querySelector('.project-board-card-warning')?.textContent ?? null,
+				read: chat.isRead.get(),
+				opened: h.opened.length,
+			}, {
+				count: 1, resource: chat.resource.toString(), title: 'Remote work', status: 'Busy',
+				warning: connection.kind === 'connected' ? null : `Provider unavailable (${connection.kind}); state may be stale.`,
+				read: false, opened: 0,
+			});
+		}
+	});
+
+	test('PB-14 fifty chats retain cell caps, hidden attention counts and focused identity during drag updates', async () => {
+		const { document } = createBoardDocument();
+		const chats = Array.from({ length: 50 }, (_, index) => new TestChat(`Load ${String(index).padStart(2, '0')}`));
+		for (const chat of chats) {
+			chat.status.set(SessionStatus.Completed, undefined);
+		}
+		const h = createBoard(document, chats);
+		await h.service.open();
+		for (const [index, chat] of chats.entries()) {
+			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
+			const transfer = new mainWindow.DataTransfer();
+			card.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+			h.container.querySelector(`[aria-label="General, P${index % 4}"]`)!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+		}
+		assert.deepStrictEqual({
+			visible: h.container.querySelectorAll('.project-board-card').length,
+			overflow: [...h.container.querySelectorAll('.project-board-more')].map(element => element.textContent),
+		}, { visible: 12, overflow: ['+10 more', '+10 more', '+9 more', '+9 more'] });
+		const dragged = h.container.querySelector<HTMLElement>('[aria-label="General, P0"] .project-board-card')!;
+		dragged.focus();
+		const transfer = new mainWindow.DataTransfer();
+		dragged.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+		chats[0].title.set('Updated while dragging', undefined);
+		chats[0].status.set(SessionStatus.NeedsInput, undefined);
+		assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] .project-board-card'), dragged);
+		assert.strictEqual(dragged.querySelector('h4')?.textContent, 'Load 00');
+		const destination = () => h.container.querySelector('[aria-label="General, P1"]')!;
+		destination().dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+		chats[49].status.set(SessionStatus.NeedsInput, undefined);
+		const moved = destination().querySelector('.project-board-card')!;
+		assert.deepStrictEqual({
+			resource: moved.getAttribute('data-chat-resource'), title: moved.querySelector('h4')?.textContent,
+			focused: document.activeElement === moved, visible: h.container.querySelectorAll('.project-board-card').length,
+			attention: destination().querySelector('.project-board-attention')?.textContent,
+			opened: h.opened.length, read: chats.some(chat => chat.isRead.get()),
+		}, { resource: chats[0].resource.toString(), title: 'Updated while dragging', focused: true, visible: 12, attention: '2 Needs Input', opened: 0, read: false });
+		destination().querySelector<HTMLElement>('.project-board-more')!.click();
+		const visible = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].map(element => element.dataset.chatResource);
+		assert.strictEqual(destination().querySelectorAll('.project-board-card').length, 6);
+		assert.strictEqual(new Set(visible).size, visible.length);
 	});
 
 	test('PB-16 top-right New Session delegates creation without owner navigation', async () => {
