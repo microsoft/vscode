@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitRefs, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, parseUpstreamRef, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitRefs, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, parseUpstreamRef, resolveUpstreamRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -198,6 +198,26 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	suite('resolveUpstreamRemote', () => {
+		test('keeps the remote only when the sync handler can use the upstream', () => {
+			assert.deepStrictEqual({
+				noUpstream: resolveUpstreamRemote('\0'),
+				probeFailed: resolveUpstreamRemote(undefined),
+				origin: resolveUpstreamRemote('refs/remotes/origin/feature\0origin'),
+				slashRemote: resolveUpstreamRemote('refs/remotes/my/fork/feature\0my/fork'),
+				local: resolveUpstreamRemote('refs/heads/main\0.'),
+				customRefspec: resolveUpstreamRemote('refs/custom/origin/feature\0origin'),
+			}, {
+				noUpstream: undefined,
+				probeFailed: undefined,
+				origin: 'origin',
+				slashRemote: 'my/fork',
+				local: '.',
+				customRefspec: '.',
+			});
+		});
+	});
+
 	suite('parseGitRefs', () => {
 		test('reads the upstream remote column', () => {
 			const out = [
@@ -205,12 +225,14 @@ suite('AgentHostGitService', () => {
 				'refs/heads/topic\0refs/heads/main\0.',
 				'refs/heads/feature\0refs/remotes/my/fork/feature\0my/fork',
 				'refs/remotes/my/fork/feature\0\0',
+				'refs/heads/legacy\0refs/remotes/origin/legacy',
 			].join('\n');
 			assert.deepStrictEqual(parseGitRefs(out).map(ref => ref.kind === GitRefType.Head ? { name: ref.name, upstream: ref.upstream } : { name: ref.name, kind: ref.kind }), [
 				{ name: 'main', upstream: undefined },
 				{ name: 'topic', upstream: undefined },
 				{ name: 'feature', upstream: { ref: 'refs/remotes/my/fork/feature', name: 'my/fork/feature', remote: 'my/fork' } },
 				{ name: 'my/fork/feature', kind: GitRefType.RemoteHead },
+				{ name: 'legacy', upstream: { ref: 'refs/remotes/origin/legacy', name: 'origin/legacy', remote: 'origin' } },
 			]);
 		});
 	});

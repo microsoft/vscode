@@ -1597,9 +1597,10 @@ export interface ISessionGitState {
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
 	/**
-	 * Remote of the upstream tracking branch as git reports it (`origin`, `my/fork`), or `.`
-	 * when the upstream is a local branch. Absent when there is no upstream, and in git
-	 * state persisted before this field existed.
+	 * Remote of the upstream branch when it can be synced through its remote-tracking ref
+	 * (`origin`, `my/fork`), or `.` when it cannot: a local upstream, or a fetch refspec
+	 * that keeps the tracking ref outside `refs/remotes/<remote>/`. Absent when there is
+	 * no upstream, and in git state persisted before this field existed.
 	 */
 	readonly upstreamRemote?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
