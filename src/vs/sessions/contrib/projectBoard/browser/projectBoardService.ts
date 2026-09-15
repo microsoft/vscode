@@ -683,6 +683,7 @@ class ProjectBoardView extends Disposable {
 			descriptions.push(content.id);
 		};
 		element.className = `project-board-card project-board-card-${this.getStatusClass(card)}`;
+		element.dataset.chatResource = card.chat.resource.toString();
 		element.draggable = this.boardState.canEdit;
 		element.setAttribute('aria-label', localize('projectBoard.cardLabel', "{0}, {1}, {2}", card.title, card.sessionTitle, this.getStatusLabel(card)));
 

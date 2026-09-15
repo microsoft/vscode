@@ -33,13 +33,14 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionType, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
+import { ProjectBoardModel } from '../../common/projectBoardModel.js';
 
 suite('ProjectBoardNewSession', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -99,9 +100,11 @@ suite('ProjectBoardNewSession', () => {
 		pane.getId.returns(ChatEditorInput.EditorID);
 		const openEditor = sinon.stub().resolves(pane);
 		instantiation.stubInstance(ChatEditorInput, input);
-		instantiation.stub(IEditorService, { openEditor });
+		instantiation.stub(IEditorService, { openEditor, findEditors: () => [], isOpened: () => true });
+		instantiation.stub(IEditorGroupsService, { groups: [] });
 		instantiation.stub(IHostService, { focus: async () => { } });
 		instantiation.stub(ISessionsManagementService, {
+			markRead: async () => { },
 			onDidChangeSessions: sessionsChanged.event,
 			getSessionForChatResource: resource => isEqual(resource, state.published)
 				? { session: new class extends mock<ISession>() { }(), chat: new class extends mock<IChat>() { }() }
@@ -117,7 +120,7 @@ suite('ProjectBoardNewSession', () => {
 				override readonly authRequirement = SessionTypeAuthRequirement.None;
 			}() }],
 		});
-		instantiation.stub(ISessionsService, { activeSession: constObservable(undefined) });
+		instantiation.stub(ISessionsService, { activeSession: constObservable(undefined), canOpenSession: async () => true });
 		instantiation.stub(IChatSessionsService, { getMaterializedSessionResource: () => state.materialized });
 		instantiation.stub(IAgentHostUntitledProvisionalSessionService, {
 			onDidChange: Event.None, get: () => state.provisional,
@@ -133,8 +136,53 @@ suite('ProjectBoardNewSession', () => {
 			return { object: model, dispose: () => { state.references--; } };
 		} });
 		const opener = store.add(instantiation.createInstance(ProjectBoardChatWindows));
-		return { opener, state, closing, inputChanged, submitted, openEditor, sessionsChanged };
+		return { opener, state, closing, inputChanged, submitted, openEditor, sessionsChanged, instantiation };
 	}
+
+	test('PB-03/PB-05 send hi, close, move to General/P1 and reopen retains the published chat identity and title', async () => {
+		const h = setup();
+		await h.opener.createNewSession();
+		h.state.text = 'hi';
+		h.inputChanged.fire();
+		h.state.submitted = true;
+		h.submitted.fire();
+		const published = URI.parse('test-chat:/published-hi');
+		h.state.materialized = published;
+		h.state.published = published;
+		h.sessionsChanged.fire({ added: [], removed: [], changed: [] });
+		h.closing.fire();
+		const chat = new class extends mock<IChat>() {
+			override readonly resource = published;
+			override readonly title = constObservable('Greeting');
+			override readonly status = constObservable(SessionStatus.Completed);
+			override readonly isRead = constObservable(false);
+			override readonly isArchived = constObservable(false);
+			override readonly interactivity = constObservable(ChatInteractivity.Full);
+			override readonly description = constObservable(undefined);
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly resource = published;
+			override readonly providerId = 'test';
+			override readonly title = constObservable('Greeting');
+			override readonly chats = constObservable([chat]);
+			override readonly isArchived = constObservable(false);
+		}();
+		const board = new ProjectBoardModel();
+		board.updateSessions([session]);
+		const [card] = board.getUnassignedCards();
+		board.moveCard(card.id, { rowId: 'general', columnId: 'p1' });
+		board.updateSessions([session]);
+		const [moved] = board.getCards('general', 'p1');
+		const createInput = sinon.spy(h.instantiation, 'createInstance');
+		await h.opener.open(moved);
+		assert.deepStrictEqual({
+			title: moved.title, id: moved.id, resource: moved.chat.resource.toString(),
+			drafts: h.opener.drafts.get().length, deleted: h.state.deletedProvisional,
+			unassigned: board.getUnassignedCards().length,
+		}, { title: 'Greeting', id: card.id, resource: published.toString(), drafts: 0, deleted: 0, unassigned: 0 });
+		assert.ok(createInput.calledWith(ChatEditorInput, published, { title: { fallback: 'Greeting' } }));
+		assert.strictEqual(h.openEditor.callCount, 2);
+	});
 
 	test('PB-16 creates a provisional card and standalone composer without sending', async () => {
 		const h = setup();
