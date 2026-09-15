@@ -410,8 +410,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		let onlineTunnels: ITunnelInfo[] | undefined;
 		try {
 			onlineTunnels = await this._tunnelService.listTunnels({ silent: true });
-		} catch {
+		} catch (error) {
 			// No cached token or network error — leave statuses as-is
+			this._logService.warn(`[TunnelAgentHost] Discovery failed for trigger '${resolvedTrigger}'; preserving ${cachedBefore} cached tunnel(s): ${error instanceof Error ? error.message : String(error)}`);
 			this._initialStatusChecked = true;
 			this._updateConnectionStatuses();
 			logTunnelDiscoveryResult(this._telemetryService, {
