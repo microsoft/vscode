@@ -43,6 +43,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBoardModel } from '../common/projectBoardModel.js';
 import { ProjectBoardState } from './projectBoardState.js';
 import { ProjectBoardStateDurations } from '../common/projectBoardStateDurations.js';
+import { ProjectBoardChatActions } from './projectBoardChatActions.js';
 import { getProjectBoardConfigurationDetails, IProjectBoardConfigurationDetails } from './projectBoardConfigurationDetails.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -51,6 +52,7 @@ import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoard
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
 import { KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
 import { IProjectBoardDisplayOptions } from '../common/projectBoardConfiguration.js';
+import { ProjectBoardWindow } from './projectBoardWindow.js';
 import './media/projectBoard.css';
 
 const projectBoardDragDataType = 'application/vnd.code.project-board-card';
@@ -77,6 +79,8 @@ export interface IProjectBoardView extends IDisposable {
 }
 
 class ProjectBoardView extends Disposable implements IProjectBoardView {
+	private readonly actionWidgets = this._register(new DisposableMap<string, ProjectBoardChatActions>());
+	private readonly actionErrors = new Set<string>();
 	private readonly configurationDetails = new Map<string, IProjectBoardConfigurationDetails>();
 	private readonly configurationErrors = new Set<string>();
 
@@ -291,6 +295,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.stateDurations.update(this.model.cards);
 			this.updateMetadata(reader);
 			this.updateConfigurationDetails(reader);
+			this.updateChatActions(reader);
 			this.updateQuestionPreviews(reader);
 			this.render();
 		});
@@ -341,6 +346,48 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					this.logService.error('[ProjectBoard] Failed to read configuration', error);
 					this.notificationService.error(message);
 				}
+			}
+		}
+	}
+
+	private updateChatActions(reader: IReader): void {
+		const active = new Set<string>();
+		for (const card of this.getDisplayedCards()) {
+			const pending = this.metadataPreviews.get(card.id)?.actions.read(reader);
+			if (!pending || card.archived || card.readOnly || card.connection) {
+				continue;
+			}
+			active.add(card.id);
+			try {
+				let widget = this.actionWidgets.get(card.id);
+				if (!widget || widget.source.model !== pending.model || widget.source.request !== pending.request || widget.source.response !== pending.response) {
+					this.actionWidgets.deleteAndDispose(card.id);
+					widget = this.instantiationService.createInstance(ProjectBoardChatActions, pending, () => {
+						const current = this.model.cards.find(current => current.id === card.id);
+						return !!current && !current.archived && !current.readOnly && !current.connection;
+					});
+					this.actionWidgets.set(card.id, widget);
+				} else {
+					widget.update(pending);
+				}
+				this.actionErrors.delete(card.id);
+			} catch (error) {
+				this.actionWidgets.deleteAndDispose(card.id);
+				if (!this.actionErrors.has(card.id)) {
+					this.actionErrors.add(card.id);
+					this.logService.error('[ProjectBoard] Failed to render pending chat actions', error);
+					this.notificationService.error(localize('projectBoard.chatActionsUnavailable', "Pending actions could not be displayed. Open the chat to continue."));
+				}
+			}
+		}
+		for (const id of this.actionWidgets.keys()) {
+			if (!active.has(id)) {
+				this.actionWidgets.deleteAndDispose(id);
+			}
+		}
+		for (const id of this.actionErrors) {
+			if (!active.has(id)) {
+				this.actionErrors.delete(id);
 			}
 		}
 	}
@@ -511,6 +558,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const focusedCreate = activeElement === this.createSessionButton?.element;
 		const focusedControl = activeElement?.getAttribute('data-board-control');
 		const focusedQuestion = activeElement && [...this.questionWidgets.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
+		const focusedAction = activeElement && [...this.actionWidgets.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
 		const focusedCard = [...this.cardElements].find(([, element]) => activeElement && element.contains(activeElement));
 		const store = new DisposableStore();
 		this.renderDisposables.value = store;
@@ -636,7 +684,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		this.rendering = false;
 		if (ownerDocument.hasFocus()) {
-			if (focusedQuestion?.isConnected && isHTMLElement(focusedQuestion)) {
+			if (focusedAction?.isConnected && isHTMLElement(focusedAction)) {
+				focusedAction.focus({ preventScroll: true });
+			} else if (focusedQuestion?.isConnected && isHTMLElement(focusedQuestion)) {
 				focusedQuestion.focus({ preventScroll: true });
 			} else if (focusedControl) {
 				const fallback = focusedControl.startsWith('more:') ? focusedControl.replace('more:', 'less:') : focusedControl.replace('less:', 'more:');
@@ -1215,12 +1265,28 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 
 		this.cardElements.set(card.id, element);
-		const preview = this.previewStates.get(card.id);
+		const actionWidget = this.actionWidgets.get(card.id);
+		const hasInteractiveQuestions = [...this.questionWidgets.values()].some(widget => widget.cardId === card.id);
+		const rawPreview = this.previewStates.get(card.id);
+		const preview = rawPreview?.kind === 'ready' && actionWidget?.rendersTools ? {
+			...rawPreview, permissions: rawPreview.permissions.filter(permission => permission.kind !== 'tool'),
+			unsupported: rawPreview.unsupported.filter(unsupported => unsupported.kind !== 'toolPostApproval'),
+		} : rawPreview;
 		if (preview && preview.kind !== 'inactive') {
-			const previewElement = this.createQuestionPreview(document, preview, store, card.id);
-			previewElement.id = `project-board-input-${generateUuid()}`;
-			descriptions.push(previewElement.id);
-			element.appendChild(previewElement);
+			if (!actionWidget?.rendersTools || hasInteractiveQuestions || preview.kind !== 'ready' || preview.questions.length || preview.permissions.length || preview.unsupported.length || preview.truncated) {
+				const previewElement = this.createQuestionPreview(document, preview, store, card.id);
+				previewElement.id = `project-board-input-${generateUuid()}`;
+				descriptions.push(previewElement.id);
+				element.appendChild(previewElement);
+			}
+		}
+		if (actionWidget) {
+			element.appendChild(actionWidget.element);
+		} else if (this.actionErrors.has(card.id)) {
+			const warning = document.createElement('p');
+			warning.className = 'project-board-card-warning';
+			warning.textContent = localize('projectBoard.chatActionsUnavailable', "Pending actions could not be displayed. Open the chat to continue.");
+			element.appendChild(warning);
 		}
 		const statusBar = document.createElement('footer');
 		statusBar.className = 'project-board-card-status-bar';
@@ -1232,7 +1298,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		element.setAttribute('aria-describedby', descriptions.join(' '));
 
 		store.add(addDisposableListener(element, EventType.DRAG_START, event => {
-			if (event.composedPath().some(target => isHTMLElement(target) && target.classList.contains('project-board-live-question'))) {
+			if (event.composedPath().some(target => isHTMLElement(target) && (target.classList.contains('project-board-live-question') || target.classList.contains('project-board-live-actions')))) {
 				event.preventDefault();
 				return;
 			}
@@ -1249,7 +1315,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.observeSessions();
 		}));
 		this.registerCardInteractions(element, () => this.openCard(card), store, () => { void this.pickPlacement(card); });
-		if ([...this.questionWidgets.values()].some(widget => widget.cardId === card.id)) {
+		if (actionWidget || hasInteractiveQuestions) {
 			element.setAttribute('role', 'group');
 		}
 
@@ -1378,7 +1444,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			element.setAttribute('aria-keyshortcuts', isMacintosh ? 'Meta+Shift+M' : 'Control+Shift+M');
 		}
 		store.add(addDisposableListener(element, EventType.DBLCLICK, event => {
-			if (event.composedPath().some(target => target !== element && isHTMLElement(target) && target.matches('a, button, input, select, textarea, summary, [role="button"], .project-board-live-question'))) {
+			if (event.composedPath().some(target => target !== element && isHTMLElement(target) && target.matches('a, button, input, select, textarea, summary, [role="button"], .project-board-live-question, .project-board-live-actions'))) {
 				return;
 			}
 			void open();
@@ -1658,7 +1724,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 
 	private async openWindow(): Promise<void> {
 		try {
-			const boardWindow = await this.auxiliaryWindowService.open({ nativeTitlebar: true });
+			const boardWindow = await this.auxiliaryWindowService.open();
 			if (this._store.isDisposed) {
 				boardWindow.dispose();
 				return;
@@ -1679,8 +1745,8 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			if (store.isDisposed) {
 				return;
 			}
-			boardWindow.window.document.title = localize('projectBoard.windowTitle', "Agent Project Board");
-			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, boardWindow.container, this.chatWindows, this.boardState, true, {
+			const window = store.add(this.instantiationService.createInstance(ProjectBoardWindow, boardWindow, localize('projectBoard.windowTitle', "Agent Project Board")));
+			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, window.content, this.chatWindows, this.boardState, true, {
 				sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 				logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
 			}));

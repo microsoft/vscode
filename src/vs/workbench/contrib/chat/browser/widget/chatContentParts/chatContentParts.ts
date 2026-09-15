@@ -70,6 +70,11 @@ export interface IChatContentPartDiffSource {
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly readOnly?: boolean;
+	/** Additional lifecycle guard when an action is hosted outside its transcript. */
+	readonly canRunAction?: () => boolean;
+	readonly focusInputOnAction?: boolean;
+	readonly showActionKeybindings?: boolean;
+	readonly onActionError?: (error: unknown) => void;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;
