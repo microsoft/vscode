@@ -30,7 +30,7 @@ import { FileChangeType, IFileService } from '../../../../../../platform/files/c
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { CHAT_CARD_LARGE_CLASS, chatCardButtonStyles } from '../chatCard.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
-import { ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -760,7 +760,10 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			} else if (action.permissionLevel === 'bypass') {
 				// Shared elevated-permission warning (Bypass Approvals): shown
 				// unless already confirmed this session or dismissed persistently.
-				const confirmed = await maybeConfirmElevatedPermissionLevel(ChatPermissionLevel.AutoApprove, this._dialogService, this._storageService);
+				// 'bypass' actions originate from Agent Host sessions, whose
+				// "make this the default" link must open `chat.defaultConfiguration`
+				// rather than local chat's `chat.permissions.default`.
+				const confirmed = await maybeConfirmElevatedPermissionLevel(ChatPermissionLevel.AutoApprove, this._dialogService, this._storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration });
 				if (!confirmed) {
 					return;
 				}
