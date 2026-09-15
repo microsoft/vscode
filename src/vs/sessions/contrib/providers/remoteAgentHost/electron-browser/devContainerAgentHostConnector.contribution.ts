@@ -188,7 +188,9 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 			store.add(Event.filter(service.onDidOutput, event => event.connectionId === config.connectionId)(event => this._output.fire(event)));
 			return await service.connect(config);
 		} catch (error) {
-			await this.disconnect(config.connectionId);
+			if (this._connections.get(config.connectionId) === entry) {
+				await this.disconnect(config.connectionId);
+			}
 			throw error;
 		}
 	}

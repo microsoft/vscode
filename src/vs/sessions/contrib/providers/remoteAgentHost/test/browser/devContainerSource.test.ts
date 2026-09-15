@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -11,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../../browser/devContainerSource.js';
@@ -46,27 +47,50 @@ suite('Dev Container source connection', () => {
 		], [source, undefined, undefined, undefined]);
 	});
 
-	test('reconnects the owning provider before restoring its container', async () => {
-		const connection = new class extends mock<IAgentConnection>() { }();
-		let connected = false;
-		let connectCalls = 0;
-		const remoteService = new class extends mock<IRemoteAgentHostService>() {
-			override readonly configuredEntries = [source];
-			override getConnection(): IAgentConnection | undefined { return connected ? connection : undefined; }
-		}();
-		const provider = new class extends mock<IAgentHostSessionsProvider>() {
-			override readonly id = 'agenthost-ssh-server';
-			override readonly remoteAddress = 'ssh:server';
-			override getSessionConfig() { return undefined; }
-			override async connect(): Promise<void> { connected = true; connectCalls++; }
-		}();
-		const providersService = new class extends mock<ISessionsProvidersService>() {
-			override getProviders() { return [provider]; }
-		}();
-		const first = await resolveDevContainerSourceConnection(workspace, remoteService, providersService, CancellationToken.None);
-		const second = await resolveDevContainerSourceConnection(workspace, remoteService, providersService, CancellationToken.None);
-		assert.deepStrictEqual({ first: first === connection, second: second === connection, connectCalls }, { first: true, second: true, connectCalls: 1 });
-	});
+	for (const useProvider of [true, false]) {
+		test(`waits for the ${useProvider ? 'provider' : 'service'}-started connection before restoring its container`, async () => {
+			const connection = new class extends mock<IAgentConnection>() { }();
+			const ready = new DeferredPromise<void>();
+			const waiting = new DeferredPromise<void>();
+			let connected = false;
+			let connectCalls = 0;
+			let waitCalls = 0;
+			const remoteService = new class extends mock<IRemoteAgentHostService>() {
+				override readonly configuredEntries = [source];
+				override getConnection(): IAgentConnection | undefined { return connected ? connection : undefined; }
+				override reconnect(): void { connectCalls++; }
+				override async waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> {
+					waitCalls++;
+					await waiting.complete();
+					await ready.p;
+					connected = true;
+					return new class extends mock<IRemoteAgentHostConnectionInfo>() { }();
+				}
+			}();
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly id = 'agenthost-ssh-server';
+				override readonly remoteAddress = 'ssh:server';
+				override getSessionConfig() { return undefined; }
+				override async connect(): Promise<void> { connectCalls++; }
+			}();
+			const providersService = new class extends mock<ISessionsProvidersService>() {
+				override getProviders() { return useProvider ? [provider] : []; }
+			}();
+			let resolved = false;
+			const connecting = resolveDevContainerSourceConnection(workspace, remoteService, providersService, CancellationToken.None).then(value => {
+				resolved = true;
+				return value;
+			});
+			await waiting.p;
+			const resolvedBeforeReady = resolved;
+			await ready.complete();
+			const first = await connecting;
+			const second = await resolveDevContainerSourceConnection(workspace, remoteService, providersService, CancellationToken.None);
+			assert.deepStrictEqual({ resolvedBeforeReady, first: first === connection, second: second === connection, connectCalls, waitCalls }, {
+				resolvedBeforeReady: false, first: true, second: true, connectCalls: 1, waitCalls: 1,
+			});
+		});
+	}
 
 	test('reports a removed source host instead of falling back to the desktop', async () => {
 		const remoteService = new class extends mock<IRemoteAgentHostService>() {

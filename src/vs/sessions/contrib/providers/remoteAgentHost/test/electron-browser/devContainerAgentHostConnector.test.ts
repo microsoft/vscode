@@ -121,6 +121,49 @@ suite('Dev Container Agent Host Connector', () => {
 		await rejected;
 	});
 
+	test('a stale failed connection does not disconnect its same-ID replacement', async () => {
+		const firstSource = new DeferredPromise<IDevContainerAgentHostMainService>();
+		const replacementSource = new DeferredPromise<IDevContainerAgentHostMainService>();
+		const replacementStarted = new DeferredPromise<void>();
+		let resolveCalls = 0;
+		const relay = store.add(new RemoteDevContainerService(() => {
+			if (++resolveCalls === 1) {
+				return firstSource.p;
+			}
+			void replacementStarted.complete();
+			return replacementSource.p;
+		}, store.add(new NullLogService())));
+		const config = { connectionId: 'shared', workspaceFolder: '/project', name: 'Project' };
+		const first = relay.connect(config);
+		const firstRejected = assert.rejects(first, /Canceled/);
+		const replacement = relay.connect(config);
+		await replacementStarted.p;
+
+		const calls: string[] = [];
+		const source = new class extends mock<IDevContainerAgentHostMainService>() {
+			override readonly onDidOutput = Event.None;
+			override readonly onDidRelayMessage = Event.None;
+			override readonly onDidRelayClose = Event.None;
+			override readonly onDidCloseConnection = Event.None;
+			override async connect(config: IDevContainerAgentHostConfig) {
+				calls.push(`connect:${config.connectionId}`);
+				return { ...config, address: 'devcontainer:replacement', remoteWorkspaceFolder: '/workspaces/project' };
+			}
+			override async relaySend(id: string, message: string): Promise<void> { calls.push(`send:${id}:${message}`); }
+			override async disconnect(id: string): Promise<void> { calls.push(`disconnect:${id}`); }
+		}();
+		await firstSource.complete(source);
+		await firstRejected;
+		await replacementSource.complete(source);
+		const result = await replacement;
+		await relay.relaySend(config.connectionId, 'message');
+		await relay.disconnect(config.connectionId);
+		assert.deepStrictEqual({ address: result.address, calls }, {
+			address: 'devcontainer:replacement',
+			calls: ['connect:shared', 'send:shared:message', 'disconnect:shared'],
+		});
+	});
+
 	test('rebinds remote relays and output when the source client is replaced', async () => {
 		const disconnected: string[] = [];
 		const createSource = () => {

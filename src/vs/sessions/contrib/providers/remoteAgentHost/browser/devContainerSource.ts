@@ -54,8 +54,8 @@ export async function resolveDevContainerSourceConnection(
 			await raceCancellationError(provider.connect(), token);
 		} else {
 			remoteAgentHostService.reconnect(address, true);
-			await raceCancellationError(remoteAgentHostService.waitForConnection(address), token);
 		}
+		await raceCancellationError(remoteAgentHostService.waitForConnection(address), token);
 		connection = remoteAgentHostService.getConnection(address);
 	}
 	if (!connection) {
