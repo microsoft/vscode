@@ -904,12 +904,17 @@ suite('ProjectBoardService', () => {
 		store.add(toDisposable(() => embeddedContainer.remove()));
 		const embedded = store.add(h.service.createView(embeddedContainer));
 		await h.service.open();
+		await h.service.createSession();
+		assert.strictEqual(h.state.createdCount, 1, 'The contributed toolbar creates through the custom view');
+		h.state.closedResource = chat.resource;
+		await h.service.closeSession(12345);
+		assert.ok(embeddedContainer.contains(mainWindow.document.activeElement), 'Toolbar creation returns to the custom view');
 		embedded.focus();
 		embeddedContainer.querySelector<HTMLElement>('[data-chat-resource]')!.focus();
 		assert.ok(embeddedContainer.contains(mainWindow.document.activeElement), 'Embedded focus is established before closing the chat');
 		h.state.closedResource = chat.resource;
 		await h.service.closeSession(12345);
-		assert.strictEqual(h.state.ownerFocusCount, 1, 'Close targets the owner hosting the embedded board');
+		assert.strictEqual(h.state.ownerFocusCount, 2, 'Close targets the owner hosting the embedded board');
 		assert.ok(embeddedContainer.contains(mainWindow.document.activeElement), 'Return to the focused embedded board, not a different surface');
 		h.closeBoard();
 		await Promise.resolve();
