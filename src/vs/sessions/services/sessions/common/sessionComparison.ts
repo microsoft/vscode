@@ -125,6 +125,7 @@ export interface ISessionComparison {
 	readonly createdAt: number;
 	readonly workspace: URI;
 	readonly prompt: string;
+	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly branch?: string;
 	/** Retained for comparisons persisted before execution presets were introduced. */
 	readonly permissionLevel?: string;

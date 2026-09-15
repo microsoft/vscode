@@ -114,7 +114,6 @@ export class Dialog extends Disposable {
 	private readonly buttonsContainer: HTMLElement;
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
-	private readonly bodyContainer: HTMLElement | undefined;
 	private readonly footerContainer: HTMLElement | undefined;
 	private footerActionToFocus: HTMLAnchorElement | undefined;
 	private readonly iconElement: HTMLElement;
@@ -203,10 +202,8 @@ export class Dialog extends Disposable {
 		}
 
 		if (this.options.renderBody) {
-			this.bodyContainer = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
-			this.options.renderBody(this.bodyContainer);
-		} else {
-			this.bodyContainer = undefined;
+			const customBody = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
+			this.options.renderBody(customBody);
 		}
 
 		if (this.options.renderBody || this.options.detailElement) {
@@ -412,8 +409,7 @@ export class Dialog extends Disposable {
 				// Focus: Next / Previous
 				const isArrowNavigation = evt.equals(KeyCode.RightArrow) || evt.equals(KeyCode.LeftArrow);
 				const isEditableTarget = isHTMLElement(e.target) && (isEditableElement(e.target) || e.target.isContentEditable);
-				const handlesArrowNavigation = isHTMLElement(e.target) && !!e.target.closest('select, [role="combobox"], [role="listbox"], [role="radio"], [role="slider"], summary');
-				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget && !handlesArrowNavigation) {
+				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget) {
 
 					// Build a list of focusable elements in their visual order
 					const focusableElements: { focus: () => void }[] = [];
@@ -421,27 +417,10 @@ export class Dialog extends Disposable {
 
 					if (this.messageContainer) {
 						// eslint-disable-next-line no-restricted-syntax
-						const links = this.messageDetailElement.querySelectorAll('a');
+						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
 							if (isActiveElement(link)) {
-								focusedIndex = focusableElements.length - 1;
-							}
-						}
-					}
-
-					if (this.bodyContainer) {
-						// eslint-disable-next-line no-restricted-syntax
-						const elements = this.bodyContainer.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])');
-						for (const element of elements) {
-							if (element.tabIndex < 0
-								|| element.hasAttribute('disabled')
-								|| element.getAttribute('aria-disabled') === 'true'
-								|| element.getClientRects().length === 0) {
-								continue;
-							}
-							focusableElements.push(element);
-							if (isActiveElement(element)) {
 								focusedIndex = focusableElements.length - 1;
 							}
 						}

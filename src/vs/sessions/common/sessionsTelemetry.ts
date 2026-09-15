@@ -54,7 +54,7 @@ type SessionComparisonAttemptCompletedClassification = {
 	owner: 'meganrogge';
 	comment: 'Tracks terminal implementation attempts in Run and Compare Agents, including aggregate token usage when available.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate attempts from the same comparison.' };
-	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };
 	attemptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of implementation attempts in the comparison.' };
 	status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the attempt completed, failed while running, or failed to launch.' };
@@ -87,7 +87,7 @@ type SessionComparisonAttemptJudgedClassification = {
 	owner: 'meganrogge';
 	comment: 'Relates Run and Compare Agents attempts to the Judge recommendation and categorical validation outcome.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate attempts from the same comparison.' };
-	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier, used to correlate with attempt execution and trusted model telemetry.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with attempt execution and trusted model telemetry.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };
 	attemptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of implementation attempts in the comparison.' };
 	recommended: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the Judge recommended this attempt.' };
@@ -127,7 +127,7 @@ type SessionComparisonStageCompletedClassification = {
 	owner: 'meganrogge';
 	comment: 'Tracks terminal Judge and synthesis stages in Run and Compare Agents, including aggregate token usage and the Judge-selected harness.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate stages from the same comparison.' };
-	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
 	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this event describes the Judge or synthesis stage.' };
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded Sessions provider category used by the stage.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent type identifier used by the stage.' };

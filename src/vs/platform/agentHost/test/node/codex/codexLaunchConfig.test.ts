@@ -17,8 +17,6 @@ suite('CodexLaunchConfig', () => {
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
 		assert.ok(config.args.includes('model_providers.vscode-proxy.requires_openai_auth=false'));
 		assert.ok(config.args.includes('features.image_generation=false'));
-		assert.ok(config.args.indexOf('--log-level=debug') < config.args.indexOf('--disable'));
-		assert.deepStrictEqual(config.args.slice(config.args.indexOf('--disable'), config.args.indexOf('--disable') + 2), ['--disable', 'fast_mode']);
 		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
 		assert.ok(config.args.includes('--log-level=debug'));
 		assert.ok(config.args.indexOf('analytics.enabled=true') < config.args.lastIndexOf('analytics.enabled=false'));

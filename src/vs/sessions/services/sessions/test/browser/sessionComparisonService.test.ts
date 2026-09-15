@@ -5,17 +5,15 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -25,7 +23,8 @@ import { ChatInteractivity, ISession, SessionStatus } from '../../common/session
 import { ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
-import { ISessionGroup, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
+import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
+import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
 
 suite('SessionComparisonService', () => {
@@ -34,13 +33,19 @@ suite('SessionComparisonService', () => {
 	function createServices(storageService = disposables.add(new InMemoryStorageService()), telemetryService = new RecordingTelemetryService()) {
 		const sessionsManagementService = disposables.add(new TestSessionsManagementService());
 		const chatService = new TestChatService();
-		const fileService = new TestJudgePromptFileService();
+		const groupChanges = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
 		const groupsService = new class extends mock<ISessionGroupsService>() {
 			readonly groupedSessionIds: string[] = [];
 			readonly deletedGroupIds: string[] = [];
-			override readonly onDidChange = Event.None;
+			override readonly onDidChange = groupChanges.event;
 			override createGroup(name: string): ISessionGroup { return { id: 'group', name, createdAt: 1 }; }
-			override deleteGroup(groupId: string): void { this.deletedGroupIds.push(groupId); }
+			override getGroup(groupId: string): ISessionGroup | undefined {
+				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
+			}
+			override deleteGroup(groupId: string): void {
+				this.deletedGroupIds.push(groupId);
+				groupChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+			}
 			override addToGroup(sessionIdOrIds: string | Iterable<string>): void {
 				this.groupedSessionIds.push(...(typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds));
 			}
@@ -52,9 +57,8 @@ suite('SessionComparisonService', () => {
 			new NullLogService(),
 			chatService,
 			telemetryService,
-			fileService,
 		));
-		return { service, sessionsManagementService, groupsService, storageService, chatService, telemetryService, fileService };
+		return { service, sessionsManagementService, groupsService, storageService, chatService, telemetryService };
 	}
 
 	test('rejects and removes comparisons with fewer than two launched attempts', async () => {
@@ -118,7 +122,7 @@ suite('SessionComparisonService', () => {
 	});
 
 	test('starts Judge only after successful attempts are terminal', async () => {
-		const { service, sessionsManagementService, fileService } = createServices();
+		const { service, sessionsManagementService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
 		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
 		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
@@ -138,8 +142,11 @@ suite('SessionComparisonService', () => {
 			createCalls: sessionsManagementService.createCalls.length,
 			judgeResource: service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.sessionResource?.toString(),
 			judgeHarness: sessionsManagementService.createCalls[2].createOptions,
-			judgePrompt: sessionsManagementService.createCalls[2].options.query,
-			readJudgePromptResource: fileService.lastReadResource?.path.endsWith('/vs/sessions/prompts/judge.md'),
+			judgePrompt: {
+				hasComparisonId: sessionsManagementService.createCalls[2].options.query.includes(comparison.id),
+				readsComparison: sessionsManagementService.createCalls[2].options.query.includes('#readAttemptComparison'),
+				completesComparison: sessionsManagementService.createCalls[2].options.query.includes('#completeAttemptComparison'),
+			},
 		}, {
 			createCalls: 3,
 			judgeResource: 'test:/judge',
@@ -159,8 +166,11 @@ suite('SessionComparisonService', () => {
 					},
 				},
 			},
-			judgePrompt: getTestJudgePrompt(comparison.id),
-			readJudgePromptResource: true,
+			judgePrompt: {
+				hasComparisonId: true,
+				readsComparison: true,
+				completesComparison: true,
+			},
 		});
 	});
 
@@ -229,7 +239,7 @@ suite('SessionComparisonService', () => {
 		await timeout(0);
 		const comparisonVerdict = verdict('attempt-two', ['attempt-one', 'attempt-two']);
 		service.submitVerdict(comparison.id, comparisonVerdict);
-		service.submitVerdict(comparison.id, comparisonVerdict);
+		assert.throws(() => service.submitVerdict(comparison.id, comparisonVerdict), /already been submitted/);
 		judgeStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
 
@@ -238,6 +248,7 @@ suite('SessionComparisonService', () => {
 		assert.deepStrictEqual({
 			attemptEvents: attemptEvents.map(event => ({
 				name: event.name,
+				agentSessionId: event.data.agentSessionId,
 				attemptIndex: event.data.attemptIndex,
 				status: event.data.status,
 				recommended: event.data.recommended,
@@ -261,14 +272,14 @@ suite('SessionComparisonService', () => {
 			},
 		}, {
 			attemptEvents: [
-				{ name: 'agents/sessionComparisonAttemptCompleted', attemptIndex: 0, status: 'completed', recommended: undefined, inputTokenCount: 30 },
-				{ name: 'agents/sessionComparisonAttemptCompleted', attemptIndex: 1, status: 'error', recommended: undefined, inputTokenCount: undefined },
-				{ name: 'agents/sessionComparisonAttemptJudged', attemptIndex: 0, status: undefined, recommended: false, inputTokenCount: undefined },
-				{ name: 'agents/sessionComparisonAttemptJudged', attemptIndex: 1, status: undefined, recommended: true, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, status: 'completed', recommended: undefined, inputTokenCount: 30 },
+				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, status: 'error', recommended: undefined, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, status: undefined, recommended: false, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, status: undefined, recommended: true, inputTokenCount: undefined },
 			],
 			judge: {
 				hasComparisonId: true,
-				agentSessionId: 'judge',
+				agentSessionId: hashSessionIdForTelemetry('judge'),
 				stage: 'judge',
 				providerId: 'other',
 				agentId: 'judge-type',
@@ -405,6 +416,46 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('freezes attached context for attempts, Judge, synthesis, and reload', async () => {
+		const { service, sessionsManagementService, storageService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+		const attachment = {
+			kind: 'generic' as const,
+			id: 'context',
+			name: 'Context',
+			value: URI.file('/workspace/spec.md'),
+		};
+
+		const comparison = await service.startComparison({ ...startOptions(), attachedContext: [attachment] });
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict('attempt-two', ['attempt-one', 'attempt-two']));
+		await service.synthesize(comparison.id);
+
+		const restored = createServices(storageService).service.getComparison(comparison.id);
+		assert.deepStrictEqual({
+			requests: sessionsManagementService.createCalls.map(call => call.options.attachedContext?.map(entry => String(entry.value))),
+			stored: service.getComparison(comparison.id)?.attachedContext?.map(entry => String(entry.value)),
+			restored: restored?.attachedContext?.map(entry => String(entry.value)),
+		}, {
+			requests: [
+				['file:///workspace/spec.md'],
+				['file:///workspace/spec.md'],
+				['file:///workspace/spec.md'],
+				['file:///workspace/spec.md'],
+			],
+			stored: ['file:///workspace/spec.md'],
+			restored: ['file:///workspace/spec.md'],
+		});
+	});
+
 	test('uses the persisted permission level for Judge and synthesis sessions after reload', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessions.comparisons', JSON.stringify([{
@@ -515,6 +566,23 @@ suite('SessionComparisonService', () => {
 		assert.deepStrictEqual(groupsService.groupedSessionIds, ['attempt', 'judge']);
 	});
 
+	test('removes a persisted comparison when its group is deleted', async () => {
+		const { service, sessionsManagementService, groupsService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		const comparison = await service.startComparison(startOptions());
+
+		groupsService.deleteGroup(comparison.groupId);
+
+		assert.deepStrictEqual({
+			comparisons: service.comparisons.get(),
+			stored: JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]'),
+		}, {
+			comparisons: [],
+			stored: [],
+		});
+	});
+
 	test('removes attempt numbers from untouched legacy session titles', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessions.comparisons', JSON.stringify([{
@@ -612,7 +680,7 @@ suite('SessionComparisonService', () => {
 			},
 			telemetry: {
 				hasComparisonId: true,
-				agentSessionId: 'synthesis',
+				agentSessionId: hashSessionIdForTelemetry('synthesis'),
 				stage: 'synthesis',
 				providerId: 'other',
 				agentId: 'synthesis-type',
@@ -666,6 +734,7 @@ suite('SessionComparisonService', () => {
 		service.setSynthesisPlan(comparison.id, {
 			selections: [{ sectionId: 'tests', participantId: attempts[0].id }],
 		});
+		assert.throws(() => service.submitVerdict(comparison.id, verdict(attempts[1].id, attempts.map(attempt => attempt.id))), /already been submitted/);
 		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
 		const restored = createServices(storageService).service.getComparison(comparison.id)?.synthesisPlan;
 		let unknownSection: string | undefined;
@@ -699,32 +768,6 @@ suite('SessionComparisonService', () => {
 	});
 
 });
-
-const TEST_JUDGE_PROMPT_TEMPLATE = 'Follow the Judge instructions for comparison {{comparisonId}}.';
-
-function getTestJudgePrompt(comparisonId: string): string {
-	return TEST_JUDGE_PROMPT_TEMPLATE.replace('{{comparisonId}}', comparisonId);
-}
-
-class TestJudgePromptFileService extends mock<IFileService>() {
-	lastReadResource: URI | undefined;
-
-	override async readFile(resource: URI): Promise<IFileContent> {
-		this.lastReadResource = resource;
-		return {
-			resource,
-			name: 'judge.md',
-			mtime: 0,
-			ctime: 0,
-			etag: '',
-			size: TEST_JUDGE_PROMPT_TEMPLATE.length,
-			readonly: true,
-			locked: false,
-			executable: false,
-			value: VSBuffer.fromString(TEST_JUDGE_PROMPT_TEMPLATE),
-		};
-	}
-}
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly _onDidChangeSessions = new Emitter<ISessionChangeEvent>();

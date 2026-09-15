@@ -120,7 +120,7 @@ export function buildCodexLaunchConfig(
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,
-		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, '--disable', 'fast_mode', ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
+		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
 	};
 }
 

@@ -5,6 +5,7 @@
 
 import './media/sessionComparisonSetupDialog.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -15,6 +16,7 @@ import { TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -968,6 +970,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 						if (!dialogElement) {
 							throw new Error('Session comparison setup dialog element not found.');
 						}
+						this._registerFocusNavigation(dialogElement, disposables);
 						disposables.add(new SessionComparisonDialogResizeController(dialogElement, container, this.storageService));
 						renderRows();
 						contentScrollable.scanDomNode();
@@ -989,6 +992,40 @@ export class SessionComparisonSetupDialog extends Disposable {
 				disposables.dispose();
 			}
 		}
+	}
+
+	private _registerFocusNavigation(dialogElement: HTMLElement, store: DisposableStore): void {
+		store.add(dom.addDisposableListener(dialogElement, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			const isArrowNavigation = keyboardEvent.equals(KeyCode.RightArrow) || keyboardEvent.equals(KeyCode.LeftArrow);
+			if (isArrowNavigation
+				&& dom.isHTMLElement(event.target)
+				&& event.target.closest('select, [role="combobox"], [role="listbox"], [role="radio"], [role="slider"], summary')) {
+				event.stopImmediatePropagation();
+				return;
+			}
+			if (!keyboardEvent.equals(KeyCode.Tab) && !keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
+				return;
+			}
+
+			// eslint-disable-next-line no-restricted-syntax
+			const focusableElements = [...dialogElement.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')]
+				.filter(element => element.tabIndex >= 0
+					&& !element.hasAttribute('disabled')
+					&& element.getAttribute('aria-disabled') !== 'true'
+					&& element.getClientRects().length > 0);
+			const focusedIndex = focusableElements.findIndex(dom.isActiveElement);
+			if (focusedIndex < 0 || focusableElements.length < 2) {
+				return;
+			}
+
+			const nextIndex = keyboardEvent.shiftKey
+				? (focusedIndex - 1 + focusableElements.length) % focusableElements.length
+				: (focusedIndex + 1) % focusableElements.length;
+			keyboardEvent.preventDefault();
+			event.stopImmediatePropagation();
+			focusableElements[nextIndex].focus();
+		}));
 	}
 
 	private _getSavedEvaluatorDefaults(): { judgeHarness: ISessionComparisonHarness; synthesisHarness: ISessionComparisonHarness } | undefined {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -155,6 +156,40 @@ suite('SessionComparisonDialogResizeController', () => {
 			}, {
 				allowed: ['allowAll', 'allowAll', 'allowAll', 'allowAll'],
 				defaults: ['default', 'default', 'default', 'default'],
+			});
+		});
+
+		test('keeps setup dialog controls in the keyboard focus loop', () => {
+			const dialogElement = dom.append(mainWindow.document.body, dom.$('.session-comparison-setup-dialog'));
+			const first = dom.append(dialogElement, dom.$('button'));
+			const second = dom.append(dialogElement, dom.$('select'));
+			const third = dom.append(dialogElement, dom.$('button'));
+			for (const element of [first, second, third]) {
+				Object.defineProperty(element, 'getClientRects', { value: () => [{}] });
+			}
+			disposables.add({ dispose: () => dialogElement.remove() });
+			const store = disposables.add(new DisposableStore());
+			const registerFocusNavigation = Reflect.get(SessionComparisonSetupDialog.prototype, '_registerFocusNavigation') as (this: object, dialogElement: HTMLElement, store: DisposableStore) => void;
+			registerFocusNavigation.call(Object.create(SessionComparisonSetupDialog.prototype), dialogElement, store);
+
+			first.focus();
+			first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+			const afterTab = mainWindow.document.activeElement;
+			third.focus();
+			third.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+			const afterWrap = mainWindow.document.activeElement;
+			first.focus();
+			first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
+			const afterReverseWrap = mainWindow.document.activeElement;
+
+			assert.deepStrictEqual({
+				afterTab,
+				afterWrap,
+				afterReverseWrap,
+			}, {
+				afterTab: second,
+				afterWrap: first,
+				afterReverseWrap: third,
 			});
 		});
 
