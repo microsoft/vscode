@@ -6,6 +6,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
+import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -153,6 +154,8 @@ export interface IActionListItem<T> {
 	 * the chevron opens an inline submenu with these actions.
 	 */
 	readonly submenuActions?: IAction[];
+	/** When true, clicking the row opens its submenu instead of selecting the item. */
+	readonly openSubmenuOnClick?: boolean;
 	/** Options for the action list rendered in the nested submenu panel. */
 	readonly submenuOptions?: IActionListOptions;
 	readonly keybinding?: ResolvedKeybinding;
@@ -2093,11 +2096,16 @@ export class ActionListWidget<T> extends Disposable {
 			});
 			return;
 		}
-		// Don't select when clicking the toolbar, submenu indicator, or inline toggle
-		if (dom.isMouseEvent(e.browserEvent)) {
+		// Don't select when activating the toolbar, submenu indicator, or inline toggle
+		if (dom.isMouseEvent(e.browserEvent) || e.browserEvent?.type === TouchEventType.Tap) {
 			const target = e.browserEvent.target;
 			if (dom.isHTMLElement(target) && (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.action-list-item-inline-toggle'))) {
 				this._list.setSelection([]);
+				return;
+			}
+			if (element.openSubmenuOnClick && element.submenuActions?.length) {
+				this._list.setSelection([]);
+				this._showSubmenuForItem(element);
 				return;
 			}
 		}
@@ -2709,7 +2717,16 @@ export class ActionListWidget<T> extends Disposable {
 		// itself, not just the row that measured it before the content changed.
 		if ((this._options?.persistentHover || element.hover?.alignToParent || element.hover?.tabThroughPanel || preserveVerticalPosition) && this._currentSubmenuElement === element) {
 			if (!submenuWidget) {
-				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', layout, targetWindow));
+				const scheduledLayout = this._submenuDisposables.add(new MutableDisposable());
+				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', () => {
+					if (!scheduledLayout.value) {
+						// Layout can resize the observed panel, so run it outside resize observation.
+						scheduledLayout.value = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
+							scheduledLayout.clear();
+							layout();
+						});
+					}
+				}, targetWindow));
 				this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
 			}
 			if (this._options?.persistentHover || preserveVerticalPosition) {
