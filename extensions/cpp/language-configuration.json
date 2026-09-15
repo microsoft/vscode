@@ -104,6 +104,9 @@
 		"increaseIndentPattern": {
 			"pattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*)$"
 		},
+		"indentNextLinePattern": {
+			"pattern": "^\\s*(((else ?)?if|for|while)\\s*\\(.*\\)\\s*|else\\s*)$"
+		}
 	},
 	"onEnterRules": [
 		{
