@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsPart.css';
+import { triggerConfettiAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { localize } from '../../../nls.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -38,6 +42,13 @@ interface IGridSlot {
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
 }
+
+type CodiconConfettiActivationEvent = {};
+
+type CodiconConfettiActivationClassification = {
+	owner: 'tyleonha';
+	comment: 'Tracks how often users discover and activate the Codicon background confetti button.';
+};
 
 export class SessionsPart extends Part {
 
@@ -102,6 +113,8 @@ export class SessionsPart extends Part {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -125,7 +138,8 @@ export class SessionsPart extends Part {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
-		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(parent));
+		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(parent, true));
+		this._register(backgroundRenderer.onDidActivateCodicon(element => this.activateCodicon(element)));
 		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
 		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
 		updateBackground();
@@ -162,6 +176,14 @@ export class SessionsPart extends Part {
 		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
 
 		return contentArea;
+	}
+
+	private activateCodicon(element: HTMLElement): void {
+		if (!this.accessibilityService.isMotionReduced()) {
+			triggerConfettiAnimation(element);
+		}
+		this.accessibilityService.status(localize('sessionsChatBackground.confetti', "Confetti!"));
+		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
 	}
 
 	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined {

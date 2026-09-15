@@ -74,6 +74,12 @@ The remote Agent Host services may remember a user's preferred run location. The
 Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests.
 Tunnel discovery persists picker dismissals independently from auto-connect suppression; only an explicit user connection clears a dismissal.
 
+## Connection diagnostics
+
+The remote-host contribution owns the connection diagnostics service and UI. The service builds a client-local snapshot of discovery results, cached and configured hosts, picker visibility, and observed connection activity. It presents recorded facts rather than inferred root causes or recovery recommendations. Background and interactive enumeration use the same diagnostics wrapper, which preserves the operation's result or rejection. Discovery records include hosts excluded from the picker, so diagnostics remain useful when no selectable host exists. The service reads dismissal and auto-connect suppression through the tunnel service rather than accessing its storage keys.
+
+Showing, refreshing, copying, or downloading diagnostics does not probe a remote, re-run discovery, or change connection policy. The displayed snapshot, copied text, and downloaded text file represent the same evidence, including the client information collapsed at the end of the report. Downloads are user-initiated and do not upload anything; host names and addresses should be reviewed before sharing. Activity is bounded to the current window lifetime; missing earlier history or transport-level error details must not be presented as proof that an attempt never occurred.
+
 ## Testing
 
 Focused tests live beside the remote provider and remote-host services. Tests own connection races, authentication paths, routing identifiers, fallback, and regressions.
