@@ -27,7 +27,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { CheckoutBlockedByLocalChangesError } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, GitRefType } from '../../common/agentHostGitService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -137,15 +137,18 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		cp.execFileSync('git', ['branch', '--set-upstream-to', 'feature/base'], { cwd: dir, stdio: 'pipe' });
 
 		const result = await svc!.getSessionGitState(URI.file(dir));
+		const branch = await svc!.getBranch(URI.file(dir), 'topic');
 
 		assert.deepStrictEqual({
 			upstreamBranchName: result?.upstreamBranchName,
 			upstreamRemote: result?.upstreamRemote,
 			githubHeadOwner: result?.githubHeadOwner,
+			branchUpstream: branch?.kind === GitRefType.Head ? branch.upstream : 'no branch',
 		}, {
 			upstreamBranchName: 'feature/base',
-			upstreamRemote: undefined,
+			upstreamRemote: '.',
 			githubHeadOwner: undefined,
+			branchUpstream: undefined,
 		});
 	});
 
@@ -158,12 +161,16 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 		const result = await svc!.getSessionGitState(URI.file(dir));
 
+		const branch = await svc!.getBranch(URI.file(dir), 'feature');
+
 		assert.deepStrictEqual({
 			upstreamBranchName: result?.upstreamBranchName,
 			upstreamRemote: result?.upstreamRemote,
+			branchUpstream: branch?.kind === GitRefType.Head ? branch.upstream : undefined,
 		}, {
 			upstreamBranchName: 'my/fork/feature',
 			upstreamRemote: 'my/fork',
+			branchUpstream: { ref: 'refs/remotes/my/fork/feature', name: 'my/fork/feature', remote: 'my/fork' },
 		});
 	});
 

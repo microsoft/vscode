@@ -1596,7 +1596,11 @@ export interface ISessionGitState {
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
-	/** Remote of the upstream tracking branch (e.g. `origin`). Absent when there is no upstream or the upstream is a local branch. */
+	/**
+	 * Remote of the upstream tracking branch as git reports it (`origin`, `my/fork`), or `.`
+	 * when the upstream is a local branch. Absent when there is no upstream, and in git
+	 * state persisted before this field existed.
+	 */
 	readonly upstreamRemote?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
 	readonly incomingChanges?: number;
@@ -1847,9 +1851,15 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
  * `HEAD` is a legitimate branch-less checkout and must not be mistaken for it,
  * or every caller would refresh in a loop against a repository that will never
  * report a branch.
+ *
+ * A state that names an upstream but not its remote was persisted before
+ * {@link ISessionGitState.upstreamRemote} existed; recompute it once so the
+ * consumers that need the remote (Sync Changes) do not stay stranded.
  */
 export function needsSessionGitStateRefresh(gitState: ISessionGitState | undefined): boolean {
-	return gitState === undefined || (gitState.branchName === undefined && !gitState.isDetachedHead);
+	return gitState === undefined
+		|| (gitState.branchName === undefined && !gitState.isDetachedHead)
+		|| (gitState.upstreamBranchName !== undefined && gitState.upstreamRemote === undefined);
 }
 
 /**
