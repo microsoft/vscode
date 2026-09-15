@@ -14,13 +14,15 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IEditorIdentifier, IEditorPane, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { ChatEditorInput } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { IChat } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -57,12 +59,15 @@ suite('ProjectBoardChatWindows', () => {
 			override readonly windowId = mainWindow.vscodeWindowId;
 		}();
 		const focused: Window[] = [];
+		const readSessions: ISession[] = [];
+		const errors: string[] = [];
 		const state = {
 			existing: [] as IEditorIdentifier[],
 			opened: false,
 			editorFocused: false,
 			focusError: undefined as Error | undefined,
 			trusted: true,
+			readError: undefined as Error | undefined,
 		};
 		const pane = new class extends mock<IEditorPane>() {
 			override getId(): string { return ChatEditorInput.EditorID; }
@@ -70,6 +75,8 @@ suite('ProjectBoardChatWindows', () => {
 			override focus(): void { state.editorFocused = true; }
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, store.add(new NullLogService()));
+		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); } });
 		instantiationService.stubInstance(ChatEditorInput, input);
 		const openEditor = sinon.stub().callsFake(async (_editor: EditorInput | IUntypedEditorInput, _options?: IEditorOptions | PreferredGroup, _group?: PreferredGroup): Promise<IEditorPane | undefined> => {
 			state.opened = true;
@@ -96,7 +103,16 @@ suite('ProjectBoardChatWindows', () => {
 			canOpenSession: async () => state.trusted,
 			openChat: async () => { assert.fail('Standalone chat opening must not navigate the Agents window'); },
 		});
-		instantiationService.stub(ISessionsManagementService, { onDidChangeSessions: Event.None });
+		instantiationService.stub(ISessionsManagementService, {
+			onDidChangeSessions: Event.None,
+			markRead: async session => {
+				assert.strictEqual(state.editorFocused, true, 'Only mark read after the chat view has opened and focused');
+				if (state.readError) {
+					throw state.readError;
+				}
+				readSessions.push(session);
+			},
+		});
 		instantiationService.stub(IChatService, { onDidSubmitRequest: Event.None });
 		instantiationService.stub(IChatSessionsService, { getMaterializedSessionResource: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined });
@@ -105,26 +121,45 @@ suite('ProjectBoardChatWindows', () => {
 		const card = new class extends mock<IProjectBoardCard>() {
 			override readonly id = 'test-card';
 			override readonly title = 'Child';
+			override readonly session = new class extends mock<ISession>() {
+				override readonly resource = URI.parse('test-session:/owner');
+				override readonly sessionId = 'owner';
+			}();
 			override readonly chat = new class extends mock<IChat>() {
 				override readonly resource = resource;
 			}();
 		}();
-		return { opener, card, input, openEditor, createInstance, state, focused, targetWindow, group, mainGroup, pane, inputDisposed: () => inputDisposed };
+		return { opener, card, input, openEditor, createInstance, state, focused, readSessions, errors, targetWindow, group, mainGroup, pane, inputDisposed: () => inputDisposed };
 	}
 
 	test('PB-05 opens the exact child in a compact chat editor window, not the owner', async () => {
 		const h = setup();
 		await h.opener.open(h.card);
-		assert.ok(h.createInstance.calledWith(ChatEditorInput, h.card.chat.resource));
+		assert.ok(h.createInstance.calledWith(ChatEditorInput, h.card.chat.resource, { title: { fallback: 'Child' } }));
 		assert.deepStrictEqual(h.openEditor.firstCall.args, [
 			h.input,
 			{ pinned: true, revealIfOpened: false, auxiliary: { compact: true, bounds: { width: 800, height: 640 } } },
 			AUX_WINDOW_GROUP,
 		]);
 		assert.deepStrictEqual(h.focused, [h.targetWindow]);
-		assert.strictEqual(h.targetWindow.document.title, 'Child');
 		assert.strictEqual(h.state.editorFocused, true);
 		assert.strictEqual(h.inputDisposed(), false);
+	});
+
+	test('PB-04 explicit standalone opening marks the owning provider session read after rendering', async () => {
+		const h = setup();
+		assert.deepStrictEqual(h.readSessions, []);
+		await h.opener.open(h.card);
+		assert.deepStrictEqual(h.readSessions, [h.card.session]);
+	});
+
+	test('PB-04 read-state failures report that the chat opened successfully', async () => {
+		const h = setup();
+		h.state.readError = new Error('Provider unavailable');
+		await h.opener.open(h.card);
+		assert.deepStrictEqual({ opened: h.state.opened, read: h.readSessions, errors: h.errors }, {
+			opened: true, read: [], errors: ['The chat opened, but its read state could not be updated.'],
+		});
 	});
 
 
