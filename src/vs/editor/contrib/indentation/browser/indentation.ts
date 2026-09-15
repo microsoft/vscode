@@ -19,7 +19,7 @@ import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContr
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 import { TextEdit } from '../../../common/languages.js';
-import { getGoodIndentForLine} from '../../../common/languages/autoIndent.js';
+import { getGoodIndentForLine } from '../../../common/languages/autoIndent.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLineSequence, ITextModel } from '../../../common/model.js';
 import { IModelService } from '../../../common/services/model.js';
@@ -456,7 +456,8 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 		}
 
-		const firstLineNumber = startLineNumber;
+		const firstLineNumber =
+		startLineNumber;
 
 		// ignore empty or ignored lines
 		while (startLineNumber < range.endLineNumber) {
