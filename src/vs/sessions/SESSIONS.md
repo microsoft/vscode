@@ -202,6 +202,25 @@ Requests route through `ISessionsManagementService` to the provider identified b
 
 Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state.
 
+## Implementation comparisons
+
+The opt-in `sessions.comparison.enabled` feature is owned by the Comparison
+contribution in the Agents Window. It associates independently created sessions
+with one shared prompt and base branch or commit; it does not introduce another
+session provider or agent execution path. Launches use
+`ISessionsManagementService.createAndSendNewChatRequest`, require advertised
+worktree configuration support, and request a new isolated branch per attempt.
+Normal provider model availability, workspace trust, permissions, and billing
+continue to apply.
+
+Comparison history stores the prompt, target models, session resources, launch
+outcomes, and the user's preferred attempt in workspace-local machine storage.
+Results remain live views of their sessions, not immutable evaluation snapshots.
+Restoring history never resends a prompt; unfinished launches are marked
+interrupted. Choosing a preference neither merges changes nor deletes, archives,
+or cancels the other sessions. Session navigation and change review continue
+through `ISessionsService` and the existing editor services.
+
 ## State propagation
 
 Use the narrowest mechanism that represents a change:

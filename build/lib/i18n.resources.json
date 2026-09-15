@@ -713,6 +713,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/comparison",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/customViewTest",
 			"project": "vscode-sessions"
 		},
