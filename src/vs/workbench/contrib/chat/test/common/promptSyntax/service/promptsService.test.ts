@@ -3276,16 +3276,47 @@ suite('PromptsService', () => {
 					'---',
 					'# Issue Wizard',
 				],
+			}, {
+				path: `${BUILTIN_SKILLS_URI.path}/vscode-bug-fix/SKILL.md`,
+				contents: [
+					'---',
+					'name: vscode-bug-fix',
+					'description: Fix a reported VS Code bug end to end.',
+					'---',
+					'# VS Code Bug Fix',
+				],
+			}, {
+				path: `${BUILTIN_SKILLS_URI.path}/vscode-dev-setup/SKILL.md`,
+				contents: [
+					'---',
+					'name: vscode-dev-setup',
+					'description: Set up or repair a local Code - OSS development environment.',
+					'---',
+					'# VS Code Development Setup',
+				],
 			}]);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 
-			assert.deepStrictEqual(result?.filter(skill => skill.name === 'issue-wizard').map(skill => ({
+			const builtinSkillNames = ['issue-wizard', 'vscode-bug-fix', 'vscode-dev-setup'];
+			assert.deepStrictEqual(result?.filter(skill => builtinSkillNames.includes(skill.name)).map(skill => ({
+				name: skill.name,
 				uri: skill.uri.toString(),
 				storage: skill.storage,
 				userInvocable: skill.userInvocable,
 			})), [{
+				name: 'issue-wizard',
 				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'issue-wizard/SKILL.md').toString(),
+				storage: PromptsStorage.builtIn,
+				userInvocable: true,
+			}, {
+				name: 'vscode-bug-fix',
+				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'vscode-bug-fix/SKILL.md').toString(),
+				storage: PromptsStorage.builtIn,
+				userInvocable: true,
+			}, {
+				name: 'vscode-dev-setup',
+				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'vscode-dev-setup/SKILL.md').toString(),
 				storage: PromptsStorage.builtIn,
 				userInvocable: true,
 			}]);
