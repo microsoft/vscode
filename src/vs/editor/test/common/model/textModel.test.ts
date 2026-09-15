@@ -776,6 +776,46 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
+	test('issue #309962: detectIndentation should not break the indentSize -> tabSize link', () => {
+		// Simulate: open a file that triggers detect indentation, then run "Change Tab Display Size".
+		// With editor.indentSize defaulting to 'tabSize' (i.e., follow tabSize), changing the tab
+		// display size should also change the indentation step.
+		const m = createTextModel(
+			[
+				'    a',
+				'    b',
+				'    c',
+				'    d',
+				'    e',
+				'    f',
+				'    g',
+			].join('\n'),
+			undefined,
+			{
+				tabSize: 8,
+				indentSize: 'tabSize',
+				insertSpaces: false,
+				detectIndentation: false,
+			}
+		);
+
+		// Detect indentation: should find tabSize=4, insertSpaces=true.
+		m.detectIndentation(false, 8);
+		let opts = m.getOptions();
+		assert.strictEqual(opts.tabSize, 4, 'detected tabSize');
+		assert.strictEqual(opts.indentSize, 4, 'indentSize should track tabSize after detect');
+		assert.strictEqual(opts.insertSpaces, true, 'detected insertSpaces');
+
+		// Now simulate the "Change Tab Display Size" command which only updates tabSize.
+		// indentSize should follow because the user has not explicitly decoupled it.
+		m.updateOptions({ tabSize: 1 });
+		opts = m.getOptions();
+		assert.strictEqual(opts.tabSize, 1, 'tabSize after change tab display size');
+		assert.strictEqual(opts.indentSize, 1, 'indentSize should track new tabSize');
+
+		m.dispose();
+	});
+
 	test('validatePosition', () => {
 
 		const m = createTextModel('line one\nline two');
