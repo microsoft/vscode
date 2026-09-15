@@ -1144,7 +1144,6 @@ export class NewChatWidget extends Disposable {
 				this._workspacePicker.showPicker();
 				return false;
 			}
-			const permissionLevel = session.permissionLevel?.get();
 			const branch = this._comparisonBranch.get() ?? this._getComparisonBranch(session);
 			if (!branch) {
 				this.notificationService.error(localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit."));
