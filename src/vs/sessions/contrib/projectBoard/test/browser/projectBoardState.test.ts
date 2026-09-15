@@ -94,18 +94,19 @@ suite('ProjectBoardState', () => {
 		assert.strictEqual(notifications.length, 1);
 	});
 
-	test('PB-18 legacy metrics preferences remain editable and description visibility persists independently', () => {
+	test('PB-18 legacy description settings migrate to last prompt and new detail rows persist independently', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		storage.store(key, JSON.stringify({ ...defaults, display: { showStateDuration: true, showCredits: true } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(key, JSON.stringify({ ...defaults, display: { showStateDuration: true, showCredits: true, showDescription: false } }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const { state, notifications } = create(storage);
 		assert.strictEqual(state.canEdit, true);
-		assert.strictEqual(state.configuration.get().display?.showDescription, undefined);
-		state.setDisplayOption('showDescription', false);
-		assert.deepStrictEqual(create(storage).state.configuration.get().display, { showStateDuration: true, showCredits: true, showDescription: false });
+		assert.strictEqual(state.configuration.get().display?.showLastPrompt, false);
+		state.setDisplayOption('showModelDetails', true);
+		state.setDisplayOption('showPermissionDetails', true);
+		assert.deepStrictEqual(create(storage).state.configuration.get().display, { showStateDuration: true, showCredits: true, showLastPrompt: false, showModelDetails: true, showPermissionDetails: true });
 		state.setDisplayOption('showCredits', false);
-		assert.strictEqual(state.configuration.get().display?.showDescription, false);
-		state.setDisplayOption('showDescription', true);
-		assert.strictEqual(create(storage).state.configuration.get().display?.showDescription, true);
+		assert.strictEqual(state.configuration.get().display?.showLastPrompt, false);
+		state.setDisplayOption('showLastPrompt', true);
+		assert.strictEqual(create(storage).state.configuration.get().display?.showLastPrompt, true);
 		assert.deepStrictEqual(notifications, []);
 	});
 
@@ -193,6 +194,7 @@ suite('ProjectBoardState', () => {
 		['missing display key', { ...defaults, display: { showCredits: true } }],
 		['invalid display toggle', { ...defaults, display: { showStateDuration: true, showCredits: 'yes' } }],
 		['invalid description toggle', { ...defaults, display: { showStateDuration: true, showCredits: false, showDescription: 'yes' } }],
+		['invalid model details toggle', { ...defaults, display: { showStateDuration: true, showCredits: false, showModelDetails: 1 } }],
 		['unknown display key', { ...defaults, display: { showStateDuration: true, showCredits: true, other: false } }],
 		['null', null],
 		['array', []],

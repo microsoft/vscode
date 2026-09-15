@@ -42,6 +42,9 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBoardModel } from '../common/projectBoardModel.js';
 import { ProjectBoardState } from './projectBoardState.js';
 import { ProjectBoardStateDurations } from '../common/projectBoardStateDurations.js';
+import { getProjectBoardConfigurationDetails, IProjectBoardConfigurationDetails } from './projectBoardConfigurationDetails.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
@@ -60,6 +63,8 @@ export interface IProjectBoardService {
 }
 
 class ProjectBoardView extends Disposable {
+	private readonly configurationDetails = new Map<string, IProjectBoardConfigurationDetails>();
+	private readonly configurationErrors = new Set<string>();
 
 	private readonly model = new ProjectBoardModel();
 	private readonly cardElements = new Map<string, HTMLElement>();
@@ -122,6 +127,7 @@ class ProjectBoardView extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this.sessionsManagementService = services.sessionsManagementService;
@@ -173,9 +179,59 @@ class ProjectBoardView extends Disposable {
 			this.model.updateSessions(sessions, reader);
 			this.stateDurations.update(this.model.cards);
 			this.updateMetadata(reader);
+			this.updateConfigurationDetails(reader);
 			this.updateQuestionPreviews(reader);
 			this.render();
 		});
+	}
+
+	private updateConfigurationDetails(reader: IReader): void {
+		this.configurationDetails.clear();
+		const display = this.boardState.configuration.read(reader).display;
+		const enabled = !!(display?.showModelDetails || display?.showPermissionDetails);
+		for (const helper of this.metadataPreviews.values()) {
+			helper.setIncludeConfiguration(enabled);
+		}
+		if (!enabled) {
+			this.configurationErrors.clear();
+			return;
+		}
+		observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders).read(reader);
+		const cards = this.getDisplayedCards();
+		for (const id of this.configurationErrors) {
+			if (!cards.some(card => card.id === id)) {
+				this.configurationErrors.delete(id);
+			}
+		}
+		for (const card of cards) {
+			const helper = this.metadataPreviews.get(card.id);
+			if (!helper) {
+				const field = { label: localize('projectBoard.configuration', "Configuration"), value: localize('projectBoard.configurationLimit', "Preview limit reached. Open the chat for configuration.") };
+				this.configurationDetails.set(card.id, { model: [field], permissions: [field] });
+				continue;
+			}
+			try {
+				const provider = this.sessionsProvidersService.getProvider(card.session.providerId);
+				if (provider) {
+					observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
+					if (isAgentHostProvider(provider)) {
+						observableSignalFromEvent(this, provider.onDidChangeSessionConfig).read(reader);
+					}
+				}
+				const input = helper.configuration.read(reader);
+				this.configurationDetails.set(card.id, getProjectBoardConfigurationDetails(card, input, provider, reader));
+				this.configurationErrors.delete(card.id);
+			} catch (error) {
+				const message = localize('projectBoard.configurationFailed', "Configuration unavailable for \"{0}\".", card.title);
+				const field = { label: localize('projectBoard.configuration', "Configuration"), value: message };
+				this.configurationDetails.set(card.id, { model: [field], permissions: [field] });
+				if (!this.configurationErrors.has(card.id)) {
+					this.configurationErrors.add(card.id);
+					this.logService.error('[ProjectBoard] Failed to read configuration', error);
+					this.notificationService.error(message);
+				}
+			}
+		}
 	}
 
 	private updateMetadata(reader: IReader): void {
@@ -528,10 +584,22 @@ class ProjectBoardView extends Disposable {
 					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showCredits', !this.boardState.configuration.get().display?.showCredits)),
 				}),
 				toAction({
-					id: 'projectBoard.settings.description',
-					label: localize('projectBoard.showDescription', "Show Description"),
-					checked: display?.showDescription !== false,
-					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showDescription', this.boardState.configuration.get().display?.showDescription === false)),
+					id: 'projectBoard.settings.lastPrompt',
+					label: localize('projectBoard.showLastPrompt', "Show Last Prompt"),
+					checked: display?.showLastPrompt !== false,
+					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showLastPrompt', this.boardState.configuration.get().display?.showLastPrompt === false)),
+				}),
+				toAction({
+					id: 'projectBoard.settings.modelDetails',
+					label: localize('projectBoard.showModelDetails', "Show Model Details"),
+					checked: !!display?.showModelDetails,
+					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showModelDetails', !this.boardState.configuration.get().display?.showModelDetails)),
+				}),
+				toAction({
+					id: 'projectBoard.settings.permissionDetails',
+					label: localize('projectBoard.showPermissionDetails', "Show Agent & Permissions"),
+					checked: !!display?.showPermissionDetails,
+					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showPermissionDetails', !this.boardState.configuration.get().display?.showPermissionDetails)),
 				}),
 			],
 			onHide: () => {
@@ -891,7 +959,7 @@ class ProjectBoardView extends Disposable {
 			element.appendChild(connection);
 		}
 
-		if (card.description && display?.showDescription !== false) {
+		if (card.description) {
 			const description = document.createElement('div');
 			description.className = 'project-board-card-description';
 			description.textContent = card.description;
@@ -899,10 +967,32 @@ class ProjectBoardView extends Disposable {
 			store.add(this.hoverService.setupDelayedHover(description, { content: card.description }));
 			element.appendChild(description);
 		}
+		const configuration = this.configurationDetails.get(card.id);
+		if (configuration) {
+			for (const [kind, enabled, values] of [
+				['model', display?.showModelDetails, configuration.model],
+				['permissions', display?.showPermissionDetails, configuration.permissions],
+			] as const) {
+				if (!enabled) {
+					continue;
+				}
+				const row = document.createElement('div');
+				row.className = `project-board-card-configuration project-board-card-${kind}`;
+				row.setAttribute('aria-label', kind === 'model' ? localize('projectBoard.modelDetails', "Model details") : localize('projectBoard.permissionDetails', "Agent and permissions"));
+				describe(row);
+				for (const value of values) {
+					const item = document.createElement('span');
+					item.textContent = value.value;
+					item.setAttribute('aria-label', localize('projectBoard.configurationValue', "{0}: {1}", value.label, value.value));
+					row.appendChild(item);
+				}
+				store.add(this.hoverService.setupDelayedHover(row, { content: values.map(value => localize('projectBoard.configurationValue', "{0}: {1}", value.label, value.value)).join('\n') }));
+				element.appendChild(row);
+			}
+		}
 		const metadata = this.metadataStates.get(card.id);
 		const prompt = document.createElement('div');
 		prompt.className = 'project-board-card-prompt';
-		describe(prompt);
 		prompt.textContent = metadata?.kind === 'ready' && metadata.prompt !== undefined
 			? metadata.prompt
 			: metadata?.kind === 'ready'
@@ -910,8 +1000,11 @@ class ProjectBoardView extends Disposable {
 				: metadata?.kind === 'loading'
 					? localize('projectBoard.loadingPrompt', "Loading last prompt…")
 					: localize('projectBoard.promptUnavailable', "Prompt unavailable");
-		store.add(this.hoverService.setupDelayedHover(prompt, { content: prompt.textContent }));
-		element.appendChild(prompt);
+		if (display?.showLastPrompt !== false) {
+			describe(prompt);
+			store.add(this.hoverService.setupDelayedHover(prompt, { content: prompt.textContent }));
+			element.appendChild(prompt);
+		}
 		const time = this.promptTimes.get(card.id);
 		const recency = document.createElement('div');
 		recency.className = 'project-board-card-recency';
@@ -1236,7 +1329,7 @@ class ProjectBoardView extends Disposable {
 			case SessionStatus.Error:
 				return '\u26A0\uFE0F';
 			default:
-				return '\u{1F9CD}\u{1F4A4}';
+				return card.isRead ? '\u{1F634}' : '\u{1F440}';
 		}
 	}
 
