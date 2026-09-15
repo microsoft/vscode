@@ -745,6 +745,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/issueWizard",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},

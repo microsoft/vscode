@@ -1399,7 +1399,8 @@ extension field is hidden (no fixed-width placeholder needed). */
 .issue-reporter-annotation-overlay {
 	position: absolute;
 	inset: 0;
-	z-index: 3;
+	/* Annotation must cover both the captured modal and the floating capture bar. */
+	z-index: 5001;
 	background: var(--vscode-editor-background, #1e1e1e);
 	display: flex;
 	flex-direction: column;

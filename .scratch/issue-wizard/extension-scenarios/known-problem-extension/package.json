@@ -1,0 +1,27 @@
+{
+	"name": "issue-wizard-known-problem",
+	"displayName": "Issue Wizard Known Problem",
+	"description": "Deterministic extension-owned symptom for the Issue Wizard demo.",
+	"version": "0.0.1",
+	"publisher": "vscode-extension-samples",
+	"license": "MIT",
+	"private": true,
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"activationEvents": [
+		"onStartupFinished",
+		"onLanguage:plaintext"
+	],
+	"main": "./extension.cjs",
+	"extensionKind": [
+		"ui"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode-extension-samples.git"
+	},
+	"bugs": {
+		"url": "https://github.com/microsoft/vscode-extension-samples/issues"
+	}
+}

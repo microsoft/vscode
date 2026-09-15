@@ -7,12 +7,12 @@
 **Status:** ready-for-agent
 
 - [ ] The bundled Issue Wizard skill is the single source of truth for orchestration across support outcomes.
-- [ ] Stage 1 gathers a problem brief containing the user action, actual result, expected result, and reproduction or persistence details.
-- [ ] Diagnostic tools are not invoked until the Stage 1 problem brief is complete; screenshots may be used as intake evidence without silently advancing the stage.
+- [ ] Stage 1 gathers a concise problem brief containing actual and expected behavior plus the triggering action when known; reproduction frequency or persistence may remain unknown when they are not needed to begin investigating.
+- [ ] Diagnostic tools are not invoked until actual and expected behavior are understood; an adequate description or screenshot completes intake without forcing another question or reproduction.
 - [ ] Stage 2 produces an investigation summary containing collected evidence, the likely owner or cause, confidence, and unresolved questions.
-- [ ] After Stage 2, the agent asks whether the user wants to file or update an issue, or pursue a source fix, when those routes are credible.
+- [ ] After Stage 2, the agent first applies a supported setting, update, or extension outcome when evidence warrants it; otherwise it routes to an issue or a user-approved source fix.
 - [ ] Source setup begins only when the evidence indicates a credible VS Code bug and the user explicitly chooses the source-fix route.
-- [ ] The source-fix route invokes `.github/skills/vscode-bug-fix/SKILL.md` with the structured problem brief and investigation summary, and does not repeat satisfied intake.
+- [ ] The source-fix route invokes the bundled `vscode-bug-fix` skill with the structured problem brief and investigation summary, and does not repeat satisfied intake.
 - [ ] Transcript and tool-order evaluations cover vague initial reports, screenshot-assisted intake, already-sufficient reproduction, declined diagnostics, cheap setting and update outcomes, the issue route, and the source-fix route.
 - [ ] The MVP uses explicit skill contracts and evaluations rather than a host-side phase state machine.
 - [ ] One implementation session owns edits to `src/vs/workbench/contrib/chat/common/promptSyntax/builtinSkills/issue-wizard/SKILL.md`; parallel route work must avoid editing that file.

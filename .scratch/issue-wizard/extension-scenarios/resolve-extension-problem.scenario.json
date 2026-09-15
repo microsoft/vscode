@@ -1,0 +1,89 @@
+{
+	"id": "issue-wizard-resolve-known-extension-problem",
+	"title": "A known extension unexpectedly rewrites the first line on save",
+	"platform": "darwin",
+	"symptom": "Saving issue-wizard-extension-symptom.txt unexpectedly replaces its first line.",
+	"environment": {
+		"sourceCheckoutAvailable": false,
+		"gitInstalled": false,
+		"githubCliInstalled": false,
+		"githubAuthenticated": false
+	},
+	"extension": {
+		"id": "vscode-extension-samples.issue-wizard-known-problem",
+		"displayName": "Issue Wizard Known Problem",
+		"repository": "microsoft/vscode-extension-samples",
+		"issueTracker": "https://github.com/microsoft/vscode-extension-samples/issues"
+	},
+	"transcript": [
+		{
+			"kind": "user",
+			"text": "Every time I save issue-wizard-extension-symptom.txt, its first line is replaced. I expect saving to preserve my text. It happens every time in this workspace."
+		},
+		{
+			"kind": "evidence",
+			"source": "extensionIsolation",
+			"extensionId": "vscode-extension-samples.issue-wizard-known-problem",
+			"candidateExtensionIds": [
+				"vscode-extension-samples.issue-wizard-known-problem"
+			],
+			"symptomPresent": true,
+			"unrelatedExtensionsChanged": false
+		},
+		{
+			"kind": "assistant",
+			"text": "The save-time rewrite is registered by Issue Wizard Known Problem, and the evidence narrows the behavior to that extension. I can disable only vscode-extension-samples.issue-wizard-known-problem for this workspace; other extensions will remain enabled. This changes extension state and may restart the extension host. May I do that?"
+		},
+		{
+			"kind": "user",
+			"text": "Yes, disable that extension for this workspace.",
+			"approvalFor": "disableExtension",
+			"extensionId": "vscode-extension-samples.issue-wizard-known-problem"
+		},
+		{
+			"kind": "action",
+			"name": "disableExtension",
+			"extensionId": "vscode-extension-samples.issue-wizard-known-problem",
+			"scope": "extension",
+			"approval": "approved"
+		},
+		{
+			"kind": "assistant",
+			"text": "Please undo the replaced first line, save issue-wizard-extension-symptom.txt again, and check whether your first line now stays unchanged."
+		},
+		{
+			"kind": "user",
+			"text": "I restored the first line and saved again. It stayed unchanged, so the symptom is gone.",
+			"verification": "resolved"
+		},
+		{
+			"kind": "assistant",
+			"text": "That verification identifies vscode-extension-samples.issue-wizard-known-problem as the owner, not VS Code itself. A microsoft/vscode issue would be the wrong destination. If you want to report the defect, review the extension-maintainer draft below; nothing has been published."
+		},
+		{
+			"kind": "artifactPreview",
+			"artifact": "extensionIssue",
+			"owner": "vscode-extension-samples.issue-wizard-known-problem",
+			"repository": "microsoft/vscode-extension-samples",
+			"issueTracker": "https://github.com/microsoft/vscode-extension-samples/issues",
+			"title": "Known Problem sample rewrites the first line when saving the demo document",
+			"body": "Expected: saving issue-wizard-extension-symptom.txt preserves its first line.\n\nActual: with Issue Wizard Known Problem enabled, every save replaces the first line with the extension's marker. Disabling only vscode-extension-samples.issue-wizard-known-problem and repeating the same save leaves the line unchanged.\n\nReproduction: open the demo workspace, edit the first line, and save.\n\n<!-- issue-wizard -->",
+			"published": false
+		},
+		{
+			"kind": "outcome",
+			"resolution": "extensionDisabled",
+			"owner": "vscode-extension-samples.issue-wizard-known-problem",
+			"verifiedByUser": true,
+			"proposeMicrosoftVSCodeIssue": false
+		}
+	],
+	"expected": {
+		"verificationTerms": [
+			"save",
+			"first line"
+		],
+		"reportUseful": true
+	}
+}
+

@@ -29,8 +29,9 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAgentHostActiveClientService } from '../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, toAgentHostCompletionVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isLocalAgentHostTarget } from '../../chat/common/chatSessionsService.js';
+import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { PromptsType } from '../../chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../chat/common/promptSyntax/service/promptsService.js';
 import { IIssueWizardIntakeService, IIssueWizardScreenshotAnnotationService, IssueWizardIntakeService, IssueWizardScreenshotAnnotationService } from './issueWizardIntakeService.js';
@@ -44,6 +45,9 @@ const ISSUE_WIZARD_SLASH_COMMAND = 'issue-wizard';
 const ISSUE_WIZARD_SKILL_COMPLETION_TIMEOUT = 10_000;
 const ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY = 50;
 const ISSUE_WIZARD_SKILL_COMPLETION_ATTEMPTS = Math.ceil(ISSUE_WIZARD_SKILL_COMPLETION_TIMEOUT / ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY);
+const ISSUE_WIZARD_SCREENSHOT_TARGET_TIMEOUT = 10_000;
+const ISSUE_WIZARD_SCREENSHOT_TARGET_ATTEMPTS = Math.ceil(ISSUE_WIZARD_SCREENSHOT_TARGET_TIMEOUT / ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY);
+const ISSUE_WIZARD_PREFERRED_MODEL_IDS = ['gpt-6-astra', 'gpt-5.6-sol', 'claude-sonnet-5'] as const;
 
 /**
  * Optional context supplied by an Issue Wizard entry point.
@@ -52,18 +56,52 @@ export interface IIssueWizardLaunchOptions {
 	readonly symptom?: string;
 }
 
+/** Surface-local session creation for the provider-neutral Issue Wizard launcher. */
+export interface IIssueWizardLaunchTarget {
+	createSession(options: IIssueWizardCreateSessionOptions): Promise<IIssueWizardLaunchSession | undefined>;
+}
+
+/** Provider-neutral options for creating the Issue Wizard's fresh session. */
+export interface IIssueWizardCreateSessionOptions {
+	readonly sessionType: string;
+	readonly displayName: string;
+	readonly modelId: string;
+}
+
+/** A surface-owned session that can receive the shared Issue Wizard bootstrap. */
+export interface IIssueWizardLaunchSession {
+	readonly sessionResource: URI;
+	send(request: IIssueWizardBootstrapRequest): Promise<void>;
+	getScreenshotTarget(): IIssueWizardScreenshotTarget | undefined;
+	revealScreenshotTarget(target: IIssueWizardScreenshotTarget): Promise<IChatWidget | undefined>;
+}
+
+/** The exact visible chat composer that owns Issue Wizard screenshot attachments. */
+export interface IIssueWizardScreenshotTarget {
+	readonly widget: IChatWidget;
+	readonly sessionResource: URI;
+}
+
+/** Shared bootstrap content sent through a surface-local session adapter. */
+export interface IIssueWizardBootstrapRequest {
+	readonly query: string;
+	readonly attachedContext: readonly IChatRequestVariableEntry[];
+}
+
 export const IIssueWizardLauncherService = createDecorator<IIssueWizardLauncherService>('issueWizardLauncherService');
 
 export interface IIssueWizardLauncherService {
 	readonly _serviceBrand: undefined;
 	readonly captureBarActive: boolean;
 	launch(options?: IIssueWizardLaunchOptions): Promise<void>;
+	launchInTarget(target: IIssueWizardLaunchTarget, options?: IIssueWizardLaunchOptions): Promise<void>;
 	addHighlightedScreenshot(): Promise<void>;
 }
 
 interface IIssueWizardCaptureState {
 	readonly bar: ScreenshotCaptureBar;
-	readonly target: IChatWidget;
+	readonly session: IIssueWizardLaunchSession;
+	target: IChatWidget;
 	readonly sessionResource: URI;
 }
 
@@ -89,6 +127,7 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this.captureBarActiveContext = IssueWizardCaptureBarActiveContext.bindTo(this.contextKeyService);
@@ -115,6 +154,10 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 	}
 
 	async launch(options?: IIssueWizardLaunchOptions): Promise<void> {
+		await this.launchInTarget(this.createEditorLaunchTarget(), options);
+	}
+
+	async launchInTarget(target: IIssueWizardLaunchTarget, options?: IIssueWizardLaunchOptions): Promise<void> {
 		if (this.chatEntitlementService.sentiment.hidden) {
 			this.notificationService.warn(localize('issueWizardUnavailable.aiDisabled', "Issue Wizard is unavailable because AI features are disabled in this window."));
 			return;
@@ -124,8 +167,7 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 			return;
 		}
 
-		const folderUri = this.getInvokingWorkspaceFolder();
-		await this.createSessionAndSendBootstrap(folderUri, options?.symptom);
+		await this.createSessionAndSendBootstrap(target, options?.symptom);
 	}
 
 	async addHighlightedScreenshot(): Promise<void> {
@@ -150,23 +192,71 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 		return (activeResource ? this.workspaceContextService.getWorkspaceFolder(activeResource)?.uri : undefined) ?? folders[0]?.uri;
 	}
 
-	private async createSessionAndSendBootstrap(folderUri: URI | undefined, symptom: string | undefined): Promise<void> {
+	private createEditorLaunchTarget(): IIssueWizardLaunchTarget {
+		return {
+			createSession: async options => {
+				const session = await this.chatWidgetService.openNewAgentHostEditorSession({
+					sessionType: options.sessionType,
+					displayName: options.displayName,
+					workspaceFolder: this.getInvokingWorkspaceFolder(),
+				});
+				if (!session) {
+					return undefined;
+				}
+				const { widget: chatWidget, sessionResource } = session;
+				// Record this as the new conversation's programmatic intent. Merely
+				// changing the displayed model can be overwritten when the empty
+				// composer finishes restoring its remembered profile selection.
+				if (!chatWidget.inputPart.switchModelByIdentifier(options.modelId)) {
+					throw new Error(localize('issueWizard.error.modelUnavailableAfterLaunch', "The selected Issue Wizard model is no longer available."));
+				}
+				return {
+					sessionResource,
+					send: async request => {
+						chatWidget.attachmentModel.addContext(...request.attachedContext);
+						chatWidget.focusInput();
+						try {
+							const accepted = await chatWidget.acceptInput(request.query);
+							if (!accepted) {
+								throw new Error(localize('issueWizard.error.bootstrapRejected', "Issue Wizard could not send its first request. Retry when ready."));
+							}
+						} catch (error) {
+							chatWidget.setInput(request.query);
+							chatWidget.focusInput();
+							throw error;
+						}
+						if (request.attachedContext.length) {
+							chatWidget.attachmentModel.delete(...request.attachedContext.map(attachment => attachment.id));
+						}
+					},
+					getScreenshotTarget: () => ({ widget: chatWidget, sessionResource }),
+					revealScreenshotTarget: async target => {
+						const resource = target.widget.viewModel?.sessionResource ?? target.sessionResource;
+						await this.editorService.openEditor({ resource, options: { revealIfOpened: true, pinned: true } });
+						return this.chatWidgetService.getWidgetBySessionResource(resource) ?? target.widget;
+					},
+				};
+			},
+		};
+	}
+
+	private async createSessionAndSendBootstrap(target: IIssueWizardLaunchTarget, symptom: string | undefined): Promise<void> {
 		try {
 			const agentHostSessionType = this.chatSessionsService.getAllChatSessionContributions()
 				.find(contribution => contribution.agentHostProviderId && isLocalAgentHostTarget(contribution.type))?.type;
 			if (!agentHostSessionType) {
 				throw new Error(localize('issueWizard.error.agentHostUnavailable', "No Agent Host session provider is available."));
 			}
+			const model = await this.selectLanguageModel(agentHostSessionType);
 
-			const session = await this.chatWidgetService.openNewAgentHostEditorSession({
+			const session = await target.createSession({
 				sessionType: agentHostSessionType,
 				displayName: localize('issueWizard.sessionName', "Issue Wizard"),
-				workspaceFolder: folderUri,
+				modelId: model.identifier,
 			});
 			if (!session) {
 				throw new Error(localize('issueWizard.error.chatUnavailable', "Chat session was not created."));
 			}
-			const { widget: chatWidget } = session;
 
 			const builtinSkills = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
 			const issueWizardSkill = builtinSkills.find(skill => basename(dirname(skill.uri)) === ISSUE_WIZARD_SLASH_COMMAND);
@@ -207,34 +297,73 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 				),
 				range: { start: 0, endExclusive: slashCommand.length },
 			};
-			chatWidget.attachmentModel.addContext(skillReference);
-
-			chatWidget.focusInput();
-			try {
-				await chatWidget.acceptInput(`${slashCommand} ${this.createBootstrapMessage(symptom?.trim())}`);
-			} finally {
-				chatWidget.attachmentModel.delete(skillReference.id);
+			await session.send({
+				query: `${slashCommand} ${this.createBootstrapMessage(symptom?.trim())}`,
+				attachedContext: [skillReference],
+			});
+			const screenshotTarget = await this.waitForScreenshotTarget(session);
+			if (!screenshotTarget) {
+				throw new Error(localize('issueWizard.error.screenshotTargetUnavailable', "The Issue Wizard screenshot control could not be opened."));
 			}
-			this.showCaptureBar(chatWidget, session.sessionResource);
+			this.showCaptureBar(session, screenshotTarget);
 		} catch (error) {
 			this.notificationService.error(localize('issueWizardStartFailed', "Issue Wizard failed to start: {0}", toErrorMessage(error)));
 		}
 	}
 
-	private showCaptureBar(chatWidget: IChatWidget, sessionResource: URI): void {
+	private async selectLanguageModel(sessionType: string): Promise<ILanguageModelChatMetadataAndIdentifier> {
+		const identifiers = await this.languageModelsService.selectLanguageModels({ vendor: sessionType });
+		const models = identifiers
+			.map(identifier => {
+				const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+				return metadata ? { identifier, metadata } : undefined;
+			})
+			.filter((model): model is ILanguageModelChatMetadataAndIdentifier => model !== undefined
+				&& model.metadata.id !== AUTO_RAW_MODEL_ID
+				&& model.metadata.targetChatSessionType === sessionType
+				&& !this.languageModelsService.isModelHidden(model.identifier));
+		const preferred = ISSUE_WIZARD_PREFERRED_MODEL_IDS
+			.map(id => models.find(model => model.metadata.id === id))
+			.find(model => model !== undefined);
+		const fallback = models.find(model => model.metadata.capabilities?.vision === true) ?? models[0];
+		const selected = preferred ?? fallback;
+		if (!selected) {
+			throw new Error(localize('issueWizard.error.noConcreteModel', "No concrete language model is available for Issue Wizard."));
+		}
+		return selected;
+	}
+
+	private async waitForScreenshotTarget(session: IIssueWizardLaunchSession): Promise<IIssueWizardScreenshotTarget | undefined> {
+		for (let attempt = 0; attempt < ISSUE_WIZARD_SCREENSHOT_TARGET_ATTEMPTS; attempt++) {
+			const target = session.getScreenshotTarget();
+			if (target) {
+				return target;
+			}
+			if (attempt < ISSUE_WIZARD_SCREENSHOT_TARGET_ATTEMPTS - 1) {
+				await timeout(ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY);
+			}
+		}
+		return undefined;
+	}
+
+	private showCaptureBar(session: IIssueWizardLaunchSession, { widget: chatWidget, sessionResource }: IIssueWizardScreenshotTarget): void {
 		this.clearCaptureBar();
 		const captureBarDisposables = new DisposableStore();
 		this.captureBarDisposables.value = captureBarDisposables;
 		const captureBar = captureBarDisposables.add(new ScreenshotCaptureBar(this.layoutService.activeContainer, this.contextMenuService));
-		this.captureState = { bar: captureBar, target: chatWidget, sessionResource };
-		captureBarDisposables.add(chatWidget.onDidFocus(() => captureBar.activate()));
+		this.captureState = { bar: captureBar, session, target: chatWidget, sessionResource };
+		captureBarDisposables.add(this.chatWidgetService.onDidChangeFocusedSession(() => this.updateCaptureBarTarget()));
 		captureBarDisposables.add(captureBar.onDidChangeActive(active => {
 			if (captureBar === this.captureState?.bar) {
 				this.captureBarActiveContext.set(active);
 			}
 		}));
 		captureBarDisposables.add(captureBar.onDidRequestScreenshot(() => {
-			const operation = this.captureAndAttachScreenshot(chatWidget, captureBar);
+			const captureState = this.captureState;
+			if (!captureState || captureState.bar !== captureBar) {
+				return;
+			}
+			const operation = this.captureAndAttachScreenshot(captureState);
 			this.captureOperation = operation;
 			void operation.finally(() => {
 				if (this.captureOperation === operation) {
@@ -246,7 +375,27 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 		this.captureBarActiveContext.set(captureBar.active);
 	}
 
-	private async captureAndAttachScreenshot(chatWidget: IChatWidget, captureBar: ScreenshotCaptureBar): Promise<void> {
+	private updateCaptureBarTarget(): IChatWidget | undefined {
+		const captureState = this.captureState;
+		if (!captureState) {
+			return undefined;
+		}
+		// Widget registration can briefly lag focus and layout changes. Keep the
+		// exact target supplied by the launch surface until its removal event tells
+		// us that the Issue Wizard session really closed.
+		const target = this.chatWidgetService.getWidgetBySessionResource(captureState.sessionResource) ?? captureState.target;
+		captureState.target = target;
+		captureState.bar.show();
+		captureState.bar.activate();
+		this.captureBarActiveContext.set(captureState.bar.active);
+		return target;
+	}
+
+	private async captureAndAttachScreenshot(captureState: IIssueWizardCaptureState): Promise<void> {
+		const { bar: captureBar } = captureState;
+		if (!this.updateCaptureBarTarget()) {
+			return;
+		}
 		captureBar.setCaptureEnabled(false, localize('issueWizardScreenshot.capturing', "Capturing screenshot..."));
 		try {
 			if (captureBar.shouldHideForCapture) {
@@ -255,20 +404,30 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 			}
 
 			const attachments = await this.issueWizardIntakeService.collectScreenshot();
-			if (!attachments || captureBar !== this.captureState?.bar || chatWidget !== this.captureState?.target) {
+			if (!attachments || captureState !== this.captureState) {
+				return;
+			}
+			const chatWidget = this.updateCaptureBarTarget();
+			if (!chatWidget) {
 				return;
 			}
 			for (const attachment of attachments) {
 				chatWidget.attachmentModel.addContext(attachment);
 			}
-			await this.chatWidgetService.reveal(chatWidget);
-			chatWidget.focusInput();
+			const revealedWidget = await captureState.session.revealScreenshotTarget({
+				widget: chatWidget,
+				sessionResource: captureState.sessionResource,
+			});
+			if (revealedWidget && captureState === this.captureState) {
+				captureState.target = revealedWidget;
+				revealedWidget.focusInput();
+			}
 		} catch (error) {
 			this.notificationService.error(localize('issueWizardScreenshot.failed', "Issue Wizard could not add the screenshot: {0}", toErrorMessage(error)));
 		} finally {
 			if (captureBar === this.captureState?.bar) {
-				captureBar.show();
 				captureBar.setCaptureEnabled(true);
+				this.updateCaptureBarTarget();
 			}
 		}
 	}

@@ -742,7 +742,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session) : undefined;
 
 		if (options.background) {
-			this._newSession.set(undefined, undefined);
+			if (this._newSession.get()?.sessionId === session.sessionId) {
+				this._newSession.set(undefined, undefined);
+			}
 			void this._prepareAndSendNewChatRequestInBackground(provider, session, options)
 				.catch(e => {
 					this.logService.error('[SessionsManagement] Failed to send background request:', e);
@@ -752,6 +754,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const requestActivity = new MutableDisposable<IDisposable>();
+		let clearedDraft: ISession | undefined;
 		try {
 			requestActivity.value = provider.startNewSessionRequest?.(session.sessionId);
 			({ provider, session } = await this._prepareNewSessionForSend(provider, session, requestActivity, true, options.query));
@@ -760,7 +763,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// so the provider keeps owning it — just drop the pointer, do not delete.
 			// Clearing the new session recomputes the isNewChatSession context key
 			// via the view service's active-session autorun.
-			this._newSession.set(undefined, undefined);
+			if (this._newSession.get()?.sessionId === session.sessionId) {
+				clearedDraft = session;
+				this._newSession.set(undefined, undefined);
+			}
 
 			// Foreground send: notify listeners that a send is starting. Listeners
 			// (e.g., telemetry) can use this to prewarm caches whose result is
@@ -786,6 +792,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			this._onDidStartSession.fire(updatedSession);
 			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
+		} catch (error) {
+			// A failed first send has not graduated the draft. Restore it when no
+			// newer composer draft has taken its place so the user can retry.
+			if (clearedDraft?.status.get() === SessionStatus.Untitled && !this._newSession.get()) {
+				this._newSession.set(clearedDraft, undefined);
+			}
+			throw error;
 		} finally {
 			requestActivity.dispose();
 			inFlightRequest?.dispose();
@@ -851,6 +864,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			requestActivity.value = preparedRequestActivity;
 		}
 		if (replaceCurrentDraft) {
+			this._newSession.set(preparedSession, undefined);
 			this._onDidReplaceNewDraftSession.fire({ from: originalSession, to: preparedSession });
 		}
 		return { provider: preparedProvider, session: preparedSession };

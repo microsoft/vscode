@@ -1,0 +1,449 @@
+{
+	"id": "issue-wizard-find-matching-github-issues",
+	"repository": "microsoft/vscode",
+	"cases": [
+		{
+			"id": "authenticated-gh",
+			"input": {
+				"title": "Integrated terminal is blank after reload",
+				"symptom": "Terminal contents disappear after the window reloads",
+				"relevantTerms": ["pty host", "reconnect"],
+				"state": "open"
+			},
+			"transcript": [
+				{
+					"kind": "user",
+					"text": "The integrated terminal becomes blank after I reload the window."
+				},
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": true,
+					"authenticated": true,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "gh",
+					"query": "terminal blank reload reconnect",
+					"repository": "microsoft/vscode",
+					"issueOnly": true,
+					"state": "open",
+					"command": {
+						"executable": "gh",
+						"arguments": ["search", "issues", "terminal", "blank", "reload", "reconnect", "--repo", "microsoft/vscode", "--state", "open", "--limit", "10", "--json", "number,title,url,state"]
+					},
+					"results": [
+						{
+							"number": 241356,
+							"title": "Integrated terminal blank after reload when pty host reconnects",
+							"url": "https://github.com/microsoft/vscode/issues/241356",
+							"state": "open"
+						},
+						{
+							"number": 198201,
+							"title": "Terminal output intermittently missing",
+							"url": "https://github.com/microsoft/vscode/issues/198201",
+							"state": "open"
+						}
+					]
+				},
+				{
+					"kind": "candidateInspection",
+					"number": 241356,
+					"fields": ["title", "body"]
+				},
+				{
+					"kind": "assistant",
+					"purpose": "searchSummary",
+					"text": "#241356 is a strong match because it reports the same blank integrated terminal after reload and a pty host reconnect. New reproduction evidence belongs there rather than in a duplicate issue.",
+					"matches": [
+						{
+							"number": 241356,
+							"relevance": "Same blank integrated terminal after reload and pty host reconnect."
+						}
+					]
+				},
+				{
+					"kind": "outcome",
+					"resolution": "matchingIssueFound",
+					"preferredEvidenceDestination": 241356,
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "gh",
+				"strongMatch": 241356,
+				"relevanceTerms": ["terminal", "blank", "reload", "pty host"]
+			}
+		},
+		{
+			"id": "duplicate-language-model-panel",
+			"input": {
+				"title": "Language Models panel shows duplicate Copilot groups",
+				"symptom": "The same model appears repeatedly under Copilot in the Language Models panel",
+				"state": "all"
+			},
+			"transcript": [
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": true,
+					"authenticated": true,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "gh",
+					"query": "Language Models panel Copilot",
+					"repository": "microsoft/vscode",
+					"issueOnly": true,
+					"state": "all",
+					"command": {
+						"executable": "gh",
+						"arguments": ["search", "issues", "Language", "Models", "panel", "Copilot", "--repo", "microsoft/vscode", "--limit", "20", "--json", "number,title,state,url"]
+					},
+					"results": [
+						{
+							"number": 326538,
+							"title": "Language Models panel mixes LLM providers and chat session agents, appearing as confusing duplicates",
+							"url": "https://github.com/microsoft/vscode/issues/326538",
+							"state": "open"
+						}
+					]
+				},
+				{
+					"kind": "candidateInspection",
+					"number": 326538,
+					"fields": ["title", "body"]
+				},
+				{
+					"kind": "assistant",
+					"purpose": "searchSummary",
+					"text": "#326538 is a strong match: the same Language Models panel mixes Copilot entries and presents them as confusing duplicates.",
+					"matches": [
+						{
+							"number": 326538,
+							"relevance": "Same Language Models panel shows Copilot entries as confusing duplicates."
+						}
+					]
+				},
+				{
+					"kind": "outcome",
+					"resolution": "matchingIssueFound",
+					"preferredEvidenceDestination": 326538,
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "gh",
+				"strongMatch": 326538,
+				"relevanceTerms": ["Language Models", "Copilot", "duplicates"]
+			}
+		},
+		{
+			"id": "triplicate-copilot-model",
+			"input": {
+				"title": "Language model screen shows 3 repeated models under Copilot",
+				"symptom": "Three rows show the same model and all say Copilot",
+				"state": "all"
+			},
+			"transcript": [
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": true,
+					"authenticated": true,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "gh",
+					"query": "3 model Copilot",
+					"repository": "microsoft/vscode",
+					"issueOnly": true,
+					"state": "all",
+					"command": {
+						"executable": "gh",
+						"arguments": ["search", "issues", "3", "model", "Copilot", "--repo", "microsoft/vscode", "--limit", "20", "--json", "number,title,state,url"]
+					},
+					"results": [
+						{
+							"number": 329261,
+							"title": "Language model screen shows 3 GPT 5.5 all say copilot",
+							"url": "https://github.com/microsoft/vscode/issues/329261",
+							"state": "open"
+						}
+					]
+				},
+				{
+					"kind": "candidateInspection",
+					"number": 329261,
+					"fields": ["title", "body"]
+				},
+				{
+					"kind": "assistant",
+					"purpose": "searchSummary",
+					"text": "#329261 is a strong match: its screen also shows three rows for one model and labels every row Copilot.",
+					"matches": [
+						{
+							"number": 329261,
+							"relevance": "Same screen shows three rows for one model under Copilot."
+						}
+					]
+				},
+				{
+					"kind": "outcome",
+					"resolution": "matchingIssueFound",
+					"preferredEvidenceDestination": 329261,
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "gh",
+				"strongMatch": 329261,
+				"relevanceTerms": ["three", "model", "Copilot"]
+			}
+		},
+		{
+			"id": "anonymous-rest",
+			"input": {
+				"title": "Settings search loses focus after reload",
+				"symptom": "Typing stops after the first character in Settings search",
+				"relevantTerms": ["settings editor", "focus"],
+				"state": "closed"
+			},
+			"transcript": [
+				{
+					"kind": "user",
+					"text": "Settings search loses focus after I type one character."
+				},
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": true,
+					"authenticated": false,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "anonymousRest",
+					"query": "is:issue repo:microsoft/vscode state:closed settings search focus reload",
+					"url": "https://api.github.com/search/issues?q=is%3Aissue%20repo%3Amicrosoft%2Fvscode%20state%3Aclosed%20settings%20search%20focus%20reload&sort=updated&order=desc&per_page=10",
+					"status": 200,
+					"results": [
+						{
+							"number": 239004,
+							"title": "Settings editor search input loses focus after reload",
+							"url": "https://github.com/microsoft/vscode/issues/239004",
+							"state": "closed"
+						}
+					]
+				},
+				{
+					"kind": "candidateInspection",
+					"number": 239004,
+					"fields": ["title", "body"]
+				},
+				{
+					"kind": "assistant",
+					"purpose": "searchSummary",
+					"text": "#239004 is a strong match: it has the same Settings editor search focus loss after reload. It is the best destination for new evidence if the symptom still reproduces.",
+					"matches": [
+						{
+							"number": 239004,
+							"relevance": "Same Settings editor search focus loss after reload."
+						}
+					]
+				},
+				{
+					"kind": "outcome",
+					"resolution": "matchingIssueFound",
+					"preferredEvidenceDestination": 239004,
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "anonymousRest",
+				"strongMatch": 239004,
+				"relevanceTerms": ["settings", "search", "focus", "reload"]
+			}
+		},
+		{
+			"id": "no-results",
+			"input": {
+				"title": "Breadcrumb flashes purple after folding",
+				"symptom": "The breadcrumb changes color for one frame",
+				"state": "all"
+			},
+			"transcript": [
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": false,
+					"authenticated": false,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "anonymousRest",
+					"query": "is:issue repo:microsoft/vscode breadcrumb purple folding",
+					"url": "https://api.github.com/search/issues?q=is%3Aissue%20repo%3Amicrosoft%2Fvscode%20breadcrumb%20purple%20folding&sort=updated&order=desc&per_page=10",
+					"status": 200,
+					"results": []
+				},
+				{
+					"kind": "search",
+					"transport": "anonymousRest",
+					"query": "is:issue repo:microsoft/vscode breadcrumb purple",
+					"url": "https://api.github.com/search/issues?q=is%3Aissue%20repo%3Amicrosoft%2Fvscode%20breadcrumb%20purple&sort=updated&order=desc&per_page=10",
+					"status": 200,
+					"results": []
+				},
+				{
+					"kind": "assistant",
+					"purpose": "recovery",
+					"text": "I found no likely duplicate. The investigation and draft remain intact; refine the reproduction or continue preparing a new report."
+				},
+				{
+					"kind": "outcome",
+					"resolution": "noMatchingIssue",
+					"recoverable": true,
+					"nextStep": "continueInvestigation",
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "anonymousRest",
+				"searchCount": 2,
+				"broadensOnNoResults": true,
+				"resolution": "noMatchingIssue"
+			}
+		},
+		{
+			"id": "rate-limit",
+			"input": {
+				"title": "Terminal blank after reload",
+				"symptom": "Terminal contents disappear after reload",
+				"state": "open"
+			},
+			"transcript": [
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": false,
+					"authenticated": false,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "anonymousRest",
+					"query": "is:issue repo:microsoft/vscode state:open terminal blank reload",
+					"url": "https://api.github.com/search/issues?q=is%3Aissue%20repo%3Amicrosoft%2Fvscode%20state%3Aopen%20terminal%20blank%20reload&sort=updated&order=desc&per_page=10",
+					"status": 403,
+					"error": "rateLimit"
+				},
+				{
+					"kind": "assistant",
+					"purpose": "recovery",
+					"text": "GitHub's anonymous search limit was reached. Keep this investigation and retry later, or open the prepared browser search without signing in."
+				},
+				{
+					"kind": "outcome",
+					"resolution": "searchDeferred",
+					"reason": "rateLimit",
+					"recoverable": true,
+					"fallback": "retryOrBrowserSearch",
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "anonymousRest",
+				"failure": "rateLimit"
+			}
+		},
+		{
+			"id": "network-failure",
+			"input": {
+				"title": "Explorer selection disappears",
+				"symptom": "Selected Explorer item is no longer highlighted after refresh",
+				"state": "all"
+			},
+			"transcript": [
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": false,
+					"authenticated": false,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "anonymousRest",
+					"query": "is:issue repo:microsoft/vscode explorer selection refresh",
+					"url": "https://api.github.com/search/issues?q=is%3Aissue%20repo%3Amicrosoft%2Fvscode%20explorer%20selection%20refresh&sort=updated&order=desc&per_page=10",
+					"error": "network"
+				},
+				{
+					"kind": "assistant",
+					"purpose": "recovery",
+					"text": "GitHub search is temporarily unreachable. The investigation is preserved; retry the search later or continue refining the report."
+				},
+				{
+					"kind": "outcome",
+					"resolution": "searchDeferred",
+					"reason": "network",
+					"recoverable": true,
+					"fallback": "retryOrContinueInvestigation",
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "anonymousRest",
+				"failure": "network"
+			}
+		},
+		{
+			"id": "malformed-response",
+			"input": {
+				"title": "Editor tabs reorder unexpectedly",
+				"symptom": "Pinned editor tabs move to a different position after reload",
+				"state": "all"
+			},
+			"transcript": [
+				{
+					"kind": "capability",
+					"name": "githubCli",
+					"installed": false,
+					"authenticated": false,
+					"visible": false
+				},
+				{
+					"kind": "search",
+					"transport": "anonymousRest",
+					"query": "is:issue repo:microsoft/vscode editor tabs reorder",
+					"url": "https://api.github.com/search/issues?q=is%3Aissue%20repo%3Amicrosoft%2Fvscode%20editor%20tabs%20reorder&sort=updated&order=desc&per_page=10",
+					"status": 200,
+					"error": "malformedResponse"
+				},
+				{
+					"kind": "assistant",
+					"purpose": "recovery",
+					"text": "GitHub returned an unreadable search response. I kept the investigation; retry later or use the encoded browser search."
+				},
+				{
+					"kind": "outcome",
+					"resolution": "searchDeferred",
+					"reason": "malformedResponse",
+					"recoverable": true,
+					"fallback": "retryOrBrowserSearch",
+					"published": false
+				}
+			],
+			"expected": {
+				"transport": "anonymousRest",
+				"failure": "malformedResponse"
+			}
+		}
+	]
+}

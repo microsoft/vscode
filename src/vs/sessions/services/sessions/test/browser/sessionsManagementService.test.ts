@@ -13,7 +13,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -39,7 +39,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
@@ -231,7 +231,8 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService } {
+	sessionsPartService = new TestSessionsPartService(),
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; sessionsPartService: TestSessionsPartService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
@@ -257,8 +258,8 @@ function createSessionsManagementService(
 	}
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-	const view = createView(instantiationService, service, disposables, customViewService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService };
+	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService);
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, sessionsPartService };
 }
 
 /**
@@ -268,8 +269,12 @@ function createSessionsManagementService(
 class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override readonly onDidFocusSession = Event.None;
 	override readonly onDidToggleMaximizeSession = Event.None;
-	override updateVisibleSessions(): void { }
-	override focusSession(): void { }
+	readonly focusedSessions: (string | undefined)[] = [];
+	readonly renderedStates: { visible: (string | undefined)[]; active: string | undefined }[] = [];
+	override updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
+		this.renderedStates.push({ visible: visible.map(session => session?.sessionId), active: active?.sessionId });
+	}
+	override focusSession(session: IActiveSession | undefined): void { this.focusedSessions.push(session?.sessionId); }
 }
 
 class TestCustomView extends AbstractCustomView {
@@ -297,9 +302,10 @@ function createView(
 	service: ISessionsManagementService,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
+	sessionsPartService = new TestSessionsPartService(),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
-	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
+	instantiationService.stub(ISessionsPartService, sessionsPartService);
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
@@ -582,6 +588,42 @@ suite('SessionsManagementService', () => {
 			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			active: view.activeSession.get(),
 		}, { visible: [null], active: undefined });
+	});
+
+	test('explicit workspace and quick-chat opens render, activate, and focus their fresh sessions', async () => {
+		const folderUri = URI.parse('test:///workspace');
+		const workspaceSession = stubSession({ sessionId: 'issue-workspace', providerId: 'test' });
+		const quickChatSession = stubSession({
+			sessionId: 'issue-quick-chat',
+			providerId: 'test',
+			isQuickChat: constObservable(true),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override resolveWorkspace(_folderUri: URI): ISessionWorkspace { return upcastPartial<ISessionWorkspace>({ uri: _folderUri }); }
+			override createNewSession(): ISession { return workspaceSession; }
+			override createQuickChat(): ISession { return quickChatSession; }
+		}(workspaceSession);
+		const { view, sessionsPartService } = createSessionsManagementService(workspaceSession, disposables, provider);
+
+		const workspaceResult = await view.openNewSession({ folderUri, providerId: 'test', sessionTypeId: 'test', cancelRestore: true });
+		const quickChatResult = view.openQuickChat({ providerId: 'test', sessionTypeId: 'test' });
+
+		assert.deepStrictEqual({
+			workspaceResult: workspaceResult.session?.sessionId,
+			quickChatResult: quickChatResult?.sessionId,
+			active: view.activeSession.get()?.sessionId,
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+			focused: sessionsPartService.focusedSessions,
+			lastRendered: sessionsPartService.renderedStates.at(-1),
+		}, {
+			workspaceResult: 'issue-workspace',
+			quickChatResult: 'issue-quick-chat',
+			active: 'issue-quick-chat',
+			visible: ['issue-quick-chat'],
+			focused: ['issue-workspace', 'issue-quick-chat'],
+			lastRendered: { visible: ['issue-quick-chat'], active: 'issue-quick-chat' },
+		});
 	});
 
 	test('openNewSession with toSide moves the existing composer beside the active session', async () => {
@@ -1897,21 +1939,51 @@ suite('SessionsManagementService', () => {
 	});
 
 	test('sendNewChatRequest clears first-request tracking when chat creation fails', async () => {
+		const folderUri = URI.parse('test:///workspace');
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
 			status: constObservable(SessionStatus.Untitled),
 		});
 		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(_folderUri: URI): ISessionWorkspace { return upcastPartial<ISessionWorkspace>({ uri: _folderUri }); }
 			override async createNewChat(): Promise<IChat> {
 				throw new Error('create failed');
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
+		const draft = service.createNewSession(folderUri, { providerId: 'test', sessionTypeId: 'test' });
 
-		await assert.rejects(service.sendNewChatRequest(session, { query: 'hi' }), /create failed/);
+		await assert.rejects(service.sendNewChatRequest(draft, { query: 'hi' }), /create failed/);
 
-		assert.deepStrictEqual(service.getInFlightNewSessionRequests(), []);
+		assert.deepStrictEqual({
+			inFlight: service.getInFlightNewSessionRequests(),
+			retryableDraft: service.newSession.get()?.sessionId,
+		}, {
+			inFlight: [],
+			retryableDraft: 's1',
+		});
+	});
+
+	test('sendNewChatRequest leaves a newer composer draft intact when sending a stale draft', async () => {
+		const folderUri = URI.parse('test:///workspace');
+		const drafts = [
+			stubSession({ sessionId: 'stale', providerId: 'test', status: constObservable(SessionStatus.Untitled) }),
+			stubSession({ sessionId: 'newer', providerId: 'test', status: constObservable(SessionStatus.Untitled) }),
+		];
+		let createIndex = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(_folderUri: URI): ISessionWorkspace { return upcastPartial<ISessionWorkspace>({ uri: _folderUri }); }
+			override createNewSession(): ISession { return drafts[createIndex++]; }
+			override async sendRequest(sessionId: string): Promise<ISession> { return drafts.find(draft => draft.sessionId === sessionId)!; }
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+		const staleDraft = service.createNewSession(folderUri, { providerId: 'test', sessionTypeId: 'test' });
+		const newerDraft = service.createNewSession(folderUri, { providerId: 'test', sessionTypeId: 'test' });
+
+		await service.sendNewChatRequest(staleDraft, { query: 'stale request' });
+
+		assert.strictEqual(service.newSession.get(), newerDraft);
 	});
 
 	test('sendNewChatRequest with background resolves before preparation and routes the replacement in the background', async () => {

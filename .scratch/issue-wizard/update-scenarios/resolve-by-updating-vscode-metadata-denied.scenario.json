@@ -1,0 +1,49 @@
+{
+	"id": "issue-wizard-update-metadata-denied",
+	"title": "Update investigation continues after metadata access is denied",
+	"environment": {
+		"launcherOnPath": false,
+		"gitInstalled": false,
+		"githubCliInstalled": false,
+		"githubAccountAvailable": false
+	},
+	"transcript": [
+		{
+			"kind": "user",
+			"text": "The Settings search box drops focus after I type one character."
+		},
+		{
+			"kind": "assistant",
+			"text": "May I read this running build's version, quality, and commit so I can compare it with the fix?"
+		},
+		{
+			"kind": "toolCall",
+			"name": "getVSCodeInfo",
+			"approval": "denied"
+		},
+		{
+			"kind": "toolResult",
+			"name": "getVSCodeInfo",
+			"status": "denied"
+		},
+		{
+			"kind": "assistant",
+			"text": "That's okay; we can continue without that metadata. If you are comfortable, copy only the version and channel shown by Help > About, or compare your version with the public Stable release notes. Neither option needs a launcher, Git, the GitHub CLI, or a GitHub account. We can also keep these reproduction steps and resume later."
+		},
+		{
+			"kind": "outcome",
+			"resolution": "investigationContinues",
+			"recoverable": true,
+			"metadataDisclosed": false,
+			"nextSteps": [
+				"manualMetadata",
+				"retryMetadataLater"
+			],
+			"forcedGitHub": false,
+			"forcedSetup": false
+		}
+	],
+	"expected": {
+		"resolution": "investigationContinues"
+	}
+}

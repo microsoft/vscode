@@ -1,0 +1,66 @@
+{
+	"id": "issue-wizard-resolve-by-updating-vscode-stable",
+	"title": "Stable fix is available in a newer Stable build",
+	"symptom": "The Settings editor search box loses focus after the first character, so the query cannot be completed.",
+	"environment": {
+		"launcherOnPath": false,
+		"gitInstalled": false,
+		"githubCliInstalled": false,
+		"githubAccountAvailable": false
+	},
+	"knownFix": {
+		"version": "1.106.1",
+		"quality": "stable",
+		"commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"summary": "Keeps focus in the Settings editor search box while typing"
+	},
+	"transcript": [
+		{
+			"kind": "user",
+			"text": "The Settings search box drops focus after I type one character."
+		},
+		{
+			"kind": "assistant",
+			"text": "May I read this running build's version, quality, and commit so I can compare it with the fix?"
+		},
+		{
+			"kind": "toolCall",
+			"name": "getVSCodeInfo",
+			"approval": "approved"
+		},
+		{
+			"kind": "toolResult",
+			"name": "getVSCodeInfo",
+			"result": {
+				"version": "1.106.0",
+				"quality": "stable",
+				"commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			}
+		},
+		{
+			"kind": "evidence",
+			"source": "anonymousGitHubSearch",
+			"text": "The focus-loss symptom is fixed in Visual Studio Code 1.106.1 Stable."
+		},
+		{
+			"kind": "assistant",
+			"text": "Update Visual Studio Code Stable to 1.106.1 or later. Your 1.106.0 Stable build predates the Settings search focus fix, so this is the cheapest applicable resolution. Restart VS Code after updating, try the same Settings search again, and tell me whether the search box keeps focus."
+		},
+		{
+			"kind": "user",
+			"text": "After the update and restart, Settings search keeps focus.",
+			"verification": "resolved"
+		},
+		{
+			"kind": "outcome",
+			"resolution": "updatedVSCode",
+			"verifiedByUser": true
+		}
+	],
+	"expected": {
+		"product": "Visual Studio Code",
+		"quality": "stable",
+		"minimumVersion": "1.106.1",
+		"resolution": "updatedVSCode"
+	}
+}

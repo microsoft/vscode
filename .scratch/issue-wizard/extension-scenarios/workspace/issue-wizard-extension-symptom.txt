@@ -1,0 +1,5 @@
+This first line should remain unchanged when the document is saved.
+
+The known demo extension deliberately replaces only the first line of this file after each save.
+No other document is affected.
+

@@ -21,7 +21,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { EditorCloseContext, IEditorCloseEvent } from '../../../../common/editor.js';
+import { EditorCloseContext, EditorResourceAccessor, IEditorCloseEvent } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
@@ -32,11 +32,13 @@ import { IChatAttachmentResolveService } from '../../../chat/browser/attachments
 import { ChatAttachmentModel } from '../../../chat/browser/attachments/chatAttachmentModel.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../../chat/common/chatSessionsService.js';
+import { IChatResponseModel } from '../../../chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../../chat/common/promptSyntax/service/promptsService.js';
 import { IIssueWizardIntakeService, IIssueWizardScreenshotAnnotationService, IssueWizardIntakeService } from '../../browser/issueWizardIntakeService.js';
-import { IIssueWizardLaunchOptions, IIssueWizardLauncherService, ISSUE_WIZARD_ADD_SCREENSHOT_COMMAND_ID, ISSUE_WIZARD_COMMAND_ID, IssueWizardLauncherService, IssueWizardStatusbarContribution } from '../../browser/issueWizard.js';
+import { IIssueWizardLaunchOptions, IIssueWizardLauncherService, IIssueWizardLaunchTarget, ISSUE_WIZARD_ADD_SCREENSHOT_COMMAND_ID, ISSUE_WIZARD_COMMAND_ID, IssueWizardLauncherService, IssueWizardStatusbarContribution } from '../../browser/issueWizard.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IScreenshotService } from '../../browser/screenshotService.js';
 import { IScreenshot } from '../../browser/issueReporterOverlay.js';
@@ -45,6 +47,7 @@ suite('Issue Wizard Launch Command', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
+	let launcher: IssueWizardLauncherService;
 	let notifications: { warn: string[]; error: string[] };
 	let intakeResult: readonly IChatRequestVariableEntry[] | undefined;
 	let screenshotCollectionCount: number;
@@ -54,13 +57,18 @@ suite('Issue Wizard Launch Command', () => {
 	let attachedSessionResources: URI[];
 	let openedSessionResources: URI[];
 	let openedWidgets: IChatWidget[];
+	let exposeOpenedWidgets: boolean;
 	let focusedSessionResources: URI[];
 	let openedSessionOptions: { sessionType: string; displayName: string; workspaceFolder?: URI }[];
+	let revealedEditorResources: (URI | undefined)[];
 	let completionRequests: { sessionResource: URI; params: IChatInputCompletionsParams }[];
+	let languageModelSelectors: ILanguageModelChatSelector[];
+	let selectedModelIdentifiers: string[];
 	let parsedSkillUris: URI[];
 	let lastFocusedWidget: IChatWidget | undefined;
 	let onDidCloseEditor: Emitter<IEditorCloseEvent>;
 	let onDidRemoveWidget: Emitter<IChatWidget>;
+	let onDidChangeFocusedSession: Emitter<void>;
 	let chatSentiment: IChatSentiment;
 	let onDidChangeChatSentiment: Emitter<void>;
 
@@ -93,6 +101,11 @@ suite('Issue Wizard Launch Command', () => {
 		openSessionReturns?: boolean;
 		aiHidden?: boolean;
 		collectScreenshot?: () => Promise<readonly IChatRequestVariableEntry[] | undefined>;
+		acceptInputError?: Error;
+		acceptInputResultUndefined?: boolean;
+		availableModelIds?: readonly string[];
+		hiddenModelIds?: readonly string[];
+		modelSwitchAvailable?: boolean;
 	}): void {
 		notifications = { warn: [], error: [] };
 		intakeResult = undefined;
@@ -103,13 +116,18 @@ suite('Issue Wizard Launch Command', () => {
 		attachedSessionResources = [];
 		openedSessionResources = [];
 		openedWidgets = [];
+		exposeOpenedWidgets = true;
 		focusedSessionResources = [];
 		openedSessionOptions = [];
+		revealedEditorResources = [];
 		completionRequests = [];
+		languageModelSelectors = [];
+		selectedModelIdentifiers = [];
 		parsedSkillUris = [];
 		lastFocusedWidget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ sessionResource: URI.parse('agent-host-codex:/unrelated') }) });
 		onDidCloseEditor = disposables.add(new Emitter<IEditorCloseEvent>());
 		onDidRemoveWidget = disposables.add(new Emitter<IChatWidget>());
+		onDidChangeFocusedSession = disposables.add(new Emitter<void>());
 		onDidChangeChatSentiment = disposables.add(new Emitter<void>());
 		chatSentiment = { completed: true, hidden: options?.aiHidden ?? false };
 
@@ -140,10 +158,14 @@ suite('Issue Wizard Launch Command', () => {
 		});
 
 		const activeEditor = options?.activeResource ? disposables.add(new TestFileEditorInput(options.activeResource, 'issueWizardTestInput')) : undefined;
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override readonly activeEditor = activeEditor;
-			override readonly onDidCloseEditor = onDidCloseEditor.event;
-		});
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			activeEditor,
+			onDidCloseEditor: onDidCloseEditor.event,
+			openEditor: async editor => {
+				revealedEditorResources.push(EditorResourceAccessor.getOriginalUri(editor));
+				return undefined;
+			},
+		}));
 
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override warn(message: string): void { notifications.warn.push(message); }
@@ -211,11 +233,31 @@ suite('Issue Wizard Launch Command', () => {
 				};
 			}
 		});
+		const modelSessionType = contributions[0]?.type ?? agentHostSessionType;
+		const availableModelIds = options?.availableModelIds ?? ['auto', 'gpt-5.6-sol', 'gpt-6-astra'];
+		const models = new Map<string, ILanguageModelChatMetadata>(availableModelIds.map(id => [`${modelSessionType}:${id}`, upcastPartial<ILanguageModelChatMetadata>({
+			id,
+			vendor: modelSessionType,
+			name: id,
+			family: id,
+			targetChatSessionType: modelSessionType,
+			capabilities: { vision: id !== 'auto', toolCalling: true, agentMode: true },
+		})]));
+		instantiationService.stub(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
+			selectLanguageModels: async selector => {
+				languageModelSelectors.push(selector);
+				return selector.vendor === modelSessionType ? [...models.keys()] : [];
+			},
+			lookupLanguageModel: identifier => models.get(identifier),
+			isModelHidden: identifier => options?.hiddenModelIds?.some(id => identifier === `${modelSessionType}:${id}`) ?? false,
+		}));
 
 		const shouldReturnWidget = options?.openSessionReturns ?? true;
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			get lastFocusedWidget() { return lastFocusedWidget; },
 			onDidRemoveWidget: onDidRemoveWidget.event,
+			onDidChangeFocusedSession: onDidChangeFocusedSession.event,
+			getWidgetBySessionResource: sessionResource => exposeOpenedWidgets ? openedWidgets.find(widget => extUriBiasedIgnorePathCase.isEqual(widget.viewModel?.sessionResource, sessionResource)) : undefined,
 			reveal: async () => true,
 			openNewAgentHostEditorSession: async sessionOptions => {
 				openedSessionOptions.push(sessionOptions);
@@ -225,6 +267,15 @@ suite('Issue Wizard Launch Command', () => {
 				const widget = upcastPartial<IChatWidget>({
 					viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
 					onDidFocus: Event.None,
+					inputPart: upcastPartial<IChatWidget['inputPart']>({
+						switchModelByIdentifier: identifier => {
+							if (options?.modelSwitchAvailable === false) {
+								return false;
+							}
+							selectedModelIdentifiers.push(identifier);
+							return true;
+						},
+					}),
 					attachmentModel: upcastPartial<ChatAttachmentModel>({
 						get attachments() { return activeAttachments; },
 						addContext: (...entries: IChatRequestVariableEntry[]) => {
@@ -240,14 +291,22 @@ suite('Issue Wizard Launch Command', () => {
 							activeAttachments = activeAttachments.filter(attachment => !ids.includes(attachment.id));
 						},
 					}),
-					acceptInput: async query => {
-						if (query) {
-							acceptedRequests.push({
-								query,
-								attachmentIds: activeAttachments.map(attachment => attachment.id),
-							});
-						}
-					},
+						acceptInput: async query => {
+							if (options?.acceptInputError) {
+								throw options.acceptInputError;
+							}
+							if (options?.acceptInputResultUndefined) {
+								return undefined;
+							}
+							if (query) {
+								acceptedRequests.push({
+									query,
+									attachmentIds: activeAttachments.map(attachment => attachment.id),
+								});
+							}
+							return upcastPartial<IChatResponseModel>({ id: 'response' });
+						},
+					setInput: query => acceptedRequests.push({ query: query ?? '', attachmentIds: activeAttachments.map(attachment => attachment.id) }),
 					focusInput: () => focusedSessionResources.push(sessionResource),
 				});
 				openedWidgets.push(widget);
@@ -255,7 +314,8 @@ suite('Issue Wizard Launch Command', () => {
 				return { sessionResource, widget };
 			},
 		}));
-		instantiationService.stub(IIssueWizardLauncherService, disposables.add(instantiationService.createInstance(IssueWizardLauncherService)));
+		launcher = disposables.add(instantiationService.createInstance(IssueWizardLauncherService));
+		instantiationService.stub(IIssueWizardLauncherService, launcher);
 	}
 
 	async function runCommand(options?: IIssueWizardLaunchOptions): Promise<void> {
@@ -282,8 +342,10 @@ suite('Issue Wizard Launch Command', () => {
 			selectedFolders: openedSessionOptions.map(options => options.workspaceFolder?.toString()),
 			displayNames: openedSessionOptions.map(options => options.displayName),
 			focusedSessions: focusedSessionResources.map(resource => resource.toString()),
-			queries: acceptedRequests.map(request => request.query),
-			attachmentKinds: attachedContext.map(context => context.kind),
+				queries: acceptedRequests.map(request => request.query),
+				modelSelectors: languageModelSelectors,
+				selectedModels: selectedModelIdentifiers,
+				attachmentKinds: attachedContext.map(context => context.kind),
 			notifications,
 		}, {
 			sessionTypes: [agentHostSessionType, agentHostSessionType],
@@ -291,9 +353,58 @@ suite('Issue Wizard Launch Command', () => {
 			selectedFolders: [workspaceFolderUri.toString(), workspaceFolderUri.toString()],
 			displayNames: ['Issue Wizard', 'Issue Wizard'],
 			focusedSessions: openedSessionResources.map(resource => resource.toString()),
-			queries: ['/issue-wizard Help me troubleshoot a VS Code issue.', '/issue-wizard Help me troubleshoot a VS Code issue.'],
-			attachmentKinds: ['generic', 'generic'],
+				queries: ['/issue-wizard Help me troubleshoot a VS Code issue.', '/issue-wizard Help me troubleshoot a VS Code issue.'],
+				modelSelectors: [{ vendor: agentHostSessionType }, { vendor: agentHostSessionType }],
+				selectedModels: [`${agentHostSessionType}:gpt-6-astra`, `${agentHostSessionType}:gpt-6-astra`],
+				attachmentKinds: ['generic', 'generic'],
 			notifications: { warn: [], error: [] },
+		});
+	});
+
+	test('uses a deterministic concrete fallback when GPT-6 Astra is unavailable', async () => {
+		setupServices({ availableModelIds: ['auto', 'claude-sonnet-5', 'gpt-5.6-sol'] });
+		await runCommand();
+
+		assert.deepStrictEqual({
+			selectedModels: selectedModelIdentifiers,
+			queries: acceptedRequests.map(request => request.query),
+			notifications,
+		}, {
+			selectedModels: [`${agentHostSessionType}:gpt-5.6-sol`],
+			queries: ['/issue-wizard Help me troubleshoot a VS Code issue.'],
+			notifications: { warn: [], error: [] },
+		});
+	});
+
+	test('does not silently use Auto when no concrete model is available', async () => {
+		setupServices({ availableModelIds: ['auto'] });
+		await runCommand();
+
+		assert.deepStrictEqual({
+			openedSessionResources,
+			selectedModelIdentifiers,
+			acceptedRequests,
+			notifications,
+		}, {
+			openedSessionResources: [],
+			selectedModelIdentifiers: [],
+			acceptedRequests: [],
+			notifications: { warn: [], error: ['Issue Wizard failed to start: No concrete language model is available for Issue Wizard.'] },
+		});
+	});
+
+	test('does not bootstrap when the chosen model cannot become the conversation intent', async () => {
+		setupServices({ modelSwitchAvailable: false });
+		await runCommand();
+
+		assert.deepStrictEqual({
+			selectedModelIdentifiers,
+			acceptedRequests,
+			notifications,
+		}, {
+			selectedModelIdentifiers: [],
+			acceptedRequests: [],
+			notifications: { warn: [], error: ['Issue Wizard failed to start: The selected Issue Wizard model is no longer available.'] },
 		});
 	});
 
@@ -399,6 +510,67 @@ suite('Issue Wizard Launch Command', () => {
 		});
 	});
 
+	test('uses the same provider-neutral bootstrap for a custom launch target', async () => {
+		setupServices();
+		const sessionResource = URI.parse(`${agentHostSessionType}:/custom-target`);
+		const calls: object[] = [];
+		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ sessionResource }) });
+		const target: IIssueWizardLaunchTarget = {
+			createSession: async options => {
+				calls.push({ create: options });
+				return {
+					sessionResource,
+					send: async request => {
+						calls.push({
+							send: {
+								query: request.query,
+								attachedContext: request.attachedContext.map(attachment => ({
+									kind: attachment.kind,
+									id: attachment.id,
+									name: attachment.name,
+									range: attachment.range,
+								})),
+							},
+						});
+					},
+					getScreenshotTarget: () => ({ widget, sessionResource }),
+					revealScreenshotTarget: async screenshotTarget => screenshotTarget.widget,
+				};
+			},
+		};
+
+		await launcher.launchInTarget(target, { symptom: 'The window stops responding' });
+
+		assert.deepStrictEqual({
+			calls,
+			completionResources: completionRequests.map(request => request.sessionResource.toString()),
+			editorSessionsOpened: openedSessionResources.length,
+			captureBarActive: launcher.captureBarActive,
+			captureBarVisible: !!document.querySelector('.issue-reporter-floating-bar'),
+			notifications,
+		}, {
+			calls: [
+				{ create: { sessionType: agentHostSessionType, displayName: 'Issue Wizard', modelId: `${agentHostSessionType}:gpt-6-astra` } },
+				{
+					send: {
+						query: '/issue-wizard Help me troubleshoot a VS Code issue.\nSymptom: The window stops responding',
+						attachedContext: [{
+							kind: 'generic',
+							id: defaultSkillUriString,
+							name: 'issue-wizard',
+							range: { start: 0, endExclusive: 13 },
+						}],
+					},
+				},
+			],
+			completionResources: [sessionResource.toString()],
+			editorSessionsOpened: 0,
+			captureBarActive: true,
+			captureBarVisible: true,
+			notifications: { warn: [], error: [] },
+		});
+	});
+
 	test('invokes the discovered built-in exactly once as a ranged Agent Host skill reference', async () => {
 		setupServices();
 		await runCommand();
@@ -452,6 +624,45 @@ suite('Issue Wizard Launch Command', () => {
 			attachmentIds: [defaultSkillUriString, 'img-1'],
 			composerAttachmentIds: ['img-1'],
 			screenshotSession: openedSessionResources[0].toString(),
+		});
+	});
+
+	test('keeps using the launched screenshot target during transient widget lookup gaps', async () => {
+		const screenshotAttachment: IChatRequestVariableEntry = { kind: 'image', id: 'img-1', name: 'Issue screenshot', value: new Uint8Array([1, 2, 3]) };
+		setupServices({ collectScreenshot: async () => [screenshotAttachment] });
+		await runCommand();
+
+		exposeOpenedWidgets = false;
+		await runAddScreenshotCommand();
+
+		const captureBar = document.querySelector<HTMLElement>('.issue-reporter-floating-bar');
+		assert.deepStrictEqual({
+			screenshotCollectionCount,
+			captureBarVisible: !!captureBar && captureBar.style.display !== 'none',
+			composerAttachmentIds: activeAttachments.map(context => context.id),
+			screenshotSession: attachedSessionResources.at(-1)?.toString(),
+		}, {
+			screenshotCollectionCount: 1,
+			captureBarVisible: true,
+			composerAttachmentIds: ['img-1'],
+			screenshotSession: openedSessionResources[0].toString(),
+		});
+	});
+
+	test('reveals the exact Issue Wizard editor after saving a screenshot', async () => {
+		const screenshotAttachment: IChatRequestVariableEntry = { kind: 'image', id: 'img-1', name: 'Issue screenshot', value: new Uint8Array([1, 2, 3]) };
+		setupServices({ collectScreenshot: async () => [screenshotAttachment] });
+		await runCommand();
+
+		lastFocusedWidget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ sessionResource: URI.parse(`${agentHostSessionType}:/unrelated-session`) }) });
+		await runAddScreenshotCommand();
+
+		assert.deepStrictEqual({
+			revealedEditorResources: revealedEditorResources.map(resource => resource?.toString()),
+			focusedSession: focusedSessionResources.at(-1)?.toString(),
+		}, {
+			revealedEditorResources: [openedSessionResources[0].toString()],
+			focusedSession: openedSessionResources[0].toString(),
 		});
 	});
 
@@ -571,6 +782,46 @@ suite('Issue Wizard Launch Command', () => {
 			opened: 1,
 			acceptedRequests: [],
 			notifications: { warn: [], error: ['Issue Wizard failed to start: Chat session was not created.'] },
+		});
+	});
+
+	test('keeps a failed bootstrap ready for a user-controlled retry', async () => {
+		setupServices({ acceptInputError: new Error('provider unavailable') });
+		await runCommand({ symptom: 'Saving stalls' });
+
+		assert.deepStrictEqual({
+			composer: acceptedRequests,
+			activeAttachmentIds: activeAttachments.map(attachment => attachment.id),
+			focusedSessionCount: focusedSessionResources.length,
+			notifications,
+		}, {
+			composer: [{
+				query: '/issue-wizard Help me troubleshoot a VS Code issue.\nSymptom: Saving stalls',
+				attachmentIds: [defaultSkillUriString],
+			}],
+			activeAttachmentIds: [defaultSkillUriString],
+			focusedSessionCount: 2,
+			notifications: { warn: [], error: ['Issue Wizard failed to start: provider unavailable'] },
+		});
+	});
+
+	test('keeps bootstrap attachments and composer text recoverable when input acceptance resolves undefined', async () => {
+		setupServices({ acceptInputResultUndefined: true });
+		await runCommand({ symptom: 'Saving stalls' });
+
+		assert.deepStrictEqual({
+			composer: acceptedRequests,
+			activeAttachmentIds: activeAttachments.map(attachment => attachment.id),
+			focusedSessionCount: focusedSessionResources.length,
+			notifications,
+		}, {
+			composer: [{
+				query: '/issue-wizard Help me troubleshoot a VS Code issue.\nSymptom: Saving stalls',
+				attachmentIds: [defaultSkillUriString],
+			}],
+			activeAttachmentIds: [defaultSkillUriString],
+			focusedSessionCount: 2,
+			notifications: { warn: [], error: ['Issue Wizard failed to start: Issue Wizard could not send its first request. Retry when ready.'] },
 		});
 	});
 

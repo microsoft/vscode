@@ -6,7 +6,7 @@
 
 **Status:** done
 
-- [x] Before invoking the log tool, the skill briefly explains what it wants to search; the normal Agent Host confirmation is the consent surface, without a separate preliminary prompt.
+- [x] Before invoking the log tool, the skill briefly explains what it wants to search and that logs may contain sensitive context, then invokes the tool in the same response; the normal Agent Host approval card is the single consent surface.
 - [x] The dedicated log tool also requires the normal Agent Host approval before discovery or log content is returned.
 - [x] No logs are read or attached automatically, and denial returns no log data while allowing diagnosis to continue.
 - [x] The tool resolves the current product's log root through VS Code-owned environment information and discovers registered Output channels.

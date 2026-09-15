@@ -1,0 +1,53 @@
+{
+	"id": "issue-wizard-update-install-deferred",
+	"title": "Correct update cannot be installed during the session",
+	"knownFix": {
+		"version": "1.106.1",
+		"quality": "stable",
+		"commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"summary": "Keeps focus in the Settings editor search box while typing"
+	},
+	"transcript": [
+		{
+			"kind": "user",
+			"text": "The Settings search box drops focus after I type one character."
+		},
+		{
+			"kind": "toolCall",
+			"name": "getVSCodeInfo",
+			"approval": "approved"
+		},
+		{
+			"kind": "toolResult",
+			"name": "getVSCodeInfo",
+			"result": {
+				"version": "1.106.0",
+				"quality": "stable",
+				"commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			}
+		},
+		{
+			"kind": "assistant",
+			"text": "Visual Studio Code Stable 1.106.1 contains the Settings search focus fix missing from this 1.106.0 build. Install that update, restart VS Code, test the search again, and tell me whether focus stays in the box."
+		},
+		{
+			"kind": "user",
+			"text": "Software updates are managed here, so I cannot install it today."
+		},
+		{
+			"kind": "assistant",
+			"text": "No problem. Keep this session and resume when your administrator makes Visual Studio Code Stable 1.106.1 available. Then install it, restart VS Code, and retry the same Settings search. Until then, the investigation and reproduction steps remain here; there is no need to set up source code or publish an issue."
+		},
+		{
+			"kind": "outcome",
+			"resolution": "updateDeferred",
+			"recoverable": true
+		}
+	],
+	"expected": {
+		"product": "Visual Studio Code",
+		"quality": "stable",
+		"minimumVersion": "1.106.1",
+		"resolution": "updateDeferred"
+	}
+}

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate, IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
+import { getWindow } from '../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ScreenshotCaptureBar } from '../../browser/screenshotCaptureBar.js';
@@ -68,6 +69,20 @@ suite('ScreenshotCaptureBar', () => {
 			issueWizardActive: true,
 			issueWizardDisplay: '',
 		});
+	});
+
+	test('annotation surface renders above workbench modals and the floating bar', () => {
+		const annotationOverlay = document.createElement('div');
+		annotationOverlay.classList.add('issue-reporter-annotation-overlay');
+		document.body.appendChild(annotationOverlay);
+		store.add(toDisposable(() => annotationOverlay.remove()));
+
+		const captureBar = store.add(new ScreenshotCaptureBar(document.body));
+		const annotationZIndex = Number.parseInt(getWindow(annotationOverlay).getComputedStyle(annotationOverlay).zIndex, 10);
+		const captureBarZIndex = Number.parseInt(getWindow(captureBar.element).getComputedStyle(captureBar.element).zIndex, 10);
+
+		assert.ok(annotationZIndex > 2575, 'annotation surface must render above workbench dialogs');
+		assert.ok(annotationZIndex > captureBarZIndex, 'annotation surface must render above the floating capture bar');
 	});
 
 	test('disposing during a delayed capture settles the trigger as cancelled', async () => {

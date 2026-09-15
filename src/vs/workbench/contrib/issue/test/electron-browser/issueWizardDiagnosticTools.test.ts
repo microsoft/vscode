@@ -126,10 +126,10 @@ suite('Issue Wizard Diagnostic Tools', () => {
 		};
 	}
 
-	function createDiagnosticsService(options?: { readonly channels?: ReadonlyMap<string, { readonly label: string; readonly value: string; readonly updatedValue?: string; readonly unreadable?: boolean }>; readonly fileService?: IFileService }): IssueDiagnosticsService {
+	function createDiagnosticsService(options?: { readonly channels?: ReadonlyMap<string, { readonly label: string; readonly value: string; readonly updatedValue?: string; readonly unreadable?: boolean }>; readonly fileService?: IFileService; readonly productService?: IProductService }): IssueDiagnosticsService {
 		const { outputService, textModelService } = createOutputServices(options?.channels ?? new Map());
 		return new IssueDiagnosticsService(
-			upcastPartial<IProductService>({
+			options?.productService ?? upcastPartial<IProductService>({
 				nameShort: 'Code - Exploration',
 				version: '1.139.0-exploration',
 				quality: 'exploration',
@@ -144,6 +144,17 @@ suite('Issue Wizard Diagnostic Tools', () => {
 			outputService,
 			textModelService,
 		);
+	}
+
+	async function invokeGetVSCodeInfo(productService: IProductService) {
+		const toolsService = createToolsService();
+		store.add(new IssueWizardDiagnosticToolsContribution(toolsService, createDiagnosticsService({ productService })));
+		return toolsService.invokeTool(upcastPartial<IToolInvocation>({
+			callId: `product-info-${productService.version}`,
+			toolId: GET_VSCODE_INFO_TOOL_ID,
+			parameters: {},
+			preApproved: { type: ToolConfirmKind.UserAction },
+		}), countTokens, CancellationToken.None);
 	}
 
 	test('registers an approval-gated tool that returns only trusted build metadata', async () => {
@@ -179,6 +190,43 @@ suite('Issue Wizard Diagnostic Tools', () => {
 			confirmation: { hasTitle: true, hasMessage: true, allowAutoConfirm: false },
 			result: { version: '1.139.0-exploration', quality: 'exploration', commit: '65a9338' },
 		});
+	});
+
+	test('returns the exact build metadata for Stable, Insiders, and Code OSS', async () => {
+		const products = [
+			{
+				productService: upcastPartial<IProductService>({ nameShort: 'Visual Studio Code', version: '1.139.0', quality: 'stable', commit: 'stable123' }),
+				expected: { version: '1.139.0', quality: 'stable', commit: 'stable123' },
+			},
+			{
+				productService: upcastPartial<IProductService>({ nameShort: 'Visual Studio Code - Insiders', version: '1.140.0-insider', quality: 'insider', commit: 'insider123' }),
+				expected: { version: '1.140.0-insider', quality: 'insider', commit: 'insider123' },
+			},
+			{
+				productService: upcastPartial<IProductService>({ nameShort: 'Code - OSS', version: '1.141.0', commit: 'oss123' }),
+				expected: { version: '1.141.0', quality: 'unknown', commit: 'oss123' },
+			},
+		];
+
+		const results = await Promise.all(products.map(product => invokeGetVSCodeInfo(product.productService)));
+
+		assert.deepStrictEqual(results.map(result => result.content), products.map(product => [{
+			kind: 'text',
+			value: JSON.stringify(product.expected, undefined, 2),
+		}]));
+	});
+
+	test('uses unknown for each missing product quality or commit', async () => {
+		const missingQuality = await invokeGetVSCodeInfo(upcastPartial<IProductService>({ version: '1.139.0', commit: 'stable123' }));
+		const missingCommit = await invokeGetVSCodeInfo(upcastPartial<IProductService>({ version: '1.140.0-insider', quality: 'insider' }));
+
+		assert.deepStrictEqual([
+			missingQuality.content,
+			missingCommit.content,
+		], [
+			[{ kind: 'text', value: JSON.stringify({ version: '1.139.0', quality: 'unknown', commit: 'stable123' }, undefined, 2) }],
+			[{ kind: 'text', value: JSON.stringify({ version: '1.140.0-insider', quality: 'insider', commit: 'unknown' }, undefined, 2) }],
+		]);
 	});
 
 	test('denied approval invokes neither diagnostic collector', async () => {
