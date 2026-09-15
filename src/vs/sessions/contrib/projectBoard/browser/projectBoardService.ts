@@ -28,7 +28,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
@@ -49,6 +49,8 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
+import { KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import { IProjectBoardDisplayOptions } from '../common/projectBoardConfiguration.js';
 import './media/projectBoard.css';
 
 const projectBoardDragDataType = 'application/vnd.code.project-board-card';
@@ -63,6 +65,10 @@ export interface IProjectBoardService {
 	createView(container: HTMLElement): IProjectBoardView;
 	getAccessibleContent(): string;
 	closeSession(windowId: number): Promise<void>;
+	addAxis(kind: 'row' | 'column'): Promise<void>;
+	toggleArchived(): void;
+	createSession(): Promise<void>;
+	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void;
 }
 
 export interface IProjectBoardView extends IDisposable {
@@ -116,6 +122,15 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly logService: ILogService;
 	private readonly contextMenuService: IContextMenuService;
 	private readonly instantiationService: IInstantiationService;
+	private readonly customViewContexts: {
+		readonly editable: IContextKey<boolean>;
+		readonly showArchived: IContextKey<boolean>;
+		readonly showStateDuration: IContextKey<boolean>;
+		readonly showCredits: IContextKey<boolean>;
+		readonly showLastPrompt: IContextKey<boolean>;
+		readonly showModelDetails: IContextKey<boolean>;
+		readonly showPermissionDetails: IContextKey<boolean>;
+	} | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -144,6 +159,22 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.logService = services.logService;
 		this.contextMenuService = services.contextMenuService;
 		this.instantiationService = services.instantiationService;
+		if (!showHeader) {
+			this.customViewContexts = {
+				editable: KanbanBoardEditableContext.bindTo(contextKeyService),
+				showArchived: KanbanShowArchivedContext.bindTo(contextKeyService),
+				showStateDuration: KanbanShowStateDurationContext.bindTo(contextKeyService),
+				showCredits: KanbanShowCreditsContext.bindTo(contextKeyService),
+				showLastPrompt: KanbanShowLastPromptContext.bindTo(contextKeyService),
+				showModelDetails: KanbanShowModelDetailsContext.bindTo(contextKeyService),
+				showPermissionDetails: KanbanShowPermissionDetailsContext.bindTo(contextKeyService),
+			};
+			this._register(toDisposable(() => {
+				for (const context of Object.values(this.customViewContexts!)) {
+					context.reset();
+				}
+			}));
+		}
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.observeSessions()));
 		this._register(addDisposableListener(this.container, EventType.FOCUS_OUT, () => {
 			if (!this.rendering && this.model.isSortingDeferred) {
@@ -184,6 +215,42 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.boardElement.style.minHeight = `${height}px`;
 			}
 		}
+	}
+
+	async addAxis(kind: 'row' | 'column'): Promise<void> {
+		await this.editAxis(kind);
+	}
+
+	toggleArchived(): void {
+		this.showArchived = !this.showArchived;
+		this.observeSessions();
+	}
+
+	async createSession(): Promise<void> {
+		if (this.creatingSession) {
+			return;
+		}
+		this.creatingSession = true;
+		if (this.createSessionButton) {
+			this.createSessionButton.enabled = false;
+		}
+		try {
+			await this.chatWindows.createNewSession();
+		} catch (error) {
+			this.logService.error('[ProjectBoard] Failed to create session', error);
+			this.notificationService.error(localize('projectBoard.createFailed', "The new session could not be opened."));
+		} finally {
+			this.creatingSession = false;
+			if (this.createSessionButton) {
+				this.createSessionButton.enabled = true;
+			}
+		}
+	}
+
+	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void {
+		const display = this.boardState.configuration.get().display;
+		const enabled = key === 'showLastPrompt' ? display?.showLastPrompt === false : !display?.[key];
+		this.changeBoard(() => this.boardState.setDisplayOption(key, enabled));
 	}
 
 	getAccessibleContent(): string {
@@ -457,9 +524,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const board = document.createElement('main');
 		board.className = 'project-board';
 
-		const header = document.createElement('header');
-		header.className = 'project-board-header';
 		if (this.showHeader) {
+			const header = document.createElement('header');
+			header.className = 'project-board-header';
 			const heading = document.createElement('div');
 			const title = document.createElement('h1');
 			title.textContent = localize('projectBoard.title', "Agent project board");
@@ -468,54 +535,39 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			description.textContent = localize('projectBoard.description', "Arrange live chats by area and priority. Use arrow keys to navigate cards, Enter to open, and Escape to close the chat window.");
 			heading.appendChild(description);
 			header.appendChild(heading);
-		}
-		const tools = document.createElement('div');
-		tools.className = 'project-board-tools';
-		for (const kind of ['row', 'column'] as const) {
-			const add = this.createControl(tools, kind === 'row' ? localize('projectBoard.addRow', "Add Row") : localize('projectBoard.addColumn', "Add Column"), `add-${kind}`, store);
-			store.add(add.onDidClick(() => { void this.editAxis(kind); }));
-		}
-		header.appendChild(tools);
-		const archivedButton = store.add(new Button(tools, { ...defaultButtonStyles, secondary: true }));
-		archivedButton.element.dataset.boardControl = 'show-archived';
-		this.controlElements.set('show-archived', archivedButton.element);
-		archivedButton.label = localize('projectBoard.showArchived', "Show Archived");
-		archivedButton.element.setAttribute('aria-pressed', String(this.showArchived));
-		store.add(archivedButton.onDidClick(() => {
-			this.showArchived = !this.showArchived;
-			this.observeSessions();
-		}));
-		const createButton = store.add(new Button(header, { ...defaultButtonStyles }));
-		createButton.element.dataset.boardControl = 'new-session';
-		this.controlElements.set('new-session', createButton.element);
-		this.createSessionButton = createButton;
-		createButton.label = localize('projectBoard.createSession', "New Session");
-		createButton.enabled = !this.creatingSession;
-		store.add(createButton.onDidClick(async () => {
-			this.creatingSession = true;
-			createButton.enabled = false;
-			try {
-				await this.chatWindows.createNewSession();
-			} catch (error) {
-				this.logService.error('[ProjectBoard] Failed to create session', error);
-				this.notificationService.error(localize('projectBoard.createFailed', "The new session could not be opened."));
-			} finally {
-				this.creatingSession = false;
-				if (this.createSessionButton) {
-					this.createSessionButton.enabled = true;
-				}
+
+			const tools = document.createElement('div');
+			tools.className = 'project-board-tools';
+			for (const kind of ['row', 'column'] as const) {
+				const add = this.createControl(tools, kind === 'row' ? localize('projectBoard.addRow', "Add Row") : localize('projectBoard.addColumn', "Add Column"), `add-${kind}`, store);
+				store.add(add.onDidClick(() => { void this.addAxis(kind); }));
 			}
-		}));
-		const settings = this.createControl(header, localize('projectBoard.settings', "Settings"), 'settings', store);
-		settings.label = '';
-		settings.icon = Codicon.settingsGear;
-		settings.element.classList.add('project-board-settings');
-		settings.element.setAttribute('aria-haspopup', 'menu');
-		settings.element.setAttribute('aria-label', localize('projectBoard.displaySettings', "Board display settings"));
-		store.add(this.hoverService.setupDelayedHover(settings.element, { content: localize('projectBoard.displaySettings', "Board display settings") }));
-		settings.enabled = this.boardState.canEdit;
-		store.add(settings.onDidClick(() => this.showSettings(settings.element)));
-		board.appendChild(header);
+			header.appendChild(tools);
+			const archivedButton = store.add(new Button(tools, { ...defaultButtonStyles, secondary: true }));
+			archivedButton.element.dataset.boardControl = 'show-archived';
+			this.controlElements.set('show-archived', archivedButton.element);
+			archivedButton.label = localize('projectBoard.showArchived', "Show Archived");
+			archivedButton.element.setAttribute('aria-pressed', String(this.showArchived));
+			store.add(archivedButton.onDidClick(() => this.toggleArchived()));
+			const createButton = store.add(new Button(header, { ...defaultButtonStyles }));
+			createButton.element.dataset.boardControl = 'new-session';
+			this.controlElements.set('new-session', createButton.element);
+			this.createSessionButton = createButton;
+			createButton.label = localize('projectBoard.createSession', "New Session");
+			createButton.enabled = !this.creatingSession;
+			store.add(createButton.onDidClick(() => { void this.createSession(); }));
+			const settings = this.createControl(header, localize('projectBoard.settings', "Settings"), 'settings', store);
+			settings.label = '';
+			settings.icon = Codicon.settingsGear;
+			settings.element.classList.add('project-board-settings');
+			settings.element.setAttribute('aria-haspopup', 'menu');
+			settings.element.setAttribute('aria-label', localize('projectBoard.displaySettings', "Board display settings"));
+			store.add(this.hoverService.setupDelayedHover(settings.element, { content: localize('projectBoard.displaySettings', "Board display settings") }));
+			settings.enabled = this.boardState.canEdit;
+			store.add(settings.onDidClick(() => this.showSettings(settings.element)));
+			board.appendChild(header);
+		}
+		this.updateCustomViewContexts();
 		if (!this.boardState.canEdit) {
 			const warning = document.createElement('section');
 			warning.className = 'project-board-storage-error';
@@ -621,31 +673,31 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					id: 'projectBoard.settings.stateDuration',
 					label: localize('projectBoard.showStateDuration', "Show Time in State"),
 					checked: !!display?.showStateDuration,
-					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showStateDuration', !this.boardState.configuration.get().display?.showStateDuration)),
+					run: () => this.toggleDisplayOption('showStateDuration'),
 				}),
 				toAction({
 					id: 'projectBoard.settings.credits',
 					label: localize('projectBoard.showCredits', "Show AI Credits"),
 					checked: !!display?.showCredits,
-					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showCredits', !this.boardState.configuration.get().display?.showCredits)),
+					run: () => this.toggleDisplayOption('showCredits'),
 				}),
 				toAction({
 					id: 'projectBoard.settings.lastPrompt',
 					label: localize('projectBoard.showLastPrompt', "Show Last Prompt"),
 					checked: display?.showLastPrompt !== false,
-					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showLastPrompt', this.boardState.configuration.get().display?.showLastPrompt === false)),
+					run: () => this.toggleDisplayOption('showLastPrompt'),
 				}),
 				toAction({
 					id: 'projectBoard.settings.modelDetails',
 					label: localize('projectBoard.showModelDetails', "Show Model Details"),
 					checked: !!display?.showModelDetails,
-					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showModelDetails', !this.boardState.configuration.get().display?.showModelDetails)),
+					run: () => this.toggleDisplayOption('showModelDetails'),
 				}),
 				toAction({
 					id: 'projectBoard.settings.permissionDetails',
 					label: localize('projectBoard.showPermissionDetails', "Show Agent & Permissions"),
 					checked: !!display?.showPermissionDetails,
-					run: () => this.changeBoard(() => this.boardState.setDisplayOption('showPermissionDetails', !this.boardState.configuration.get().display?.showPermissionDetails)),
+					run: () => this.toggleDisplayOption('showPermissionDetails'),
 				}),
 			],
 			onHide: () => {
@@ -660,6 +712,20 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				}
 			},
 		});
+	}
+
+	private updateCustomViewContexts(): void {
+		if (!this.customViewContexts) {
+			return;
+		}
+		const display = this.boardState.configuration.get().display;
+		this.customViewContexts.editable.set(this.boardState.canEdit);
+		this.customViewContexts.showArchived.set(this.showArchived);
+		this.customViewContexts.showStateDuration.set(!!display?.showStateDuration);
+		this.customViewContexts.showCredits.set(!!display?.showCredits);
+		this.customViewContexts.showLastPrompt.set(display?.showLastPrompt !== false);
+		this.customViewContexts.showModelDetails.set(!!display?.showModelDetails);
+		this.customViewContexts.showPermissionDetails.set(!!display?.showPermissionDetails);
 	}
 
 	private renderAxis(container: HTMLElement, axis: IProjectBoardAxis, kind: 'row' | 'column', store: DisposableStore): void {
@@ -1492,6 +1558,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 
 	private boardWindow: IAuxiliaryWindow | undefined;
 	private boardView: ProjectBoardView | undefined;
+	private customView: ProjectBoardView | undefined;
 	private opening: Promise<void> | undefined;
 	private readonly boardDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly chatWindows: ProjectBoardChatWindows;
@@ -1530,6 +1597,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
 		});
 		this.boardView = view;
+		this.customView = view;
 		return {
 			focus: () => view.focus(),
 			layout: (width, height) => view.layout(width, height),
@@ -1537,9 +1605,28 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 				if (this.boardView === view) {
 					this.boardView = undefined;
 				}
+				if (this.customView === view) {
+					this.customView = undefined;
+				}
 				view.dispose();
 			},
 		};
+	}
+
+	async addAxis(kind: 'row' | 'column'): Promise<void> {
+		await this.customView?.addAxis(kind);
+	}
+
+	toggleArchived(): void {
+		this.customView?.toggleArchived();
+	}
+
+	async createSession(): Promise<void> {
+		await this.customView?.createSession();
+	}
+
+	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void {
+		this.customView?.toggleDisplayOption(key);
 	}
 
 	getAccessibleContent(): string {

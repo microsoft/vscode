@@ -162,6 +162,17 @@ suite('ChatTurnPills', () => {
 		});
 	});
 
+	test('renders a primary pill when requested', () => {
+		const action = disposables.add(new Action('test.pill', 'New Session'));
+		const item = disposables.add(new ChatPillActionViewItem(undefined, action, {}, false));
+		const container = document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		item.render(container);
+
+		assert.strictEqual(container.querySelector('.chat-pill-button')?.classList.contains('secondary'), false);
+	});
+
 	test('resolves the pill under a right-click, and nothing outside the pills', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const first = disposables.add(new Action('test.pill.first', 'First'));
