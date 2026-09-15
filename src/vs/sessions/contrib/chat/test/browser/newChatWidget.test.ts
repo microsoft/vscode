@@ -1444,7 +1444,7 @@ suite('NewChatWidget', () => {
 				selectedResolved: { workspace: { label: 'workspace' } },
 				showPicker: () => { },
 			},
-			_session: constObservable(undefined),
+			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'type' })),
 			_newChatInput: {
 				attachments: [],
 				selectedModelState: constObservable({ currentModel: undefined }),

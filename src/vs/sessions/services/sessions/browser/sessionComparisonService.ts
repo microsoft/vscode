@@ -97,6 +97,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			workspace: options.workspace,
 			prompt: options.prompt,
 			branch: options.branch,
+			permissionLevel: options.permissionLevel,
 			judgeHarness: options.judgeHarness,
 			participants: [],
 		};
@@ -136,6 +137,22 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._ensureComparisonGroupMembership([comparison]);
 		this._replaceComparison(comparison);
 		this._checkComparison(comparison);
+		const successfulAttemptCount = attempts.filter(participant => participant.sessionResource).length;
+		if (successfulAttemptCount < 2) {
+			this._removeComparison(comparison.id);
+			this.sessionGroupsService.deleteGroup(comparison.groupId);
+			const launchFailures = attempts
+				.filter(participant => participant.launchError)
+				.map(participant => `${getSessionComparisonHarnessLabel(participant)}: ${participant.launchError}`)
+				.join('; ');
+			throw new Error(localize(
+				'sessionComparison.insufficientSuccessfulAttempts',
+				"Only {0} of {1} comparison attempts started. At least two must start successfully. Failed attempts: {2}",
+				successfulAttemptCount,
+				attempts.length,
+				launchFailures
+			));
+		}
 		return comparison;
 	}
 
@@ -230,6 +247,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				providerId: recommended.harness.providerId,
 				sessionTypeId: recommended.harness.sessionTypeId,
 				modelId: recommended.harness.modelId,
+				permissionLevel: comparison.permissionLevel,
 				isolationMode: 'worktree',
 				branch: comparison.branch,
 				metadata: withSessionComparisonMetadata(undefined, {
@@ -255,35 +273,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		} finally {
 			this._synthesisStarting.delete(comparisonId);
 		}
-	}
-
-	async discardOriginalAttempts(comparisonId: string): Promise<readonly string[]> {
-		const comparison = this._requireComparison(comparisonId);
-		const failures: string[] = [];
-		const failedParticipantIds = new Set<string>();
-		for (const participant of comparison.participants) {
-			if (participant.role !== SessionComparisonParticipantRole.Attempt || !participant.sessionResource) {
-				continue;
-			}
-			const session = this.sessionsManagementService.getSession(participant.sessionResource);
-			if (!session) {
-				failedParticipantIds.add(participant.id);
-				failures.push(localize('sessionComparison.cleanupSessionUnavailable', "The {0} session is currently unavailable.", participant.harness.label));
-				continue;
-			}
-			try {
-				await this.sessionsManagementService.deleteSession(session);
-			} catch (error) {
-				failedParticipantIds.add(participant.id);
-				failures.push(error instanceof Error ? error.message : String(error));
-			}
-		}
-		this._replaceComparison({
-			...comparison,
-			participants: comparison.participants.filter(participant =>
-				participant.role !== SessionComparisonParticipantRole.Attempt || failedParticipantIds.has(participant.id)),
-		});
-		return failures;
 	}
 
 	private _createOptions(harness: ISessionComparisonHarness, options: IStartSessionComparisonOptions, comparisonId: string, attemptIndex: number) {
@@ -464,6 +453,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			providerId: harness.providerId,
 			sessionTypeId: harness.sessionTypeId,
 			modelId: harness.modelId,
+			permissionLevel: comparison.permissionLevel,
 			isolationMode: 'worktree',
 			branch: comparison.branch,
 			metadata: withSessionComparisonMetadata(undefined, {
@@ -544,6 +534,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _replaceComparison(comparison: ISessionComparison): void {
 		this._comparisons.set(this._comparisons.get().map(candidate => candidate.id === comparison.id ? comparison : candidate), undefined);
+		this._save();
+	}
+
+	private _removeComparison(comparisonId: string): void {
+		this._comparisons.set(this._comparisons.get().filter(comparison => comparison.id !== comparisonId), undefined);
 		this._save();
 	}
 

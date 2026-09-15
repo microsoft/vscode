@@ -10,7 +10,7 @@ Session comparisons run the same task through multiple Sessions providers and pr
 
 | Concern | Owner |
 |---|---|
-| Comparison records, participant lifecycle, selection, and cleanup | `ISessionComparisonService` |
+| Comparison records, participant lifecycle, and selection | `ISessionComparisonService` |
 | Attempt and Judge harness/provider-local model selection | new-session composer |
 | Session creation, model resolution, and worktree isolation | Sessions provider through `ISessionsManagementService` |
 | Attempt evidence and user actions | Judge chat result and comparison parent grid |
@@ -18,7 +18,7 @@ Session comparisons run the same task through multiple Sessions providers and pr
 | Targeted transcript follow-up | existing Agent Host `get_session_context` tool |
 | Structured recommendation | visible grouped Judge session and `completeAttemptComparison` tool |
 
-Comparison records are persisted in profile storage. Session and chat resources remain provider-owned identities; the comparison record snapshots only the final content-free token summary needed to preserve attempt evidence after a reload or participant cleanup.
+Comparison records are persisted in profile storage. Session and chat resources remain provider-owned identities; the comparison record snapshots only the final content-free token summary needed to preserve attempt evidence after a reload.
 The Sessions group service persists the comparison's session membership so the hierarchy survives window reloads.
 
 ## Participant hierarchy
@@ -35,11 +35,10 @@ The comparison service creates attempts directly and adds each launched particip
 
 1. The prompt, attachments, workspace, branch, permission level, and Judge harness/model are frozen at launch. The prompt and attachments are shared across attempts, and each attempt independently selects a model advertised by its harness provider.
 2. Every harness must support worktree configuration. Model identifiers remain provider-local and are never matched across providers by identifier or display name.
-3. Attempts launch concurrently. One launch failure is recorded without deleting successful attempts. Opening the comparison parent presents every available participant session in participant order in a tiled Sessions grid, including attempts, the Judge, and synthesis when they exist.
+3. Attempts launch concurrently. One launch failure is recorded without deleting successful attempts. If fewer than two attempts launch, comparison setup fails and any successful sessions remain available outside the comparison group. Opening the comparison parent presents every available participant session in participant order in a tiled Sessions grid, including attempts, the Judge, and synthesis when they exist.
 4. The Judge calls `readAttemptComparison` once to obtain the original task, successful participants, worktree locations, changed files, change summaries, and exact provider-owned transcript targets. Because terminal commands start in the Judge worktree, it explicitly changes to the manifest's exact attempt working directory for every command that inspects or validates that attempt. It reviews every attempt's diff, calls the existing `get_session_context` tool with those exact targets to inspect validation claims or other focused transcript evidence, and runs missing targeted validation when needed. It records whether each validation result came from the attempt report, a Judge run, unavailable evidence, or did not apply, then successfully calls `completeAttemptComparison`. A rejected invalid verdict may be corrected and retried, but a successful verdict is not resubmitted. It does not discover sessions, guess references, create sessions, or modify attempts.
 5. After the Judge submits a verdict, its chat remains open and presents the winning attempt, supporting evidence, strong points from other attempts, and actions to focus the winner or start synthesis. Focusing the winner records a preference and opens its session without automatically opening its Changes editor; it does not apply changes to the user's working tree.
-6. Judge recommendations are advisory. The Judge may describe semantic decision sections with the relevant files and each attempt's approach. Before synthesis, the user may persist a plan that chooses an attempt for each section or delegates that section to the synthesis agent. Synthesis starts only through an explicit user action, treats the plan as user requirements, and creates a new isolated grouped participant. Original attempts remain until an explicit, confirmed discard.
-7. Cleanup reports partial deletion failures and retains records for attempts that could not be deleted.
+6. Judge recommendations are advisory. The Judge may describe semantic decision sections with the relevant files and each attempt's approach. Before synthesis, the user may persist a plan that chooses an attempt for each section or delegates that section to the synthesis agent. Synthesis starts only through an explicit user action, treats the plan as user requirements, and creates a new isolated grouped participant. Original attempts remain available.
 
 ## Evidence
 
