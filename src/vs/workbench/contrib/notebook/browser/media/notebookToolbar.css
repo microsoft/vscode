@@ -66,6 +66,17 @@
 	padding-left: 2px;
 }
 
+/* Move spin animation to ::before pseudo-element so that the icon spins
+   inside the padding box instead of spinning the padding with it, which
+   causes a visible wobble due to the asymmetric padding-left (#243027). */
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label.codicon-modifier-spin {
+	animation: none;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label.codicon-modifier-spin::before {
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 .monaco-workbench .notebook-action-view-item .action-label {
 	display: inline-flex;
 }
