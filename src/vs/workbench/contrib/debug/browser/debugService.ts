@@ -522,9 +522,7 @@ export class DebugService implements IDebugService {
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			if (!this.hasActiveFileEditor() && configHasFileVariables(configByProviders)) {
-				// The resolved config depends on a variable that can only be resolved when a file is
-				// open in the active editor. Prompt the user to open a file up front instead of
-				// failing the launch later with an "unresolvable variable" error.
+				// Avoid surfacing the resolver's generic missing-editor error.
 				await this.dialogService.prompt({
 					type: severity.Error,
 					message: nls.localize('debug.startDebuggingNoFile', "You need to open a file to start a debug session."),
