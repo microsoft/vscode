@@ -2717,9 +2717,17 @@ export class ActionListWidget<T> extends Disposable {
 		// itself, not just the row that measured it before the content changed.
 		if ((this._options?.persistentHover || element.hover?.alignToParent || element.hover?.tabThroughPanel || preserveVerticalPosition) && this._currentSubmenuElement === element) {
 			if (!submenuWidget) {
-				const layoutScheduler = this._submenuDisposables.add(new dom.AnimationFrameScheduler(this._submenuContainer, layout));
-				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', () => layoutScheduler.schedule(), targetWindow));
-				this._submenuDisposables.add(observer.observe(preserveVerticalPosition || element.hover?.tabThroughPanel ? content : this._submenuContainer, { box: 'border-box' }));
+				const scheduledLayout = this._submenuDisposables.add(new MutableDisposable());
+				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', () => {
+					if (!scheduledLayout.value) {
+						// Layout can resize the observed panel, so run it outside resize observation.
+						scheduledLayout.value = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
+							scheduledLayout.clear();
+							layout();
+						});
+					}
+				}, targetWindow));
+				this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
 			}
 			if (this._options?.persistentHover || preserveVerticalPosition) {
 				this._submenuDisposables.add(dom.addDisposableListener(targetWindow, dom.EventType.RESIZE, () => {
