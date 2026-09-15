@@ -40,7 +40,8 @@ import { AgentHostUntitledProvisionalSessionService } from '../../../browser/age
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { getLocalAgentHostSessionProvider } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -74,8 +75,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	failNextDispose = false;
 	enforceStandardTombstones = false;
 	private readonly _tombstones = new Set<string>();
+	createStarted: DeferredPromise<void> | undefined;
+	announceDuringCreate = false;
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
+	readonly notifications = new Emitter<INotification>();
+	override readonly onDidNotification = this.notifications.event;
 
 	private readonly _onRootStateChange = new Emitter<RootState>();
 
@@ -108,6 +113,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.createCalls.push(config);
 		if (this.enforceStandardTombstones && this._tombstones.has(config.session.toString())) {
 			throw new Error(`Session storage identity is already in use: ${config.session.toString()}`);
+		}
+		void this.createStarted?.complete();
+		if (this.announceDuringCreate) {
+			assert.ok(config.provider);
+			this.notifications.fire({
+				type: NotificationType.SessionAdded,
+				channel: 'ahp-root://',
+				summary: { resource: config.session.toString(), provider: config.provider, title: 'Greeting', status: 1, createdAt: '2026-09-14T00:00:00Z', modifiedAt: '2026-09-14T00:00:01Z' },
+			});
 		}
 		if (this.failNextCreate) {
 			this.failNextCreate = false;
@@ -147,6 +161,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	dispose(): void {
 		this._onAgentHostStart.dispose();
 		this._onRootStateChange.dispose();
+		this.notifications.dispose();
 	}
 
 	override dispatch(channel: Parameters<IAgentHostService['dispatch']>[0], action: Parameters<IAgentHostService['dispatch']>[1]): void {
@@ -395,6 +410,93 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			]);
 		});
 	}
+
+	test('PB-03/PB-05 materialized hi session survives closing its model before board placement and reopen', async () => {
+		const ui = untitledChatUri('hi-move');
+		const backend = (await provisional.getOrCreate(ui, 'copilot', undefined))!;
+		agentHost.notifications.fire({
+			type: NotificationType.SessionAdded,
+			channel: 'ahp-root://',
+			summary: { resource: backend.toString(), provider: 'copilot', title: 'Greeting', status: 1, createdAt: '2026-09-14T00:00:00Z', modifiedAt: '2026-09-14T00:00:01Z' },
+		});
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		await provisional.waitForPending(ui);
+		assert.deepStrictEqual({
+			backendDeleted: agentHost.disposed.some(resource => resource.toString() === backend.toString()),
+			provisionalMapping: provisional.get(ui),
+		}, { backendDeleted: false, provisionalMapping: undefined });
+	});
+
+	test('publication during backend creation is retained across model disposal', async () => {
+		agentHost.announceDuringCreate = true;
+		const ui = untitledChatUri('eager-publish');
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		await provisional.waitForPending(ui);
+		assert.deepStrictEqual(agentHost.disposed, []);
+	});
+
+	test('a pending generation published after its input closes is not deleted', async () => {
+		const gate = agentHost.createGate = new DeferredPromise<void>();
+		const started = agentHost.createStarted = new DeferredPromise<void>();
+		const ui = untitledChatUri('closing-during-publication');
+		const creation = provisional.getOrCreate(ui, 'copilot', undefined);
+		await started.p;
+		const backend = agentHost.createCalls[0].session!;
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		agentHost.notifications.fire({
+			type: NotificationType.SessionAdded, channel: 'ahp-root://',
+			summary: { resource: backend.toString(), provider: 'copilot', title: 'Greeting', status: 1, createdAt: '2026-09-14T00:00:00Z', modifiedAt: '2026-09-14T00:00:01Z' },
+		});
+		await gate.complete();
+		await creation;
+		await provisional.waitForPending(ui);
+		assert.deepStrictEqual(agentHost.disposed, []);
+	});
+
+	test('another session publishing does not prevent abandoned draft cleanup', async () => {
+		const ui = untitledChatUri('still-abandoned');
+		const backend = (await provisional.getOrCreate(ui, 'copilot', undefined))!;
+		agentHost.notifications.fire({
+			type: NotificationType.SessionAdded, channel: 'ahp-root://',
+			summary: { resource: 'copilot:/other', provider: 'copilot', title: 'Other chat', status: 1, createdAt: '2026-09-14T00:00:00Z', modifiedAt: '2026-09-14T00:00:01Z' },
+		});
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		await provisional.waitForPending(ui);
+		assert.deepStrictEqual(agentHost.disposed.map(resource => resource.toString()), [backend.toString()]);
+	});
+
+	test('publication of a rebound generation survives its canonical model closing', async () => {
+		const ui = untitledChatUri('rebound-published');
+		const original = (await provisional.getOrCreate(ui, 'copilot', undefined))!;
+		const canonical = URI.parse('agent-host-copilot:/rebound-published');
+		const backend = (await provisional.tryRebind(ui, canonical, 'copilot'))!;
+		agentHost.notifications.fire({
+			type: NotificationType.SessionAdded, channel: 'ahp-root://',
+			summary: { resource: backend.toString(), provider: 'copilot', title: 'Greeting', status: 1, createdAt: '2026-09-14T00:00:00Z', modifiedAt: '2026-09-14T00:00:01Z' },
+		});
+		const boundResource = canonical.with({ path: backend.path });
+		onDidDisposeChatSession.fire({ sessionResources: [boundResource], reason: 'disposed' });
+		await provisional.waitForPending(boundResource);
+		assert.deepStrictEqual({
+			reused: backend.toString() === original.toString(),
+			deleted: agentHost.disposed.map(resource => resource.toString()),
+			mapping: provisional.get(boundResource),
+		}, { reused: true, deleted: [], mapping: undefined });
+	});
+
+	test('workbench shutdown retires abandoned provisionals but keeps published conversations', async () => {
+		const published = (await provisional.getOrCreate(untitledChatUri('published'), 'copilot', undefined))!;
+		const abandoned = (await provisional.getOrCreate(untitledChatUri('abandoned'), 'copilot', undefined))!;
+		agentHost.notifications.fire({
+			type: NotificationType.SessionAdded,
+			channel: 'ahp-root://',
+			summary: { resource: published.toString(), provider: 'copilot', title: 'Greeting', status: 1, createdAt: '2026-09-14T00:00:00Z', modifiedAt: '2026-09-14T00:00:01Z' },
+		});
+		assert.ok(provisional instanceof AgentHostUntitledProvisionalSessionService);
+		provisional.dispose();
+		assert.deepStrictEqual(agentHost.disposed.map(resource => resource.toString()), [abandoned.toString()]);
+	});
 
 	test('getOrCreate creates one backend provisional and returns the same URI on repeat calls', async () => {
 		agentHost.resolveQueue = [];
