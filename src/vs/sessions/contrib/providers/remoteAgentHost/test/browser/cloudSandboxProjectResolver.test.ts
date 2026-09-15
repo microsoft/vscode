@@ -7,45 +7,14 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { CloudSandboxProjectResolver } from '../../browser/cloudSandboxProjectResolver.js';
-
-interface ITestProject {
-	id: string;
-	path: string;
-	git: boolean;
-	status: 'ready' | 'cloning' | 'failed';
-	remoteUrl: string;
-	progress?: number;
-	error?: string;
-}
-
-function project(overrides: Partial<ITestProject> = {}): ITestProject {
-	return {
-		id: 'project-1',
-		path: '/checkout/owner/repo',
-		git: true,
-		status: 'ready',
-		remoteUrl: 'https://github.com/owner/repo',
-		...overrides,
-	};
-}
-
-function root(projects: readonly unknown[], capability: unknown): RootState {
-	return upcastPartial<RootState>({
-		_meta: capability === undefined ? {} : { 'copilot.projectManagement': capability },
-		config: { schema: { type: 'object', properties: {} }, values: { copilot: { projects } } },
-	});
-}
+import { CloudSandboxProjectsClient } from '../../browser/cloudSandboxProjectsClient.js';
+import { createCloudSandboxProject as project, createCloudSandboxProjectsTestConnection } from './cloudSandboxProjectsTestUtils.js';
 
 class TestProgressService implements IProgressService {
 	declare readonly _serviceBrand: undefined;
@@ -71,52 +40,17 @@ suite('CloudSandboxProjectResolver', () => {
 		legacy?: boolean;
 		request?: () => Promise<unknown>;
 	} = {}) {
-		const capability = options.legacy ? undefined : options.capability ?? { available: true };
-		let state: RootState | Error = root(options.projects ?? [], capability);
-		const changes = store.add(new Emitter<RootState>());
-		const errors = store.add(new Emitter<Error>());
-		const requested = new DeferredPromise<void>();
-		const requests: { method: string; params: Record<string, unknown> }[] = [];
-		const subscription: IAgentSubscription<RootState> = {
-			get value() { return state; },
-			get verifiedValue() { return state instanceof Error ? undefined : state; },
-			onDidChange: changes.event,
-			onDidError: errors.event,
-			onWillApplyAction: Event.None,
-			onDidApplyAction: Event.None,
-		};
-		const connection = new class extends mock<IAgentConnection>() {
-			override readonly rootState = subscription;
-			override readonly resourceUris = upcastPartial<IAgentConnection['resourceUris']>({
-				fromAgentHost: uri => toAgentHostUri(uri, 'sandbox'),
-			});
-			override async requestExtension(method: string, params: Record<string, unknown>): Promise<unknown> {
-				requests.push({ method, params });
-				requested.complete();
-				return options.request ? options.request() : { project: project({ status: 'cloning', git: false, progress: 0 }) };
-			}
-		}();
+		const connection = createCloudSandboxProjectsTestConnection(store, options);
+		const client = store.add(new CloudSandboxProjectsClient(connection.connection));
 		const progress = new TestProgressService();
 		const resolver = new CloudSandboxProjectResolver(progress);
-		return {
-			connection, resolver, progress, requests, requested,
-			setProjects: (projects: readonly unknown[]) => {
-				const next = root(projects, capability);
-				state = next;
-				changes.fire(next);
-			},
-			failSubscription: (error: Error) => {
-				state = error;
-				errors.fire(error);
-			},
-			hasListeners: () => changes.hasListeners() || errors.hasListeners(),
-		};
+		return { ...connection, client, resolver, progress };
 	}
 
 	for (const options of [{ legacy: true }, { capability: { available: false } }, { capability: { available: 'true' } }]) {
 		test(`preserves the pre-cloned path without an advertised capability (${JSON.stringify(options)})`, async () => {
 			const h = createHarness(options);
-			const result = await h.resolver.resolve(h.connection, repository, CancellationToken.None);
+			const result = await h.resolver.resolve(h.client, repository, CancellationToken.None);
 			assert.deepStrictEqual({ directory: result?.toString(), requests: h.requests, progress: h.progress.shown }, {
 				directory: repository.toString(), requests: [], progress: 0,
 			});
@@ -125,13 +59,13 @@ suite('CloudSandboxProjectResolver', () => {
 
 	test('leaves an existing filesystem working directory unchanged', async () => {
 		const h = createHarness();
-		const result = await h.resolver.resolve(h.connection, checkout, CancellationToken.None);
+		const result = await h.resolver.resolve(h.client, checkout, CancellationToken.None);
 		assert.deepStrictEqual({ directory: result?.toString(), requests: h.requests }, { directory: checkout.toString(), requests: [] });
 	});
 
 	test('reuses a ready checkout matched across SSH, case and .git spellings', async () => {
 		const h = createHarness({ projects: [project({ remoteUrl: 'git@github.com:OWNER/REPO.git' })] });
-		const result = await h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = await h.resolver.resolve(h.client, repository, CancellationToken.None);
 		assert.deepStrictEqual({ directory: result?.toString(), requests: h.requests, progress: h.progress.shown }, {
 			directory: checkout.toString(), requests: [], progress: 0,
 		});
@@ -139,7 +73,7 @@ suite('CloudSandboxProjectResolver', () => {
 
 	test('requests a shallow clone and waits for the catalogue to report ready', async () => {
 		const h = createHarness();
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		await h.requested.p;
 		h.setProjects([project({ status: 'cloning', git: false, progress: 40 })]);
 		let completed = false;
@@ -165,7 +99,7 @@ suite('CloudSandboxProjectResolver', () => {
 	test('does not replace a ready catalogue entry with a late cloning response', async () => {
 		const response = new DeferredPromise<unknown>();
 		const h = createHarness({ request: () => response.p });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		await h.requested.p;
 		h.setProjects([project()]);
 		response.complete({ project: project({ status: 'cloning', git: false }) });
@@ -174,7 +108,7 @@ suite('CloudSandboxProjectResolver', () => {
 
 	test('joins a clone started by another client without starting another one', async () => {
 		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.setProjects([project()]);
 		assert.deepStrictEqual({ directory: (await result)?.toString(), requests: h.requests }, { directory: checkout.toString(), requests: [] });
 	});
@@ -182,7 +116,7 @@ suite('CloudSandboxProjectResolver', () => {
 	test('keeps newer catalogue progress without repeating or regressing announcements', async () => {
 		const response = new DeferredPromise<unknown>();
 		const h = createHarness({ request: () => response.p });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		await h.requested.p;
 		h.setProjects([project({ status: 'cloning', progress: 40 })]);
 		response.complete({ project: project({ status: 'cloning', progress: 0 }) });
@@ -200,7 +134,7 @@ suite('CloudSandboxProjectResolver', () => {
 		const failed = project({ status: 'failed', git: false, error: 'Temporary network failure' });
 		const response = new DeferredPromise<unknown>();
 		const h = createHarness({ projects: [failed], request: () => response.p });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.setProjects([failed]);
 		response.complete({ project: project({ status: 'cloning', git: false }) });
 		h.setProjects([project()]);
@@ -213,11 +147,11 @@ suite('CloudSandboxProjectResolver', () => {
 
 	test('a clone failure ends the attempt but a user resend can recover', async () => {
 		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
-		const first = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const first = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.setProjects([project({ status: 'failed', git: false, error: 'Temporary network failure' })]);
 		await assert.rejects(first, /Temporary network failure/);
 		const requestsAfterFailure = h.requests.length;
-		const retry = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const retry = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.setProjects([project({ status: 'cloning', git: false })]);
 		h.setProjects([project()]);
 		assert.deepStrictEqual({ directory: (await retry)?.toString(), requestsAfterFailure, requestsAfterRetry: h.requests.length }, {
@@ -228,7 +162,7 @@ suite('CloudSandboxProjectResolver', () => {
 	test('a failed retry is surfaced without an automatic retry loop', async () => {
 		const failed = project({ status: 'failed', git: false, error: 'Repository access denied' });
 		const h = createHarness({ projects: [failed], request: async () => ({ project: failed }) });
-		await assert.rejects(h.resolver.resolve(h.connection, repository, CancellationToken.None), /Repository access denied/);
+		await assert.rejects(h.resolver.resolve(h.client, repository, CancellationToken.None), /Repository access denied/);
 		assert.deepStrictEqual({ requestCount: h.requests.length, hasListeners: h.hasListeners() }, { requestCount: 1, hasListeners: false });
 	});
 
@@ -236,7 +170,7 @@ suite('CloudSandboxProjectResolver', () => {
 		const failed = project({ status: 'failed', git: false, error: 'Temporary network failure' });
 		const h = createHarness({ projects: [failed] });
 		let finished = false;
-		const result = assert.rejects(h.resolver.resolve(h.connection, repository, CancellationToken.None), /Temporary network failure/).then(() => {
+		const result = assert.rejects(h.resolver.resolve(h.client, repository, CancellationToken.None), /Temporary network failure/).then(() => {
 			finished = true;
 		});
 		await timeout(0);
@@ -253,7 +187,7 @@ suite('CloudSandboxProjectResolver', () => {
 
 	test('surfaces failure while a clone is running and releases its listeners', async () => {
 		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.setProjects([project({ status: 'failed', error: 'Clone failed on the host' })]);
 		await assert.rejects(result, /Clone failed on the host/);
 		assert.strictEqual(h.hasListeners(), false);
@@ -262,27 +196,27 @@ suite('CloudSandboxProjectResolver', () => {
 	for (const response of [{}, { project: project({ remoteUrl: 'https://github.com/another/repository' }) }, { project: project({ path: 'relative/path' }) }]) {
 		test(`rejects an invalid clone response (${JSON.stringify(response)})`, async () => {
 			const h = createHarness({ request: async () => response });
-			await assert.rejects(h.resolver.resolve(h.connection, repository, CancellationToken.None), /invalid repository information/);
+			await assert.rejects(h.resolver.resolve(h.client, repository, CancellationToken.None), /invalid repository information/);
 			assert.strictEqual(h.hasListeners(), false);
 		});
 	}
 
 	test('rejects a malformed catalogue without invoking a clone', async () => {
 		const h = createHarness({ projects: [{}] });
-		await assert.rejects(h.resolver.resolve(h.connection, repository, CancellationToken.None), /invalid repository information/);
+		await assert.rejects(h.resolver.resolve(h.client, repository, CancellationToken.None), /invalid repository information/);
 		assert.deepStrictEqual(h.requests, []);
 	});
 
 	test('reports a project removed while cloning', async () => {
 		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.setProjects([]);
 		await assert.rejects(result, /removed while it was being prepared/);
 	});
 
 	test('propagates subscription failures', async () => {
 		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.failSubscription(new Error('Connection closed'));
 		await assert.rejects(result, /Connection closed/);
 	});
@@ -291,7 +225,7 @@ suite('CloudSandboxProjectResolver', () => {
 		const cts = store.add(new CancellationTokenSource());
 		const response = new DeferredPromise<unknown>();
 		const h = createHarness({ request: () => response.p });
-		const result = h.resolver.resolve(h.connection, repository, cts.token);
+		const result = h.resolver.resolve(h.client, repository, cts.token);
 		await h.requested.p;
 		cts.cancel();
 		await assert.rejects(result, CancellationError);
@@ -301,7 +235,7 @@ suite('CloudSandboxProjectResolver', () => {
 
 	test('supports cancellation from the progress notification', async () => {
 		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
-		const result = h.resolver.resolve(h.connection, repository, CancellationToken.None);
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
 		h.progress.cancel();
 		await assert.rejects(result, CancellationError);
 		assert.strictEqual(h.hasListeners(), false);
@@ -310,7 +244,7 @@ suite('CloudSandboxProjectResolver', () => {
 	test('times out instead of leaving session creation waiting forever', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
 		const start = Date.now();
-		await assert.rejects(h.resolver.resolve(h.connection, repository, CancellationToken.None), /Timed out/);
+		await assert.rejects(h.resolver.resolve(h.client, repository, CancellationToken.None), /Timed out/);
 		assert.deepStrictEqual({ elapsed: Date.now() - start, hasListeners: h.hasListeners() }, { elapsed: 180_000, hasListeners: false });
 	}));
 
@@ -322,7 +256,7 @@ suite('CloudSandboxProjectResolver', () => {
 			const start = Date.now();
 			let elapsed: number | undefined;
 			let message: string | undefined;
-			const result = h.resolver.resolve(h.connection, repository, cts.token).then(
+			const result = h.resolver.resolve(h.client, repository, cts.token).then(
 				() => { message = 'Unexpected success'; },
 				(error: Error) => {
 					message = error.message;
@@ -350,7 +284,15 @@ suite('CloudSandboxProjectResolver', () => {
 
 	test('does not start a clone after cancellation', async () => {
 		const h = createHarness();
-		await assert.rejects(h.resolver.resolve(h.connection, repository, CancellationToken.Cancelled), CancellationError);
+		await assert.rejects(h.resolver.resolve(h.client, repository, CancellationToken.Cancelled), CancellationError);
 		assert.deepStrictEqual(h.requests, []);
+	});
+
+	test('closing the connection cancels a readiness wait and releases its subscriptions', async () => {
+		const h = createHarness({ projects: [project({ status: 'cloning', git: false })] });
+		const result = h.resolver.resolve(h.client, repository, CancellationToken.None);
+		h.client.dispose();
+		await assert.rejects(result, CancellationError);
+		assert.strictEqual(h.hasListeners(), false);
 	});
 });

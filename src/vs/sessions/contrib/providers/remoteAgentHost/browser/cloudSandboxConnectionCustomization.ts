@@ -13,7 +13,6 @@ import {
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
-import { CloudSandboxProjectResolver } from './cloudSandboxProjectResolver.js';
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
@@ -34,7 +33,6 @@ function isGitHubResource(resource: string): boolean {
 export function createCloudSandboxConnectionCustomization(
 	address: string,
 	sandboxService: ICloudSandboxAgentHostService,
-	projectResolver: CloudSandboxProjectResolver,
 ): IRemoteAgentHostConnectionCustomization | undefined {
 	const environmentId = cloudSandboxEnvironmentId(address);
 	if (environmentId === undefined) {
@@ -59,7 +57,7 @@ export function createCloudSandboxConnectionCustomization(
 		},
 		backendSessionScheme: (provider: string): string | undefined =>
 			provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
-		prepareWorkingDirectory: (connection, workingDirectory, token) => projectResolver.resolve(connection, workingDirectory, token),
+		prepareWorkingDirectory: (connection, workingDirectory, token) => sandboxService.prepareWorkingDirectory(connection, workingDirectory, token),
 	};
 }
 

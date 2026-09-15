@@ -67,6 +67,8 @@ A connection customization may prepare a new session's working directory after a
 
 Cloud sandbox repository selections use this boundary to resolve a checkout on hosts that advertise project management. They reuse a ready checkout or await the host's clone result before creating the session. The client does not clone locally or acquire a second workload credential. Hosts without the capability retain the existing host-selected directory behavior.
 
+The sandbox connection factory creates a typed project adapter for each connection. It owns capability checks, wire requests, and validation of both responses and catalogue entries; the resolver consumes only typed project operations. The sandbox service looks up the adapter by connection identity, not address, and connection teardown cancels outstanding preparation and removes the adapter without affecting a replacement connection. Arbitrary RPC dispatch is not exposed through `IAgentConnection`; only the concrete transport client supplies the low-level host-extension sender.
+
 Preparation failures and cancellation stop session creation and the first turn; they do not fall back to an unrelated directory. Existing backend sessions keep their established directories and do not run preparation again. Host-specific requests stay outside the standard protocol command map and are used only after checking the advertised capability.
 
 ## Authentication and recovery

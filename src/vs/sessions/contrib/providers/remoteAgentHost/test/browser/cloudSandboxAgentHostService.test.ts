@@ -4,11 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	CloudSandboxEnabledSettingId,
 	cloudSandboxAddress,
@@ -16,13 +21,16 @@ import {
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CloudSandboxAgentHostService, MAX_SEALED_TOKEN_RETRIES } from '../../browser/cloudSandboxAgentHostService.js';
+import { createCloudSandboxConnectionCustomization } from '../../browser/cloudSandboxConnectionCustomization.js';
+import { createCloudSandboxProject as project, createCloudSandboxProjectsTestConnection } from './cloudSandboxProjectsTestUtils.js';
 
 function clientToken(sealed: string | undefined): ICloudSandboxClientToken {
 	return {
@@ -82,6 +90,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override readonly logsHome = URI.file('/logs');
 	}());
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
 
 	return {
 		service: store.add(instantiationService.createInstance(TestCloudSandboxAgentHostService)),
@@ -89,7 +98,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	};
 }
 
-suite('CloudSandboxAgentHostService sealed token', () => {
+suite('CloudSandboxAgentHostService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -106,6 +115,102 @@ suite('CloudSandboxAgentHostService sealed token', () => {
 		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
 			calls: 3,
 			sealed: 'copilot-sealed.v1.key.payload',
+		});
+	});
+
+	suite('project connections', () => {
+		const repository = URI.parse('https://github.com/owner/repo');
+
+		async function createHarness() {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remote = new class extends mock<IRemoteAgentHostService>() {
+				factory: IRemoteAgentHostConnectionFactory | undefined;
+				override readonly connections = [];
+				override getConnection() { return undefined; }
+				override registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory) {
+					this.factory = factory;
+					return toDisposable(() => { this.factory = undefined; });
+				}
+				override reconnect(): void { }
+				override async waitForConnection(address: string) {
+					return { address, name: 'Sandbox', clientId: 'client-1', status: RemoteAgentHostConnectionStatus.connected };
+				}
+			}();
+			instantiationService.stub(IRemoteAgentHostService, remote);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CloudSandboxEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+			}));
+			instantiationService.stub(ICloudSandboxApiService, {
+				connect: async () => ({ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') }),
+			});
+			instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') });
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
+			const service = store.add(instantiationService.createInstance(CloudSandboxAgentHostService));
+			await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+			const factory = remote.factory;
+			assert.ok(factory);
+			const entry = factory.entries.get()[0];
+			assert.ok(entry);
+			return {
+				service,
+				createConnection: async (client: AgentHostProtocolClient) => {
+					instantiationService.stubInstance(AgentHostProtocolClient, client);
+					const created = await factory.createConnection(entry, { userInitiated: true });
+					assert.ok(created.transportDisposable);
+					return { connection: created.connection, lifetime: store.add(created.transportDisposable) };
+				},
+			};
+		}
+
+		test('the sandbox customization uses the typed adapter created with its connection', async () => {
+			const h = await createHarness();
+			const raw = createCloudSandboxProjectsTestConnection(store, { projects: [project()] });
+			const created = await h.createConnection(raw.connection);
+			const prepare = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), h.service)?.prepareWorkingDirectory;
+			assert.ok(prepare);
+			const result = await prepare(created.connection, repository, CancellationToken.None);
+			assert.deepStrictEqual({ directory: result?.toString(), requests: raw.requests }, {
+				directory: toAgentHostUri(URI.file('/checkout/owner/repo'), 'sandbox').toString(),
+				requests: [],
+			});
+		});
+
+		test('disposing an old connection cannot remove the replacement adapter at the same address', async () => {
+			const h = await createHarness();
+			const firstRaw = createCloudSandboxProjectsTestConnection(store, { projects: [project()] });
+			const secondRaw = createCloudSandboxProjectsTestConnection(store, { projects: [project({ path: '/replacement/owner/repo' })] });
+			const first = await h.createConnection(firstRaw.connection);
+			const second = await h.createConnection(secondRaw.connection);
+			first.lifetime.dispose();
+			await assert.rejects(h.service.prepareWorkingDirectory(first.connection, repository, CancellationToken.None), /connection is no longer available/);
+			const result = await h.service.prepareWorkingDirectory(second.connection, repository, CancellationToken.None);
+			assert.strictEqual(result?.toString(), toAgentHostUri(URI.file('/replacement/owner/repo'), 'sandbox').toString());
+		});
+
+		for (const awaitingResponse of [false, true]) {
+			test(`disposing the connection cancels preparation (${awaitingResponse ? 'clone response' : 'catalogue readiness'})`, async () => {
+				const response = new DeferredPromise<unknown>();
+				const h = await createHarness();
+				const raw = createCloudSandboxProjectsTestConnection(store, {
+					projects: awaitingResponse ? [] : [project({ status: 'cloning', git: false })],
+					request: () => response.p,
+				});
+				const created = await h.createConnection(raw.connection);
+				const result = h.service.prepareWorkingDirectory(created.connection, repository, CancellationToken.None);
+				created.lifetime.dispose();
+				await assert.rejects(result, CancellationError);
+				assert.strictEqual(raw.hasListeners(), false);
+				response.complete({ project: project() });
+			});
+		}
+
+		test('a connection not created by the sandbox factory cannot prepare a project', async () => {
+			const h = await createHarness();
+			const raw = createCloudSandboxProjectsTestConnection(store);
+			await assert.rejects(h.service.prepareWorkingDirectory(raw.connection, repository, CancellationToken.None), /connection is no longer available/);
+			assert.deepStrictEqual(raw.requests, []);
 		});
 	});
 

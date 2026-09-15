@@ -53,7 +53,6 @@ import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js'
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
-import { CloudSandboxProjectResolver } from './cloudSandboxProjectResolver.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
@@ -179,10 +178,9 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	) {
 		super();
 
-		const projectResolver = this._instantiationService.createInstance(CloudSandboxProjectResolver);
 		this._register(this._connectionCustomizations.register(
 			isCloudSandboxConnectionAddress,
-			address => createCloudSandboxConnectionCustomization(address, this._cloudSandboxService, projectResolver)!,
+			address => createCloudSandboxConnectionCustomization(address, this._cloudSandboxService)!,
 		));
 
 		// Keep providers wired to their live connections and their status fresh.

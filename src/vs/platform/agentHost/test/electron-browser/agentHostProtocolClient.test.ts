@@ -409,11 +409,11 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
-	test('extension requests preserve parameters and return the host response', async () => {
+	test('host extension requests preserve parameters and return the host response', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
 		const params = { channel: ROOT_STATE_URI, repository: 'https://example.com/owner/repo' };
-		const response = client.requestExtension('x-test/prepareRepository', params);
+		const response = client.requestHostExtension('x-test/prepareRepository', params);
 		await timeout(0);
 		const request = transport.sentMessages.find((message): message is JsonRpcRequest => 'id' in message && 'method' in message && message.method === 'x-test/prepareRepository');
 		assert.ok(request);
@@ -421,10 +421,10 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual({ params: request.params, result: await response }, { params, result: { directory: '/checkout/repo' } });
 	});
 
-	test('extension requests propagate protocol errors', async () => {
+	test('host extension requests propagate protocol errors', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
-		const response = client.requestExtension('x-test/prepareRepository', {});
+		const response = client.requestHostExtension('x-test/prepareRepository', {});
 		await timeout(0);
 		const request = transport.sentMessages.find((message): message is JsonRpcRequest => 'id' in message && 'method' in message && message.method === 'x-test/prepareRepository');
 		assert.ok(request);

@@ -5,15 +5,17 @@
 
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { localize } from '../../../../../nls.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { WebPubSubRelayTransport } from '../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, AgentHostAhpJsonlLoggingSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import {
 	buildWpsUrl,
 	cloudSandboxAddress,
@@ -31,6 +33,8 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
+import { CloudSandboxProjectResolver } from './cloudSandboxProjectResolver.js';
+import { CloudSandboxProjectsClient, ICloudSandboxProjectsClient } from './cloudSandboxProjectsClient.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
@@ -60,6 +64,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	private readonly _stagedConnections = new Map<string, IStagedCloudSandboxConnection>();
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
+	private readonly _projectClients = new WeakMap<IAgentConnection, ICloudSandboxProjectsClient>();
+	private readonly _projectResolver: CloudSandboxProjectResolver;
 
 	constructor(
 		private readonly _instantiationService: IInstantiationService,
@@ -68,6 +74,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	) {
 		super();
 		this.entries = this._entries;
+		this._projectResolver = this._instantiationService.createInstance(CloudSandboxProjectResolver);
 		// Staging is cleared only by an explicit `unstageConfiguration`, never by
 		// observing the connection disappear. The service withdraws an entry
 		// before arming a retry, so treating that as removal would delete the
@@ -107,6 +114,17 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		return this._stagedConnections.get(cloudSandboxAddress(environmentId))?.creds.token.encrypted_github_token;
 	}
 
+	async prepareWorkingDirectory(connection: IAgentConnection, workingDirectory: URI | undefined, token: CancellationToken): Promise<URI | undefined> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const projects = this._projectClients.get(connection);
+		if (!projects) {
+			throw new Error(localize('cloudSandbox.projectConnectionUnavailable', "The sandbox connection is no longer available for repository preparation."));
+		}
+		return this._projectResolver.resolve(projects, workingDirectory, token);
+	}
+
 	async createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox) {
 			throw new Error(`Cloud sandbox factory cannot create a ${entry.connection.type} connection.`);
@@ -142,6 +160,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			},
 		);
 		const store = new DisposableStore();
+		const projects = store.add(new CloudSandboxProjectsClient(client));
+		this._projectClients.set(client, projects);
+		store.add(toDisposable(() => this._projectClients.delete(client)));
 		const refresher = store.add(new MutableDisposable<CloudSandboxCredentialRefresher>());
 		store.add(client.onDidChangeConnectionState(state => {
 			if (state === 'connected' && !refresher.value) {
@@ -205,6 +226,10 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 	getSealedGitHubToken(environmentId: string): string | undefined {
 		return this._connectionFactory.getSealedGitHubToken(environmentId);
+	}
+
+	prepareWorkingDirectory(connection: IAgentConnection, workingDirectory: URI | undefined, token: CancellationToken): Promise<URI | undefined> {
+		return this._connectionFactory.prepareWorkingDirectory(connection, workingDirectory, token);
 	}
 
 	async connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string> {
