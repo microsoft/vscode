@@ -141,11 +141,29 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.deepStrictEqual({
 			upstreamBranchName: result?.upstreamBranchName,
 			upstreamRemote: result?.upstreamRemote,
-			incomingChanges: result?.incomingChanges,
+			githubHeadOwner: result?.githubHeadOwner,
 		}, {
 			upstreamBranchName: 'feature/base',
 			upstreamRemote: undefined,
-			incomingChanges: 0,
+			githubHeadOwner: undefined,
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the full upstream remote name when it contains a slash', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['remote', 'add', 'my/fork', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/my/fork/feature', 'HEAD'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '--set-upstream-to', 'my/fork/feature'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			upstreamBranchName: result?.upstreamBranchName,
+			upstreamRemote: result?.upstreamRemote,
+		}, {
+			upstreamBranchName: 'my/fork/feature',
+			upstreamRemote: 'my/fork',
 		});
 	});
 

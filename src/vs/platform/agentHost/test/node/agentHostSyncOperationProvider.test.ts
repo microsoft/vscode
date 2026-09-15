@@ -132,16 +132,17 @@ suite('AgentHostSyncOperationContribution', () => {
 		assert.strictEqual(operations, undefined);
 	});
 
-	test('does not advertise sync when the upstream is a local branch', () => {
+	test('does not advertise sync without an upstream remote', () => {
 		const provider = createContribution();
-		const operations = ['main', 'feature/base'].map(upstreamBranchName => provider.getOperations({
+		// Local upstreams (`main`, `feature/base`) and a remote-looking name whose remote is unknown.
+		const operations = ['main', 'feature/base', 'origin/feature/test'].map(upstreamBranchName => provider.getOperations({
 			sessionKey,
 			changesetUri: uncommittedChangesetUri,
 			changesetKind: ChangesetKind.Uncommitted,
 			gitState: { ...gitStateWithIncomingChanges, upstreamBranchName, upstreamRemote: undefined },
 		}));
 
-		assert.deepStrictEqual(operations, [undefined, undefined]);
+		assert.deepStrictEqual(operations, [undefined, undefined, undefined]);
 	});
 
 	test('does not advertise incoming sync on a draft with uncommitted changes', () => {
