@@ -57,7 +57,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { ChatWebSocketManager, IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { FetcherService } from '../../../platform/networking/vscode-node/fetcherServiceImpl';
-import { resolveOTelConfig } from '../../../platform/otel/common/otelConfig';
+import { readOTelPolicyConfig, resolveOTelConfig } from '../../../platform/otel/common/otelConfig';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { InMemoryOTelService } from '../../../platform/otel/node/inMemoryOTelService';
 import { IOTelSqliteStore, OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
@@ -295,7 +295,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 
 	// OTel service — resolve config from env + settings, create appropriate impl
 	const otelSettings = workspace.getConfiguration('github.copilot.chat.otel');
-	const policyValue = <T>(key: string): T | undefined => (otelSettings.inspect<T>(key) as { policyValue?: T } | undefined)?.policyValue;
+	const coreOtelSettings = workspace.getConfiguration('chat.agentHost.otel');
 	const otelConfig = resolveOTelConfig({
 		env: process.env,
 		settingEnabled: otelSettings.get<boolean>('enabled'),
@@ -306,18 +306,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		settingOutfile: otelSettings.get<string>('outfile') || undefined,
 		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
 		settingProtocol: otelSettings.get<string>('protocol') || undefined,
-		policyEnabled: policyValue<boolean>('enabled'),
-		policyExporterType: policyValue<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
-		policyOtlpEndpoint: policyValue<string>('otlpEndpoint'),
-		policyCaptureContent: policyValue<boolean>('captureContent'),
-		policyOutfile: policyValue<string>('outfile'),
-		policyProtocol: policyValue<string>('protocol'),
 		settingServiceName: otelSettings.get<string>('serviceName') || undefined,
-		policyServiceName: policyValue<string>('serviceName'),
 		settingResourceAttributes: otelSettings.get<Record<string, string>>('resourceAttributes'),
-		policyResourceAttributes: policyValue<Record<string, string>>('resourceAttributes'),
 		settingHeaders: otelSettings.get<Record<string, string>>('headers'),
-		policyHeaders: policyValue<Record<string, string>>('headers'),
+		...readOTelPolicyConfig(otelSettings, coreOtelSettings),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
 		sessionId: env.sessionId,
 	});

@@ -36,6 +36,7 @@ function lookUp(tree: unknown, key: string) {
 export type ConfigurationInspect<T> = {
 	key: string;
 
+	policyValue?: T;
 	defaultValue?: T;
 	globalLocalValue?: T;
 	globalRemoteValue?: T;
@@ -269,6 +270,7 @@ export class ExtHostConfigProvider {
 					return {
 						key,
 
+						policyValue: deepClone(config.policy?.value),
 						defaultValue: deepClone(config.policy?.value ?? config.default?.value),
 						globalLocalValue: deepClone(config.userLocal?.value),
 						globalRemoteValue: deepClone(config.userRemote?.value),

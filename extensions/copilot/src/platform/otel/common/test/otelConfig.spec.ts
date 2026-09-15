@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { resolveOTelConfig, type OTelConfigInput } from '../otelConfig';
+import { readOTelPolicyConfig, resolveOTelConfig, type OTelConfigInput } from '../otelConfig';
 
 function makeInput(overrides: Partial<OTelConfigInput> = {}): OTelConfigInput {
 	return {
@@ -111,6 +111,52 @@ describe('resolveOTelConfig', () => {
 		expect(config.resourceAttributes).toEqual({
 			'benchmark.id': 'test-123',
 			'benchmark.name': 'say_hello',
+		});
+	});
+
+	describe('readOTelPolicyConfig', () => {
+
+		it('falls back to early core policy values when extension policy references are not registered yet', () => {
+			const coreValues = {
+				enabled: true,
+				exporterType: 'otlp-http',
+				otlpEndpoint: 'https://collector.example.com',
+				captureContent: true,
+				outfile: '',
+				otlpProtocol: 'http/json',
+				serviceName: 'github-copilot',
+				resourceAttributes: { deployment: 'managed' },
+				headers: { authorization: 'core' },
+			};
+			const configuration = (values: Record<string, unknown>) => ({
+				inspect: <T>(key: string) => ({ policyValue: values[key] as T | undefined }),
+			});
+
+			expect(readOTelPolicyConfig(configuration({}), configuration(coreValues))).toEqual({
+				policyEnabled: true,
+				policyExporterType: 'otlp-http',
+				policyOtlpEndpoint: 'https://collector.example.com',
+				policyCaptureContent: true,
+				policyOutfile: '',
+				policyProtocol: 'http/json',
+				policyServiceName: 'github-copilot',
+				policyResourceAttributes: { deployment: 'managed' },
+				policyHeaders: { authorization: 'core' },
+			});
+		});
+
+		it('prefers extension policy values including false and empty values', () => {
+			const configuration = (values: Record<string, unknown>) => ({
+				inspect: <T>(key: string) => ({ policyValue: values[key] as T | undefined }),
+			});
+
+			expect(readOTelPolicyConfig(
+				configuration({ enabled: false, outfile: '' }),
+				configuration({ enabled: true, outfile: 'core.jsonl' })
+			)).toMatchObject({
+				policyEnabled: false,
+				policyOutfile: '',
+			});
 		});
 	});
 

@@ -35,17 +35,19 @@ suite('ExtHostConfiguration', function () {
 		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService(), new class extends mock<IURITransformerService>() { });
 	}
 
-	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
+	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape, policyContents?: any) {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents), new NullLogService());
+		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents, policyContents), new NullLogService());
 	}
 
-	function createConfigurationData(contents: any): IConfigurationInitData {
+	function createConfigurationData(contents: any, policyContents?: any): IConfigurationInitData {
 		return {
 			defaults: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
-			policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+			policy: policyContents === undefined
+				? ConfigurationModel.createEmptyModel(new NullLogService())
+				: new ConfigurationModel(policyContents, [], [], undefined, new NullLogService()),
 			application: ConfigurationModel.createEmptyModel(new NullLogService()),
 			userLocal: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
 			userRemote: ConfigurationModel.createEmptyModel(new NullLogService()),
@@ -72,6 +74,32 @@ suite('ExtHostConfiguration', function () {
 
 		assert.strictEqual(extHostConfig.getConfiguration('search.exclude').has('**/node_modules'), true);
 		assert.strictEqual(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
+	});
+
+	test('inspect exposes policy value separately from the effective default value', function () {
+		const configuration = createExtHostConfiguration(
+			{ setting: { enabled: false } },
+			undefined,
+			{ setting: { enabled: true } }
+		);
+
+		assert.deepStrictEqual(configuration.getConfiguration('setting').inspect<boolean>('enabled'), {
+			key: 'setting.enabled',
+			policyValue: true,
+			defaultValue: true,
+			globalLocalValue: false,
+			globalRemoteValue: undefined,
+			globalValue: false,
+			workspaceValue: undefined,
+			workspaceFolderValue: undefined,
+			defaultLanguageValue: undefined,
+			globalLocalLanguageValue: undefined,
+			globalRemoteLanguageValue: undefined,
+			globalLanguageValue: undefined,
+			workspaceLanguageValue: undefined,
+			workspaceFolderLanguageValue: undefined,
+			languageIds: []
+		});
 	});
 
 	test('has/get', () => {
