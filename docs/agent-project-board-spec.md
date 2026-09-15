@@ -1,0 +1,177 @@
+# Agent Project Board design
+
+Revision: 2026-09-15. Status: P0/P1 prototype implemented; optional P2 work is not a committed feature set.
+
+This is the contributor-facing design for `copilot/vscode/agent-project-board-phase-1`. It consolidates the product contract from the original hackathon handoff without requiring the private planning workspace or conversation history.
+
+Start with the [contributor setup guide](agent-project-board-setup.md). Repository-relative paths below refer to this VS Code checkout.
+
+## Purpose
+
+Provide a persistent, user-arranged, two-axis overview of individual agent chats. Users should be able to organize parallel work, notice live state changes and open the exact conversation without changing the main Agents window's selected session.
+
+The board organizes and visualizes work. It does not schedule agents, create workflow dependencies or change execution priority.
+
+## Terms and ownership
+
+- **Session:** Existing VS Code container for one or more chats, workspace, provider and shared context.
+- **Chat:** Individual conversation within a session.
+- **Card:** Live projection of one visible chat, identified by provider, session resource and chat resource.
+- **Cell:** Intersection of a user-defined area row and priority column.
+- **Unassigned:** Automatic tray for eligible chats without a placement.
+- **Recency:** Timestamp of the most recent submitted user prompt, not agent activity or last visit.
+- **Visited:** Existing provider-owned read state, never a separate board-owned flag.
+
+Moving a card changes only its placement. Chats sharing a session still share that session's workspace and context; different cells do not provide worktree isolation.
+
+## Product contract
+
+### Windows and navigation
+
+- `Agents: Open Project Board` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
+- Invoking the command from an ordinary Editor hands off to that Agents window, rather than creating a separate board for the Editor's profile.
+- Double-click, Enter or Space opens the exact chat in a compact standalone chat editor. Reopening the same chat reuses its window; different chats get independent windows.
+- Standalone chat windows reuse `ChatEditorInput` and `ChatEditor`, not another full Agents workbench. Opening one preserves the main Agents selection.
+- Visible and native window titles follow the chat's current title, including publication, rename and restoration.
+- Interaction-mode and permission pickers appear once and apply to that editor's chat.
+- Escape uses the normal editor-close lifecycle. Popups, find and editor selections dismiss first. Closing preserves unsent input, published conversations and running work.
+- When the board remains open, closing a standalone chat returns focus to its card. Closing a chat never reopens a closed board.
+- Closing the board releases its subscriptions, not the agents or already-open chat windows.
+
+### Layout and placement
+
+- Start with one General row, P0/P1/P2/P3 columns and an Unassigned tray.
+- Support adding, renaming, reordering and deleting both axes. Persist stable IDs rather than labels.
+- Keep at least one row and column; require nonempty labels.
+- A chat has one placement or is Unassigned. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
+- Card context menus do not enumerate every destination. Axis-edit menus remain.
+- Deleting an occupied axis requires confirmation and returns affected placements to Unassigned, including archived placements. Cancellation changes nothing.
+- Arrow keys follow the visible card geometry. Home/End focus the first/last card and scroll it into view.
+- Nested question inputs and links keep their own keyboard/mouse behavior; they do not accidentally open or move the card.
+- The board owns its bounded scroll surface. Expanded content must remain reachable, and ordinary live updates preserve scroll position.
+
+### Live cards
+
+- Render visible chats separately, including multiple chats from one session. Exclude provider-hidden internal workers; label visible read-only chats.
+- Display title, owning session/workspace, runtime state, current step, last prompt and available context links.
+- Use themed state color plus text and a decorative indicator: Busy/Starting, Needs Input, Error and Idle. Split Idle into visited/unvisited.
+- Busy/Starting uses the bundled running-person animation, with a static reduced-motion fallback.
+- Selecting, displaying, expanding or moving a card does not mark it read. Explicit opening follows provider-owned read marking.
+- A disconnected provider is a separate stale/unavailable warning, not a replacement runtime state or an empty successful board.
+- Opening a context link opens that resource without also opening the chat. Session-level artifacts are labeled shared context.
+
+### Recency, overflow and archive
+
+- Order by genuine submitted-request timestamps. Never substitute `updatedAt`, creation time, title changes or visit time.
+- Unknown timestamps sort after known timestamps, with stable chat identity as the tie-breaker.
+- Initially display three cards per cell. `+N more` reveals three additional cards at a time; Show Less restores the cap. Expansion resets on board reopen.
+- Expanded content grows the row; do not add cell-internal scrolling.
+- Compute overflow after archive filtering. Cell attention counts include hidden Needs Input cards without changing recency ordering.
+- Hide chats archived individually or through their owning session by default. Preserve their placements; Show Archived/unarchive restores them.
+
+### Questions
+
+- Needs Input cards reuse the interactive `ChatQuestionCarouselPart` and common answer-submission path.
+- Support provider-supplied titles, descriptions, options, custom answers when allowed, multiple questions and validation.
+- Retain the widget for the original pending carousel so values, selection and focus survive board refreshes.
+- Submit to the exact request and original backend option values. Reject stale, duplicate or externally answered forms.
+- Merely displaying a form does not submit it or mark the conversation read.
+- Archived/read-only chats, oversized or unresolvable forms and permission approvals retain an explicit open-in-chat fallback.
+
+### Creation and draft lifecycle
+
+- A top-right New Session button opens a standalone composer without selecting another main Agents chat.
+- Board-owned drafts appear in Unassigned and can reopen their composer.
+- The regular Agents window's current unsent draft appears immediately as a passive preview. Enter its first message in Agents; the board does not create a second composer or take cleanup ownership.
+- Independently discovered chats arrive without reopening the board. Publication reconciles previews to live cards without duplicates.
+- Discarding/replacing an Agents-owned draft removes only its borrowed preview. Automation-dialog drafts are outside this integration.
+- Closing an untouched board-owned composer discards only that owned draft. Retain work after typing, adding attachments, sending, a pending send or a failed send.
+- Publication ends provisional backend-cleanup ownership. Releasing a UI/model reference must not delete a published conversation.
+- Draft card identity remains stable when its input model resource changes.
+
+### Storage and errors
+
+- Persist only the configuration version, ordered axis IDs/labels and placements in profile-local storage.
+- Do not persist transcript copies, runtime status, credentials or artifact caches as board configuration.
+- Keep placement information when a provider disappears. Definitively unavailable placed chats have an explicit Remove Placement action.
+- Corrupt saved state locks mutation until an explicit confirmed reset; do not silently replace it with defaults.
+- Surface load, save, navigation and submission failures with normal logging/notifications.
+
+## Architecture and code map
+
+Use VS Code core DOM, CSS, observables and services; do not introduce a webview, separate backend or generic workflow framework.
+
+- [Board model](../src/vs/sessions/contrib/projectBoard/common/projectBoardModel.ts): identity, placement projection, filtering, recency and visible-card calculations.
+- [Board state](../src/vs/sessions/contrib/projectBoard/browser/projectBoardState.ts): validated profile storage and axis/placement mutations.
+- [Board view/service](../src/vs/sessions/contrib/projectBoard/browser/projectBoardService.ts): auxiliary board lifecycle, rendering, scrolling, focus, keyboard and drag/drop.
+- [Navigation and drafts](../src/vs/sessions/contrib/projectBoard/browser/projectBoardNavigation.ts): exact-chat windows, creation, model references, publication and safe cleanup.
+- [Metadata](../src/vs/sessions/contrib/projectBoard/browser/projectBoardMetadata.ts) and [questions](../src/vs/sessions/contrib/projectBoard/browser/projectBoardQuestions.ts): bounded projections of existing chat data and shared question widgets.
+- [Contribution](../src/vs/sessions/contrib/projectBoard/browser/projectBoard.contribution.ts): command/keybinding registration.
+- [Session management contract](../src/vs/sessions/services/sessions/common/sessionsManagement.ts): authoritative discovery and draft lifecycle.
+- [Provisional-session service](../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.ts): backend-generation ownership; publication protects conversations from provisional cleanup.
+
+`vs/sessions` may import `vs/workbench` and lower layers; ordinary workbench code must not import the higher Sessions layer. Keep provider-specific decisions in providers and native-window changes narrowly scoped.
+
+## Capability boundaries
+
+- One canonical Agents profile-local board; no cross-device synchronization or multiple named boards.
+- At most sixteen displayed chat models are retained for prompt metadata. Already-loaded hidden chats can supply timestamp-only updates; cold hidden histories remain unknown until expanded.
+- At most eight Needs Input cards load question previews concurrently. Additional cards direct users to their chat.
+- Missing prompt text/time is explicit. An empty stored request is informational (`No prompt text`), not an agent failure.
+- Local Copilot flows have been exercised in Windows OSS with real models. Other providers and macOS/Linux native behavior require their own validation.
+- Synthetic tests verify deterministic behavior, not real authentication or provider availability.
+
+## Scenario gates
+
+Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
+
+### P0: basic workflow
+
+- **PB-01:** Separate-window launch and singleton reuse.
+- **PB-02:** Chat-granular identity, live discovery and hidden-worker exclusion.
+- **PB-03:** Exactly-one-card movement, Unassigned return, picker cancellation and stale-selection safety.
+- **PB-04:** State/read transitions; board observation and movement do not mark read or start work.
+- **PB-05:** Exact standalone opening/reuse, main-selection isolation, title/configuration correctness and close/reopen preservation.
+- **PB-03/PB-05 regression:** Create a session, send `hi`, close while Busy or after Idle, move to General/P1 and reopen. Preserve canonical identity, title and transcript after model-reference disposal.
+
+### P1: useful persistent board
+
+- **PB-06:** Persistence, Editor-to-Agents handoff, singleton behavior and corrupt-state recovery.
+- **PB-07:** Genuine prompt recency and honest missing/historical metadata.
+- **PB-08:** Eight-card expansion: 3 + 5 hidden, then 6 + 2 hidden, then 8; correct attention counts.
+- **PB-09:** Chat-level and session-level archive filtering without lost placements.
+- **PB-10:** Stable editable axes, confirmed deletion and archived-placement accounting.
+- **PB-11:** Accurate shared context, keyboard accessibility, non-color state and reachable content.
+- **PB-15:** Interactive Ask User, custom answers, validation, exactly-once submission and refresh-safe input.
+- **PB-16:** Standalone creation, passive Agents draft discovery and publication without duplicates.
+- **PB-17:** Cleanup only of untouched owned drafts; preserve entered, attached, pending, failed and submitted work.
+
+### Resilience before optional P2
+
+- **PB-12:** Disconnect/reconnect and provider failures preserve useful state without duplicate cards.
+- **PB-13:** Board/owner lifecycle, fresh subscriptions and no accidental agent termination.
+- **PB-14:** Fifty-chat interaction fixture, visible caps, live updates during drag/focus, bounded scrolling and host-class mirroring.
+
+### Optional P2 candidates
+
+Only consider these after cumulative P0/P1 and resilience gates pass:
+
+- Tray search by chat title, owning session or workspace.
+- Richer inline prompt/current-step/context expansion.
+- Visual refinements for long labels, themes, zoom and reduced motion.
+- Larger-board measurements with an agreed dataset and explicit budgets.
+
+Graph connections, scheduling, new providers, multi-board support and synchronization are not part of P2. There is no agreed large-board performance threshold yet.
+
+## Validation and contribution policy
+
+Preserve each green scenario as a regression gate. Add a focused failing test at the real failure boundary, implement the fix and rerun the relevant cumulative suites.
+
+- Model tests establish membership, ordering and restoration.
+- Renderer tests establish DOM behavior, bounded layout, keyboard navigation and question handling.
+- Native tests establish actual scrolling, editing keys, focus and window lifecycle; DOM counts or injected text are insufficient.
+- Real-provider tests establish authentication, live data and continuation; mocks cannot establish those properties.
+
+Use the commands and native gate in the [setup guide](agent-project-board-setup.md). Keep tests at suite scope, preserve disposal checks, and report exact counts, platforms, providers and unrun scenarios.
+
+The prototype already implements P0/P1. New contributors should inspect the current branch, choose a bounded issue and extend the implementation rather than restarting the historical hackathon plan.
