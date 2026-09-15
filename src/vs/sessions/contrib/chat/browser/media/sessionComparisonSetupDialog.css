@@ -517,7 +517,7 @@
 	gap: var(--vscode-spacing-size80);
 	box-sizing: border-box;
 	width: 100%;
-	padding-top: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size40) var(--vscode-spacing-size40) 0;
 }
 
 .session-comparison-setup-navigation .monaco-button {
