@@ -262,6 +262,7 @@ export class AgentHostAuthenticationRecovery {
 		}
 		let session = resolution.session;
 		let usedRejectedSessionFallback = false;
+		let shouldPrompt = false;
 		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
 		if (rejectedSession && isSameAuthenticationSession(session, rejectedSession)) {
 			const alternativeResolution = await resolveSessionForProtectedResource(
@@ -272,16 +273,20 @@ export class AgentHostAuthenticationRecovery {
 				{ accountId: session.account?.id, excludedSession: rejectedSession },
 			);
 			throwIfAuthenticationStale(options);
-			if (alternativeResolution.kind !== 'resolved') {
+			if (alternativeResolution.kind === 'unavailable') {
 				return;
 			}
-			session = alternativeResolution.session;
-			usedRejectedSessionFallback = true;
+			if (alternativeResolution.kind === 'resolved') {
+				session = alternativeResolution.session;
+				usedRejectedSessionFallback = true;
+			} else {
+				shouldPrompt = true;
+			}
 		}
 
 		const previousToken = this._resentTokens.get(key);
-		if (previousToken !== undefined && previousToken === session.accessToken) {
-			if (!usedRejectedSessionFallback) {
+		if (shouldPrompt || (previousToken !== undefined && previousToken === session.accessToken)) {
+			if (!shouldPrompt && !usedRejectedSessionFallback) {
 				const alternativeResolution = await resolveSessionForProtectedResource(
 					authenticationService,
 					logService,
@@ -654,14 +659,7 @@ async function authenticateProtectedResourceWithServices(
 	options: IAgentHostAuthenticationOptions,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
-	const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported);
-	const resolution = await resolveSessionForProtectedResource(
-		authenticationService,
-		logService,
-		resource,
-		options,
-		rejectedSession ? { accountId: rejectedSession.accountId, excludedSession: rejectedSession } : undefined,
-	);
+	const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 	throwIfAuthenticationStale(options);
 	if (resolution.kind !== 'resolved') {
 		logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
@@ -681,9 +679,10 @@ async function resolveSessionForProtectedResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IAgentHostAuthenticationOptions, 'logPrefix'>,
-	selection: AuthenticationSessionSelection = {},
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'logPrefix'>,
+	selection?: AuthenticationSessionSelection,
 ): Promise<AuthenticationSessionResolution> {
+	const rejectedSession = selection ? undefined : options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported);
 	return resolveAuthenticationSessionForResource(
 		URI.parse(resource.resource),
 		resource.authorization_servers ?? [],
@@ -691,7 +690,7 @@ async function resolveSessionForProtectedResource(
 		authenticationService,
 		logService,
 		options.logPrefix,
-		selection,
+		selection ?? (rejectedSession ? { accountId: rejectedSession.accountId, excludedSession: rejectedSession } : {}),
 	);
 }
 
@@ -722,18 +721,11 @@ export async function resolveAuthenticationInteractively(
 	const logService = accessor.get(ILogService);
 	for (const resource of protectedResources) {
 		throwIfAuthenticationStale(options);
-		const resourceUri = URI.parse(resource.resource);
 		const scopes = resource.scopes_supported ?? [];
-		const existingSession = await resolveSessionForResource(
-			resourceUri,
-			resource.authorization_servers ?? [],
-			scopes,
-			authenticationService,
-			logService,
-			options.logPrefix,
-		);
+		const existingSessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 		throwIfAuthenticationStale(options);
-		if (existingSession) {
+		if (existingSessionResolution.kind === 'resolved') {
+			const existingSession = existingSessionResolution.session;
 			await forwardAuthenticationToken(options, resource.resource, scopes, existingSession);
 			logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
 			return true;
@@ -768,19 +760,16 @@ async function forceAuthenticationInteractively(
 	if (!setupResult.success) {
 		throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
 	}
-	const session = await resolveSessionForResource(
-		URI.parse(resource.resource),
-		resource.authorization_servers ?? [],
-		scopes,
-		authenticationService,
-		logService,
-		options.logPrefix,
-	);
+	let sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+	if (sessionResolution.kind === 'signedOut' && options.authTokenCache?.getRejectedSession(resource.resource, scopes)) {
+		sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, {});
+	}
 	throwIfAuthenticationStale(options);
-	if (!session) {
+	if (sessionResolution.kind !== 'resolved') {
 		logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
 		return undefined;
 	}
+	const session = sessionResolution.session;
 	options.authTokenCache?.clear(resource.resource, scopes);
 	if (!await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
 		return undefined;

@@ -491,6 +491,45 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 	});
 
+	test('prompts when the broader session is removed after replacing a rejected exact session', async () => {
+		const account = { id: 'account-1', label: 'Account 1' };
+		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
+		const broaderSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
+		let broaderSessionAvailable = true;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [exactSession] : [exactSession, ...(broaderSessionAvailable ? [broaderSession] : [])]),
+		});
+		const commandService = new TestCommandService();
+		commandService.result = { success: undefined, dialogSkipped: false };
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		broaderSessionAvailable = false;
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 1,
+			authenticateCalls: ['stale-token', 'fresh-token'],
+		});
+	});
+
 	test('does not switch accounts without interactive sign-in', async () => {
 		const exactSession = {
 			id: 'exact-session',
@@ -1487,6 +1526,35 @@ suite('resolveAuthenticationInteractively', () => {
 			results: [true, true],
 			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'existing-token' }],
 			createSessionCalls: 0,
+		});
+	});
+
+	test('uses a non-rejected existing session before prompting', async () => {
+		const account = { id: 'account-1', label: 'Account 1' };
+		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
+		const broaderSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [exactSession] : [exactSession, broaderSession]),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const authTokenCache = new AgentHostAuthTokenCache();
+		authTokenCache.rejectSession(protectedResource.resource, protectedResource.scopes_supported, exactSession);
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+
+		const success = await instantiationService.invokeFunction(resolveAuthenticationInteractively, [protectedResource], {
+			authTokenCache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+			},
+		});
+
+		assert.deepStrictEqual({ success, commandCalls: commandService.calls.length, requests }, {
+			success: true,
+			commandCalls: 0,
+			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token' }],
 		});
 	});
 
