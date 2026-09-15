@@ -860,9 +860,7 @@ export class McpHTTPHandle extends Disposable {
 		}
 
 		let currentUrl = url;
-		// Headers sent on the current hop. Stripping credentials on a cross-origin
-		// redirect must only affect the redirected request: `init.headers` belongs to
-		// the caller, which may reuse it to retry against the original origin.
+		// Per-hop headers: `init.headers` is the caller's and is reused by the auth retry.
 		let headers = init.headers;
 		let response!: CommonResponse;
 		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {

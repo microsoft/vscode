@@ -784,8 +784,7 @@ suite('ExtHostMcp', () => {
 			assert.strictEqual(handle.requests[1].headers.Cookie, undefined);
 			assert.strictEqual(handle.requests[1].headers.Accept, 'application/json');
 
-			// The caller's headers are untouched, so a retry against the original
-			// origin (as done by the auth retry) still carries the credentials.
+			// The caller's headers are untouched, so the auth retry still carries the credentials.
 			assert.strictEqual(headers.Authorization, 'Bearer token');
 			assert.strictEqual(headers['Mcp-Session-Id'], 'session-1');
 			assert.strictEqual(headers.Cookie, 'a=b');
