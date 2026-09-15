@@ -14,7 +14,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -100,6 +100,10 @@ const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTrans
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	readonly foregroundSendRequests: Parameters<CopilotSession['rpc']['send']>[0][] = [];
+	readonly foregroundSendMessagesRequests: Parameters<CopilotSession['rpc']['sendMessages']>[0][] = [];
+	foregroundGate: Promise<void> | undefined;
+	onForegroundRequest: (() => void) | undefined;
 	readonly sendMessagesRequests: unknown[] = [];
 	sendMessagesError: Error | undefined;
 	sendMessagesGate: Promise<void> | undefined;
@@ -313,16 +317,33 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		send: async (request: Parameters<CopilotSession['rpc']['send']>[0]) => {
+			this.foregroundSendRequests.push(request);
+			const { wait: _wait, ...message } = request;
+			const gate = this.foregroundGate;
+			const onForegroundRequest = this.onForegroundRequest;
+			const messageId = await this.send(message);
+			onForegroundRequest?.();
+			await gate;
+			return { messageId };
+		},
 		agent: {
 			select: async () => { await this.agentSelectGate; },
 			deselect: async () => { await this.agentDeselectGate; },
 		},
-		sendMessages: async (request: unknown) => {
-			this.sendMessagesRequests.push(request);
+		sendMessages: async (request: Parameters<CopilotSession['rpc']['sendMessages']>[0]) => {
+			this.foregroundSendMessagesRequests.push(request);
+			const { wait: _wait, ...message } = request;
+			this.sendMessagesRequests.push(message);
+			const gate = this.foregroundGate;
+			const onForegroundRequest = this.onForegroundRequest;
 			if (this.sendMessagesError) {
 				throw this.sendMessagesError;
 			}
 			await this.sendMessagesGate;
+			onForegroundRequest?.();
+			await gate;
+			return { messageIds: [] };
 		},
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
@@ -782,6 +803,22 @@ type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionR
 	createClientSdkTools(toolSearchActive?: boolean): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
 
+async function startForegroundRequest(disposables: DisposableStore, mockSession: MockCopilotSession, run: () => Promise<void>): Promise<{ finish: () => Promise<void>; fail: (error: Error) => Promise<void>; promise: Promise<void> }> {
+	const started = new DeferredPromise<void>();
+	const release = new DeferredPromise<void>();
+	disposables.add(toDisposable(() => { void release.complete(); }));
+	mockSession.foregroundGate = release.p;
+	mockSession.onForegroundRequest = () => { void started.complete(); };
+	const promise = run();
+	await Promise.race([started.p, promise]);
+	assert.ok(started.isSettled, 'Expected an SDK foreground request');
+	return {
+		promise,
+		finish: async () => { await release.complete(); await promise; },
+		fail: async error => { await release.error(error); await promise; },
+	};
+}
+
 async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
 	activeClientToolSet?: ActiveClientToolSet;
@@ -832,6 +869,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
 	onTurnEnded?: () => void;
+	onSessionIdle?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
@@ -1126,6 +1164,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			onTurnEnded: options?.onTurnEnded,
+			onSessionIdle: options?.onSessionIdle,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
@@ -2027,13 +2066,224 @@ suite('CopilotAgentSession', () => {
 			totalApiDurationMs: 0,
 		});
 
-		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
-			state: 'available',
-			providerCallState: 'resolved',
-			providerTurnStarted: true,
-			providerSessionState: 'shutdown',
-		});
+		assert.strictEqual(session.getTurnDiagnosticSnapshot('turn-1'), undefined);
+		assert.strictEqual(session.hasActiveTurn, false);
 		assert.strictEqual(session.getTurnDiagnosticSnapshot('other-turn'), undefined);
+	});
+
+	suite('foreground completion', () => {
+		for (const mode of ['interactive', 'autopilot'] as const) {
+			test(`completes ${mode} foreground work without waiting for background shell idle`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('Start a background preview', undefined, 'foreground', mode));
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-foreground' });
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'background-shell', toolName: 'bash',
+					arguments: { mode: 'async', shellId: 'preview', command: 'echo preview' },
+				});
+				mockSession.fire('tool.execution_complete', {
+					toolCallId: 'background-shell', success: true,
+					result: { content: '<command started in background with shellId: preview>' },
+				});
+				if (mode === 'autopilot') {
+					mockSession.fire('session.task_complete', { success: true, summary: 'The preview is ready.' });
+				}
+				mockSession.fire('assistant.turn_end', { turnId: 'sdk-foreground' });
+				mockSession.fire('assistant.idle', {});
+				const beforeForegroundReturns = session.hasActiveTurn;
+				await foreground.finish();
+				mockSession.fire('session.idle', {});
+				mockSession.fire('session.idle', {});
+
+				assert.deepStrictEqual({
+					wait: mockSession.foregroundSendRequests[0].wait,
+					beforeForegroundReturns,
+					active: session.hasActiveTurn,
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+					aborts: mockSession.abortCalls,
+					disconnects: mockSession.disconnectCalls,
+				}, { wait: true, beforeForegroundReturns: true, active: false, completions: ['foreground'], aborts: 0, disconnects: 0 });
+			});
+		}
+
+		test('an old idle cannot complete a newer pending or running foreground request', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const first = await startForegroundRequest(disposables, mockSession, () => session.send('first', undefined, 'first'));
+			await first.finish();
+			const second = await startForegroundRequest(disposables, mockSession, () => session.send('second', undefined, 'second'));
+			mockSession.fire('assistant.idle', {});
+			mockSession.fire('session.idle', {});
+			const pending = session.currentTurnId;
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-second' });
+			mockSession.fire('assistant.idle', {});
+			mockSession.fire('session.idle', {});
+			const running = session.currentTurnId;
+			await second.finish();
+			assert.deepStrictEqual({
+				pending, running, active: session.hasActiveTurn,
+				completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, { pending: 'second', running: 'second', active: false, completions: ['first', 'second'] });
+		});
+
+		test('session idle notifies the owner after the foreground turn has already ended', async () => {
+			let turnEndCount = 0;
+			let sessionIdleCount = 0;
+			const { session, mockSession } = await createAgentSession(disposables, {
+				onTurnEnded: () => turnEndCount++,
+				onSessionIdle: () => sessionIdleCount++,
+			});
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('work', undefined, 'foreground'));
+			await foreground.finish();
+			const afterForeground = { turnEndCount, sessionIdleCount };
+			mockSession.fire('session.idle', {});
+			assert.deepStrictEqual({
+				afterForeground,
+				afterSessionIdle: { turnEndCount, sessionIdleCount },
+			}, {
+				afterForeground: { turnEndCount: 1, sessionIdleCount: 0 },
+				afterSessionIdle: { turnEndCount: 1, sessionIdleCount: 1 },
+			});
+		});
+
+		test('a late foreground result cannot complete a replacement turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('first', undefined, 'first'));
+			session.resetTurnState('replacement');
+			await foreground.finish();
+			assert.deepStrictEqual({
+				active: session.currentTurnId,
+				completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete),
+			}, { active: 'replacement', completions: [] });
+		});
+
+		test('a stale aborted idle does not replace the newer foreground cancellation token', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const first = await startForegroundRequest(disposables, mockSession, () => session.send('first', undefined, 'first'));
+			await session.abort();
+			await first.finish();
+			const second = await startForegroundRequest(disposables, mockSession, () => session.send('second', undefined, 'second'));
+			mockSession.fire('assistant.idle', { aborted: true });
+			mockSession.fire('session.idle', { aborted: true });
+			const afterStaleIdle = session.currentTurnId;
+			await session.abort();
+			await second.finish();
+			assert.deepStrictEqual({
+				afterStaleIdle,
+				active: session.hasActiveTurn,
+				completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete),
+			}, { afterStaleIdle: 'second', active: false, completions: [] });
+		});
+
+		for (const ending of ['abort', 'error', 'dispose'] as const) {
+			test(`${ending} does not turn a later foreground result into successful completion`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('work', undefined, 'foreground'));
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-foreground' });
+				if (ending === 'abort') {
+					await session.abort();
+				} else if (ending === 'error') {
+					mockSession.fire('session.error', { errorType: 'test', message: 'Failed' });
+				} else {
+					session.dispose();
+				}
+				await foreground.finish();
+				assert.deepStrictEqual({
+					active: session.hasActiveTurn,
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete),
+				}, { active: false, completions: [] });
+			});
+		}
+
+		test('foreground completion follows a steering replacement in the same SDK run', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('initial request', undefined, 'initial'));
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-foreground' });
+			await session.sendSteering({ id: 'steering', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'focus on tests', delivery: 'steering' });
+			const steeredTurn = session.currentTurnId;
+			assert.ok(steeredTurn && steeredTurn !== 'initial');
+			await foreground.finish();
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, { active: false, completions: ['initial', steeredTurn] });
+		});
+
+		for (const requestKind of ['send', 'resume'] as const) {
+			test(`${requestKind} rejection fails the steering replacement belonging to the same SDK run`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const foreground = await startForegroundRequest(disposables, mockSession, () => requestKind === 'send'
+					? session.send('initial request', undefined, 'initial')
+					: session.resume('initial'));
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-foreground' });
+				await session.sendSteering({ id: 'steering', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', { content: 'focus on tests', delivery: 'steering' });
+				const steeredTurn = session.currentTurnId;
+				await assert.rejects(foreground.fail(new Error('Foreground request failed')), /Foreground request failed/);
+				assert.deepStrictEqual({
+					active: session.hasActiveTurn,
+					errors: getActions(signals).filter(action => action.type === ActionType.ChatError).map(action => action.turnId),
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				}, { active: false, errors: [steeredTurn], completions: ['initial'] });
+			});
+		}
+
+		test('background subagents remain observable after foreground completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('delegate', undefined, 'parent'));
+			mockSession.fire('subagent.started', {
+				toolCallId: 'child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Background work',
+			}, { agentId: 'child-agent' });
+			mockSession.fire('assistant.message_delta', { messageId: 'child-message', deltaContent: 'Before completion. ' }, { agentId: 'child-agent' });
+			await foreground.finish();
+			mockSession.fire('assistant.message_delta', { messageId: 'child-message', deltaContent: 'Still working' }, { agentId: 'child-agent' });
+			mockSession.fire('assistant.message', { messageId: 'child-message', content: 'Before completion. Still working', toolRequests: [] }, { agentId: 'child-agent' });
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				childParts: signals.filter((signal): signal is IAgentActionSignal => signal.kind === 'action' && signal.parentToolCallId === 'child').map(signal => signal.action.type),
+				completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, { active: false, childParts: [ActionType.ChatResponsePart, ActionType.ChatDelta], completions: ['parent'] });
+		});
+
+		test('keeps a background child streaming tool intact across parent completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('delegate', undefined, 'parent'));
+			mockSession.fire('subagent.started', {
+				toolCallId: 'child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Background work',
+			}, { agentId: 'child-agent' });
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'child-shell', toolName: 'bash', inputDelta: '{"command":"echo ',
+			}, { agentId: 'child-agent' });
+			await foreground.finish();
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'child-shell', toolName: 'bash', inputDelta: 'hello"}',
+			}, { agentId: 'child-agent' });
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				childStarts: getActions(signals).filter(action => action.type === ActionType.ChatToolCallStart).map(action => action.toolCallId),
+			}, { active: false, childStarts: ['child-shell'] });
+		});
+
+		for (const [data, agentId, completed] of [
+			[{}, undefined, true],
+			[{ aborted: true }, undefined, false],
+			[{}, 'child-agent', false],
+		] as const) {
+			test(`SDK-initiated foreground idle only completes the root loop (${JSON.stringify(data)}, ${agentId ?? 'root'})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('sdk-initiated');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-foreground' });
+				mockSession.fire('session.task_complete', { success: true });
+				mockSession.fire('assistant.turn_end', { turnId: 'sdk-foreground' });
+				const beforeIdle = session.hasActiveTurn;
+				mockSession.fire('assistant.idle', data, { agentId });
+				assert.deepStrictEqual({
+					beforeIdle,
+					active: session.hasActiveTurn,
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				}, { beforeIdle: true, active: !completed, completions: completed ? ['sdk-initiated'] : [] });
+			});
+		}
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -3189,7 +3439,7 @@ suite('CopilotAgentSession', () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = { commands: [] };
 
-		await session.send('/env', undefined, 'turn-env');
+		const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('/env', undefined, 'turn-env'));
 
 		assert.deepStrictEqual({
 			commandListCalls: mockSession.commandListCalls,
@@ -3204,6 +3454,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: [],
 			turnComplete: [],
 		});
+		await foreground.finish();
 	});
 
 	test('`/env` forwards trailing text as runtime command input', async () => {
@@ -3392,7 +3643,7 @@ suite('CopilotAgentSession', () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = { commands: [] };
 
-		await session.send('/security-review', undefined, 'turn-security-review');
+		const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('/security-review', undefined, 'turn-security-review'));
 
 		assert.deepStrictEqual({
 			commandListCalls: mockSession.commandListCalls,
@@ -3407,6 +3658,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: [],
 			turnComplete: [],
 		});
+		await foreground.finish();
 	});
 
 	suite('/fleet lifecycle (issue #8837)', () => {
@@ -6132,7 +6384,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
 
-			await session.send('hello', undefined, 'turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('hello', undefined, 'turn-1'));
 
 			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
 			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
@@ -6153,6 +6405,7 @@ suite('CopilotAgentSession', () => {
 					buildSandboxConfigForSdk('linux', sandbox),
 				],
 			});
+			await foreground.finish();
 		});
 
 		test('session sandbox override updates a peer SDK and stays pinned across root changes', async () => {
@@ -6930,7 +7183,7 @@ Use the attached image as context.
 				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-original');
-			await session.send('hello agent', undefined, 'turn-original');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('hello agent', undefined, 'turn-original'));
 			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-tools',
@@ -6967,6 +7220,7 @@ Use the attached image as context.
 					messageCharLen: 11,
 					totalToolCalls: 1,
 				}]);
+			await foreground.finish();
 		});
 
 		test('does not flip turns for SDK-injected user messages (non-user source)', async () => {
@@ -7272,7 +7526,7 @@ Use the attached image as context.
 		test('development error helpers can be disabled for product builds', async () => {
 			const disabled = await createAgentSession(disposables, { enableDevelopmentErrorInjection: false });
 
-			await disabled.session.send('$error-ui-tool', undefined, 'turn-error');
+			const foreground = await startForegroundRequest(disposables, disabled.mockSession, () => disabled.session.send('$error-ui-tool', undefined, 'turn-error'));
 
 			assert.deepStrictEqual({
 				actions: getActions(disabled.signals),
@@ -7283,6 +7537,7 @@ Use the attached image as context.
 				sendRequests: [{ prompt: '$error-ui-tool', attachments: undefined }],
 				sendMessagesRequests: [],
 			});
+			await foreground.finish();
 		});
 
 		test('resumes the same turn with zero SDK messages', async () => {
@@ -7317,21 +7572,10 @@ Use the attached image as context.
 		});
 
 		for (const timing of ['before', 'after'] as const) {
-			test(`ignores a stale idle ${timing} zero-message continuation resolves`, async () => {
-				const gate = new DeferredPromise<void>();
+			test(`handles idle ${timing} foreground continuation completion without ending it early or twice`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 				if (timing === 'before') {
-					mockSession.sendMessagesGate = gate.p;
-				}
-
-				const resumePromise = session.resume('turn-1');
-				await timeout(0);
-				if (timing === 'before') {
-					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
-					gate.complete();
-				}
-				await resumePromise;
-				if (timing === 'after') {
 					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 				}
 				const beforeProviderStart = {
@@ -7345,7 +7589,10 @@ Use the attached image as context.
 					content: 'Recovered response',
 					toolRequests: [],
 				} as SessionEventPayload<'assistant.message'>['data']);
-				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				await foreground.finish();
+				if (timing === 'after') {
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				}
 
 				assert.deepStrictEqual({
 					beforeProviderStart,
@@ -7361,7 +7608,7 @@ Use the attached image as context.
 
 		test('ignores the failed execution error until the resumed provider turn starts', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 
 			mockSession.fire('session.error', {
 				errorType: 'query',
@@ -7394,12 +7641,13 @@ Use the attached image as context.
 					resumable: true,
 				}],
 			});
+			await foreground.finish();
 		});
 
 		test('cancellation before the provider turn starts clears the resumed turn', async () => {
 			const abortGate = new DeferredPromise<void>();
 			const { session, mockSession, signals } = await createAgentSession(disposables);
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 			mockSession.abortGate = abortGate.p;
 
 			const abortPromise = session.abort();
@@ -7421,11 +7669,12 @@ Use the attached image as context.
 				abortCalls: 1,
 				actions: [],
 			});
+			await foreground.finish();
 		});
 
 		test('cancellation after provider start but before content clears without completing', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
 
 			await session.abort();
@@ -7439,6 +7688,7 @@ Use the attached image as context.
 				active: false,
 				actions: [],
 			});
+			await foreground.finish();
 		});
 
 		test('late aborted idle completes a running replacement turn without cancelling it', async () => {
@@ -7476,7 +7726,7 @@ Use the attached image as context.
 			const abortGate = new DeferredPromise<void>();
 			const logService = new CapturingLogService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
 			mockSession.abortGate = abortGate.p;
 			const abortPromise = session.abort();
@@ -7551,12 +7801,13 @@ Use the attached image as context.
 				subagentSignals: [],
 				droppedResponseLogged: true,
 			});
+			await foreground.finish();
 		});
 
 		test('traces dropped in-flight tool completions after cancellation without reporting an error', async () => {
 			const logService = new CapturingLogService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'late-tool',
@@ -7581,12 +7832,13 @@ Use the attached image as context.
 				errorCount: 0,
 				traceCount: 1,
 			});
+			await foreground.finish();
 		});
 
 		test('inline commands complete while cancelled provider events remain quarantined', async () => {
 			const logService = new CapturingLogService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
 			await session.abort();
 			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
@@ -7607,11 +7859,12 @@ Use the attached image as context.
 				actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
 				droppedResponseLogged: true,
 			});
+			await foreground.finish();
 		});
 
 		test('turn-starting system notifications establish a trusted post-cancellation boundary', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
 			await session.abort();
 			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
@@ -7632,22 +7885,25 @@ Use the attached image as context.
 				active: false,
 				actions: [ActionType.ChatTurnStarted, ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
 			});
+			await foreground.finish();
 		});
 
 		test('a root user-message echo establishes the boundary for a no-op replacement turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
-			await session.resume('turn-1');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.resume('turn-1'));
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
 			await session.abort();
 			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
 
-			await session.send('next request', undefined, 'turn-2');
+			const replacement = await startForegroundRequest(disposables, mockSession, () => session.send('next request', undefined, 'turn-2'));
 			mockSession.fire('user.message', {
 				content: 'next request',
 				interactionId: 'interaction-turn-2',
 				source: 'user',
 			} as SessionEventPayload<'user.message'>['data']);
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await replacement.finish();
+			await foreground.finish();
 
 			assert.deepStrictEqual({
 				active: session.hasActiveTurn,
@@ -9233,7 +9489,7 @@ Use the attached image as context.
 		});
 
 		suite('asynchronous edit completion', () => {
-			async function startEdits(count = 1) {
+			async function startEdits(count = 1, useForegroundRequest = false) {
 				const sessionDatabase = new TestSessionDatabase();
 				const writes = Array.from({ length: count }, () => ({
 					started: new DeferredPromise<void>(),
@@ -9247,7 +9503,12 @@ Use the attached image as context.
 				};
 				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 				const result = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime });
-				result.session.resetTurnState('turn-edit');
+				const foreground = useForegroundRequest
+					? await startForegroundRequest(disposables, result.mockSession, () => result.session.send('Edit the files', undefined, 'turn-edit'))
+					: undefined;
+				if (!foreground) {
+					result.session.resetTurnState('turn-edit');
+				}
 				result.mockSession.fire('user.message', { content: 'Edit the files' });
 				for (let index = 0; index < count; index++) {
 					const toolCallId = String(index);
@@ -9271,40 +9532,48 @@ Use the attached image as context.
 					result.mockSession.fire('tool.execution_complete', { toolCallId, success: true });
 					await writes[index].started.p;
 				}
-				return { ...result, sessionDatabase, writes };
+				return { ...result, sessionDatabase, writes, foreground };
 			}
 
-			test('idle drains every pending edit before completing the original turn', async () => {
-				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
-				mockSession.fire('session.idle', {});
-				assert.deepStrictEqual({
-					turnId: session.currentTurnId,
-					completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
-				}, { turnId: 'turn-edit', completions: [] });
+			for (const completionSource of ['idle', 'assistantIdle', 'foreground'] as const) {
+				test(`${completionSource} drains every pending edit before completing the original turn`, async () => {
+					const { session, mockSession, signals, waitForSignal, sessionDatabase, writes, foreground } = await startEdits(2, completionSource === 'foreground');
+					const completion = foreground?.finish();
+					if (completionSource === 'idle') {
+						mockSession.fire('session.idle', {});
+					} else if (completionSource === 'assistantIdle') {
+						mockSession.fire('assistant.idle', {});
+					}
+					assert.deepStrictEqual({
+						turnId: session.currentTurnId,
+						completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+					}, { turnId: 'turn-edit', completions: [] });
 
-				await writes[1].release.complete();
-				await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
-				assert.strictEqual(session.currentTurnId, 'turn-edit', 'The other pending edit must still keep the turn open');
+					await writes[1].release.complete();
+					await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+					assert.strictEqual(session.currentTurnId, 'turn-edit', 'The other pending edit must still keep the turn open');
 
-				await writes[0].release.complete();
-				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
-				mockSession.fire('session.idle', {});
-				assert.deepStrictEqual({
-					completions: getActions(signals)
-						.filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
-						.map(action => ({ type: action.type, turnId: action.turnId, ...(action.type === ActionType.ChatToolCallComplete ? { toolCallId: action.toolCallId } : {}) })),
-					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turnId: edit.turnId, toolCallId: edit.toolCallId })),
-					activeTurn: session.currentTurnId,
-				}, {
-					completions: [
-						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '1' },
-						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '0' },
-						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
-					],
-					persisted: [{ turnId: 'turn-edit', toolCallId: '1' }, { turnId: 'turn-edit', toolCallId: '0' }],
-					activeTurn: undefined,
+					await writes[0].release.complete();
+					await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+					await completion;
+					mockSession.fire('session.idle', {});
+					assert.deepStrictEqual({
+						completions: getActions(signals)
+							.filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+							.map(action => ({ type: action.type, turnId: action.turnId, ...(action.type === ActionType.ChatToolCallComplete ? { toolCallId: action.toolCallId } : {}) })),
+						persisted: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turnId: edit.turnId, toolCallId: edit.toolCallId })),
+						activeTurn: session.currentTurnId,
+					}, {
+						completions: [
+							{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '1' },
+							{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '0' },
+							{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+						],
+						persisted: [{ turnId: 'turn-edit', toolCallId: '1' }, { turnId: 'turn-edit', toolCallId: '0' }],
+						activeTurn: undefined,
+					});
 				});
-			});
+			}
 
 			test('failed edit persistence still lets the tool and turn complete', async () => {
 				const { mockSession, signals, waitForSignal, writes } = await startEdits();
@@ -9321,39 +9590,47 @@ Use the attached image as context.
 				);
 			});
 
-			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {
-				test(`${ending} does not wait for edit persistence or complete a replacement turn`, async () => {
-					const { session, mockSession, signals, writes } = await startEdits();
-					mockSession.fire('session.idle', {});
-					switch (ending) {
-						case 'abort':
-							await session.abort();
-							mockSession.fire('session.idle', { aborted: true });
-							break;
-						case 'error':
-							mockSession.fire('session.error', { errorType: 'test', message: 'Failed' });
-							break;
-						case 'dispose':
-							session.dispose();
-							break;
-						case 'replace':
-							session.discardActiveTurn();
-							break;
-					}
-					assert.strictEqual(session.hasActiveTurn, false, 'Ending the turn must not wait for edit persistence');
-					if (ending !== 'dispose') {
-						session.resetTurnState('replacement');
-					}
-					await writes[0].release.complete();
-					await timeout(0);
-					assert.deepStrictEqual({
-						completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
-						activeTurn: session.currentTurnId,
-					}, {
-						completions: [],
-						activeTurn: ending === 'dispose' ? undefined : 'replacement',
+			for (const completionSource of ['idle', 'assistantIdle', 'foreground'] as const) {
+				for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {
+					test(`${ending} does not wait for edit persistence or complete a replacement turn (${completionSource})`, async () => {
+						const { session, mockSession, signals, writes, foreground } = await startEdits(1, completionSource === 'foreground');
+						const completion = foreground?.finish();
+						if (completionSource === 'idle') {
+							mockSession.fire('session.idle', {});
+						} else if (completionSource === 'assistantIdle') {
+							mockSession.fire('assistant.idle', {});
+						}
+						switch (ending) {
+							case 'abort':
+								await session.abort();
+								mockSession.fire('session.idle', { aborted: true });
+								break;
+							case 'error':
+								mockSession.fire('session.error', { errorType: 'test', message: 'Failed' });
+								break;
+							case 'dispose':
+								session.dispose();
+								break;
+							case 'replace':
+								session.discardActiveTurn();
+								break;
+						}
+						assert.strictEqual(session.hasActiveTurn, false, 'Ending the turn must not wait for edit persistence');
+						if (ending !== 'dispose') {
+							session.resetTurnState('replacement');
+						}
+						await writes[0].release.complete();
+						await timeout(0);
+						await completion;
+						assert.deepStrictEqual({
+							completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+							activeTurn: session.currentTurnId,
+						}, {
+							completions: [],
+							activeTurn: ending === 'dispose' ? undefined : 'replacement',
+						});
 					});
-				});
+				}
 			}
 		});
 
@@ -9512,7 +9789,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('running detached shell state defers release conservatively', async () => {
+		test('running background work defers release conservatively', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			const runningShell = {
 				type: 'shell' as const,
@@ -9525,24 +9802,41 @@ Use the attached image as context.
 				executionMode: 'background' as const,
 			};
 			mockSession.backgroundTasks = [runningShell];
-			const running = await session.hasRunningDetachedShells();
+			const running = await session.hasRunningBackgroundWork();
+			mockSession.backgroundTasks = [{ ...runningShell, attachmentMode: 'attached' }];
+			const attached = await session.hasRunningBackgroundWork();
+			const runningAgent = {
+				type: 'agent' as const, id: 'agent-running', description: 'Background review',
+				status: 'running' as const, startedAt: new Date(0).toISOString(), agentType: 'explore',
+				toolCallId: 'background-agent', prompt: 'Review the changes',
+			};
+			mockSession.backgroundTasks = [runningAgent];
+			const agent = await session.hasRunningBackgroundWork();
+			mockSession.backgroundTasks = [{ ...runningAgent, status: 'idle' }];
+			const idleAgent = await session.hasRunningBackgroundWork();
 			mockSession.backgroundTasks = [{ ...runningShell, status: 'completed', completedAt: new Date().toISOString() }];
-			const completed = await session.hasRunningDetachedShells();
+			const completed = await session.hasRunningBackgroundWork();
 			mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
-			const failedRead = await session.hasRunningDetachedShells();
+			const failedRead = await session.hasRunningBackgroundWork();
 
 			assert.deepStrictEqual({
 				running,
+				attached,
+				agent,
+				idleAgent,
 				completed,
 				failedRead,
 				listCalls: mockSession.backgroundTaskListCalls,
 				refreshCalls: mockSession.backgroundTaskRefreshCalls,
 			}, {
 				running: true,
+				attached: true,
+				agent: true,
+				idleAgent: false,
 				completed: false,
 				failedRead: true,
-				listCalls: 3,
-				refreshCalls: 3,
+				listCalls: 6,
+				refreshCalls: 6,
 			});
 		});
 
@@ -9558,7 +9852,7 @@ Use the attached image as context.
 				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-tool-details');
-			await session.send('hello agent', undefined, 'turn-tool-details');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('hello agent', undefined, 'turn-tool-details'));
 			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-tools',
@@ -9623,6 +9917,7 @@ Use the attached image as context.
 					{ turnId: 'turn-tool-details', modelCallId: 'api-final' },
 				],
 			});
+			await foreground.finish();
 		});
 
 		test('split assistant messages count as one model call', async () => {
@@ -9632,7 +9927,7 @@ Use the attached image as context.
 				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-split-message');
-			await session.send('hello agent', undefined, 'turn-split-message');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('hello agent', undefined, 'turn-split-message'));
 			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-part-1',
@@ -9649,6 +9944,7 @@ Use the attached image as context.
 				chunkCount: 2,
 			} as SessionEventPayload<'assistant.message'>['data']);
 			mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+			await foreground.finish();
 
 			assert.deepStrictEqual({
 				numRequests: (telemetryService.events.find(event => event.eventName === 'toolCallDetails')?.data as Record<string, unknown> | undefined)?.numRequests,
@@ -12627,7 +12923,7 @@ Use the attached image as context.
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 			await session.abort();
-			await session.send('continue');
+			const foreground = await startForegroundRequest(disposables, mockSession, () => session.send('continue'));
 			planRead.complete({ exists: true, content: '## Plan', path: '/sessions/abc/plan.md' });
 			await timeout(0);
 
@@ -12642,6 +12938,7 @@ Use the attached image as context.
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: false });
+			await foreground.finish();
 		});
 
 		test('resolves an in-flight callback after abort without a client response', async () => {
