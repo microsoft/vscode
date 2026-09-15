@@ -41,7 +41,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 	static readonly ID = 'sessions.connectionDiagnostics';
 
 	private active: IActiveConnectionDiagnostics | undefined;
-	private accessibleSnapshot: IConnectionDiagnosticsSnapshot | undefined;
+	private accessibleView: { readonly provider: AccessibleContentProvider; readonly snapshot: IConnectionDiagnosticsSnapshot } | undefined;
 
 	constructor(
 		@IConnectionDiagnosticsService private readonly diagnosticsService: IConnectionDiagnosticsService,
@@ -57,6 +57,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => this.active?.close()));
+		this._register(toDisposable(() => this.accessibleView?.provider.dispose()));
 		this._register(this.entitlementService.onDidChangeSentiment(() => {
 			if (this.entitlementService.sentiment.hidden) {
 				this.active?.close();
@@ -124,7 +125,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 			return this.active.report.copy();
 		}
 		try {
-			await this.clipboardService.writeText((this.accessibleSnapshot ?? this.diagnosticsService.getSnapshot()).text);
+			await this.clipboardService.writeText((this.accessibleView?.snapshot ?? this.diagnosticsService.getSnapshot()).text);
 			status(localize('connectionDiagnostics.copied', "Diagnostics copied."));
 		} catch {
 			this.notificationService.warn(localize('connectionDiagnostics.copyFailed', "Could not copy diagnostics. Open Show Connection Diagnostics and try again."));
@@ -138,7 +139,6 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		}
 		const snapshot = active.report.getSnapshot();
 		const returnFocus = active.returnFocus;
-		this.accessibleSnapshot = snapshot;
 		active.restoreFocus = false;
 		// Remove the modal before opening Accessible View, including its Escape handler and focus trap.
 		active.overlay.remove();
@@ -150,16 +150,25 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
 			localize('connectionDiagnostics.help.close', "Escape or Close dismisses diagnostics. Closing this accessible view returns to the diagnostics snapshot."),
 		].join('\n\n');
-		return new AccessibleContentProvider(
+		const provider = new AccessibleContentProvider(
 			AccessibleViewProviderId.ConnectionDiagnostics,
 			{ type, language: 'plaintext' },
 			() => type === AccessibleViewType.Help ? help : snapshot.text,
 			() => {
-				this.accessibleSnapshot = undefined;
+				if (this.accessibleView?.provider === provider) {
+					this.accessibleView = undefined;
+				}
 				void this.show(snapshot, dom.isHTMLElement(returnFocus) ? returnFocus : undefined);
 			},
 			AccessibilityVerbositySettingId.ConnectionDiagnostics,
 		);
+		this.accessibleView = { provider, snapshot };
+		provider.onDispose = () => {
+			if (this.accessibleView?.provider === provider) {
+				this.accessibleView = undefined;
+			}
+		};
+		return provider;
 	}
 }
 
