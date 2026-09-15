@@ -44,7 +44,7 @@ import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js'
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
-import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
+import { BUILTIN_SKILLS_URI, PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
@@ -3262,6 +3262,64 @@ suite('PromptsService', () => {
 	suite('findAgentSkills', () => {
 		teardown(() => {
 			sinon.restore();
+		});
+
+		test('should discover bundled skills in the editor prompt service', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			await mockFiles(fileService, [{
+				path: `${BUILTIN_SKILLS_URI.path}/issue-wizard/SKILL.md`,
+				contents: [
+					'---',
+					'name: issue-wizard',
+					'description: Establish shared understanding of a VS Code bug.',
+					'user-invocable: true',
+					'---',
+					'# Issue Wizard',
+				],
+			}, {
+				path: `${BUILTIN_SKILLS_URI.path}/vscode-bug-fix/SKILL.md`,
+				contents: [
+					'---',
+					'name: vscode-bug-fix',
+					'description: Fix a reported VS Code bug end to end.',
+					'---',
+					'# VS Code Bug Fix',
+				],
+			}, {
+				path: `${BUILTIN_SKILLS_URI.path}/vscode-dev-setup/SKILL.md`,
+				contents: [
+					'---',
+					'name: vscode-dev-setup',
+					'description: Set up or repair a local Code - OSS development environment.',
+					'---',
+					'# VS Code Development Setup',
+				],
+			}]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			const builtinSkillNames = ['issue-wizard', 'vscode-bug-fix', 'vscode-dev-setup'];
+			assert.deepStrictEqual(result?.filter(skill => builtinSkillNames.includes(skill.name)).map(skill => ({
+				name: skill.name,
+				uri: skill.uri.toString(),
+				storage: skill.storage,
+				userInvocable: skill.userInvocable,
+			})), [{
+				name: 'issue-wizard',
+				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'issue-wizard/SKILL.md').toString(),
+				storage: PromptsStorage.builtIn,
+				userInvocable: true,
+			}, {
+				name: 'vscode-bug-fix',
+				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'vscode-bug-fix/SKILL.md').toString(),
+				storage: PromptsStorage.builtIn,
+				userInvocable: true,
+			}, {
+				name: 'vscode-dev-setup',
+				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'vscode-dev-setup/SKILL.md').toString(),
+				storage: PromptsStorage.builtIn,
+				userInvocable: true,
+			}]);
 		});
 
 		test('should return undefined when USE_AGENT_SKILLS is disabled', async () => {

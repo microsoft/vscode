@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
@@ -16,7 +17,8 @@ import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../s
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, INewAgentHostEditorSession, INewAgentHostEditorSessionOptions, IQuickChatService, isIChatViewViewContext } from '../chat.js';
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -54,6 +56,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatService private readonly chatService: IChatService,
 		@ILogService private readonly logService: ILogService,
+		@IAgentHostNewSessionFolderService private readonly agentHostNewSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 	}
@@ -150,6 +153,26 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}, target);
 		this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=editor`);
 		return pane instanceof ChatEditor ? pane.widget : undefined;
+	}
+
+	async openNewAgentHostEditorSession(options: INewAgentHostEditorSessionOptions): Promise<INewAgentHostEditorSession | undefined> {
+		const sessionResource = URI.from({
+			scheme: options.sessionType,
+			path: `/untitled-${generateUuid()}`,
+		});
+		if (options.workspaceFolder) {
+			this.agentHostNewSessionFolderService.setFolder(sessionResource, options.workspaceFolder);
+		}
+		const widget = await this.openSession(sessionResource, ACTIVE_GROUP, {
+			pinned: true,
+			sessionTypeSelectionReason: 'explicitOverride',
+			title: { fallback: options.displayName },
+		});
+		if (!widget) {
+			this.agentHostNewSessionFolderService.clear(sessionResource);
+			return undefined;
+		}
+		return { sessionResource, widget };
 	}
 
 	private async revealSessionIfAlreadyOpen(sessionResource: URI, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {

@@ -9,7 +9,14 @@ import { canceled } from '../../../base/common/errors.js';
 import { IDataTransformer, IErrorTransformer, WriteableStream } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, ensureFileSystemProviderError, IFileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from './files.js';
+import { createFileSystemProviderError, ensureFileSystemProviderError, IFileReadStreamOptions, FileSystemProviderErrorCode, IFileService, IFileSystemProviderWithOpenReadWriteCloseCapability } from './files.js';
+
+/** Result of reading a bounded tail from a text file. */
+export interface ITextFileTail {
+	readonly text: string;
+	readonly totalBytes: number | undefined;
+	readonly truncated: boolean;
+}
 
 export interface ICreateReadStreamOptions extends IFileReadStreamOptions {
 
@@ -52,6 +59,32 @@ export async function readFileIntoStream<T>(
 
 		target.end();
 	}
+}
+
+/**
+ * Reads at most `maxBytes` from the tail of a text file and drops a leading
+ * partial line when the read starts after the beginning of the file.
+ */
+export async function readTextFileTail(fileService: IFileService, resource: URI, maxBytes: number): Promise<ITextFileTail> {
+	let size: number | undefined;
+	try {
+		size = (await fileService.resolve(resource, { resolveMetadata: true })).size;
+	} catch {
+		size = undefined;
+	}
+
+	if (size !== undefined && size > maxBytes) {
+		const content = await fileService.readFile(resource, { position: size - maxBytes, length: maxBytes });
+		let text = content.value.toString();
+		const firstNewline = text.indexOf('\n');
+		if (firstNewline >= 0) {
+			text = text.slice(firstNewline + 1);
+		}
+		return { text, totalBytes: size, truncated: true };
+	}
+
+	const content = await fileService.readFile(resource, { limits: { size: maxBytes } });
+	return { text: content.value.toString(), totalBytes: size, truncated: false };
 }
 
 async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, target: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token: CancellationToken): Promise<void> {

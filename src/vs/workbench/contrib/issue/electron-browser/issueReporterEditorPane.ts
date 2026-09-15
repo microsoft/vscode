@@ -42,6 +42,8 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { loadScreenshotImage } from '../browser/screenshotAnnotation.js';
+import { IIssueDiagnosticsService } from './issueDiagnosticsService.js';
 
 /** Context key that's `true` whenever any IssueReporter editor is open in any group, even when not focused. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -99,6 +101,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IIssueDiagnosticsService private readonly issueDiagnosticsService: IIssueDiagnosticsService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
 		IssueReporterEditorPane.liveInstances.add(this);
@@ -126,6 +129,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		this.container = append(parent, $('div.issue-reporter-editor-tab'));
 		this.container.style.height = '100%';
 		this.container.style.overflow = 'auto';
+		this._register(this.onDidFocus(() => this.wizard?.activateFloatingBar()));
 	}
 
 	private shouldShowUpdateBanner(): boolean {
@@ -240,12 +244,10 @@ export class IssueReporterEditorPane extends EditorPane {
 					return;
 				}
 
-				const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-					const image = mainWindow.document.createElement('img');
-					image.onload = () => resolve(image);
-					image.onerror = reject;
-					image.src = dataUrl;
-				});
+				const img = await loadScreenshotImage(dataUrl);
+				if (!img) {
+					throw new Error('Failed to load captured screenshot');
+				}
 
 				this.wizard.addScreenshot({ dataUrl, width: img.naturalWidth, height: img.naturalHeight });
 
@@ -447,9 +449,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		const data = input?.data;
 
 		try {
-			// Version info
-			const vscodeVersion = `${product.nameShort} ${!!product.darwinUniversalAssetId ? `${product.version} (Universal)` : product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`;
-			const systemInfo = await this.processService.getSystemInfo();
+			const { vscodeVersion, systemInfo } = await this.issueDiagnosticsService.getIssueReporterSystemInfo();
 			this.wizard.updateModel({
 				versionInfo: { vscodeVersion, os: systemInfo.os },
 				systemInfo,

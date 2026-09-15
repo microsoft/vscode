@@ -64,6 +64,11 @@ export interface ICommandCompletionAttachmentMeta {
 export interface ISkillCompletionAttachmentMeta {
 	/** The skill resource URI as a string. */
 	readonly uri: string;
+	/**
+	 * The client-side URI inside a synced customization bundle, before the
+	 * agent host materializes that bundle to local storage.
+	 */
+	readonly syncedUri?: string;
 	/** Optional internal name of the skill. */
 	readonly name?: string;
 	/** Optional human-readable display name (e.g. the slash-command name). */
@@ -108,6 +113,7 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 		return {
 			kind: 'skill',
 			uri: meta['uri'],
+			...(typeof meta['syncedUri'] === 'string' ? { syncedUri: meta['syncedUri'] } : {}),
 			...(typeof meta['name'] === 'string' ? { name: meta['name'] } : {}),
 			...(typeof meta['displayName'] === 'string' ? { displayName: meta['displayName'] } : {}),
 			...(typeof meta['description'] === 'string' ? { description: meta['description'] } : {}),
@@ -212,6 +218,9 @@ export function getCommandArgumentHint(meta: Record<string, unknown> | undefined
  */
 export function toSkillCompletionAttachmentMeta(meta: ISkillCompletionAttachmentMeta): Record<string, unknown> {
 	const result: Record<string, unknown> = { uri: meta.uri };
+	if (meta.syncedUri !== undefined) {
+		result['syncedUri'] = meta.syncedUri;
+	}
 	if (meta.name !== undefined) {
 		result['name'] = meta.name;
 	}

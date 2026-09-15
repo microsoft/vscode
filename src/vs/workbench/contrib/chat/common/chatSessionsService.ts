@@ -585,6 +585,8 @@ export interface IChatInputCompletionCommandAttachment {
 export interface IChatInputCompletionSkillAttachment {
 	readonly kind: 'skill';
 	readonly uri: URI;
+	/** Client-side URI before Agent Host materialized a synced skill. */
+	readonly syncedUri?: URI;
 	readonly displayName?: string;
 	readonly description?: string;
 	/**

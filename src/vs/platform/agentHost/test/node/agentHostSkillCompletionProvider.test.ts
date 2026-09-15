@@ -183,8 +183,9 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 	test('complete skills from a synced plugin without plugin prefix', async () => {
 		const agent = new MockAgent('mock');
+		const materializedSkillUri = 'file:///user-data/agentPlugins/vscode-synced-customization-plugins-skills-bundle/123/skills/monitor-pr/SKILL.md';
 		agent.getSessionCustomizations = async () => [
-			syncedPlugin('skills-bundle', [skill('monitor-pr', 'Use this skill when working with PRs')]),
+			syncedPlugin('skills-bundle', [skillAt('monitor-pr', materializedSkillUri, 'Use this skill when working with PRs')]),
 		];
 		const provider = createProvider(agent);
 
@@ -198,7 +199,8 @@ suite('AgentHostSkillCompletionProvider', () => {
 				type: MessageAttachmentKind.Simple,
 				label: '/monitor-pr',
 				_meta: {
-					uri: 'file:///skills/monitor-pr/SKILL.md',
+					uri: materializedSkillUri,
+					syncedUri: 'vscode-synced-customization:/plugins/skills-bundle/skills/monitor-pr/SKILL.md',
 					name: 'monitor-pr',
 					displayName: 'monitor-pr',
 					description: 'Use this skill when working with PRs',

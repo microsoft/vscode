@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IssueReporterModel } from '../../browser/issueReporterModel.js';
 import { IssueType } from '../../common/issue.js';
-import { normalizeGitHubUrl } from '../../common/issueReporterUtil.js';
+import { formatIssueReporterVersion, normalizeGitHubUrl } from '../../common/issueReporterUtil.js';
 
 suite('IssueReporter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -319,6 +319,16 @@ Extensions: none
 		].forEach(url => {
 			assert.strictEqual('https://github.com/repo', normalizeGitHubUrl(url));
 		});
+	});
+
+	test('formats universal Issue Reporter versions with localized fallbacks', () => {
+		assert.strictEqual(formatIssueReporterVersion({
+			nameShort: 'Code - OSS',
+			version: '1.139.0',
+			darwinUniversalAssetId: 'darwin-universal',
+			commit: undefined,
+			date: undefined,
+		}), 'Code - OSS 1.139.0 (Universal) (Commit unknown, Date unknown)');
 	});
 
 	test('should have support for filing on extensions for bugs, performance issues, and feature requests', () => {

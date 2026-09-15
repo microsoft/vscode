@@ -15818,6 +15818,7 @@ suite('AgentHostChatContribution', () => {
 							label: '/agent-host-docs',
 							_meta: {
 								uri: 'file:///skills/agent-host-docs/SKILL.md',
+								syncedUri: 'vscode-synced-customization:/agent-host-copilot/skills/agent-host-docs/SKILL.md',
 								displayName: 'Agent Host Docs',
 								description: 'Use this skill when working on Agent Host code',
 							},
@@ -15842,10 +15843,12 @@ suite('AgentHostChatContribution', () => {
 						attachment: {
 							kind: 'skill',
 							uri: URI.parse('file:///skills/agent-host-docs/SKILL.md'),
+							syncedUri: URI.parse('vscode-synced-customization:/agent-host-copilot/skills/agent-host-docs/SKILL.md'),
 							displayName: 'Agent Host Docs',
 							description: 'Use this skill when working on Agent Host code',
 							_meta: {
 								uri: 'file:///skills/agent-host-docs/SKILL.md',
+								syncedUri: 'vscode-synced-customization:/agent-host-copilot/skills/agent-host-docs/SKILL.md',
 								displayName: 'Agent Host Docs',
 								description: 'Use this skill when working on Agent Host code',
 							},
