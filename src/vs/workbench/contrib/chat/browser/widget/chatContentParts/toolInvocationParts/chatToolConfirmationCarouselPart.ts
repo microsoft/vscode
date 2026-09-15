@@ -175,6 +175,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.items[this.activeIndex]?.tool;
 	}
 
+	acceptActiveConfirmation(): void {
+		this.items[this.activeIndex]?.toolPart?.acceptConfirmation();
+	}
+
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
 	}

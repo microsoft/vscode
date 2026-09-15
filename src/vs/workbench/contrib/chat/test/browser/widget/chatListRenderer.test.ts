@@ -16,6 +16,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -41,7 +42,7 @@ import { ChatThinkingContentPart } from '../../../browser/widget/chatContentPart
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -51,7 +52,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -2052,6 +2053,7 @@ suite('ChatListRenderer', () => {
 				override readonly onDidChangeActiveConfirmationSubagent = Event.None;
 				override get activeConfirmationSubagentId() { return this.currentCarousel?.activeSubAgentInvocationId; }
 				override get activeToolConfirmation() { return this.currentCarousel?.activeToolConfirmation; }
+				override acceptActiveToolConfirmation(): void { this.currentCarousel?.acceptActiveConfirmation(); }
 				override get hasActiveToolConfirmationCarousel() { return !!this.currentCarousel?.pendingCount; }
 				get currentCarousel() { return currentViewModel ? carousels.get(currentViewModel.sessionResource.toString()) : undefined; }
 				override hasToolInConfirmationCarousel(id: string): boolean { return this.currentCarousel?.hasToolInvocation(id) ?? false; }
@@ -2113,9 +2115,9 @@ suite('ChatListRenderer', () => {
 			};
 		}
 
-		function createPendingTool(toolCallId: string, parentToolCallId?: string): ChatToolInvocation {
+		function createPendingTool(toolCallId: string, parentToolCallId?: string, preparation: IPreparedToolInvocation = {}): ChatToolInvocation {
 			return new ChatToolInvocation(
-				{ invocationMessage: 'Run a check', confirmationMessages: { title: `Approve ${toolCallId}`, message: new MarkdownString('Run this check?') } },
+				{ invocationMessage: 'Run a check', confirmationMessages: { title: `Approve ${toolCallId}`, message: new MarkdownString('Run this check?') }, ...preparation },
 				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
 				toolCallId, parentToolCallId, {},
 			);
@@ -2334,6 +2336,94 @@ suite('ChatListRenderer', () => {
 				pending: 0,
 			});
 		});
+
+		const optionConfirmations: { name: string; preparation: IPreparedToolInvocation; primaryLabel: string; reason: ConfirmedReason }[] = [
+			{
+				name: 'custom approve option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Choose an action',
+						message: 'Choose how to handle this request.',
+						customOptions: [
+							{ id: 'deny-once', label: 'Deny Once', kind: ConfirmationOptionKind.Deny },
+							{ id: 'approve-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+							{ id: 'approve-session', label: 'Allow for Session', kind: ConfirmationOptionKind.Approve },
+						],
+					},
+				},
+				primaryLabel: 'Allow Once',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'approve-once', selectedButtonKind: ConfirmationOptionKind.Approve },
+			},
+			{
+				name: 'custom deny-only option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Choose an action',
+						message: 'Choose how to handle this request.',
+						customOptions: [
+							{ id: 'deny-once', label: 'Deny Once', kind: ConfirmationOptionKind.Deny },
+							{ id: 'deny-always', label: 'Always Deny', kind: ConfirmationOptionKind.Deny },
+						],
+					},
+				},
+				primaryLabel: 'Deny Once',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'deny-once', selectedButtonKind: ConfirmationOptionKind.Deny },
+			},
+			{
+				name: 'modified-file option',
+				preparation: {
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Apply Changes', 'Apply Selected Changes'],
+						modifiedFiles: [{ uri: URI.file('/workspace/example.ts') }],
+					},
+				},
+				primaryLabel: 'Apply Changes',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'Apply Changes' },
+			},
+		];
+
+		for (const { name, preparation, primaryLabel, reason } of optionConfirmations) {
+			test(`Accept matches the displayed primary action for a historical ${name}`, () => {
+				const context = createConfirmationRenderer();
+				store.add(registerChatToolActions());
+				context.request.response!.complete();
+				context.model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+				const untouched = createPendingTool('untouched', 'untouched-agent');
+				const clicked = createPendingTool('clicked', 'clicked-agent', preparation);
+				const accepted = createPendingTool('accepted', 'accepted-agent', preparation);
+				for (const tool of [untouched, clicked, accepted]) {
+					context.request.response!.updateContent(tool);
+				}
+
+				context.carousel?.activateFirstToolForSubagent('clicked-agent');
+				const primaryButton = context.confirmationContainer.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+				assert.ok(primaryButton);
+				const displayedLabel = primaryButton.textContent?.replaceAll('\u00a0', ' ');
+				primaryButton.click();
+
+				context.carousel?.activateFirstToolForSubagent('accepted-agent');
+				const accept = CommandsRegistry.getCommand(AcceptToolConfirmationActionId);
+				assert.ok(accept);
+				context.instantiationService.invokeFunction(accessor => accept.handler(accessor, { sessionResource: context.model.sessionResource }));
+
+				assert.deepStrictEqual({
+					displayedLabel,
+					clicked: IChatToolInvocation.executionConfirmedOrDenied(clicked),
+					accepted: IChatToolInvocation.executionConfirmedOrDenied(accepted),
+					untouched: untouched.state.get().type,
+					pending: context.carousel?.pendingCount,
+					transcriptRendered: context.template.currentElement !== undefined,
+				}, {
+					displayedLabel: primaryLabel,
+					clicked: reason,
+					accepted: reason,
+					untouched: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					pending: 1,
+					transcriptRendered: false,
+				});
+			});
+		}
 
 		test('discovers an existing offscreen tool entering confirmation and re-arming without transcript updates', () => {
 			const context = createConfirmationRenderer();

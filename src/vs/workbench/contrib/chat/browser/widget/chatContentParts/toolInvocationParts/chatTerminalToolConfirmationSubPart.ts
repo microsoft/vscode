@@ -222,6 +222,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				buttons: this._createButtons(buildMoreActions())
 			},
 		));
+		this.primaryAction = () => confirmWidget.runPrimaryAction();
 
 		// Agent Host Copilot confirmations need client-generated persistent rule actions.
 		if (autoApproveEnabled && !customActions && terminalData.autoApproveRuleResolvable && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {

@@ -4593,6 +4593,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentToolConfirmationCarousel?.activeToolConfirmation;
 	}
 
+	acceptActiveToolConfirmation(): void {
+		this._currentToolConfirmationCarousel?.acceptActiveConfirmation();
+	}
+
 	/**
 	 * Navigates the carousel to the first pending tool from the given subagent.
 	 */

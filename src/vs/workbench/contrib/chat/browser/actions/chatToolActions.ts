@@ -57,7 +57,12 @@ abstract class ToolConfirmationAction extends Action2 {
 			: chatWidgetService.lastFocusedWidget;
 		const activeConfirmation = widget?.inputPart.activeToolConfirmation;
 		if (activeConfirmation) {
-			IChatToolInvocation.confirmWith(activeConfirmation, this.getReason());
+			const reason = this.getReason();
+			if (reason.type === ToolConfirmKind.UserAction) {
+				widget.inputPart.acceptActiveToolConfirmation();
+			} else {
+				IChatToolInvocation.confirmWith(activeConfirmation, reason);
+			}
 			widget.focusInput();
 			return;
 		}

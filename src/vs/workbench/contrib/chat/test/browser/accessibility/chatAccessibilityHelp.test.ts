@@ -14,6 +14,15 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents accepting the selected confirmation primary action', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			primaryAction: help.includes('activates the primary button of the selected confirmation'),
+			disabled: help.includes('Disabled actions cannot be accepted'),
+			keybinding: help.includes('<keybinding:workbench.action.chat.acceptTool>'),
+		}, { primaryAction: true, disabled: true, keybinding: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
