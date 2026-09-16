@@ -4314,6 +4314,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 			items: picker.getItems().filter(item => item.kind === ActionListItemKind.Action).map(item => ({
 				label: item.label,
 				description: item.description,
+				ariaDescription: item.ariaDescription,
+				hover: item.hover?.content,
 				icon: item.group?.icon?.id,
 				checked: item.item?.checked,
 			})),
@@ -4327,6 +4329,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 				items: picker.getItems().filter(item => item.kind === ActionListItemKind.Action).map(item => ({
 					label: item.label,
 					description: item.description,
+					ariaDescription: item.ariaDescription,
+					hover: item.hover?.content,
 					icon: item.group?.icon?.id,
 					checked: item.item?.checked,
 				})),
@@ -4338,6 +4342,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 				items: [{
 					label: 'No Folder',
 					description: undefined,
+					ariaDescription: 'Start the session in a temporary directory.',
+					hover: 'Start the session in a temporary directory.',
 					icon: 'comment',
 					checked: undefined,
 				}],
@@ -4347,6 +4353,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 				items: [{
 					label: 'No Folder',
 					description: undefined,
+					ariaDescription: 'Start the session in a temporary directory.',
+					hover: 'Start the session in a temporary directory.',
 					icon: 'comment',
 					checked: true,
 				}],
