@@ -122,7 +122,7 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 			address,
 			entry.connectionToken,
 			ahpLoggingEnabled
-				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
+				? { logsHome: this._environmentService.logsHome, logId: address, connectionId: address, transport: 'websocket' }
 				: undefined,
 		);
 		const connection = this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, { clientInfo: this._clientInfo() });

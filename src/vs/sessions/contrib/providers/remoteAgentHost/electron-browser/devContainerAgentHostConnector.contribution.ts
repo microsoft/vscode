@@ -276,11 +276,11 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				}
 			};
 			const transportFactory = () => {
-				// Post-reconnect logs use the original channel id because the new id is assigned asynchronously by `establish`.
-				const createLogger = () => this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
+				const createLogger = (activeConnectionId: string) => this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 					? this._instantiationService.createInstance(AhpJsonlLogger, {
 						logsHome: this._environmentService.logsHome,
-						connectionId,
+						logId: address,
+						connectionId: activeConnectionId,
 						transport: 'devcontainer',
 					})
 					: undefined;
