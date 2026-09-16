@@ -40,6 +40,9 @@ export interface ISessionComparisonAttemptCompletedTelemetry {
 	readonly agentSessionId?: string;
 	readonly attemptIndex: number;
 	readonly attemptCount: number;
+	readonly providerId: SessionsTelemetryProviderId;
+	readonly agentId: string;
+	readonly modelId?: string;
 	readonly status: SessionComparisonAttemptTerminalStatus;
 	readonly elapsedMs?: number;
 	readonly inputTokenCount?: number;
@@ -57,6 +60,9 @@ type SessionComparisonAttemptCompletedClassification = {
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };
 	attemptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of implementation attempts in the comparison.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded Sessions provider category used by the attempt.' };
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent type identifier used by the attempt.' };
+	modelId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier used by the attempt when available.' };
 	status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the attempt completed, failed while running, or failed to launch.' };
 	elapsedMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed attempt duration in milliseconds when a session was created.' };
 	inputTokenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Aggregate input token usage reported for the attempt.' };
@@ -74,6 +80,9 @@ export interface ISessionComparisonAttemptJudgedTelemetry {
 	readonly agentSessionId?: string;
 	readonly attemptIndex: number;
 	readonly attemptCount: number;
+	readonly providerId: SessionsTelemetryProviderId;
+	readonly agentId: string;
+	readonly modelId?: string;
 	readonly recommended: boolean;
 	readonly tests: string;
 	readonly build: string;
@@ -90,6 +99,9 @@ type SessionComparisonAttemptJudgedClassification = {
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with attempt execution and trusted model telemetry.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };
 	attemptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of implementation attempts in the comparison.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded Sessions provider category used by the judged attempt.' };
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent type identifier used by the judged attempt.' };
+	modelId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier used by the judged attempt when available.' };
 	recommended: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the Judge recommended this attempt.' };
 	tests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Judge-reported categorical test validation state.' };
 	build: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Judge-reported categorical build validation state.' };

@@ -250,6 +250,9 @@ suite('SessionComparisonService', () => {
 				name: event.name,
 				agentSessionId: event.data.agentSessionId,
 				attemptIndex: event.data.attemptIndex,
+				providerId: event.data.providerId,
+				agentId: event.data.agentId,
+				modelId: event.data.modelId,
 				status: event.data.status,
 				recommended: event.data.recommended,
 				inputTokenCount: event.data.inputTokenCount,
@@ -272,10 +275,10 @@ suite('SessionComparisonService', () => {
 			},
 		}, {
 			attemptEvents: [
-				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, status: 'completed', recommended: undefined, inputTokenCount: 30 },
-				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, status: 'error', recommended: undefined, inputTokenCount: undefined },
-				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, status: undefined, recommended: false, inputTokenCount: undefined },
-				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, status: undefined, recommended: true, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, providerId: 'other', agentId: 'type-one', modelId: 'model-one', status: 'completed', recommended: undefined, inputTokenCount: 30 },
+				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, providerId: 'other', agentId: 'type-two', modelId: 'model-two', status: 'error', recommended: undefined, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, providerId: 'other', agentId: 'type-one', modelId: 'model-one', status: undefined, recommended: false, inputTokenCount: undefined },
+				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, providerId: 'other', agentId: 'type-two', modelId: 'model-two', status: undefined, recommended: true, inputTokenCount: undefined },
 			],
 			judge: {
 				hasComparisonId: true,
