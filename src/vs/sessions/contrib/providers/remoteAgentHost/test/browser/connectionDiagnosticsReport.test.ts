@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../../base/browser/window.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
@@ -664,13 +665,15 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual(copied, [snapshot.text, 'New connection state']);
 	});
 
-	test('desktop host filter separates passive status from connection information', () => {
+	for (const appearance of ['sidebar', 'titlebar'] as const) {
+	test(`${appearance} host information responds to click and tap without invoking its enclosing action`, () => {
 		const container = dom.append(mainWindow.document.body, dom.$('div.action-item'));
 		store.add(toDisposable(() => container.remove()));
 		const commands: string[] = [];
+		let enclosingActions = 0;
 		const widget = store.add(new HostFilterActionViewItem(
-			store.add(new Action('hosts', 'Hosts')),
-			'sidebar',
+			store.add(new Action('hosts', 'Hosts', undefined, true, async () => { enclosingActions++; })),
+			appearance,
 			new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly onDidChangeDiscovering = Event.None;
@@ -709,17 +712,22 @@ suite('ConnectionDiagnosticsReport', () => {
 		const connection = container.querySelector<HTMLElement>('.agent-host-filter-connect');
 		const diagnostics = container.querySelector<HTMLElement>('.agent-host-filter-diagnostics');
 		connection?.click();
+		enclosingActions = 0;
 		diagnostics?.click();
+		diagnostics?.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({
 			statusAriaHidden: connection?.getAttribute('aria-hidden'),
 			statusRole: connection?.getAttribute('role'),
 			diagnosticsLabel: diagnostics?.getAttribute('aria-label'),
 			commands,
+			enclosingActions,
 		}, {
 			statusAriaHidden: 'true',
 			statusRole: null,
 			diagnosticsLabel: 'Open Connection Information. Current host status: Connected.',
-			commands: [ShowConnectionDiagnosticsCommandId],
+			commands: [ShowConnectionDiagnosticsCommandId, ShowConnectionDiagnosticsCommandId],
+			enclosingActions: 0,
 		});
 	});
+	}
 });

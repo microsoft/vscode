@@ -215,7 +215,13 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		element.append(...renderLabelWithIcons(`$(${Codicon.info.id})`));
 		this._diagnosticsHover.value = this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, () => label);
 		const show = () => void this._commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
-		this._register(dom.addDisposableListener(element, dom.EventType.CLICK, show));
+		this._register(Gesture.addTarget(element));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(dom.addDisposableListener(element, eventType, event => {
+				dom.EventHelper.stop(event, true);
+				show();
+			}));
+		}
 		this._register(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
