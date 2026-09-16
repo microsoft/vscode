@@ -702,11 +702,16 @@ class SessionItemActionRunner extends ActionRunner {
 const SESSION_TITLE_SHIMMER_ANIMATION_NAME = 'session-title-shimmer';
 const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set([SESSION_TITLE_SHIMMER_ANIMATION_NAME]);
 const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
-const comparisonDestructiveButtonStyles = {
+const comparisonStopButtonStyles = {
 	...defaultButtonStyles,
 	buttonSecondaryBackground: 'transparent',
 	buttonSecondaryForeground: asCssVariable(errorForeground),
 	buttonSecondaryHoverBackground: `color-mix(in srgb, ${asCssVariable(errorForeground)} 16%, transparent)`,
+	buttonSecondaryBorder: 'transparent',
+};
+const comparisonArchiveButtonStyles = {
+	...defaultButtonStyles,
+	buttonSecondaryBackground: 'transparent',
 	buttonSecondaryBorder: 'transparent',
 };
 
@@ -874,7 +879,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		comparisonAttemptStatusIcon.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatusLabel = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-label'));
 		const comparisonParticipantStop = disposables.add(new Button(comparisonAttemptStatus, {
-			...comparisonDestructiveButtonStyles,
+			...comparisonStopButtonStyles,
 			secondary: true,
 			supportIcons: true,
 			title: false,
@@ -1742,7 +1747,7 @@ interface ISessionGroupTemplate extends ISessionHeaderTemplate {
 	readonly inputContainer: HTMLElement;
 	readonly chevron: HTMLElement;
 	readonly comparisonStopAll: Button;
-	readonly comparisonDeleteGroup: Button;
+	readonly comparisonArchive: Button;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
@@ -1789,7 +1794,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const comparisonStopAll = disposables.add(new Button(toolbarContainer, {
-			...comparisonDestructiveButtonStyles,
+			...comparisonStopButtonStyles,
 			secondary: true,
 			supportIcons: true,
 			title: false,
@@ -1807,25 +1812,25 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			disposables.add(DOM.addDisposableListener(comparisonStopAll.element, eventType, event => event.stopPropagation()));
 		}
 		disposables.add(Gesture.ignoreTarget(comparisonStopAll.element));
-		const comparisonDeleteGroup = disposables.add(new Button(toolbarContainer, {
-			...comparisonDestructiveButtonStyles,
+		const comparisonArchive = disposables.add(new Button(toolbarContainer, {
+			...comparisonArchiveButtonStyles,
 			secondary: true,
 			supportIcons: true,
 			title: false,
-			ariaLabel: localize('comparisonDeleteGroup', "Delete Group"),
+			ariaLabel: localize('comparisonArchive', "Archive Comparison"),
 		}));
-		comparisonDeleteGroup.element.classList.add('session-comparison-delete-group');
-		comparisonDeleteGroup.label = '$(trash)';
-		comparisonDeleteGroup.element.hidden = true;
+		comparisonArchive.element.classList.add('session-comparison-archive');
+		comparisonArchive.label = '$(check)';
+		comparisonArchive.element.hidden = true;
 		disposables.add(this.hoverService.setupManagedHover(
 			getDefaultHoverDelegate('element'),
-			comparisonDeleteGroup.element,
-			localize('comparisonDeleteGroup', "Delete Group"),
+			comparisonArchive.element,
+			localize('comparisonArchive', "Archive Comparison"),
 		));
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
-			disposables.add(DOM.addDisposableListener(comparisonDeleteGroup.element, eventType, event => event.stopPropagation()));
+			disposables.add(DOM.addDisposableListener(comparisonArchive.element, eventType, event => event.stopPropagation()));
 		}
-		disposables.add(Gesture.ignoreTarget(comparisonDeleteGroup.element));
+		disposables.add(Gesture.ignoreTarget(comparisonArchive.element));
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -1833,7 +1838,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, description, inputContainer, toolbarContainer, toolbar, chevron, comparisonStopAll, comparisonDeleteGroup, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, icon, collapsed: observableValue(this, false), label, description, inputContainer, toolbarContainer, toolbar, chevron, comparisonStopAll, comparisonArchive, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -1845,7 +1850,8 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		delete template.comparisonStopAll.element.dataset.pending;
 		template.comparisonStopAll.enabled = true;
 		template.comparisonStopAll.element.hidden = true;
-		template.comparisonDeleteGroup.element.hidden = true;
+		template.comparisonArchive.enabled = true;
+		template.comparisonArchive.element.hidden = true;
 		renderSessionHeaderToolbar(template, element, this.delegate.select);
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.group.id, template);
@@ -1867,7 +1873,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				}
 				template.comparisonStopAll.element.hidden = runningSessions.length === 0;
 				template.comparisonStopAll.enabled = runningSessions.length > 0 && template.comparisonStopAll.element.dataset.pending !== 'true';
-				template.comparisonDeleteGroup.element.hidden = runningSessions.length > 0;
+				template.comparisonArchive.element.hidden = runningSessions.length > 0;
 			}));
 			template.elementDisposables.add(template.comparisonStopAll.onDidClick(async () => {
 				const runningSessions = element.sessions.filter(session => isSessionInProgress(session, undefined));
@@ -1890,11 +1896,21 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 					onUnexpectedError(failures[0].reason);
 				}
 			}));
-			template.elementDisposables.add(template.comparisonDeleteGroup.onDidClick(() => {
+			template.elementDisposables.add(template.comparisonArchive.onDidClick(async () => {
 				if (element.sessions.some(session => isSessionInProgress(session, undefined))) {
 					return;
 				}
-				this.sessionGroupsService.deleteGroup(element.group.id);
+				template.comparisonArchive.enabled = false;
+				try {
+					for (const session of element.sessions) {
+						await this.sessionsManagementService.archiveSession(session);
+					}
+					this.sessionGroupsService.deleteGroup(element.group.id);
+					status(localize('comparisonArchived', "Comparison archived"));
+				} catch (error) {
+					template.comparisonArchive.enabled = true;
+					onUnexpectedError(error);
+				}
 			}));
 		} else {
 			template.description.textContent = '';

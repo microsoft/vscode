@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -2172,13 +2173,21 @@ suite('Sessions - SessionsList', () => {
 				hidden: stopAll.hidden,
 				color: stopAll.style.color,
 				computedColor: mainWindow.getComputedStyle(stopAll).color,
-				deleteGroupHidden: container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-delete-group')?.hidden,
+				archive: {
+					hidden: container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive')?.hidden,
+					ariaLabel: container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive')?.getAttribute('aria-label'),
+					checkIcon: container.querySelector('.session-comparison-group .session-comparison-archive .codicon-check') !== null,
+				},
 			}, {
 				ariaLabel: 'Stop All',
 				hidden: false,
 				color: 'var(--vscode-errorForeground)',
 				computedColor: 'rgb(255, 0, 0)',
-				deleteGroupHidden: true,
+				archive: {
+					hidden: true,
+					ariaLabel: 'Archive Comparison',
+					checkIcon: true,
+				},
 			});
 
 			stopAll.click();
@@ -2187,7 +2196,7 @@ suite('Sessions - SessionsList', () => {
 			attempt2.status.set(SessionStatus.Completed, undefined);
 			judge.status.set(SessionStatus.Completed, undefined);
 			synthesis.status.set(SessionStatus.Completed, undefined);
-			const deleteGroup = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-delete-group');
+			const archive = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive');
 
 			assert.deepStrictEqual({
 				cancelled: harness.managementService.cancelled.map(session => session.sessionId).sort(),
@@ -2195,18 +2204,25 @@ suite('Sessions - SessionsList', () => {
 				stopAllDisplay: mainWindow.getComputedStyle(stopAll).display,
 				participantStopsHidden: [...container.querySelectorAll<HTMLButtonElement>('.session-comparison-participant-stop')].map(button => button.hidden),
 				participantStopDisplays: [...container.querySelectorAll<HTMLButtonElement>('.session-comparison-participant-stop')].map(button => mainWindow.getComputedStyle(button).display),
-				deleteGroupHidden: deleteGroup?.hidden,
+				archiveHidden: archive?.hidden,
 			}, {
 				cancelled: ['attempt-2', 'judge', 'synthesis'],
 				stopAllHidden: true,
 				stopAllDisplay: 'none',
 				participantStopsHidden: [true, true, true, true],
 				participantStopDisplays: ['none', 'none', 'none', 'none'],
-				deleteGroupHidden: false,
+				archiveHidden: false,
 			});
 
-			deleteGroup?.click();
-			assert.deepStrictEqual(harness.deletedGroupIds, [group.id]);
+			archive?.click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
+				deletedGroupIds: harness.deletedGroupIds,
+			}, {
+				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
+				deletedGroupIds: [group.id],
+			});
 		});
 
 		test('opens from the parent and reserves disclosure for the chevron', () => {

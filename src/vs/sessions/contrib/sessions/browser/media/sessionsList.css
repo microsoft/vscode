@@ -1159,7 +1159,7 @@
 	}
 
 	.session-comparison-stop-all.monaco-button,
-	.session-comparison-delete-group.monaco-button {
+	.session-comparison-archive.monaco-button {
 		display: flex;
 		align-items: center;
 		justify-content: center;

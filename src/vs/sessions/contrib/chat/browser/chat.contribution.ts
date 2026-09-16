@@ -421,9 +421,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.compareAgents.hideInactiveInputs', "Hides the chat input in inactive panes when three or more parallel comparison attempts are shown in a grid. This behavior is disabled when screen-reader optimized mode is active."),
+			description: localize('sessions.chat.compareAgents.hideInactiveInputs', "When enabled, hides the chat input in inactive panes when three or more parallel comparison attempts are shown in a grid. This behavior is disabled when screen-reader optimized mode is active."),
 			tags: ['experimental'],
 		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {

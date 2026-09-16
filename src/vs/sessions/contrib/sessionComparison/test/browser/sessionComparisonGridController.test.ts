@@ -79,7 +79,7 @@ suite('Session comparison grid controller', () => {
 		const onDidChangePartVisibility = store.add(new Emitter<{ partId: Parts; visible: boolean }>());
 		const mainContainer = mainWindow.document.createElement('div');
 		const configurationService = new TestConfigurationService({
-			[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: options?.hideInactiveInputs ?? true,
+			[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: options?.hideInactiveInputs ?? false,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const screenReaderOptimizedChanged = store.add(new Emitter<void>());
@@ -234,45 +234,46 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, { shownOnly: [], closed: [], resetCount: 0 });
 	});
 
-	test('hides inactive inputs only for comparison grids with three or more attempts', async () => {
-		const twoAttemptGrid = setup('grid', { attemptsOnly: true, attemptCount: 2 });
-		const attemptGrid = setup('grid', { attemptsOnly: true, attemptCount: 3 });
-		const disabledGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, hideInactiveInputs: false });
+	test('shows inputs by default and hides inactive inputs only when enabled for three or more attempts', async () => {
+		const defaultGrid = setup('grid', { attemptsOnly: true, attemptCount: 3 });
+		const twoAttemptGrid = setup('grid', { attemptsOnly: true, attemptCount: 2, hideInactiveInputs: true });
+		const enabledGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true });
 		const mixedGrid = setup('grid', { hideInactiveInputs: true });
-		const screenReaderGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, screenReaderOptimized: true });
+		const screenReaderGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true, screenReaderOptimized: true });
 		const className = 'session-comparison-hide-inactive-inputs';
-		const enabledByDefault = attemptGrid.mainContainer.classList.contains(className);
+		const shownByDefault = !defaultGrid.mainContainer.classList.contains(className);
+		const hiddenWhenEnabled = enabledGrid.mainContainer.classList.contains(className);
 
-		attemptGrid.setScreenReaderOptimized(true);
-		const disabledForScreenReader = attemptGrid.mainContainer.classList.contains(className);
-		attemptGrid.setScreenReaderOptimized(false);
-		const restoredAfterScreenReader = attemptGrid.mainContainer.classList.contains(className);
-		await attemptGrid.configurationService.setUserConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING, false);
-		attemptGrid.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+		enabledGrid.setScreenReaderOptimized(true);
+		const disabledForScreenReader = enabledGrid.mainContainer.classList.contains(className);
+		enabledGrid.setScreenReaderOptimized(false);
+		const restoredAfterScreenReader = enabledGrid.mainContainer.classList.contains(className);
+		await enabledGrid.configurationService.setUserConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING, false);
+		enabledGrid.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 			affectsConfiguration: key => key === HIDE_INACTIVE_COMPARISON_INPUTS_SETTING,
 		}));
-		const disabledBySetting = attemptGrid.mainContainer.classList.contains(className);
-		attemptGrid.sessionGridLayout.set('columns', undefined);
-		const afterLeavingGrid = attemptGrid.mainContainer.classList.contains(className);
+		const disabledBySetting = enabledGrid.mainContainer.classList.contains(className);
+		enabledGrid.sessionGridLayout.set('columns', undefined);
+		const afterLeavingGrid = enabledGrid.mainContainer.classList.contains(className);
 
 		assert.deepStrictEqual({
-			enabledByDefault,
+			shownByDefault,
+			hiddenWhenEnabled,
 			twoAttemptGrid: twoAttemptGrid.mainContainer.classList.contains(className),
 			disabledForScreenReader,
 			restoredAfterScreenReader,
 			disabledBySetting,
 			afterLeavingGrid,
-			disabledGrid: disabledGrid.mainContainer.classList.contains(className),
 			mixedGrid: mixedGrid.mainContainer.classList.contains(className),
 			screenReaderGrid: screenReaderGrid.mainContainer.classList.contains(className),
 		}, {
-			enabledByDefault: true,
+			shownByDefault: true,
+			hiddenWhenEnabled: true,
 			twoAttemptGrid: false,
 			disabledForScreenReader: false,
 			restoredAfterScreenReader: true,
 			disabledBySetting: false,
 			afterLeavingGrid: false,
-			disabledGrid: false,
 			mixedGrid: false,
 			screenReaderGrid: false,
 		});
