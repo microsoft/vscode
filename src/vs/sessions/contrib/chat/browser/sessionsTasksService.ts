@@ -16,7 +16,7 @@ import { IJSONEditingService } from '../../../../workbench/services/configuratio
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
-import { ISessionTaskRunnerRegistry } from './sessionTaskRunner.js';
+import { ISessionTaskRunnerRegistry, ISessionTaskRunOptions } from './sessionTaskRunner.js';
 
 export type TaskStorageTarget = 'user' | 'workspace';
 type TaskRunOnOption = 'default' | 'folderOpen' | 'worktreeCreated';
@@ -150,7 +150,7 @@ export interface ISessionsTasksService {
 	 * May resolve to an {@link IDisposable} that stops the launched task; see
 	 * {@link ISessionTaskRunner.runTask}.
 	 */
-	runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined>;
+	runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined>;
 
 	/**
 	 * Observable label of the pinned task for the given repository.
@@ -388,12 +388,12 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		}
 	}
 
-	async runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined> {
+	async runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined> {
 		const runner = this._taskRunnerRegistry.getRunner(session);
 		if (!runner) {
 			return undefined;
 		}
-		const handle = await runner.runTask(task, session);
+		const handle = await runner.runTask(task, session, options);
 		this._onDidRunTask.fire({ task, session });
 		return handle;
 	}
