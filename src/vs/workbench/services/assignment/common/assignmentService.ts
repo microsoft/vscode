@@ -30,6 +30,7 @@ import { AssignmentContextFilter } from './assignmentContextFilter.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 
 export interface IAssignmentFilter {
 	/**
@@ -81,6 +82,21 @@ export function toExperimentTelemetryData(props: Map<string, string>): ITelemetr
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void;
+	getTreatmentWithAssignment<T extends string | number | boolean>(name: string): Promise<ITreatmentWithAssignment<T>>;
+}
+
+export interface ITreatmentWithAssignment<T extends string | number | boolean> {
+	readonly value: T | undefined;
+	/** Resolves independently so developer overrides need not wait for ExP to become available. */
+	readonly hasAssignment: Promise<boolean>;
+}
+
+export async function resolveTreatmentWithAssignment<T extends string | number | boolean>(override: T | undefined, readAssignment: () => Promise<T | undefined>): Promise<ITreatmentWithAssignment<T>> {
+	if (override !== undefined) {
+		return { value: override, hasAssignment: readAssignment().then(value => value !== undefined) };
+	}
+	const value = await readAssignment();
+	return { value, hasAssignment: Promise.resolve(value !== undefined) };
 }
 
 class MementoKeyValueStorage implements IKeyValueStorage {
@@ -264,7 +280,19 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		const result = await this.doGetTreatment<T>(name);
+		this.logTreatment(name, result);
+		return result;
+	}
 
+	async getTreatmentWithAssignment<T extends string | number | boolean>(name: string): Promise<ITreatmentWithAssignment<T>> {
+		await this.overrideInitDelay;
+		const override = this.configurationService.getValue<T>(`experiments.override.${name}`);
+		const result = await resolveTreatmentWithAssignment(override, () => this.getAssignedTreatment<T>(name));
+		this.logTreatment(name, result.value);
+		return result;
+	}
+
+	private logTreatment(name: string, result: string | number | boolean | undefined): void {
 		type TASClientReadTreatmentData = {
 			treatmentName: string;
 			treatmentValue: string;
@@ -281,8 +309,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			treatmentName: name,
 			treatmentValue: JSON.stringify(result)
 		});
-
-		return result;
 	}
 
 	private async doGetTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
@@ -293,6 +319,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return override;
 		}
 
+		return this.getAssignedTreatment<T>(name);
+	}
+
+	private async getAssignedTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		if (!this.tasClient) {
 			return undefined;
 		}
@@ -301,13 +331,20 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return undefined;
 		}
 
-		const client = await this.tasClient;
+		const clientPromise = this.tasClient;
+		const client = await clientPromise;
 
 		// Await the initial network fetch when it has not completed yet, so treatments are
 		// available before we read them from memory. `checkCache: true` returns immediately when a
 		// value is already cached, otherwise it awaits the initial fetch.
 		if (!this.networkInitialized) {
 			await client.getTreatmentVariableAsync<T>('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`, true);
+		}
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		if (clientPromise !== this.tasClient) {
+			return this.getAssignedTreatment<T>(name);
 		}
 
 		// Interim workaround: the new TAS assignments endpoint (/api/v1/assignments) namespaces its
