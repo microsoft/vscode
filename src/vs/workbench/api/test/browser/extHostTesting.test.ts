@@ -640,10 +640,13 @@ suite('ExtHost Testing', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		const ext: IExtensionDescription = {} as any;
 
-		teardown(() => {
+		teardown(async () => {
+			c.cancelAllRuns();
+			c.cancelAllRuns();
 			for (const { id } of c.trackers) {
 				c.disposeTestRun(id);
 			}
+			await Promise.resolve();
 		});
 
 		setup(async () => {
@@ -670,6 +673,107 @@ suite('ExtHost Testing', () => {
 				runId: 'run-id',
 				testIds: [single.root.id],
 			}, single);
+		});
+
+		test('defers repeated removal until every task really ends', async () => {
+			const first = c.createTestRun(ext, 'ctrl', single, req, 'first', false);
+			const second = c.createTestRun(ext, 'ctrl', single, req, 'second', false);
+			const tracker = Iterable.first(c.trackers)!;
+			const ended = sinon.stub();
+			const disposed = sinon.stub();
+			ds.add(tracker.onEnd(ended));
+			ds.add(first.onDidDispose(() => {
+				disposed();
+				assert.deepStrictEqual([...c.trackers], []);
+				c.disposeTestRun(tracker.id);
+			}));
+
+			c.disposeTestRun(tracker.id);
+			c.disposeTestRun(tracker.id);
+			const laterEndListener = sinon.stub();
+			ds.add(tracker.onEnd(laterEndListener));
+			assert.strictEqual(tracker.hasRunningTasks, true);
+			assert.strictEqual(ended.callCount, 0);
+			assert.strictEqual(disposed.callCount, 0);
+			assert.strictEqual(first.token.isCancellationRequested, false);
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			first.end();
+			assert.deepStrictEqual([...c.trackers], [tracker]);
+			assert.strictEqual(disposed.callCount, 0);
+			second.end();
+			assert.strictEqual(laterEndListener.callCount, 1);
+			await Promise.resolve();
+			assert.deepStrictEqual([...c.trackers], []);
+			assert.strictEqual(ended.callCount, 1);
+			assert.strictEqual(disposed.callCount, 1);
+			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
+			c.disposeTestRun(tracker.id);
+			second.end();
+			assert.strictEqual(disposed.callCount, 1);
+		});
+
+		test('does not dispose a new task created before deferred cleanup', async () => {
+			const first = c.createTestRun(ext, 'ctrl', single, req, 'first', false);
+			const tracker = Iterable.first(c.trackers)!;
+			let disposals = 0;
+			const ended = sinon.stub();
+			const idle = sinon.stub();
+			ds.add(tracker.onEnd(ended));
+			ds.add(tracker.onIdle(idle));
+			ds.add(first.onDidDispose(() => disposals++));
+			c.disposeTestRun(tracker.id);
+			first.end();
+			const next = c.createTestRun(ext, 'ctrl', single, req, 'next platform', false);
+			c.disposeTestRun(tracker.id);
+			try {
+				await Promise.resolve();
+				assert.strictEqual(disposals, 0);
+				assert.strictEqual(tracker.hasRunningTasks, true);
+				assert.deepStrictEqual([...c.trackers], [tracker]);
+			} finally {
+				next.end();
+				await Promise.resolve();
+			}
+			assert.strictEqual(disposals, 1);
+			assert.strictEqual(ended.callCount, 1);
+			assert.strictEqual(idle.callCount, 2);
+			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
+			assert.deepStrictEqual([...c.trackers], []);
+		});
+
+		test('coalesces idle transitions and repeated removal before cleanup', async () => {
+			const first = c.createTestRun(ext, 'ctrl', single, req, 'first', false);
+			const tracker = Iterable.first(c.trackers)!;
+			let disposals = 0;
+			ds.add(first.onDidDispose(() => disposals++));
+			c.disposeTestRun(tracker.id);
+			first.end();
+			const second = c.createTestRun(ext, 'ctrl', single, req, 'second', false);
+			second.end();
+			c.disposeTestRun(tracker.id);
+			await Promise.resolve();
+			assert.strictEqual(disposals, 1);
+			assert.deepStrictEqual([...c.trackers], []);
+			c.disposeTestRun(tracker.id);
+			await Promise.resolve();
+			assert.strictEqual(disposals, 1);
+		});
+
+		test('removes an ended run once before disposal callbacks', async () => {
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'ended', false);
+			const tracker = Iterable.first(c.trackers)!;
+			let disposals = 0;
+			ds.add(task.onDidDispose(() => {
+				disposals++;
+				assert.deepStrictEqual([...c.trackers], []);
+				c.disposeTestRun(tracker.id);
+			}));
+			task.end();
+			c.disposeTestRun(tracker.id);
+			c.disposeTestRun(tracker.id);
+			await Promise.resolve();
+			assert.strictEqual(disposals, 1);
+			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
 		});
 
 		test('tracks a run started from a main thread request', () => {

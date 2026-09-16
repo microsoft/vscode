@@ -196,6 +196,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 
 		if (removed) {
 			this._resultsDisposables.deleteAndDispose(removed);
+			this.changeResultEmitter.fire({ removed: [removed] });
 		}
 
 		if (result instanceof LiveTestResult) {
