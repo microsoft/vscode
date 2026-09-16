@@ -17,6 +17,9 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatRequestModel, ChatResponseModel, IChatChangeEvent, IChatModelInputState, IChatRequestModelParameters } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { getProjectBoardSubmittedAt, projectBoardMetadataLimits, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { ChatAgentService, IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
+import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 
 suite('ProjectBoardMetadata', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -135,6 +138,38 @@ suite('ProjectBoardMetadata', () => {
 		assert.ok(!Object.hasOwn(metadata.configuration.get()!, 'inputText'));
 		metadata.setIncludeConfiguration(false);
 		assert.strictEqual(metadata.configuration.get(), undefined);
+	});
+
+	test('PB-18 real chat model usage updates credits before a running response completes', () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IChatService, new MockChatService());
+		instantiation.stub(IChatAgentService, store.add(instantiation.createInstance(ChatAgentService)));
+		const model = store.add(instantiation.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const first = model.addRequest({ text: 'Previous turn', parts: [] }, { variables: [] }, 100);
+		model.acceptResponseProgress(first, { kind: 'usage', promptTokens: 10, completionTokens: 10, copilotCredits: 10, sessionCopilotCredits: 10 });
+		first.response!.complete();
+		const service = new class extends mock<IChatService>() {
+			override acquireExistingSession(): IChatModelReference { return { object: model, dispose() { } }; }
+		}();
+		const sessions = new class extends mock<IChatSessionsService>() {
+			override getMaterializedSessionResource() { return undefined; }
+		}();
+		const metadata = store.add(new ProjectBoardMetadata({ resource: model.sessionResource }, service, new NullLogService(), sessions));
+		metadata.setIncludeCredits(true);
+		assert.strictEqual(metadata.credits.get(), 10);
+		const running = model.addRequest({ text: 'Running turn', parts: [] }, { variables: [] }, 200);
+		for (const cost of [0, 2.5, 2.6]) {
+			model.acceptResponseProgress(running, { kind: 'usage', promptTokens: 10, completionTokens: 10, copilotCredits: cost });
+			assert.strictEqual(metadata.credits.get(), 10 + cost, 'Billing refinements with identical token counts remain reactive');
+			assert.strictEqual(running.response!.isComplete, false);
+		}
+		model.acceptResponseProgress(running, { kind: 'markdownContent', content: { value: 'Still streaming' } });
+		assert.strictEqual(metadata.credits.get(), 12.6, 'Streaming without a usage report must not invent additional cost');
+		running.response!.setSubagentCopilotCredits('child-call', 1);
+		assert.strictEqual(metadata.credits.get(), 13.6);
+		model.acceptResponseProgress(running, { kind: 'usage', promptTokens: 10, completionTokens: 10, copilotCredits: 2.6, sessionCopilotCredits: 15 });
+		assert.strictEqual(metadata.credits.get(), 15, 'Delayed provider totals update without double counting');
+		assert.strictEqual(running.response!.isComplete, false);
 	});
 
 	test('PB-18 credits reuse the session total, update on usage and release subscriptions when hidden', () => {
