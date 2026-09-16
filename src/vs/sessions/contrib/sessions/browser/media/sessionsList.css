@@ -395,15 +395,15 @@
 			border: 0;
 			border-radius: var(--vscode-cornerRadius-small);
 			background: transparent;
-			color: var(--vscode-descriptionForeground);
+			color: var(--vscode-errorForeground);
 
 			.codicon {
 				font-size: var(--vscode-codiconFontSize-compact);
 			}
 
 			&:hover {
-				background: var(--vscode-toolbar-hoverBackground);
-				color: var(--vscode-foreground);
+				background: color-mix(in srgb, var(--vscode-errorForeground) 16%, transparent);
+				color: var(--vscode-errorForeground);
 			}
 		}
 	}
@@ -1173,15 +1173,15 @@
 		border: 0;
 		border-radius: var(--vscode-cornerRadius-small);
 		background: transparent;
-		color: var(--vscode-descriptionForeground);
+		color: var(--vscode-errorForeground);
 
 		.codicon {
 			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
 		&:hover {
-			background: var(--vscode-toolbar-hoverBackground);
-			color: var(--vscode-foreground);
+			background: color-mix(in srgb, var(--vscode-errorForeground) 16%, transparent);
+			color: var(--vscode-errorForeground);
 		}
 	}
 }
