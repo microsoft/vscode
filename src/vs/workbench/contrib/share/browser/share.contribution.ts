@@ -350,13 +350,20 @@ class ShareWorkbenchContribution extends Disposable {
 					title: localize2('showShareCodeTip', 'Show me how to share this code'),
 					f1: true,
 					category: localize2('shareCategory', 'Share'),
-					precondition: EditorContextKeys.hasNonEmptySelection,
 				});
 			}
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
+				const codeEditorService = accessor.get(ICodeEditorService);
+
+				// Capture selection before dialog focus can clear it.
+				const editor = codeEditorService.getActiveCodeEditor();
+				const preserved = editor?.getSelection() ?? undefined;
+				if (editor && preserved && !preserved.isEmpty()) {
+					editor.setSelection(preserved);
+				}
 
 				const markdown = new MarkdownString(undefined, { supportThemeIcons: true, isTrusted: true });
 				markdown.appendMarkdown(localize(
@@ -384,6 +391,11 @@ class ShareWorkbenchContribution extends Disposable {
 				});
 
 				if (result.result === 'gist') {
+					const active = codeEditorService.getActiveCodeEditor();
+					if (active && preserved && !preserved.isEmpty()) {
+						active.setSelection(preserved);
+						active.focus();
+					}
 					await commandService.executeCommand(SHARE_AS_PRIVATE_GIST_COMMAND_ID);
 				}
 			}
@@ -527,7 +539,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
  */
 class ShareSelectionLightbulbWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = true;
-	readonly suppressMouseDown = false;
+	readonly suppressMouseDown = true;
 
 	private readonly _domNode: HTMLElement;
 	private _position: IContentWidgetPosition | null = null;
