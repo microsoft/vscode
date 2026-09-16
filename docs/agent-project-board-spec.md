@@ -50,8 +50,9 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Card context menus do not enumerate every destination. Axis-edit menus remain.
 - Deleting an occupied axis requires confirmation and returns affected placements to Unassigned, including archived placements. Cancellation changes nothing.
 - Arrow keys follow the visible card geometry. Home/End focus the first/last card and scroll it into view.
+- Clicking the board background, grid cells or Unassigned must not draw container focus outlines. Keyboard navigation retains visible focus indicators.
 - Nested question inputs and links keep their own keyboard/mouse behavior; they do not accidentally open or move the card.
-- The board owns its bounded scroll surface. Expanded content must remain reachable, and ordinary live updates preserve scroll position.
+- The board owns its bounded scroll surface. Expanded content must remain reachable, and ordinary live updates preserve scroll position. When embedded via the custom view's styled scrolling, the board notifies the host on any content-height change (for example, expanding a "+more" group) so the host's scroll container rescans immediately rather than lagging behind its passive resize observer.
 
 ### Live cards
 

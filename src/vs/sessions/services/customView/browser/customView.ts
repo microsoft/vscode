@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../base/common/observable.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -51,6 +52,15 @@ export abstract class AbstractCustomView extends Disposable {
 	 * views use.
 	 */
 	readonly maxWidth: number | undefined = undefined;
+
+	private readonly _onDidChangeContentSize = this._register(new Emitter<void>());
+	/**
+	 * Fired when the view's own content height changes outside of a `layout()`
+	 * call (for example, expanding a collapsed group), so the host can rescan
+	 * its scroll container instead of waiting on its passive resize observer.
+	 */
+	readonly onDidChangeContentSize: Event<void> = this._onDidChangeContentSize.event;
+	protected fireDidChangeContentSize(): void { this._onDidChangeContentSize.fire(); }
 
 	/** Renders the content into the host-provided container. Called once. */
 	abstract render(container: HTMLElement): void;
