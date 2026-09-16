@@ -38,7 +38,7 @@ import { IWorkbenchLayoutService } from '../../../../../../workbench/services/la
 import { AccessibilityVerbositySettingId } from '../../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
+import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
 import { ConnectionDiagnosticsContribution } from '../../browser/connectionDiagnostics.contribution.js';
 import { SessionsChatAccessibilityHelp } from '../../../../chat/browser/sessionsChatAccessibilityHelp.js';
@@ -72,7 +72,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		const service = new class extends mock<IConnectionDiagnosticsService>() {
 			override readonly onDidChangeHostManagement = Event.None;
 			override getSnapshot(): IConnectionDiagnosticsSnapshot { return current; }
-			override getHostManagementState() { return { hosts: [], isDiscovering: false }; }
+			override getHostManagementState(): IConnectionHostManagementState { return { hosts: [], isDiscovering: false }; }
 			override async runHostAction(): Promise<void> { }
 			override async rediscover(): Promise<boolean> { rediscoveries++; return options.discoverySucceeded !== false; }
 		}();
