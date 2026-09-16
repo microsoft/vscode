@@ -554,7 +554,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.codeBlockStartIndex,
 			this.renderer,
 			undefined,
-			this.currentWidthDelegate(),
+			this.currentWidthDelegate,
 			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);
