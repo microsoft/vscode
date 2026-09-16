@@ -31,9 +31,10 @@ export interface IChatHookService {
 	 * @param input Input data to pass to the hook via stdin (will be JSON-serialized).
 	 * @param sessionId Optional session ID — when provided the transcript is flushed first.
 	 * @param token Optional cancellation token.
+	 * @param model Optional model identifier (e.g. "claude-sonnet-4-6") included as a common field in every hook input.
 	 * @returns A promise that resolves to an array of hook execution results.
 	 */
-	executeHook(hookType: vscode.ChatHookType, hooks: vscode.ChatRequestHooks | undefined, input: unknown, sessionId?: string, token?: vscode.CancellationToken): Promise<vscode.ChatHookResult[]>;
+	executeHook(hookType: vscode.ChatHookType, hooks: vscode.ChatRequestHooks | undefined, input: unknown, sessionId?: string, token?: vscode.CancellationToken, model?: string): Promise<vscode.ChatHookResult[]>;
 
 	/**
 	 * Execute the preToolUse hook and collapse results from all hooks into a single result.
@@ -50,7 +51,7 @@ export interface IChatHookService {
 	 * @param outputStream Optional output stream for displaying hook warnings/errors.
 	 * @returns The collapsed hook result, or undefined if no hooks are registered or none returned a result.
 	 */
-	executePreToolUseHook(toolName: string, toolInput: unknown, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream): Promise<IPreToolUseHookResult | undefined>;
+	executePreToolUseHook(toolName: string, toolInput: unknown, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream, model?: string): Promise<IPreToolUseHookResult | undefined>;
 
 	/**
 	 * Execute the postToolUse hook and collapse results from all hooks into a single result.
@@ -68,7 +69,7 @@ export interface IChatHookService {
 	 * @param outputStream Optional output stream for displaying hook warnings/errors.
 	 * @returns The collapsed hook result, or undefined if no hooks are registered or none returned a result.
 	 */
-	executePostToolUseHook(toolName: string, toolInput: unknown, toolResponseText: string, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream): Promise<IPostToolUseHookResult | undefined>;
+	executePostToolUseHook(toolName: string, toolInput: unknown, toolResponseText: string, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream, model?: string): Promise<IPostToolUseHookResult | undefined>;
 }
 
 /**
@@ -172,10 +173,6 @@ export interface SessionStartHookInput {
 	 * The source of the session start. Always "new".
 	 */
 	readonly source: 'new';
-	/**
-	 * The model identifier (e.g. "claude-sonnet-4-6").
-	 */
-	readonly model: string;
 	/**
 	 * The agent or mode name, if applicable.
 	 */
