@@ -67,6 +67,8 @@ interface ITestWireRequest {
 		readonly config?: Readonly<Record<string, JsonValue>>;
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
+		readonly lastTurnId?: string;
+		readonly beforeTurnId?: string;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 		readonly dynamicTools?: readonly { readonly name: string }[];
@@ -1471,6 +1473,60 @@ suite('CodexAgent createChat', () => {
 		}
 	});
 
+	test('fork: bounds paginated history in the fork request', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sourceSession = AgentSession.uri('codex', 'paginated-fork-source');
+			const sourceChat = URI.parse(buildDefaultChatUri(sourceSession));
+			const folder = URI.file('/repo/paginated-fork');
+			await createSessionBackedChat(agent, sourceChat, { configurationResource: sourceSession, resource: sourceChat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const sourceStart = await readNextRequest(peer.outbound);
+			peer.push({ id: sourceStart.id, result: { thread: { id: 'paginated-source-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('paginated-fork-source')!.materializePromise;
+
+			const forkSession = AgentSession.uri('codex', 'paginated-fork-target');
+			const forkChat = URI.parse(buildDefaultChatUri(forkSession));
+			const forking = createSessionBackedChat(agent, forkChat, { configurationResource: forkSession, resource: forkChat }, {
+				fork: { source: sourceChat, turnId: 'source-turn-1', turnIndex: 0 },
+			});
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: { thread: { id: 'paginated-source-thread', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } },
+			});
+			const turns = await readNextRequest(peer.outbound);
+			peer.push({
+				id: turns.id,
+				result: { data: [{ id: 'source-turn-1' }, { id: 'source-turn-2' }], nextCursor: null },
+			});
+
+			const fork = await readNextRequest(peer.outbound);
+			assert.deepStrictEqual({
+				method: fork.method,
+				threadId: fork.params.threadId,
+				lastTurnId: fork.params.lastTurnId,
+			}, {
+				method: 'thread/fork',
+				threadId: 'paginated-source-thread',
+				lastTurnId: 'source-turn-1',
+			});
+			peer.push({ id: fork.id, result: { thread: { id: 'paginated-forked-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
+			await forking;
+
+			const inventory = await readNextRequest(peer.outbound);
+			assert.strictEqual(inventory.method, 'mcpServerStatus/list');
+			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		} finally {
+			peer.dispose();
+		}
+	});
+
 	test('fork resumes a source from a replacement app-server before reading or forking it', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
@@ -2639,6 +2695,52 @@ suite('CodexAgent exact chat routing', () => {
 				{ method: 'thread/read', threadId: 'peer-thread' },
 				{ method: 'thread/rollback', threadId: 'peer-thread', numTurns: 1 },
 			]);
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('truncateChat reverts paginated history before the first removed turn', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const session = AgentSession.uri('codex', 'paginated-truncate');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/paginated-truncate');
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'paginated-truncate-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('paginated-truncate')!.materializePromise;
+
+			const truncating = agent.truncateChat(chat, 'turn-2', { configurationResource: session, resource: chat });
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: { thread: { id: 'paginated-truncate-thread', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } },
+			});
+			const turns = await readNextRequest(peer.outbound);
+			peer.push({
+				id: turns.id,
+				result: { data: [{ id: 'turn-1' }, { id: 'turn-2' }, { id: 'turn-3' }], nextCursor: null },
+			});
+			const revert = await readNextRequest(peer.outbound);
+			peer.push({ id: revert.id, result: {} });
+			await truncating;
+
+			assert.deepStrictEqual({
+				method: revert.method,
+				threadId: revert.params.threadId,
+				beforeTurnId: revert.params.beforeTurnId,
+			}, {
+				method: 'thread/revert',
+				threadId: 'paginated-truncate-thread',
+				beforeTurnId: 'turn-3',
+			});
 		} finally {
 			peer.dispose();
 		}
