@@ -888,6 +888,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Test surface: settles once all deferred work queued so far has run. */
 	async whenDeferredWorkSettled(): Promise<void> {
+		// The marker load runs outside the deferred-work chain, and listing reads
+		// its mirror synchronously. Without joining it here a "settled" listing
+		// could still miss suppression, so a test could pass on load ordering
+		// rather than on the behaviour it asserts.
+		await this._whenProvisionalSessionKeysLoaded();
 		await this._deferredWork;
 	}
 
@@ -1611,6 +1616,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * once. Started at construction so listing can read the mirror synchronously;
 	 * a read failure leaves the mirror empty, surfacing sessions rather than
 	 * hiding them.
+	 *
+	 * A listing that starts before this read lands cannot suppress anything, but
+	 * it consults the mirror after its provider phase, so one still running when
+	 * the markers arrive suppresses them; a settled one is evicted, so the next
+	 * listing recomputes. The window is therefore bounded by this read alone.
 	 */
 	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
 		return this._provisionalSessionKeysLoaded ??= (async () => {

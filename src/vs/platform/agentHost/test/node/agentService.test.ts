@@ -5201,7 +5201,14 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		suite('crash-orphaned provisional sessions', () => {
-			/** A provider whose backing is deferred until the first send, so it can never describe a session that was not materialized. */
+			/**
+			 * A provider whose backing is deferred until the first send, so it can never describe a session that was not materialized.
+			 *
+			 * Suppression asks the provider through `getChatMetadata`. A test double
+			 * that vouches only via `getSessionMetadata`/`listSessions` is not
+			 * vouching at all on this path, and will look like real content being
+			 * wrongly hidden.
+			 */
 			class DeferredBackingAgent extends TimedExternalAgent {
 				override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
 					return undefined;
@@ -5307,6 +5314,52 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					provisionalMarkers: [],
 					listed: [],
+				});
+			});
+
+			test('suppresses a crash-orphaned session cached by a listing that raced the marker read', async () => {
+				// A real marker read hits SQLite, so an early listing can be computed
+				// and cached before any marker is known. The in-memory double always
+				// wins that race, so the delay is what makes this test meaningful.
+				const { session } = await seedCrashedProvisional(true);
+				let markerReadStarted: () => void = () => { };
+				const markerReadHasStarted = new Promise<void>(resolve => { markerReadStarted = resolve; });
+				class SlowMarkerReadDatabase extends CentralCatalogDatabase {
+					override async listProvisionalSessions(): Promise<readonly string[]> {
+						markerReadStarted();
+						await timeout(50);
+						return super.listProvisionalSessions();
+					}
+				}
+				const slowDatabase = new SlowMarkerReadDatabase();
+				await slowDatabase.registerSessionV2(session.toString(), {
+					provider: 'copilot',
+					startTime: 10,
+					modifiedTime: 10,
+					source: 'explicit',
+				}, { checkTombstone: false });
+				slowDatabase.setCatalog(session, centralData(10, 'Session'));
+				await slowDatabase.setSessionProvisional(session.toString(), true);
+				const svc = createCentralCatalogService(createSessionDataService(), slowDatabase);
+				const agent = disposables.add(new DeferredBackingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				// Deferred work settles only once startup is complete *and* a first
+				// listing has been served, so mark it before awaiting below.
+				svc.markStartupComplete();
+				// Listed while the markers are still being read: listing fails open
+				// rather than hiding a session it cannot yet classify.
+				await markerReadHasStarted;
+				const listedDuringRead = await svc.listSessions();
+
+				await svc.whenDeferredWorkSettled();
+				const listedAfterRead = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					listedDuringRead: listedDuringRead.map(metadata => metadata.session.toString()),
+					listedAfterRead: listedAfterRead.map(metadata => metadata.session.toString()),
+				}, {
+					listedDuringRead: [session.toString()],
+					listedAfterRead: [],
 				});
 			});
 		});
