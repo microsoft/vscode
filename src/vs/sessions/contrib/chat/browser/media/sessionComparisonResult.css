@@ -30,8 +30,30 @@
 	padding-left: var(--vscode-spacing-size200);
 }
 
+.session-comparison-result-rationale-row {
+	display: flex;
+	align-items: baseline;
+}
+
 .session-comparison-result-rationale-category {
+	flex: 0 0 auto;
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-result-rationale-point {
+	min-width: 0;
+}
+
+.session-comparison-result-markdown p {
+	margin: 0;
+}
+
+.session-comparison-result-markdown code {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: color-mix(in srgb, var(--vscode-widget-border) 25%, transparent);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .session-comparison-result-subtitle {
@@ -68,6 +90,7 @@
 }
 
 .session-comparison-result-actions > .monaco-button,
+.session-comparison-result-actions > .monaco-button-dropdown,
 .session-comparison-synthesis-plan-actions > .monaco-button {
 	flex: 0 0 auto;
 	width: auto;
@@ -79,13 +102,23 @@
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
 
+.session-comparison-synthesis-plan:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+	max-height: min(50vh, 32rem);
+	min-height: 0;
+}
+
 .session-comparison-synthesis-plan-description {
 	margin: var(--vscode-spacing-size80) 0 0;
 }
 
 .session-comparison-synthesis-table-scroll {
-	overflow-x: auto;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
 	margin-top: var(--vscode-spacing-size120);
+	overscroll-behavior: contain;
 }
 
 .session-comparison-synthesis-table {
@@ -97,10 +130,12 @@
 .session-comparison-synthesis-table th,
 .session-comparison-synthesis-table td {
 	min-width: 12rem;
+	max-width: 18rem;
 	padding: var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 	text-align: left;
 	vertical-align: top;
+	overflow-wrap: anywhere;
 }
 
 .session-comparison-synthesis-table th {
@@ -108,7 +143,7 @@
 }
 
 .session-comparison-synthesis-decision {
-	width: 14rem;
+	width: 16rem;
 }
 
 .session-comparison-synthesis-decision-title {
@@ -165,6 +200,7 @@
 
 .session-comparison-synthesis-plan-actions {
 	display: flex;
+	flex: 0 0 auto;
 	justify-content: flex-end;
 	margin-top: var(--vscode-spacing-size120);
 }

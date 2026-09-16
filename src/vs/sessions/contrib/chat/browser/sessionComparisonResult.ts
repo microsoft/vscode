@@ -5,13 +5,18 @@
 
 import './media/sessionComparisonResult.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IMarkdownRenderer } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -31,6 +36,8 @@ export class SessionComparisonResult extends Disposable {
 	constructor(
 		currentSession: IObservable<ISession | undefined>,
 		private readonly onDidChangeLayout: () => void,
+		private readonly markdownRenderer: IMarkdownRenderer,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -109,9 +116,12 @@ export class SessionComparisonResult extends Disposable {
 				const attemptHeader = dom.append(row, dom.$('th'));
 				attemptHeader.setAttribute('scope', 'row');
 				attemptHeader.textContent = label;
-				dom.append(row, dom.$('td')).textContent = strengths.length > 0
-					? strengths.join('; ')
-					: localize('sessionComparisonResult.noStrengths', "No distinct strong points reported");
+				const strengthsCell = dom.append(row, dom.$('td'));
+				if (strengths.length > 0) {
+					this.renderMarkdown(strengthsCell, strengths.join('; '));
+				} else {
+					strengthsCell.textContent = localize('sessionComparisonResult.noStrengths', "No distinct strong points reported");
+				}
 			}
 		}
 
@@ -119,30 +129,55 @@ export class SessionComparisonResult extends Disposable {
 		actions.setAttribute('role', 'group');
 		actions.setAttribute('aria-label', localize('sessionComparisonResult.actionsAriaLabel', "Comparison result actions"));
 		if (winner.sessionResource) {
-			const focusWinner = this.renderStore.add(new Button(actions, {
-				...defaultButtonStyles,
-				secondary: true,
-				ariaLabel: localize('sessionComparisonResult.focusWinnerAriaLabel', "Focus winning session, {0}", winnerLabel),
-			}));
+			const focusableOtherAttempts = otherAttempts.filter(attempt => !!attempt.sessionResource);
+			let focusWinner: IButton;
+			if (focusableOtherAttempts.length > 0) {
+				const focusOtherActions = focusableOtherAttempts.map(attempt => toAction({
+					id: `sessionComparisonResult.focusAttempt.${attempt.id}`,
+					label: localize('sessionComparisonResult.focusAttempt', "Focus {0}", getSessionComparisonHarnessLabel(attempt)),
+					run: () => this.focusAttempt(comparison, attempt),
+				}));
+				const focusDropdown = this.renderStore.add(new ButtonWithDropdown(actions, {
+					...defaultButtonStyles,
+					secondary: true,
+					ariaLabel: localize('sessionComparisonResult.focusWinnerAriaLabel', "Focus winning session, {0}", winnerLabel),
+					contextMenuProvider: this.contextMenuService,
+					actions: focusOtherActions,
+					addPrimaryActionToDropdown: false,
+				}));
+				const focusOtherLabel = localize('sessionComparisonResult.focusOtherAttempts', "Focus another attempt");
+				focusDropdown.dropdownButton.setAriaLabel(focusOtherLabel);
+				focusDropdown.dropdownButton.setTitle(focusOtherLabel);
+				focusWinner = focusDropdown;
+			} else {
+				focusWinner = this.renderStore.add(new Button(actions, {
+					...defaultButtonStyles,
+					secondary: true,
+					ariaLabel: localize('sessionComparisonResult.focusWinnerAriaLabel', "Focus winning session, {0}", winnerLabel),
+				}));
+			}
 			focusWinner.label = localize('sessionComparisonResult.focusWinner', "Focus Winning Session");
-			this.renderStore.add(focusWinner.onDidClick(() => this.focusWinner(comparison, winner, focusWinner)));
+			this.renderStore.add(focusWinner.onDidClick(() => this.focusAttempt(comparison, winner, focusWinner)));
 		}
 
+		const decisionCount = comparison.verdict.decisionSections?.length ?? 0;
 		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
-		const synthesize = this.renderStore.add(new Button(actions, {
-			...defaultButtonStyles,
-			ariaLabel: synthesis
-				? localize('sessionComparisonResult.synthesisStartedAriaLabel', "Synthesis has started")
-				: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize using the Judge recommendation"),
-		}));
-		synthesize.label = synthesis
-			? localize('sessionComparisonResult.synthesisStarted', "Synthesis Started")
-			: localize('sessionComparisonResult.synthesize', "Synthesize Recommended");
-		synthesize.enabled = !synthesis;
-		if (!synthesis) {
-			this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize, undefined)));
-			if (comparison.verdict.decisionSections?.length) {
-				this.renderSynthesisPlan(comparison, attempts, actions);
+		if (synthesis || decisionCount !== 1) {
+			const synthesize = this.renderStore.add(new Button(actions, {
+				...defaultButtonStyles,
+				ariaLabel: synthesis
+					? localize('sessionComparisonResult.synthesisStartedAriaLabel', "Synthesis has started")
+					: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize using the Judge recommendation"),
+			}));
+			synthesize.label = synthesis
+				? localize('sessionComparisonResult.synthesisStarted', "Synthesis Started")
+				: localize('sessionComparisonResult.synthesize', "Synthesize Recommended");
+			synthesize.enabled = !synthesis;
+			if (!synthesis) {
+				this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize, undefined)));
+				if (decisionCount > 1) {
+					this.renderSynthesisPlan(comparison, attempts, actions);
+				}
 			}
 		}
 
@@ -157,7 +192,7 @@ export class SessionComparisonResult extends Disposable {
 
 	private renderRationale(verdict: ISessionComparisonVerdict): void {
 		if (!verdict.rationale) {
-			dom.append(this.domNode, dom.$('p.session-comparison-result-explanation')).textContent = verdict.explanation;
+			this.renderMarkdown(dom.append(this.domNode, dom.$('.session-comparison-result-explanation')), verdict.explanation);
 			return;
 		}
 		const entries = [
@@ -169,9 +204,15 @@ export class SessionComparisonResult extends Disposable {
 		const list = dom.append(this.domNode, dom.$('ul.session-comparison-result-rationale'));
 		for (const entry of entries) {
 			const item = dom.append(list, dom.$('li'));
-			dom.append(item, dom.$('span.session-comparison-result-rationale-category')).textContent = entry.label;
-			item.append(` ${entry.point}`);
+			const row = dom.append(item, dom.$('.session-comparison-result-rationale-row'));
+			dom.append(row, dom.$('span.session-comparison-result-rationale-category')).textContent = `${entry.label} `;
+			this.renderMarkdown(dom.append(row, dom.$('.session-comparison-result-rationale-point')), entry.point);
 		}
+	}
+
+	private renderMarkdown(container: HTMLElement, value: string): IRenderedMarkdown {
+		container.classList.add('session-comparison-result-markdown');
+		return this.renderStore.add(this.markdownRenderer.render(new MarkdownString(value), undefined, container));
 	}
 
 	private renderSynthesisPlan(comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[], actions: HTMLElement): void {
@@ -199,15 +240,6 @@ export class SessionComparisonResult extends Disposable {
 		dom.append(panel, dom.$('p.session-comparison-synthesis-plan-description')).textContent =
 			localize('sessionComparisonResult.customizeSynthesisDescription', "Choose which attempt's approach the synthesis agent should follow for each implementation decision. The agent will reconcile dependencies and validate the combined result in a new worktree.");
 
-		this.renderStore.add(custom.onDidClick(() => {
-			panel.hidden = !panel.hidden;
-			custom.element.setAttribute('aria-expanded', String(!panel.hidden));
-			this.onDidChangeLayout();
-			if (!panel.hidden) {
-				panel.querySelector<HTMLElement>('button[aria-pressed="true"]')?.focus();
-			}
-		}));
-
 		const scroller = dom.append(panel, dom.$('.session-comparison-synthesis-table-scroll'));
 		const table = dom.append(scroller, dom.$('table.session-comparison-synthesis-table'));
 		const head = dom.append(table, dom.$('thead'));
@@ -225,13 +257,24 @@ export class SessionComparisonResult extends Disposable {
 		synthesizerHeader.textContent = localize('sessionComparisonResult.synthesizer', "Synthesizer");
 		const body = dom.append(table, dom.$('tbody'));
 
+		let firstSelectedButton: HTMLElement | undefined;
 		for (const section of decisionSections) {
 			const storedParticipantId = storedSelections.has(section.id)
 				? storedSelections.get(section.id)
 				: section.recommendedParticipantId;
 			selections.set(section.id, section.options.some(option => option.participantId === storedParticipantId) ? storedParticipantId : undefined);
-			this.renderDecisionRow(body, comparison, section, attempts, attemptLabels, decisionSections, selections);
+			const selectedButton = this.renderDecisionRow(body, comparison, section, attempts, attemptLabels, decisionSections, selections);
+			firstSelectedButton ??= selectedButton;
 		}
+
+		this.renderStore.add(custom.onDidClick(() => {
+			panel.hidden = !panel.hidden;
+			custom.element.setAttribute('aria-expanded', String(!panel.hidden));
+			this.onDidChangeLayout();
+			if (!panel.hidden) {
+				firstSelectedButton?.focus();
+			}
+		}));
 
 		const planActions = dom.append(panel, dom.$('.session-comparison-synthesis-plan-actions'));
 		const start = this.renderStore.add(new Button(planActions, {
@@ -250,14 +293,17 @@ export class SessionComparisonResult extends Disposable {
 		attemptLabels: ReadonlyMap<string, string>,
 		decisionSections: readonly ISessionComparisonDecisionSection[],
 		selections: Map<string, string | undefined>,
-	): void {
+	): HTMLElement | undefined {
 		const row = dom.append(table, dom.$('tr'));
 		const decision = dom.append(row, dom.$('th.session-comparison-synthesis-decision'));
 		decision.setAttribute('scope', 'row');
-		dom.append(decision, dom.$('.session-comparison-synthesis-decision-title')).textContent = section.title;
-		dom.append(decision, dom.$('.session-comparison-synthesis-decision-description')).textContent = section.description;
+		const sectionTitle = renderAsPlaintext(new MarkdownString(section.title), { omitMarkdownSyntax: true });
+		this.renderMarkdown(dom.append(decision, dom.$('.session-comparison-synthesis-decision-title')), section.title);
+		this.renderMarkdown(dom.append(decision, dom.$('.session-comparison-synthesis-decision-description')), section.description);
 		if (section.affectedFiles.length) {
-			dom.append(decision, dom.$('.session-comparison-synthesis-decision-files')).textContent = section.affectedFiles.join(', ');
+			dom.append(decision, dom.$('.session-comparison-synthesis-decision-files')).textContent = section.affectedFiles.length === 1
+				? localize('sessionComparisonResult.oneAffectedFile', "1 file affected")
+				: localize('sessionComparisonResult.affectedFileCount', "{0} files affected", section.affectedFiles.length);
 		}
 
 		const choiceButtons: { button: Button; participantId: string | undefined; ariaLabel: (selected: boolean) => string }[] = [];
@@ -283,18 +329,19 @@ export class SessionComparisonResult extends Disposable {
 					localize('sessionComparisonResult.noDistinctApproach', "No distinct approach");
 				continue;
 			}
-			dom.append(cell, dom.$('.session-comparison-synthesis-approach')).textContent = option.approach;
+			this.renderMarkdown(dom.append(cell, dom.$('.session-comparison-synthesis-approach')), option.approach);
 			const assessment = option.assessment ?? SessionComparisonDecisionAssessment.Neutral;
 			const assessmentLabel = getAssessmentLabel(assessment);
 			dom.append(cell, dom.$(`.session-comparison-synthesis-assessment.${assessment}`)).textContent = assessmentLabel;
 			const attemptLabel = attemptLabels.get(attempt.id) ?? attempt.id;
+			const approach = renderAsPlaintext(new MarkdownString(option.approach), { omitMarkdownSyntax: true });
 			const ariaLabel = (selected: boolean): string => localize(
 				'sessionComparisonResult.selectAttemptApproachAriaLabel',
 				"{0} for {1}. {2}. {3} {4}",
 				attemptLabel,
-				section.title,
+				sectionTitle,
 				assessmentLabel,
-				option.approach,
+				approach,
 				selected ? localize('sessionComparisonResult.selected', "Selected") : localize('sessionComparisonResult.notSelected', "Not selected"),
 			);
 			const button = this.renderStore.add(new Button(cell, {
@@ -313,7 +360,7 @@ export class SessionComparisonResult extends Disposable {
 		const synthesizerAriaLabel = (selected: boolean): string => localize(
 			'sessionComparisonResult.synthesizerDecidesAriaLabel',
 			"Let the Synthesizer decide for {0}. {1}",
-			section.title,
+			sectionTitle,
 			selected ? localize('sessionComparisonResult.selected', "Selected") : localize('sessionComparisonResult.notSelected', "Not selected"),
 		);
 		const synthesizerButton = this.renderStore.add(new Button(synthesizerCell, {
@@ -325,19 +372,24 @@ export class SessionComparisonResult extends Disposable {
 		choiceButtons.push({ button: synthesizerButton, participantId: undefined, ariaLabel: synthesizerAriaLabel });
 		this.renderStore.add(synthesizerButton.onDidClick(() => select(undefined)));
 		updateChoiceState(selections.get(section.id));
+		return choiceButtons.find(choice => choice.participantId === selections.get(section.id))?.button.element;
 	}
 
-	private async focusWinner(comparison: ISessionComparison, winner: ISessionComparisonParticipant, button: Button): Promise<void> {
-		if (!winner.sessionResource) {
+	private async focusAttempt(comparison: ISessionComparison, attempt: ISessionComparisonParticipant, button?: IButton): Promise<void> {
+		if (!attempt.sessionResource) {
 			return;
 		}
-		button.enabled = false;
+		if (button) {
+			button.enabled = false;
+		}
 		try {
-			this.comparisonService.selectAttempt(comparison.id, winner.id);
-			await this.sessionsService.openSession(winner.sessionResource, { source: 'chat' });
+			this.comparisonService.selectAttempt(comparison.id, attempt.id);
+			await this.sessionsService.openSession(attempt.sessionResource, { source: 'chat' });
 		} catch (error) {
 			this.notificationService.error(error);
-			button.enabled = true;
+			if (button) {
+				button.enabled = true;
+			}
 		}
 	}
 

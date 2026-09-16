@@ -384,6 +384,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				{ id: 'attempts', label: localize('sessionComparisonSetup.stepAttempts', "Attempts") },
 				{ id: 'evaluation', label: localize('sessionComparisonSetup.stepEvaluation', "Evaluation") },
 			];
+			let currentStepLabel: HTMLButtonElement | undefined;
 			for (const [index, step] of steps.entries()) {
 				const stepItem = dom.append(stepList, dom.$('li.session-comparison-setup-step'));
 				stepItem.classList.toggle('completed', index < steps.findIndex(candidate => candidate.id === currentStep));
@@ -393,6 +394,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 				if (step.id === currentStep) {
 					stepItem.classList.add('current');
 					stepLabel.setAttribute('aria-current', 'step');
+					currentStepLabel = stepLabel;
 				}
 				rowsDisposables.add(dom.addDisposableListener(stepLabel, dom.EventType.CLICK, () => {
 					if (step.id !== currentStep) {
@@ -977,7 +979,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			updateValidation();
 			contentScrollable?.scanDomNode();
 			if (focusStep) {
-				content.querySelector<HTMLElement>('.session-comparison-setup-step.current .session-comparison-setup-step-label')?.focus();
+				currentStepLabel?.focus();
 			}
 		};
 

@@ -131,7 +131,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			screenReaderInputs: enabledProvider.provideContent().includes('Screen-reader optimized mode keeps every attempt input visible'),
 			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
 			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
+			focusAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to focus another attempt'),
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
+			customSynthesisScroll: enabledProvider.provideContent().includes('The table scrolls when its decisions or attempt columns exceed the available space'),
 			choiceButtons: enabledProvider.provideContent().includes('Use Tab to move between the choice buttons'),
 		}, {
 			disabled: false,
@@ -149,7 +151,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			screenReaderInputs: true,
 			stopParticipant: true,
 			stopAll: true,
+			focusAttempts: true,
 			customSynthesis: true,
+			customSynthesisScroll: true,
 			choiceButtons: true,
 		});
 	});

@@ -57,9 +57,9 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			this.layoutService.mainContainer.classList.toggle(
 				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
 				hideInactiveInputs.read(reader)
-					&& !screenReaderOptimized.read(reader)
-					&& layout === 'grid'
-					&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
+				&& !screenReaderOptimized.read(reader)
+				&& layout === 'grid'
+				&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
 			);
 			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
 				&& (visibleSessions.length !== 1
