@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { retry, timeout } from '../../../../../../base/common/async.js';
@@ -23,6 +24,7 @@ import { IUserInteractionService, MockUserInteractionService } from '../../../..
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
@@ -35,7 +37,7 @@ import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentPart
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -45,7 +47,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
@@ -56,6 +58,8 @@ import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telem
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	test('recognizes anchors and their nested content as link targets', () => {
 		const anchor = mainWindow.document.createElement('a');
@@ -1450,6 +1454,255 @@ suite('ChatListRenderer', () => {
 			expanded: { collapsed: false, connected: true, atResponseRoot: false, insideThinking: true },
 			collapsedAgain: { collapsed: true, connected: true, atResponseRoot: false, insideThinking: true },
 		});
+	});
+
+	suite('streaming thinking', () => {
+		function createRenderer(disposables: DisposableStore, incrementalRendering = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling) {
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
+			configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.WithThinking);
+			configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+			configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const text = 'test';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+
+			const container = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer,
+				{} as ChatEditorOptions,
+				{},
+				{
+					getListLength: () => 1,
+					onDidScroll: () => toDisposable(() => { }),
+					container,
+					currentChatMode: () => ChatModeKind.Agent,
+					isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { },
+					stickyScrollTopPadding: 0,
+				},
+				undefined,
+				viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+			return { model, request, response, template, render: () => renderer.renderElement(node, 0, template) };
+		}
+
+		for (const array of [false, true]) {
+			test(`stops polling unchanged ${array ? 'array ' : ''}thinking and resumes on the next model update`, () => runWithFakedTimers({}, async () => {
+				const disposables = store.add(new DisposableStore());
+				try {
+					const { model, request, template, render } = createRenderer(disposables);
+					model.acceptResponseProgress(request, { kind: 'thinking', value: array ? ['Earlier section', 'Thinking'] : 'Thinking', id: 'thinking-1' });
+					render();
+					const thinkingPart = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+					assert.ok(thinkingPart);
+					const contentChecks = sinon.spy(thinkingPart, 'hasSameContent');
+					disposables.add(toDisposable(() => contentChecks.restore()));
+					const updates = sinon.spy(thinkingPart, 'updateThinking');
+					disposables.add(toDisposable(() => updates.restore()));
+
+					await timeout(100);
+					const checksAfterInitialRender = contentChecks.callCount;
+					await timeout(500);
+					const checksAfterPause = contentChecks.callCount;
+					const updatesAfterPause = updates.callCount;
+
+					model.acceptResponseProgress(request, { kind: 'thinking', value: ' with more detail', id: 'thinking-1' });
+					render();
+					await timeout(100);
+					const checksAfterUpdate = contentChecks.callCount;
+					await timeout(500);
+
+					assert.deepStrictEqual({
+						checksAfterInitialRender,
+						checksAfterPause,
+						updatesAfterPause,
+						updatesAfterResume: updates.callCount,
+						stoppedAfterResume: contentChecks.callCount === checksAfterUpdate,
+						renderedLatestText: template.value.textContent?.includes('Thinking with more detail'),
+						preservedThinkingPart: template.renderedParts?.includes(thinkingPart),
+					}, {
+						checksAfterInitialRender: 1,
+						checksAfterPause: 1,
+						updatesAfterPause: 0,
+						updatesAfterResume: 1,
+						stoppedAfterResume: true,
+						renderedLatestText: true,
+						preservedThinkingPart: true,
+					});
+				} finally {
+					disposables.dispose();
+				}
+			}));
+		}
+
+		test('accepts replacement array parts and updates the active section snapshot', () => runWithFakedTimers({}, async () => {
+			const disposables = store.add(new DisposableStore());
+			try {
+				const { model, request, response, template, render } = createRenderer(disposables);
+				const content: IChatThinkingPart = { kind: 'thinking', value: ['**Working**', 'Initial active section'], id: 'thinking-1' };
+				model.acceptResponseProgress(request, content);
+				render();
+				const thinkingPart = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				assert.ok(thinkingPart);
+				await timeout(100);
+
+				const replacement = { ...content, value: ['**Working**', 'Initial active section'], metadata: { signature: 'updated' } };
+				const sameBeforeReplacement = thinkingPart.hasSameContent(replacement, [], response);
+				model.acceptResponseProgress(request, { kind: 'clearToPreviousToolInvocation', reason: ChatResponseClearToPreviousToolInvocationReason.NoReason });
+				model.acceptResponseProgress(request, replacement);
+				render();
+				const sameAfterReplacement = thinkingPart.hasSameContent(replacement, [], response);
+
+				replacement.value[1] = 'Updated active section';
+				const sameBeforeMutation = thinkingPart.hasSameContent(replacement, [], response);
+				render();
+				const sameAfterMutation = thinkingPart.hasSameContent(replacement, [], response);
+				replacement.reasoningDurationMs = 2300;
+				const sameBeforeDurationUpdate = thinkingPart.hasSameContent(replacement, [], response);
+				render();
+				const sameAfterDurationUpdate = thinkingPart.hasSameContent(replacement, [], response);
+				const sections = Array.from(thinkingPart.domNode.querySelectorAll('.chat-thinking-item.markdown-content'), section => section.textContent?.trim());
+				thinkingPart.finalizeTitleIfDefault();
+
+				assert.deepStrictEqual({
+					sameBeforeReplacement,
+					sameAfterReplacement,
+					sameBeforeMutation,
+					sameAfterMutation,
+					sameBeforeDurationUpdate,
+					sameAfterDurationUpdate,
+					sections,
+					generatedTitle: replacement.generatedTitle,
+					preservedThinkingPart: template.renderedParts?.includes(thinkingPart),
+				}, {
+					sameBeforeReplacement: false,
+					sameAfterReplacement: true,
+					sameBeforeMutation: false,
+					sameAfterMutation: true,
+					sameBeforeDurationUpdate: false,
+					sameAfterDurationUpdate: true,
+					sections: ['Working', 'Updated active section'],
+					generatedTitle: 'Working',
+					preservedThinkingPart: true,
+				});
+			} finally {
+				disposables.dispose();
+			}
+		}));
+
+		test('preserves earlier lazy array sections when the active section changes', () => runWithFakedTimers({}, async () => {
+			const disposables = store.add(new DisposableStore());
+			try {
+				const { model, request, response, template, render } = createRenderer(disposables, false, ThinkingDisplayMode.Collapsed);
+				const content: IChatThinkingPart & { value: string[] } = {
+					kind: 'thinking',
+					value: ['**Working**', 'Earlier lazy section', 'Active section', ''],
+					id: 'thinking-1',
+				};
+				model.acceptResponseProgress(request, content);
+				render();
+				const thinkingPart = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				assert.ok(thinkingPart);
+				const sameBeforeMutation = thinkingPart.hasSameContent(content, [], response);
+
+				content.value[2] = 'Updated active section';
+				render();
+				const button = thinkingPart.domNode.querySelector<HTMLElement>('.monaco-button');
+				assert.ok(button);
+				button.click();
+
+				assert.deepStrictEqual({
+					sameBeforeMutation,
+					sameAfterExpansion: thinkingPart.hasSameContent(content, [], response),
+					sections: Array.from(thinkingPart.domNode.querySelectorAll('.chat-thinking-item.markdown-content'), section => section.textContent?.trim()),
+				}, {
+					sameBeforeMutation: true,
+					sameAfterExpansion: true,
+					sections: ['Earlier lazy section', 'Updated active section'],
+				});
+			} finally {
+				disposables.dispose();
+			}
+		}));
+
+		for (const incrementalRendering of [false, true]) {
+			test(`removes a cleared trailing warning with ${incrementalRendering ? 'incremental' : 'progressive'} rendering`, () => runWithFakedTimers({}, async () => {
+				const disposables = store.add(new DisposableStore());
+				try {
+					const { model, request, template, render } = createRenderer(disposables, incrementalRendering);
+					model.acceptResponseProgress(request, { kind: 'thinking', value: 'Thinking', id: 'thinking-1' });
+					const invocation = new ChatToolInvocation({
+						invocationMessage: '',
+						pastTenseMessage: '',
+						presentation: ToolInvocationPresentation.Hidden,
+					}, {
+						id: 'hidden-tool',
+						displayName: '',
+						modelDescription: '',
+						source: ToolDataSource.Internal,
+					}, 'tool-1', undefined, {});
+					await invocation.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, invocation);
+					model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Warning to clear') });
+					render();
+					const thinkingPart = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+					assert.ok(thinkingPart);
+					const warning = template.renderedParts?.at(-1);
+					assert.ok(warning);
+					const warningInitiallyVisible = warning.domNode?.textContent?.includes('Warning to clear');
+					const warningDisposed = sinon.spy(warning, 'dispose');
+					disposables.add(toDisposable(() => warningDisposed.restore()));
+					const checks = sinon.spy(thinkingPart, 'hasSameContent');
+					disposables.add(toDisposable(() => checks.restore()));
+
+					model.acceptResponseProgress(request, { kind: 'clearToPreviousToolInvocation', reason: ChatResponseClearToPreviousToolInvocationReason.NoReason });
+					if (incrementalRendering) {
+						render();
+					}
+					await timeout(150);
+					const checksAfterRemoval = checks.callCount;
+					await timeout(500);
+
+					assert.deepStrictEqual({
+						warningInitiallyVisible,
+						warningVisible: template.value.textContent?.includes('Warning to clear'),
+						warningDisposed: warningDisposed.callCount,
+						renderedParts: template.renderedParts?.length,
+						retainedThinking: template.value.contains(thinkingPart.domNode),
+						stoppedAfterRemoval: checks.callCount === checksAfterRemoval,
+					}, {
+						warningInitiallyVisible: true,
+						warningVisible: false,
+						warningDisposed: 1,
+						renderedParts: 3,
+						retainedThinking: true,
+						stoppedAfterRemoval: true,
+					});
+				} finally {
+					disposables.dispose();
+				}
+			}));
+		}
 	});
 
 	test('final markdown remains mounted after thinking and tool progress completes with reduced motion', async () => {
