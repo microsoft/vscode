@@ -874,6 +874,230 @@ suite('CodexAgent createChat', () => {
 		});
 	});
 
+	test('workspace hook trust: hooks revealed by native project trust restart before the first turn', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-after-start');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hooks');
+		const context = { configurationResource: session, resource: chat };
+		setWorkspaceTrust(agent, [folder]);
+
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const initialHooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, initialHooks, folder.fsPath, []);
+		const prewarm = await readNextRequest(peer.outbound);
+		peer.push({ id: prewarm.id, result: { thread: { id: 'prewarm-thread', cwd: folder.fsPath } } });
+		await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
+
+		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+		const recheck = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, recheck, folder.fsPath);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const replacementMethods: string[] = [];
+		let start = await readNextRequest(peer.outbound);
+		if (start.method === 'hooks/list') {
+			replacementMethods.push(start.method);
+			peer.push({ id: start.id, error: { code: -32603, message: 'hooks unavailable during replacement' } });
+			start = await readNextRequest(peer.outbound);
+		}
+		replacementMethods.push(start.method);
+		peer.push({ id: start.id, result: { thread: { id: 'trusted-thread', cwd: folder.fsPath } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			methods: [initialHooks.method, prewarm.method, recheck.method, unsubscribe.method, ...replacementMethods, turn.method],
+			prewarmTrust: prewarm.params.config?.['hooks.state'],
+			trust: start.params.config?.['hooks.state'],
+			thread: turn.params.threadId,
+		}, {
+			methods: ['hooks/list', 'thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'turn/start'],
+			prewarmTrust: undefined,
+			trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
+			thread: 'trusted-thread',
+		});
+	});
+
+	for (const revokeWorkspace of [false, true]) {
+		test(`workspace hook trust: replacement revalidates ${revokeWorkspace ? 'workspace' : 'inherited hook source'} trust after unsubscribe`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'hook-trust-replacement-revoked');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const root = URI.file('/repo');
+			const folder = URI.file('/repo/project');
+			const context = { configurationResource: session, resource: chat };
+			setWorkspaceTrust(agent, [root]);
+
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const initialHooks = await readNextRequest(peer.outbound);
+			respondToHooksList(peer, initialHooks, folder.fsPath, []);
+			const prewarm = await readNextRequest(peer.outbound);
+			peer.push({ id: prewarm.id, result: { thread: { id: 'prewarm-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
+
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const recheck = await readNextRequest(peer.outbound);
+			respondToHooksList(peer, recheck, folder.fsPath, [projectHook(root.fsPath), projectHook(folder.fsPath)]);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			setWorkspaceTrust(agent, revokeWorkspace ? [] : [folder]);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+
+			assert.deepStrictEqual({
+				methods: [initialHooks, prewarm, recheck, unsubscribe, start, turn].map(request => request.method),
+				trust: start.params.config?.['hooks.state'],
+				thread: turn.params.threadId,
+			}, {
+				methods: ['hooks/list', 'thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'turn/start'],
+				trust: revokeWorkspace ? undefined : { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
+				thread: 'replacement-thread',
+			});
+		});
+	}
+
+	test('workspace hook trust: replacement rediscovers hooks if the working directory changes', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-replacement-cwd');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/project');
+		const replacementFolder = URI.file('/repo/replacement');
+		const context = { configurationResource: session, resource: chat };
+		setWorkspaceTrust(agent, [folder, replacementFolder]);
+
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const initialHooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, initialHooks, folder.fsPath, []);
+		const prewarm = await readNextRequest(peer.outbound);
+		peer.push({ id: prewarm.id, result: { thread: { id: 'prewarm-thread', cwd: folder.fsPath } } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		await entry.materializePromise;
+
+		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+		const recheck = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, recheck, folder.fsPath);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		entry.workingDirectory = replacementFolder;
+		peer.push({ id: unsubscribe.id, result: {} });
+		const hooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, hooks, replacementFolder.fsPath);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'replacement-thread', cwd: replacementFolder.fsPath } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			methods: [initialHooks, prewarm, recheck, unsubscribe, hooks, start, turn].map(request => request.method),
+			cwds: hooks.params.cwds,
+			cwd: start.params.cwd,
+			trust: start.params.config?.['hooks.state'],
+			thread: turn.params.threadId,
+		}, {
+			methods: ['hooks/list', 'thread/start', 'hooks/list', 'thread/unsubscribe', 'hooks/list', 'thread/start', 'turn/start'],
+			cwds: [replacementFolder.fsPath],
+			cwd: replacementFolder.fsPath,
+			trust: { [projectHook(replacementFolder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
+			thread: 'replacement-thread',
+		});
+	});
+
+	for (const recheckFails of [false, true]) {
+		test(`workspace hook trust: ${recheckFails ? 'failed' : 'unchanged'} first-turn recheck does not restart the thread`, async () => {
+			const logService = new RecordingLogService();
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore(), logService });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'hook-trust-unchanged');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/hooks');
+			const context = { configurationResource: session, resource: chat };
+			setWorkspaceTrust(agent, [folder]);
+
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const initialHooks = await readNextRequest(peer.outbound);
+			respondToHooksList(peer, initialHooks, folder.fsPath);
+			const prewarm = await readNextRequest(peer.outbound);
+			peer.push({ id: prewarm.id, result: { thread: { id: 'prewarm-thread', cwd: folder.fsPath } } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			await entry.materializePromise;
+
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const recheck = await readNextRequest(peer.outbound);
+			if (recheckFails) {
+				peer.push({ id: recheck.id, error: { code: -32603, message: 'hooks unavailable' } });
+			} else {
+				respondToHooksList(peer, recheck, folder.fsPath);
+			}
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+
+			assert.deepStrictEqual({
+				methods: [initialHooks, prewarm, recheck, turn].map(request => request.method),
+				thread: turn.params.threadId,
+				trust: entry.materializedHookTrustState,
+				warnings: logService.warnings.filter(message => message.includes('hooks/list for session hook trust')),
+			}, {
+				methods: ['hooks/list', 'thread/start', 'hooks/list', 'turn/start'],
+				thread: 'prewarm-thread',
+				trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
+				warnings: recheckFails ? ['[Codex] hooks/list for session hook trust failed: hooks unavailable'] : [],
+			});
+		});
+	}
+
+	test('workspace hook trust: revocation during the first-turn recheck does not grant newly discovered hooks', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-recheck-revoked');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hooks');
+		const context = { configurationResource: session, resource: chat };
+		setWorkspaceTrust(agent, [folder]);
+
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const initialHooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, initialHooks, folder.fsPath, []);
+		const prewarm = await readNextRequest(peer.outbound);
+		peer.push({ id: prewarm.id, result: { thread: { id: 'prewarm-thread', cwd: folder.fsPath } } });
+		await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
+
+		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+		const recheck = await readNextRequest(peer.outbound);
+		setWorkspaceTrust(agent, []);
+		respondToHooksList(peer, recheck, folder.fsPath);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'untrusted-thread', cwd: folder.fsPath } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			methods: [initialHooks, prewarm, recheck, unsubscribe, start, turn].map(request => request.method),
+			trust: start.params.config?.['hooks.state'],
+			thread: turn.params.threadId,
+		}, {
+			methods: ['hooks/list', 'thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'turn/start'],
+			trust: undefined,
+			thread: 'untrusted-thread',
+		});
+	});
+
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
 		const agent = await createAgent(disposables);
 		const sessionUri = AgentSession.uri('codex', 'session-fresh');
