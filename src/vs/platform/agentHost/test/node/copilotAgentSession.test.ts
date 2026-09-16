@@ -119,6 +119,10 @@ class MockCopilotSession {
 	readonly workingDirectorySetErrors: Array<Error | undefined> = [];
 	workingDirectorySetGate: Promise<void> | undefined;
 	onWorkingDirectorySet: (() => void) | undefined;
+	metadataIsProcessing = false;
+	metadataIsProcessingCalls = 0;
+	metadataIsProcessingGate: Promise<void> | undefined;
+	metadataIsProcessingError: Error | undefined;
 	readonly workingDirectoryOptionUpdateCalls: string[] = [];
 	readonly workingDirectoryOptionUpdateErrors: Array<Error | undefined> = [];
 	workingDirectoryOptionUpdateSuccess = true;
@@ -340,6 +344,16 @@ class MockCopilotSession {
 			},
 		},
 		metadata: {
+			isProcessing: async () => {
+				this.metadataIsProcessingCalls++;
+				await this.metadataIsProcessingGate;
+				if (this.metadataIsProcessingError) {
+					const error = this.metadataIsProcessingError;
+					this.metadataIsProcessingError = undefined;
+					throw error;
+				}
+				return { processing: this.metadataIsProcessing };
+			},
 			setWorkingDirectory: async (params: Parameters<CopilotSession['rpc']['metadata']['setWorkingDirectory']>[0]) => {
 				this.operationLog.push('metadata.setWorkingDirectory');
 				this.workingDirectorySetCalls.push(params);
@@ -820,6 +834,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
 	subagentTaskCompletionDelay?: number;
+	assistantIdleCompletionDelay?: number;
+	backgroundTaskStatusRetryDelay?: number;
 	/** Whether the launch plan represents an ephemeral session. */
 	isEphemeral?: boolean;
 	/** Whether the owning chat surface is scoped to editing a single file. */
@@ -834,6 +850,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
 	onTurnEnded?: () => void;
+	onBackgroundTasksChanged?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
@@ -1128,10 +1145,13 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			onTurnEnded: options?.onTurnEnded,
+			onBackgroundTasksChanged: options?.onBackgroundTasksChanged,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
+			assistantIdleCompletionDelay: options?.assistantIdleCompletionDelay ?? 0,
+			backgroundTaskStatusRetryDelay: options?.backgroundTaskStatusRetryDelay ?? 0,
 		},
 	));
 
@@ -9507,9 +9527,10 @@ Use the attached image as context.
 				return { ...result, sessionDatabase, writes };
 			}
 
-			test('idle drains every pending edit before completing the original turn', async () => {
+			test('assistant idle drains every pending edit before completing the original turn', async () => {
 				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
-				mockSession.fire('session.idle', {});
+				mockSession.fire('assistant.idle', {});
+				await timeout(0);
 				assert.deepStrictEqual({
 					turnId: session.currentTurnId,
 					completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
@@ -9771,7 +9792,250 @@ Use the attached image as context.
 			});
 		});
 
-		test('running detached shell state defers release conservatively', async () => {
+		test('assistant idle completes the active turn while an attached shell runs', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [{
+				type: 'shell',
+				id: 'shell-1',
+				description: 'Serve app',
+				status: 'running',
+				startedAt: new Date(0).toISOString(),
+				command: 'serve-app',
+				attachmentMode: 'attached',
+				executionMode: 'background',
+			}];
+			session.resetTurnState('turn-background');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' });
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+				processingCalls: mockSession.metadataIsProcessingCalls,
+				backgroundTasks: mockSession.backgroundTasks.map(task => ({ type: task.type, status: task.status })),
+			}, {
+				hasActiveTurn: false,
+				completedTurns: 1,
+				processingCalls: 1,
+				backgroundTasks: [{ type: 'shell', status: 'running' }],
+			});
+		});
+
+		test('assistant idle waits for a continuation and completes after its final idle', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-continuation');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+			mockSession.metadataIsProcessing = true;
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+			const activeDuringContinuation = session.hasActiveTurn;
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' });
+			mockSession.metadataIsProcessing = false;
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				activeDuringContinuation,
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+				processingCalls: mockSession.metadataIsProcessingCalls,
+			}, {
+				activeDuringContinuation: true,
+				hasActiveTurn: false,
+				completedTurns: 1,
+				processingCalls: 2,
+			});
+		});
+
+		test('root activity invalidates an in-flight assistant idle probe', async () => {
+			const processingGate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-continuation-race');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+			mockSession.metadataIsProcessingGate = processingGate.p;
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' });
+			processingGate.complete();
+			await timeout(0);
+			const activeAfterStaleProbe = session.hasActiveTurn;
+
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				activeAfterStaleProbe,
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+			}, {
+				activeAfterStaleProbe: true,
+				hasActiveTurn: false,
+				completedTurns: 1,
+			});
+		});
+
+		test('assistant idle completes when the processing probe rejects', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-probe-error');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-probe-error' });
+			mockSession.metadataIsProcessingError = new Error('transient');
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, {
+				hasActiveTurn: false,
+				completedTurns: ['turn-probe-error'],
+			});
+		});
+
+		test('assistant idle does not complete a pending turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-pending');
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+				processingCalls: mockSession.metadataIsProcessingCalls,
+			}, {
+				hasActiveTurn: true,
+				completedTurns: 0,
+				processingCalls: 0,
+			});
+		});
+
+		test('subagent idle does not complete the root turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-root');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-root' });
+			mockSession.fire('assistant.idle', {}, { agentId: 'agent-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+				processingCalls: mockSession.metadataIsProcessingCalls,
+			}, {
+				hasActiveTurn: true,
+				completedTurns: 0,
+				processingCalls: 0,
+			});
+		});
+
+		test('aborted assistant idle does not successfully complete the turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-aborted' });
+			await session.abort();
+			mockSession.fire('assistant.idle', { aborted: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+			}, {
+				hasActiveTurn: false,
+				completedTurns: 0,
+			});
+		});
+
+		test('deferred aborted session idle does not tear down a newer running turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-aborted' });
+			await session.abort();
+			mockSession.fire('assistant.idle', { aborted: true });
+			await timeout(0);
+
+			session.resetTurnState('turn-new');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-new' });
+			mockSession.fire('session.idle', { aborted: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				currentTurn: session.currentTurnId,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+			}, {
+				currentTurn: 'turn-new',
+				completedTurns: 0,
+			});
+		});
+
+		test('deferred session idle does not complete a newer pending turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-completed');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-completed' });
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			session.resetTurnState('turn-pending');
+			mockSession.fire('session.idle', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, {
+				hasActiveTurn: true,
+				completedTurns: ['turn-completed'],
+			});
+		});
+
+		test('session idle completes a dispatched no-op turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-completed');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-completed' });
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			await session.send('No-op', undefined, 'turn-no-op');
+			mockSession.fire('session.idle', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, {
+				hasActiveTurn: false,
+				completedTurns: ['turn-completed', 'turn-no-op'],
+			});
+		});
+
+		test('root continuation opens a new visible turn after early completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-completed');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-completed' });
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-continuation' });
+			mockSession.fire('assistant.message_delta', { messageId: 'continuation-message', deltaContent: 'Continuation output' });
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			const actions = getActions(signals);
+			const started = actions.filter(action => action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual({
+				started: started.map(action => ({ turnId: action.turnId, text: action.message.text, origin: action.message.origin.kind })),
+				responseTurnIds: actions
+					.filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.turnId),
+				completedTurns: actions.filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, {
+				started: [{ turnId: started[0].turnId, text: 'Agent continued working', origin: MessageKind.SystemNotification }],
+				responseTurnIds: [started[0].turnId],
+				completedTurns: ['turn-completed', started[0].turnId],
+			});
+		});
+
+		test('running background task state defers release conservatively', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			const runningShell = {
 				type: 'shell' as const,
@@ -9780,29 +10044,127 @@ Use the attached image as context.
 				status: 'running' as const,
 				startedAt: new Date(0).toISOString(),
 				command: 'monitor-ci',
-				attachmentMode: 'detached' as const,
+				attachmentMode: 'attached' as const,
 				executionMode: 'background' as const,
 			};
 			mockSession.backgroundTasks = [runningShell];
-			const running = await session.hasRunningDetachedShells();
+			const runningShellTask = await session.hasRunningBackgroundTasks();
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-running',
+				toolCallId: 'tool-agent',
+				description: 'Research',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Inspect',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			const idleAgentTask = await session.hasRunningBackgroundTasks();
 			mockSession.backgroundTasks = [{ ...runningShell, status: 'completed', completedAt: new Date().toISOString() }];
-			const completed = await session.hasRunningDetachedShells();
+			const completed = await session.hasRunningBackgroundTasks();
 			mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
-			const failedRead = await session.hasRunningDetachedShells();
+			const failedRead = await session.hasRunningBackgroundTasks();
 
 			assert.deepStrictEqual({
-				running,
+				runningShellTask,
+				idleAgentTask,
 				completed,
 				failedRead,
 				listCalls: mockSession.backgroundTaskListCalls,
 				refreshCalls: mockSession.backgroundTaskRefreshCalls,
 			}, {
-				running: true,
+				runningShellTask: true,
+				idleAgentTask: true,
 				completed: false,
 				failedRead: true,
-				listCalls: 3,
-				refreshCalls: 3,
+				listCalls: 4,
+				refreshCalls: 4,
 			});
+		});
+
+		test('background task changes update the synchronous retention state', async () => {
+			let changes = 0;
+			const { session, mockSession } = await createAgentSession(disposables, { onBackgroundTasksChanged: () => changes++ });
+			mockSession.backgroundTasks = [{
+				type: 'shell',
+				id: 'shell-running',
+				description: 'Serve app',
+				status: 'running',
+				startedAt: new Date(0).toISOString(),
+				command: 'serve-app',
+				attachmentMode: 'attached',
+				executionMode: 'background',
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			const immediatelyRunning = session.hasBackgroundTasks;
+			await timeout(0);
+
+			mockSession.backgroundTasks = [];
+			mockSession.fire('session.background_tasks_changed', {});
+			const conservativelyRunning = session.hasBackgroundTasks;
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				immediatelyRunning,
+				conservativelyRunning,
+				finalState: session.hasBackgroundTasks,
+				changes,
+			}, {
+				immediatelyRunning: true,
+				conservativelyRunning: true,
+				finalState: false,
+				changes: 2,
+			});
+		});
+
+		test('background task inventory retries after a transient failure', async () => {
+			let changes = 0;
+			const { session, mockSession } = await createAgentSession(disposables, {
+				onBackgroundTasksChanged: () => changes++,
+				backgroundTaskStatusRetryDelay: 0,
+			});
+			mockSession.backgroundTasks = [];
+			mockSession.backgroundTaskListError = new Error('transient');
+
+			mockSession.fire('session.background_tasks_changed', {});
+			const conservativeState = session.hasBackgroundTasks;
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				conservativeState,
+				recoveredState: session.hasBackgroundTasks,
+				changes,
+				listCalls: mockSession.backgroundTaskListCalls,
+				refreshCalls: mockSession.backgroundTaskRefreshCalls,
+			}, {
+				conservativeState: true,
+				recoveredState: false,
+				changes: 2,
+				listCalls: 2,
+				refreshCalls: 1,
+			});
+		});
+
+		test('resuming seeds the background task retention state', async () => {
+			const { session } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mockSession => {
+					mockSession.backgroundTasks = [{
+						type: 'shell',
+						id: 'shell-restored',
+						description: 'Serve app',
+						status: 'running',
+						startedAt: new Date(0).toISOString(),
+						command: 'serve-app',
+						attachmentMode: 'attached',
+						executionMode: 'background',
+					}];
+				},
+			});
+
+			assert.strictEqual(session.hasBackgroundTasks, true);
 		});
 
 		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {

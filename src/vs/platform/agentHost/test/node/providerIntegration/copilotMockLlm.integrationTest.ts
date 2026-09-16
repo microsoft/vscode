@@ -15,7 +15,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatTurnCompleteAction } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind, SessionStatus, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
@@ -30,6 +30,8 @@ const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 
 const DETACHED_SHELL_SCENARIO_ID = 'detached-shell-idle-release';
 const DETACHED_SHELL_DELAY_MS = 6000;
+const ATTACHED_SHELL_SCENARIO_ID = 'attached-shell-turn-completion';
+const ATTACHED_SHELL_DELAY_MS = 15_000;
 
 function quoteShellArgument(value: string): string {
 	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
@@ -122,6 +124,7 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 	let client: TestProtocolClient;
 	let suiteHome: string;
 	let detachedCompletionMarker: string;
+	let attachedCompletionMarker: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
@@ -129,9 +132,13 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		this.timeout(120_000);
 		suiteHome = await mkdtemp(`${tmpdir()}/test-mock-idle-release-home`);
 		detachedCompletionMarker = join(suiteHome, 'detached-shell-complete');
+		attachedCompletionMarker = join(suiteHome, 'attached-shell-complete');
 		const detachedScript = join(suiteHome, 'detached-shell.js');
+		const attachedScript = join(suiteHome, 'attached-shell.js');
 		await writeFile(detachedScript, `setTimeout(() => require('fs').writeFileSync(${JSON.stringify(detachedCompletionMarker)}, 'done'), ${DETACHED_SHELL_DELAY_MS});`);
-		const command = `node ${quoteShellArgument(detachedScript)}`;
+		await writeFile(attachedScript, `setTimeout(() => require('fs').writeFileSync(${JSON.stringify(attachedCompletionMarker)}, 'done'), ${ATTACHED_SHELL_DELAY_MS});`);
+		const detachedCommand = `node ${quoteShellArgument(detachedScript)}`;
+		const attachedCommand = `node ${quoteShellArgument(attachedScript)}`;
 		server = await startRealServer({
 			mockLlm: true,
 			homeDir: suiteHome,
@@ -150,7 +157,7 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 							toolCalls: [{
 								toolNamePattern: /^(bash|powershell)$/,
 								arguments: {
-									command,
+									command: detachedCommand,
 									description: 'Run detached shell release probe',
 									mode: 'async',
 									detach: true,
@@ -159,6 +166,27 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 							}],
 						},
 						{ kind: 'content', chunks: [{ content: 'Waiting for detached shell completion.', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: ATTACHED_SHELL_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^(bash|powershell)$/,
+								arguments: {
+									command: attachedCommand,
+									description: 'Run attached shell completion probe',
+									mode: 'async',
+									detach: false,
+									initial_wait: 30,
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'The attached server is still running.', delayMs: 0 }] },
 					],
 				},
 			}],
@@ -193,15 +221,8 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		tempDirs.length = 0;
 	});
 
-	test('keeps a detached shell running after an idle session loses all subscribers (mock LLM)', async function () {
-		this.timeout(180_000);
-
-		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-detached-release`);
-		tempDirs.push(workspaceDir);
-		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-detached-release', createdSessions, URI.file(workspaceDir));
-		const turnId = 'turn-detached-release';
-
-		dispatchTurn(client, sessionUri, turnId, `[scenario:${DETACHED_SHELL_SCENARIO_ID}] Start the detached shell.`, 1);
+	async function dispatchAndApproveShell(sessionUri: string, turnId: string, prompt: string): Promise<ChatToolCallCompleteAction> {
+		dispatchTurn(client, sessionUri, turnId, prompt, 1);
 		const readyNotification = await client.waitForNotification(n => {
 			if (!isActionNotification(n, 'chat/toolCallReady')) {
 				return false;
@@ -222,7 +243,18 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 			},
 		});
 		const completeNotification = await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'), 90_000);
-		const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+		return getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+	}
+
+	test('keeps a detached shell running after an idle session loses all subscribers (mock LLM)', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-detached-release`);
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-detached-release', createdSessions, URI.file(workspaceDir));
+		const turnId = 'turn-detached-release';
+
+		const completeAction = await dispatchAndApproveShell(sessionUri, turnId, `[scenario:${DETACHED_SHELL_SCENARIO_ID}] Start the detached shell.`);
 		assert.match(JSON.stringify(completeAction.result), /detached background/);
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
 
@@ -244,6 +276,51 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 			await timeout(100);
 		}
 		assert.strictEqual(await readFile(detachedCompletionMarker, 'utf8'), 'done');
+	});
+
+	test('completes a turn while an attached shell keeps running (mock LLM)', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-attached-completion`);
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-attached-completion', createdSessions, URI.file(workspaceDir));
+		const turnId = 'turn-attached-completion';
+
+		await dispatchAndApproveShell(sessionUri, turnId, `[scenario:${ATTACHED_SHELL_SCENARIO_ID}] Start the attached shell.`);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') && (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === turnId, 90_000);
+
+		const completedWhileRunning = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual({
+			activeTurn: completedWhileRunning.activeTurn,
+			inProgress: (completedWhileRunning.status & SessionStatus.InProgress) !== 0,
+			shellCompleted: existsSync(attachedCompletionMarker),
+		}, {
+			activeTurn: undefined,
+			inProgress: false,
+			shellCompleted: false,
+		});
+
+		for (const channel of [buildDefaultChatUri(sessionUri), sessionUri]) {
+			client.notify('unsubscribe', { channel });
+		}
+		await timeout(RELEASE_RETRY_MS + 1000);
+		for (let attempt = 0; attempt < 200 && !existsSync(attachedCompletionMarker); attempt++) {
+			await timeout(100);
+		}
+
+		const afterCompletion = await fetchSessionWithChat(client, sessionUri);
+
+		assert.deepStrictEqual({
+			shellResult: await readFile(attachedCompletionMarker, 'utf8'),
+			originalResponseRestored: afterCompletion.turns.some(turn =>
+				turn.responseParts.some(part => part.kind === ResponsePartKind.Markdown && part.content.includes('The attached server is still running.'))
+			),
+			activeTurn: afterCompletion?.activeTurn,
+		}, {
+			shellResult: 'done',
+			originalResponseRestored: true,
+			activeTurn: undefined,
+		});
 	});
 
 	test('releases an idle session and resumes it losslessly on re-subscribe (mock LLM)', async function () {

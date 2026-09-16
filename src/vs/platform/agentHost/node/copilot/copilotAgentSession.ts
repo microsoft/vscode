@@ -422,7 +422,10 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
+const ASSISTANT_IDLE_COMPLETION_DELAY_MS = 300;
+const ASSISTANT_IDLE_PROCESSING_PROBE_TIMEOUT_MS = 1_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
+const BACKGROUND_TASK_STATUS_RETRY_DELAY_MS = 1_000;
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -492,6 +495,10 @@ export interface ICopilotAgentSessionOptions {
 	readonly enableDevelopmentErrorInjection?: boolean;
 	/** Overrides the quiet period before task status completes a subagent turn. */
 	readonly subagentTaskCompletionDelay?: number;
+	/** Overrides the settle period before a root assistant-idle event may complete a turn. */
+	readonly assistantIdleCompletionDelay?: number;
+	/** Overrides the retry period after a background-task inventory read fails. */
+	readonly backgroundTaskStatusRetryDelay?: number;
 
 	/**
 	 * Invoked whenever this chat's in-flight turn ends — normal completion,
@@ -502,6 +509,8 @@ export interface ICopilotAgentSessionOptions {
 	 * this session off the current stack.
 	 */
 	readonly onTurnEnded?: () => void;
+	/** Invoked when the SDK reports that its background-task inventory changed. */
+	readonly onBackgroundTasksChanged?: () => void;
 
 	/**
 	 * Platform used to compute the SDK sandbox policy. Defaults to
@@ -926,13 +935,19 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _databaseRef: IReference<ISessionDatabase>;
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
-	 * when the session is idle (no active turn). Replaces the former set of
+	 * when no foreground turn is active. Replaces the former set of
 	 * loosely-coupled per-turn fields (`_turnId`, usage counter, streaming
 	 * part-id maps) with a single object carrying an explicit
 	 * {@link CopilotTurn.state} lifecycle. A {@link MutableDisposable}:
 	 * replacing or clearing it disposes the old turn.
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
+	private _assistantIdleCompletion: { readonly turn: CopilotTurn; readonly rootActivityGeneration: number } | undefined;
+	private readonly _assistantIdleCompletionScheduler: RunOnceScheduler;
+	private readonly _backgroundTaskStatusRetryScheduler: RunOnceScheduler;
+	private _hasObservedAssistantIdle = false;
+	private _hasBackgroundTasks = false;
+	private _rootActivityGeneration = 0;
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
@@ -957,6 +972,8 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
+	/** Last task state reported by the SDK, used for synchronous restart guards. */
+	get hasBackgroundTasks(): boolean { return this._hasBackgroundTasks; }
 	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
@@ -1147,6 +1164,7 @@ export class CopilotAgentSession extends Disposable {
 	private _detectInterruptedTurnOnRestore: boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
+	private readonly _onBackgroundTasksChanged: () => void;
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
@@ -1240,6 +1258,18 @@ export class CopilotAgentSession extends Disposable {
 		this._launchPlan = options.launchPlan;
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
+		this._onBackgroundTasksChanged = options.onBackgroundTasksChanged ?? (() => { });
+		this._assistantIdleCompletionScheduler = this._register(new RunOnceScheduler(() => {
+			const completion = this._assistantIdleCompletion;
+			this._assistantIdleCompletion = undefined;
+			if (completion) {
+				void this._completeTurnAfterAssistantIdle(completion.turn, completion.rootActivityGeneration);
+			}
+		}, options.assistantIdleCompletionDelay ?? ASSISTANT_IDLE_COMPLETION_DELAY_MS));
+		this._backgroundTaskStatusRetryScheduler = this._register(new RunOnceScheduler(
+			() => this._refreshSubagentTaskStatuses(true),
+			options.backgroundTaskStatusRetryDelay ?? BACKGROUND_TASK_STATUS_RETRY_DELAY_MS,
+		));
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
@@ -1449,6 +1479,28 @@ export class CopilotAgentSession extends Disposable {
 			this._hostTurnIdsBySdkTurnId.set(this._activeRootSdkTurnId, newTurnId);
 		}
 		return newTurnId;
+	}
+
+	private _beginRootContinuationTurn(): CopilotTurn {
+		const turnId = generateUuid();
+		const message = localize('copilotAgent.continuedWorking', "Agent continued working");
+		this._dropLateRootTurnEvents = false;
+		this.resetTurnState(turnId);
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			throw new Error('Failed to initialize root continuation turn');
+		}
+		turn.messageCharLen = message.length;
+		this._emitAction({
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: {
+				text: message,
+				origin: { kind: MessageKind.SystemNotification },
+			},
+		});
+		return turn;
 	}
 
 	/**
@@ -1682,6 +1734,8 @@ export class CopilotAgentSession extends Disposable {
 			if (this._store.isDisposed || revision !== this._subagentTaskStatusRevision) {
 				return false;
 			}
+			this._backgroundTaskStatusRetryScheduler.cancel();
+			this._setHasBackgroundTasks(tasks.tasks.some(task => task.status === 'running' || task.status === 'idle'));
 			for (const task of tasks.tasks) {
 				if (task.type !== 'agent') {
 					continue;
@@ -1704,9 +1758,18 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	private _refreshSubagentTaskStatuses(): void {
-		void this._reconcileSubagentTaskStatuses().catch(err => {
+	private _refreshSubagentTaskStatuses(refresh = false): void {
+		const update = async () => {
+			if (refresh) {
+				await this._wrapper.session.rpc.tasks.refresh();
+			}
+			await this._reconcileSubagentTaskStatuses();
+		};
+		void update().catch(err => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile subagent task status: ${getErrorMessage(err)}`);
+			if (!this._store.isDisposed) {
+				this._backgroundTaskStatusRetryScheduler.schedule();
+			}
 		});
 	}
 
@@ -1844,22 +1907,34 @@ export class CopilotAgentSession extends Disposable {
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): void {
+		this._invalidateRootActivity();
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext);
 	}
 
-	async hasRunningDetachedShells(): Promise<boolean> {
+	/** Returns whether this SDK session still owns running or idle background work. */
+	async hasRunningBackgroundTasks(): Promise<boolean> {
 		try {
 			await this._wrapper.session.rpc.tasks.refresh();
 			const tasks = await this._wrapper.session.rpc.tasks.list();
-			return tasks.tasks.some(task => task.type === 'shell'
-				&& task.attachmentMode === 'detached'
-				&& (task.status === 'running' || task.status === 'idle'));
+			return tasks.tasks.some(task => task.status === 'running' || task.status === 'idle');
 		} catch (err) {
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read detached shell state; deferring release: ${getErrorMessage(err)}`);
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read background task state; deferring release: ${getErrorMessage(err)}`);
 			return true;
+		}
+	}
+
+	private _setHasBackgroundTasks(hasBackgroundTasks: boolean): void {
+		if (this._hasBackgroundTasks === hasBackgroundTasks) {
+			return;
+		}
+		this._hasBackgroundTasks = hasBackgroundTasks;
+		try {
+			this._onBackgroundTasksChanged();
+		} catch (err) {
+			this._logService.error(err, `[Copilot:${this.sessionId}] onBackgroundTasksChanged callback failed`);
 		}
 	}
 
@@ -1939,6 +2014,140 @@ export class CopilotAgentSession extends Disposable {
 		this._clearActiveTurn();
 	}
 
+	private _scheduleAssistantIdleCompletion(turn: CopilotTurn): void {
+		this._cancelAssistantIdleCompletion();
+		this._assistantIdleCompletion = { turn, rootActivityGeneration: this._rootActivityGeneration };
+		this._assistantIdleCompletionScheduler.schedule();
+	}
+
+	private _cancelAssistantIdleCompletion(): void {
+		this._assistantIdleCompletion = undefined;
+		this._assistantIdleCompletionScheduler.cancel();
+	}
+
+	private _invalidateRootActivity(): void {
+		this._rootActivityGeneration++;
+		this._cancelAssistantIdleCompletion();
+	}
+
+	private _isCurrentTurn(turn: CopilotTurn, abortToken: CancellationToken, rootActivityGeneration?: number): boolean {
+		return !this._store.isDisposed
+			&& !abortToken.isCancellationRequested
+			&& this._currentTurn.value === turn
+			&& (rootActivityGeneration === undefined || this._rootActivityGeneration === rootActivityGeneration);
+	}
+
+	private async _completeTurnAfterAssistantIdle(turn: CopilotTurn, rootActivityGeneration: number): Promise<void> {
+		const abortToken = this._abortToken;
+		let processing = false;
+		try {
+			const result = await raceTimeout(this._wrapper.session.rpc.metadata.isProcessing(), ASSISTANT_IDLE_PROCESSING_PROBE_TIMEOUT_MS);
+			if (result) {
+				processing = result.processing;
+			} else {
+				this._logService.warn(`[Copilot:${this.sessionId}] Assistant-idle processing probe timed out; completing with continuation recovery enabled`);
+			}
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Assistant-idle processing probe failed; completing with continuation recovery enabled: ${getErrorMessage(err)}`);
+		}
+		if (!this._isCurrentTurn(turn, abortToken, rootActivityGeneration)) {
+			return;
+		}
+		if (processing) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Assistant idle while a continuation is pending; keeping turn ${turn.id} open`);
+			return;
+		}
+		await this._completeTurnAfterPendingToolCompletions(turn, abortToken, rootActivityGeneration);
+	}
+
+	private async _completeTurnAfterPendingToolCompletions(turn: CopilotTurn, abortToken = this._abortToken, rootActivityGeneration?: number): Promise<void> {
+		if (turn.hasPendingToolCompletions) {
+			await turn.drainToolCompletions();
+		}
+		if (!this._isCurrentTurn(turn, abortToken, rootActivityGeneration)) {
+			return;
+		}
+		this._clearActivity();
+		this._completeActiveRepoInfoTelemetry();
+		this._completeActiveTurn();
+	}
+
+	private _clearActivity(): void {
+		if (!this._hasActivity) {
+			return;
+		}
+		this._hasActivity = false;
+		this._emitAction({
+			type: ActionType.SessionActivityChanged,
+			activity: undefined,
+		});
+	}
+
+	/** Handles root-loop completion separately from the later background-task drain. */
+	private async _handleIdle(aborted: boolean, source: 'assistant' | 'session'): Promise<void> {
+		if (source === 'session') {
+			this._cancelAssistantIdleCompletion();
+		}
+		const abortingTurn = aborted || source === 'session' ? this._abortingTurn : undefined;
+		if (aborted || source === 'session') {
+			this._abortingTurn = undefined;
+		}
+		if (aborted) {
+			this._invalidateRootActivity();
+			this._resetAbortToken();
+		}
+		if (aborted || source === 'session') {
+			this._clearActivity();
+		}
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		if (aborted && source === 'session' && this._hasObservedAssistantIdle && !abortingTurn) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring deferred aborted session idle after the aborted turn was already finalized`);
+			return;
+		}
+		if (aborted && (!abortingTurn || turn === abortingTurn)) {
+			this._cancelActiveRepoInfoTelemetry();
+			if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
+				if (turn.isRunning) {
+					this._reportToolCallDetails(turn, 'cancelled');
+				}
+				this._dropLateRootTurnEvents = true;
+				turn.markAborted();
+				this._clearActiveTurn();
+			} else {
+				this._logService.trace(`[Copilot:${this.sessionId}] Idle from abort; leaving ${turn.state} turn ${turn.id} open`);
+			}
+			return;
+		}
+		if (aborted && !turn.isRunning) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Idle from abort; leaving ${turn.state} replacement turn ${turn.id} open`);
+			return;
+		}
+		if (aborted) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Idle from abort reached running replacement turn ${turn.id}; checking replacement activity`);
+		}
+		if (turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
+			return;
+		}
+		if (source === 'assistant') {
+			if (!turn.isRunning) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Ignoring assistant idle while pending turn ${turn.id} has not started`);
+				return;
+			}
+			this._scheduleAssistantIdleCompletion(turn);
+			return;
+		}
+		if (turn.isPending && this._hasObservedAssistantIdle && turn.providerCallState !== 'resolved') {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring deferred session idle while pending turn ${turn.id} has not been dispatched`);
+			return;
+		}
+		await this._completeTurnAfterPendingToolCompletions(turn);
+	}
+
 	failActiveTurn(error: ErrorInfo): string | undefined {
 		const turn = this._currentTurn.value;
 		if (!turn) {
@@ -1968,6 +2177,7 @@ export class CopilotAgentSession extends Disposable {
 	 * is not stranded waiting on a turn that already ended.
 	 */
 	private _clearActiveTurn(): void {
+		this._cancelAssistantIdleCompletion();
 		const turn = this._currentTurn.value;
 		if (turn) {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
@@ -2489,6 +2699,8 @@ export class CopilotAgentSession extends Disposable {
 		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
+			this._hasBackgroundTasks = true;
+			this._refreshSubagentTaskStatuses(true);
 			await this._refreshSessionUsageMetrics();
 			if (this._store.isDisposed) {
 				throw new CancellationError();
@@ -5055,6 +5267,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
+			if (notification.startsTurn) {
+				this._invalidateRootActivity();
+			}
 			if (this._turnId) {
 				// Later parent reasoning belongs after this notice; child reasoning keeps its own stream.
 				this._currentTurn.value?.reasoningPartIds.delete('');
@@ -5078,6 +5293,7 @@ export class CopilotAgentSession extends Disposable {
 			this._dropLateRootTurnEvents = false;
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
+			this._currentTurn.value?.markRunning();
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,
 				turnId,
@@ -5111,6 +5327,7 @@ export class CopilotAgentSession extends Disposable {
 				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
 				return;
 			}
+			this._invalidateRootActivity();
 			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
 				return;
 			}
@@ -5649,72 +5866,19 @@ export class CopilotAgentSession extends Disposable {
 			turn?.trackToolCompletion(completion);
 		}));
 
-		this._register(wrapper.onIdle(async e => {
+		// Root assistant idle excludes background tasks; session idle remains the compatibility fallback.
+		this._register(wrapper.onAssistantIdle(e => {
+			if (e.agentId) {
+				return;
+			}
+			this._hasObservedAssistantIdle = true;
+			this._logService.trace(`[Copilot:${sessionId}] Assistant idle`);
+			void this._handleIdle(e.data.aborted === true, 'assistant');
+		}));
+
+		this._register(wrapper.onIdle(e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
-			const abortingTurn = this._abortingTurn;
-			this._abortingTurn = undefined;
-			if (e.data.aborted) {
-				this._resetAbortToken();
-			}
-			if (this._hasActivity) {
-				this._hasActivity = false;
-				this._emitAction({
-					type: ActionType.SessionActivityChanged,
-					activity: undefined,
-				});
-			}
-			const turn = this._currentTurn.value;
-			if (!turn) {
-				return;
-			}
-			// An abort drives the loop to idle. That terminal idle must never
-			// complete a turn:
-			//  - if `turn` is the aborted (running) turn, the client-dispatched
-			//    `ChatTurnCancelled` finalizes the protocol turn; drop our handle
-			//    so a later idle can't complete it.
-			//  - if `turn` is the pending failed-turn continuation being aborted,
-			//    drop it before the provider starts.
-			//  - any other pending turn is a queued message started after the
-			//    abort; leave it open for its own non-abort idle.
-			if (e.data.aborted && (!abortingTurn || turn === abortingTurn)) {
-				this._cancelActiveRepoInfoTelemetry();
-				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
-					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
-					if (turn.isRunning) {
-						this._reportToolCallDetails(turn, 'cancelled');
-					}
-					this._dropLateRootTurnEvents = true;
-					turn.markAborted();
-					this._clearActiveTurn();
-				} else {
-					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} turn ${turn.id} open`);
-				}
-				return;
-			}
-			if (e.data.aborted && !turn.isRunning) {
-				this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} replacement turn ${turn.id} open`);
-				return;
-			}
-			if (e.data.aborted) {
-				this._logService.trace(`[Copilot:${sessionId}] Idle from abort reached running replacement turn ${turn.id}; completing replacement`);
-			}
-			if (turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
-				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
-				return;
-			}
-			// Only a `running` turn is completed by a normal idle. A `pending`
-			// turn here means the SDK went idle before emitting any event for it
-			// (a degenerate no-op send); complete it defensively so the session
-			// does not hang.
-			if (turn.hasPendingToolCompletions) {
-				const abortToken = this._abortToken;
-				await turn.drainToolCompletions();
-				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
-					return;
-				}
-			}
-			this._completeActiveRepoInfoTelemetry();
-			this._completeActiveTurn();
+			void this._handleIdle(e.data.aborted === true, 'session');
 		}));
 
 		// The SDK emits a `skill` tool call (which we hide) and a richer
@@ -6846,6 +7010,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onBackgroundTasksChanged(() => {
+			this._setHasBackgroundTasks(true);
 			this._refreshSubagentTaskStatuses();
 		}));
 
@@ -6855,11 +7020,23 @@ export class CopilotAgentSession extends Disposable {
 				this._subagentTaskCompletionSchedulers.deleteAndDispose(e.agentId);
 			}
 			const turn = this._currentTurn.value;
-			turn?.markProviderTurnStarted();
-			turn?.markRunning();
+			if (!e.agentId) {
+				this._invalidateRootActivity();
+				if (!turn) {
+					if (this._dropLateRootTurnEvents) {
+						this._logService.trace(`[Copilot:${sessionId}] Root assistant turn started after cancellation; keeping it quarantined`);
+						return;
+					}
+					this._logService.warn(`[Copilot:${sessionId}] Root assistant turn started without an active host turn; opening a continuation turn`);
+					this._beginRootContinuationTurn();
+				}
+			}
+			const activeTurn = this._currentTurn.value;
+			activeTurn?.markProviderTurnStarted();
+			activeTurn?.markRunning();
 			if (!e.agentId) {
 				this._dropLateRootTurnEvents = false;
-				if (this._resumingTurnAwaitingProviderStart === turn) {
+				if (this._resumingTurnAwaitingProviderStart === activeTurn) {
 					this._resumingTurnAwaitingProviderStart = undefined;
 				}
 			}
@@ -6923,6 +7100,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
+			if (!e.agentId) {
+				this._invalidateRootActivity();
+			}
 			this._cancelActiveRepoInfoTelemetry();
 			const turn = this._currentTurn.value;
 			if (turn?.isRunning) {
