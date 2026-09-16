@@ -474,6 +474,43 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 	});
+
+	suite('manifest cache', () => {
+
+		// The cache is only used for built products, development always scans from disk
+		setup(() => instantiationService.stub(INativeEnvironmentService, 'isBuilt', true));
+
+		test('system extensions are cached per scan language', async () => {
+			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+			await testObject.scanSystemExtensions({});
+			await testObject.scanSystemExtensions({ language: 'en' });
+			await testObject.scanSystemExtensions({ language: 'zh-CN' });
+
+			assert.deepStrictEqual(await cacheFileNames(), ['extensions.builtin.cache', 'extensions.builtin.en.cache', 'extensions.builtin.zh-cn.cache']);
+		});
+
+		test('system extension scan is only served from the cache of the same language', async () => {
+			const extensionLocation = await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+			await testObject.scanSystemExtensions({ language: 'en' });
+
+			// Rewrite the manifest, which leaves the mtime of the scanned location untouched
+			await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
+			const cached = await testObject.scanSystemExtensions({ language: 'en' });
+			const rescanned = await testObject.scanSystemExtensions({ language: 'de' });
+
+			assert.deepStrictEqual([cached[0].manifest.version, rescanned[0].manifest.version], ['1.0.0', '2.0.0']);
+		});
+
+		async function cacheFileNames(): Promise<string[]> {
+			const cacheHome = instantiationService.get(IUserDataProfilesService).defaultProfile.cacheHome;
+			const resolved = await instantiationService.get(IFileService).resolve(cacheHome);
+			return (resolved.children ?? []).map(child => child.name).sort();
+		}
+
+	});
 });
 
 suite('ExtensionScannerInput', () => {

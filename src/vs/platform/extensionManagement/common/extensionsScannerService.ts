@@ -22,7 +22,7 @@ import { localize } from '../../../nls.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IProductVersion, Metadata } from './extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, getExtensionId, getGalleryExtensionId } from './extensionManagementUtil.js';
-import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, ExtensionIdentifierMap, parseEnabledApiProposalNames } from '../../extensions/common/extensions.js';
+import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, getManifestCacheFileName, ExtensionIdentifierMap, parseEnabledApiProposalNames } from '../../extensions/common/extensions.js';
 import { validateExtensionManifest } from '../../extensions/common/extensionValidator.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -967,7 +967,9 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		this.input = input;
 		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
 			this.logService.debug('Using cached extensions scan result', input.type === ExtensionType.System ? 'system' : 'user', input.location.toString());
-			this.cacheValidatorThrottler.trigger(() => this.validateCache());
+			if (this.shouldValidateCache(input)) {
+				this.cacheValidatorThrottler.trigger(() => this.validateCache());
+			}
 			return cacheContents.result.map((extension) => {
 				// revive URI object
 				extension.location = URI.revive(extension.location);
@@ -977,6 +979,16 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		const result = await super.scanExtensions(input);
 		await this.writeExtensionCache(cacheFile, { input, result });
 		return result;
+	}
+
+	/**
+	 * Validating the cache means scanning everything again, so only do it when the extensions can
+	 * actually have changed on disk behind our back. Built-in extensions of an installed product
+	 * cannot: they are replaced as a whole by an update, which changes the product commit that is
+	 * already part of the cache key.
+	 */
+	private shouldValidateCache(input: ExtensionScannerInput): boolean {
+		return input.type !== ExtensionType.System || input.devMode;
 	}
 
 	private async readExtensionCache(cacheFile: URI): Promise<IExtensionCacheData | null> {
@@ -1032,7 +1044,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 
 	private getCacheFile(input: ExtensionScannerInput): URI {
 		const profile = this.getProfile(input);
-		return this.uriIdentityService.extUri.joinPath(profile.cacheHome, input.type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE);
+		return this.uriIdentityService.extUri.joinPath(profile.cacheHome, getManifestCacheFileName(input.type, input.language));
 	}
 
 	private getProfile(input: ExtensionScannerInput): IUserDataProfile {
