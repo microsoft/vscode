@@ -142,6 +142,17 @@
 .project-board-axis-controls > .monaco-button {
 	min-width: 0;
 	flex: 1;
+	border: 0;
+}
+
+.project-board-collapse {
+	border: 0;
+	margin-left: auto;
+}
+
+.project-board-axis-controls > .monaco-button:focus,
+.project-board-tray-heading > .project-board-collapse:focus {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .project-board-axis-controls > .project-board-collapse,

@@ -730,7 +730,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	private createControl(container: HTMLElement, label: string, key: string, store: DisposableStore): Button {
-		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true }));
+		const frameless = key.startsWith('axis:') || key.startsWith('collapse:');
+		const button = store.add(new Button(container, {
+			...defaultButtonStyles, secondary: true,
+			...(frameless ? {
+				buttonSecondaryBorder: undefined,
+				buttonSecondaryBackground: 'transparent',
+				buttonSecondaryHoverBackground: 'var(--vscode-toolbar-hoverBackground)',
+				buttonSecondaryForeground: 'var(--vscode-foreground)',
+			} : {}),
+		}));
 		button.label = label;
 		button.element.dataset.boardControl = key;
 		if (key.startsWith('axis:') || key.startsWith('add-') || key.startsWith('remove:')) {
@@ -824,6 +833,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const placementIds = kind === 'row'
 			? this.model.columns.map(column => `${this.groupId({ rowId: axis.id, columnId: column.id })}-cards`)
 			: this.model.rows.map(row => `${this.groupId({ rowId: row.id, columnId: axis.id })}-cards`);
+		const button = this.createControl(controls, axis.label, `axis:${kind}:${axis.id}`, store);
 		this.createCollapseControl(controls, `collapse:${kind}:${axis.id}`, localize('projectBoard.axisName', "{0}: {1}", axisName, axis.label), collapsed, placementIds, () => {
 			const ids = kind === 'row' ? this.collapsedRows : this.collapsedColumns;
 			if (ids.has(axis.id)) {
@@ -832,7 +842,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				ids.add(axis.id);
 			}
 		}, store);
-		const button = this.createControl(controls, axis.label, `axis:${kind}:${axis.id}`, store);
 		if (collapsed) {
 			const cards = kind === 'row'
 				? this.model.columns.flatMap(column => this.model.getCards(axis.id, column.id, this.showArchived))
@@ -841,7 +850,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const summary = mainWindow.document.createElement('span');
 			summary.className = 'project-board-collapsed-summary';
 			const attention = cards.filter(card => card.status === SessionStatus.NeedsInput).length;
-			const countLabel = this.cardCountLabel(cards.length + missing);
+			const countLabel = this.sessionCountLabel(cards.length + missing);
 			summary.textContent = attention
 				? localize('projectBoard.collapsedAxisAttention', "{0} · {1} Needs Input", countLabel, attention)
 				: countLabel;
@@ -880,8 +889,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return `${this.viewId}-${placement ? encodeURIComponent(this.cellKey(placement)) : 'unassigned'}`;
 	}
 
-	private cardCountLabel(count: number): string {
-		return count === 1 ? localize('projectBoard.collapsedSingleCard', "1 card") : localize('projectBoard.collapsedCount', "{0} cards", count);
+	private sessionCountLabel(count: number): string {
+		return count === 1 ? localize('projectBoard.collapsedSingleSession', "1 session") : localize('projectBoard.collapsedSessionCount', "{0} sessions", count);
 	}
 
 	private isCollapsed(placement: IProjectBoardPlacement | undefined): boolean {
@@ -1006,12 +1015,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (!placement) {
 			heading.className = 'project-board-tray-heading';
 			heading.textContent = '';
-			this.createCollapseControl(heading, 'collapse:unassigned', label, collapsed, [`${group.id}-cards`], () => {
-				this.unassignedCollapsed = !this.unassignedCollapsed;
-			}, store);
 			const name = document.createElement('span');
 			name.textContent = label;
 			heading.appendChild(name);
+			this.createCollapseControl(heading, 'collapse:unassigned', label, collapsed, [`${group.id}-cards`], () => {
+				this.unassignedCollapsed = !this.unassignedCollapsed;
+			}, store);
 		}
 		group.appendChild(heading);
 		const needsInput = cards.filter(card => card.status === SessionStatus.NeedsInput).length;
@@ -1032,7 +1041,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (collapsed) {
 			const summary = document.createElement('span');
 			summary.className = 'project-board-collapsed-summary';
-			summary.textContent = this.cardCountLabel(totalCount + (placement ? 0 : this.drafts.length + (this.agentsDraft ? 1 : 0)));
+			summary.textContent = this.sessionCountLabel(totalCount + (placement ? 0 : this.drafts.length + (this.agentsDraft ? 1 : 0)));
 			group.appendChild(summary);
 		}
 		if (!placement && autoIncludeSessions) {

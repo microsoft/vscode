@@ -37,7 +37,7 @@ class KanbanAccessibilityHelp implements IAccessibleViewImplementation {
 			localize('kanban.help.navigation', "Use Tab to move among board controls and cards. With a card focused, use the arrow keys to move between cards, Enter or Space to open the chat, Escape to close its standalone window, and Control or Command Shift M to choose a board cell. Tab to a card's Delete button to permanently delete its backing session or discard its draft."),
 			localize('kanban.help.editing', "Use the custom view header buttons to add rows or columns, show archived chats, start a new session, or change board settings. Turn off Auto-include Sessions to show only explicitly placed chats, then drag a session from the Sessions list onto a board cell to add it. Use the row and column controls on the board to rename, reorder, or remove axes. Drag a card onto a cell to move it."),
 			localize('kanban.help.accessibleView', "Use Open Accessible View to read all current board cells and chats as text."),
-			localize('kanban.help.collapse', "Use the disclosure buttons to collapse rows, columns, or Unassigned. Collapsed groups keep card and Needs Input counts visible. Hidden cards are skipped by navigation, and dropping into a collapsed cell expands it. Collapsing preserves pending answers and does not stop agents."),
+			localize('kanban.help.collapse', "Use the disclosure buttons at the right of each header to collapse rows, columns, or Unassigned. Collapsed groups keep session and Needs Input counts visible. Hidden cards are skipped by navigation, and dropping into a collapsed cell expands it. Collapsing preserves pending answers and does not stop agents."),
 		].join('\n');
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Kanban,

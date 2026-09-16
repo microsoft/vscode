@@ -339,6 +339,27 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(chat.isRead.get(), false);
 	});
 
+	test('PB-22 collapse controls follow labels at the right edge and axis buttons are frameless', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Header controls')]);
+		h.container.style.setProperty('--vscode-button-border', 'red');
+		h.container.style.setProperty('--vscode-button-secondaryBorder', 'red');
+		h.container.style.setProperty('--vscode-focusBorder', 'rgb(0, 255, 0)');
+		await h.service.open();
+		for (const header of h.container.querySelectorAll<HTMLElement>('.project-board-axis-controls, .project-board-tray-heading')) {
+			const collapse = header.querySelector<HTMLElement>('.project-board-collapse')!;
+			assert.strictEqual(header.lastElementChild, collapse, 'DOM and tab order must match the right-side position');
+			assert.ok(collapse.getBoundingClientRect().left >= header.firstElementChild!.getBoundingClientRect().right);
+			assert.ok(Math.abs(collapse.getBoundingClientRect().right - header.getBoundingClientRect().right) < 1);
+			for (const button of header.querySelectorAll<HTMLElement>('.monaco-button')) {
+				assert.strictEqual(mainWindow.getComputedStyle(button).borderTopWidth, '0px');
+				assert.strictEqual(mainWindow.getComputedStyle(button).backgroundColor, 'rgba(0, 0, 0, 0)');
+			}
+			collapse.focus();
+			assert.strictEqual(mainWindow.document.activeElement, collapse, 'Frameless controls remain keyboard-focusable');
+			collapse.blur();
+		}
+	});
+
 	test('PB-22 collapsed Unassigned retains counts, live attention and drafts without changing chats', async () => {
 		const chats = [new TestChat('First'), new TestChat('Second')];
 		const h = createBoard(mainWindow.document, chats);
@@ -350,7 +371,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
 		assert.strictEqual(toggle().getAttribute('aria-controls'), tray().querySelector('.project-board-card-list')!.id);
 		assert.strictEqual(mainWindow.getComputedStyle(tray().querySelector('.project-board-card-list')!).display, 'none');
-		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 cards');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions');
 		chats[1].status.set(SessionStatus.NeedsInput, undefined);
 		assert.strictEqual(tray().querySelector('.project-board-attention')?.textContent, '1 Needs Input');
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
@@ -381,7 +402,7 @@ suite('ProjectBoardService', () => {
 		assert.ok(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden);
 		toggle('column:p1');
 		assert.ok(cell('P1').getBoundingClientRect().width < width);
-		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 card');
+		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 session');
 		toggle('row:general');
 		assert.strictEqual(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
 		assert.strictEqual(cell('P1').querySelector<HTMLElement>('.project-board-card-list')!.hidden, true);
