@@ -23,7 +23,7 @@ import { IEditorGroupsService } from '../../workbench/services/editor/common/edi
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../workbench/common/views.js';
-import { ILogService } from '../../platform/log/common/log.js';
+import { createUnexpectedErrorHandler, ILogService } from '../../platform/log/common/log.js';
 import { IInstantiationService, refineServiceDecorator, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ITitleService } from '../../workbench/services/title/browser/titleService.js';
 import { mainWindow, CodeWindow } from '../../base/browser/window.js';
@@ -48,7 +48,6 @@ import { alert, setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { localize } from '../../nls.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
-import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { WorkbenchContextKeysHandler } from '../../workbench/browser/contextkeys.js';
 import { PixelRatio } from '../../base/browser/pixelRatio.js';
 import { AccessibilityProgressSignalScheduler } from '../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
@@ -534,26 +533,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		});
 
 		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
-	}
-
-	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };
-	private handleUnexpectedError(error: unknown, logService: ILogService): void {
-		const message = toErrorMessage(error, true);
-		if (!message) {
-			return;
-		}
-
-		const now = Date.now();
-		if (message === this.previousUnexpectedError.message && now - this.previousUnexpectedError.time <= 1000) {
-			return; // Return if error message identical to previous and shorter than 1 second
-		}
-
-		this.previousUnexpectedError.time = now;
-		this.previousUnexpectedError.message = message;
-
-		// Log it
-		logService.error(message);
+		setUnexpectedErrorHandler(createUnexpectedErrorHandler(logService));
 	}
 
 	//#endregion

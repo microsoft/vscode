@@ -198,20 +198,21 @@ export class UITest {
 
 		await extensionItem.waitFor();
 
+		// Leave time for cleanup before Mocha's 10-minute timeout, which does not cancel async work.
 		let lastFailure: string | undefined;
 		for (let attempt = 0; attempt < 3; attempt++) {
 			try {
 				this.context.log(`Clicking Install for GitHub Pull Requests (attempt ${attempt + 1}/3)`);
 				const installButton = extensionListItem.locator('.extension-action.install:not(.disabled):not(.hide)').first();
-				await installButton.click();
+				await installButton.click({ timeout: 30_000 });
 				await installButton.waitFor({ state: 'hidden', timeout: 30_000 });
 
 				this.context.log('Waiting for extension to be installed');
 				const uninstallButton = page.getByRole('button', { name: 'Uninstall' }).first();
 				const result = await Promise.race([
-					uninstallButton.waitFor({ timeout: 5 * 60_000 }).then(() => 'installed' as const),
-					installButton.waitFor({ state: 'visible', timeout: 5 * 60_000 }).then(() => 'retry' as const),
-					messageContainer.waitFor({ state: 'visible', timeout: 5 * 60_000 }).then(() => 'message' as const),
+					uninstallButton.waitFor({ timeout: 60_000 }).then(() => 'installed' as const),
+					installButton.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'retry' as const),
+					messageContainer.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'message' as const),
 				]);
 				if (result === 'installed') {
 					return;

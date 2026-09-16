@@ -275,7 +275,10 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		}));
 
 		// Poll CI checks for every open PR so reference hovers can surface the
-		// current status. Review threads only refine non-draft PR icons.
+		// current status. A background/inactive draft's icon is not shown, so
+		// only refresh it once here and keep polling only while its session is
+		// active; a non-draft (or the active session's draft) polls fully.
+		// Review threads only refine non-draft PR icons.
 		reader.store.add(autorun(statusReader => {
 			const prDetails = model.pullRequest.read(statusReader);
 			if (!prDetails || prDetails.state !== GitHubPullRequestState.Open) {
@@ -286,7 +289,20 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 			const ciModelRef = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(owner, repo, prNumber, prDetails.headSha));
 			ciModelRef.object.refresh();
-			statusReader.store.add(ciModelRef.object.startPolling());
+
+			if (prDetails.isDraft) {
+				const shouldPollDraftCiObs = derived(this, pollReader => this._isActiveSession(session, pollReader));
+				statusReader.store.add(autorun(pollReader => {
+					if (!shouldPollDraftCiObs.read(pollReader)) {
+						return;
+					}
+					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} activated; refreshing and polling draft CI for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
+					ciModelRef.object.refresh();
+					pollReader.store.add(ciModelRef.object.startPolling());
+				}));
+			} else {
+				statusReader.store.add(ciModelRef.object.startPolling());
+			}
 
 			if (prDetails.isDraft) {
 				return;

@@ -267,7 +267,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				};
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
-				override async rediscover(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 			reg.defineInstance(IAquariumService, new class extends mock<IAquariumService>() {
 				override mountToggle() {

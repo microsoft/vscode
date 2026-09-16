@@ -224,7 +224,7 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
-			compact: () => this.currentCompact && !isPhoneLayout(this.layoutService),
+			compact: () => this.currentCompact,
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {

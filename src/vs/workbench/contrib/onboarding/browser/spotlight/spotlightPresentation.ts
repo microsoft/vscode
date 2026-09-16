@@ -22,6 +22,10 @@ const TARGET_RESOLVE_TIMEOUT = 2000;
 const TARGET_POLL_INTERVAL = 50;
 const TARGET_ANIMATION_SETTLE_TIMEOUT = 600;
 
+function shouldAbortOnMissingTarget(behavior: SpotlightMissingTargetBehavior | undefined): boolean {
+	return behavior?.kind === 'abort' || (behavior?.kind === 'wait' && behavior.onTimeout === 'abort');
+}
+
 /** The terminal action of a single step, carrying the data needed for telemetry. */
 type StepEnd =
 	| { readonly action: 'next'; readonly via: 'button' | 'target' | 'condition' }
@@ -70,7 +74,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 		const target = await this._resolveTarget(context.targetWindow, step.targetId, context.cancellationToken, step.missingTarget);
 		if (!target) {
-			return context.cancellationToken.isCancellationRequested || step.missingTarget?.kind === 'abort'
+			return context.cancellationToken.isCancellationRequested || shouldAbortOnMissingTarget(step.missingTarget)
 				? { action: 'abort', shown: false }
 				: { action: 'skipStep', shown: false };
 		}
@@ -178,7 +182,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 					break;
 				}
 				if (!target) {
-					if (step.missingTarget?.kind === 'abort') {
+					if (shouldAbortOnMissingTarget(step.missingTarget)) {
 						aborted = true;
 						break;
 					}

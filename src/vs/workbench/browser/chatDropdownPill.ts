@@ -122,7 +122,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			if (this._dropdownVisible) {
 				if (current.summarized) {
-					this._actionWidgetService.updateItems(this._getDropdownItems());
+					this._actionWidgetService.updateItems(this._getDropdownItems(), undefined, { preserveHover: true, animateItemMove: true });
 				} else {
 					this._actionWidgetService.hide();
 				}

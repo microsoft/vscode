@@ -956,6 +956,7 @@ export class ChatService extends Disposable implements IChatService {
 					message.origin,
 					message.isRequestHidden,
 					getRestoredChatRequestSource(message, requestText),
+					message.modelConfiguration,
 				);
 			} else {
 				// response
@@ -1021,7 +1022,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, requestSource, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1051,7 +1052,7 @@ export class ChatService extends Disposable implements IChatService {
 						undefined, // locationData
 						undefined, // attachments
 						undefined, // isCompleteAddedRequest
-						undefined, // modelId
+						modelId,
 						undefined, // userSelectedTools
 						id,
 						isSystemInitiated,
@@ -1063,6 +1064,7 @@ export class ChatService extends Disposable implements IChatService {
 						origin,
 						isRequestHidden,
 						requestSource,
+						modelConfiguration,
 					);
 
 					// Reset progress tracking for the new turn
@@ -1208,6 +1210,7 @@ export class ChatService extends Disposable implements IChatService {
 			locationData: options.locationData,
 			attachedContext: options.attachedContext,
 			modelId: options.userSelectedModelId,
+			modelConfiguration: options.userSelectedModelConfiguration,
 			userSelectedTools: options.userSelectedTools?.get(),
 			isSystemInitiated: options.isSystemInitiated,
 			isHiddenFromTranscript: options.hideFromTranscript,
@@ -1698,7 +1701,8 @@ export class ChatService extends Disposable implements IChatService {
 					const initialAgent = agentPart?.agent ?? defaultAgent;
 					const initialCommand = agentSlashCommandPart?.command;
 					const initVariableData: IChatRequestVariableData = { variables: [] };
-					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript);
+					const modelConfiguration = options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined);
+					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript, undefined, undefined, undefined, modelConfiguration);
 					preservedRequest?.response?.reopen();
 					const thisRequest = request;
 					completeResponseCreated();
@@ -1736,7 +1740,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 
 					const promptTextResult = getPromptText(request.message);
-					variableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
+					variableData = updateRanges(variableData, promptTextResult); // TODO bit of a hack
 					const message = promptTextResult.message;
 
 					// --- Step 4: Build the agent request object ---
@@ -1758,7 +1762,7 @@ export class ChatService extends Disposable implements IChatService {
 							agentHostSessionConfig: options?.agentHostSessionConfig,
 							metadata: options?.metadata,
 							userSelectedModelId: options?.userSelectedModelId,
-							modelConfiguration: options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined),
+							modelConfiguration,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							permissionLevel: options?.modeInfo?.permissionLevel,
@@ -2216,7 +2220,7 @@ export class ChatService extends Disposable implements IChatService {
 				agentId: request.response.agent?.id ?? '',
 				message: promptTextResult.message,
 				command: request.response.slashCommand?.name,
-				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
+				variables: updateRanges(request.variableData, promptTextResult), // TODO bit of a hack
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 				modeInstructions: request.modeInfo?.modeInstructions,
@@ -2398,7 +2402,10 @@ export class ChatService extends Disposable implements IChatService {
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };
 			const local = existingById.get(remote.id);
-			if (local && local.request.message.text === remote.message && equals(local.request.variableData, variableData)) {
+			const modelId = remote.modelId ?? local?.request.modelId;
+			const modelConfiguration = remote.modelId !== undefined ? remote.modelConfiguration : local?.request.modelConfiguration;
+			if (local && local.request.message.text === remote.message && equals(local.request.variableData, variableData)
+				&& local.request.modelId === modelId && equals(local.request.modelConfiguration, modelConfiguration)) {
 				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
 			}
 			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, undefined);
@@ -2409,8 +2416,17 @@ export class ChatService extends Disposable implements IChatService {
 				timestamp: remote.timestamp,
 				attachedContext: variableData.variables.slice(),
 				restoredId: remote.id,
+				modelId,
+				modelConfiguration,
 			});
-			return { request: requestModel, kind: remote.kind, sendOptions: local?.sendOptions ?? {} };
+			return {
+				request: requestModel,
+				kind: remote.kind,
+				sendOptions: {
+					...local?.sendOptions,
+					...(modelId !== undefined ? { userSelectedModelId: modelId, userSelectedModelConfiguration: modelConfiguration } : {}),
+				},
+			};
 		});
 
 		if (existing.length === reconciled.length && reconciled.every((request, index) => existing[index] === request)) {
