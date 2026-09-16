@@ -8,6 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -16,6 +17,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
@@ -37,11 +40,28 @@ class TestCommandService extends mock<ICommandService>() {
 	}
 }
 
+class TestAuthTelemetryService extends mock<ITelemetryService>() {
+	readonly events: { name: string; data: Record<string, unknown> }[] = [];
+
+	override publicLog2<E, C>(name: string, data?: E): void {
+		assert.ok(isObject(data));
+		const properties: Record<string, unknown> = Object.fromEntries(Object.entries(data));
+		for (const key of ['windowAgeMs', 'durationMs']) {
+			if (Object.hasOwn(properties, key)) {
+				assert.ok(typeof properties[key] === 'number' && Number.isFinite(properties[key]) && properties[key] >= 0);
+				properties[key] = '<duration>';
+			}
+		}
+		this.events.push({ name, data: properties });
+	}
+}
+
 function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'>, authenticationService: IAuthenticationService, commandService = new TestCommandService()): TestInstantiationService {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IAuthenticationService, authenticationService);
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	return instantiationService;
 }
 
@@ -387,7 +407,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const authenticateCalls: string[] = [];
 		let current = true;
 		const recoveryPromise = instantiationService.invokeFunction(accessor => recovery.recover(accessor, {
@@ -428,7 +448,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
 		const cache = new AgentHostAuthTokenCache();
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -472,7 +492,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -520,7 +540,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -556,7 +576,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const commandService = new TestCommandService();
 		commandService.result = { success: undefined, dialogSkipped: false };
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -603,7 +623,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const commandService = new TestCommandService();
 		commandService.result = { success: undefined, dialogSkipped: false };
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -636,7 +656,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -663,6 +683,243 @@ suite('AgentHostAuthenticationRecovery', () => {
 			authenticateCalls: ['tok-1', 'tok-1'],
 		});
 	});
+});
+
+suite('AgentHost authentication telemetry', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const resource: ProtectedResourceMetadata = {
+		resource: 'https://private.example.com',
+		authorization_servers: ['https://auth.example.com'],
+		scopes_supported: ['read'],
+	};
+	const account = { id: 'private-account-id', label: 'Private Account' };
+	const exactSession: AuthenticationSession = { id: 'private-session-id', scopes: ['read'], accessToken: 'private-token', account };
+	const broaderSession: AuthenticationSession = { id: 'private-broader-session-id', scopes: ['read', 'write'], accessToken: 'private-broader-token', account };
+
+	test('reports the recovery decisions and cancelled sign-in without session data', async () => {
+		const telemetry = new TestAuthTelemetryService();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'private-provider-id',
+			getSessions: async (_providerId, scopes) => scopes ? [exactSession] : [exactSession, broaderSession],
+		});
+		const commandService = new TestCommandService();
+		commandService.result = { success: undefined, dialogSkipped: false };
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		instantiationService.stub(ITelemetryService, telemetry);
+		const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async () => { },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual(telemetry.events, [
+			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'forwardCurrent', initialSessionMatch: 'exact', quarantinePresent: false, windowAgeMs: '<duration>' } },
+			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'forwardAlternative', initialSessionMatch: 'exact', quarantinePresent: false, windowAgeMs: '<duration>' } },
+			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'prompt', initialSessionMatch: 'exact', quarantinePresent: true, windowAgeMs: '<duration>' } },
+			{ name: 'agentHost.authSignInResult', data: { trigger: 'hostChallenge', result: 'cancelled', credentialChanged: undefined, sessionMatch: undefined, durationMs: '<duration>' } },
+		]);
+	});
+
+	test('reports one decision for concurrent challenges', async () => {
+		const telemetry = new TestAuthTelemetryService();
+		const sessions = new DeferredPromise<AuthenticationSession[]>();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'private-provider-id',
+			getSessions: async () => sessions.p,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(ITelemetryService, telemetry);
+		const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+		const options: IAgentHostAuthenticationOptions = { logPrefix: '[AgentHost]', authenticate: async () => { } };
+		const first = instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		const second = instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		sessions.complete([exactSession]);
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual(telemetry.events, [
+			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'forwardCurrent', initialSessionMatch: 'exact', quarantinePresent: false, windowAgeMs: '<duration>' } },
+		]);
+	});
+
+	test('does not emit recovery telemetry for ordinary background authentication', async () => {
+		const telemetry = new TestAuthTelemetryService();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'private-provider-id',
+			getSessions: async () => [exactSession],
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(ITelemetryService, telemetry);
+		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+			logPrefix: '[AgentHost]',
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual(telemetry.events, []);
+	});
+
+	test('distinguishes provider unavailability from missing sessions', async () => {
+		const telemetry = new TestAuthTelemetryService();
+		for (const available of [false, true]) {
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => {
+					if (!available) {
+						throw new Error('Private provider error');
+					}
+					return 'private-provider-id';
+				},
+			});
+			const instantiationService = createAuthInstantiationService(disposables, authService);
+			instantiationService.stub(ITelemetryService, telemetry);
+			const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, {
+				logPrefix: '[AgentHost]',
+				authenticate: async () => { assert.fail('Should not forward a token'); },
+			}));
+		}
+		assert.deepStrictEqual(telemetry.events, [
+			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'defer', initialSessionMatch: 'unavailable', quarantinePresent: false, windowAgeMs: '<duration>' } },
+			{ name: 'agentHost.authRecovery', data: { trigger: 'hostChallenge', action: 'noSession', initialSessionMatch: 'none', quarantinePresent: false, windowAgeMs: '<duration>' } },
+		]);
+	});
+
+	test('reports session creation without counting repeated cached forwards', async () => {
+		const telemetry = new TestAuthTelemetryService();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'private-provider-id',
+			getSessions: async (_providerId, scopes) => scopes ? [] : [broaderSession],
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(ITelemetryService, telemetry);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async () => { },
+		};
+
+		await instantiationService.invokeFunction(resolveAuthenticationInteractively, [resource], options);
+		await instantiationService.invokeFunction(resolveAuthenticationInteractively, [resource], options);
+
+		assert.deepStrictEqual(telemetry.events, [
+			{ name: 'agentHost.authRecovery', data: { trigger: 'sessionCreation', action: 'forwardCurrent', initialSessionMatch: 'superset', quarantinePresent: false, windowAgeMs: '<duration>' } },
+		]);
+	});
+
+	test('reports the actual scopes when a scoped lookup returns a broader session', async () => {
+		const telemetry = new TestAuthTelemetryService();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'private-provider-id',
+			getSessions: async () => [broaderSession],
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(ITelemetryService, telemetry);
+		await instantiationService.invokeFunction(resolveAuthenticationInteractively, [resource], {
+			logPrefix: '[AgentHost]',
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual(telemetry.events, [
+			{ name: 'agentHost.authRecovery', data: { trigger: 'sessionCreation', action: 'forwardCurrent', initialSessionMatch: 'superset', quarantinePresent: false, windowAgeMs: '<duration>' } },
+		]);
+	});
+
+	for (const match of ['unchanged', 'exact', 'superset'] as const) {
+		test(`reports sign-in credential selection: ${match}`, async () => {
+			const telemetry = new TestAuthTelemetryService();
+			let signedIn = false;
+			const signedInSession = match === 'superset' ? broaderSession : {
+				...exactSession,
+				accessToken: match === 'unchanged' ? exactSession.accessToken : 'private-new-token',
+			};
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'private-provider-id',
+				getSessions: async (_providerId, scopes) => {
+					const session = signedIn ? signedInSession : exactSession;
+					return scopes && session.scopes.length !== scopes.length ? [] : [session];
+				},
+			});
+			const commandService = new TestCommandService();
+			commandService.onExecute = () => { signedIn = true; };
+			const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+			instantiationService.stub(ITelemetryService, telemetry);
+			const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+			const options: IAgentHostAuthenticationOptions = { logPrefix: '[AgentHost]', authenticate: async () => { } };
+
+			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+			assert.deepStrictEqual({ events: telemetry.events.length, result: telemetry.events.at(-1) }, {
+				events: 3,
+				result: {
+					name: 'agentHost.authSignInResult',
+					data: { trigger: 'hostChallenge', result: 'tokenForwarded', credentialChanged: match !== 'unchanged', sessionMatch: match === 'superset' ? 'superset' : 'exact', durationMs: '<duration>' },
+				},
+			});
+		});
+	}
+
+	for (const outcome of ['setupFailure', 'forwardFailure', 'superseded', 'noSession', 'providerUnavailable', 'noPreviousCredential', 'deduplicated'] as const) {
+		test(`reports sign-in ${outcome} without hiding errors or claiming authentication success`, async () => {
+			const telemetry = new TestAuthTelemetryService();
+			let signedIn = false;
+			let current = true;
+			const failure = new Error('Private error with private-token');
+			const commandService = new TestCommandService();
+			if (outcome === 'setupFailure') {
+				commandService.result = { success: false, error: failure };
+			}
+			commandService.onExecute = () => {
+				signedIn = true;
+				current = outcome !== 'superseded';
+			};
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'private-provider-id',
+				getSessions: async (_providerId, scopes) => {
+					if (signedIn && outcome === 'providerUnavailable') {
+						throw failure;
+					}
+					return signedIn && outcome !== 'noSession' && !scopes ? [broaderSession] : [];
+				},
+			});
+			const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+			instantiationService.stub(ITelemetryService, telemetry);
+			const operation = instantiationService.invokeFunction(resolveAuthenticationInteractively, [resource], {
+				logPrefix: '[AgentHost]',
+				isCurrent: () => current,
+				authTokenCache: outcome === 'deduplicated' ? new class extends AgentHostAuthTokenCache {
+					override async authenticate(): Promise<boolean> { return false; }
+				}() : undefined,
+				authenticate: async () => {
+					if (outcome === 'forwardFailure') {
+						throw failure;
+					}
+				},
+			});
+
+			if (outcome === 'setupFailure' || outcome === 'forwardFailure') {
+				await assert.rejects(operation, error => error === failure);
+			} else if (outcome === 'superseded') {
+				await assert.rejects(operation, isCancellationError);
+			} else {
+				assert.strictEqual(await operation, outcome === 'noPreviousCredential');
+			}
+			const expectedResult = outcome === 'noPreviousCredential' ? 'tokenForwarded'
+				: outcome === 'noSession' || outcome === 'providerUnavailable' ? 'noSessionResolved'
+					: outcome === 'superseded' || outcome === 'deduplicated' ? outcome : 'failed';
+			const expectedMatch = outcome === 'noSession' ? 'none'
+				: outcome === 'providerUnavailable' ? 'unavailable'
+					: outcome === 'forwardFailure' || outcome === 'noPreviousCredential' || outcome === 'deduplicated' ? 'superset' : undefined;
+			assert.deepStrictEqual(telemetry.events, [
+				{ name: 'agentHost.authRecovery', data: { trigger: 'sessionCreation', action: 'prompt', initialSessionMatch: 'none', quarantinePresent: false, windowAgeMs: '<duration>' } },
+				{ name: 'agentHost.authSignInResult', data: { trigger: 'sessionCreation', result: expectedResult, credentialChanged: undefined, sessionMatch: expectedMatch, durationMs: '<duration>' } },
+			]);
+		});
+	}
 });
 
 suite('resolveMcpServerAuthentication', () => {
@@ -1356,7 +1613,7 @@ suite('authenticateProtectedResources', () => {
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
 		const authTokenCache = new AgentHostAuthTokenCache();
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [protectedResource] }];
 		const tokens: string[] = [];
 		const options: IAgentHostAuthenticationOptions = {
@@ -1403,7 +1660,7 @@ suite('authenticateProtectedResources', () => {
 			},
 		});
 		const instantiationService = createAuthInstantiationService(disposables, authService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
 		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [protectedResource] }];
 		const tokens: string[] = [];
 		const options: IAgentHostAuthenticationOptions = {
