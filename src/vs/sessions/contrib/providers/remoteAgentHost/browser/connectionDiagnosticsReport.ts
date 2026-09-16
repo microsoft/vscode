@@ -33,6 +33,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 	private readonly bodyFocusTargets: HTMLElement[] = [];
 	private readonly hostFocusTargets = new Map<string, HTMLElement>();
 	private snapshot: IConnectionDiagnosticsSnapshot;
+	private snapshotRequest = 0;
 	private pendingHostId: string | undefined;
 	private actionError: { readonly hostId: string; readonly message: string } | undefined;
 
@@ -81,9 +82,14 @@ export class ConnectionDiagnosticsReport extends Disposable {
 	}
 
 	async refresh(): Promise<void> {
+		const request = ++this.snapshotRequest;
 		try {
 			const discoverySucceeded = !this.options.rediscoverOnRefresh || await this.diagnosticsService.rediscover();
-			this.snapshot = this.diagnosticsService.getSnapshot();
+			const snapshot = await this.diagnosticsService.getSnapshot();
+			if (this._store.isDisposed || request !== this.snapshotRequest) {
+				return;
+			}
+			this.snapshot = snapshot;
 			this.render();
 			this.announce(this.options.rediscoverOnRefresh
 				? discoverySucceeded
@@ -91,7 +97,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 					: localize('connectionDiagnostics.discoveryFailed', "Snapshot refreshed, but one or more host discovery operations failed.")
 				: localize('connectionDiagnostics.snapshotRefreshed', "Snapshot refreshed."));
 		} catch (error) {
-			this.announce(localize('connectionDiagnostics.refreshFailed', "Could not refresh connection information. {0}", toErrorMessage(error)));
+			if (request === this.snapshotRequest) {
+				this.announce(localize('connectionDiagnostics.refreshFailed', "Could not refresh connection information. {0}", toErrorMessage(error)));
+			}
 		}
 	}
 
@@ -145,7 +153,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			this.renderHiddenHosts(hosts.filter(host => host.hidden));
 			dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.liveSummaries', "Host summaries and controls are live. Details and exports use the captured snapshot.");
 		}
-		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot. Review host names and addresses before sharing.");
+		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot, including connection-related Window logs. Known credentials are redacted, but host names, addresses, and messages can contain personal information. Review before sharing.");
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.captured', "Captured: {0}", this.snapshot.capturedAt);
 		const snapshotAddresses = new Set(this.snapshot.sections.map(section => section.hostAddress));
 		const newHostSections = hosts.filter(host => !host.hidden && host.address && !snapshotAddresses.has(host.address)).map(host => ({

@@ -267,7 +267,7 @@ suite('TunnelAgentHostContribution', () => {
 	function createInstantiationService(): TestInstantiationService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConnectionDiagnosticsService, {
-			trackDiscovery: (_trigger, discover) => discover(),
+			trackDiscovery: (_trigger, discover) => discover(() => { }),
 			recordHostAction: () => { },
 		});
 		return instantiationService;
@@ -391,7 +391,7 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IConnectionDiagnosticsService, {
 			trackDiscovery: async (trigger, discover) => {
 				recorded.push(trigger);
-				return discover();
+				return discover(() => { });
 			},
 		});
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);

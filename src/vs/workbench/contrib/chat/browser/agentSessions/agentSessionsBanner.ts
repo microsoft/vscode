@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener } from '../../../../../base/browser/dom.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 
 
@@ -52,32 +55,65 @@ export interface IAgentsBannerOptions {
 	readonly source: string;
 	/** Override the default button label. */
 	readonly label?: string;
-	/** Optional callback invoked when the banner button is clicked. */
+	/** Optional callback invoked when the banner opens the Agents window. */
 	readonly onButtonClick?: () => void;
 }
 
 /**
- * Creates a banner that promotes the Agents app.
- * The banner contains a button that opens the Agents window.
+ * Creates a button that opens the Agents window, or offers GitHub sign-in when enabled and an account service is provided.
  */
 export function createAgentsBanner(
 	options: IAgentsBannerOptions,
 	commandService: ICommandService,
 	telemetryService: ITelemetryService,
+	configurationService: IConfigurationService,
+	defaultAccountService?: IDefaultAccountService,
 ): IAgentsBannerResult {
 	const disposables = new DisposableStore();
 	const label = options.label ?? localize('agentsBanner.tryAgentsAppLabel', "Try out the new Agents window");
 
-	const button = $('button.agents-banner-button', {
-		title: label,
-	},
-		$('.codicon.codicon-agent.icon-widget'),
-		$('span.category-title', {}, label),
-	);
+	const icon = $('.codicon.icon-widget', { 'aria-hidden': 'true' });
+	const buttonLabel = $('span.category-title');
+	const button = $('button.agents-banner-button', {}, icon, buttonLabel);
+	let accountResolved = false;
+	const shouldOfferSignIn = () => accountResolved && defaultAccountService?.currentDefaultAccount === null && configurationService.getValue<boolean>(ChatConfiguration.WelcomePageSignInEnabled) === true;
+	const updateButton = () => {
+		const offerSignIn = shouldOfferSignIn();
+		const buttonText = offerSignIn ? localize('agentsBanner.signIn', "Sign in to GitHub") : label;
+		button.title = buttonText;
+		buttonLabel.textContent = buttonText;
+		icon.classList.toggle('codicon-github', offerSignIn);
+		icon.classList.toggle('codicon-agent', !offerSignIn);
+	};
+	updateButton();
+	if (defaultAccountService) {
+		disposables.add(defaultAccountService.onDidChangeDefaultAccount(() => {
+			accountResolved = true;
+			updateButton();
+		}));
+		disposables.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.WelcomePageSignInEnabled)) {
+				updateButton();
+			}
+		}));
+		defaultAccountService.getDefaultAccount().then(() => {
+			if (!disposables.isDisposed) {
+				accountResolved = true;
+				updateButton();
+			}
+		}).catch(onUnexpectedError);
+	}
+
 	disposables.add(addDisposableListener(button, 'click', () => {
+		if (defaultAccountService && shouldOfferSignIn()) {
+			telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'signIn' });
+			defaultAccountService.signIn().catch(onUnexpectedError);
+			return;
+		}
+
 		options.onButtonClick?.();
 		telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'openAgentsWindow' });
-		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.Banner });
+		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.Banner }).catch(onUnexpectedError);
 	}));
 
 	const element = $(`.${options.cssClass}`, {}, button);
