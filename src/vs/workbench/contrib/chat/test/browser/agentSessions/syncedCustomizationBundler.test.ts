@@ -10,6 +10,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -671,6 +672,39 @@ suite('SyncedCustomizationBundler', () => {
 			writes: 0,
 			deletes: 0,
 			sentinel: 'keep me',
+		});
+	});
+
+	test('avoids redundant stats for flat files and skill entrypoints on rebundle', async () => {
+		const bundler = createBundler();
+		const flat = await seedFile('/test/rule.md', 'rule content');
+		const skill = await seedFile('/skills/my-skill/SKILL.md', 'skill content');
+		const reference = await seedFile('/skills/my-skill/reference.md', 'reference content');
+		const stat = sinon.spy(memFs, 'stat');
+		const files = [
+			{ uri: flat, type: PromptsType.instructions },
+			{ uri: skill, type: PromptsType.skill },
+		];
+		const countStats = (resource: URI) => stat.getCalls().filter(call => isEqual(call.args[0], resource)).length;
+		const statCounts = () => ({
+			flat: countStats(flat),
+			skill: countStats(skill),
+			reference: countStats(reference),
+		});
+
+		const first = await bundler.bundle(files);
+		const initialStats = statCounts();
+		stat.resetHistory();
+		const second = await bundler.bundle(files);
+
+		assert.deepStrictEqual({
+			initialStats,
+			rebundleStats: statCounts(),
+			reused: second === first,
+		}, {
+			initialStats: { flat: 1, skill: 2, reference: 2 },
+			rebundleStats: { flat: 1, skill: 2, reference: 2 },
+			reused: true,
 		});
 	});
 
