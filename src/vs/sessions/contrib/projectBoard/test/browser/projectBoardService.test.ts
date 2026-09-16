@@ -356,15 +356,22 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelector('.project-board-card-credits'), null);
 		await toggle('projectBoard.settings.credits', false);
 		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: unavailable');
-		h.credits.set(0, undefined);
-		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 0 credits');
-		h.credits.set(12.5, undefined);
-		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 12.5 credits');
+		for (const [value, amount] of [[0, '0.00'], [1, '0.01'], [100, '1.00'], [1234, '12.34'], [12.5, '0.13']] as const) {
+			h.credits.set(value, undefined);
+			const credits = h.container.querySelector('.project-board-card-credits')!;
+			assert.deepStrictEqual({
+				text: credits.textContent,
+				label: credits.getAttribute('aria-label'),
+			}, {
+				text: `$${amount}`,
+				label: `AI credits: $${amount} USD`,
+			});
+		}
 		const metrics = h.container.querySelector('.project-board-card-metrics')!;
 		assert.ok(metrics.parentElement?.classList.contains('project-board-card-status-bar'));
 		assert.strictEqual(metrics.parentElement?.lastElementChild, metrics);
 		assert.strictEqual(metrics.parentElement?.parentElement?.lastElementChild, metrics.parentElement);
-		assert.strictEqual(metrics.querySelector('.project-board-card-credits')?.textContent, '$12.5 credits');
+		assert.strictEqual(metrics.querySelector('.project-board-card-credits')?.textContent, '$0.13');
 		assert.ok(metrics.querySelector('.codicon-clock[aria-hidden="true"]'));
 		assert.strictEqual(document.activeElement?.getAttribute('data-board-control'), 'settings');
 		await toggle('projectBoard.settings.stateDuration', true);
@@ -372,7 +379,7 @@ suite('ProjectBoardService', () => {
 		h.closeBoard();
 		await h.service.open();
 		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-duration'), null);
-		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 12.5 credits');
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: $0.13 USD');
 		await toggle('projectBoard.settings.credits', true);
 		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits'), null);
 		assert.ok(h.includeCredits.calledWith(false));
@@ -436,9 +443,9 @@ suite('ProjectBoardService', () => {
 		const options = hover.getCalls().findLast(call => call.args[0] === credits)?.args[1];
 		const hoverContent = (typeof options === 'function' ? options() : options)?.content;
 		assert.ok(typeof hoverContent === 'string');
-		assert.ok(hoverContent.includes('AI credits: 12.5 credits'));
+		assert.ok(hoverContent.includes('AI credits: $0.13 USD'));
 		assert.ok(hoverContent.includes('including subagents'));
-		assert.ok(hoverContent.includes('Not a dollar amount'));
+		assert.ok(hoverContent.includes('100 AI credits per dollar'));
 		for (const width of [260, 180, 140]) {
 			card.style.width = `${width}px`;
 			const bounds = metrics.getBoundingClientRect();
