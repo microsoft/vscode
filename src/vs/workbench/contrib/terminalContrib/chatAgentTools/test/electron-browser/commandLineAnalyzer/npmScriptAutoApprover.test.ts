@@ -92,6 +92,8 @@ suite('NpmScriptAutoApprover', () => {
 		test('npm run dev - script exists', () => t('npm run dev', { dev: 'vite' }, true));
 		test('npm run start - script exists', () => t('npm run start', { start: 'node index.js' }, true));
 		test('npm run lint - script exists', () => t('npm run lint', { lint: 'eslint .' }, true));
+		test('npm run build-prod - script with hyphen exists', () => t('npm run build-prod', { 'build-prod': 'tsc' }, true));
+		test('npm run build@prod - script with internal at sign exists', () => t('npm run build@prod', { 'build@prod': 'tsc' }, true));
 		test('npm run-script build - script exists', () => t('npm run-script build', { build: 'tsc' }, true));
 
 		// npm shorthand commands (npm test, npm start, npm stop, npm restart)
@@ -101,8 +103,57 @@ suite('NpmScriptAutoApprover', () => {
 		test('npm restart - shorthand script exists', () => t('npm restart', { restart: 'npm stop && npm start' }, true));
 		test('npm test - shorthand script does not exist', () => t('npm test', { build: 'tsc' }, false));
 		test('npm test -- --watch - shorthand with args', () => t('npm test -- --watch', { test: 'jest' }, true));
+		test('npm run build -- --watch - script with args', () => t('npm run build -- --watch', { build: 'tsc' }, true));
+		test('npm run-script build -- --watch - script with args', () => t('npm run-script build -- --watch', { build: 'tsc' }, true));
 		test('npm startevil - word boundary prevents match', () => t('npm startevil', { start: 'node index.js', startevil: 'evil' }, false));
 		test('npm install - built-in command, not a script', () => t('npm install', { install: 'echo should not match' }, false));
+
+		test('npm CLI options after the script require approval', async () => {
+			const commands = [
+				'npm run build --node-options=--require=./payload.cjs',
+				'npm run build --node-options --require=./payload.cjs',
+				'npm run-script build -node-o --require=./payload.cjs',
+				'npm test --script-shell=./payload',
+				'npm start -scr ./payload',
+				'npm run build "--node-options=--require=./payload.cjs"',
+				'npm run build --prefix=other',
+				'npm run build -C other',
+				'npm run build --workspace=other',
+				'npm run build -w other',
+				'npm run build --workspaces',
+			];
+			for (const command of commands) {
+				await t(command, { build: 'tsc', test: 'jest', start: 'node index.js' }, false);
+			}
+		});
+		test('npm positional arguments after the script require approval', () => t('npm run build target', { build: 'tsc' }, false));
+
+		test('npm CLI options cannot be treated as script names', async () => {
+			const commands = [
+				'npm run --prefix=/outside -- build',
+				'npm run-script --workspace=other -- build',
+				'npm run --script-shell=./payload -- build',
+				'npm run -C -- build',
+				'npm run "--script-shell=./payload" -- build',
+				'npm run \\--prefix=/outside -- build',
+				'npm run --"workspace=other" -- build',
+				'npm run @x',
+			];
+			const scripts = {
+				'--prefix=/outside': 'echo decoy',
+				'--workspace=other': 'echo decoy',
+				'--script-shell=./payload': 'echo decoy',
+				'-C': 'echo decoy',
+				'"--script-shell=./payload"': 'echo decoy',
+				'\\--prefix=/outside': 'echo decoy',
+				'--"workspace=other"': 'echo decoy',
+				'@x': 'echo decoy',
+				build: 'tsc',
+			};
+			for (const command of commands) {
+				await t(command, scripts, false);
+			}
+		});
 
 		// Scripts with colons (namespaced scripts)
 		test('npm run build:prod - script with colon exists', () => t('npm run build:prod', { 'build:prod': 'tsc --build' }, true));
@@ -121,6 +172,7 @@ suite('NpmScriptAutoApprover', () => {
 
 	suite('yarn commands', () => {
 		test('yarn run build - script exists', () => t('yarn run build', { build: 'tsc' }, true));
+		test('yarn run build --watch - script with args', () => t('yarn run build --watch', { build: 'tsc' }, true));
 		test('yarn run test - script exists', () => t('yarn run test', { test: 'jest' }, true));
 
 		// Yarn shorthand (yarn <script>)
@@ -136,6 +188,7 @@ suite('NpmScriptAutoApprover', () => {
 
 	suite('pnpm commands', () => {
 		test('pnpm run build - script exists', () => t('pnpm run build', { build: 'tsc' }, true));
+		test('pnpm run build --watch - script with args', () => t('pnpm run build --watch', { build: 'tsc' }, true));
 		test('pnpm run test - script exists', () => t('pnpm run test', { test: 'jest' }, true));
 
 		// pnpm shorthand (pnpm <script>)
