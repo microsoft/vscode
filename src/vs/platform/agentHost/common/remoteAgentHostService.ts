@@ -21,6 +21,7 @@ import { normalizeRemoteAgentHostAddress } from './agentHostUri.js';
 import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 
 /**
  * Connection status for a remote agent host.
@@ -275,6 +276,7 @@ export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDispo
 	 * each transition that must not be repeated per backoff round.
 	 */
 	readonly onDidScheduleReconnect: Event<void>;
+	readonly onDidConnectionDiagnostic: Event<IConnectionDiagnosticEvent>;
 	connect(): Promise<void>;
 	reconnectNow(): boolean;
 	notifyTransportClosed(): void;
@@ -288,6 +290,8 @@ export interface IRemoteAgentHostConnectOptions {
 	 * must never open prompts, pickers or modals.
 	 */
 	readonly userInitiated: boolean;
+	/** Optional client-local observation of transport-specific setup phases. */
+	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 }
 
 /** A built, not-yet-handshaken connection and its owned resources. */
@@ -686,6 +690,7 @@ export const IRemoteAgentHostService = createDecorator<IRemoteAgentHostService>(
  */
 export interface IRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
+	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[];
 
 	/** Fires when a remote connection is established or lost. */
 	readonly onDidChangeConnections: Event<void>;
@@ -794,6 +799,7 @@ export interface IRemoteAgentHostConnectionInfo {
 
 export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
+	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];

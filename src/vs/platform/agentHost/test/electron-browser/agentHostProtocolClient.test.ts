@@ -32,7 +32,7 @@ import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, ty
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -40,6 +40,7 @@ import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConf
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -1086,6 +1087,30 @@ suite('AgentHostProtocolClient', () => {
 		await firstRejected;
 		await secondRejected;
 		assert.strictEqual(closeCount, 1);
+	});
+
+	test('records late close details without repeating the protocol close', async () => {
+		const transport = disposables.add(new class extends TestProtocolTransport {
+			readonly closeDetailsEmitter = this._register(new Emitter<ITransportCloseDetails>());
+			readonly onDidCloseDetails = this.closeDetailsEmitter.event;
+		}());
+		const { client } = createClient(transport);
+		await connectClient(client, transport);
+		let closeCount = 0;
+		const diagnostics: IConnectionDiagnosticEvent[] = [];
+		disposables.add(client.onDidClose(() => closeCount++));
+		disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
+		transport.fireClose();
+		transport.closeDetailsEmitter.fire({ code: 4001, reason: 'token=private', wasClean: false });
+		assert.deepStrictEqual({
+			closeCount,
+			state: client.connectionState,
+			details: diagnostics.filter(event => event.phase === 'transport.closeDetails').map(event => event.detail),
+		}, {
+			closeCount: 1,
+			state: AgentHostClientState.Closed,
+			details: ['code=4001; wasClean=false; reason=token=[redacted]'],
+		});
 	});
 
 	test('rejects pending requests on dispose', async () => {
@@ -2730,6 +2755,8 @@ suite('AgentHostProtocolClient', () => {
 		test('retries an initial transport failure with a fresh initialization', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient();
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new Error('initial transport failed'));
 			await assert.rejects(connectPromise, /initial transport failed/);
@@ -2756,9 +2783,15 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
+				transportFailure: diagnostics.find(event => event.phase === 'transport.connect' && event.outcome === 'failed')?.error?.message,
+				handshakeMode: diagnostics.find(event => event.phase === 'protocol.reconnect.result')?.detail,
+				retrySucceeded: diagnostics.some(event => event.phase === 'reconnect.succeeded'),
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
+				transportFailure: 'initial transport failed',
+				handshakeMode: 'mode=freshInitialize',
+				retrySucceeded: true,
 			});
 		});
 

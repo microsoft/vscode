@@ -5,19 +5,22 @@
 
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { ConnectionDiagnosticBuffer, formatConnectionDiagnosticError, getConnectionDiagnosticError, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ConnectionHostManagementAction, IConnectionDiagnosticsSection, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState } from './connectionDiagnostics.js';
+import { collectConnectionLogs } from './connectionDiagnosticsLogs.js';
 
 interface IDiscoveryAttempt {
 	readonly id: number;
@@ -33,29 +36,6 @@ interface IActivity {
 	readonly detail: string;
 }
 
-function isErrorDetails(error: unknown): error is { readonly statusCode?: unknown; readonly status?: unknown; readonly code?: unknown } {
-	return typeof error === 'object' && error !== null;
-}
-
-function discoveryFailureDescription(error: unknown): string {
-	if (isCancellationError(error)) {
-		return localize('diagnostics.cancelled', "Cancelled");
-	}
-	if (error instanceof Error && error.message === 'No authentication is available to enumerate tunnels.') {
-		return localize('diagnostics.authenticationUnavailable', "No authentication is available to enumerate tunnels.");
-	}
-	if (isErrorDetails(error)) {
-		const status = error.statusCode ?? error.status;
-		if (typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599) {
-			return localize('diagnostics.httpFailure', "Request failed (HTTP {0}).", status);
-		}
-		if (typeof error.code === 'string' && ['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT', 'EAI_AGAIN'].includes(error.code)) {
-			return localize('diagnostics.networkFailure', "Network request failed ({0}).", error.code);
-		}
-	}
-	return localize('diagnostics.failed', "Request failed; see the Window log for error details.");
-}
-
 /** Captures local evidence, not remote probes or raw protocol/log payloads. */
 export class ConnectionDiagnosticsService extends Disposable implements IConnectionDiagnosticsService {
 	declare readonly _serviceBrand: undefined;
@@ -65,6 +45,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 
 	private readonly _startedAt = Date.now();
 	private readonly _activity: IActivity[] = [];
+	private readonly _discoveryDiagnostics = new ConnectionDiagnosticBuffer();
 	private readonly _connectionStates = new Map<string, string>();
 	private _nextDiscoveryId = 1;
 	private _lastDiscovery: IDiscoveryAttempt | undefined;
@@ -78,6 +59,8 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		@IAgentHostFilterService private readonly _filterService: IAgentHostFilterService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IProductService private readonly _productService: IProductService,
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._captureConnections();
@@ -101,12 +84,12 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		}
 	}
 
-	async trackDiscovery(trigger: string, discover: () => Promise<ITunnelInfo[]>): Promise<ITunnelInfo[]> {
+	async trackDiscovery(trigger: string, discover: (onDiagnostic: ConnectionDiagnosticObserver) => Promise<ITunnelInfo[]>): Promise<ITunnelInfo[]> {
 		const attempt: IDiscoveryAttempt = { id: this._nextDiscoveryId++, trigger, startedAt: Date.now(), result: 'pending' };
 		this._lastDiscovery = attempt;
 		this._record(localize('diagnostics.discoveryStarted', "Discovery #{0} started ({1}).", attempt.id, trigger));
 		try {
-			const tunnels = await discover();
+			const tunnels = await discover(event => this._discoveryDiagnostics.record(`discovery:${attempt.id}`, event));
 			attempt.finishedAt = Date.now();
 			attempt.result = 'succeeded';
 			if (attempt.id > this._lastSuccessfulDiscovery) {
@@ -120,7 +103,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		} catch (error) {
 			attempt.finishedAt = Date.now();
 			attempt.result = 'failed';
-			attempt.error = discoveryFailureDescription(error);
+			attempt.error = formatConnectionDiagnosticError(getConnectionDiagnosticError(error));
 			this._record(localize('diagnostics.discoveryFailed', "Discovery #{0} failed after {1} ms. {2}", attempt.id, attempt.finishedAt - attempt.startedAt, attempt.error));
 			throw error;
 		}
@@ -240,7 +223,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		}
 	}
 
-	getSnapshot(): IConnectionDiagnosticsSnapshot {
+	async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> {
 		const capturedAt = new Date().toISOString();
 		const sections: IConnectionDiagnosticsSection[] = [];
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
@@ -250,6 +233,11 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		const visibility = this._tunnelService.getTunnelVisibility();
 		const configured = new Map(this._remoteService.configuredEntries.map(entry => [normalizeRemoteAgentHostAddress(getEntryAddress(entry)), entry]));
 		const connections = new Map(this._remoteService.connections.map(connection => [normalizeRemoteAgentHostAddress(connection.address), connection]));
+		const connectionDiagnostics = this._remoteService.getConnectionDiagnostics();
+		const lastStages = new Map<string, IRemoteConnectionDiagnosticEvent>();
+		for (const event of connectionDiagnostics) {
+			lastStages.set(normalizeRemoteAgentHostAddress(event.address), event);
+		}
 		const discovered = new Map(this._discoveredTunnels.map(tunnel => [`${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`, tunnel]));
 		const cachedByAddress = new Map(cached.map(tunnel => [`${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`, tunnel]));
 		const addresses = new Set([...discovered.keys(), ...cachedByAddress.keys(), ...configured.keys(), ...connections.keys()]);
@@ -296,6 +284,16 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			}
 			if (connection?.clientId) {
 				entries.push({ label: localize('diagnostics.clientId', "Protocol client ID"), value: connection.clientId });
+			}
+			const stage = lastStages.get(address);
+			if (stage) {
+				entries.push(
+					{ label: localize('diagnostics.lastStage', "Last observed connection stage"), value: `${stage.phase}: ${stage.outcome}` },
+					{ label: localize('diagnostics.stageTime', "Stage observed at"), value: new Date(stage.timestamp).toISOString() },
+				);
+				if (stage.error) {
+					entries.push({ label: localize('diagnostics.stageError', "Stage error"), value: formatConnectionDiagnosticError(stage.error) });
+				}
 			}
 			if (connection?.status.kind === 'disconnected') {
 				entries.push({ label: localize('diagnostics.disconnectReason', "Disconnect reason"), value: connection.status.reason });
@@ -359,9 +357,25 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		sections.push(...hostSections, {
 			title: localize('diagnostics.activity', "Recent activity logs"),
 			collapsed: true,
-			description: localize('diagnostics.activityScope', "Up to 100 local events since {0}. Earlier history and transport-level error details are not captured. Host names and addresses are included; review before sharing.", new Date(this._startedAt).toISOString()),
+			description: localize('diagnostics.activityScope', "Up to 100 local events since {0}. Earlier history is not captured. Host names and addresses are included; review before sharing.", new Date(this._startedAt).toISOString()),
 			entries: this._activity.map(event => ({ label: new Date(event.time).toISOString(), value: event.detail })),
-		}, clientSection);
+		}, {
+			title: localize('diagnostics.phases', "Connection and discovery stages"),
+			collapsed: true,
+			description: localize('diagnostics.phaseScope', "Up to 200 connection and 200 discovery events from this window. A start without a completion may still be pending, or its completion may not have been captured. Error descriptions are redacted and bounded. These are client observations, not server logs."),
+			entries: [...connectionDiagnostics, ...this._discoveryDiagnostics.getEvents()]
+				.sort((a, b) => a.timestamp - b.timestamp)
+				.map(event => ({
+					label: `${new Date(event.timestamp).toISOString()} ${safeAddress(event.address)}`,
+					value: [
+						`${event.phase}: ${event.outcome} (operation ${event.operationId})`,
+						event.attemptId ? `attempt=${event.attemptId}` : undefined,
+						event.durationMs === undefined ? undefined : `${event.durationMs} ms`,
+						event.detail,
+						event.error ? formatConnectionDiagnosticError(event.error) : undefined,
+					].filter(value => value !== undefined).join('; '),
+				})),
+		}, await collectConnectionLogs(this._fileService, this._environmentService.logFile), clientSection);
 		const text = [
 			localize('diagnostics.title', "Connection diagnostics"),
 			...sections.flatMap(section => ['', section.title, ...(section.description ? [section.description] : []), ...section.entries.map(entry => `${entry.label}: ${entry.value}`)]),
