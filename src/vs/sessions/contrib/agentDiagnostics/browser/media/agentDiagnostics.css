@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-diagnostics-editor {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+}
+
+.agent-diagnostics-tabs {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border);
+}
+
+.agent-diagnostics-tabs .agent-diagnostics-tab.monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	color: var(--vscode-tab-inactiveForeground);
+	background: transparent;
+	border: 0;
+	border-bottom: var(--vscode-strokeThickness) solid transparent;
+	border-radius: 0;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.agent-diagnostics-tabs .agent-diagnostics-tab.monaco-button:hover {
+	color: var(--vscode-tab-activeForeground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-diagnostics-tabs .agent-diagnostics-tab.monaco-button.selected {
+	color: var(--vscode-tab-activeForeground);
+	border-bottom-color: var(--vscode-focusBorder);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-tabs .agent-diagnostics-tab.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-diagnostics-content,
+.agent-diagnostics-panel {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+.agent-diagnostics-panel[hidden] {
+	display: none;
+}
+
+.agent-diagnostics-empty-state {
+	max-width: 480px;
+	margin: var(--vscode-spacing-size400) auto;
+	padding: var(--vscode-spacing-size160);
+	text-align: center;
+}
+
+.agent-diagnostics-heading {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-description {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+}

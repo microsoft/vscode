@@ -673,6 +673,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/agentDiagnostics",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/agentFeedback",
 			"project": "vscode-sessions"
 		},
