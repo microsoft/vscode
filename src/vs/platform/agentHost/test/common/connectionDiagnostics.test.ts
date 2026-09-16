@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConnectionDiagnosticBuffer, formatConnectionDiagnosticError, getConnectionDiagnosticError, IConnectionDiagnosticEvent, sanitizeConnectionDiagnosticText, traceConnectionOperation } from '../../common/connectionDiagnostics.js';
 
@@ -77,6 +78,30 @@ suite('Connection diagnostic evidence', () => {
 			{ phase: 'relay.websocket', outcome: 'started', error: undefined },
 			{ phase: 'relay.websocket', outcome: 'failed', error: 'WebSocket handshake failed' },
 		]);
+	});
+
+	test('observer exceptions are reported without replacing operation outcomes', async () => {
+		const previous = errorHandler.getUnexpectedErrorHandler();
+		const reported: Error[] = [];
+		const observerError = new Error('observer failed');
+		const operationError = new Error('operation failed');
+		const events: string[] = [];
+		setUnexpectedErrorHandler(error => reported.push(error));
+		try {
+			const observer = (event: IConnectionDiagnosticEvent) => {
+				events.push(event.outcome);
+				throw observerError;
+			};
+			const value = await traceConnectionOperation(observer, 'success', async () => 42);
+			await assert.rejects(traceConnectionOperation(observer, 'failure', async () => { throw operationError; }), error => error === operationError);
+			assert.deepStrictEqual({ value, events, reported }, {
+				value: 42,
+				events: ['started', 'succeeded', 'started', 'failed'],
+				reported: [observerError, observerError, observerError, observerError],
+			});
+		} finally {
+			setUnexpectedErrorHandler(previous);
+		}
 	});
 
 	test('bounds event retention without changing chronological order', () => {

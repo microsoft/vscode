@@ -157,6 +157,9 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		if (this.active) {
 			return this.active.report.copy();
 		}
+		if (this.isWebPlatform && !this.accessibleView) {
+			return this.show();
+		}
 		try {
 			await this.clipboardService.writeText((this.accessibleView?.snapshot ?? await this.diagnosticsService.getSnapshot()).text);
 			status(localize('connectionDiagnostics.copied', "Diagnostics copied."));
@@ -188,6 +191,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 				: localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh reads current local state without discovery, authentication, or connection changes."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
 			localize('connectionDiagnostics.help.logs', "Snapshots include recorded connection stages and a bounded excerpt of the local Window log. Copy and Download use the captured text without collecting new logs. Known credentials are redacted; review messages before sharing."),
+			...(this.isWebPlatform ? [localize('connectionDiagnostics.help.webCopyCommand', "When no snapshot is open, Copy Connection Diagnostics opens this report first. Activate Copy Diagnostics after it opens to allow browser clipboard access.")] : []),
 			localize('connectionDiagnostics.help.close', "Escape or Close dismisses diagnostics. Closing this accessible view returns to the diagnostics snapshot."),
 		].join('\n\n');
 		const provider = new AccessibleContentProvider(

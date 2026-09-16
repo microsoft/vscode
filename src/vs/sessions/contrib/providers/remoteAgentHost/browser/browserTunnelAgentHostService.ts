@@ -265,8 +265,11 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 			return [];
 		}
 
+		const silent = options?.silent ?? false;
 		const auth = await traceConnectionOperation(options?.onDiagnostic, 'discovery.authentication', async () => {
-			const auth = await this._getToken(options?.silent ?? false, options?.onDiagnostic);
+			const auth = options?.authProvider
+				? await this._getTokenForProvider(options.authProvider, silent, options.onDiagnostic)
+				: await this._getToken(silent, options?.onDiagnostic);
 			if (!auth) {
 				throw new Error(localize('browserTunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 			}
@@ -421,8 +424,8 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 
 	readonly canDeleteTunnels = true;
 
-	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
-		const auth = await this._getToken(false);
+	async deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+		const auth = authProvider ? await this._getTokenForProvider(authProvider, false) : await this._getToken(false);
 		if (!auth) {
 			throw new Error('No authentication available');
 		}

@@ -35,6 +35,8 @@ export class NonReconnectableTransportError extends Error {
 export interface IProtocolTransport extends IDisposable {
 	/** Last observed close metadata, when the underlying transport exposes it. */
 	readonly closeDetails?: { readonly code?: number; readonly reason?: string; readonly wasClean?: boolean };
+	/** Diagnostic metadata can arrive after onClose has already reported a transport failure. */
+	readonly onDidCloseDetails?: Event<NonNullable<IProtocolTransport['closeDetails']>>;
 	/** Physical transport accepted by the agent host. */
 	readonly transportKind?: AgentHostTransportKind;
 

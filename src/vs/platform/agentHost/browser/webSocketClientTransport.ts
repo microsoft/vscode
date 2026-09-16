@@ -41,6 +41,8 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 	/** Guards against firing onClose more than once. */
 	private _closeFired = false;
 	closeDetails: IProtocolTransport['closeDetails'];
+	private readonly _onDidCloseDetails = this._register(new Emitter<NonNullable<IProtocolTransport['closeDetails']>>());
+	readonly onDidCloseDetails = this._onDidCloseDetails.event;
 
 	get isOpen(): boolean {
 		return this._ws?.readyState === WebSocket.OPEN;
@@ -81,7 +83,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 				url += `${separator}${connectionTokenQueryName}=${encodeURIComponent(this._connectionToken)}`;
 			}
 
-			const ws = new WebSocket(url);
+			const ws = this.createWebSocket(url);
 			this._ws = ws;
 
 			const onOpen = () => {
@@ -156,6 +158,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 
 			ws.addEventListener('close', event => {
 				this.closeDetails = { code: event.code, reason: event.reason, wasClean: event.wasClean };
+				this._onDidCloseDetails.fire(this.closeDetails);
 				if (!this._closeFired) {
 					this._closeFired = true;
 					this._onClose.fire();
@@ -163,14 +166,17 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 			});
 
 			ws.addEventListener('error', () => {
-				// Error always precedes close - closing is handled in the close handler.
-				// Only fire if close hasn't already been fired (e.g. from send failure).
+				// Reconnect immediately; the later close event supplies diagnostic metadata only.
 				if (!this._closeFired) {
 					this._closeFired = true;
 					this._onClose.fire();
 				}
 			});
 		});
+	}
+
+	protected createWebSocket(url: string): WebSocket {
+		return new WebSocket(url);
 	}
 
 	/**

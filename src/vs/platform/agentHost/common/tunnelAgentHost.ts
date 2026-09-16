@@ -457,6 +457,7 @@ export interface ITunnelVisibility {
 }
 
 export interface ITunnelDiscoveryOptions {
+	readonly authProvider?: 'github' | 'microsoft';
 	readonly silent?: boolean;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 }
@@ -480,6 +481,7 @@ export interface ITunnelAgentHostService {
 	 * disabled. Rejects when discovery cannot complete, including when
 	 * authentication is unavailable. {@link options.silent} suppresses
 	 * authentication prompts but does not convert failures to empty results.
+	 * An explicit auth provider takes precedence over cached provider selection.
 	 */
 	listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]>;
 
@@ -507,7 +509,7 @@ export interface ITunnelAgentHostService {
 	readonly canDeleteTunnels: boolean;
 
 	/** Delete a dev tunnel and remove it from the local tunnel cache. */
-	deleteTunnel(tunnel: ITunnelInfo): Promise<void>;
+	deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void>;
 
 	/**
 	 * Disconnect from a tunnel agent host.

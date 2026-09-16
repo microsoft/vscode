@@ -7,7 +7,7 @@ import { raceTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
+import { emitConnectionDiagnostic, getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
 import {
 	createTunnelGatewaySelectionRejectedError,
 	parseTunnelGatewayInventory,
@@ -448,7 +448,7 @@ export class TunnelAgentHostConnector extends Disposable {
 			relayClient,
 			data => this._onDidRelayMessage.fire({ connectionId, data }),
 			event => {
-				onDiagnostic?.({
+				emitConnectionDiagnostic(onDiagnostic, {
 					operationId: connectionId, phase: 'relay.closed', timestamp: Date.now(), outcome: 'info',
 					detail: `code=${event.code ?? 'unavailable'}; reason=${sanitizeConnectionDiagnosticText(event.reason ?? '(empty)')}`,
 					error: event.error ? getConnectionDiagnosticError(event.error) : undefined,

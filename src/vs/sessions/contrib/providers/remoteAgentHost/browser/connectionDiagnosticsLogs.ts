@@ -14,7 +14,7 @@ const MAX_LOG_LINES = 200;
 
 /** Only lifecycle messages are exported; protocol payloads, auth dumps and multiline continuations are excluded. */
 export function selectConnectionLogLines(text: string): readonly string[] {
-	const lifecycle = /^(?:\d{4}-\d{2}-\d{2}[ T][\d:.Z+-]+\s+)?(?:\[(?:trace|debug|info|warn|error|critical)\]\s+)?\[(?:RemoteAgentHost|RemoteAgentHostProtocol|BrowserTunnelAgentHost|WebTunnelAgentHost|TunnelAgentHost)\]\s+(?:Connecting|Connected|Reconnecting|Reconnected|Re-establishing|Re-established|Connection closed|Transport lost|Reconnect attempt failed|Automatic reconnect|Scheduling reconnect|Stopped reconnecting|Not reconnecting|Liveness:|Failed to (?:list|enumerate|create a connection|connect|get)|Discovery (?:complete|failed)|Silent status check|Tunnel transport closed|Found \d+ tunnel)/;
+	const lifecycle = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \[(?:trace|debug|info|warning|error|critical)\] \[(?:RemoteAgentHost|RemoteAgentHostProtocol|BrowserTunnelAgentHost|WebTunnelAgentHost|TunnelAgentHost)\] (?:Connecting|Connected|Reconnecting|Reconnected|Re-establishing|Re-established|Connection closed|Transport lost|Reconnect attempt failed|Automatic reconnect|Scheduling reconnect|Stopped reconnecting|Not reconnecting|Liveness:|Failed to (?:list|enumerate|create a connection|connect|get)|Discovery (?:complete|failed)|Silent status check|Tunnel transport closed|Found \d+ tunnel)/;
 	return text.split(/\r?\n/)
 		.filter(line => lifecycle.test(line))
 		.slice(-MAX_LOG_LINES)

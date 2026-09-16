@@ -31,6 +31,8 @@ class EstablishedTransportStore extends DisposableStore {
  * Establishes an inner transport on demand and forwards its protocol traffic.
  */
 export class ReconnectingTransport extends Disposable implements IClientTransport {
+	private readonly _onDidCloseDetails = this._register(new Emitter<NonNullable<IProtocolTransport['closeDetails']>>());
+	readonly onDidCloseDetails = this._onDidCloseDetails.event;
 	get closeDetails(): IProtocolTransport['closeDetails'] {
 		return this._establishedTransport.value?.transport.closeDetails;
 	}
@@ -89,6 +91,9 @@ export class ReconnectingTransport extends Disposable implements IClientTranspor
 		try {
 			transportStore.add(establishedTransport.transport.onMessage(message => this._onMessage.fire(message)));
 			transportStore.add(establishedTransport.transport.onClose(() => this._onClose.fire()));
+			if (establishedTransport.transport.onDidCloseDetails) {
+				transportStore.add(establishedTransport.transport.onDidCloseDetails(details => this._onDidCloseDetails.fire(details)));
+			}
 			this._establishedTransport.value = transportStore;
 		} catch (err) {
 			transportStore.dispose();

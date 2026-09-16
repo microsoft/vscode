@@ -235,8 +235,10 @@ export interface IRemoteAgentHostDevContainerConnection {
 	readonly type: RemoteAgentHostEntryType.DevContainer;
 	/** Stable address for the container connection. */
 	readonly address: string;
-	/** Local source folder containing the Dev Container configuration. */
+	/** Source folder on the parent host containing the Dev Container configuration. */
 	readonly hostPath: string;
+	/** VS Code SSH or tunnel authority of the parent host, absent for local containers. */
+	readonly hostAuthority?: string;
 }
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;

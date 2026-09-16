@@ -205,7 +205,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 		const silent = options?.silent ?? false;
 		const auth = await traceConnectionOperation(options?.onDiagnostic, 'discovery.authentication', async () => {
-			const auth = await this._getToken(silent);
+			const auth = options?.authProvider
+				? await this._getTokenForProvider(options.authProvider, silent)
+				: await this._getToken(silent);
 			if (!auth) {
 				if (silent) {
 					this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
@@ -477,8 +479,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	readonly canDeleteTunnels = true;
 
-	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
-		const auth = await this._getToken(false);
+	async deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+		const auth = authProvider ? await this._getTokenForProvider(authProvider, false) : await this._getToken(false);
 		if (!auth) {
 			throw new Error('No authentication available');
 		}

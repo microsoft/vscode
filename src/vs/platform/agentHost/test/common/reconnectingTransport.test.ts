@@ -21,6 +21,8 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
+	readonly closeDetailsEmitter = this._register(new Emitter<NonNullable<IProtocolTransport['closeDetails']>>());
+	readonly onDidCloseDetails = this.closeDetailsEmitter.event;
 
 	readonly sentMessages: TransportMessage[] = [];
 	disposeCount = 0;
@@ -70,18 +72,22 @@ suite('ReconnectingTransport', () => {
 		));
 		const received: ProtocolMessage[] = [];
 		let closeCount = 0;
+		const details: NonNullable<IProtocolTransport['closeDetails']>[] = [];
 		disposables.add(transport.onMessage(message => received.push(message)));
 		disposables.add(transport.onClose(() => closeCount++));
+		disposables.add(transport.onDidCloseDetails(event => details.push(event)));
 
 		await transport.connect();
 		transport.send({ jsonrpc: '2.0', method: 'outbound', id: 2 });
 		innerTransport.fireMessage({ jsonrpc: '2.0', id: 1, result: {} });
 		innerTransport.fireClose();
+		innerTransport.closeDetailsEmitter.fire({ code: 4001, reason: 'closed' });
 
-		assert.deepStrictEqual({ received, sentMessages: innerTransport.sentMessages, closeCount }, {
+		assert.deepStrictEqual({ received, sentMessages: innerTransport.sentMessages, closeCount, details }, {
 			received: [{ jsonrpc: '2.0', id: 1, result: {} }],
 			sentMessages: [{ jsonrpc: '2.0', method: 'outbound', id: 2 }],
 			closeCount: 1,
+			details: [{ code: 4001, reason: 'closed' }],
 		});
 	});
 

@@ -457,25 +457,26 @@ suite('ConnectionDiagnosticsService', () => {
 
 	test('snapshot captures Window logs and keeps that excerpt stable until refreshed', async () => {
 		const { service, files, logFile } = createService();
-		await files.writeFile(logFile, VSBuffer.fromString('[RemoteAgentHost] Connected to test-host\n[Other] private payload'));
+		const prefix = '2026-09-16 12:00:00.000 [info] ';
+		await files.writeFile(logFile, VSBuffer.fromString(`${prefix}[RemoteAgentHost] Connected to test-host\n[Other] private payload`));
 		const snapshot = await service.getSnapshot();
 		const section = snapshot.sections.at(-2)!;
-		await files.writeFile(logFile, VSBuffer.fromString('[RemoteAgentHost] Reconnecting to test-host'));
+		await files.writeFile(logFile, VSBuffer.fromString(`${prefix}[RemoteAgentHost] Reconnecting to test-host`));
 		const refreshed = await service.getSnapshot();
 		assert.deepStrictEqual({
 			title: section.title,
 			collapsed: section.collapsed,
 			messages: values(snapshot, section.title).Messages,
-			copied: snapshot.text.includes('Messages: [RemoteAgentHost] Connected to test-host'),
+			copied: snapshot.text.includes(`Messages: ${prefix}[RemoteAgentHost] Connected to test-host`),
 			excludesPayload: !snapshot.text.includes('private payload'),
 			refreshed: values(refreshed, section.title).Messages,
 		}, {
 			title: 'Connection-related Window log excerpt',
 			collapsed: true,
-			messages: '[RemoteAgentHost] Connected to test-host',
+			messages: `${prefix}[RemoteAgentHost] Connected to test-host`,
 			copied: true,
 			excludesPayload: true,
-			refreshed: '[RemoteAgentHost] Reconnecting to test-host',
+			refreshed: `${prefix}[RemoteAgentHost] Reconnecting to test-host`,
 		});
 	});
 

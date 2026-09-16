@@ -6,7 +6,7 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, normalize } from '../../../../../base/common/path.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
+import { extUri, IExtUri } from '../../../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, ResourceLabelTemplateFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
@@ -23,6 +23,8 @@ export class MockLabelService implements ILabelService {
 	private formatters: (ResourceLabelFormatter | ResourceLabelTemplateFormatter)[] = [];
 	private readonly _onDidChangeFormatters = new Emitter<IFormatterChangeEvent>();
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
+
+	constructor(private readonly uriExt: IExtUri = extUri) { }
 
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		return this.registerFormatter(formatter);
@@ -103,7 +105,7 @@ export class MockLabelService implements ILabelService {
 					return escapeRegExpCharacters(segment);
 				}).join('/');
 				const isRootHome = homePath === '' || homePath === '/';
-				const templateMatch = new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`).exec(resource.path);
+				const templateMatch = new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`, this.uriExt.ignorePathCasing(formatter.home) ? 'i' : '').exec(resource.path);
 				if (!templateMatch) {
 					continue;
 				}
@@ -113,7 +115,7 @@ export class MockLabelService implements ILabelService {
 					candidate = { home, formatting };
 				}
 			} else if (formatter.scheme === resource.scheme && (!formatter.authority || formatter.authority === resource.authority) &&
-				isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				this.uriExt.isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
 				candidate = {
 					home: resource.with({ path: formatter.home, query: null, fragment: null }),
 					formatting: formatter.formatting,

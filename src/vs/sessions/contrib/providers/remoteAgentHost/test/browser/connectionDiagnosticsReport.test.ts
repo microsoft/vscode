@@ -405,6 +405,28 @@ suite('ConnectionDiagnosticsReport', () => {
 		});
 	});
 
+	test('web Copy without captured evidence opens the report and waits for a fresh copy gesture', async () => {
+		const copied: string[] = [];
+		const { service, clipboard } = createReport(async text => { copied.push(text); });
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const pending = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		service.getSnapshot = () => pending.p;
+		const contribution = createContribution(service, clipboard, () => container);
+		const copying = contribution.copy();
+		assert.deepStrictEqual(copied, []);
+		await pending.complete(snapshot);
+		assert.deepStrictEqual(copied, []);
+		container.querySelector<HTMLButtonElement>('button[aria-label="Copy Diagnostics"]')!.click();
+		assert.deepStrictEqual(copied, [snapshot.text]);
+		const provider = store.add(contribution.getAccessibleProvider(AccessibleViewType.View)!);
+		await copying;
+		const copyFromView = contribution.copy();
+		assert.deepStrictEqual(copied, [snapshot.text, snapshot.text]);
+		await copyFromView;
+		provider.dispose();
+	});
+
 	test('clipboard failure remains visible without modifying the snapshot', async () => {
 		const { container, report } = createReport(async () => { throw new Error('clipboard denied'); });
 		await report.copy();
@@ -715,7 +737,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			const { service, clipboard, update } = createReport(async text => { copied.push(text); });
 			const container = dom.append(mainWindow.document.body, dom.$('div'));
 			store.add(toDisposable(() => container.remove()));
-			const contribution = createContribution(service, clipboard, () => container);
+			const contribution = createContribution(service, clipboard, () => container, false, false);
 			const closed = contribution.show();
 			await Promise.resolve();
 			const provider = store.add(contribution.getAccessibleProvider(type)!);
@@ -737,7 +759,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		const { service, clipboard, update } = createReport(async text => { copied.push(text); });
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
-		const contribution = createContribution(service, clipboard, () => container);
+		const contribution = createContribution(service, clipboard, () => container, false, false);
 		const closed = contribution.show();
 		await Promise.resolve();
 		const previous = store.add(contribution.getAccessibleProvider(AccessibleViewType.Help)!);

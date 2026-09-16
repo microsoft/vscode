@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../base/common/uuid.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 
 export interface IConnectionDiagnosticEvent {
 	readonly operationId: string;
@@ -26,6 +27,14 @@ export interface IConnectionDiagnosticError {
 }
 
 export type ConnectionDiagnosticObserver = (event: IConnectionDiagnosticEvent) => void;
+
+export function emitConnectionDiagnostic(observer: ConnectionDiagnosticObserver | undefined, event: IConnectionDiagnosticEvent): void {
+	try {
+		observer?.(event);
+	} catch (error) {
+		onUnexpectedError(error);
+	}
+}
 
 /** Best-effort redaction for connection errors, never protocol bodies or authentication objects. */
 export function sanitizeConnectionDiagnosticText(value: string, limit = 1024): string {
@@ -119,13 +128,13 @@ export async function traceConnectionOperation<T>(observer: ConnectionDiagnostic
 	}
 	const operationId = generateUuid();
 	const started = Date.now();
-	observer({ operationId, phase, timestamp: started, outcome: 'started' });
+	emitConnectionDiagnostic(observer, { operationId, phase, timestamp: started, outcome: 'started' });
 	try {
 		const result = await operation();
-		observer({ operationId, phase, timestamp: Date.now(), outcome: 'succeeded', durationMs: Date.now() - started });
+		emitConnectionDiagnostic(observer, { operationId, phase, timestamp: Date.now(), outcome: 'succeeded', durationMs: Date.now() - started });
 		return result;
 	} catch (error) {
-		observer({ operationId, phase, timestamp: Date.now(), outcome: 'failed', durationMs: Date.now() - started, error: getConnectionDiagnosticError(error) });
+		emitConnectionDiagnostic(observer, { operationId, phase, timestamp: Date.now(), outcome: 'failed', durationMs: Date.now() - started, error: getConnectionDiagnosticError(error) });
 		throw error;
 	}
 }
