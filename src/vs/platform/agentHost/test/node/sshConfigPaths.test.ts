@@ -8,7 +8,7 @@ import { promises as fsp } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { resolveSSHKnownHostsFiles } from '../../node/sshConfigPaths.js';
+import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from '../../node/sshConfigPaths.js';
 
 suite('SSH Config Paths', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,13 +56,15 @@ suite('SSH Config Paths', () => {
 			['/keys/known_hosts relative', '/keys/known_hosts relative other'],
 			['/keys/known_hosts relative', 'relative other'],
 		]) {
-			await assert.rejects(resolveSSHKnownHostsFiles('userknownhostsfile /keys/known_hosts relative other', async path => files.includes(path)), /ambiguous ssh -G output/);
+			await assert.rejects(resolveSSHKnownHostsFiles('userknownhostsfile /keys/known_hosts relative other', async path => files.includes(path)),
+				error => error instanceof SSHKnownHostsResolutionError && /ambiguous ssh -G output/.test(error.message));
 		}
 	});
 
 	test('propagates filesystem errors instead of treating unreadable paths as missing', async () => {
 		const error = new Error('Permission denied');
-		await assert.rejects(resolveSSHKnownHostsFiles('userknownhostsfile /keys/known_hosts relative', async () => { throw error; }), error);
+		await assert.rejects(resolveSSHKnownHostsFiles('userknownhostsfile /keys/known_hosts relative', async () => { throw error; }),
+			failure => failure instanceof SSHKnownHostsResolutionError && failure.cause === error && failure.message.includes(error.message));
 	});
 
 	test('recovers real files without treating directories as known-hosts files', async () => {

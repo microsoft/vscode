@@ -74,7 +74,7 @@ import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResul
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
-import { resolveSSHKnownHostsFiles } from './sshConfigPaths.js';
+import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -1393,14 +1393,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	): Promise<SSHClient> {
 		const originalHost = config.sshConfigHost ?? config.host;
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
-		// Proxy and identity settings only exist in the user's SSH config, which
-		// OpenSSH alone can expand. Reading it is best effort: like the
-		// `known_hosts` lookup, a failure falls back to the caller's settings
-		// instead of failing a connection that may well work without them.
+		// Command failures are best effort; failures resolving configured trust files must remain fatal.
 		let resolved: ISSHResolvedConfig | undefined;
 		try {
 			resolved = await this.resolveSSHConfig(originalHost);
 		} catch (err) {
+			if (err instanceof SSHKnownHostsResolutionError) {
+				throw err;
+			}
 			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for ${originalHost}: ${err}`);
 		}
 		config = {
@@ -1858,15 +1858,17 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 *
 	 * Resolution deliberately goes through `ssh -G` rather than assuming
 	 * `~/.ssh/known_hosts`, so a user who has redirected `UserKnownHostsFile`
-	 * gets the files they actually configured. A failure here is not fatal: we
-	 * fall back to no entries, which downgrades to a trust prompt rather than
-	 * silently accepting an unverified key.
+	 * gets the files they actually configured. Command failures use the default
+	 * known-hosts file; failures resolving configured trust files remain fatal.
 	 */
 	protected async _readKnownHostsEntries(host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined }> {
 		let resolved: ISSHResolvedConfig | undefined;
 		try {
 			resolved = await this.resolveSSHConfig(host);
 		} catch (err) {
+			if (err instanceof SSHKnownHostsResolutionError) {
+				throw err;
+			}
 			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for known_hosts lookup of ${host}: ${err}`);
 		}
 

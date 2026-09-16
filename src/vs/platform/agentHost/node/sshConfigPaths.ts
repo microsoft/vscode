@@ -5,8 +5,12 @@
 
 import { promises as fsp } from 'fs';
 import { homedir } from 'os';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { localize } from '../../../nls.js';
 import { tokenizeSSHPathList } from '../common/sshConfigParsing.js';
+
+/** A failure to resolve configured trust files must not fall back to default known-hosts settings. */
+export class SSHKnownHostsResolutionError extends Error { }
 
 async function isKnownHostsFile(path: string): Promise<boolean> {
 	try {
@@ -61,9 +65,13 @@ export async function resolveSSHKnownHostsFiles(stdout: string, isFile: (path: s
 		return paths;
 	};
 
-	const [userKnownHostsFiles, globalKnownHostsFiles] = await Promise.all([
-		resolvePaths(lists.get('userknownhostsfile') ?? ''),
-		resolvePaths(lists.get('globalknownhostsfile') ?? ''),
-	]);
-	return { userKnownHostsFiles, globalKnownHostsFiles };
+	try {
+		const [userKnownHostsFiles, globalKnownHostsFiles] = await Promise.all([
+			resolvePaths(lists.get('userknownhostsfile') ?? ''),
+			resolvePaths(lists.get('globalknownhostsfile') ?? ''),
+		]);
+		return { userKnownHostsFiles, globalKnownHostsFiles };
+	} catch (error) {
+		throw new SSHKnownHostsResolutionError(localize('sshKnownHostsResolutionFailed', "Failed to resolve SSH known-hosts files: {0}", toErrorMessage(error)), { cause: error });
+	}
 }
