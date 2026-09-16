@@ -355,15 +355,20 @@ class ShareWorkbenchContribution extends Disposable {
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const dialogService = accessor.get(IDialogService);
-				const commandService = accessor.get(ICommandService);
+				const clipboardService = accessor.get(IClipboardService);
 				const codeEditorService = accessor.get(ICodeEditorService);
 
-				// Capture selection before dialog focus can clear it.
+				// Capture selection text before dialog focus changes.
 				const editor = codeEditorService.getActiveCodeEditor();
+				const model = editor?.getModel();
 				const preserved = editor?.getSelection() ?? undefined;
-				if (editor && preserved && !preserved.isEmpty()) {
-					editor.setSelection(preserved);
-				}
+				const selectedText = (model && preserved && !preserved.isEmpty())
+					? model.getValueInRange(preserved)
+					: '';
+				const lineCount = preserved && !preserved.isEmpty()
+					? preserved.endLineNumber - preserved.startLineNumber + 1
+					: 0;
+				const fileLabel = model?.uri.path.split('/').pop() || model?.uri.path || 'selection';
 
 				const markdown = new MarkdownString(undefined, { supportThemeIcons: true, isTrusted: true });
 				markdown.appendMarkdown(localize(
@@ -390,13 +395,72 @@ class ShareWorkbenchContribution extends Disposable {
 					]
 				});
 
-				if (result.result === 'gist') {
-					const active = codeEditorService.getActiveCodeEditor();
-					if (active && preserved && !preserved.isEmpty()) {
-						active.setSelection(preserved);
-						active.focus();
-					}
-					await commandService.executeCommand(SHARE_AS_PRIVATE_GIST_COMMAND_ID);
+				if (result.result !== 'gist') {
+					return;
+				}
+
+				if (!selectedText.trim()) {
+					await dialogService.info(
+						localize('shareAsPrivateGist.noSelectionTitle', "Share as Private Gist"),
+						localize('shareAsPrivateGist.noSelection', "Select a block of text in the editor, then choose Share as Private Gist.")
+					);
+					return;
+				}
+
+				const previewLimit = 280;
+				const preview = selectedText.length > previewLimit
+					? `${selectedText.slice(0, previewLimit)}\n…`
+					: selectedText;
+				const previewMarkdown = new MarkdownString(undefined, { supportThemeIcons: false });
+				previewMarkdown.appendCodeblock('', preview);
+
+				const gistResult = await dialogService.prompt({
+					type: Severity.Info,
+					message: localize('shareAsPrivateGist.title', "Share as Private Gist"),
+					detail: localize(
+						'shareAsPrivateGist.detail',
+						"Prototype only — no gist will be created. {0} line(s) from '{1}' are ready to share privately.",
+						lineCount,
+						fileLabel
+					),
+					custom: {
+						icon: Codicon.gistSecret,
+						markdownDetails: [{
+							markdown: previewMarkdown,
+							classes: ['share-dialog-input-text', 'share-private-gist-preview']
+						}]
+					},
+					cancelButton: localize('shareAsPrivateGist.cancel', "Cancel"),
+					buttons: [
+						{
+							label: localize('shareAsPrivateGist.confirm', "Share Private Gist"),
+							run: () => 'shared' as const
+						},
+						{
+							label: localize('shareAsPrivateGist.copy', "Copy Selection"),
+							run: async () => {
+								await clipboardService.writeText(selectedText);
+								return 'copied' as const;
+							}
+						}
+					]
+				});
+
+				if (gistResult.result === 'shared') {
+					await dialogService.info(
+						localize('shareAsPrivateGist.doneTitle', "Private Gist Ready"),
+						localize(
+							'shareAsPrivateGist.done',
+							"UI prototype complete. Selected text from '{0}' would be shared as a private gist ({1} characters).",
+							fileLabel,
+							selectedText.length
+						)
+					);
+				} else if (gistResult.result === 'copied') {
+					await dialogService.info(
+						localize('shareAsPrivateGist.copiedTitle', "Selection Copied"),
+						localize('shareAsPrivateGist.copied', "Copied the selected text to the clipboard.")
+					);
 				}
 			}
 		}));
