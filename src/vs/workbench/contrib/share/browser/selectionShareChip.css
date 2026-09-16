@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.selection-share-chip {
+.monaco-editor .selection-share-chip {
 	display: none;
 	align-items: center;
 	gap: 4px;
@@ -11,38 +11,38 @@
 	margin-left: 4px;
 	padding: 2px 8px 2px 6px;
 	height: 22px;
-	border-radius: 11px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
+	border-radius: 999px;
+	border: 1px solid var(--vscode-button-border, var(--vscode-widget-border, transparent));
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	cursor: pointer;
 	user-select: none;
 	font-size: 12px;
 	line-height: 18px;
 	white-space: nowrap;
-	z-index: 10;
+	pointer-events: auto;
 }
 
-.selection-share-chip.visible {
-	display: inline-flex;
+.monaco-editor .selection-share-chip.visible {
+	display: inline-flex !important;
 }
 
-.selection-share-chip:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
+.monaco-editor .selection-share-chip:hover {
+	background-color: var(--vscode-button-hoverBackground);
 }
 
-.selection-share-chip:focus-visible {
+.monaco-editor .selection-share-chip:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
 
-.selection-share-chip-icon {
+.monaco-editor .selection-share-chip-icon {
 	font-size: 14px;
 	display: inline-flex;
 	align-items: center;
 }
 
-.selection-share-chip-label {
-	font-weight: 500;
+.monaco-editor .selection-share-chip-label {
+	font-weight: 600;
 }

@@ -5,6 +5,7 @@
 
 import './share.css';
 import './selectionShareChip.js';
+import { SELECTION_SHARE_CHIP_COMMAND_ID } from './selectionShareChip.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -31,6 +32,7 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -171,3 +173,95 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
+
+
+registerAction2(class ShareSelectionAsPrivateGistAction extends Action2 {
+	constructor() {
+		super({
+			id: SELECTION_SHARE_CHIP_COMMAND_ID,
+			title: localize2('shareSelectionAsPrivateGist', 'Share Selection as Private Gist'),
+			f1: true,
+			category: localize2('shareCategory', 'Share'),
+			icon: Codicon.gistSecret,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const dialogService = accessor.get(IDialogService);
+		const clipboardService = accessor.get(IClipboardService);
+		const editor = codeEditorService.getActiveCodeEditor();
+		if (!editor) {
+			return;
+		}
+		const model = editor.getModel();
+		const selection = editor.getSelection();
+		if (!model || !selection || selection.isEmpty()) {
+			await dialogService.info(
+				localize('shareSelectionAsPrivateGist.noSelectionTitle', "Share as Private Gist"),
+				localize('shareSelectionAsPrivateGist.noSelection', "Select a block of text in the editor, then use the Share chip.")
+			);
+			return;
+		}
+
+		const selectedText = model.getValueInRange(selection);
+		const lineCount = selection.endLineNumber - selection.startLineNumber + 1;
+		const fileLabel = model.uri.path.split('/').pop() || model.uri.path || 'selection';
+		const previewLimit = 280;
+		const preview = selectedText.length > previewLimit
+			? `${selectedText.slice(0, previewLimit)}\n…`
+			: selectedText;
+		const markdown = new MarkdownString(undefined, { supportThemeIcons: false });
+		markdown.appendCodeblock('', preview);
+
+		const result = await dialogService.prompt({
+			type: Severity.Info,
+			message: localize('shareSelectionAsPrivateGist.title', "Share as Private Gist"),
+			detail: localize(
+				'shareSelectionAsPrivateGist.detail',
+				"Prototype selection chip — no gist will be created. {0} line(s) from '{1}' are ready to share privately.",
+				lineCount,
+				fileLabel
+			),
+			custom: {
+				icon: Codicon.gistSecret,
+				markdownDetails: [{
+					markdown,
+					classes: ['share-dialog-input-text', 'share-private-gist-preview']
+				}]
+			},
+			cancelButton: localize('shareSelectionAsPrivateGist.cancel', "Cancel"),
+			buttons: [
+				{
+					label: localize('shareSelectionAsPrivateGist.confirm', "Share Private Gist"),
+					run: () => 'shared' as const
+				},
+				{
+					label: localize('shareSelectionAsPrivateGist.copy', "Copy Selection"),
+					run: async () => {
+						await clipboardService.writeText(selectedText);
+						return 'copied' as const;
+					}
+				}
+			]
+		});
+
+		if (result.result === 'shared') {
+			await dialogService.info(
+				localize('shareSelectionAsPrivateGist.doneTitle', "Private Gist Ready"),
+				localize(
+					'shareSelectionAsPrivateGist.done',
+					"Selection chip prototype complete. Selected text from '{0}' would be shared as a private gist ({1} characters).",
+					fileLabel,
+					selectedText.length
+				)
+			);
+		} else if (result.result === 'copied') {
+			await dialogService.info(
+				localize('shareSelectionAsPrivateGist.copiedTitle', "Selection Copied"),
+				localize('shareSelectionAsPrivateGist.copied', "Copied the selected text to the clipboard.")
+			);
+		}
+	}
+});
+
