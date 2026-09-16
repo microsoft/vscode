@@ -501,7 +501,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
-		if (!context || !context.sessions || context.sessions.length === 0) {
+		if (!context || context.rootSessions.length === 0) {
 			return;
 		}
 		const sessionsService = accessor.get(ISessionsService);
@@ -511,7 +511,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		accessor.get(INewSessionComposerService).notifyUserWorkspaceSelection();
 		await sessionsService.openNewSession();
 
-		const session = context.sessions[0];
+		const session = context.rootSessions[0];
 		const workspace = session.workspace.get();
 		const folderUri = workspace?.folders[0]?.root;
 		const providerId = session.providerId;

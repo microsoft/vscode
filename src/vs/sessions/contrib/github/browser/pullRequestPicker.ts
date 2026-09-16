@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/pullRequestPicker.css';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
+import type { IExtUri } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
 import { ISessionGitHubState, withMostRecentRelatedSessionPullRequest, withSessionGitHubState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
+import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, type ISessionFolder } from '../../../services/sessions/common/session.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../common/types.js';
+import './media/pullRequestPicker.css';
 
 export interface IPullRequestQuickPickItem extends IQuickPickItem {
 	readonly pullRequest: IGitHubPullRequestSummary;
@@ -26,6 +27,8 @@ export interface IExistingPullRequests {
 
 export interface IPullRequestSessionRepository {
 	readonly folderUri: URI;
+	/** Source repository URI, or the canonical folder URI while repository detection is pending. */
+	readonly repositoryUri: URI;
 	readonly owner: string;
 	readonly repo: string;
 }
@@ -33,32 +36,49 @@ export interface IPullRequestSessionRepository {
 export async function resolvePullRequestSessionRepository(
 	sectionSessions: readonly ISession[],
 ): Promise<IPullRequestSessionRepository | undefined> {
-	let folderUri: URI | undefined;
+	let localFolder: ISessionFolder | undefined;
 	for (const session of sectionSessions) {
 		const workspace = session.workspace.get();
-		for (const folder of workspace?.folders ?? []) {
-			if (folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-				folderUri ??= folder.root;
-				const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
-				if (gitHubInfo) {
-					return { folderUri: folder.root, owner: gitHubInfo.owner, repo: gitHubInfo.repo };
-				}
+		if (workspace === undefined || workspace.folders.length === 0) {
+			continue;
+		}
+		for (const folder of workspace.folders) {
+			if (folder.root.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+				continue;
 			}
+			localFolder ??= folder;
+			if (folder.gitRepository === undefined) {
+				continue;
+			}
+			const gitHubInfo = folder.gitRepository.gitHubInfo.get();
+			if (gitHubInfo === undefined) {
+				continue;
+			}
+			return {
+				folderUri: folder.root,
+				repositoryUri: folder.gitRepository.uri,
+				owner: gitHubInfo.owner,
+				repo: gitHubInfo.repo,
+			};
 		}
 	}
-	if (!folderUri) {
+	if (!localFolder) {
 		return undefined;
 	}
 	const identity = getFirstGitHubRepository(sectionSessions);
-	return identity ? { folderUri, owner: identity.owner, repo: identity.repo } : undefined;
+	return identity ? {
+		folderUri: localFolder.root,
+		repositoryUri: localFolder.gitRepository?.uri ?? localFolder.root,
+		owner: identity.owner,
+		repo: identity.repo,
+	} : undefined;
 }
 
-export function getExistingPullRequests(sessions: readonly ISession[], owner: string, repo: string, repositorySessions: readonly ISession[] = []): IExistingPullRequests {
+export function getExistingPullRequests(sessions: readonly ISession[], repository: IPullRequestSessionRepository, uriIdentity: IExtUri): IExistingPullRequests {
 	const numbers = new Set<number>();
 	const headRefs = new Set<string>();
-	const repositorySessionSet = new Set(repositorySessions);
-	const normalizedOwner = owner.toLowerCase();
-	const normalizedRepo = repo.toLowerCase();
+	const normalizedOwner = repository.owner.toLowerCase();
+	const normalizedRepo = repository.repo.toLowerCase();
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
 		for (const folder of workspace?.folders ?? []) {
@@ -68,7 +88,7 @@ export function getExistingPullRequests(sessions: readonly ISession[], owner: st
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
 			const matchesRepository = gitHubInfo
 				? gitHubInfo.owner.toLowerCase() === normalizedOwner && gitHubInfo.repo.toLowerCase() === normalizedRepo
-				: repositorySessionSet.has(session);
+				: uriIdentity.isEqual(folder.gitRepository?.uri ?? folder.root, repository.repositoryUri);
 			if (!matchesRepository) {
 				continue;
 			}
@@ -97,7 +117,10 @@ export function getPullRequestNumberFromCheckoutRef(ref: string): number | undef
 function getFirstGitHubRepository(sessions: readonly ISession[]): { readonly owner: string; readonly repo: string } | undefined {
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
-		for (const folder of workspace?.folders ?? []) {
+		if (workspace === undefined) {
+			continue;
+		}
+		for (const folder of workspace.folders) {
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
 			if (gitHubInfo) {
 				return { owner: gitHubInfo.owner, repo: gitHubInfo.repo };

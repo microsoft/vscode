@@ -487,7 +487,7 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('choosing a workspace section cancels older defaults before waiting for its composer', async () => {
+	test('choosing a workspace section uses its root and cancels older defaults before waiting for its composer', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
 		const opening = new DeferredPromise<IOpenNewSessionResult>();
@@ -496,6 +496,11 @@ suite('Sessions - Actions', () => {
 		assert.ok(workspace);
 		const folder = URI.file('/workspace-section');
 		workspace.folders.push({ root: folder, workingDirectory: folder, name: 'workspace-section', description: undefined });
+		const { session: descendant } = createTestSession('workspace-section-descendant');
+		const descendantWorkspace = descendant.workspace.get();
+		assert.ok(descendantWorkspace);
+		const descendantFolder = URI.file('/descendant-workspace');
+		descendantWorkspace.folders.push({ root: descendantFolder, workingDirectory: descendantFolder, name: 'descendant-workspace', description: undefined });
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 		instantiationService.stub(INewSessionComposerService, composerService);
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
@@ -514,7 +519,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ICommandService, new TestCommandService());
 		const command = CommandsRegistry.getCommand(NEW_SESSION_FOR_WORKSPACE_ACTION_ID);
 		assert.ok(command);
-		const request = command.handler(instantiationService, upcastPartial<ISessionSection>({ sessions: [session] }));
+		const request = command.handler(instantiationService, upcastPartial<ISessionSection>({ rootSessions: [session], sessions: [descendant, session] }));
 		const beforeOpening = { userSelections: composerService.userWorkspaceSelectionVersion.get(), selections: selections.length };
 		await opening.complete({ session: undefined, trustDeclined: false });
 		await request;

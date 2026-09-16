@@ -159,6 +159,9 @@ const SORT_FALLBACK_STEP_MS = 60_000;
 export interface ISessionSection {
 	readonly id: string;
 	readonly label: string;
+	/** Sessions directly under the section, excluding nested descendants. */
+	readonly rootSessions: readonly ISession[];
+	/** All full-session members, including nested descendants. */
 	readonly sessions: ISession[];
 }
 
@@ -1559,7 +1562,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.elementDisposables.add(autorun(reader => {
 			let hasGitHub = false;
 			let hasNonCloudWorkspace = false;
-			for (const session of element.sessions) {
+			for (const session of element.rootSessions) {
 				for (const folder of session.workspace.read(reader)?.folders ?? []) {
 					if (folder.gitRepository?.gitHubInfo.read(reader) !== undefined) {
 						hasGitHub = true;
@@ -3289,7 +3292,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// header — leading chat icon, label, and the "+" create action — is always
 		// reachable. Only when a provider can actually serve quick chats.
 		if (this._showEmptyGroups && showEmptyDefaultGroups && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
-			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
+			sections.push(createSessionSection(QUICK_CHATS_SECTION_ID, localize('chatsSection', "Chats"), []));
 		}
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
@@ -3442,7 +3445,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
 			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);
-			children.push(renderSection({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] }));
+			children.push(renderSection(createSessionSection(AUTOMATIONS_SECTION_ID, localize('automations', "Automations"), [])));
 		}
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
@@ -4682,6 +4685,10 @@ export function isAutomationSession(session: ISession): boolean {
 	return session.isAutomation?.get() ?? false;
 }
 
+function createSessionSection(id: string, label: string, sessions: ISession[]): ISessionSection {
+	return { id, label, rootSessions: sessions, sessions };
+}
+
 export function groupSessionsForList(
 	sessions: ISession[],
 	grouping: SessionsGrouping,
@@ -4712,13 +4719,13 @@ export function groupSessionsForList(
 
 	const sections: ISessionSection[] = [];
 	if (pinned.length > 0) {
-		sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
+		sections.push(createSessionSection('pinned', localize('pinned', "Pinned"), pinned));
 	}
 
 	// Quick chats render as a single "Chats" entry directly below Pinned (above
 	// the workspace/date groups), regardless of grouping mode.
 	if (quickChats.length > 0) {
-		sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: quickChats });
+		sections.push(createSessionSection(QUICK_CHATS_SECTION_ID, localize('chatsSection', "Chats"), quickChats));
 	}
 
 	sections.push(...(grouping === SessionsGrouping.Workspace
@@ -4726,7 +4733,7 @@ export function groupSessionsForList(
 		: groupByDate(regular, sorting, getSortKey)));
 
 	if (archived.length > 0) {
-		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: archived });
+		sections.push(createSessionSection('archived', archivedSectionLabel, archived));
 	}
 
 	return sections;
@@ -4754,16 +4761,12 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 		.filter(k => k !== unknownWorkspaceLabel)
 		.sort((a, b) => a.localeCompare(b));
 
-	const result: ISessionSection[] = order.map(label => ({
-		id: `workspace:${label}`,
-		label,
-		sessions: groups.get(label)!,
-	}));
+	const result = order.map(label => createSessionSection(`workspace:${label}`, label, groups.get(label)!));
 
 	// "Unknown Workspace" always at the bottom
 	const unknownWorkspace = groups.get(unknownWorkspaceLabel);
 	if (unknownWorkspace) {
-		result.push({ id: `workspace:${unknownWorkspaceLabel}`, label: unknownWorkspaceLabel, sessions: unknownWorkspace });
+		result.push(createSessionSection(`workspace:${unknownWorkspaceLabel}`, unknownWorkspaceLabel, unknownWorkspace));
 	}
 
 	return result;
@@ -4800,7 +4803,7 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 	const sections: ISessionSection[] = [];
 	const addGroup = (id: string, label: string, groupSessions: ISession[]) => {
 		if (groupSessions.length > 0) {
-			sections.push({ id, label, sessions: groupSessions });
+			sections.push(createSessionSection(id, label, groupSessions));
 		}
 	};
 
