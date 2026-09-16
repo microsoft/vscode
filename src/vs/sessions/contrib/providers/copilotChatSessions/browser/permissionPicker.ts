@@ -289,6 +289,7 @@ export class PermissionPicker extends Disposable {
 			const permission = item.item;
 			return {
 				...item,
+				filterItems: undefined,
 				item: permission ? toAction({
 					id: `permissionPicker.${permission.level ?? permission.kind}`,
 					label: permission.label,

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ensureCodeWindow, mainWindow } from '../../../../../../base/browser/window.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -70,6 +70,22 @@ suite('ConnectionDiagnosticsReport', () => {
 		}();
 		const report = store.add(new ConnectionDiagnosticsReport(container, snapshot, download, service, clipboard));
 		return { container, report, service, clipboard, update: (next: IConnectionDiagnosticsSnapshot) => { current = next; } };
+	}
+
+	function createContribution(service: IConnectionDiagnosticsService, clipboard: IClipboardService, getContainer: () => HTMLElement, verbosity = false): ConnectionDiagnosticsContribution {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConnectionDiagnosticsService, service);
+		instantiationService.stub(IClipboardService, clipboard);
+		instantiationService.stub(IWorkbenchLayoutService, { get activeContainer() { return getContainer(); } });
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: false }, onDidChangeSentiment: Event.None });
+		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => true });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [AccessibilityVerbositySettingId.ConnectionDiagnostics]: verbosity }));
+		instantiationService.stub(IKeybindingService, {
+			lookupKeybinding: () => new USLayoutResolvedKeybinding([new KeyCodeChord(false, false, true, false, KeyCode.F1)], OperatingSystem.Windows),
+		});
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		return store.add(instantiationService.createInstance(ConnectionDiagnosticsContribution));
 	}
 
 	test('diagnostics help takes precedence over general Agents chat help only in its own context', () => {
@@ -194,20 +210,28 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.strictEqual(mainWindow.document.activeElement, copy);
 		copy.click();
 		copy.click();
+		copy.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+		const reverseTabWhilePending = mainWindow.document.activeElement === client;
+		client.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const forwardTabWhilePending = mainWindow.document.activeElement === copy;
+		finishCopy();
 		assert.deepStrictEqual({
 			copied,
 			disabled: copy.getAttribute('aria-disabled'),
+			reverseTabWhilePending,
+			forwardTabWhilePending,
 			controls: Array.from(container.querySelectorAll('button'), button => button.getAttribute('aria-label')),
 			titles: container.querySelectorAll('.mobile-picker-sheet-title').length,
 			footer: container.querySelectorAll('.connection-diagnostics-actions').length,
 		}, {
 			copied: [snapshot.text],
 			disabled: 'true',
+			reverseTabWhilePending: true,
+			forwardTabWhilePending: true,
 			controls: ['Copy Diagnostics', 'Download Diagnostics', 'Refresh', 'Close Connection diagnostics'],
 			titles: 1,
 			footer: 0,
 		});
-		finishCopy();
 		await Promise.resolve();
 		await Promise.resolve();
 		assert.strictEqual(copy.getAttribute('aria-disabled'), 'false');
@@ -289,19 +313,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			const globalAria = dom.append(container, dom.$('div.monaco-aria-container'));
 			dom.append(globalAria, dom.$('div', { 'aria-live': 'polite' }));
 			background.focus();
-			const instantiationService = store.add(new TestInstantiationService());
-			instantiationService.stub(IConnectionDiagnosticsService, service);
-			instantiationService.stub(IClipboardService, clipboard);
-			instantiationService.stub(IWorkbenchLayoutService, { activeContainer: container });
-			instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
-			instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: false }, onDidChangeSentiment: Event.None });
-			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => true });
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [AccessibilityVerbositySettingId.ConnectionDiagnostics]: verbosity }));
-			instantiationService.stub(IKeybindingService, {
-				lookupKeybinding: () => new USLayoutResolvedKeybinding([new KeyCodeChord(false, false, true, false, KeyCode.F1)], OperatingSystem.Windows),
-			});
-			instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
-			const contribution = store.add(instantiationService.createInstance(ConnectionDiagnosticsContribution));
+			const contribution = createContribution(service, clipboard, () => container, verbosity);
 			const closed = contribution.show();
 			const liveRegion = container.querySelector<HTMLElement>('[role="dialog"] [role="status"]')!;
 			assert.deepStrictEqual({
@@ -326,6 +338,83 @@ suite('ConnectionDiagnosticsReport', () => {
 			}, { backgroundInert: false, globalAriaInert: false, focusRestored: true });
 		});
 	}
+
+	for (const lifecycle of ['unregister', 'beforeunload'] as const) {
+		test(`auxiliary window ${lifecycle} releases the sheet and allows reopening in the main window`, async () => {
+			const { service, clipboard } = createReport(async () => { });
+			const iframe = dom.append(mainWindow.document.body, dom.$<HTMLIFrameElement>('iframe'));
+			store.add(toDisposable(() => iframe.remove()));
+			const auxiliaryWindow = iframe.contentWindow!;
+			ensureCodeWindow(auxiliaryWindow, 999);
+			const registration = store.add(dom.registerWindow(auxiliaryWindow));
+			const auxiliaryContainer = dom.append(auxiliaryWindow.document.body, dom.$('div'));
+			const background = dom.append(auxiliaryContainer, dom.$('button'));
+			const mainContainer = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => mainContainer.remove()));
+			let activeContainer = auxiliaryContainer;
+			const contribution = createContribution(service, clipboard, () => activeContainer);
+
+			const auxiliaryClosed = contribution.show();
+			if (lifecycle === 'unregister') {
+				registration.dispose();
+			} else {
+				auxiliaryWindow.dispatchEvent(new mainWindow.Event(dom.EventType.BEFORE_UNLOAD));
+			}
+			activeContainer = mainContainer;
+			const mainClosed = contribution.show();
+			assert.deepStrictEqual({
+				auxiliaryDialogs: auxiliaryContainer.querySelectorAll('[role="dialog"]').length,
+				auxiliaryBackgroundInert: background.inert,
+				mainDialogs: mainContainer.querySelectorAll('[role="dialog"]').length,
+			}, { auxiliaryDialogs: 0, auxiliaryBackgroundInert: false, mainDialogs: 1 });
+
+			await auxiliaryClosed;
+			mainContainer.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+			await mainClosed;
+		});
+	}
+
+	for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
+		test(`disposing accessible ${type} without onClose clears the snapshot used by Copy`, async () => {
+			const copied: string[] = [];
+			const { service, clipboard, update } = createReport(async text => { copied.push(text); });
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			const contribution = createContribution(service, clipboard, () => container);
+			const closed = contribution.show();
+			const provider = store.add(contribution.getAccessibleProvider(type)!);
+			await closed;
+			update({ ...snapshot, text: 'Current connection state' });
+			await contribution.copy();
+			// ContextView replacement disposes the provider without invoking its onClose callback.
+			provider.dispose();
+			await contribution.copy();
+			assert.deepStrictEqual({
+				copied,
+				dialogs: container.querySelectorAll('[role="dialog"]').length,
+			}, { copied: [snapshot.text, 'Current connection state'], dialogs: 0 });
+		});
+	}
+
+	test('disposing an older accessible provider does not clear a replacement showing the same snapshot', async () => {
+		const copied: string[] = [];
+		const { service, clipboard, update } = createReport(async text => { copied.push(text); });
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const contribution = createContribution(service, clipboard, () => container);
+		const closed = contribution.show();
+		const previous = store.add(contribution.getAccessibleProvider(AccessibleViewType.Help)!);
+		await closed;
+		previous.onClose();
+		const current = store.add(contribution.getAccessibleProvider(AccessibleViewType.View)!);
+		update({ ...snapshot, text: 'New connection state' });
+
+		previous.dispose();
+		await contribution.copy();
+		current.dispose();
+		await contribution.copy();
+		assert.deepStrictEqual(copied, [snapshot.text, 'New connection state']);
+	});
 
 	test('desktop host filter always exposes diagnostics beside the connection control', () => {
 		const container = dom.append(mainWindow.document.body, dom.$('div.action-item'));
