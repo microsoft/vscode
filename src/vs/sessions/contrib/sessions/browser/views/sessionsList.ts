@@ -4882,7 +4882,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.setNavigationSections(navigationSections);
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
-			children.push(renderSection({ id: KANBAN_SECTION_ID, label: localize('kanban', "Kanban"), sessions: [] }));
+			children.push(renderSection({ id: KANBAN_SECTION_ID, label: localize('kanban', "Agents Hub"), sessions: [] }));
 		}
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');

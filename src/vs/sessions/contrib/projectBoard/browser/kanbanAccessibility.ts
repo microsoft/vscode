@@ -33,7 +33,7 @@ class KanbanAccessibilityHelp implements IAccessibleViewImplementation {
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const content = [
-			localize('kanban.help.overview', "You are in the Kanban view. Chats are arranged first in Unassigned, then in cells by area and priority."),
+			localize('kanban.help.overview', "You are in Agents Hub. Chats are arranged first in Unassigned, then in cells by area and priority."),
 			localize('kanban.help.navigation', "Use Tab to move among board controls and cards. With a card focused, use the arrow keys to move between cards, Enter or Space to open the chat, and Control or Command Shift M to choose a board cell. Tab to a card's Delete button to permanently delete its backing session or discard its draft."),
 			localize('kanban.help.sidePanel', "Turn on Open Chat in Side Panel in Board Settings to open chats beside Kanban in the secondary sidebar. Close the side-panel chat to return focus to its card. With the setting off, chats open in standalone windows; press Escape to close a standalone chat window. Session drafts and the separate Project Board window keep their standalone opening behavior."),
 			localize('kanban.help.toggleSidePanel', "Use Toggle Side Panel ({0}) to hide or show the chat beside Kanban without stopping a running request.", '<keybinding:workbench.action.agentToggleSidePanel>'),
