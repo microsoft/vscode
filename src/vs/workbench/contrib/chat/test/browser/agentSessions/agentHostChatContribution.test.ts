@@ -85,7 +85,9 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { ChatInputModelSelectionController } from '../../../browser/widget/input/chatInputModelSelectionController.js';
 import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatModelConfigurationStore } from '../../../browser/widget/input/chatModelConfigurationStore.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -114,7 +116,8 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatResponseModel, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -2257,6 +2260,99 @@ suite('AgentHostChatContribution', () => {
 			}]);
 
 		}));
+
+		for (const initialEffort of ['max', 'xhigh']) {
+			test(`selecting xhigh from ${initialEffort} on a restored model updates the AHP draft`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const modelId = 'agent-host-copilot:claude-opus-4.8';
+				const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({
+					id: 'claude-opus-4.8',
+					name: 'Claude Opus 4.8',
+					configurationSchema: {
+						properties: {
+							thinkingLevel: { enum: ['high', 'xhigh', 'max'], default: 'high' },
+							contextSize: { type: 'number', enum: [200_000, 936_000], default: 200_000 },
+						},
+					},
+				});
+				const selectedModel = { identifier: modelId, metadata: modelMetadata };
+				const languageModels = new Map([[modelId, modelMetadata]]);
+				const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, {
+					languageModels,
+					languageModelsServiceOverride: {
+						getModelConfiguration: () => undefined,
+						setModelConfiguration: async () => { },
+					},
+				});
+				const backendSession = AgentSession.uri('copilot', 'draft-effort');
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-effort' });
+				seedDraftSession(agentHostService, backendSession, 'Draft Effort', {
+					text: '',
+					origin: { kind: MessageKind.User },
+					model: { id: modelMetadata.id, config: { thinkingLevel: 'max', contextSize: 936_000 } },
+				});
+				const { inputModel } = createDraftInputModel({
+					attachments: [],
+					mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel,
+					modelConfiguration: { thinkingLevel: initialEffort, contextSize: 936_000 },
+					selectedModelReason: ModelSelectionReason.SessionRestore,
+					inputText: '',
+					selections: [],
+					contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource,
+					inputModel,
+					onDidChangePendingRequests: Event.None,
+					getPendingRequests: () => [],
+				}));
+
+				const configurationStore = disposables.add(new ChatModelConfigurationStore(
+					() => 'chat.modelConfiguration.panel.agent-host-copilot',
+					instantiationService.get(ILanguageModelsService),
+					instantiationService.get(IStorageService),
+				));
+				const intent = new IntendedModelSlot();
+				const syncInput = (): void => inputModel.setState({
+					selectedModel: controller.currentModel.get(),
+					modelConfiguration: configurationStore.getModelConfiguration(modelId),
+					selectedModelReason: controller.selectionReason,
+				});
+				const controller = disposables.add(new ChatInputModelSelectionController({
+					getCurrentSessionType: () => 'agent-host-copilot',
+					getModels: () => [selectedModel],
+					getAllModels: () => [selectedModel],
+					getConfiguredModelValue: () => undefined,
+					isEmpty: () => false,
+					isModelSupportedHere: () => true,
+					getDeclaredDefaultModel: () => undefined,
+					getBoundConversationKey: () => sessionResource.toString(),
+					getIntentHolder: () => intent,
+					applyModel: syncInput,
+					restoreModelConfiguration: (modelId, configuration) => {
+						if (configuration) {
+							configurationStore.restoreModelConfiguration(modelId, configuration);
+						}
+					},
+				}));
+				disposables.add(configurationStore.onDidChange(syncInput));
+				disposables.add(configurationStore.onDidSelectConfiguration(() => controller.applySelection(selectedModel, syncInput, true)));
+				controller.syncFromConversationState(selectedModel, inputModel.state.get()?.modelConfiguration, 'agent-host-copilot', sessionResource.toString());
+
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				await timeout(500);
+				agentHostService.dispatchedActions.length = 0;
+
+				await configurationStore.setModelConfiguration(modelId, { thinkingLevel: 'xhigh' });
+				await timeout(500);
+				const draftActions = agentHostService.dispatchedActions.map(entry => entry.action).filter(action => action.type === ActionType.ChatDraftChanged);
+
+				assert.deepStrictEqual(draftActions.map(action => action.draft?.model), [
+					{ id: 'claude-opus-4.8', config: { thinkingLevel: 'xhigh', contextSize: 936_000 } },
+				]);
+			}));
+		}
 
 		test('flushes pending chat input draft when the session is disposed', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
@@ -15448,6 +15544,7 @@ suite('AgentHostChatContribution', () => {
 				commandCalls: [{
 					commandId: CHAT_SETUP_ACTION_ID,
 					args: [undefined, {
+						telemetrySource: 'agentHost',
 						forceSignInDialog: true,
 						additionalScopes: ['read:user'],
 						dialogTitle: 'Sign in to use GitHub Copilot',

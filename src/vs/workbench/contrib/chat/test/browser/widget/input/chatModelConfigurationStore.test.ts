@@ -165,6 +165,46 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [MODEL]);
 	});
 
+	test('reports explicit configuration selections separately from restores and schema updates', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setRegistered(false);
+		const editor = createStore(storage, control.service);
+		editor.getModelConfiguration(MODEL);
+
+		const changes: (IStringDictionary<unknown> | undefined)[] = [];
+		const selections: { modelId: string; configuration: IStringDictionary<unknown> | undefined }[] = [];
+		store.add(editor.onDidChange(modelId => changes.push(editor.getModelConfiguration(modelId))));
+		store.add(editor.onDidSelectConfiguration(modelId => selections.push({ modelId, configuration: editor.getModelConfiguration(modelId) })));
+
+		control.setRegistered(true);
+		control.fireModelsChanged();
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'medium' });
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' }, false);
+
+		assert.deepStrictEqual({ changes, selections, globalWrites: control.setConfigCalls }, {
+			changes: [
+				{ thinkingEffort: 'medium' },
+				{ thinkingEffort: 'high' },
+				{ thinkingEffort: 'low' },
+				{ thinkingEffort: 'medium' },
+				{ thinkingEffort: 'high' },
+			],
+			selections: [
+				{ modelId: MODEL, configuration: { thinkingEffort: 'low' } },
+				{ modelId: MODEL, configuration: { thinkingEffort: 'low' } },
+				{ modelId: MODEL, configuration: { thinkingEffort: 'medium' } },
+			],
+			globalWrites: [
+				{ modelId: MODEL, values: { thinkingEffort: 'low' } },
+				{ modelId: MODEL, values: { thinkingEffort: 'medium' } },
+			],
+		});
+	});
+
 	test('setting an unchanged value does not fire onDidChange or rewrite storage', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createStubService());
