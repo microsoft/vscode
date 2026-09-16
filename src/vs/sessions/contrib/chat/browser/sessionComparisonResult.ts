@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonDecisionSection, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonDecisionSection, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 
 export class SessionComparisonResult extends Disposable {
 
@@ -82,7 +82,7 @@ export class SessionComparisonResult extends Disposable {
 			localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
 		dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle')).textContent =
 			localize('sessionComparisonResult.whyWinner', "Why it won");
-		dom.append(this.domNode, dom.$('p.session-comparison-result-explanation')).textContent = comparison.verdict.explanation;
+		this.renderRationale(comparison.verdict);
 
 		const otherAttempts = attempts.filter(attempt => attempt.id !== winner.id);
 		if (otherAttempts.length > 0) {
@@ -152,6 +152,25 @@ export class SessionComparisonResult extends Disposable {
 		}
 		if (wasHidden) {
 			this.onDidChangeLayout();
+		}
+	}
+
+	private renderRationale(verdict: ISessionComparisonVerdict): void {
+		if (!verdict.rationale) {
+			dom.append(this.domNode, dom.$('p.session-comparison-result-explanation')).textContent = verdict.explanation;
+			return;
+		}
+		const entries = [
+			{ label: localize('sessionComparisonResult.rationale.solution', "Solution:"), point: verdict.rationale.solution },
+			{ label: localize('sessionComparisonResult.rationale.validation', "Validation:"), point: verdict.rationale.validation },
+			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality:"), point: verdict.rationale.codeQuality },
+			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison:"), point: verdict.rationale.comparison },
+		];
+		const list = dom.append(this.domNode, dom.$('ul.session-comparison-result-rationale'));
+		for (const entry of entries) {
+			const item = dom.append(list, dom.$('li'));
+			dom.append(item, dom.$('span.session-comparison-result-rationale-category')).textContent = entry.label;
+			item.append(` ${entry.point}`);
 		}
 	}
 

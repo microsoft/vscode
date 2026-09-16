@@ -46,12 +46,20 @@ suite('SessionComparisonTool', () => {
 
 		assert.deepStrictEqual({
 			description: data.modelDescription.includes('semantic decision sections'),
+			categorizedRationale: data.modelDescription.includes('exactly one concise rationale point'),
 			required: data.inputSchema?.required?.includes('decisionSections'),
+			rationaleRequired: data.inputSchema?.required?.includes('rationale'),
+			rationaleCategories: schema.includes('"required":["solution","validation","codeQuality","comparison"]'),
+			rationaleLength: schema.includes(`"maxLength":180`),
 			assessmentRequired: schema.includes('"required":["attemptNumber","approach","assessment"]'),
 			assessmentValues: schema.includes('"enum":["better","neutral","worse"]'),
 		}, {
 			description: true,
+			categorizedRationale: true,
 			required: true,
+			rationaleRequired: true,
+			rationaleCategories: true,
+			rationaleLength: true,
 			assessmentRequired: true,
 			assessmentValues: true,
 		});
@@ -175,6 +183,7 @@ suite('SessionComparisonTool', () => {
 			comparisonId: comparison.id,
 			recommendedAttemptNumber: 1,
 			explanation: 'No implementation changes were needed.',
+			rationale: rationaleInput(),
 			conflicts: [],
 			attempts: [{
 				attemptNumber: 1,
@@ -232,6 +241,7 @@ suite('SessionComparisonTool', () => {
 			comparisonId: comparison.id,
 			recommendedAttemptNumber: 1,
 			explanation: 'No implementation changes were needed.',
+			rationale: rationaleInput(),
 			conflicts: [],
 			attempts: [{
 				attemptNumber: 1,
@@ -271,6 +281,7 @@ suite('SessionComparisonTool', () => {
 				comparisonId: comparison.id,
 				recommendedAttemptNumber: 1,
 				explanation: 'The implementation is correct and focused.',
+				rationale: rationaleInput(),
 				conflicts: [],
 				attempts: [{
 					attemptNumber: 1,
@@ -297,10 +308,12 @@ suite('SessionComparisonTool', () => {
 
 		assert.deepStrictEqual({
 			result: JSON.parse(getText(result)),
+			rationale: submitted?.rationale,
 			validationSource: submitted?.attempts[0].validationSource,
 			decisionSections: submitted?.decisionSections,
 		}, {
 			result: { status: 'submitted', comparisonId: 'comparison' },
+			rationale: rationaleInput(),
 			validationSource: {
 				tests: SessionComparisonValidationSource.JudgeRun,
 				build: SessionComparisonValidationSource.AttemptReport,
@@ -332,6 +345,7 @@ suite('SessionComparisonTool', () => {
 			comparisonId: comparison.id,
 			recommendedAttemptNumber: 1,
 			explanation: 'Attempt is strongest.',
+			rationale: rationaleInput(),
 			conflicts: [],
 			attempts: [{
 				attemptNumber: 1,
@@ -372,6 +386,7 @@ suite('SessionComparisonTool', () => {
 			comparisonId: comparison.id,
 			recommendedAttemptNumber: 1,
 			explanation: 'Attempt is strongest.',
+			rationale: rationaleInput(),
 			conflicts: [],
 			attempts: [{
 				attemptNumber: 1,
@@ -399,7 +414,55 @@ suite('SessionComparisonTool', () => {
 
 		assert.strictEqual(getText(result), 'Every synthesis decision section must have a unique ID, reference known attemptNumber values, and rate its recommended option as better.');
 	});
+
+	test('rejects verbose categorized rationale', async () => {
+		const comparison = stubComparison();
+		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+			getComparison: () => comparison,
+		}));
+
+		const result = await invoke(tool, {
+			comparisonId: comparison.id,
+			recommendedAttemptNumber: 1,
+			explanation: 'Attempt is strongest.',
+			rationale: {
+				...rationaleInput(),
+				solution: 'x'.repeat(181),
+			},
+			conflicts: [],
+			attempts: [{
+				attemptNumber: 1,
+				summary: 'Focused implementation.',
+				validation: {
+					tests: SessionComparisonValidationState.Passed,
+					build: SessionComparisonValidationState.Passed,
+					lint: SessionComparisonValidationState.Passed,
+					diagnostics: SessionComparisonValidationState.Passed,
+				},
+				validationSource: {
+					tests: SessionComparisonValidationSource.JudgeRun,
+					build: SessionComparisonValidationSource.JudgeRun,
+					lint: SessionComparisonValidationSource.JudgeRun,
+					diagnostics: SessionComparisonValidationSource.JudgeRun,
+				},
+				unresolvedIssues: [],
+				notableDifferences: [],
+			}],
+			decisionSections: [],
+		}, judgeResource);
+
+		assert.strictEqual(getText(result), 'The comparison verdict input is invalid. Keep explanation to one sentence and provide concise solution, validation, codeQuality, and comparison rationale points. Every attempt also requires tests, build, lint, and diagnostics values in both validation and validationSource.');
+	});
 });
+
+function rationaleInput() {
+	return {
+		solution: 'Implements the requested behavior with the smallest correct change.',
+		validation: 'Focused tests and diagnostics pass in the attempt worktree.',
+		codeQuality: 'Matches the surrounding types and existing implementation pattern.',
+		comparison: 'The other attempts were incomplete or left the reported failure unresolved.',
+	};
+}
 
 function decisionSectionInput() {
 	return {

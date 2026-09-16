@@ -100,9 +100,18 @@ export interface ISessionComparisonDecisionSection {
 	readonly recommendedParticipantId: string;
 }
 
+export interface ISessionComparisonRationale {
+	readonly solution: string;
+	readonly validation: string;
+	readonly codeQuality: string;
+	readonly comparison: string;
+}
+
 export interface ISessionComparisonVerdict {
 	readonly recommendedParticipantId: string;
 	readonly explanation: string;
+	/** Undefined for verdicts persisted before categorized rationale was introduced. */
+	readonly rationale?: ISessionComparisonRationale;
 	readonly conflicts: readonly string[];
 	readonly attempts: readonly ISessionComparisonAttemptVerdict[];
 	readonly decisionSections?: readonly ISessionComparisonDecisionSection[];

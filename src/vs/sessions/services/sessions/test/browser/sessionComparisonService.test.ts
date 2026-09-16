@@ -645,6 +645,12 @@ suite('SessionComparisonService', () => {
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 		service.submitVerdict(comparison.id, {
 			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
+			rationale: {
+				solution: 'Implements the requested behavior.',
+				validation: 'Focused tests pass.',
+				codeQuality: 'Uses the existing implementation pattern.',
+				comparison: 'The other attempt leaves the failure unresolved.',
+			},
 			decisionSections: [{
 				id: 'error-handling',
 				title: 'Error handling',
@@ -689,7 +695,7 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. If the manifest includes a synthesisPlan, treat every selected section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nAttempt two is stronger.`,
+			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. If the manifest includes a synthesisPlan, treat every selected section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nSolution: Implements the requested behavior.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nComparison: The other attempt leaves the failure unresolved.`,
 			plan: {
 				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
 			},

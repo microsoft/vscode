@@ -22,6 +22,18 @@
 	margin: var(--vscode-spacing-size80) 0 0;
 }
 
+.session-comparison-result-rationale {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	margin: 0;
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.session-comparison-result-rationale-category {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
 .session-comparison-result-subtitle {
 	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size60);
 	font-size: var(--vscode-fontSize-body1);

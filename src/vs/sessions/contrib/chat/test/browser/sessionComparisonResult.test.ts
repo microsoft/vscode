@@ -49,7 +49,13 @@ suite('Sessions - Comparison Result', () => {
 			}],
 			verdict: {
 				recommendedParticipantId: 'attempt-2',
-				explanation: 'Codex handled the edge case and passed the focused test.',
+				explanation: 'This legacy explanation should not render when categorized rationale is available.',
+				rationale: {
+					solution: 'Handled the edge case with typed diagnostics.',
+					validation: 'Passed focused tests, build, lint, and diagnostics.',
+					codeQuality: 'Kept the change small and aligned with existing types.',
+					comparison: 'Resolved the failure that the other attempt left open.',
+				},
 				conflicts: [],
 				attempts: [{
 					participantId: 'attempt-1',
@@ -129,6 +135,7 @@ suite('Sessions - Comparison Result', () => {
 		const actionButtons = actions?.querySelectorAll<HTMLElement>(':scope > .monaco-button') ?? [];
 		const synthesisPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan');
 		const decisionTable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table');
+		const rationaleList = result.domNode.querySelector<HTMLElement>('.session-comparison-result-rationale');
 		const panelHiddenBefore = synthesisPanel?.hidden;
 		const accessibility = {
 			regionRole: result.domNode.getAttribute('role'),
@@ -142,6 +149,8 @@ suite('Sessions - Comparison Result', () => {
 			panelId: synthesisPanel?.id,
 			columnHeaders: [...decisionTable?.querySelectorAll('thead th') ?? []].map(header => header.textContent),
 			rowHeaderScope: decisionTable?.querySelector('tbody th')?.getAttribute('scope'),
+			rationaleElement: rationaleList?.tagName,
+			rationaleItems: [...rationaleList?.querySelectorAll('li') ?? []].map(item => item.textContent),
 		};
 		buttons[0].click();
 		customSynthesis?.click();
@@ -168,6 +177,11 @@ suite('Sessions - Comparison Result', () => {
 				approach: initialText.includes('Return typed diagnostics.'),
 				files: initialText.includes('src/parser.ts'),
 				assessments: initialText.includes('Better choice') && initialText.includes('Worse choice'),
+				rationale: initialText.includes('Solution: Handled the edge case with typed diagnostics.')
+					&& initialText.includes('Validation: Passed focused tests, build, lint, and diagnostics.')
+					&& initialText.includes('Code quality: Kept the change small and aligned with existing types.')
+					&& initialText.includes('Comparison: Resolved the failure that the other attempt left open.'),
+				legacyExplanationHidden: !initialText.includes('This legacy explanation should not render'),
 			},
 			selected,
 			opened: opened?.toString(),
@@ -191,6 +205,8 @@ suite('Sessions - Comparison Result', () => {
 				approach: true,
 				files: true,
 				assessments: true,
+				rationale: true,
+				legacyExplanationHidden: true,
 			},
 			selected: 'attempt-2',
 			opened: attempt2Resource.toString(),
@@ -229,6 +245,13 @@ suite('Sessions - Comparison Result', () => {
 				panelId: synthesisPanel?.id,
 				columnHeaders: ['Decision', 'Claude', 'Codex', 'Synthesizer'],
 				rowHeaderScope: 'row',
+				rationaleElement: 'UL',
+				rationaleItems: [
+					'Solution: Handled the edge case with typed diagnostics.',
+					'Validation: Passed focused tests, build, lint, and diagnostics.',
+					'Code quality: Kept the change small and aligned with existing types.',
+					'Comparison: Resolved the failure that the other attempt left open.',
+				],
 			},
 		});
 	});
