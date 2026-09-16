@@ -52,6 +52,10 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Arrow keys follow the visible card geometry. Home/End focus the first/last card and scroll it into view.
 - Nested question inputs and links keep their own keyboard/mouse behavior; they do not accidentally open or move the card.
 - The board owns its bounded scroll surface. Expanded content must remain reachable, and ordinary live updates preserve scroll position.
+- Disclosure buttons independently collapse rows, columns and Unassigned. Row/tray bodies shrink to summaries; columns become narrow rails. Headers and collapsed cells retain card counts and live Needs Input counts, including overflow.
+- Collapse is per-view and temporary, like cell expansion: reopening a view starts expanded, and embedded/auxiliary views can fold independently. Axis labels still open their edit menus. Collapsing changes no placement, read state or running work.
+- Collapsed cells remain drop targets; a local move into one expands the destination. Returning from a standalone chat reveals its collapsed row/column/tray. Card-arrow navigation skips hidden cards.
+- Retain pending question/approval DOM and the existing bounded model references while collapsed so entered answers are not discarded. Collapsed content is hidden from tab navigation; accessible overview text labels collapsed groups.
 
 ### Live cards
 
@@ -175,6 +179,7 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-19:** Independent model/permission rows; exact chat/session configuration, bounded observation, no global-setting or sibling-chat substitution, live updates, and explicit unknown values.
 - **PB-20:** Shared Keep Going and tool approval controls, exact request/option IDs and approval scope, stale/duplicate protection, retryable failures, retained control identity, and no cross-window focus or accidental read marking.
 - **PB-21:** Themed auxiliary titlebar, fixed independent title, normal window controls, content sizing on resize/fullscreen, singleton behavior and disposal without orphaned chrome.
+- **PB-22:** Independent row/column/tray collapse, compact layout, live summary counts, accessible disclosure state, hidden-card navigation exclusion, drop/reveal behavior, view-local reset and preservation of pending input.
 
 ### Resilience before optional P2
 
