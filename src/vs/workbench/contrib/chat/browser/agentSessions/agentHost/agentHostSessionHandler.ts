@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
-import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -50,6 +50,8 @@ import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuth
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
+import { getRepositorySessionSource, resolveAgentHostRepositoryConfig, waitForRepositorySessionReady } from './agentHostRepositoryConfig.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readMessageSystemInitiatedLabel, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -932,6 +934,7 @@ class ActiveClientEntry extends Disposable {
 
 	constructor(
 		private readonly _scope: IAgentCustomizationScope,
+		readonly scopeRoots: readonly URI[],
 		clientId: string,
 		debounceDelay: number,
 		private readonly _getSessionState: (backendSession: URI) => SessionState | undefined,
@@ -1484,6 +1487,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// separate chat channel, so reading them before the chat
 					// subscription lands would yield an empty history.
 					await this._whenSubscriptionHydrated(sub, token);
+					await waitForRepositorySessionReady(sub, token);
 					// A failed subscription surfaces as an `Error` value; rethrow it
 					// so the real reason (e.g. the working directory no longer
 					// exists) is logged and rendered instead of a generic message.
@@ -1901,6 +1905,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
 					imported ? { turns: imported.turns, model: imported.model } : undefined,
 					stage => failureStage = stage,
+					cancellationToken,
 				);
 			} else {
 				failureStage = 'authentication';
@@ -2063,8 +2068,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!sub) {
 			return undefined;
 		}
-		if (sub.value !== undefined) {
-			return sub.value instanceof Error ? undefined : sub.value;
+		if (sub.value instanceof Error) {
+			return undefined;
+		}
+		if (sub.value !== undefined && getRepositorySessionSource(sub.value.config) === undefined) {
+			return sub.value;
 		}
 
 		// Snapshot is in flight. Pin the subscription with a fresh
@@ -2081,7 +2089,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			await this._whenSubscriptionHydrated(pinRef.object, token);
 			const value = pinRef.object.value;
 			this._logService.info(`[AgentHost] _readEagerlyCreatedSessionState: hydrated value=${value === undefined ? 'undefined' : value instanceof Error ? `error(${value.message})` : 'state'} cancelled=${token.isCancellationRequested} for ${resolvedSession.toString()}`);
-			return value instanceof Error ? undefined : value;
+			return value instanceof Error || value === undefined ? undefined : await waitForRepositorySessionReady(pinRef.object, token);
 		} finally {
 			pinRef.dispose();
 		}
@@ -2323,15 +2331,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		await entry.claim(backendSession, cancellationToken);
 	}
 
-	private _ensureActiveClientEntry(sessionResource: URI): ActiveClientEntry {
+	private _ensureActiveClientEntry(sessionResource: URI, scopeRoots?: readonly URI[]): ActiveClientEntry {
 		const existing = this._activeClientEntries.get(sessionResource);
-		if (existing) {
+		if (existing && (!scopeRoots || this._activeClientService.areScopeRootsEqual(existing.scopeRoots, scopeRoots))) {
 			return existing;
 		}
+		this._disposeActiveClientEntry(sessionResource);
 
-		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
+		const roots = scopeRoots ?? this._resolveCustomizationScopeRoots(sessionResource);
+		const scope = this._activeClientService.acquireScope(this._config.sessionType, roots);
 		const entry = new ActiveClientEntry(
 			scope,
+			roots,
 			this._config.connection.clientId,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),
@@ -5583,8 +5594,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
-		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void, cancellationToken: CancellationToken = CancellationToken.None): Promise<URI> {
+		let workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = this._resolveSessionUri(sessionResource);
 		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
 
@@ -5593,8 +5604,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		onFailureStage?.('authentication');
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
+		const requestedDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+		const defaultDirectory = this._config.connection.initializeResult.get()?.defaultDirectory;
+		const defaultScheme = defaultDirectory ? (URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory) : URI.parse(defaultDirectory)).scheme : undefined;
+		let repository: URI | undefined;
+		if (requestedDirectory?.scheme === Schemas.https && defaultScheme !== Schemas.https) {
+			const repositoryConfig = await resolveAgentHostRepositoryConfig(this._config.connection, this._config.provider, requestedDirectory, config, cancellationToken);
+			if (repositoryConfig) {
+				config = repositoryConfig;
+				workingDirectories = undefined;
+				repository = requestedDirectory;
+			} else {
+				this._logService.info('[AgentHost] Repository session configuration is not advertised; retaining the host-selected directory behavior.');
+			}
+		}
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		const activeClientEntry = this._ensureActiveClientEntry(sessionResource);
-		await activeClientEntry.whenSettled();
+		await raceCancellationError(activeClientEntry.whenSettled(), cancellationToken);
 		const activeClient = this._getCurrentActiveClient(sessionResource);
 
 		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
@@ -5619,7 +5648,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			});
 		} catch (err) {
 			// If authentication is required (e.g. token expired), try interactive auth and retry once
-			if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
+			if (repository && err instanceof ProtocolError && err.code === AhpErrorCodes.SessionAlreadyExists) {
+				session = requestedSession;
+			} else if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
 				onFailureStage?.('authentication');
 				this._logService.info('[AgentHost] Authentication required, prompting user...');
 				const authenticated = await this._config.resolveAuthentication(protectedResources);
@@ -5666,10 +5697,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// subscription via `setError`, which fires `onDidError` but NOT
 			// `onDidChange`, so an `onDidChange`-only wait would hang for the
 			// full turn timeout (issue #5242).
-			await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
+			await this._whenSubscriptionHydrated(newSub, cancellationToken);
 		}
 
-		const rawState = this._requireRawSessionState(session.toString());
+		const rawState = await waitForRepositorySessionReady(newSub, cancellationToken, repository, config);
+		if (getRepositorySessionSource(rawState.config) !== undefined) {
+			const roots = rawState.workingDirectories?.map(directory => this._config.connection.resourceUris.fromAgentHost(URI.parse(directory))) ?? [];
+			if (roots.some(root => root.scheme === Schemas.file) && !await this._ensureFoldersTrusted(roots)) {
+				throw new CancellationError();
+			}
+			const entry = this._ensureActiveClientEntry(sessionResource, roots);
+			entry.attach(session, newSub);
+			await raceCancellationError(entry.whenSettled(), cancellationToken);
+		}
 		const chatURI = this._resolveChatUriFromState(sessionResource, rawState);
 		this._setChatURI(sessionResource, chatURI);
 		const chatSub = this._ensureChatSubscription(session.toString(), chatURI);

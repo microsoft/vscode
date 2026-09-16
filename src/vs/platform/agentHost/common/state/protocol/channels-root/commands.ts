@@ -13,7 +13,7 @@ import type { SessionSummary, SessionConfigSchema } from '../channels-session/st
 // Re-export schema types so the legacy `commands.ts` aggregator continues to
 // expose them from the same import path.
 export type { ConfigPropertySchema, ConfigSchema } from '../common/state.js';
-export type { SessionConfigPropertySchema, SessionConfigSchema } from '../channels-session/state.js';
+export type { RepositorySessionConfig, SessionConfigPropertySchema, SessionConfigSchema } from '../channels-session/state.js';
 
 // ─── listSessions ────────────────────────────────────────────────────────────
 
@@ -78,6 +78,10 @@ export interface ListSessionsResult extends PaginatedResult {
  * (e.g. picks a working directory, toggles a property). Each response returns
  * the full current property set (not a delta). The returned `values` contain
  * server-resolved defaults to pass to `createSession`.
+ *
+ * Repository-backed creation is advertised by `schema.repository`. Resolving
+ * that schema or its values MUST NOT clone or prepare a repository; preparation
+ * belongs to `createSession`.
  *
  * @category Commands
  * @method resolveSessionConfig
