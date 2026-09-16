@@ -266,6 +266,28 @@ suite('ChatService', () => {
 		assert.strictEqual(await captured.p, true);
 	});
 
+	test('does not complete a response until request tool calls settle', async () => {
+		const callsSettled = new DeferredPromise<void>();
+		let waitedRequestId: string | undefined;
+		const toolsService = instantiationService.get(ILanguageModelToolsService);
+		toolsService.waitForToolCallsForRequest = async requestId => {
+			waitedRequestId = requestId;
+			await callsSettled.p;
+		};
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const result = await service.sendRequest(model.sessionResource, 'run');
+		ChatSendResult.assertSent(result);
+		const response = await result.data.responseCreatedPromise;
+		await timeout(0);
+
+		assert.deepStrictEqual({ requestId: waitedRequestId, isComplete: response.isComplete }, { requestId: model.getRequests()[0].id, isComplete: false });
+
+		callsSettled.complete();
+		await result.data.responseCompletePromise;
+		assert.strictEqual(response.isComplete, true);
+	});
+
 	test('slash commands can share ids across non-overlapping session types', async () => {
 		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
 		const executions: string[] = [];

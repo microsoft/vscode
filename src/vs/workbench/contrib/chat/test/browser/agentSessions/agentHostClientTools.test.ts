@@ -625,6 +625,7 @@ suite('AgentHostClientTools', () => {
 					return invocation;
 				},
 				updateToolStream: async () => { },
+				waitForToolCallsForRequest: async () => { },
 				cancelToolCallsForRequest: () => { },
 				flushToolUpdates: () => { },
 				toolSets: observableValue('sets', []),

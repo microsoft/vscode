@@ -836,6 +836,99 @@ suite('LanguageModelToolsService', () => {
 		}, 'Expected tool call to be cancelled');
 	});
 
+	test('waits for request tool calls added while an earlier call is pending', async () => {
+		const firstStarted = new Barrier();
+		const firstRelease = new Barrier();
+		const secondStarted = new Barrier();
+		const secondRelease = new Barrier();
+		const tool = registerToolForTest(service, store, 'trackedTool', {
+			invoke: async invocation => {
+				const [started, release] = invocation.callId === 'first'
+					? [firstStarted, firstRelease]
+					: [secondStarted, secondRelease];
+				started.open();
+				await release.wait();
+				return { content: [{ kind: 'text', value: invocation.callId }] };
+			}
+		});
+		const sessionId = 'tracked-session';
+		const requestId = 'tracked-request';
+		stubGetSession(chatService, sessionId, { requestId });
+
+		const firstInvocation = service.invokeTool(tool.makeDto({}, { sessionId }, 'first'), async () => 0, CancellationToken.None);
+		await firstStarted.wait();
+		let waitCompleted = false;
+		const wait = service.waitForToolCallsForRequest(requestId).then(() => waitCompleted = true);
+		await Promise.resolve();
+		assert.strictEqual(waitCompleted, false);
+
+		const secondInvocation = service.invokeTool(tool.makeDto({}, { sessionId }, 'second'), async () => 0, CancellationToken.None);
+		await secondStarted.wait();
+		firstRelease.open();
+		await firstInvocation;
+		await Promise.resolve();
+		assert.strictEqual(waitCompleted, false);
+
+		secondRelease.open();
+		await Promise.all([secondInvocation, wait]);
+		assert.strictEqual(waitCompleted, true);
+	});
+
+	test('cleans up request tool call tracking after failure', async () => {
+		const started = new Barrier();
+		const release = new Barrier();
+		const tool = registerToolForTest(service, store, 'failingTrackedTool', {
+			invoke: async () => {
+				started.open();
+				await release.wait();
+				throw new Error('expected failure');
+			}
+		});
+		const sessionId = 'failing-tracked-session';
+		const requestId = 'failing-tracked-request';
+		stubGetSession(chatService, sessionId, { requestId });
+
+		const invocation = service.invokeTool(tool.makeDto({}, { sessionId }), async () => 0, CancellationToken.None);
+		await started.wait();
+		const wait = service.waitForToolCallsForRequest(requestId);
+		release.open();
+
+		await assert.rejects(invocation, /expected failure/);
+		await wait;
+		await service.waitForToolCallsForRequest(requestId);
+	});
+
+	test('does not settle request tool call tracking until cancellation cleanup', async () => {
+		const started = new Barrier();
+		const release = new Barrier();
+		const tool = registerToolForTest(service, store, 'cancelledTrackedTool', {
+			invoke: async (invocation, countTokens, progress, token) => {
+				started.open();
+				await release.wait();
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				return { content: [] };
+			}
+		});
+		const sessionId = 'cancelled-tracked-session';
+		const requestId = 'cancelled-tracked-request';
+		stubGetSession(chatService, sessionId, { requestId });
+
+		const invocation = service.invokeTool(tool.makeDto({}, { sessionId }), async () => 0, CancellationToken.None);
+		await started.wait();
+		let waitCompleted = false;
+		const wait = service.waitForToolCallsForRequest(requestId).then(() => waitCompleted = true);
+		service.cancelToolCallsForRequest(requestId);
+		await Promise.resolve();
+		assert.strictEqual(waitCompleted, false);
+
+		release.open();
+		await assert.rejects(invocation, isCancellationError);
+		await wait;
+		assert.strictEqual(waitCompleted, true);
+	});
+
 	test('rejects tool invocation for cancelled request id', async () => {
 		let invoked = false;
 		const tool = registerToolForTest(service, store, 'testTool', {
