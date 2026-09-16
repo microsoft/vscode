@@ -5,14 +5,18 @@
 
 import assert from 'assert';
 import { restore, spy } from 'sinon';
+import type { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatInteractivity, ChatOriginKind, type IChat, type ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { getCollapsedFindAncestors, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 
 suite('Sessions - SessionsList state', () => {
@@ -68,6 +72,25 @@ suite('Sessions - SessionsList state', () => {
 	function chatRowTitles(container: HTMLElement): string[] {
 		return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 	}
+
+	test('find expansion targets collapsed ancestors once, not every matching sibling', () => {
+		const node = (element: string | null, children: ITreeNode<string | null, FuzzyScore>[] = [], collapsed = false, matched = false) =>
+			upcastPartial<ITreeNode<string | null, FuzzyScore>>({ element, children, collapsed, filterData: matched ? [1, 0, 0] : FuzzyScore.Default });
+		const matches = Array.from({ length: 5000 }, (_, index) => node(`match-${index}`, [], false, true));
+		const open = node(null, [node('parent', matches)]);
+		const collapsed = node(null, [node('parent', matches, true)]);
+		const nested = node(null, [
+			node('outer', [node('inner', matches, true)], true),
+			node('unrelated', [node('not a match')], true),
+			node('matching parent only', [node('not a match')], true, true),
+		]);
+
+		assert.deepStrictEqual({
+			open: getCollapsedFindAncestors(open),
+			collapsed: getCollapsedFindAncestors(collapsed),
+			nested: getCollapsedFindAncestors(nested),
+		}, { open: [], collapsed: ['parent'], nested: ['inner', 'outer'] });
+	});
 
 	test('reads one fresh collapse-state snapshot per list update', () => {
 		const sessions = Array.from({ length: 30 }, (_, index) => withPeerChats({
@@ -146,6 +169,36 @@ suite('Sessions - SessionsList state', () => {
 			saved: { 'session:Absent': false, 'group:group': true, 'session:Parent': true, 'workspace:Workspace': true, 'session:Other': true },
 			visible: [],
 		});
+	});
+
+	test('persists find expansion once for many collapsed branches', async () => {
+		const owners = Array.from({ length: 50 }, (_, index) => withPeerChats(createTestSession(`Owner ${index}`).session, `Needle ${index}`));
+		const { list, container, instantiationService } = renderList(owners);
+		list.setWorkspaceGroupCapped(false);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		list.collapseAllSections();
+		list.openFind();
+		const storage = instantiationService.get(IStorageService);
+		const reads = spy(storage, 'get');
+		const writes = spy(storage, 'store');
+		const input = container.querySelector<HTMLInputElement>('.monaco-findInput input');
+		assert.ok(input);
+		input.value = 'Needle';
+		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		await timeout(0);
+		const result = {
+			reads: reads.withArgs(collapseStateKey, StorageScope.PROFILE).callCount,
+			writes: writes.getCalls().filter(call => call.args[0] === collapseStateKey && call.args[2] === StorageScope.PROFILE).length,
+			visibleSessions: list.getVisibleSessions().length,
+		};
+		const saved = storage.getObject<Record<string, boolean>>(collapseStateKey, StorageScope.PROFILE, {});
+		list.closeFind();
+		await timeout(300);
+
+		assert.deepStrictEqual({
+			...result,
+			expandedOwners: owners.filter(owner => saved[`session:${owner.sessionId}`] === false).length,
+		}, { reads: 2, writes: 1, visibleSessions: 50, expandedOwners: 50 });
 	});
 
 	test('preserves branch collapse across grouping changes and list recreation', () => {
@@ -232,6 +285,80 @@ suite('Sessions - SessionsList state', () => {
 				restored: String(!collapsed),
 				afterDelete: { [`session:${other.sessionId}`]: true },
 				emptyStateRemoved: true,
+			});
+		});
+	}
+
+	test('expands matching peer-chat owners without expanding unrelated branches', async () => {
+		const parent = withPeerChats(createTestSession('Parent', { workspaceLabel: 'Repo A' }).session, 'First needle');
+		const other = withPeerChats(createTestSession('Other', { workspaceLabel: 'Repo B' }).session, 'Second needle');
+		const unrelated = withPeerChats(createTestSession('Unrelated', { workspaceLabel: 'Repo C' }).session, 'Unrelated peer');
+		const { list, container } = renderList([parent, other, unrelated]);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const snapshot = () => ({
+			sessions: list.getVisibleSessions().map(session => session.sessionId),
+			chats: chatRowTitles(container),
+		});
+		list.collapseAllSections();
+		list.openFind();
+		const emptyFind = snapshot();
+		const input = container.querySelector<HTMLInputElement>('.monaco-findInput input');
+		assert.ok(input);
+		const search = async (pattern: string) => {
+			input.value = pattern;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			await timeout(0);
+			return snapshot();
+		};
+		const first = await search('First needle');
+		const second = await search('Second needle');
+		list.closeFind();
+		await timeout(300);
+
+		assert.deepStrictEqual({ emptyFind, first, second, after: snapshot() }, {
+			emptyFind: { sessions: [], chats: [] },
+			first: { sessions: ['Parent'], chats: ['First needle'] },
+			second: { sessions: ['Other'], chats: ['Second needle'] },
+			after: { sessions: ['Parent', 'Other'], chats: ['First needle', 'Second needle'] },
+		});
+	});
+
+	for (const highlight of [false, true]) {
+		test(`focuses and reveals a hidden match in ${highlight ? 'highlight' : 'filter'} mode without stealing input focus`, async () => {
+			const ordinary = Array.from({ length: 20 }, (_, index) => createTestSession(`Ordinary ${index}`).session);
+			const parent = withPeerChats({ ...createTestSession('Parent').session, createdAt: new Date(2020, 0, 1) }, 'Needle');
+			const { list, container } = renderList([...ordinary, parent]);
+			list.setWorkspaceGroupCapped(false);
+			list.layout(300, 400);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			list.reveal(parent.resource);
+			collapse(container, 'Parent');
+			list.reveal(ordinary[0].resource);
+			list.openFind();
+			const input = container.querySelector<HTMLInputElement>('.monaco-findInput input');
+			const tree = container.querySelector<HTMLElement>('[role="tree"]');
+			assert.ok(input && tree);
+			if (highlight) {
+				const toggle = container.querySelector<HTMLElement>('.codicon-list-filter');
+				assert.ok(toggle);
+				toggle.click();
+			}
+			input.focus();
+			input.value = 'Needle';
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			await timeout(0);
+			const focused = container.querySelector('.monaco-list-row.focused .session-chat-title')?.textContent;
+			const inputRetainedFocus = mainWindow.document.activeElement === input;
+			const bounds = rowFor(container, 'Needle').getBoundingClientRect();
+			const viewport = tree.getBoundingClientRect();
+			const inViewport = bounds.top >= viewport.top && bounds.bottom <= viewport.bottom;
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+			const treeRegainedFocus = mainWindow.document.activeElement === tree;
+			list.closeFind();
+			await timeout(300);
+
+			assert.deepStrictEqual({ focused, inputRetainedFocus, inViewport, treeRegainedFocus }, {
+				focused: 'Needle', inputRetainedFocus: true, inViewport: true, treeRegainedFocus: true,
 			});
 		});
 	}

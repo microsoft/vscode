@@ -11,6 +11,7 @@ import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectTyp
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -2572,7 +2573,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
-	private suspendCollapseStatePersistence = false;
+	private pendingCollapseStateChanges: Record<string, boolean> | undefined;
 
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
@@ -3052,18 +3053,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const element = e.node.element;
 			if (element && isSessionGroupItem(element)) {
 				this._groupRenderer.updateCollapseState(element, e.node.collapsed);
-				if (!this.suspendCollapseStatePersistence) {
-					this.saveSectionCollapseState(`group:${element.group.id}`, e.node.collapsed);
-				}
+				this.saveSectionCollapseState(`group:${element.group.id}`, e.node.collapsed);
 			} else if (element && isSessionSection(element)) {
 				sectionRenderer.updateCollapseState(element, e.node.collapsed);
-				if (!this.suspendCollapseStatePersistence) {
-					this.saveSectionCollapseState(element.id, e.node.collapsed);
-				}
+				this.saveSectionCollapseState(element.id, e.node.collapsed);
 			} else if (element && isSessionItem(element)) {
-				if (!this.suspendCollapseStatePersistence) {
-					this.saveSectionCollapseState(`session:${element.sessionId}`, e.node.collapsed);
-				}
+				this.saveSectionCollapseState(`session:${element.sessionId}`, e.node.collapsed);
 			}
 		}));
 
@@ -3090,6 +3085,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.tree.onDidChangeFindPattern(pattern => {
 			findPattern = pattern;
 			updateFindPatternState();
+		}));
+
+		// Wait for refiltering to populate match scores before revealing collapsed ancestors.
+		const findMatchRevealScheduler = this._register(new RunOnceScheduler(() => {
+			const ancestors = getCollapsedFindAncestors(this.tree.getNode());
+			if (ancestors.length === 0) {
+				return;
+			}
+			this.batchCollapseStateChanges(() => {
+				for (const ancestor of ancestors) {
+					this.tree.expand(ancestor);
+				}
+				this.tree.focusNext(0, true, undefined, node => !!node.filterData && !FuzzyScore.isDefault(node.filterData));
+				const focused = this.tree.getFocus()[0];
+				if (focused && this.tree.getRelativeTop(focused) === null) {
+					this.tree.reveal(focused, 0.5);
+				}
+			});
+		}, 0));
+		this._register(this.tree.onWillRefilter(() => {
+			if (this.hasFindPattern) {
+				findMatchRevealScheduler.schedule();
+			} else {
+				findMatchRevealScheduler.cancel();
+			}
 		}));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
@@ -4425,13 +4445,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	collapseAllSections(): void {
-		this.suspendCollapseStatePersistence = true;
-		try {
+		this.batchCollapseStateChanges(() => {
 			this.tree.collapseAll();
-		} finally {
-			this.suspendCollapseStatePersistence = false;
+			this.saveBulkCollapseState(true);
+		});
+	}
+
+	private batchCollapseStateChanges(action: () => void): void {
+		if (this.pendingCollapseStateChanges) {
+			action();
+			return;
 		}
-		this.saveBulkCollapseState(true);
+		const changes: Record<string, boolean> = {};
+		this.pendingCollapseStateChanges = changes;
+		try {
+			action();
+		} finally {
+			this.pendingCollapseStateChanges = undefined;
+			if (Object.keys(changes).length > 0) {
+				this.saveCollapseState(changes);
+			}
+		}
 	}
 
 	// -- Section collapse persistence --
@@ -4461,6 +4495,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private saveCollapseState(changes: Readonly<Record<string, boolean>>): void {
+		if (this.pendingCollapseStateChanges) {
+			Object.assign(this.pendingCollapseStateChanges, changes);
+			return;
+		}
 		const state = this.readCollapseState();
 		Object.assign(state, changes);
 		this.writeCollapseState(state);
@@ -4468,6 +4506,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private removeSessionCollapseState(sessionId: ISession['sessionId']): void {
 		const key = `session:${sessionId}`;
+		if (this.pendingCollapseStateChanges) {
+			delete this.pendingCollapseStateChanges[key];
+		}
 		const state = this.readCollapseState();
 		if (state[key] !== undefined) {
 			delete state[key];
@@ -4571,6 +4612,23 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 //#endregion
 
 //#region Sorting & Grouping Helpers
+
+/** Collapsed nodes with a matching descendant, ordered from inner branches outward. */
+export function getCollapsedFindAncestors<T>(root: ITreeNode<T | null, FuzzyScore | undefined>): T[] {
+	const ancestors: T[] = [];
+	const visit = (node: ITreeNode<T | null, FuzzyScore | undefined>): boolean => {
+		let hasMatchingDescendant = false;
+		for (const child of node.children) {
+			hasMatchingDescendant = visit(child) || hasMatchingDescendant;
+		}
+		if (hasMatchingDescendant && node.collapsed && node.element !== null) {
+			ancestors.push(node.element);
+		}
+		return hasMatchingDescendant || !!node.filterData && !FuzzyScore.isDefault(node.filterData);
+	};
+	visit(root);
+	return ancestors;
+}
 
 export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
 	const key = getSortKey ?? defaultSortKey;
