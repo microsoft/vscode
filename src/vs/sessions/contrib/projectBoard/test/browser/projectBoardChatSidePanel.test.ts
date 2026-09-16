@@ -316,7 +316,7 @@ suite('ProjectBoardChatSidePanel', () => {
 		await h.panel.open(createCard(), focusCard);
 		h.panel.dispose();
 		h.panel.dispose();
-		await assert.rejects(h.panel.open(createCard(), focusCard), /embedded Kanban/);
+		await assert.rejects(h.panel.open(createCard(), focusCard), /embedded Agents Hub/);
 		await h.waitForClose();
 		assert.deepStrictEqual([focusCard.callCount, h.pane.clear.callCount, h.auxiliaryBarVisible.get()], [0, 1, false]);
 	});
@@ -388,7 +388,7 @@ suite('ProjectBoardChatSidePanel', () => {
 		const h = setup();
 		await h.panel.open(createCard(), () => { });
 		h.customView.set(undefined, undefined);
-		await assert.rejects(h.panel.open(createCard(), () => { }), /embedded Kanban/);
+		await assert.rejects(h.panel.open(createCard(), () => { }), /embedded Agents Hub/);
 		assert.deepStrictEqual([h.pane.clear.callCount, h.auxiliaryBarVisible.get()], [1, false]);
 
 		const other = setup();
@@ -449,6 +449,7 @@ suite('ProjectBoardChatContent', () => {
 
 	test('input pickers receive an independent active-session facade for the exact child', () => {
 		const h = setup();
+		assert.strictEqual(h.content.element.getAttribute('aria-label'), `Agents Hub chat: ${h.card.chat.title.get()}`);
 		const scoped = h.child.firstCall.returnValue;
 		const session = scoped.get(ISessionContext).session.get()!;
 		assert.deepStrictEqual({

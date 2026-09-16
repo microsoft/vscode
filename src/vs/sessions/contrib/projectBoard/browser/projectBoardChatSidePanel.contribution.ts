@@ -19,7 +19,7 @@ import { PROJECT_BOARD_CHAT_CONTAINER_ID, PROJECT_BOARD_CHAT_VIEW_ID, ProjectBoa
 
 const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 	id: PROJECT_BOARD_CHAT_CONTAINER_ID,
-	title: localize2('kanban.chat', "Kanban Chat"),
+	title: localize2('kanban.chat', "Agents Hub Chat"),
 	icon: Codicon.commentDiscussion,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [PROJECT_BOARD_CHAT_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
@@ -28,7 +28,7 @@ const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainers
 
 Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([{
 	id: PROJECT_BOARD_CHAT_VIEW_ID,
-	name: localize2('kanban.chat', "Kanban Chat"),
+	name: localize2('kanban.chat', "Agents Hub Chat"),
 	ctorDescriptor: new SyncDescriptor(ProjectBoardChatViewPane),
 	canToggleVisibility: false,
 	canMoveView: false,
@@ -48,7 +48,7 @@ AccessibleViewRegistry.register({
 			AccessibleViewProviderId.PanelChat,
 			{ type: AccessibleViewType.Help },
 			() => [
-				localize('kanban.chatHelp.overview', "You are in the chat side panel beside Kanban. This panel shows the exact chat selected on the board without changing the main session."),
+				localize('kanban.chatHelp.overview', "You are in the chat side panel beside Agents Hub. This panel shows the exact chat selected on the board without changing the main session."),
 				localize('kanban.chatHelp.input', "Type in the chat input and press Enter to send. Use Tab and Shift+Tab to move among the input, model and agent pickers, and chat actions. Read-only chats have no composer."),
 				localize('kanban.chatHelp.transcript', "Use Open Accessible View{0} to read chat responses. Use Find{1} to search the transcript.", '<keybinding:editor.action.accessibleView>', '<keybinding:actions.find>'),
 				localize('kanban.chatHelp.close', "Use the Close Chat button in the panel header to return focus to the originating card. Closing this panel preserves the input and does not stop running agents."),
