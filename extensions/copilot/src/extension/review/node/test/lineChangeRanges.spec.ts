@@ -17,11 +17,13 @@ suite('Line change ranges', () => {
 			added: {
 				added: [{ start: 2, end: 3 }],
 				changed: [],
+				originalChanged: [],
 				deleted: [],
 			},
 			deleted: {
 				added: [],
 				changed: [],
+				originalChanged: [],
 				deleted: [{ start: 1, end: 2 }],
 			},
 		});
@@ -35,11 +37,13 @@ suite('Line change ranges', () => {
 			moreModified: {
 				added: [{ start: 2, end: 3 }],
 				changed: [{ start: 1, end: 2 }],
+				originalChanged: [{ start: 1, end: 2 }],
 				deleted: [],
 			},
 			moreOriginal: {
 				added: [],
 				changed: [{ start: 1, end: 2 }],
+				originalChanged: [{ start: 1, end: 2 }],
 				deleted: [{ start: 2, end: 3 }],
 			},
 		});
@@ -49,6 +53,7 @@ suite('Line change ranges', () => {
 		assert.deepStrictEqual(computeLineChangeRanges('a\nb\n', 'a\nx\n'), {
 			added: [],
 			changed: [{ start: 1, end: 2 }],
+			originalChanged: [{ start: 1, end: 2 }],
 			deleted: [],
 		});
 	});

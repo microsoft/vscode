@@ -103,6 +103,26 @@ export interface TypeScriptChangeClassificationResult {
 	readonly original: readonly TypeScriptOriginalChangeBucket[];
 }
 
+export interface TypeScriptChangeToExplain {
+	readonly id: string;
+	readonly kind: string;
+	readonly path: readonly string[];
+	readonly changeType: 'added' | 'changed' | 'deleted';
+	readonly classifications: readonly TypeScriptChangeClassification[];
+	readonly original?: string;
+	readonly modified?: string;
+}
+
+export interface TypeScriptChangeExplanationInput {
+	readonly filePath: string;
+	readonly changes: readonly TypeScriptChangeToExplain[];
+}
+
+export interface TypeScriptChangeExplanation {
+	readonly id: string;
+	readonly explanation: string;
+}
+
 export const ICodeReviewService = createServiceIdentifier<ICodeReviewService>('ICodeReviewService');
 
 export interface ICodeReviewService extends vscode.Disposable {
@@ -122,6 +142,11 @@ export interface ICodeReviewService extends vscode.Disposable {
 	classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined>;
 
 	/**
+	 * Generates one concise explanation for each classified change using the configured small utility model.
+	 */
+	explainChanges(input: TypeScriptChangeExplanationInput, token: vscode.CancellationToken): Promise<readonly TypeScriptChangeExplanation[] | undefined>;
+
+	/**
 	 * Opens a code-review entity link created by {@link classifyChanges}.
 	 */
 	openDiff(uri: vscode.Uri): Promise<void>;
@@ -135,6 +160,10 @@ export class NullCodeReviewService implements ICodeReviewService {
 	}
 
 	async classifyChanges(): Promise<undefined> {
+		return undefined;
+	}
+
+	async explainChanges(): Promise<undefined> {
 		return undefined;
 	}
 

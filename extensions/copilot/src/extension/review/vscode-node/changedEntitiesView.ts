@@ -9,8 +9,9 @@ import * as vscode from 'vscode';
 
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import type { Change, Repository } from '../../../platform/git/vscode/git';
-import { ICodeReviewService, type TypeScriptChangeBucket, type TypeScriptClassifiedModifiedLines, type TypeScriptClassifiedOriginalLines, type TypeScriptMetrics, type TypeScriptMetricsResult } from '../../../platform/languageContextProvider/common/codeReviewService';
+import { ICodeReviewService, type TypeScriptChangeBucket, type TypeScriptChangeToExplain, type TypeScriptClassifiedModifiedLines, type TypeScriptClassifiedOriginalLines, type TypeScriptMetrics, type TypeScriptMetricsResult } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
 import { computeLineChangeRanges } from '../node/lineChangeRanges';
@@ -19,6 +20,7 @@ export const changedEntitiesViewId = 'github.copilot.changedEntities';
 
 const openChangedEntityDiffCommand = 'github.copilot.openChangedEntityDiff';
 const supportedExtensions = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
+const maxExplanationSnippetLength = 4000;
 
 type ChangedEntitiesTreeElement = ChangesGroupItem | ChangedFileItem | ChangedEntityItem | MessageItem;
 type ClassifiedChange = TypeScriptClassifiedModifiedLines | TypeScriptClassifiedOriginalLines;
@@ -186,6 +188,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			if (entities.length === 0) {
 				return [MessageItem.empty()];
 			}
+			await this.addExplanations(file.uri.fsPath, entities, original, modified, ranges.changed, ranges.originalChanged);
 
 			const entityItems = createEntityTreeItems(file.id, entities);
 			const fileComplexity = rollUpComplexity(undefined, entityItems);
@@ -231,6 +234,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 					entityLink: bucket.entityLink,
 					changes: [...bucket.changes],
 					metrics: undefined,
+					explanations: [],
 				});
 			} else {
 				existing.entityLink ??= bucket.entityLink;
@@ -249,6 +253,52 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			}
 		}
 		return Array.from(result.values()).sort((left, right) => left.rangeStart - right.rangeStart);
+	}
+
+	private async addExplanations(
+		filePath: string,
+		entities: readonly EntityViewModel[],
+		original: string,
+		modified: string,
+		changed: readonly { start: number; end: number }[],
+		originalChanged: readonly { start: number; end: number }[],
+	): Promise<void> {
+		const originalChangedByModifiedRange = new Map(changed.map((range, index) => [getRangeKey(range), originalChanged[index]]));
+		const targets = new Map<string, { readonly entity: EntityViewModel; readonly change: ClassifiedChange }>();
+		const changes: TypeScriptChangeToExplain[] = [];
+		for (const entity of entities) {
+			for (const change of entity.changes) {
+				const id = `change-${changes.length}`;
+				const originalRange = change.changeType === 'deleted'
+					? change.range
+					: change.changeType === 'changed'
+						? originalChangedByModifiedRange.get(getRangeKey(change.range))
+						: undefined;
+				const modifiedRange = change.changeType === 'deleted' ? undefined : change.range;
+				changes.push({
+					id,
+					kind: entity.kind,
+					path: entity.path,
+					changeType: change.changeType,
+					classifications: change.classifications,
+					original: originalRange === undefined ? undefined : getLines(original, originalRange),
+					modified: modifiedRange === undefined ? undefined : getLines(modified, modifiedRange),
+				});
+				targets.set(id, { entity, change });
+			}
+		}
+
+		try {
+			const explanations = await this.codeReviewService.explainChanges({ filePath, changes }, CancellationToken.None);
+			for (const explanation of explanations ?? []) {
+				const target = targets.get(explanation.id);
+				if (target !== undefined) {
+					target.entity.explanations.push({ change: target.change, explanation: explanation.explanation });
+				}
+			}
+		} catch (error) {
+			this.logService.error(error instanceof Error ? error : String(error), 'Failed to generate TypeScript change explanations');
+		}
 	}
 }
 
@@ -314,6 +364,7 @@ interface EntityViewModel {
 	entityLink: vscode.Uri | undefined;
 	readonly changes: ClassifiedChange[];
 	metrics: EntityChangeMetrics | undefined;
+	readonly explanations: EntityChangeExplanation[];
 }
 
 interface MutableEntityTreeNode {
@@ -333,6 +384,11 @@ interface ComplexityDelta {
 interface EntityChangeMetrics {
 	readonly complexity: ComplexityDelta;
 	readonly runtimeComplexity: string;
+}
+
+interface EntityChangeExplanation {
+	readonly change: ClassifiedChange;
+	readonly explanation: string;
 }
 
 class ChangedEntityItem {
@@ -381,12 +437,13 @@ class ChangedEntityItem {
 			? changesDescription
 			: l10n.t`${changesDescription}, ${accessibleMetricsDescription}`;
 		this.treeItem.description = description;
-		this.treeItem.tooltip = l10n.t`${fullLabel} — ${description}`;
+		this.treeItem.tooltip = formatEntityTooltip(fullLabel, description, node.entity.explanations);
+		const accessibleExplanations = formatAccessibleExplanations(node.entity.explanations);
 		this.treeItem.contextValue = 'copilotChangedEntity';
 		this.treeItem.accessibilityInformation = {
 			label: node.entity.entityLink === undefined
-				? l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}`
-				: l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}. Open diff`,
+				? l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}${accessibleExplanations}`
+				: l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}${accessibleExplanations}. Open diff`,
 		};
 		if (node.entity.entityLink !== undefined) {
 			this.treeItem.command = {
@@ -457,6 +514,21 @@ function getPathKey(path: readonly string[]): string {
 	return JSON.stringify(path);
 }
 
+function getRangeKey(range: { readonly start: number; readonly end: number }): string {
+	return `${range.start}:${range.end}`;
+}
+
+function getLines(content: string, range: { readonly start: number; readonly end: number }): string {
+	const result = content.split(/\r\n|\r|\n/).slice(range.start, range.end).join('\n');
+	if (result.length <= maxExplanationSnippetLength) {
+		return result;
+	}
+	const omittedMarker = '\n... omitted ...\n';
+	const endLength = Math.floor(maxExplanationSnippetLength / 4);
+	const startLength = maxExplanationSnippetLength - endLength - omittedMarker.length;
+	return `${result.slice(0, startLength)}${omittedMarker}${result.slice(-endLength)}`;
+}
+
 function affectsCode(bucket: TypeScriptChangeBucket): boolean {
 	return changesAffectCode(bucket.changes);
 }
@@ -519,6 +591,25 @@ function formatAccessibleDelta(value: number): string {
 		return l10n.t`decreased by ${Math.abs(value)}`;
 	}
 	return l10n.t`unchanged`;
+}
+
+function formatEntityTooltip(fullLabel: string, description: string, explanations: readonly EntityChangeExplanation[]): string {
+	if (explanations.length === 0) {
+		return l10n.t`${fullLabel} — ${description}`;
+	}
+	const explanationLines = explanations.map(explanation =>
+		l10n.t`${formatChanges([explanation.change])}: ${explanation.explanation}`);
+	return [l10n.t`${fullLabel} — ${description}`, ...explanationLines].join('\n\n');
+}
+
+function formatAccessibleExplanations(explanations: readonly EntityChangeExplanation[]): string {
+	if (explanations.length === 0) {
+		return '';
+	}
+	const explanationText = explanations
+		.map(explanation => l10n.t`${formatChanges([explanation.change])}: ${explanation.explanation.replace(/[.!?]+$/, '')}`)
+		.join('; ');
+	return l10n.t`, explanation: ${explanationText}`;
 }
 
 class MessageItem {

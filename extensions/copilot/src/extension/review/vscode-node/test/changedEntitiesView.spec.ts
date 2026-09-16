@@ -47,7 +47,7 @@ vi.mock('vscode', async importOriginal => {
 
 import type { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import type { API, Change, Repository } from '../../../../platform/git/vscode/git';
-import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
+import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptChangeExplanation, TypeScriptChangeExplanationInput, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import type { ILogService } from '../../../../platform/log/common/logService';
 import { Event } from '../../../../util/vs/base/common/event';
 import { ChangedEntitiesTreeDataProvider } from '../changedEntitiesView';
@@ -196,7 +196,13 @@ suite('Changed entities view', () => {
 					},
 				],
 			}],
-		]));
+		]), [
+			'Removed the decoder registration logic.',
+			'Added an optional options parameter.',
+			'Added logging when listening starts.',
+			'Added a close method.',
+			'Removed the read logic.',
+		]);
 		const logService = { error: vi.fn() } as unknown as ILogService;
 		const provider = new ChangedEntitiesTreeDataProvider(gitExtensionService, codeReviewService, logService);
 		const refreshEvents: unknown[] = [];
@@ -219,6 +225,17 @@ suite('Changed entities view', () => {
 				fileRefreshEvents: refreshEvents.map(element => element === files[0]),
 				inputs: codeReviewService.inputs,
 				metricInputs: codeReviewService.metricInputs,
+				explanationInputs: codeReviewService.explanationInputs.map(input => ({
+					filePath: input.filePath,
+					changes: input.changes.map(change => ({
+						id: change.id,
+						path: change.path,
+						changeType: change.changeType,
+						classifications: change.classifications,
+						original: change.original,
+						modified: change.modified,
+					})),
+				})),
 				entityGroups: entities.map(entity => ({
 					label: entity.treeItem.label,
 					icon: entity.treeItem.iconPath instanceof vscode.ThemeIcon ? entity.treeItem.iconPath.id : undefined,
@@ -267,6 +284,51 @@ suite('Changed entities view', () => {
 					{ filePath: uri.fsPath, content: modified },
 					{ filePath: uri.fsPath, content: original },
 				],
+				explanationInputs: [{
+					filePath: uri.fsPath,
+					changes: [
+						{
+							id: 'change-0',
+							path: ['ReaderOptions', 'fromOptions'],
+							changeType: 'deleted',
+							classifications: ['code'],
+							original: 'class Reader {',
+							modified: undefined,
+						},
+						{
+							id: 'change-1',
+							path: ['Reader', 'listen'],
+							changeType: 'changed',
+							classifications: ['structural'],
+							original: '\tlisten(): void {',
+							modified: '\tlisten(options?: object): void {',
+						},
+						{
+							id: 'change-2',
+							path: ['Reader', 'listen'],
+							changeType: 'added',
+							classifications: ['code'],
+							original: undefined,
+							modified: '\t\tlog();',
+						},
+						{
+							id: 'change-3',
+							path: ['Reader', 'close'],
+							changeType: 'added',
+							classifications: ['structural'],
+							original: undefined,
+							modified: '}',
+						},
+						{
+							id: 'change-4',
+							path: ['Reader', 'read'],
+							changeType: 'deleted',
+							classifications: ['code'],
+							original: '',
+							modified: undefined,
+						},
+					],
+				}],
 				entityGroups: [
 					{
 						label: 'ReaderOptions',
@@ -291,16 +353,16 @@ suite('Changed entities view', () => {
 					label: 'fromOptions',
 					icon: 'symbol-function',
 					description: 'Code deletion — Cognitive -4, Cyclomatic -5, Runtime O(n log n)',
-					tooltip: 'ReaderOptions.fromOptions — Code deletion — Cognitive -4, Cyclomatic -5, Runtime O(n log n)',
-					accessibilityLabel: 'ReaderOptions.fromOptions, function, Code deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 5, runtime complexity O(n log n). Open diff',
+					tooltip: 'ReaderOptions.fromOptions — Code deletion — Cognitive -4, Cyclomatic -5, Runtime O(n log n)\n\nCode deletion: Removed the decoder registration logic.',
+					accessibilityLabel: 'ReaderOptions.fromOptions, function, Code deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 5, runtime complexity O(n log n), explanation: Code deletion: Removed the decoder registration logic. Open diff',
 				}],
 				members: [
 					{
 						label: 'listen',
 						icon: 'symbol-method',
 						description: 'Structural change, Code addition — Cognitive +2, Cyclomatic +3, Runtime O(n)',
-						tooltip: 'Reader.listen — Structural change, Code addition — Cognitive +2, Cyclomatic +3, Runtime O(n)',
-						accessibilityLabel: 'Reader.listen, method, Structural change, Code addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity O(n). Open diff',
+						tooltip: 'Reader.listen — Structural change, Code addition — Cognitive +2, Cyclomatic +3, Runtime O(n)\n\nStructural change: Added an optional options parameter.\n\nCode addition: Added logging when listening starts.',
+						accessibilityLabel: 'Reader.listen, method, Structural change, Code addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity O(n), explanation: Structural change: Added an optional options parameter; Code addition: Added logging when listening starts. Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -311,8 +373,8 @@ suite('Changed entities view', () => {
 						label: 'close',
 						icon: 'symbol-method',
 						description: 'Structural addition',
-						tooltip: 'Reader.close — Structural addition',
-						accessibilityLabel: 'Reader.close, method, Structural addition. Open diff',
+						tooltip: 'Reader.close — Structural addition\n\nStructural addition: Added a close method.',
+						accessibilityLabel: 'Reader.close, method, Structural addition, explanation: Structural addition: Added a close method. Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -323,8 +385,8 @@ suite('Changed entities view', () => {
 						label: 'read',
 						icon: 'symbol-method',
 						description: 'Code deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)',
-						tooltip: 'Reader.read — Code deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)',
-						accessibilityLabel: 'Reader.read, method, Code deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 2, runtime complexity O(1). Open diff',
+						tooltip: 'Reader.read — Code deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)\n\nCode deletion: Removed the read logic.',
+						accessibilityLabel: 'Reader.read, method, Code deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 2, runtime complexity O(1), explanation: Code deletion: Removed the read logic. Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -344,15 +406,25 @@ class TestCodeReviewService implements ICodeReviewService {
 	readonly _serviceBrand: undefined;
 	readonly inputs: TypeScriptChangeClassificationInput[] = [];
 	readonly metricInputs: { readonly filePath: string; readonly content?: string }[] = [];
+	readonly explanationInputs: TypeScriptChangeExplanationInput[] = [];
 
 	constructor(
 		private readonly result: TypeScriptChangeClassificationResult,
 		private readonly metricsByContent: ReadonlyMap<string, TypeScriptMetricsResult> = new Map(),
+		private readonly explanations: readonly string[] = [],
 	) { }
 
 	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {
 		this.metricInputs.push({ filePath, content });
 		return content === undefined ? undefined : this.metricsByContent.get(content);
+	}
+
+	async explainChanges(input: TypeScriptChangeExplanationInput): Promise<readonly TypeScriptChangeExplanation[]> {
+		this.explanationInputs.push(input);
+		return input.changes.map((change, index) => ({
+			id: change.id,
+			explanation: this.explanations[index],
+		}));
 	}
 
 	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult> {

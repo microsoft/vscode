@@ -151,6 +151,10 @@ class TestCodeReviewService implements ICodeReviewService {
 		return undefined;
 	}
 
+	async explainChanges(): Promise<undefined> {
+		return undefined;
+	}
+
 	async openDiff(): Promise<void> { }
 
 	dispose(): void { }

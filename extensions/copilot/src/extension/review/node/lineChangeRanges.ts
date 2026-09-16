@@ -9,13 +9,15 @@ import type { LineRange } from '../../../platform/languageContextProvider/common
 export interface LineChangeRanges {
 	readonly added: readonly LineRange[];
 	readonly changed: readonly LineRange[];
+	readonly originalChanged: readonly LineRange[];
 	readonly deleted: readonly LineRange[];
 }
 
 export function computeLineChangeRanges(original: string, modified: string): LineChangeRanges {
-	const result: { added: LineRange[]; changed: LineRange[]; deleted: LineRange[] } = {
+	const result: { added: LineRange[]; changed: LineRange[]; originalChanged: LineRange[]; deleted: LineRange[] } = {
 		added: [],
 		changed: [],
+		originalChanged: [],
 		deleted: [],
 	};
 	const changes = diffArrays(splitLines(original), splitLines(modified));
@@ -31,6 +33,7 @@ export function computeLineChangeRanges(original: string, modified: string): Lin
 				const addedCount = added.value.length;
 				const changedCount = Math.min(count, addedCount);
 				pushRange(result.changed, modifiedLine, modifiedLine + changedCount);
+				pushRange(result.originalChanged, originalLine, originalLine + changedCount);
 				pushRange(result.deleted, originalLine + changedCount, originalLine + count);
 				pushRange(result.added, modifiedLine + changedCount, modifiedLine + addedCount);
 				originalLine += count;
