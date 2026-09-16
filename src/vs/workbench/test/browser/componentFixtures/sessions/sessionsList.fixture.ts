@@ -56,7 +56,7 @@ import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFol
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -413,7 +413,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			override createMenu(id: MenuId): IMenu {
 				return {
 					onDidChange: Event.None,
-					getActions: () => id === SessionItemToolbarMenuId ? [['navigation', [archiveAction]]] : [],
+					getActions: () => id === Menus.SessionItemToolbar ? [['navigation', [archiveAction]]] : [],
 					dispose: () => { },
 				};
 			}
