@@ -46,6 +46,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Support adding, renaming, reordering and deleting both axes. Persist stable IDs rather than labels.
 - Keep at least one row and column; require nonempty labels.
 - A chat has one placement or is Unassigned. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
+- Auto-include Sessions defaults on. Turning it off hides unplaced chats and drafts without deleting them; collapsed Unassigned counts exclude those entries. Dragging a session from the Sessions list into a cell explicitly places its visible chats, even with auto-inclusion off, and expands a collapsed destination.
 - Hover/focus reveals the card Delete action where supported. Deletion requires confirmation and deletes the backing session (including its chats), not merely its board placement. Draft deletion closes its editor through the normal close lifecycle before discarding the owned draft; canceling either confirmation preserves it.
 - Card context menus do not enumerate every destination. Axis-edit menus remain.
 - Deleting an occupied axis requires confirmation and returns affected placements to Unassigned, including archived placements. Cancellation changes nothing.
@@ -53,6 +54,10 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Clicking the board background, grid cells or Unassigned must not draw container focus outlines. Keyboard navigation retains visible focus indicators.
 - Nested question inputs and links keep their own keyboard/mouse behavior; they do not accidentally open or move the card.
 - The board owns its bounded scroll surface. Expanded content must remain reachable, and ordinary live updates preserve scroll position. When embedded via the custom view's styled scrolling, the board notifies the host on any content-height change (for example, expanding a "+more" group) so the host's scroll container rescans immediately rather than lagging behind its passive resize observer.
+- Frameless disclosure buttons at the right of each header independently collapse rows, columns and Unassigned. Row/column label buttons are also frameless, retaining focus and hover feedback. Row/tray bodies shrink to summaries; columns become narrow rails. Headers and collapsed cells label their entry counts as `1 session` / `N sessions` and retain live Needs Input counts, including overflow; chat/draft identity and counting are unchanged.
+- Collapse is per-view and temporary, like cell expansion: reopening a view starts expanded, and embedded/auxiliary views can fold independently. Axis labels still open their edit menus. Collapsing changes no placement, read state or running work.
+- Collapsed cells remain drop targets; a local move into one expands the destination. Returning from a standalone chat reveals its collapsed row/column/tray. Card-arrow navigation skips hidden cards.
+- Retain pending question/approval DOM and the existing bounded model references while collapsed so entered answers are not discarded. Collapsed content is hidden from tab navigation; accessible overview text labels collapsed groups.
 
 ### Live cards
 
@@ -176,6 +181,7 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-19:** Independent model/permission rows; exact chat/session configuration, bounded observation, no global-setting or sibling-chat substitution, live updates, and explicit unknown values.
 - **PB-20:** Shared Keep Going and tool approval controls, exact request/option IDs and approval scope, stale/duplicate protection, retryable failures, retained control identity, and no cross-window focus or accidental read marking.
 - **PB-21:** Themed auxiliary titlebar, fixed independent title, normal window controls, content sizing on resize/fullscreen, singleton behavior and disposal without orphaned chrome.
+- **PB-22:** Independent row/column/tray collapse, compact layout, live summary counts, accessible disclosure state, hidden-card navigation exclusion, drop/reveal behavior, view-local reset and preservation of pending input.
 
 ### Resilience before optional P2
 
