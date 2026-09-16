@@ -57,7 +57,7 @@ function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRend
 		return false;
 	}
 	if (a.kind === 'agentHost' && b.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel;
+		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a.kind === 'local' && b.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
@@ -90,6 +90,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	public get codeblocksPartId(): string | undefined {
 		return this.subPart?.codeblocksPartId;
+	}
+
+	public acceptConfirmation(): void {
+		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			this.subPart.acceptConfirmation();
+		}
 	}
 
 	private subPart!: BaseChatToolInvocationSubPart;

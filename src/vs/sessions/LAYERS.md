@@ -1,8 +1,6 @@
 # Sessions Layer Rules
 
-> **Specification change gate:** Do not update this document for a bug fix that
-> restores the existing import hierarchy. Update it only when the enforced
-> layering contract intentionally changes.
+> **Specification change gate:** Do not update this document for a bug fix that restores the existing import hierarchy. Update it only when the enforced layering contract intentionally changes.
 
 This document describes the import layering rules for `src/vs/sessions/`, enforced by the `local/code-import-patterns` ESLint rule.
 

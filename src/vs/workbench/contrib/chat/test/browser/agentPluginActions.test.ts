@@ -17,7 +17,7 @@ import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPlu
 suite('AgentPluginActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createPlugin(remove?: () => void): IAgentPlugin {
+	function createPlugin(remove?: () => Promise<boolean>): IAgentPlugin {
 		return {
 			uri: URI.file('/plugins/local-plugin'),
 			format: PluginFormat.Copilot,
@@ -30,6 +30,7 @@ suite('AgentPluginActions', () => {
 			agents: observableValue('agents', []),
 			instructions: observableValue('instructions', []),
 			mcpServerDefinitions: observableValue('mcpServerDefinitions', []),
+			automations: observableValue('automations', []),
 		};
 	}
 
@@ -43,13 +44,24 @@ suite('AgentPluginActions', () => {
 
 	test('creates uninstall action for a removable local plugin', async () => {
 		let removeCount = 0;
-		const action = createUninstallPluginAction(createPlugin(() => removeCount++));
+		const action = createUninstallPluginAction(createPlugin(async () => {
+			removeCount++;
+			return true;
+		}));
 
 		assert.ok(action);
 		store.add(action);
 		await action.run();
 
 		assert.strictEqual(removeCount, 1);
+	});
+
+	test('returns the plugin removal result to direct callers', async () => {
+		const action = createUninstallPluginAction(createPlugin(async () => false));
+
+		assert.ok(action);
+		store.add(action);
+		assert.strictEqual(await action.runAndGetResult(), false);
 	});
 
 	test('does not create uninstall action for a non-removable plugin', () => {

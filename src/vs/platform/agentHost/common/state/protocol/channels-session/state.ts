@@ -8,9 +8,9 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
-import type { AutomationState } from '../channels-automation/state.js';
+import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -19,6 +19,7 @@ import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, 
  * Session initialization state.
  *
  * @category Session State
+ * @nonexhaustive
  */
 export const enum SessionLifecycle {
 	Creating = 'creating',
@@ -34,6 +35,7 @@ export const enum SessionLifecycle {
  * and turns that are paused waiting for input.
  *
  * @category Session State
+ * @nonexhaustive
  */
 export const enum SessionStatus {
 	/** Session is idle — no turn is active. */
@@ -54,6 +56,7 @@ export const enum SessionStatus {
  * Discriminant describing the durable provenance of a session.
  *
  * @category Session State
+ * @nonexhaustive
  */
 export const enum SessionOriginKind {
 	/** The session was created as part of an automation run. */
@@ -71,7 +74,7 @@ export const enum SessionOriginKind {
  */
 export interface AutomationSessionOrigin {
 	kind: SessionOriginKind.Automation;
-	/** Owning {@link AutomationState.resource}. */
+	/** Owning {@link AutomationEntry.resource}. */
 	automation: URI;
 	/** Owning {@link AutomationRunState.resource}. */
 	run: URI;
@@ -270,6 +273,7 @@ export interface SessionActiveClient {
  * a `*Kind`.
  *
  * @category Session Input Types
+ * @nonexhaustive
  */
 export const enum SessionInputRequestKind {
 	/** A user-facing elicitation mirrored from an unresolved chat response part. */
@@ -372,10 +376,9 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
 	clientId: string;
 	/**
 	 * The running tool call the session wants the owning client to execute. The
-	 * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
-	 * {@link ToolCallState} in `running` status).
+	 * host only ever populates this with a {@link ToolCallRunningState}.
 	 */
-	toolCall: ToolCallState;
+	toolCall: ToolCallRunningState;
 }
 
 /**
@@ -661,6 +664,7 @@ export interface ToolAnnotations {
  * a container.
  *
  * @category Customization Types
+ * @nonexhaustive
  */
 export const enum CustomizationType {
 	Plugin = 'plugin',
@@ -677,6 +681,7 @@ export const enum CustomizationType {
  * Scope at which customization enablement is decided.
  *
  * @category Customization Types
+ * @nonexhaustive
  */
 export const enum CustomizationEnablementKind {
 	Global = 'global',
@@ -751,6 +756,7 @@ interface CustomizationBase {
  * Discriminant values for {@link CustomizationLoadState}.
  *
  * @category Customization Types
+ * @exhaustive
  */
 export const enum CustomizationLoadStatus {
 	Loading = 'loading',
@@ -1242,6 +1248,7 @@ export type Customization =
  * Discriminant for the {@link McpServerState} union.
  *
  * @category MCP Server State
+ * @nonexhaustive
  */
 export const enum McpServerStatus {
 	/** Server has been registered but is not yet running. */
@@ -1268,6 +1275,7 @@ export const enum McpServerStatus {
  * [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
  *
  * @category MCP Server State
+ * @nonexhaustive
  */
 export const enum McpAuthRequiredReason {
 	/** No token has been provided yet (HTTP 401, no prior token). */

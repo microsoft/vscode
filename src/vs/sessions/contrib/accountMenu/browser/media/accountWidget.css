@@ -76,14 +76,14 @@
 
 /* Chat status dashboard shown from sidebar footer */
 .monaco-hover .chat-status-bar-entry-tooltip {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	max-width: 320px;
 	padding: 4px 6px;
 	overflow: hidden;
 }
 
 .monaco-hover .chat-status-bar-entry-tooltip div.header {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	margin-bottom: 6px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -91,7 +91,7 @@
 }
 
 .monaco-hover .chat-status-bar-entry-tooltip div.description {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -107,7 +107,7 @@
 }
 
 .monaco-hover .chat-status-bar-entry-tooltip .contribution .body {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	overflow: hidden;
 	min-width: 0;
 }
@@ -179,7 +179,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .account-widget-account .account-widget-account-button {

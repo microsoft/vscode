@@ -113,7 +113,7 @@
 .mobile-sort-group-sheet-section-title {
 	padding: 12px 16px 4px;
 	font-size: 11px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
 	color: var(--vscode-descriptionForeground);

@@ -13,11 +13,11 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { type AutoMergeMethod, type CreatedPullRequest, type GitHubIssueOrPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -67,6 +67,10 @@ class TestAgentHostOctoKitService implements IAgentHostOctoKitService {
 	}
 
 	async findPullRequestByHeadSha(): Promise<CreatedPullRequest | undefined> {
+		throw new Error('not used');
+	}
+
+	async getRepositoryMergeCapabilities(): Promise<never> {
 		throw new Error('not used');
 	}
 
@@ -141,6 +145,7 @@ suite('AgentHostSessionTitleController', () => {
 		session: URI;
 		db: TestSessionDatabase;
 		titleActions: string[];
+		catalogSyncs: { session: string; metadataOverrides: Readonly<Record<string, string>> }[];
 		copilotApiService: TestCopilotApiService;
 		octoKitService: TestAgentHostOctoKitService;
 	} {
@@ -149,6 +154,7 @@ suite('AgentHostSessionTitleController', () => {
 		const session = URI.parse('agenthost-session://copilot/session-title-test');
 		stateManager.createSession(createSummary(session, title, isEphemeral));
 		const titleActions: string[] = [];
+		const catalogSyncs: { session: string; metadataOverrides: Readonly<Record<string, string>> }[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionTitleChanged) {
 				titleActions.push(e.action.title);
@@ -156,6 +162,7 @@ suite('AgentHostSessionTitleController', () => {
 		}));
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			queueCatalogSync: (session, metadataOverrides) => catalogSyncs.push({ session, metadataOverrides }),
 			getGitHubCopilotToken,
 			getGitHubToken,
 			getGitHubHost,
@@ -164,8 +171,31 @@ suite('AgentHostSessionTitleController', () => {
 			copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => activeAgentTitleGeneration,
 		}, new NullLogService()));
-		return { controller, stateManager, session, db, titleActions, copilotApiService, octoKitService };
+		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, octoKitService };
 	}
+
+	test('queues matching parent catalog overrides for automatic and manual peer titles', () => {
+		const { controller, stateManager, session, catalogSyncs } = setup();
+		const chat = buildChatUri(session.toString(), 'peer-catalog-title');
+		stateManager.addChat(session.toString(), chat, {});
+
+		controller.markTitleAuto(session.toString(), chat, 'Automatic title');
+		controller.markTitleRenamed(session.toString(), chat, 'Manual title');
+
+		assert.deepStrictEqual(catalogSyncs, [{
+			session: session.toString(),
+			metadataOverrides: {
+				[customChatTitleMetadataKey(chat)]: 'Automatic title',
+				[customChatTitleSourceMetadataKey(chat)]: AGENT_HOST_TITLE_SOURCE_AUTO,
+			},
+		}, {
+			session: session.toString(),
+			metadataOverrides: {
+				[customChatTitleMetadataKey(chat)]: 'Manual title',
+				[customChatTitleSourceMetadataKey(chat)]: AGENT_HOST_TITLE_SOURCE_USER,
+			},
+		}]);
+	});
 
 	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
 		const copilotApiService = new TestCopilotApiService();
@@ -1071,6 +1101,77 @@ suite('AgentHostSessionTitleController', () => {
 		}, {
 			title: 'Manual title',
 			persistedTitle: undefined,
+		});
+	});
+
+	test('generateExternalSessionTitle titles a surfaced external session from its first prompt', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'Flaky renderer test';
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+		const summaryTitles: (string | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitNotification(n => {
+			if (n.type === NotificationType.SessionSummaryChanged && n.session === external.toString()) {
+				summaryTitles.push(n.changes.title);
+			}
+		}));
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+		// No polling: awaiting the call must mean the title is applied and persisted.
+
+		assert.deepStrictEqual({
+			summaryTitles,
+			persistedTitle: await db.getMetadata('customTitle'),
+			persistedSource: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			isLive: !!stateManager.getSessionState(external.toString()),
+		}, {
+			summaryTitles: ['Flaky renderer test'],
+			persistedTitle: 'Flaky renderer test',
+			persistedSource: AGENT_HOST_TITLE_SOURCE_AUTO,
+			isLive: false,
+		});
+	});
+
+	test('generateExternalSessionTitle does not clobber a rename during generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		let resolveTitle!: (title: string) => void;
+		copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		const generation = controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should start');
+		controller.markTitleRenamed(external.toString());
+		resolveTitle('Flaky renderer test');
+		// Also proves a cancelled generation settles rather than hanging its caller.
+		await generation;
+
+		assert.deepStrictEqual({
+			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			aborted: true,
+			persistedTitle: undefined,
+		});
+	});
+
+	test('generateExternalSessionTitle keeps an already persisted title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+		await db.setMetadata('customTitle', 'Renamed by the user');
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+
+		assert.deepStrictEqual({
+			utilityCalls: copilotApiService.utilityCalls.length,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			utilityCalls: 0,
+			persistedTitle: 'Renamed by the user',
 		});
 	});
 });

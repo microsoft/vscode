@@ -336,6 +336,7 @@ export enum EditorOption {
 	inlayHints = 159,
 	wrapOnEscapedLineFeeds = 160,
 	rtlAutoDetect = 161,
+	wordWrapIndicator = 161,
 	effectiveCursorStyle = 162,
 	editorClassName = 163,
 	pixelRatio = 164,
@@ -349,6 +350,9 @@ export enum EditorOption {
 	scrollOnMiddleClick = 172,
 	effectiveAllowVariableFonts = 173,
 	doubleClickSelectsBlock = 174
+	doubleClickSelectsBlock = 174,
+	fullwidthCharacterWidth = 175,
+	effectiveFullwidthCharacterWidth = 176
 }
 
 /**

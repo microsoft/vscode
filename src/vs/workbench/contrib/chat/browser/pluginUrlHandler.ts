@@ -146,6 +146,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			kind: AgentPluginItemKind.Marketplace,
 			name: plugin.name,
 			description: plugin.description,
+			version: plugin.version,
 			source: plugin.source,
 			sourceDescriptor: plugin.sourceDescriptor,
 			marketplace: plugin.marketplace,

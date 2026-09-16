@@ -58,7 +58,7 @@
 }
 
 .chat-status-bar-entry-tooltip .collapsible-chevron {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -67,7 +67,7 @@
 }
 
 .chat-status-bar-entry-tooltip .contributed-info-icon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;

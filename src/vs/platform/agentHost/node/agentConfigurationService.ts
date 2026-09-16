@@ -5,24 +5,25 @@
 
 import * as fs from 'fs';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { dirname } from '../../../base/common/path.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
-import { agentHostProxyConfigSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
+import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { AgentSession } from '../common/agent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import type { ISessionSandboxPolicy } from './sessionSandbox.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
@@ -85,7 +86,6 @@ export interface IAgentConfigurationService {
 
 	/** Fires whenever a session configuration change is processed. */
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent>;
-	readonly onDidChangeWorkingDirectoryPending: Event<string>;
 
 	/**
 	 * Returns the effective value of `key` for `session`, walking the
@@ -105,22 +105,16 @@ export interface IAgentConfigurationService {
 	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
 
 	/**
-	 * Whether a fresh worktree-isolation session's worktree has not yet been
-	 * created. Agents consult this to defer prewarming (and any other eager
-	 * materialization) until the host resolves the worktree on the first send.
-	 */
-	isWorkingDirectoryPending(session: ProtocolURI): boolean;
-
-	/** Resolves a persisted working directory, repairing a removed worktree when possible. */
-	resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI>;
-
-	/**
 	 * Merges a partial config patch into a session's values via a
 	 * {@link ActionType.SessionConfigChanged} action. Keys not present in
 	 * `patch` are left untouched. The patch is applied atomically through
 	 * the state manager's reducer.
 	 */
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
+
+	/** Runtime-owned sandbox floor; never accepted from client configuration. */
+	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
+	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
 
 	/**
 	 * Returns the merged config values currently stored on `session`.
@@ -168,30 +162,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	declare readonly _serviceBrand: undefined;
 	private _rootConfigWrite = Promise.resolve();
 	private readonly _rootTransientValueKeys = new Set<string>();
+	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
 	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
-	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
-	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
-
-	/**
-	 * Host-owned worktree isolation controller. Injected after construction (via
-	 * {@link setWorktreeIsolation}) after host startup finishes constructing its
-	 * Copilot API dependencies. Consulted by {@link isWorkingDirectoryPending},
-	 * which degrades to folder behavior while it is unset (tests, early startup).
-	 */
-	private _worktree: WorktreeIsolation | undefined;
-	private readonly _worktreePendingListener = this._register(new MutableDisposable());
-
-	setWorktreeIsolation(worktree: WorktreeIsolation): void {
-		this._worktree = worktree;
-		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
-		this._worktreePendingListener.value = onDidChangeWorkingDirectoryPending
-			? onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId))
-			: undefined;
-	}
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -218,11 +194,16 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		for (const registration of providerConfigurations) {
 			this.registerProviderConfiguration(registration);
 		}
+		this._register(this._stateManager.onDidRemoveSession(session => this._sessionSandboxPolicies.delete(session)));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
+				const policy = this.getSessionSandboxPolicy(envelope.channel);
+				if (envelope.action.config[SessionConfigKey.SandboxEnabled] === 'off' && policy?.enabled && !policy.allowBypass) {
+					this.updateSessionConfig(envelope.channel, { [SessionConfigKey.SandboxEnabled]: 'default' });
+				}
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,
 					config: envelope.action.config,
@@ -257,19 +238,24 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return getEffectiveWorkingDirectories(this._stateManager, session);
 	}
 
-	isWorkingDirectoryPending(session: ProtocolURI): boolean {
-		return this._worktree?.isWorkingDirectoryPending(AgentSession.id(session)) ?? false;
-	}
-
-	async resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI> {
-		return this._worktree?.resolveWorkingDirectoryForResume(URI.parse(session), AgentSession.id(session), workingDirectory) ?? workingDirectory;
-	}
-
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {
 		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionConfigChanged,
 			config: patch,
 		});
+	}
+
+	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
+		const owner = resolveAgentHostSession(URI.parse(session)).toString();
+		return this._sessionSandboxPolicies.get(owner);
+	}
+
+	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {
+		this._sessionSandboxPolicies.set(session, policy);
+		if (policy.enabled && !policy.allowBypass && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
+			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: 'default' });
+		}
+		this._onDidSessionConfigChange.fire({ session, config: { [SessionConfigKey.SandboxEnabled]: this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] }, origin: undefined });
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
@@ -407,6 +393,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
 			return {
+				...this._loadPersistedPlatformRootConfig(parsed),
 				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
@@ -420,5 +407,22 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			}
 			return { ...defaults };
 		}
+	}
+
+	/**
+	 * Restores the platform-owned half of the persisted bag. The host reads
+	 * some of these before any client connects (`showExternalSessions`, the
+	 * migrate-legacy gate, provider enablement), so without this a restart
+	 * runs its first pass against the schema default.
+	 */
+	private _loadPersistedPlatformRootConfig(parsed: Record<string, unknown>): Record<string, unknown> {
+		const values: Record<string, unknown> = { ...platformRootSchema.validateOrDefault(parsed, {}) };
+		// Approval and policy values are a snapshot of one client's settings and
+		// are re-pushed on every connect, so restoring them could re-grant an
+		// approval that was tightened while the host was stopped.
+		for (const key of clientOwnedApprovalRootConfigKeys) {
+			delete values[key];
+		}
+		return values;
 	}
 }

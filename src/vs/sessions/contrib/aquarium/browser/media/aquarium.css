@@ -8,23 +8,6 @@
 
 /* --- Water --- */
 
-/* Make the chat bar a positioning context for the water layer (its first
- * child) and keep its real children above the decorative water — without
- * explicit z-index, positioned siblings paint after non-positioned ones.
- * `isolation` keeps the raised children below a stacking context of their own,
- * so they compete with the water rather than with workbench-level overlays such
- * as context menus and editor overflow widgets, which would otherwise be
- * painted behind this part. */
-.monaco-workbench .part.sessionspart {
-	position: relative;
-	isolation: isolate;
-}
-.monaco-workbench .part.sessionspart > .title,
-.monaco-workbench .part.sessionspart > .content {
-	position: relative;
-	z-index: 1;
-}
-
 /* When the aquarium is active, the Sessions Grid wrappers (added between the
  * sessionspart and the chat widget) would otherwise paint their opaque
  * `--session-view-background` on top of the water layer and hide everything.
@@ -40,7 +23,7 @@
 	inset: 0;
 	pointer-events: none;
 	overflow: hidden;
-	z-index: 0;
+	z-index: 1;
 	border-radius: inherit;
 	opacity: 0;
 	transition: opacity 320ms ease-out;
@@ -260,8 +243,8 @@
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label2, 11px);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1;
 	white-space: nowrap;
 	color: var(--vscode-foreground, #cccccc);
@@ -274,7 +257,7 @@
 /* A died streak badge: a quiet, non-interactive hint that feeding a fish will
  * bring the streak back. Kept subtle (muted, normal weight). */
 .agents-aquarium-toggle-streak.revivable {
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 	color: var(--vscode-descriptionForeground, #999999);
 }
 

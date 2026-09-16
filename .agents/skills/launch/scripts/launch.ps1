@@ -16,6 +16,9 @@ $sourceUserDataDir = ''
 $repo = ''
 $cloneExtensions = $false
 $full = $false
+$skipPreLaunch = $false
+$disableWorkspaceTrust = $false
+$sessionTitle = ''
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -135,6 +138,8 @@ function Test-ExcludedPath([string]$relativePath) {
 		'/logs',
 		'/Cache', '/Code Cache', '/CachedData', '/component_crx_cache',
 		'/GPUCache', '/ShaderCache', '/Dawn*Cache',
+		'Partitions/vscode-browser/Cache', 'Partitions/vscode-browser/Code Cache',
+		'Partitions/vscode-browser/GPUCache', 'Partitions/vscode-browser/Dawn*Cache',
 		'/Backups', '/blob_storage', '/BrowserMetrics', '/Crashpad',
 		'/Session Storage',
 		'/Singleton*',
@@ -275,103 +280,6 @@ function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source
 	return $false
 }
 
-function Get-JsoncCodeMask([string]$text) {
-	# Returns a same-length copy of $text with every comment span blanked out.
-	# Offsets are preserved so a match found in the mask can be applied to the
-	# original. String contents are respected, so a `//` inside a value (a URL,
-	# say) is not mistaken for a comment.
-	$chars = $text.ToCharArray()
-	$masked = [char[]]::new($chars.Length)
-	[Array]::Copy($chars, $masked, $chars.Length)
-
-	$inString = $false
-	$inLineComment = $false
-	$inBlockComment = $false
-	$escaped = $false
-
-	for ($i = 0; $i -lt $chars.Length; $i++) {
-		$current = $chars[$i]
-		$next = if ($i + 1 -lt $chars.Length) { $chars[$i + 1] } else { [char]0 }
-
-		if ($inLineComment) {
-			if ($current -eq "`n") { $inLineComment = $false } else { $masked[$i] = ' ' }
-			continue
-		}
-		if ($inBlockComment) {
-			if ($current -eq '*' -and $next -eq '/') {
-				$masked[$i] = ' '
-				$masked[$i + 1] = ' '
-				$i++
-				$inBlockComment = $false
-			} elseif ($current -ne "`n") {
-				$masked[$i] = ' '
-			}
-			continue
-		}
-		if ($inString) {
-			if ($escaped) { $escaped = $false }
-			elseif ($current -eq '\') { $escaped = $true }
-			elseif ($current -eq '"') { $inString = $false }
-			continue
-		}
-
-		if ($current -eq '"') { $inString = $true }
-		elseif ($current -eq '/' -and $next -eq '/') { $masked[$i] = ' '; $inLineComment = $true }
-		elseif ($current -eq '/' -and $next -eq '*') { $masked[$i] = ' '; $masked[$i + 1] = ' '; $i++; $inBlockComment = $true }
-	}
-
-	return (-join $masked)
-}
-
-function Ensure-SimpleDialogSetting([string]$settingsFile) {
-	$key = 'files.simpleDialog.enable'
-	$settingsDirectory = Split-Path -Parent $settingsFile
-	New-Item -ItemType Directory -Force -Path $settingsDirectory | Out-Null
-
-	if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
-		$text = [IO.File]::ReadAllText($settingsFile)
-	} else {
-		$text = ''
-	}
-
-	if ([string]::IsNullOrWhiteSpace($text)) {
-		[IO.File]::WriteAllText($settingsFile, "{`n  `"$key`": true`n}`n", [Text.UTF8Encoding]::new($false))
-		return
-	}
-
-	# Match against a comment-masked copy so a commented-out occurrence such as
-	# `// "files.simpleDialog.enable": false` is not mistaken for the real
-	# setting. Offsets line up with the original, so the value is rewritten in
-	# place without disturbing comments.
-	$maskedText = Get-JsoncCodeMask $text
-	$keyPattern = [regex]::Escape($key)
-	$keyValueRegex = [regex]::new("(`"$keyPattern`"\s*:\s*)(true|false|null|`"[^`"`r`n]*`"|-?\d+(?:\.\d+)?)")
-	$keyMatch = $keyValueRegex.Match($maskedText)
-	if ($keyMatch.Success) {
-		$valueGroup = $keyMatch.Groups[2]
-		$updated = $text.Substring(0, $valueGroup.Index) + 'true' + $text.Substring($valueGroup.Index + $valueGroup.Length)
-		[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
-		return
-	}
-
-	$lastBrace = $maskedText.LastIndexOf('}')
-	if ($lastBrace -eq -1) {
-		throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
-	}
-	$firstBrace = $maskedText.IndexOf('{')
-	if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
-		throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
-	}
-
-	# Whether a leading comma is needed depends only on real content, so decide
-	# it from the masked copy too.
-	$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1).Trim()
-	$separator = if ($between.Length -eq 0 -or $between.EndsWith(',')) { '' } else { ',' }
-	$insertion = "$separator`n  `"$key`": true`n"
-	$updated = $text.Substring(0, $lastBrace) + $insertion + $text.Substring($lastBrace)
-	[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
-}
-
 function Write-LogTail([string]$logFile) {
 	if (Test-Path -LiteralPath $logFile) {
 		Get-Content -LiteralPath $logFile -Tail 80 | ForEach-Object { [Console]::Error.WriteLine($_) }
@@ -420,6 +328,8 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 	# Core only, and `powershell.exe` is still the built-in Windows shell.
 	[void]($processInfo.EnvironmentVariables['VSCODE_SKIP_PRELAUNCH'] = '1')
 	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_COUNT')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_PARAMETERS')
 
 	$process = [Diagnostics.Process]::new()
 	$process.StartInfo = $processInfo
@@ -436,6 +346,13 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 	switch ($argument) {
 		'--agents' {
 			$agents = $true
+			continue
+		}
+		'--session-title' {
+			if ($index + 1 -ge $cliArgs.Count) {
+				Exit-Usage 'Missing value for --session-title.'
+			}
+			$sessionTitle = $cliArgs[++$index]
 			continue
 		}
 		'--source-user-data-dir' {
@@ -464,6 +381,14 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			$full = $true
 			continue
 		}
+		'--skip-prelaunch' {
+			$skipPreLaunch = $true
+			continue
+		}
+		'--disable-workspace-trust' {
+			$disableWorkspaceTrust = $true
+			continue
+		}
 		'--' {
 			for ($forwardIndex = $index + 1; $forwardIndex -lt $cliArgs.Count; $forwardIndex++) {
 				$extraArgs.Add($cliArgs[$forwardIndex])
@@ -478,6 +403,7 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 }
 
 try {
+	$launchStopwatch = [Diagnostics.Stopwatch]::StartNew()
 	if ([string]::IsNullOrWhiteSpace($repo)) {
 		$candidateRepo = (Get-Location).Path
 		if (Test-Path -LiteralPath (Join-Path $candidateRepo 'scripts\code.bat') -PathType Leaf) {
@@ -561,12 +487,30 @@ try {
 	}
 
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
-	Ensure-SimpleDialogSetting $settingsFile
+	$sourceSettingsFile = Join-Path $sourceUserDataDir 'User\settings.json'
+	$settingsScript = Join-Path $PSScriptRoot 'updateSettings.ts'
+	$settingsSessionTitle = if ($agents) { '' } else { $sessionTitle }
+	& $node $settingsScript $settingsFile $settingsSessionTitle $sourceSettingsFile
+	if ($LASTEXITCODE -ne 0) {
+		throw "Failed to update launch settings in $settingsFile"
+	}
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
+	if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
+		if ($agents) {
+			Write-LaunchError "[launch.ps1] set Agents command center title for session: $sessionTitle"
+		} else {
+			Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		}
+	}
+	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
 		$launchArgs.Add('--agents')
+		if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
+			$sessionTitleBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sessionTitle)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+			$launchArgs.Add("--session-title-base64=$sessionTitleBase64")
+		}
 	}
 	$launchArgs.Add("--user-data-dir=$destinationUdd")
 	$launchArgs.Add("--extensions-dir=$extensionsDir")
@@ -575,53 +519,51 @@ try {
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
 	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
+	if ($disableWorkspaceTrust) {
+		$launchArgs.Add('--disable-workspace-trust')
+	}
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
 
 	Write-LaunchError "[launch.ps1] launching: $codeBat $($launchArgs -join ' ')"
 	Write-LaunchError "[launch.ps1] logs: $logFile"
-	Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
-	Push-Location -LiteralPath $repo
-	try {
-		& $node 'build/lib/preLaunch.ts' *>> $logFile
-		$preLaunchExitCode = $LASTEXITCODE
-	} finally {
-		Pop-Location
-	}
-	if ($preLaunchExitCode -ne 0) {
-		Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
-		Write-LogTail $logFile
-		exit 1
-	}
-
-	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
-	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
-	$ready = $false
-	for ($second = 1; $second -le 90; $second++) {
-		if ($process.HasExited) {
-			Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:"
+	if ($skipPreLaunch) {
+		Write-LaunchError '[launch.ps1] skipping pre-launch by request'
+	} else {
+		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
+		Push-Location -LiteralPath $repo
+		try {
+			& $node 'build/lib/preLaunch.ts' *>> $logFile
+			$preLaunchExitCode = $LASTEXITCODE
+		} finally {
+			Pop-Location
+		}
+		if ($preLaunchExitCode -ne 0) {
+			Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
 			Write-LogTail $logFile
 			exit 1
 		}
-
-		try {
-			$request = [Net.WebRequest]::Create("http://127.0.0.1:$cdpPort/json/version")
-			$request.Timeout = 1000
-			$response = $request.GetResponse()
-			$response.Close()
-			$ready = $true
-			Write-LaunchError "[launch.ps1] CDP ready after ${second}s"
-			break
-		} catch {
-			Start-Sleep -Seconds 1
-		}
 	}
-	if (-not $ready) {
-		Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:"
+	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
+
+	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
+	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
+	$waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.ts'
+	$readyMs = & $node $waitForCdp $process.Id $cdpPort
+	$readyStatus = $LASTEXITCODE
+	if ($readyStatus -eq 0) {
+		Write-LaunchError "[launch.ps1] CDP ready after ${readyMs}ms"
+	} else {
+		switch ($readyStatus) {
+			1 { Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:" }
+			2 { Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:" }
+			default { Write-LaunchError "[launch.ps1] failed while waiting for CDP on port $cdpPort. Log tail:" }
+		}
 		Write-LogTail $logFile
 		exit 1
 	}
+	$launchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	[PSCustomObject]@{
 		pid = $process.Id
@@ -636,6 +578,12 @@ try {
 		logFile = $logFile
 		repo = $repo
 		agents = [bool]$agents
+		timings = [PSCustomObject]@{
+			profileMs = $profileReadyMs
+			preLaunchMs = $preLaunchReadyMs - $profileReadyMs
+			cdpReadyMs = $launchReadyMs - $preLaunchReadyMs
+			totalMs = $launchReadyMs
+		}
 	} | ConvertTo-Json -Compress
 } catch {
 	Write-LaunchError "[launch.ps1] $($_.Exception.Message)"

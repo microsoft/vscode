@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, badgeBackground, badgeForeground, chartsGreen, chartsYellow, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, errorForeground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { editorFindMatchHighlight } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
@@ -31,6 +31,30 @@ export const chatRequestBackground = registerColor(
 	'chat.requestBackground',
 	{ dark: transparent(editorBackground, 0.62), light: transparent(editorBackground, 0.62), hcDark: editorWidgetBackground, hcLight: null },
 	localize('chat.requestBackground', 'The background color of a chat request.')
+);
+
+export const chatStatusBackground = registerColor(
+	'chat.statusBackground',
+	{ dark: transparent(foreground, 0.08), light: transparent(foreground, 0.08), hcDark: Color.black, hcLight: Color.white },
+	localize('chat.statusBackground', 'The background color of status elements in chat.')
+);
+
+export const chatSessionInProgressBorder = registerColor(
+	'chat.sessionStateIndicator.inProgressBorder',
+	{ dark: chartsYellow, light: chartsYellow, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.inProgressBorder', "Border color of a Chat Editor with a request in progress.")
+);
+
+export const chatSessionUnvisitedBorder = registerColor(
+	'chat.sessionStateIndicator.unvisitedBorder',
+	{ dark: chartsGreen, light: chartsGreen, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.unvisitedBorder', "Border color of a Chat Editor with an unvisited completion.")
+);
+
+export const chatSessionNeedsInputBorder = registerColor(
+	'chat.sessionStateIndicator.needsInputBorder',
+	{ dark: errorForeground, light: errorForeground, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.needsInputBorder', "Border color of a Chat Editor that needs user input.")
 );
 
 export const chatSlashCommandBackground = registerColor(
@@ -101,22 +125,24 @@ export const chatFindMatchBackground = registerColor(
 export const chatThinkingShimmer = registerColor(
 	'chat.thinkingShimmer',
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
-	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);
+	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'));
 
 export const chatInputWorkingBorderColor1 = registerColor(
 	'chat.inputWorkingBorderColor1',
 	{ dark: buttonBackground, light: buttonBackground, hcDark: '#FFFFFF', hcLight: '#000000' },
-	localize('chat.inputWorkingBorderColor1', 'First color stop of the animated chat input border shown while a request is in flight.'), true);
+	localize('chat.inputWorkingBorderColor1', 'Accent color of the animated chat input border shown while a request is in flight.'));
 
 export const chatInputWorkingBorderColor2 = registerColor(
 	'chat.inputWorkingBorderColor2',
 	{ dark: darken(buttonBackground, 0.5), light: darken(buttonBackground, 0.3), hcDark: '#A0A0A0', hcLight: '#555555' },
-	localize('chat.inputWorkingBorderColor2', 'Secondary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
+	localize('chat.inputWorkingBorderColor2', 'Unused secondary chat input accent color.'), false,
+	localize('chat.inputWorkingBorderColor2.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
 
 export const chatInputWorkingBorderColor3 = registerColor(
 	'chat.inputWorkingBorderColor3',
 	{ dark: lighten(buttonBackground, 0.5), light: lighten(buttonBackground, 0.3), hcDark: '#000000', hcLight: '#000000' },
-	localize('chat.inputWorkingBorderColor3', 'Tertiary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
+	localize('chat.inputWorkingBorderColor3', 'Unused tertiary chat input accent color.'), false,
+	localize('chat.inputWorkingBorderColor3.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
 
 // --- Voice Mode ambient glow -------------------------------------------------
 // The listening / processing / speaking glows are derived from a single base

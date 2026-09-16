@@ -1443,6 +1443,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	updateOptions(newOptions: IDiffEditorOptions): void;
 
 	/**
+	 * Restores automatic width-based layout after a temporary inline layout.
+	 * @internal
+	 */
+	resetWidthBasedLayout(): void;
+
+	/**
 	 * @internal
 	 */
 	setBoundarySashes(sashes: IBoundarySashes): void;

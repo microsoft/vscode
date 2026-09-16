@@ -10,8 +10,9 @@
 	gap: 4px;
 }
 
-/* Collapse the host entirely when there is nothing to show so it adds no spacing. */
-.session-input-banners:not(:has(.session-input-banner)) {
+/* Collapse empty hosts and widgets entirely so they add no spacing. */
+.session-input-banners.empty,
+.session-input-banner.empty {
 	display: none;
 }
 
@@ -55,6 +56,38 @@
 	color: var(--vscode-charts-orange);
 }
 
+.session-input-banner .session-input-banner-navigation {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size20);
+}
+
+.session-input-banner .session-input-banner-navigation-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 16px;
+	height: 20px;
+	min-width: 0;
+	padding: 0;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+}
+
+.session-input-banner .session-input-banner-position {
+	min-width: 24px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-input-banner .session-input-banner-reference {
+	flex-shrink: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
 /* Text — single line, ellipsized when it does not fit next to the actions. */
 .session-input-banner .session-input-banner-text {
 	flex: 1 1 auto;
@@ -71,17 +104,38 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	flex-shrink: 0;
+	flex: 0 0 auto;
 	margin-left: auto;
 }
 
-.session-input-banner .session-input-banner-action {
-	font-size: var(--vscode-agents-fontSize-label2);
+.session-input-banner .session-input-banner-action:not(.monaco-button-dropdown),
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button {
+	font-size: var(--vscode-fontSize-label2);
 	padding: 0 8px;
 	min-width: unset;
 	width: auto;
 	height: 20px;
 	white-space: nowrap;
+}
+
+.session-input-banner .session-input-banner-action {
+	flex: 0 0 auto;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown {
+	align-items: stretch;
+	height: 20px;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button,
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	padding-block: 0;
 }
 
 /* Outlined ghost style for secondary action buttons (e.g. "Reveal"). */
@@ -93,6 +147,18 @@
 }
 
 .session-input-banner .session-input-banner-action.secondary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button.secondary,
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button-dropdown-separator {
+	background: transparent;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.session-input-banner .session-input-banner-action.monaco-button-dropdown > .monaco-button.secondary:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
 }

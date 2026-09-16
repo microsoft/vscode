@@ -144,7 +144,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly _onDidChangeFilesAssociation = this._register(new Emitter<void>());
 	readonly onDidChangeFilesAssociation = this._onDidChangeFilesAssociation.event;
 
-	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>({ leakWarningThreshold: 500, leakWarningName: 'FilesConfigurationService._onDidChangeReadonly' /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	private currentGlobalAutoSaveConfiguration: IAutoSaveConfiguration;

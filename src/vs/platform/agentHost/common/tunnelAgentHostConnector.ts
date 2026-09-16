@@ -16,6 +16,7 @@ import {
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_GATEWAY_SELECT_PATH,
 	TUNNEL_MIN_PROTOCOL_VERSION,
+	TunnelNotFoundError,
 	TunnelTags,
 	type ITunnelConnectResult,
 	type ITunnelGatewayInventory,
@@ -269,7 +270,7 @@ export class TunnelAgentHostConnector extends Disposable {
 
 		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
 		if (!session) {
-			throw new Error(`${LOG_PREFIX} Tunnel ${tunnelId} not found`);
+			throw new TunnelNotFoundError(tunnelId);
 		}
 
 		const { tunnel } = session;
@@ -315,7 +316,7 @@ export class TunnelAgentHostConnector extends Disposable {
 	async prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined> {
 		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
 		if (!session) {
-			throw new Error(`${LOG_PREFIX} Tunnel ${tunnelId} not found`);
+			throw new TunnelNotFoundError(tunnelId);
 		}
 
 		const { tunnel } = session;
@@ -443,7 +444,14 @@ export class TunnelAgentHostConnector extends Disposable {
 			socket,
 			relayClient,
 			data => this._onDidRelayMessage.fire({ connectionId, data }),
-			event => this._logService.info(`${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${event.code}, reason=${event.reason || '(empty)'}`),
+			event => {
+				const message = `${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${event.code}, reason=${event.reason || '(empty)'}`;
+				if (event.error) {
+					this._logService.warn(`${message}, error=${event.error.message}`);
+				} else {
+					this._logService.info(message);
+				}
+			},
 		);
 		const onConnectionClose = connection.onDidClose(() => {
 			onConnectionClose.dispose();

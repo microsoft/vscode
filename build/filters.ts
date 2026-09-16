@@ -266,5 +266,10 @@ export const eslintFilter = Object.freeze<string[]>([
 ]);
 
 export const stylelintFilter = Object.freeze<string[]>([
-	'src/**/*.css'
+	'src/**/*.css',
+	'extensions/**/*.css',
+	'!extensions/**/node_modules/**',
+	'!extensions/**/test/**',
+	'!extensions/**/test-data/**',
+	'!extensions/**/testData/**',
 ]);

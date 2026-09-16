@@ -21,35 +21,39 @@
 
 .ai-customization-management-editor .welcome-prompts-inner {
 	margin: 0 auto;
+	max-width: 840px;
+	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size200) var(--vscode-spacing-size320);
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .welcome-prompts-heading {
-	font-size: var(--vscode-agents-fontSize-heading2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 0 0 6px;
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .welcome-prompts-subtitle {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px;
 	padding-bottom: 8px;
 	line-height: 1.45;
-	min-height: calc(var(--vscode-agents-fontSize-body1) * 1.45 * 2);
+	min-height: calc(var(--vscode-fontSize-body1) * 1.45 * 2);
 }
 
 .ai-customization-management-editor .welcome-prompts-primary {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: var(--vscode-spacing-size60);
 	/* Match card grid width — no extra horizontal margin */
 	width: 100%;
 	box-sizing: border-box;
-	padding: 12px 8px 8px;
-	margin: 16px 0;
-	border: 1px solid color-mix(in srgb, var(--vscode-editorWidget-border) 85%, transparent);
-	border-radius: 6px;
+	padding: var(--vscode-spacing-size160);
+	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size280);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 }
 
 .ai-customization-management-editor .welcome-prompts-section-label {
@@ -58,8 +62,8 @@
 	gap: 8px;
 	margin: 0;
 	padding: 0 4px;
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
@@ -69,8 +73,8 @@
 	min-height: 36px;
 	height: 36px;
 	border-radius: 6px;
-	background: var(--vscode-agentsChatInput-background);
-	border: 1px solid var(--vscode-agentsChatInput-border, var(--vscode-input-border, transparent));
+	background: var(--vscode-input-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
 	padding: 0 4px 0 12px;
 	margin-top: 6px;
 }
@@ -84,13 +88,13 @@
 	min-width: 0;
 	height: 36px;
 	padding: 0;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	font-family: inherit;
 	border: none;
 	outline: none;
 	box-shadow: none;
 	background: transparent;
-	color: var(--vscode-agentsChatInput-foreground);
+	color: var(--vscode-input-foreground);
 	-webkit-appearance: none;
 	appearance: none;
 }
@@ -108,7 +112,7 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-input::placeholder {
-	color: var(--vscode-agentsChatInput-placeholderForeground);
+	color: var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));
 }
 
 .ai-customization-management-editor .welcome-prompts-input-submit {
@@ -151,7 +155,7 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-sent-label {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 	padding: 0 8px;
 	white-space: nowrap;
@@ -172,18 +176,48 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-cards {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size280);
+}
+
+.ai-customization-management-editor .welcome-prompts-overview-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
+.ai-customization-management-editor .welcome-prompts-overview-section-title {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .welcome-prompts-overview-section-description {
+	margin: calc(-1 * var(--vscode-spacing-size60)) 0 0;
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .welcome-prompts-overview-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-	gap: 10px;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: var(--vscode-spacing-size100);
 }
 
 .ai-customization-management-editor .welcome-prompts-card {
 	display: flex;
 	flex-direction: column;
-	padding: 10px 12px 12px;
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 6px;
-	background: var(--vscode-sideBar-background);
+	min-width: 0;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
+	color: var(--vscode-foreground);
+	font: inherit;
+	text-align: left;
 	cursor: pointer;
 	transition: background-color 0.1s ease;
 }
@@ -198,14 +232,14 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-migration-card {
-	grid-column: span 2;
-	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-sideBar-background));
-	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
-	cursor: default;
+	grid-column: 1 / -1;
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-agentsPanel-border));
+	cursor: pointer;
 }
 
 .ai-customization-management-editor .welcome-prompts-migration-card:hover {
-	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-sideBar-background));
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 55%, var(--vscode-list-hoverBackground));
 }
 
 .ai-customization-management-editor .welcome-prompts-card-header {
@@ -216,22 +250,30 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-card-icon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-icon-foreground);
 }
 
 .ai-customization-management-editor .welcome-prompts-card-label {
 	font-size: 12px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .welcome-prompts-card-description {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.45;
 	margin: 0;
 	flex: 1;
+}
+
+.ai-customization-management-editor .welcome-prompts-card-action-label {
+	align-self: flex-start;
+	margin-top: var(--vscode-spacing-size100);
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-textLink-foreground);
 }
 
 .ai-customization-management-editor .welcome-prompts-card-footer {

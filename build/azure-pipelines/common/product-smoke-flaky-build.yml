@@ -86,19 +86,10 @@ jobs:
       - ${{ each step in parameters.compileSteps }}:
         - ${{ step }}
 
-      # The crash/log pipelineArtifact outputs above run unconditionally
-      # (succeededOrFailed()), so ensure the paths exist even if compile fails
-      # or a later step fails first. This must run after the checkout inside
-      # the compile template above, since checkout wipes any untracked files
-      # created earlier in the sources directory, and needs condition: always()
-      # so it still runs after an earlier step in this job has failed.
-      - ${{ if eq(parameters.platform, 'windows') }}:
-        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
-          displayName: Ensure artifact directories exist
-          condition: always()
-      - ${{ else }}:
-        - script: mkdir -p .build/crashes .build/logs
-          displayName: Ensure artifact directories exist
+      # Initialize diagnostics after the checkout inside the compile template,
+      # which cleans untracked files, even if compilation fails.
+      - template: ./ensure-test-artifact-directories.yml@self
+        parameters:
           condition: always()
 
       # Compiled here (rather than in the Integration/Smoke jobs) so the output

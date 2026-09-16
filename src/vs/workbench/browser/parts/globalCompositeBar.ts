@@ -18,6 +18,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
 import { Action, IAction, Separator, SubmenuAction, toAction } from '../../../base/common/actions.js';
+import { Emitter } from '../../../base/common/event.js';
 import { IMenu, IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow } from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
@@ -61,6 +62,9 @@ export class GlobalCompositeBar extends Disposable {
 	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
 	private readonly globalActivityActionBar: ActionBar;
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		private readonly contextMenuActionsProvider: () => IAction[],
@@ -133,8 +137,9 @@ export class GlobalCompositeBar extends Disposable {
 		this.globalActivityActionBar.focus(true);
 	}
 
-	size(): number {
-		return this.globalActivityActionBar.viewItems.length;
+	getHeight(actionHeight: number, actionGap: number): number {
+		const count = this.globalActivityActionBar.length();
+		return count * actionHeight + Math.max(0, count - 1) * actionGap;
 	}
 
 	getContextMenuActions(): IAction[] {
@@ -142,14 +147,16 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	private toggleAccountsActivity() {
-		if (this.globalActivityActionBar.length() === 2 && this.accountsVisibilityPreference) {
+		const accountsVisible = this.globalActivityActionBar.length() === 2;
+		if (accountsVisible === this.accountsVisibilityPreference) {
 			return;
 		}
-		if (this.globalActivityActionBar.length() === 2) {
+		if (accountsVisible) {
 			this.globalActivityActionBar.pull(GlobalCompositeBar.ACCOUNTS_ACTION_INDEX);
 		} else {
 			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
+		this._onDidChange.fire();
 	}
 
 	private get accountsVisibilityPreference(): boolean {
