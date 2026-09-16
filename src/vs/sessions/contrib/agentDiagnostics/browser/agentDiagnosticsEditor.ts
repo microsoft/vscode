@@ -34,6 +34,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { AgentDiagnosticsEditorInput } from './agentDiagnosticsEditorInput.js';
 import { SessionDiagnosticsModel } from './sessionDiagnosticsModel.js';
+import { SessionInsightsView } from './sessionInsightsView.js';
 import '../../../../workbench/contrib/chat/browser/chatDebug/media/chatDebug.css';
 
 export const AgentDiagnosticsFocusedContext = new RawContextKey<boolean>('agentDiagnosticsFocused', false, localize('agentDiagnosticsFocused', "Whether the Agents Diagnostics editor is focused"));
@@ -61,8 +62,8 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private readonly debugTabs = new Map<ChatDebugSessionView, Button>();
 	private selectedDebugView = ChatDebugSessionView.Logs;
 	private currentChatResource: URI | undefined;
-	private sessionInsightsDescription: HTMLElement | undefined;
 	private diagnosticsModel: SessionDiagnosticsModel | undefined;
+	private sessionInsightsView: SessionInsightsView | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -115,9 +116,9 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			localize('agentDiagnostics.sessionInsights', "Session Insights"),
 			localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.")
 		);
-		this.sessionInsightsDescription = insightsPanel.description;
+		insightsPanel.emptyState.remove();
 		this.diagnosticsModel = this._register(this.instantiationService.createInstance(SessionDiagnosticsModel));
-		this._register(this.diagnosticsModel.onDidChange(() => this.renderSessionInsights()));
+		this.sessionInsightsView = this._register(new SessionInsightsView(insightsPanel.panel, this.diagnosticsModel));
 		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
@@ -301,18 +302,13 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.updateDebugView();
 	}
 
-	private renderSessionInsights(): void {
-		if (!this.sessionInsightsDescription) {
-			return;
-		}
+	private getSessionInsightsAccessibleContent(): string {
 		const state = this.diagnosticsModel?.state;
 		if (!state) {
-			this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.");
-			return;
+			return localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.");
 		}
 		if (state.error) {
-			this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsError', "Failed to load native OpenTelemetry diagnostics: {0}", state.error);
-			return;
+			return localize('agentDiagnostics.sessionInsightsError', "Failed to load native OpenTelemetry diagnostics: {0}", state.error);
 		}
 		const lines = [
 			state.summary
@@ -324,7 +320,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			lines.push(localize('agentDiagnostics.combinedTurnModels', "Requested model: {0}; resolved model: {1}; OpenTelemetry traces: {2}; Agent Debug events: {3}.", turn.requestedModel ?? '-', turn.resolvedModel ?? '-', turn.otelTraces.length, turn.debugEvents.length));
 		});
 		lines.push(localize('agentDiagnostics.combinedActivity', "Session activity: {0} records; unmatched OpenTelemetry traces: {1}; unmatched Agent Debug events: {2}.", state.sessionActivity.length, state.unmatchedTraces.length, state.unmatchedDebugEvents.length));
-		this.sessionInsightsDescription.textContent = lines.join('\n\n');
+		return lines.join('\n\n');
 	}
 
 	private updateDebugView(): void {
@@ -367,7 +363,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		return this.selectedTab === DiagnosticsTab.SessionInsights
 			? [
 				localize('agentDiagnostics.accessible.sessionInsights', "Session Insights"),
-				localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here."),
+				this.getSessionInsightsAccessibleContent(),
 			].join('\n')
 			: [
 				localize('agentDiagnostics.accessible.agentDebugView', "Agent Debug: {0}", this.getDebugViewLabel(this.selectedDebugView)),
@@ -395,6 +391,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	}
 
 	override layout(_dimension: Dimension): void {
+		this.sessionInsightsView?.layout();
 		this.layoutDebugView();
 	}
 }

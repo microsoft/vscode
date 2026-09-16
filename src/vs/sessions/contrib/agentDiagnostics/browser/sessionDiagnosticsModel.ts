@@ -9,7 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOTelDiagnosticsLog, IOTelDiagnosticsService, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../../../../platform/otel/common/otelDiagnosticsService.js';
+import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { IChatDebugEvent, IChatDebugModelTurnEvent, IChatDebugService, IChatDebugUserMessageEvent } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 
 export interface ISessionDiagnosticsTurn {
@@ -19,6 +19,7 @@ export interface ISessionDiagnosticsTurn {
 	readonly endTime: number;
 	readonly requestedModel: string | undefined;
 	readonly resolvedModel: string | undefined;
+	readonly otelMessages: readonly IOTelDiagnosticsMessage[];
 	readonly otelTraces: readonly IOTelDiagnosticsTrace[];
 	readonly debugEvents: readonly IChatDebugEvent[];
 }
@@ -51,6 +52,7 @@ export class SessionDiagnosticsModel extends Disposable {
 	private generation = 0;
 	private _state: ISessionDiagnosticsState | undefined;
 	private readonly expandedTraceIds = new Set<string>();
+	private readonly traceDetails = new Map<string, IOTelDiagnosticsTraceDetails>();
 
 	get state(): ISessionDiagnosticsState | undefined {
 		return this._state;
@@ -82,6 +84,7 @@ export class SessionDiagnosticsModel extends Disposable {
 		this.sessionResource = sessionResource;
 		this.chatResource = chatResource;
 		this.expandedTraceIds.clear();
+		this.traceDetails.clear();
 		this._state = undefined;
 		this._onDidChange.fire();
 		this.scheduleRefresh();
@@ -89,6 +92,10 @@ export class SessionDiagnosticsModel extends Disposable {
 
 	isTraceExpanded(traceId: string): boolean {
 		return this.expandedTraceIds.has(traceId);
+	}
+
+	getTraceDetails(traceId: string): IOTelDiagnosticsTraceDetails | undefined {
+		return this.traceDetails.get(traceId);
 	}
 
 	toggleTraceExpanded(traceId: string): void {
@@ -149,6 +156,10 @@ export class SessionDiagnosticsModel extends Disposable {
 		if (generation !== this.generation) {
 			return;
 		}
+		this.traceDetails.clear();
+		for (const [traceId, details] of traceDetails) {
+			this.traceDetails.set(traceId, details);
+		}
 
 		const debugEvents = this.chatDebugService.getEvents(chatResource);
 		const debugPrompts = debugEvents.filter((event): event is IChatDebugUserMessageEvent => event.kind === 'userMessage');
@@ -166,6 +177,7 @@ export class SessionDiagnosticsModel extends Disposable {
 				...debugEvents.map(event => event.created.getTime()),
 			);
 			const otelTraces = traces.filter(trace => trace.startTime >= prompt.timestamp && (index === prompts.length - 1 || trace.startTime < endTime));
+			const otelMessages = messages.filter(message => message.timestamp >= prompt.timestamp && (index === prompts.length - 1 || message.timestamp < endTime));
 			const turnDebugEvents = debugEvents.filter(event => event.created.getTime() >= prompt.timestamp && (index === prompts.length - 1 || event.created.getTime() < endTime));
 			otelTraces.forEach(trace => assignedTraceIds.add(trace.traceId));
 			turnDebugEvents.forEach(event => assignedDebugEvents.add(event));
@@ -179,6 +191,7 @@ export class SessionDiagnosticsModel extends Disposable {
 				endTime,
 				requestedModel: modelSpans.find(span => span.requestModel)?.requestModel ?? debugModel,
 				resolvedModel: modelSpans.findLast(span => span.responseModel)?.responseModel ?? debugModel,
+				otelMessages,
 				otelTraces,
 				debugEvents: turnDebugEvents,
 			};
