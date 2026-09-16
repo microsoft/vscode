@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -71,14 +71,15 @@ import { getSessionComparisonWorkspaceError, ISessionComparisonWorkspaceChange, 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
-function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined): boolean | undefined {
-	for (const workspace of [session?.workspace.get(), selectedWorkspace]) {
-		const hasGitRemote = workspace?.folders[0]?.gitRepository?.hasGitRemote;
-		if (hasGitRemote !== undefined) {
-			return hasGitRemote;
-		}
+function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): boolean | undefined {
+	const selectedHasGitRemote = selectedWorkspace?.folders[0]?.gitRepository?.hasGitRemote;
+	if (selectedHasGitRemote !== undefined) {
+		return selectedHasGitRemote;
 	}
-	return undefined;
+	const sessionFolder = selectedFolderUri
+		? session?.workspace.get()?.folders.find(folder => isEqual(folder.root, selectedFolderUri))
+		: undefined;
+	return sessionFolder?.gitRepository?.hasGitRemote;
 }
 
 export class NewChatWidget extends Disposable {
@@ -962,7 +963,7 @@ export class NewChatWidget extends Disposable {
 		return this._compareAgentsEnabled.get()
 			&& this._workspacePicker.selectedFolderUri !== undefined
 			&& !!session
-			&& getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace) !== false
+			&& getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, this._workspacePicker.selectedFolderUri) === true
 			&& (providerTransitionPending
 				|| (!!provider
 					&& isAgentHostProvider(provider)
@@ -1034,7 +1035,7 @@ export class NewChatWidget extends Disposable {
 			workspace,
 			branch,
 			branches: branch ? await this._getComparisonBranches(session, branch) : [],
-			hasGitRemote: getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace),
+			hasGitRemote: getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace),
 			defaultHarness: this._getComparisonDefaultHarness(workspace, session),
 		};
 	}
@@ -1239,7 +1240,7 @@ export class NewChatWidget extends Disposable {
 				return false;
 			}
 			const branch = this._comparisonBranch.get() ?? this._getComparisonBranch(session);
-			const workspaceError = getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace));
+			const workspaceError = getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace));
 			if (workspaceError) {
 				this.notificationService.error(workspaceError);
 				return false;
