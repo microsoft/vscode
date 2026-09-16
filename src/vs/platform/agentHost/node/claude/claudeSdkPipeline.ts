@@ -29,6 +29,12 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 /** Upper bound, in milliseconds, on the post-result `getContextUsage` control round-trip. See {@link ClaudeSdkPipeline._contextUsageTimeoutMs}. */
 const DEFAULT_CONTEXT_USAGE_TIMEOUT_MS = 2000;
 
+/** A `getContextUsage` request issued on a query, and whether the subprocess has answered it. */
+interface IPendingContextUsage {
+	readonly query: Query;
+	settled: boolean;
+}
+
 /** A model named in a result's `modelUsage`, with the limits the SDK reported for it. */
 export interface IClaudeObservedModelLimits extends IClaudeModelLimits {
 	/** SDK model id exactly as `modelUsage` keys it. */
@@ -279,19 +285,18 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * failure, never fail the turn.
 	 */
 	private async _fetchContextAttribution(query: Query): Promise<{ readonly contextAttribution: IContextAttributionData; readonly promptTokens: number | undefined } | undefined> {
-		if (this._pendingContextUsage?.query === query) {
+		if (this._pendingContextUsage?.query === query && !this._pendingContextUsage.settled) {
 			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage still pending from an earlier turn, skipping enrichment`);
 			return undefined;
 		}
 		try {
 			const request = query.getContextUsage({ detail: 'summary' });
-			const pending = { query };
+			const pending: IPendingContextUsage = { query, settled: false };
 			this._pendingContextUsage = pending;
-			request.then(() => undefined, () => undefined).then(() => {
-				if (this._pendingContextUsage === pending) {
-					this._pendingContextUsage = undefined;
-				}
-			});
+			// Marks the record, not the pipeline: a request the subprocess never
+			// answers keeps this reaction alive for as long as the SDK holds the
+			// promise, and it must not retain the pipeline with it.
+			request.then(() => undefined, () => undefined).then(() => { pending.settled = true; });
 			const contextUsage = await raceTimeout(request, this._contextUsageTimeoutMs);
 			if (!contextUsage) {
 				this._logService.trace(`[Claude:${this.sessionId}] getContextUsage timed out after ${this._contextUsageTimeoutMs}ms`);
@@ -340,8 +345,8 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/** Upper bound on the post-result `getContextUsage` control round-trip. Overridable by tests. */
 	protected _contextUsageTimeoutMs = DEFAULT_CONTEXT_USAGE_TIMEOUT_MS;
-	/** The `getContextUsage` request still unanswered on its query, if any. See {@link _fetchContextAttribution}. */
-	private _pendingContextUsage: { readonly query: Query } | undefined;
+	/** The latest `getContextUsage` request issued on the live query, if any. See {@link _fetchContextAttribution}. */
+	private _pendingContextUsage: IPendingContextUsage | undefined;
 	private _abortController: AbortController;
 
 	private readonly _queue: ClaudePromptQueue;
