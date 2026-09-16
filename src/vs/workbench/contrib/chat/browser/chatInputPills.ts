@@ -313,21 +313,25 @@ export class ChatInputPills extends Disposable {
 				},
 			}));
 		}
+		const pullRequestOptions: IAction[] = [];
 		for (const source of this._options.sources.get()) {
+			const allPullRequestsFilteredOut = source.kind === SessionChatPillKind.PullRequests
+				&& kindsWithData.has(source.kind) && source.isVisible?.get() === false;
 			if (!source.kind || !this._options.offeredKinds.includes(source.kind)
-				|| (targetKind ? source.kind !== targetKind : !kindsWithData.has(source.kind))) {
+				|| (targetKind ? source.kind !== targetKind && !allPullRequestsFilteredOut : !kindsWithData.has(source.kind))) {
 				continue;
 			}
 			const actions = source.getContextMenuActions?.();
 			if (actions?.length) {
-				targetActions.push(new SubmenuAction(
+				const options = source.kind === SessionChatPillKind.PullRequests ? pullRequestOptions : targetActions;
+				options.push(new SubmenuAction(
 					`chatInputPills.options.${source.kind}`,
 					localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
 					actions,
 				));
 			}
 		}
-		return Separator.join(targetActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
+		return Separator.join(targetActions, pullRequestOptions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 	}
 }
 

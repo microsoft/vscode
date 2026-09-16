@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../base/common/network.js';
-import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IAgentHostConfigurationSync, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -113,7 +112,7 @@ export function getAgentHostConfigurationSyncTarget(identity: AgentHostResourceI
 	if (identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
 		return AgentHostConfigurationSyncTarget.Local;
 	}
-	return URI.parse(identity).scheme === Schemas.vscodeRemote
+	return identity.startsWith(`${Schemas.vscodeRemote}://`)
 		? AgentHostConfigurationSyncTarget.RemoteExtensionHost
 		: AgentHostConfigurationSyncTarget.Remote;
 }

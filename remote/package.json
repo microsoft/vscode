@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
+    "@devcontainers/cli": "0.88.0",
     "@github/copilot": "1.0.84-9",
     "@github/copilot-sdk": "1.0.14-preview.1",
     "@microsoft/1ds-core-js": "^3.2.13",

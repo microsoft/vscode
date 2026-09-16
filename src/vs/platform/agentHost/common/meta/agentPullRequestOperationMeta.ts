@@ -33,6 +33,8 @@ export interface IPullRequestCreateOptions {
 	readonly expectedContext?: IPullRequestContext;
 }
 
+export type IPullRequestChatOptions = Omit<IPullRequestCreateOptions, 'title' | 'description'>;
+
 export interface IPullRequestDetails {
 	readonly title: string;
 	readonly description: string;
@@ -93,17 +95,27 @@ function parseAgentMergeOptions(value: unknown): AgentMergeActions {
 }
 
 function parseCreateOptions(value: unknown): IPullRequestCreateOptions {
+	if (!isRecord(value) || typeof value.title !== 'string' || typeof value.description !== 'string') {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidOptions', "Invalid pull request creation options."));
+	}
+	if (!value.title.trim()) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.titleRequired', "A pull request title is required."));
+	}
+	return {
+		...parseChatOptions(value),
+		title: value.title,
+		description: value.description,
+	};
+}
+
+function parseChatOptions(value: unknown): IPullRequestChatOptions {
 	if (!isRecord(value)
-		|| typeof value.title !== 'string' || typeof value.description !== 'string'
 		|| typeof value.draft !== 'boolean' || typeof value.agentMerge !== 'boolean') {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidOptions', "Invalid pull request creation options."));
 	}
 	const autoMergeMethod = value.autoMergeMethod;
 	if (autoMergeMethod !== undefined && !isMergeMethod(autoMergeMethod)) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidMergeMethod', "Invalid pull request auto-merge method."));
-	}
-	if (!value.title.trim()) {
-		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.titleRequired', "A pull request title is required."));
 	}
 	if (value.draft && autoMergeMethod) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.draftAutoMerge', "Draft pull requests cannot use GitHub auto-merge."));
@@ -115,8 +127,6 @@ function parseCreateOptions(value: unknown): IPullRequestCreateOptions {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.agentMergeOptionsWithoutEnablement', "Enable Agent Merge to configure it for this pull request."));
 	}
 	return {
-		title: value.title,
-		description: value.description,
 		draft: value.draft,
 		agentMerge: value.agentMerge,
 		...(value.agentMergeOptions !== undefined ? { agentMergeOptions: parseAgentMergeOptions(value.agentMergeOptions) } : {}),
@@ -150,8 +160,20 @@ export function createPullRequestOperationMeta(options: IPullRequestCreateOption
 	return { [PULL_REQUEST_META_KEY]: parseCreateOptions(options) };
 }
 
+export function createPullRequestChatMeta(options: IPullRequestChatOptions): Record<string, unknown> {
+	return { [PULL_REQUEST_META_KEY]: parseChatOptions(options) };
+}
+
+export function readPullRequestChatMeta(source: IHasPullRequestOperationMeta): IPullRequestChatOptions | undefined {
+	return readPullRequestMeta(source, parseChatOptions);
+}
+
 /** Missing options preserve legacy creation behavior; malformed options are rejected. */
 export function readPullRequestOperationMeta(source: IHasPullRequestOperationMeta): IPullRequestCreateOptions | undefined {
+	return readPullRequestMeta(source, parseCreateOptions);
+}
+
+function readPullRequestMeta<T>(source: IHasPullRequestOperationMeta, parse: (value: unknown) => T): T | undefined {
 	const meta = source._meta;
 	if (meta === undefined) {
 		return undefined;
@@ -159,7 +181,7 @@ export function readPullRequestOperationMeta(source: IHasPullRequestOperationMet
 	if (!isObject(meta)) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidMeta', "Invalid pull request operation metadata."));
 	}
-	return Object.hasOwn(meta, PULL_REQUEST_META_KEY) ? parseCreateOptions(meta[PULL_REQUEST_META_KEY]) : undefined;
+	return Object.hasOwn(meta, PULL_REQUEST_META_KEY) ? parse(meta[PULL_REQUEST_META_KEY]) : undefined;
 }
 
 function invalidDetails(): Error {
