@@ -58,7 +58,7 @@ suite('ProjectBoardWindow', () => {
 
 	test('shared titlebar renders a fixed board title without session navigation or editor observers', () => {
 		const { container, window, titleService, instantiationService } = createWindow();
-		const titlebar = store.add(titleService.createAuxiliaryWindowTitlebarPart(container, 'Agent Project Board', instantiationService));
+		const titlebar = store.add(titleService.createAuxiliaryWindowTitlebarPart(container, 'Agents Hub', instantiationService));
 		titlebar.layout(800, titlebar.height, 0, 0);
 
 		assert.deepStrictEqual({
@@ -68,8 +68,8 @@ suite('ProjectBoardWindow', () => {
 			toolbars: container.querySelectorAll('.monaco-toolbar, .command-center').length,
 			registered: titleService.parts.length,
 		}, {
-			title: 'Agent Project Board',
-			visibleTitle: 'Agent Project Board',
+			title: 'Agents Hub',
+			visibleTitle: 'Agents Hub',
 			dragRegions: 1,
 			toolbars: 0,
 			registered: 2,
@@ -81,7 +81,7 @@ suite('ProjectBoardWindow', () => {
 
 	test('reserves titlebar height, relayouts on resize, and releases its window-scoped content', () => {
 		const { auxiliaryWindow, container, titleService, instantiationService, resize } = createWindow();
-		const host = store.add(instantiationService.createInstance(ProjectBoardWindow, auxiliaryWindow, 'Agent Project Board'));
+		const host = store.add(instantiationService.createInstance(ProjectBoardWindow, auxiliaryWindow, 'Agents Hub'));
 		const titlebarHeight = isNative ? titleService.getPart(container).minimumHeight : 0;
 		const initialHeight = host.content.style.height;
 		resize(900, 700);
@@ -111,7 +111,7 @@ suite('ProjectBoardWindow', () => {
 		await configuration.setUserConfiguration('window', {
 			titleBarStyle: 'native', customTitleBarVisibility: 'never'
 		});
-		const host = store.add(instantiationService.createInstance(ProjectBoardWindow, auxiliaryWindow, 'Agent Project Board'));
+		const host = store.add(instantiationService.createInstance(ProjectBoardWindow, auxiliaryWindow, 'Agents Hub'));
 
 		assert.deepStrictEqual({
 			title: auxiliaryWindow.window.document.title,
@@ -119,7 +119,7 @@ suite('ProjectBoardWindow', () => {
 			customTitlebars: container.querySelectorAll('.part.titlebar').length,
 			visibleCustomTitlebars: [...container.querySelectorAll<HTMLElement>('.part.titlebar')].filter(titlebar => titlebar.style.display !== 'none').length,
 		}, {
-			title: 'Agent Project Board',
+			title: 'Agents Hub',
 			height: '600px',
 			customTitlebars: isNative ? 1 : 0,
 			visibleCustomTitlebars: 0,

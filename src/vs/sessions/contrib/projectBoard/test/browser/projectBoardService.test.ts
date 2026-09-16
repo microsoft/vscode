@@ -306,6 +306,8 @@ suite('ProjectBoardService', () => {
 		const { service, container, state } = createBoard(document);
 		await service.open();
 		assert.ok(container.querySelector('.project-board'));
+		assert.strictEqual(container.querySelector('h1')?.textContent, 'Agents Hub');
+		assert.ok(service.getAccessibleContent().startsWith('Agents Hub\n'));
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.project-board-column-heading'), element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
 		const firstFocusCount = state.focusCount;
 		await service.open();
@@ -579,22 +581,23 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelector('.project-board-card-credits'), null);
 		await toggle('projectBoard.settings.credits', false);
 		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: unavailable');
-		for (const [value, amount] of [[0, '0.00'], [1, '0.01'], [100, '1.00'], [1234, '12.34'], [12.5, '0.13']] as const) {
+		for (const [value, amount] of [[0, '0 credits'], [1, '1 credit'], [100, '100 credits'], [1234, '1,234 credits'], [12.5, '12.5 credits']] as const) {
 			h.credits.set(value, undefined);
 			const credits = h.container.querySelector('.project-board-card-credits')!;
 			assert.deepStrictEqual({
 				text: credits.textContent,
 				label: credits.getAttribute('aria-label'),
 			}, {
-				text: `$${amount}`,
-				label: `AI credits: $${amount} USD`,
+				text: amount,
+				label: `AI credits: ${amount}`,
 			});
 		}
 		const metrics = h.container.querySelector('.project-board-card-metrics')!;
 		assert.ok(metrics.parentElement?.classList.contains('project-board-card-status-bar'));
 		assert.strictEqual(metrics.parentElement?.lastElementChild, metrics);
 		assert.strictEqual(metrics.parentElement?.parentElement?.lastElementChild, metrics.parentElement);
-		assert.strictEqual(metrics.querySelector('.project-board-card-credits')?.textContent, '$0.13');
+		assert.strictEqual(metrics.querySelector('.project-board-card-credits')?.textContent, '12.5 credits');
+		assert.ok(metrics.querySelector('.codicon-credit-card[aria-hidden="true"]'));
 		assert.ok(metrics.querySelector('.codicon-clock[aria-hidden="true"]'));
 		assert.strictEqual(document.activeElement?.getAttribute('data-board-control'), 'settings');
 		await toggle('projectBoard.settings.stateDuration', true);
@@ -602,7 +605,7 @@ suite('ProjectBoardService', () => {
 		h.closeBoard();
 		await h.service.open();
 		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-duration'), null);
-		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: $0.13 USD');
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: 12.5 credits');
 		await toggle('projectBoard.settings.credits', true);
 		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-credits'), null);
 		assert.ok(h.includeCredits.calledWith(false));
@@ -665,6 +668,22 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelector('[data-board-control="collapse:column:p1"]')!.getAttribute('aria-expanded'), 'true');
 	});
 
+	test('PB-18 reported credit increments remain visible while the session is running', async () => {
+		const chat = new TestChat('Live credits');
+		const h = createBoard(mainWindow.document, [chat]);
+		h.credits.set(12.5, undefined);
+		await h.service.open();
+		h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.credits')!.run();
+		const label = () => h.container.querySelector('.project-board-card-credits')!.textContent;
+		const previous = label();
+		h.credits.set(12.6, undefined);
+		assert.notStrictEqual(label(), previous, 'A reported credit increment must not disappear through dollar conversion and rounding');
+		assert.strictEqual(label(), '12.6 credits');
+		assert.strictEqual(chat.status.get(), SessionStatus.InProgress);
+		assert.deepStrictEqual(h.opened, []);
+	});
+
 	test('PB-18 bottom status bar wraps transparent metrics after the timestamp and retains credit hover', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Metrics layout')]);
 		const hover = sinon.spy(h.instantiationService.invokeFunction(accessor => accessor.get(IHoverService)), 'setupDelayedHover');
@@ -685,9 +704,10 @@ suite('ProjectBoardService', () => {
 		const options = hover.getCalls().findLast(call => call.args[0] === credits)?.args[1];
 		const hoverContent = (typeof options === 'function' ? options() : options)?.content;
 		assert.ok(typeof hoverContent === 'string');
-		assert.ok(hoverContent.includes('AI credits: $0.13 USD'));
+		assert.ok(hoverContent.includes('AI credits: 12.5 credits'));
 		assert.ok(hoverContent.includes('including subagents'));
-		assert.ok(hoverContent.includes('100 AI credits per dollar'));
+		assert.ok(hoverContent.includes('after each model call or when a turn ends'));
+		assert.ok(hoverContent.includes('not currency'));
 		for (const width of [260, 180, 140]) {
 			card.style.width = `${width}px`;
 			const bounds = metrics.getBoundingClientRect();
@@ -1018,7 +1038,7 @@ suite('ProjectBoardService', () => {
 		h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
 		await pending.complete(h.pick.lastCall.args[0][2]);
 		await moving;
-		assert.deepStrictEqual(errors, ['The chat could not be moved on the project board.']);
+		assert.deepStrictEqual(errors, ['The chat could not be moved in Agents Hub.']);
 		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
 		h.state.sessions = [h.session];
 		h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
@@ -1313,7 +1333,7 @@ suite('ProjectBoardService', () => {
 		await Promise.resolve();
 		assert.ok(h.service.getAccessibleContent().includes('Shared surface chat'));
 		embedded.dispose();
-		assert.strictEqual(h.service.getAccessibleContent(), 'Kanban is not currently open.');
+		assert.strictEqual(h.service.getAccessibleContent(), 'Agents Hub is not currently open.');
 	});
 
 	test('PB-05 a closing draft restores focus by its stable ID after its model resource changes', async () => {

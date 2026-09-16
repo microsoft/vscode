@@ -1,4 +1,4 @@
-# Agent Project Board contributor setup
+# Agents Hub contributor setup
 
 This guide targets the shared feature branch `bryanchen-d/agents-board-view`, not upstream `main`. Keep day-to-day work on personal topic branches. The [design and scenario contract](agent-project-board-spec.md) describes the implemented P0/P1 prototype and optional P2 scope.
 
@@ -70,7 +70,7 @@ Keep the Agents owner window open; the board shares its services. If the launche
 1. Enable/sign into GitHub Copilot through the normal UI using your own account and entitlement.
 2. For bounded tests, choose the empty `$demo` folder in Agents rather than asking a model to modify the VS Code checkout.
 3. Verify that the model picker is populated and a harmless prompt receives a real response. A remote-connection account badge alone does not establish Copilot authentication.
-4. Run **Agents: Open Project Board** from the command palette.
+4. Run **Agents: Open Agents Hub** from the command palette, or choose **Agents Hub** in the Sessions sidebar for the embedded view.
 
 An empty board is expected before chats exist. Create a session in Agents or use the board's New Session button. Independently created chats should appear without reopening the board.
 
@@ -86,12 +86,13 @@ No maintainer tokens, private planning workspace or synthetic provider is requir
 - Check the themed board titlebar, maximize/restore and minimize controls. Its fixed title and window controls must not alter the Agents owner window, and the board scroll viewport must stay below the titlebar.
 - Type, Backspace/Delete, select/replace text and undo/redo in a new standalone draft and a published chat.
 - Use arrows to move focus, Home/End for first/last card, Enter/Space to open, and Escape to close.
+- On a rename-capable test chat, use F2 or the card's Rename context-menu action. Verify cancel preserves the title and a committed rename changes only that chat; restore the test title afterward.
 - Verify Escape dismisses a popup first and preserves unsent text across close/reopen.
 - Use Ctrl/Cmd+Shift+M for the searchable placement picker. Axis menus remain, but card menus should not enumerate cells.
 - For Ask User testing, request a bounded interactive question with named options and a permitted custom answer. Verify answering resumes the real provider exactly once.
 - For an interrupted response that offers Keep Going in chat, verify the card exposes the same continuation and resumes the original request only once. In a dedicated test session, exercise a harmless tool approval from its card, including the normal dropdown scope choices and denial; confirm the chat and card both update. Never use working conversations or consequential commands as approval fixtures.
 - Open the top-right gear menu and independently toggle Time in State, AI Credits, Last Prompt, Model Details, and Agent & Permissions. Last Prompt controls the large submitted-prompt text and starts visible; its timestamp and runtime state stay visible when hidden. The two configuration rows start hidden; compare them against the same chat's standalone configuration, not the main Agents window. Hover rows for full labels/values; unavailable fields are not inferred from another chat.
-- Check the last-prompt timestamp on the left of the bottom status bar, with transparent clock and `$` widgets on the right; hover credits for usage details. Verify a live state change resets its timer, output alone does not, and toggles survive closing/reopening the board. An initial `≥` duration means the board did not observe that state's start; unavailable credits mean no reported usage or an active metadata-preview limit, not free usage.
+- Check the last-prompt timestamp on the left of the bottom status bar, with transparent clock and credit-card-icon widgets on the right. Credits display raw AI credits with up to one decimal place, not dollars or cents. While a session is running, successive reported totals of 12.5 and 12.6 must visibly differ; text streaming without new billing data must not invent usage. Hover explains provider reporting intervals and scope. Verify a live state change resets its timer, output alone does not, and toggles survive closing/reopening the board. An initial `≥` duration means the board did not observe that state's start; unavailable credits mean no reported usage or an active metadata-preview limit, not free usage.
 
 The full P0/P1/resilience checklist is in the [design](agent-project-board-spec.md#scenario-gates). Unsent Agents-created drafts are passive previews; enter their first message in Agents.
 

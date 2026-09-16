@@ -1370,7 +1370,7 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 			constructor() {
 				super({
 					id: MANAGE_KANBAN_COMMAND_ID,
-					title: localize2('manageKanban', "Manage Kanban"),
+					title: localize2('manageKanban', "Manage Agents Hub"),
 					menu: []
 				});
 			}

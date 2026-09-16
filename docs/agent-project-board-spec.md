@@ -1,4 +1,4 @@
-# Agent Project Board design
+# Agents Hub design
 
 Revision: 2026-09-15. Status: P0/P1 prototype implemented; optional P2 work is not a committed feature set.
 
@@ -28,9 +28,10 @@ Moving a card changes only its placement. Chats sharing a session still share th
 
 ### Windows and navigation
 
-- `Agents: Open Project Board` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
-- The Sessions sidebar's Kanban entry embeds the same board inside the Agents window, using the custom view's styled scrolling and accessibility support. Both presentations share profile configuration; they are not separate named boards. Their view lifetimes, accessibility content and focus return must remain independent when both are open.
-- Under custom-titlebar configuration, the board reuses the Sessions auxiliary titlebar and its standard native window controls, with a fixed Agent Project Board title and no session command center. Reserve the chrome height outside the board's scroll viewport and keep title/control routing scoped to that auxiliary window.
+- `Agents: Open Agents Hub` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
+- The Sessions sidebar's Agents Hub entry embeds the same board inside the Agents window, using the custom view's styled scrolling and accessibility support. Both presentations share profile configuration; they are not separate named boards. Their view lifetimes, accessibility content and focus return must remain independent when both are open.
+- Under custom-titlebar configuration, the board reuses the Sessions auxiliary titlebar and its standard native window controls, with a fixed Agents Hub title and no session command center. Reserve the chrome height outside the board's scroll viewport and keep title/control routing scoped to that auxiliary window.
+- Agents Hub is the user-facing feature name. Existing `projectBoard`/`kanban` command IDs, custom-view IDs, storage keys and source paths remain stable for compatibility.
 - Invoking the command from an ordinary Editor hands off to that Agents window, rather than creating a separate board for the Editor's profile.
 - Double-click, Enter or Space opens the exact chat in a compact standalone chat editor. Reopening the same chat reuses its window; different chats get independent windows.
 - Embedded Kanban's Board Settings includes **Open Chat in Side Panel**, off by default and persisted with the profile's board configuration. When enabled, double-click, Enter or Space on a chat card opens the exact conversation in the secondary sidebar beside Kanban without changing the main Agents selection. Closing the side-panel chat returns focus to its card; leaving Kanban restores the previous side-panel composition. Turning the preference off closes the side-panel chat and restores standalone opening for subsequent activations. The separate Project Board window and session drafts retain their standalone behavior.
@@ -50,6 +51,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Auto-include Sessions defaults on. Turning it off hides unplaced chats and drafts without deleting them; collapsed Unassigned counts exclude those entries. Dragging a session from the Sessions list into a cell explicitly places its visible chats, even with auto-inclusion off, and expands a collapsed destination.
 - Hover/focus reveals the card Delete action where supported. Deletion requires confirmation and deletes the backing session (including its chats), not merely its board placement. Draft deletion closes its editor through the normal close lifecycle before discarding the owned draft; canceling either confirmation preserves it.
 - Card context menus do not enumerate every destination. Axis-edit menus remain.
+- Where the chat supports renaming, F2 or the card's Rename context-menu action changes that chat's title, not its owning session or sibling chats. Canceling leaves the title unchanged.
 - Deleting an occupied axis requires confirmation and returns affected placements to Unassigned, including archived placements. Cancellation changes nothing.
 - Arrow keys follow the visible card geometry. Home/End focus the first/last card and scroll it into view.
 - Clicking the board background, grid cells or Unassigned must not draw container focus outlines. Keyboard navigation retains visible focus indicators.
@@ -86,7 +88,8 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Model Details is one compact row for the represented chat's selected model, thinking/configuration level, context size and harness. Agent & Permissions is a separate compact row for its agent, execution mode and permission setting. Long values truncate with full labeled values on hover.
 - Configuration rows are read-only: use chat-scoped input/model metadata, the provider's model catalogue and owning-session configuration schema/labels. Never use the main Agents selection or global model preferences. Current selection is not necessarily the model used by an earlier turn (especially Auto). Unknown/unreported values and preview limits remain explicit.
 - Configuration reuses at most sixteen retained metadata helpers; enable observation only while a configuration row is shown. Changes to input text or selections must not rebuild rows. Provider configuration changes update the represented session's row; reading it must not change permissions or select a chat.
-- Each live card ends in a wrapping status bar: last-prompt timestamp on the left, optional clock/state-time and `$` credit widgets on the right. Metrics have transparent backgrounds and theme-aware secondary foregrounds. Preserve readable labels and hover explanations; the credit icon does not imply a dollar charge. Credit hover includes the reported value, scope and unavailable-data meaning.
+- Each live card ends in a wrapping status bar: last-prompt timestamp on the left, optional clock/state-time and credit-card-icon widgets on the right. Metrics have transparent backgrounds and theme-aware secondary foregrounds. Display AI credits with the shared credit formatter (up to one decimal place), not converted currency. Credit hover explains the latest reported per-chat total, provider update timing and unavailable-data meaning.
+- Reported usage updates the credit total even while a response is running, including billing-only refinements and subagent usage. Providers may report after individual model calls or only when a turn ends; do not estimate additional credits from elapsed time or streamed tokens.
 - Time in State applies to non-archived live cards, not drafts. Track each chat's observed runtime transitions, independently of prompt/output updates, read state and placement. Update only timer text once per second; do not rebuild cards or disturb question input, focus or scroll.
 - The first observed state is a lower bound labeled `at least`; its real start may precede opening the board. An observed transition resets the timer. A disconnected provider shows unavailable; reconnecting starts a new lower bound. Reopening the board starts fresh observation, not a fabricated continuation across unseen transitions.
 - AI Credits uses the existing chat model's cumulative session cost, including provider-reported backend totals and subagent costs. It is scoped to that card's chat, not an account balance or an aggregate across sibling chats in the owning session.

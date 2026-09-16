@@ -161,7 +161,7 @@ export class OpenAgentProjectBoardAction extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_AGENT_PROJECT_BOARD_COMMAND_ID,
-			title: localize2('openAgentProjectBoard', "Agents: Open Project Board"),
+			title: localize2('openAgentProjectBoard', "Agents: Open Agents Hub"),
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext.toNegated()),
 			f1: true,
 		});

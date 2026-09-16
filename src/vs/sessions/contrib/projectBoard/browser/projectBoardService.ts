@@ -21,6 +21,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,7 +36,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
 import { CHAT_CARD_LARGE_CLASS } from '../../../../workbench/contrib/chat/browser/widget/chatCard.js';
-import { IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -300,7 +301,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	getAccessibleContent(): string {
-		const lines = [localize('projectBoard.accessibleTitle', "Kanban")];
+		const lines = [localize('projectBoard.accessibleTitle', "Agents Hub")];
 		const appendGroup = (label: string, cards: readonly IProjectBoardCard[], collapsed: boolean) => {
 			lines.push('', collapsed ? localize('projectBoard.collapsedGroup', "{0} (collapsed)", label) : label);
 			if (!cards.length) {
@@ -633,7 +634,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			header.className = 'project-board-header';
 			const heading = document.createElement('div');
 			const title = document.createElement('h1');
-			title.textContent = localize('projectBoard.title', "Agent project board");
+			title.textContent = localize('projectBoard.title', "Agents Hub");
 			heading.appendChild(title);
 			const description = document.createElement('p');
 			description.textContent = localize('projectBoard.description', "Arrange live chats by area and priority. Use arrow keys to navigate cards, Enter to open, and Escape to close the chat window.");
@@ -1329,21 +1330,20 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			credits.className = 'project-board-card-credits';
 			credits.setAttribute('role', 'img');
 			const value = this.creditValues.get(card.id);
-			const formattedAmount = value === undefined ? localize('projectBoard.creditUnavailableCompact', "Unavailable") : (value / 100).toFixed(2);
+			const formattedAmount = value === undefined ? localize('projectBoard.creditUnavailableCompact', "Unavailable") : formatCopilotCreditsLabel(value);
 			const label = value === undefined
 				? localize('projectBoard.creditsUnavailable', "AI credits: unavailable")
-				: localize('projectBoard.creditsUsedDollars', "AI credits: ${0} USD", formattedAmount);
+				: localize('projectBoard.creditsUsed', "AI credits: {0}", formattedAmount);
 			credits.setAttribute('aria-label', label);
 			const icon = document.createElement('span');
-			icon.className = 'project-board-credit-icon';
+			icon.className = `project-board-credit-icon ${ThemeIcon.asClassName(Codicon.creditCard)}`;
 			icon.setAttribute('aria-hidden', 'true');
-			icon.textContent = '$';
 			const amount = document.createElement('span');
 			amount.textContent = formattedAmount;
 			credits.append(icon, amount);
 			describe(credits);
 			store.add(this.hoverService.setupDelayedHover(credits, {
-				content: localize('projectBoard.creditsHelpDollars', "{0}\n\nReported cumulative usage for this chat, including subagents when reported by its provider, converted to US dollars at 100 AI credits per dollar. Not an account balance or sum of sibling chats. Unavailable means no credit data is reported or the metadata preview limit was reached.", label),
+				content: localize('projectBoard.creditsHelpReported', "{0}\n\nLatest reported cumulative usage for this chat, including subagents when reported by its provider. Updates when usage is reported, often after each model call or when a turn ends; not a continuously estimated total. Displayed to one decimal place in AI credits, not currency or an account balance. Unavailable means no credit data is reported or the metadata preview limit was reached.", label),
 			}));
 			metrics.appendChild(credits);
 		}
@@ -1760,7 +1760,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.moveCard(card.id, selected.placement);
 		} catch (error) {
 			this.logService.error('[ProjectBoard] Failed to choose a destination', error);
-			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved on the project board."));
+			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved in Agents Hub."));
 		} finally {
 			if (this.movePicker.value === lifetime) {
 				this.movePicker.clear();
@@ -1853,7 +1853,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		} catch (error) {
 			this.logService.error('[ProjectBoard] Failed to move chat', error);
-			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved on the project board."));
+			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved in Agents Hub."));
 		}
 	}
 
@@ -2005,7 +2005,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	}
 
 	getAccessibleContent(): string {
-		return (this.customView ?? this.boardView)?.getAccessibleContent() ?? localize('projectBoard.accessibleUnavailable', "Kanban is not currently open.");
+		return (this.customView ?? this.boardView)?.getAccessibleContent() ?? localize('projectBoard.accessibleUnavailable', "Agents Hub is not currently open.");
 	}
 
 	private async focusBoardWindow(): Promise<void> {
@@ -2056,7 +2056,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			if (store.isDisposed) {
 				return;
 			}
-			const window = store.add(this.instantiationService.createInstance(ProjectBoardWindow, boardWindow, localize('projectBoard.windowTitle', "Agent Project Board")));
+			const window = store.add(this.instantiationService.createInstance(ProjectBoardWindow, boardWindow, localize('projectBoard.windowTitle', "Agents Hub")));
 			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, window.content, this.chatWindows, this.boardState, true, {
 				sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 				logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
@@ -2078,7 +2078,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			this.boardWindow = undefined;
 			this.boardDisposables.clear();
 			this.logService.error('[ProjectBoard] Failed to open window', error);
-			this.notificationService.error(localize('projectBoard.openWindowFailed', "The Agent Project Board could not be opened."));
+			this.notificationService.error(localize('projectBoard.openWindowFailed', "Agents Hub could not be opened."));
 		}
 	}
 }
