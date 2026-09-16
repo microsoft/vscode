@@ -60,11 +60,12 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
+    "koffi": "3.2.1",
     "yauzl": "^3.3.1"
   },
   "allowScripts": {
     "kerberos@2.1.1": true,
-    "koffi@3.3.0": false,
+    "koffi@3.2.1": false,
     "node-pty@1.2.0-beta.15": true,
     "@parcel/watcher@2.5.6": true,
     "@vscode/deviceid@0.1.5": true,

@@ -285,6 +285,7 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
+    "koffi": "3.2.1",
     "serialize-javascript": "^7.0.3",
     "yauzl": "^3.3.1"
   },
@@ -303,7 +304,7 @@
     "cpu-features": false,
     "foundry-local-sdk@1.2.3": true,
     "kerberos@2.1.1": true,
-    "koffi@3.3.0": false,
+    "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,
     "protobufjs@7.6.5": false,
     "native-is-elevated@0.9.0": true,
