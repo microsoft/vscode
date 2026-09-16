@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -23,6 +24,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { CopyConnectionDiagnosticsCommandId, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 import './connectionDiagnosticsService.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
@@ -42,6 +44,8 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 
 	private active: IActiveConnectionDiagnostics | undefined;
 	private accessibleView: { readonly provider: AccessibleContentProvider; readonly snapshot: IConnectionDiagnosticsSnapshot } | undefined;
+
+	protected get isWebPlatform(): boolean { return isWeb; }
 
 	constructor(
 		@IConnectionDiagnosticsService private readonly diagnosticsService: IConnectionDiagnosticsService,
@@ -78,6 +82,8 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		let active: IActiveConnectionDiagnostics | undefined;
 		await showConnectionDiagnosticsSheet(container, snapshot ?? this.diagnosticsService.getSnapshot(), this.instantiationService, {
 			autoFocus: false,
+			enableHostManagement: this.isWebPlatform,
+			rediscoverOnRefresh: this.isWebPlatform,
 			onDidCreate: (report, api) => {
 				active = this.active = { report, overlay: api.overlay, close: () => api.close(), restoreFocus: true, returnFocus: dom.isHTMLElement(previouslyFocused) ? previouslyFocused : undefined };
 				return this.attachModal(container, report, api);
@@ -90,6 +96,13 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 
 	private attachModal(container: HTMLElement, report: ConnectionDiagnosticsReport, api: IMobileContentSheetApi): DisposableStore {
 		const store = new DisposableStore();
+		const updateLayoutClass = () => {
+			const phoneLayout = isPhoneLayout(this.layoutService);
+			api.overlay.classList.toggle('phone-layout', phoneLayout);
+			api.overlay.classList.toggle('desktop-layout', !phoneLayout);
+		};
+		updateLayoutClass();
+		store.add(this.layoutService.onDidLayoutMainContainer(updateLayoutClass));
 		const context = store.add(this.contextKeyService.createScoped(api.sheet));
 		connectionDiagnosticsFocused.bindTo(context).set(true);
 		for (const sibling of Array.from(container.children).filter(dom.isHTMLElement)) {
@@ -144,9 +157,15 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		active.overlay.remove();
 		active.close();
 		const help = [
-			localize('connectionDiagnostics.help.overview', "Connection diagnostics shows a read-only snapshot of local connection state."),
-			localize('connectionDiagnostics.help.navigation', "Use Tab and Shift+Tab to move between the header actions, report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details."),
-			localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh reads current local state without discovery, authentication, or connection changes."),
+			this.isWebPlatform
+				? localize('connectionDiagnostics.help.webOverview', "Connection information shows live host summaries with Connect and Disconnect beside each host. Expand a host to read its captured diagnostic details. Actions use current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. The separate Hidden hosts section has Restore actions that return hosts to discovery; restoration does not guarantee a connection.")
+				: localize('connectionDiagnostics.help.overview', "Connection diagnostics shows a read-only snapshot of local connection state."),
+			this.isWebPlatform
+				? localize('connectionDiagnostics.help.webNavigation', "Use Tab and Shift+Tab to move between host actions, header actions, the report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details.")
+				: localize('connectionDiagnostics.help.navigation', "Use Tab and Shift+Tab to move between the header actions, report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details."),
+			this.isWebPlatform
+				? localize('connectionDiagnostics.help.webCopy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh re-runs host discovery and then captures current local state.")
+				: localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh reads current local state without discovery, authentication, or connection changes."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
 			localize('connectionDiagnostics.help.close', "Escape or Close dismisses diagnostics. Closing this accessible view returns to the diagnostics snapshot."),
 		].join('\n\n');
@@ -178,7 +197,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ShowConnectionDiagnosticsCommandId,
-			title: localize2('connectionDiagnostics.showCommand', "Show Connection Diagnostics"),
+			title: localize2('connectionDiagnostics.showCommand', "Show Connection Information"),
 			f1: true,
 			precondition: ChatContextKeys.enabled,
 		});
