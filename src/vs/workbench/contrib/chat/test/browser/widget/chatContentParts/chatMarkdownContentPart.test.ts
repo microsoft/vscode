@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -48,6 +49,7 @@ suite('ChatMarkdownContentPart', () => {
 
 	/** Data captured from each CodeBlockPart.render() call */
 	const renderedCodeBlocks: ICodeBlockData[] = [];
+	const renderedCodeBlockWidths: number[] = [];
 	const renderedCodeBlockOutputs: { identifier: string; text: string }[] = [];
 	let outputStateCache: Map<string, IOutputPartState>;
 
@@ -58,8 +60,9 @@ suite('ChatMarkdownContentPart', () => {
 				const mockPart = {
 					element,
 					get uri() { return undefined; },
-					render(data: ICodeBlockData, _width: number) {
+					render(data: ICodeBlockData, width: number) {
 						renderedCodeBlocks.push(data);
+						renderedCodeBlockWidths.push(width);
 					},
 					layout() { },
 					focus() { },
@@ -118,7 +121,7 @@ suite('ChatMarkdownContentPart', () => {
 			ctx.codeBlockStartIndex,
 			renderer,
 			undefined, // markdownRenderOptions
-			500, // currentWidth
+			() => ctx.currentWidth.get(),
 			{}, // rendererOptions
 		));
 	}
@@ -134,7 +137,7 @@ suite('ChatMarkdownContentPart', () => {
 			ctx.codeBlockStartIndex,
 			renderer,
 			undefined,
-			500,
+			() => ctx.currentWidth.get(),
 			{},
 		));
 	}
@@ -154,6 +157,7 @@ suite('ChatMarkdownContentPart', () => {
 			createLinkPresentationWatcher: () => undefined,
 		});
 		renderedCodeBlocks.length = 0;
+		renderedCodeBlockWidths.length = 0;
 		renderedCodeBlockOutputs.length = 0;
 		outputStateCache = new Map<string, IOutputPartState>();
 
@@ -388,6 +392,7 @@ suite('ChatMarkdownContentPart', () => {
 	test('reuses rendered code block webview across incremental rerenders when content is unchanged', async () => {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
 
 		const ctx = createRenderContext(false);
 		const markdown = '```mermaid\ngraph TD\n```';
@@ -406,6 +411,118 @@ suite('ChatMarkdownContentPart', () => {
 			outputBlockCount: 1,
 		});
 	});
+
+	for (const { name, markdown, append, incremental } of [
+		{ name: 'top-level', markdown: '```mermaid\ngraph TD\n```', append: '\n\n' },
+		{ name: 'blockquote', markdown: '> ```mermaid\n> graph TD\n> ```', append: '\n>\n> ' },
+		{ name: 'list', markdown: '- Diagram:\n\n  ```mermaid\n  graph TD\n  ```', append: '\n\n  ' },
+	].flatMap(testCase => [false, true].map(incremental => ({ ...testCase, incremental })))) {
+		test(`preserves the live document of a ${name} code block iframe while streaming (incremental=${incremental})`, async () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
+
+			const ctx = createRenderContext(false);
+			const part = createMarkdownPart(markdown, ctx, true);
+			ctx.container.appendChild(part.domNode);
+			mainWindow.document.body.appendChild(ctx.container);
+			store.add(toDisposable(() => ctx.container.remove()));
+
+			const output = part.domNode.querySelector('.webview-output');
+			assert.ok(output);
+			const iframe = mainWindow.document.createElement('iframe');
+			const loaded = new Promise<void>(resolve => {
+				store.add(addDisposableListener(iframe, 'load', () => resolve()));
+			});
+			iframe.srcdoc = '<!DOCTYPE html><html><body>Rendered diagram</body></html>';
+			output.appendChild(iframe);
+			await loaded;
+			const originalDocument = iframe.contentDocument;
+			assert.ok(originalDocument);
+
+			let content = markdown;
+			const updates = [];
+			for (let i = 0; i < 3; i++) {
+				const text = `Following text ${i}`;
+				content += `${append}${text}`;
+				const updated = part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(content) });
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+				updates.push({
+					updated,
+					documentPreserved: iframe.contentDocument === originalDocument,
+					connected: iframe.isConnected,
+					textRendered: part.domNode.textContent?.includes(text),
+				});
+			}
+
+			assert.deepStrictEqual({
+				updates,
+				renderedOutputs: renderedCodeBlockOutputs,
+				iframeCount: part.domNode.querySelectorAll('iframe').length,
+			}, {
+				updates: Array.from({ length: 3 }, () => ({
+					updated: true,
+					documentPreserved: true,
+					connected: true,
+					textRendered: true,
+				})),
+				renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+				iframeCount: 1,
+			});
+		});
+	}
+
+	for (const incremental of [false, true]) {
+		test(`uses the latest code block width after resizing a streaming Mermaid response (incremental=${incremental})`, async () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
+			const currentWidth = observableValue('currentWidth', 500);
+			const ctx = { ...createRenderContext(false), currentWidth };
+			let markdown = '```mermaid\ngraph TD\n```\n\n```javascript\nconsole.log("hello");\n```';
+			const part = createMarkdownPart(markdown, ctx, true);
+			const updates = [];
+
+			for (const width of [700, 300]) {
+				currentWidth.set(width, undefined);
+				part.layout(width);
+				markdown += '\n\nFollowing text';
+				updates.push(part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(markdown) }));
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			}
+
+			assert.deepStrictEqual({
+				updates,
+				widths: renderedCodeBlockWidths,
+				renderedOutputs: renderedCodeBlockOutputs,
+				codeBlockCount: part.codeblocks.length,
+			}, {
+				updates: [true, true],
+				widths: [500, 700, 300],
+				renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+				codeBlockCount: 2,
+			});
+		});
+
+		test(`renders an incomplete diagram once its fence closes (incremental=${incremental})`, async () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
+			const part = createMarkdownPart('```mermaid\ngraph', createRenderContext(false), true);
+			const outputCounts = [renderedCodeBlockOutputs.length];
+			const updates = [];
+			for (const content of ['```mermaid\ngraph TD', '```mermaid\ngraph TD\n```', '```mermaid\ngraph TD\n```\n\nFollowing text']) {
+				updates.push(part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(content) }));
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+				outputCounts.push(renderedCodeBlockOutputs.length);
+			}
+			assert.deepStrictEqual({ updates, outputCounts, renderedOutputs: renderedCodeBlockOutputs }, {
+				updates: [true, true, true],
+				outputCounts: [0, 0, 1, 1],
+				renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+			});
+		});
+	}
 
 	test('does not render initial incomplete code fence', () => {
 		const ctx = createRenderContext(false);
@@ -470,7 +587,7 @@ suite('ChatMarkdownContentPart', () => {
 			5, // codeBlockStartIndex
 			renderer,
 			undefined,
-			500,
+			() => ctx.currentWidth.get(),
 			{},
 		));
 
@@ -742,13 +859,13 @@ suite('ChatMarkdownContentPart', () => {
 		store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
 			{ kind: 'markdownContent', content: new MarkdownString('```js\nconsole\n```') },
-			ctx, poolWithTracking, false, 0, renderer, undefined, 500, {},
+			ctx, poolWithTracking, false, 0, renderer, undefined, () => ctx.currentWidth.get(), {},
 		));
 
 		store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
 			{ kind: 'markdownContent', content: new MarkdownString('```js\nconsole.log("hello");\n```') },
-			ctx, poolWithTracking, false, 0, renderer, undefined, 500, {},
+			ctx, poolWithTracking, false, 0, renderer, undefined, () => ctx.currentWidth.get(), {},
 		));
 
 		// Both renders should have created code blocks with the correct text
