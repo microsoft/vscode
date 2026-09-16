@@ -388,6 +388,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly context: Lazy<ChatEntitlementContext> | undefined;
 	readonly requests: Lazy<ChatEntitlementRequests> | undefined;
 
+	private readonly setupHiddenByEnvironment: boolean;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
@@ -450,7 +452,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		);
 		this.sentimentObs = observableFromEvent(this.onDidChangeSentiment, () => this.sentiment);
 
-		if ((isWeb && !environmentService.remoteAuthority && !environmentService.isSessionsWindow)) {
+		this.setupHiddenByEnviroment = isWeb && !environmentService.remoteAuthority && !environmentService.isSessionsWindow;
+
+		if (this.setupHiddenByEnviroment) {
 			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI on web if unsupported
 			return;
 		}
@@ -736,7 +740,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		} else {
 			// No ChatEntitlementContext (e.g. no defaultChatAgent in product.json).
 			// Set the context key directly as a fallback.
-			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(hidden);
+			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(hidden || this.setupHiddenByEnviroment);
 		}
 	}
 
