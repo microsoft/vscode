@@ -33,6 +33,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationOnboardingTarget } from '../../../../../workbench/contrib/chat/common/automations/automationOnboarding.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
@@ -213,10 +214,12 @@ suite('Sessions - SessionsList', () => {
 				watchIcon: !!container.querySelector('.session-section-icon.codicon-watch'),
 				spinnerParent: spinner?.parentElement?.className,
 				trailingStatusIndicator: !!container.querySelector('.session-section-status-indicator'),
+				onboardingTarget: container.dataset.onboardingId,
 			}, {
 				watchIcon: false,
 				spinnerParent: 'session-section-icon',
 				trailingStatusIndicator: false,
+				onboardingTarget: AutomationOnboardingTarget.Sidebar,
 			});
 		});
 

@@ -401,6 +401,9 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 
 // Onboarding (scenario engine)
 import './contrib/onboarding/browser/onboarding.contribution.js';
+import './contrib/chat/browser/onboarding/chatTryouts.contribution.js';
+import './contrib/chat/browser/automations/automationTryout.contribution.js';
+import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy
 import './contrib/callHierarchy/browser/callHierarchy.contribution.js';

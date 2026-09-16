@@ -96,6 +96,7 @@ import { getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHover
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { AutomationOnboardingTarget } from '../../../../../workbench/contrib/chat/common/automations/automationOnboarding.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
@@ -1503,6 +1504,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		);
 		if (element.id === AUTOMATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-shortcut');
+			template.elementDisposables.add(markOnboardingTarget(template.container, AutomationOnboardingTarget.Sidebar));
 		}
 
 		this.updateChevron(template, node.collapsible, node.collapsed);

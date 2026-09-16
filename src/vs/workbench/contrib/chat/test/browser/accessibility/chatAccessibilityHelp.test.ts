@@ -14,6 +14,16 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents independent draft examples and keyboard attachment selection without sending', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			independent: help.includes('separate, unsent draft'),
+			preserved: help.includes('leave your existing chats unchanged'),
+			keyboard: help.includes('arrow keys to choose an item, Enter to attach it, and Escape to dismiss a picker'),
+			review: help.includes('Review the draft and its attachments before sending'),
+		}, { independent: true, preserved: true, keyboard: true, review: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

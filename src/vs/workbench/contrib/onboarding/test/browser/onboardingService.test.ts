@@ -306,6 +306,27 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(presentation.runs, []);
 	});
 
+	test('tryouts do not run automatically or through the legacy replay path', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'guarded-tryout',
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined },
+			tryout: { title: 'Example', description: 'An explicitly launched example.' },
+		});
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const outcome = await service.runScenario('guarded-tryout');
+
+		assert.deepStrictEqual({ runs: presentation.runs, outcome, shown: service.hasBeenShown('guarded-tryout') }, {
+			runs: [],
+			outcome: OnboardingOutcome.Aborted,
+			shown: false,
+		});
+	});
+
 	test('runScenario runs manually even when disabled and already shown', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);

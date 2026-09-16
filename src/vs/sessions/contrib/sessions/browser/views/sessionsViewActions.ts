@@ -43,6 +43,7 @@ import { registerExternalSessionsFilterMenu } from '../../../../../workbench/con
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { PREPARE_AUTOMATIONS_TRYOUT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/automations/automationOnboarding.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
@@ -1375,6 +1376,20 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 	}
 	override run(accessor: ServicesAccessor): void {
 		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+	}
+});
+
+registerAction2(class PrepareAutomationsTryoutAction extends Action2 {
+	constructor() {
+		super({
+			id: PREPARE_AUTOMATIONS_TRYOUT_COMMAND_ID,
+			title: localize2('prepareAutomationsTryout', "Prepare Automations Feature Example"),
+			precondition: ChatAutomationsEnabledContext,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ICustomViewService).hideCustomView();
 	}
 });
 

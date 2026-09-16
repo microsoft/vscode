@@ -17,7 +17,7 @@ import { Event, Relay } from '../../../../base/common/event.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -49,6 +49,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor
 import { Memento } from '../../../common/memento.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { markOnboardingTarget } from '../../onboarding/browser/onboarding.js';
 import { Markers, MarkersContextKeys, MarkersViewMode } from '../common/markers.js';
 import { IMarkersView } from './markers.js';
 import { FilterOptions } from './markersFilterOptions.js';
@@ -118,6 +119,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private widget!: IProblemsWidget;
 	private readonly widgetDisposables = this._register(new DisposableStore());
+	private readonly onboardingTarget = this._register(new MutableDisposable());
 	private widgetContainer!: HTMLElement;
 	private widgetIdentityProvider: IIdentityProvider<MarkerElement | MarkerTableItem>;
 	private widgetAccessibilityProvider: MarkersWidgetAccessibilityProvider;
@@ -201,6 +203,9 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	override render(): void {
 		super.render();
+		this.onboardingTarget.value = markOnboardingTarget(this.filterWidget.element, Markers.PROBLEMS_FILTER_ONBOARDING_TARGET_ID, {
+			open: () => this.focusFilter(),
+		});
 		this._register(registerNavigableContainer({
 			name: 'markersView',
 			focusNotifiers: [this, this.filterWidget],

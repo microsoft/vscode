@@ -41,7 +41,8 @@ interface IChatContextItem {
 export interface IChatContextValueItem extends IChatContextItem {
 	readonly type: 'valuePick';
 
-	asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | IChatRequestVariableEntry[] | undefined>;
+	/** Resolve the user's selection, honoring cancellation before opening further UI. */
+	asAttachment(widget: IChatWidget, token?: CancellationToken): Promise<IChatRequestVariableEntry | IChatRequestVariableEntry[] | undefined>;
 }
 
 export type ChatContextPick = IChatContextPickerPickItem | IQuickPickSeparator;

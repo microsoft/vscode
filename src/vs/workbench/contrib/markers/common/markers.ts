@@ -14,6 +14,7 @@ export namespace Markers {
 	export const MARKERS_CONTAINER_ID = 'workbench.panel.markers';
 	export const MARKERS_VIEW_ID = 'workbench.panel.markers.view';
 	export const MARKERS_VIEW_STORAGE_ID = 'workbench.panel.markers';
+	export const PROBLEMS_FILTER_ONBOARDING_TARGET_ID = 'problems.filter';
 	export const MARKER_COPY_ACTION_ID = 'problems.action.copy';
 	export const MARKER_COPY_MESSAGE_ACTION_ID = 'problems.action.copyMessage';
 	export const RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID = 'problems.action.copyRelatedInformationMessage';

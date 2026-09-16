@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../../base/common/arrays.js';
-import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { DeferredPromise, isThenable, raceCancellation } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -47,7 +47,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
-import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { IChatContextPicker, IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { isQuickChat } from '../widget/chatWidget.js';
@@ -472,11 +472,20 @@ function isAnythingQuickPickItemWithBrowserEditor(obj: unknown): obj is IAnythin
 }
 
 
+export interface IChatAttachContextActionContext extends IChatExecuteActionContext {
+	readonly placeholder?: string;
+	/** Deep-open a registered Add Context entry using its command identifier. */
+	readonly contextItemCommandId?: string;
+	readonly token?: CancellationToken;
+}
+
 export class AttachContextAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.attachContext';
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.attachContext',
+			id: AttachContextAction.ID,
 			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
 			icon: Codicon.addCompact,
 			category: CHAT_CATEGORY,
@@ -526,7 +535,7 @@ export class AttachContextAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<'back' | void> {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const widgetService = accessor.get(IChatWidgetService);
@@ -534,17 +543,28 @@ export class AttachContextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
 
-		const context = args[0] as (IChatExecuteActionContext & { placeholder?: string }) | undefined;
+		const context = args[0] as IChatAttachContextActionContext | undefined;
+		const token = context?.token ?? CancellationToken.None;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+		if (!widget || token.isCancellationRequested) {
 			return;
 		}
+		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
 
 		const quickPickItems: IContextPickItemItem[] = [];
 
 		for (const item of contextPickService.items) {
 
-			if (item.isEnabled && !await item.isEnabled(widget)) {
+			if (context?.contextItemCommandId !== undefined && item.commandId !== context.contextItemCommandId) {
+				continue;
+			}
+
+			const enabled = !item.isEnabled || await item.isEnabled(widget);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			if (!enabled) {
 				continue;
 			}
 
@@ -555,6 +575,22 @@ export class AttachContextAction extends Action2 {
 				iconClass: ThemeIcon.asClassName(item.icon),
 				keybinding: item.commandId ? keybindingService.lookupKeybinding(item.commandId, contextKeyService) : undefined,
 			});
+		}
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (context?.contextItemCommandId !== undefined) {
+			if (quickPickItems.length !== 1) {
+				throw new Error(localize('chatContext.pickerUnavailable', "The requested attachment picker is not available."));
+			}
+			const item = quickPickItems[0].item;
+			if (item.type === 'valuePick') {
+				await this._handleContextPick(item, widget, token);
+			} else if (!await this._handleContextPickerItem(quickInputService, commandService, item, widget, token)) {
+				return 'back';
+			}
+			return;
 		}
 
 		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
@@ -682,9 +718,12 @@ export class AttachContextAction extends Action2 {
 		}
 	}
 
-	private async _handleContextPick(item: IChatContextValueItem, widget: IChatWidget) {
+	private async _handleContextPick(item: IChatContextValueItem, widget: IChatWidget, token = CancellationToken.None) {
 
-		const value = await item.asAttachment(widget);
+		const value = await raceCancellation(item.asAttachment(widget, token), token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		if (Array.isArray(value)) {
 			widget.attachmentModel.addContext(...value);
 		} else if (value) {
@@ -692,11 +731,20 @@ export class AttachContextAction extends Action2 {
 		}
 	}
 
-	private async _handleContextPickerItem(quickInputService: IQuickInputService, commandService: ICommandService, item: IChatContextPickerItem, widget: IChatWidget): Promise<boolean> {
-
-		const pickerConfig = item.asPicker(widget);
-
+	private async _handleContextPickerItem(quickInputService: IQuickInputService, commandService: ICommandService, item: IChatContextPickerItem, widget: IChatWidget, token = CancellationToken.None): Promise<boolean> {
+		if (token.isCancellationRequested) {
+			return true;
+		}
 		const store = new DisposableStore();
+		try {
+			return await this._showContextPicker(quickInputService, commandService, item.asPicker(widget), widget, token, store);
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private async _showContextPicker(quickInputService: IQuickInputService, commandService: ICommandService, pickerConfig: IChatContextPicker, widget: IChatWidget, token: CancellationToken, store: DisposableStore): Promise<boolean> {
+		store.add(toDisposable(() => pickerConfig.dispose?.()));
 
 		const goBackItem: IQuickPickItem = {
 			label: localize('goBack', 'Go back ↩'),
@@ -715,9 +763,10 @@ export class AttachContextAction extends Action2 {
 
 		const qp = store.add(quickInputService.createQuickPick({ useSeparators: true }));
 
-		const cts = new CancellationTokenSource();
+		const cts = new CancellationTokenSource(token);
 		store.add(qp.onDidHide(() => cts.cancel()));
 		store.add(toDisposable(() => cts.dispose(true)));
+		store.add(token.onCancellationRequested(() => qp.hide()));
 
 		qp.placeholder = pickerConfig.placeholder;
 		qp.matchOnDescription = true;
@@ -725,15 +774,17 @@ export class AttachContextAction extends Action2 {
 		// qp.ignoreFocusOut = true;
 		qp.canAcceptInBackground = true;
 		qp.busy = true;
+		if (token.isCancellationRequested) {
+			return true;
+		}
 		qp.show();
 
 		if (isThenable(pickerConfig.picks)) {
-			const items = await (pickerConfig.picks.then(value => {
-				return ([] as QuickPickItem[]).concat(value, extraPicks);
-			}));
-
-			qp.items = items;
-			qp.busy = false;
+			const items = await raceCancellation(pickerConfig.picks, cts.token);
+			if (!cts.token.isCancellationRequested && items) {
+				qp.items = ([] as QuickPickItem[]).concat(items, extraPicks);
+				qp.busy = false;
+			}
 		} else {
 			const query = observableValue<string>('attachContext.query', qp.value);
 			store.add(qp.onDidChangeValue(() => query.set(qp.value, undefined)));
@@ -747,7 +798,6 @@ export class AttachContextAction extends Action2 {
 		}
 
 		if (cts.token.isCancellationRequested) {
-			pickerConfig.dispose?.();
 			return true; // picker got hidden already
 		}
 
@@ -755,6 +805,9 @@ export class AttachContextAction extends Action2 {
 		const addPromises: Promise<void>[] = [];
 
 		store.add(qp.onDidAccept(async e => {
+			if (token.isCancellationRequested) {
+				return;
+			}
 			const noop = 'noop';
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
@@ -764,7 +817,7 @@ export class AttachContextAction extends Action2 {
 				}
 				if (isThenable(attachment)) {
 					addPromises.push(attachment.then(v => {
-						if (v !== noop) {
+						if (v !== noop && !token.isCancellationRequested) {
 							widget.attachmentModel.addContext(...asArray(v));
 						}
 					}));
@@ -791,16 +844,11 @@ export class AttachContextAction extends Action2 {
 
 		store.add(qp.onDidHide(() => {
 			defer.complete(true);
-			pickerConfig.dispose?.();
 		}));
 
-		try {
-			const result = await defer.p;
-			qp.busy = true; // if still visible
-			await Promise.all(addPromises);
-			return result;
-		} finally {
-			store.dispose();
-		}
+		const result = await defer.p;
+		qp.busy = true; // if still visible
+		await raceCancellation(Promise.all(addPromises), token);
+		return result;
 	}
 }

@@ -8,6 +8,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -277,8 +278,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	}
 
 	private _isAutoEligible(scenario: IOnboardingScenario): boolean {
-		// `command` triggers never run automatically.
-		if (scenario.trigger.kind === 'command') {
+		// Tryouts and command triggers never run automatically.
+		if (scenario.tryout || scenario.trigger.kind === 'command') {
 			return false;
 		}
 
@@ -378,7 +379,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	private async _runPresentation(scenario: IOnboardingScenario): Promise<OnboardingOutcome> {
 		const presentation = onboardingPresentationRegistry.get(scenario.presentation.kind);
-		if (!presentation) {
+		if (scenario.tryout || !presentation || !hasKey(presentation, { run: true })) {
 			return OnboardingOutcome.Aborted;
 		}
 

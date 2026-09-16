@@ -9,7 +9,7 @@ import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
-import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -17,6 +17,8 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ChatOnboardingTarget } from '../../../../common/onboarding/modelPickerTryout.js';
+import { markOnboardingTarget } from '../../../../../onboarding/browser/onboarding.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { ModelPickerWidget } from './modelPickerWidget.js';
@@ -66,6 +68,7 @@ export interface IModelPickerDelegate {
 export class ModelPickerActionItem extends BaseActionViewItem {
 	private readonly _pickerWidget: ModelPickerWidget;
 	private readonly _managedHover = this._register(new MutableDisposable());
+	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _container: HTMLElement | undefined;
 	private _minimumWidth: number | undefined;
 
@@ -99,9 +102,13 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
+		this._renderDisposables.clear();
 		this._container = container;
 		this._pickerWidget.render(container);
 		this.element = this._pickerWidget.domNode;
+		this._renderDisposables.add(markOnboardingTarget(container, ChatOnboardingTarget.ModelPicker, {
+			open: () => this.openModelPicker(),
+		}));
 		this._updateTooltip();
 		container.classList.add('chat-input-picker-item', 'model-picker-item');
 		this._updateMinimumWidth(this._pickerWidget.minimumWidth);

@@ -86,6 +86,8 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUriIsDefault?: boolean;
 	readonly sessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** A registered feature example to run once in the destination, without persisting it in window or workspace state. */
+	readonly tryoutId?: string;
 }
 
 export interface ICPUProperties {

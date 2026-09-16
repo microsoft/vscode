@@ -62,6 +62,19 @@ suite('BrowserOverlayManager', () => {
 		assert.deepStrictEqual(overlays, []);
 	});
 
+	test('detects a spotlight overlay covering the browser container', () => {
+		const browserContainer = addElement('browser-container', {
+			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'
+		});
+		addElement('spotlight-overlay', {
+			position: 'fixed', left: '0px', top: '0px', width: '400px', height: '400px', zIndex: '2540'
+		});
+
+		const overlays = manager.getOverlappingOverlays(browserContainer);
+
+		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Unknown]);
+	});
+
 	test('detects an overlay beneath detached webview content', () => {
 		const browserContainer = addElement('browser-container', {
 			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'

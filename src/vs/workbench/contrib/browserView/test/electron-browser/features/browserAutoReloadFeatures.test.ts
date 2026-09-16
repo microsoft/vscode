@@ -13,9 +13,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IBrowserViewNavigationEvent, IBrowserViewVisibilityEvent } from '../../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
+import { openOnboardingTarget, ONBOARDING_TARGET_ATTR } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { ISpotlightStep } from '../../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../common/browserView.js';
-import { BrowserAutoReloadService, BrowserAutoReloadWatcher } from '../../../electron-browser/features/browserAutoReloadFeatures.js';
+import { BROWSER_AUTO_RELOAD_ONBOARDING_TARGET_ID, BrowserAutoReloadService, BrowserAutoReloadWatcher, registerBrowserAutoReloadOnboardingTarget } from '../../../electron-browser/features/browserAutoReloadFeatures.js';
+import { BROWSER_AUTO_RELOAD_TRYOUT_ID, BROWSER_AUTO_RELOAD_TRYOUT_PREREQUISITE_COMMAND_ID, chooseAutoReloadTab, createBrowserAutoReloadTryout } from '../../../electron-browser/features/browserAutoReloadTryout.contribution.js';
 
 suite('Browser Auto Reload Features', () => {
 	const disposables = new DisposableStore();
@@ -182,6 +185,77 @@ suite('Browser Auto Reload Features', () => {
 
 		browserViewService.delete('first');
 		assert.strictEqual(service.isEnabled('first'), true);
+	});
+
+	test('registers and disposes the reload-menu onboarding target without reloading, navigating, or toggling', async () => {
+		const element = document.createElement('div');
+		const effects = { menuOpens: 0, reloads: 0, navigations: 0, toggles: 0 };
+		const registration = disposables.add(registerBrowserAutoReloadOnboardingTarget(element, () => effects.menuOpens++));
+
+		const registeredId = element.getAttribute(ONBOARDING_TARGET_ATTR);
+		await openOnboardingTarget(element);
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			registeredId,
+			effects,
+			idAfterDispose: element.getAttribute(ONBOARDING_TARGET_ATTR),
+		}, {
+			registeredId: BROWSER_AUTO_RELOAD_ONBOARDING_TARGET_ID,
+			effects: { menuOpens: 1, reloads: 0, navigations: 0, toggles: 0 },
+			idAfterDispose: null,
+		});
+	});
+
+	test('guided tryout only opens the browser-tab picker before highlighting the reload menu', () => {
+		const tryout = createBrowserAutoReloadTryout();
+		const payload = tryout.presentation.payload;
+		const step = payload.steps[0].payload as ISpotlightStep;
+
+		assert.deepStrictEqual({
+			id: tryout.id,
+			whenKeys: [...(tryout.when?.keys() ?? [])],
+			setupCommand: tryout.setup?.command,
+			launch: payload.launch,
+			step: {
+				targetId: step.targetId,
+				openTarget: step.openTarget,
+				allowTargetInteraction: step.allowTargetInteraction,
+				advanceOnTargetClick: step.advanceOnTargetClick,
+				missingTarget: step.missingTarget,
+			},
+		}, {
+			id: BROWSER_AUTO_RELOAD_TRYOUT_ID,
+			whenKeys: ['isWorkspaceTrusted'],
+			setupCommand: {
+				id: 'workbench.action.openSettings',
+				arguments: ['@id:workbench.browser.autoReloadOnFileChange'],
+			},
+			launch: {
+				kind: 'command',
+				payload: { commandId: BROWSER_AUTO_RELOAD_TRYOUT_PREREQUISITE_COMMAND_ID },
+			},
+			step: {
+				targetId: BROWSER_AUTO_RELOAD_ONBOARDING_TARGET_ID,
+				openTarget: undefined,
+				allowTargetInteraction: true,
+				advanceOnTargetClick: true,
+				missingTarget: { kind: 'wait', timeoutMs: 10_000 },
+			},
+		});
+	});
+
+	test('auto-reload prerequisite only opens the existing browser-tab picker', async () => {
+		const effects = { pickerOpens: 0, reloads: 0, navigations: 0, toggles: 0 };
+
+		await chooseAutoReloadTab(undefined, async () => { effects.pickerOpens++; });
+
+		assert.deepStrictEqual(effects, {
+			pickerOpens: 1,
+			reloads: 0,
+			navigations: 0,
+			toggles: 0,
+		});
 	});
 });
 

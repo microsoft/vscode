@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -12,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { GitHubContextValuePick, OPEN_GITHUB_ISSUE_COMMAND, OPEN_GITHUB_PULL_REQUEST_COMMAND, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { IGitRepository, IGitService } from '../../../../git/common/gitService.js';
@@ -70,9 +71,13 @@ class TestCommandService extends mock<ICommandService>() {
 class TestGitHubContextValuePick extends GitHubContextValuePick {
 	repositoryPicks: readonly { readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI }[] | undefined;
 	selectedRepository: string | undefined;
+	repositoryToken: CancellationToken | undefined;
+	beforeRepositoryPick?: () => void;
 
-	protected override async pickRepository(repositories: readonly { readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI }[]): Promise<{ readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI } | undefined> {
+	protected override async pickRepository(repositories: readonly { readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI }[], token = CancellationToken.None): Promise<{ readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI } | undefined> {
 		this.repositoryPicks = repositories;
+		this.repositoryToken = token;
+		this.beforeRepositoryPick?.();
 		return repositories.find(repository => (repository.repoId ?? repository.folderUri?.toString()) === this.selectedRepository);
 	}
 }
@@ -147,6 +152,55 @@ suite('ChatContext', () => {
 				repository: undefined,
 			},
 		});
+	});
+
+	test('identifies GitHub context entries by their existing commands instead of their labels', () => {
+		const picks = (['issue', 'pullRequest'] as const).map(kind => new GitHubContextValuePick(
+			kind,
+			new TestGitService([]),
+			new class extends mock<IQuickInputService>() { }(),
+			new TestCommandService(),
+			workspaceContextService(),
+		));
+		assert.deepStrictEqual(picks.map(pick => pick.commandId), [OPEN_GITHUB_ISSUE_COMMAND, OPEN_GITHUB_PULL_REQUEST_COMMAND]);
+	});
+
+	test('does not open GitHub context after cancellation while resolving repositories', async () => {
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const commandService = new TestCommandService();
+		const pick = new GitHubContextValuePick('issue', new TestGitService([]), new class extends mock<IQuickInputService>() { }(), commandService, workspaceContextService());
+		const attachment = pick.asAttachment(undefined, cancellation.token);
+		cancellation.cancel();
+		assert.deepStrictEqual({ attachment: await attachment, command: commandService.command }, { attachment: undefined, command: undefined });
+	});
+
+	test('passes cancellation to repository selection and stops before opening the GitHub picker', async () => {
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const commandService = new TestCommandService();
+		const pick = new TestGitHubContextValuePick('issue', new TestGitService([
+			repository('https://github.com/microsoft/vscode.git'),
+			repository('https://github.com/microsoft/typescript.git'),
+		]), new class extends mock<IQuickInputService>() { }(), commandService, workspaceContextService());
+		pick.selectedRepository = 'microsoft/vscode';
+		pick.beforeRepositoryPick = () => cancellation.cancel();
+		const attachment = await pick.asAttachment(undefined, cancellation.token);
+		assert.deepStrictEqual({ attachment, token: pick.repositoryToken === cancellation.token, command: commandService.command }, {
+			attachment: undefined, token: true, command: undefined,
+		});
+	});
+
+	test('ignores a GitHub selection returned after cancellation', async () => {
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const commandService = new class extends TestCommandService {
+			override async executeCommand<T>(id: string, repository?: string | URI): Promise<T> {
+				const result = await super.executeCommand<T>(id, repository);
+				cancellation.cancel();
+				return result;
+			}
+		}();
+		commandService.result = { repoId: 'microsoft/vscode', url: 'https://github.com/microsoft/vscode/issues/123', label: 'microsoft/vscode#123' };
+		const pick = new GitHubContextValuePick('issue', new TestGitService([]), new class extends mock<IQuickInputService>() { }(), commandService, workspaceContextService());
+		assert.strictEqual(await pick.asAttachment(undefined, cancellation.token), undefined);
 	});
 
 	test('opens GitHub context picker directly for one repository', async () => {
