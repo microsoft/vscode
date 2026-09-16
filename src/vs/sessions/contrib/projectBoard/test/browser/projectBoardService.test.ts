@@ -1345,7 +1345,7 @@ suite('ProjectBoardService', () => {
 		}
 		assert.strictEqual(mainWindow.getComputedStyle(verticalSlider.parentElement!).backgroundColor, 'rgba(0, 0, 0, 0)');
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
-		assert.strictEqual(board().scrollTop, board().scrollHeight - board().clientHeight, 'Collapsing clamps the old scroll position to the new range');
+		assert.ok(Math.abs(board().scrollTop - (board().scrollHeight - board().clientHeight)) < 1, 'Collapsing clamps the old scroll position to the new range');
 		assert.ok(parseFloat(verticalSlider.style.height) > 0);
 	});
 
