@@ -31,6 +31,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 	private readonly scrollable: DomScrollableElement;
 	private readonly message: HTMLElement;
 	private readonly bodyFocusTargets: HTMLElement[] = [];
+	private readonly hostFocusTargets = new Map<string, HTMLElement>();
 	private snapshot: IConnectionDiagnosticsSnapshot;
 	private pendingHostId: string | undefined;
 	private actionError: { readonly hostId: string; readonly message: string } | undefined;
@@ -132,12 +133,18 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		const focusedHostId = dom.isHTMLElement(activeElement) ? activeElement.dataset.hostId : undefined;
 		const focusedAction = dom.isHTMLElement(activeElement) ? activeElement.dataset.hostAction : undefined;
 		const focusedSection = dom.isHTMLElement(activeElement) ? activeElement.closest<HTMLElement>('.connection-diagnostics-host-section') : undefined;
-		const focusedHostAddress = focusedSection?.dataset.hostAddress;
+		const focusedHostAddress = dom.isHTMLElement(activeElement) ? activeElement.dataset.hostAddress ?? focusedSection?.dataset.hostAddress : undefined;
 		const focusedSummary = activeElement?.tagName === 'SUMMARY';
 		this.managementStore.clear();
 		dom.clearNode(this.content);
 		this.bodyFocusTargets.length = 0;
-		const managementByAddress = new Map((this.options.enableHostManagement ? this.diagnosticsService.getHostManagementState().hosts : []).flatMap(host => host.address ? [[host.address, host] as const] : []));
+		this.hostFocusTargets.clear();
+		if (this.options.enableHostManagement) {
+			const hosts = this.diagnosticsService.getHostManagementState().hosts;
+			this.renderHosts(hosts.filter(host => !host.hidden), false);
+			this.renderHosts(hosts.filter(host => host.hidden), true);
+			dom.append(this.content, dom.$('h2.connection-diagnostics-snapshot-title')).textContent = localize('connectionDiagnostics.snapshot', "Diagnostic snapshot");
+		}
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot. Review host names and addresses before sharing.");
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.captured', "Captured: {0}", this.snapshot.capturedAt);
 		for (const section of [...this.snapshot.sections.filter(section => !section.collapsed), ...this.snapshot.sections.filter(section => section.collapsed)]) {
@@ -156,12 +163,6 @@ export class ConnectionDiagnosticsReport extends Disposable {
 				(element as HTMLDetailsElement).open = openSections.has(section.hostAddress ?? section.title);
 				this.managementStore.add(dom.addDisposableListener(element, 'toggle', () => this.scrollable.scanDomNode()));
 			}
-			const host = section.hostAddress ? managementByAddress.get(section.hostAddress) : undefined;
-			if (host) {
-				const actions = dom.append(section.collapsed ? heading : element, dom.$('div.connection-diagnostics-host-actions'));
-				this.renderHostManagementAction(actions, host);
-				this.managementStore.add(dom.addDisposableListener(actions, dom.EventType.CLICK, event => event.stopPropagation()));
-			}
 			if (section.description) {
 				dom.append(element, dom.$('p')).textContent = section.description;
 			}
@@ -176,46 +177,85 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		this.restoreManagementFocus(focusedHostId, focusedHostAddress, focusedAction, focusedSummary);
 	}
 
+	private renderHosts(hosts: readonly IConnectionHostManagementEntry[], hidden: boolean): void {
+		if (!hosts.length) {
+			return;
+		}
+		const section = dom.append(this.content, dom.$('section.connection-diagnostics-hosts'));
+		section.classList.toggle('connection-diagnostics-hidden-hosts', hidden);
+		dom.append(section, dom.$('h2')).textContent = hidden
+			? localize('connectionDiagnostics.hiddenHosts', "Hidden hosts")
+			: localize('connectionDiagnostics.hosts', "Hosts");
+		for (const host of hosts) {
+			const row = dom.append(section, dom.$('div.connection-diagnostics-host-row'));
+			row.tabIndex = -1;
+			if (host.address) {
+				row.dataset.hostAddress = host.address;
+				this.hostFocusTargets.set(host.address, row);
+			}
+			const details = dom.append(row, dom.$('div.connection-diagnostics-host-label'));
+			dom.append(details, dom.$('div')).textContent = host.label;
+			dom.append(details, dom.$('div.connection-diagnostics-host-status')).textContent = hidden
+				? localize('connectionDiagnostics.hiddenStatus', "Hidden from host picker")
+				: !host.connectable
+					? localize('connectionDiagnostics.onDemand', "Connections managed on demand")
+					: host.status === 'disconnected' && host.autoConnectSuppressed
+						? localize('connectionDiagnostics.paused', "Disconnected. Automatic connection paused.")
+						: this.getHostStatusLabel(host.status);
+			const actions = dom.append(row, dom.$('div.connection-diagnostics-host-actions'));
+			this.renderHostManagementAction(actions, host);
+		}
+	}
+
+	private getHostStatusLabel(status: IConnectionHostManagementEntry['status']): string {
+		switch (status) {
+			case 'connected': return localize('connectionDiagnostics.connected', "Connected");
+			case 'connecting': return localize('connectionDiagnostics.connecting', "Connecting");
+			case 'reconnecting': return localize('connectionDiagnostics.reconnecting', "Reconnecting");
+			case 'disconnected': return localize('connectionDiagnostics.disconnected', "Disconnected");
+			case 'incompatible': return localize('connectionDiagnostics.incompatible', "Incompatible");
+		}
+	}
+
 	private renderHostManagementAction(container: HTMLElement, host: IConnectionHostManagementEntry): void {
-		const pending = this.pendingHostId === host.id;
-		const actions: { action: ConnectionHostManagementAction; label: string; icon: ThemeIcon }[] = [];
+		const actions: { action: ConnectionHostManagementAction; label: string; icon: ThemeIcon; ariaLabel: string }[] = [];
 		if (host.hidden) {
 			actions.push({
 				action: 'restore',
-				label: localize('connectionDiagnostics.restoreHost', "Restore {0}", host.label),
-				icon: Codicon.add,
+				label: localize('connectionDiagnostics.restore', "Restore"),
+				ariaLabel: localize('connectionDiagnostics.restoreHost', "Restore {0}", host.label),
+				icon: Codicon.refresh,
 			});
 		} else if (host.connectable && (host.status === 'connected' || host.status === 'connecting' || host.status === 'reconnecting')) {
 			actions.push({
 				action: 'disconnect',
-				label: localize('connectionDiagnostics.disconnectHost', "Disconnect {0}", host.label),
-				icon: Codicon.debugDisconnect,
+				label: localize('connectionDiagnostics.disconnect', "Disconnect"),
+				ariaLabel: localize('connectionDiagnostics.disconnectHost', "Disconnect {0}", host.label),
+				icon: Codicon.circleSlash,
 			});
 		} else if (host.connectable && host.status === 'disconnected') {
 			actions.push({
 				action: 'reconnect',
-				label: localize('connectionDiagnostics.reconnectHost', "Reconnect {0}", host.label),
-				icon: Codicon.debugStart,
+				label: localize('connectionDiagnostics.connect', "Connect"),
+				ariaLabel: localize('connectionDiagnostics.connectHost', "Connect {0}", host.label),
+				icon: Codicon.plug,
 			});
 		}
-		if (host.hideable) {
-			actions.push({
-				action: 'hide',
-				label: localize('connectionDiagnostics.hideHost', "Hide {0}", host.label),
-				icon: Codicon.eyeClosed,
-			});
-		}
-		for (const { action, label, icon } of actions) {
-			const button = this.managementStore.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: label, ariaLabel: label }));
-			button.label = `$(${icon.id})`;
+		for (const { action, label, icon, ariaLabel } of actions) {
+			const button = this.managementStore.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: ariaLabel, ariaLabel }));
+			button.label = `$(${icon.id}) ${label}`;
 			button.element.dataset.hostId = host.id;
 			button.element.dataset.hostAction = action;
 			if (host.address) {
 				button.element.dataset.hostAddress = host.address;
+				this.hostFocusTargets.set(host.address, button.element);
 			}
-			button.enabled = !pending;
+			button.enabled = this.pendingHostId === undefined;
 			this.bodyFocusTargets.push(button.element);
 			this.managementStore.add(button.onDidClick(() => void this.runHostAction(host.id, action)));
+		}
+		if (this.pendingHostId === host.id) {
+			dom.append(container, dom.$('span.connection-diagnostics-host-status')).textContent = localize('connectionDiagnostics.pending', "Working...");
 		}
 		if (this.actionError?.hostId === host.id) {
 			const error = dom.append(container, dom.$('span.connection-diagnostics-host-error', { role: 'alert' }));
@@ -232,9 +272,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			}
 		}
 		if (hostAddress && (action || summary)) {
-			const target = this.bodyFocusTargets.find(target => target.dataset.hostAddress === hostAddress
-				&& (action ? !!target.dataset.hostAction : target.tagName === 'SUMMARY'));
-			target?.focus();
+			const target = action ? this.hostFocusTargets.get(hostAddress)
+				: this.bodyFocusTargets.find(target => target.dataset.hostAddress === hostAddress && target.tagName === 'SUMMARY');
+			(target ?? this.content).focus();
 		}
 	}
 
@@ -255,9 +295,17 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		this.actionError = undefined;
 		this.render();
 		try {
+			const host = this.diagnosticsService.getHostManagementState().hosts.find(host => host.id === hostId);
 			await this.diagnosticsService.runHostAction(hostId, action);
+			if (action === 'restore') {
+				const restored = this.diagnosticsService.getHostManagementState().hosts.some(current => current.address === host?.address && current.selectable);
+				this.announce(restored
+					? localize('connectionDiagnostics.restored', "Host restored to the picker.")
+					: localize('connectionDiagnostics.restoredNotFound', "Host restored, but not found in the latest discovery."));
+			}
 		} catch (error) {
 			this.actionError = { hostId, message: toErrorMessage(error) };
+			this.announce(this.actionError.message);
 		} finally {
 			this.pendingHostId = undefined;
 			this.render();

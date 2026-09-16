@@ -77,9 +77,10 @@ suite('ConnectionDiagnosticsService', () => {
 			readonly reconnects: string[] = [];
 			readonly disconnects: string[] = [];
 			rediscoverCount = 0;
+			discoverySucceeded = true;
 			override async reconnect(id: string): Promise<void> { this.reconnects.push(id); }
 			override async disconnect(id: string): Promise<void> { this.disconnects.push(id); }
-			override async rediscover(): Promise<boolean> { this.rediscoverCount++; return true; }
+			override async rediscover(): Promise<boolean> { this.rediscoverCount++; return this.discoverySucceeded; }
 		}();
 		instantiation.stub(IAgentHostFilterService, filter);
 		instantiation.stub(IProductService, { version: '1.139.0', commit: 'test-commit' });
@@ -153,7 +154,6 @@ suite('ConnectionDiagnosticsService', () => {
 		const before = service.getHostManagementState();
 		await service.runHostAction('host', 'disconnect');
 		await service.runHostAction('host', 'reconnect');
-		await service.runHostAction('host', 'hide');
 		await service.runHostAction('tunnel:hidden', 'restore');
 
 		assert.deepStrictEqual({
@@ -176,7 +176,6 @@ suite('ConnectionDiagnosticsService', () => {
 					hidden: false,
 					autoConnectSuppressed: true,
 					connectable: true,
-					hideable: true,
 				}, {
 					id: 'tunnel:hidden',
 					label: 'hidden',
@@ -187,17 +186,29 @@ suite('ConnectionDiagnosticsService', () => {
 					hidden: true,
 					autoConnectSuppressed: false,
 					connectable: false,
-					hideable: false,
 				}],
 				isDiscovering: false,
 			},
 			filterDisconnects: ['host'],
-			tunnelDisconnects: ['tunnel:mock'],
+			tunnelDisconnects: [],
 			reconnects: ['host'],
 			suppressed: [],
-			dismissed: ['mock'],
+			dismissed: [],
 			rediscoverCount: 1,
 		});
+	});
+
+	test('restore reports discovery failure without clearing unrelated suppression', async () => {
+		const { service, filter, tunnels } = createService();
+		tunnels.dismissed.add('hidden');
+		tunnels.suppressed.add('hosted-here');
+		filter.discoverySucceeded = false;
+		await assert.rejects(service.runHostAction('tunnel:hidden', 'restore'), /Host is no longer hidden, but discovery failed/);
+		assert.deepStrictEqual({
+			dismissed: [...tunnels.dismissed],
+			suppressed: [...tunnels.suppressed],
+			reconnects: filter.reconnects,
+		}, { dismissed: [], suppressed: ['hosted-here'], reconnects: [] });
 	});
 
 	test('preserves last successful inventory after failure and excludes raw error content', async () => {

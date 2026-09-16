@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../../base/browser/window.js';
 import { Action } from '../../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -36,7 +37,7 @@ import { IWorkbenchLayoutService } from '../../../../../../workbench/services/la
 import { AccessibilityVerbositySettingId } from '../../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
+import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
 import { ConnectionDiagnosticsContribution } from '../../browser/connectionDiagnostics.contribution.js';
 import { SessionsChatAccessibilityHelp } from '../../../../chat/browser/sessionsChatAccessibilityHelp.js';
@@ -89,6 +90,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		instantiationService.stub(IConnectionDiagnosticsService, service);
 		instantiationService.stub(IClipboardService, clipboard);
 		instantiationService.stub(IWorkbenchLayoutService, {
+			onDidLayoutMainContainer: Event.None,
 			get activeContainer() { return getContainer(); },
 			get mainContainer() { return getContainer(); },
 		});
@@ -123,7 +125,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			buttons: container.querySelectorAll('button, [role="button"]').length,
 			scrollables: container.querySelectorAll('.monaco-scrollable-element.connection-diagnostics-scrollable').length,
 		}, {
-			headings: ['Discovery', 'This client'],
+			headings: ['Diagnostic snapshot', 'Discovery', 'This client'],
 			details: ['<script>not markup</script>', 'Web browser'],
 			clientOpen: false,
 			last: 'DETAILS',
@@ -203,13 +205,13 @@ suite('ConnectionDiagnosticsReport', () => {
 		});
 	});
 
-	test('renders live actions beside matching diagnostic host sections', async () => {
+	test('separates live connection controls and hidden recovery from the frozen snapshot', async () => {
 		const container = dom.$('div');
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		const actions: string[] = [];
 		let status: 'connected' | 'disconnected' = 'connected';
-		let hidden = false;
+		let hidden = true;
 		const hostSnapshot: IConnectionDiagnosticsSnapshot = {
 			capturedAt: snapshot.capturedAt,
 			sections: [{
@@ -232,10 +234,19 @@ suite('ConnectionDiagnosticsReport', () => {
 						status,
 						selectable: true,
 						selected: true,
+						hidden: false,
+						autoConnectSuppressed: status === 'disconnected',
+						connectable: true,
+					}, {
+						id: hidden ? 'tunnel:hidden' : 'restored',
+						label: 'Hidden laptop',
+						address: 'tunnel:hidden',
+						status: 'disconnected' as const,
+						selectable: !hidden,
+						selected: false,
 						hidden,
 						autoConnectSuppressed: false,
-						connectable: true,
-						hideable: !hidden,
+						connectable: !hidden,
 					}],
 					isDiscovering: false,
 				};
@@ -244,8 +255,8 @@ suite('ConnectionDiagnosticsReport', () => {
 				actions.push(`${hostId}:${action}`);
 				if (action === 'disconnect') {
 					status = 'disconnected';
-				} else if (action === 'hide') {
-					hidden = true;
+				} else if (action === 'restore') {
+					hidden = false;
 				}
 			}
 			override async rediscover(): Promise<boolean> { return true; }
@@ -258,45 +269,46 @@ suite('ConnectionDiagnosticsReport', () => {
 			service,
 			new class extends mock<IClipboardService>() { },
 		));
-		const hostSection = container.querySelector<HTMLElement>('[data-host-address="tunnel:work"]')!;
-		const disconnect = hostSection.querySelector<HTMLElement>('[aria-label="Disconnect Work laptop"]')!;
-		const disconnectInsideSummary = disconnect.closest('summary') === hostSection.querySelector('summary');
-		let hide = hostSection.querySelector<HTMLElement>('[aria-label="Hide Work laptop"]')!;
+		const initialHiddenRows = container.querySelectorAll('.connection-diagnostics-hidden-hosts .connection-diagnostics-host-row').length;
+		const disconnect = container.querySelector<HTMLElement>('[aria-label="Disconnect Work laptop"]')!;
 		disconnect.focus();
 		disconnect.click();
 		await Promise.resolve();
 		await Promise.resolve();
 		const focusAfterDisconnect = dom.getActiveElement()?.getAttribute('aria-label');
-		const updatedHostSection = container.querySelector<HTMLElement>('[data-host-address="tunnel:work"]')!;
-		hide = updatedHostSection.querySelector<HTMLElement>('[aria-label="Hide Work laptop"]')!;
-		const hideInsideSummary = hide.closest('summary') === updatedHostSection.querySelector('summary');
-		hide.focus();
-		hide.click();
+		const restore = container.querySelector<HTMLElement>('[aria-label="Restore Hidden laptop"]')!;
+		restore.focus();
+		restore.click();
 		await Promise.resolve();
 		await Promise.resolve();
 		assert.deepStrictEqual({
 			actions,
-			actionsInsideSummary: disconnectInsideSummary && hideInsideSummary,
+			initialHiddenRows,
 			focusAfterDisconnect,
-			focusAfterHide: dom.getActiveElement()?.getAttribute('aria-label'),
+			focusAfterRestore: dom.getActiveElement()?.getAttribute('aria-label'),
+			liveStatuses: Array.from(container.querySelectorAll('.connection-diagnostics-host-status'), element => element.textContent),
+			buttonLabels: Array.from(container.querySelectorAll('.connection-diagnostics-host-actions .monaco-button'), element => element.textContent?.trim()),
 			focusTargets: report.getFocusTargets().map(target => target.classList.contains('connection-diagnostics-content')
 				? target.tagName
 				: `${target.tagName}:${target.getAttribute('aria-label') ?? target.childNodes[0]?.textContent}`),
-			actionContainers: hostSection.querySelectorAll('.connection-diagnostics-host-actions').length,
-			standaloneHostLists: container.querySelectorAll('.connection-diagnostics-hosts').length,
+			snapshotActions: container.querySelectorAll('.connection-diagnostics-section .monaco-button').length,
+			hiddenSections: container.querySelectorAll('.connection-diagnostics-hidden-hosts').length,
 			snapshot: report.getSnapshot().text,
 		}, {
-			actions: ['work:disconnect', 'work:hide'],
-			actionsInsideSummary: true,
-			focusAfterDisconnect: 'Reconnect Work laptop',
-			focusAfterHide: 'Restore Work laptop',
+			actions: ['work:disconnect', 'tunnel:hidden:restore'],
+			initialHiddenRows: 1,
+			focusAfterDisconnect: 'Connect Work laptop',
+			focusAfterRestore: 'Connect Hidden laptop',
+			liveStatuses: ['Disconnected. Automatic connection paused.', 'Disconnected'],
+			buttonLabels: ['Connect', 'Connect'],
 			focusTargets: [
 				'DIV',
+				'A:Connect Work laptop',
+				'A:Connect Hidden laptop',
 				'SUMMARY:Work laptop - connected, selectable',
-				'A:Restore Work laptop',
 			],
-			actionContainers: 1,
-			standaloneHostLists: 0,
+			snapshotActions: 0,
+			hiddenSections: 0,
 			snapshot: hostSnapshot.text,
 		});
 	});
@@ -314,6 +326,68 @@ suite('ConnectionDiagnosticsReport', () => {
 			snapshot,
 		});
 	});
+
+		for (const outcome of ['not-found', 'failure'] as const) {
+			test(`hidden host recovery shows pending state and ${outcome} without a false connection claim`, async () => {
+				const container = dom.$('div');
+				const pending = new DeferredPromise<void>();
+				let hidden = true;
+				const service = new class extends mock<IConnectionDiagnosticsService>() {
+					override readonly onDidChangeHostManagement = Event.None;
+					override getHostManagementState() {
+						return {
+							hosts: hidden ? [{
+								id: 'hidden', address: 'tunnel:hidden', label: 'Hidden laptop', status: 'disconnected' as const,
+								selectable: false, selected: false, hidden: true, autoConnectSuppressed: false, connectable: false,
+							}] : [],
+							isDiscovering: false,
+						};
+					}
+					override async runHostAction(): Promise<void> {
+						await pending.p;
+						hidden = false;
+						if (outcome === 'failure') {
+							throw new Error('Discovery failed');
+						}
+					}
+				}();
+				store.add(new ConnectionDiagnosticsReport(container, snapshot, () => { }, { enableHostManagement: true, rediscoverOnRefresh: true }, service, new class extends mock<IClipboardService>() { }));
+				container.querySelector<HTMLElement>('[aria-label="Restore Hidden laptop"]')!.click();
+				const pendingState = {
+					disabled: container.querySelector('[aria-label="Restore Hidden laptop"]')?.getAttribute('aria-disabled'),
+					working: container.textContent?.includes('Working...'),
+				};
+				await pending.complete();
+				await Promise.resolve();
+				await Promise.resolve();
+				assert.deepStrictEqual({
+					pendingState,
+					message: container.querySelector('[role="status"]')?.textContent,
+					hiddenSections: container.querySelectorAll('.connection-diagnostics-hidden-hosts').length,
+				}, {
+					pendingState: { disabled: 'true', working: true },
+					message: outcome === 'failure' ? 'Discovery failed' : 'Host restored, but not found in the latest discovery.',
+					hiddenSections: 0,
+				});
+			});
+		}
+
+		test('native diagnostics omit management even with hidden and selectable hosts', () => {
+			const { container, service, clipboard } = createReport(async () => { });
+			const host: IConnectionHostManagementEntry = {
+				id: 'host', address: 'tunnel:host', label: 'Host', status: 'connected',
+				selectable: true, selected: true, hidden: false, autoConnectSuppressed: false, connectable: true,
+			};
+			service.getHostManagementState = () => ({ hosts: [host, { ...host, id: 'hidden', hidden: true }], isDiscovering: false });
+			const nativeContainer = dom.$('div');
+			store.add(new ConnectionDiagnosticsReport(nativeContainer, snapshot, () => { }, { enableHostManagement: false, rediscoverOnRefresh: false }, service, clipboard));
+			assert.deepStrictEqual({
+				nativeHosts: nativeContainer.querySelectorAll('.connection-diagnostics-hosts').length,
+				nativeActions: nativeContainer.querySelectorAll('[role="button"]').length,
+				nativeDetails: nativeContainer.querySelectorAll('dd').length,
+				webDetails: container.querySelectorAll('dd').length,
+			}, { nativeHosts: 0, nativeActions: 0, nativeDetails: 2, webDetails: 2 });
+		});
 
 	test('download uses UTF-8 text and a safe timestamped filename for the displayed snapshot', async () => {
 		const downloads: { name: string; text: string }[] = [];

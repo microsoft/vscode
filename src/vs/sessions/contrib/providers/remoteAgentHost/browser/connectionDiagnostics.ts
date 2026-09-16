@@ -27,7 +27,7 @@ export interface IConnectionDiagnosticsSnapshot {
 	readonly text: string;
 }
 
-export type ConnectionHostManagementAction = 'disconnect' | 'reconnect' | 'hide' | 'restore';
+export type ConnectionHostManagementAction = 'disconnect' | 'reconnect' | 'restore';
 
 export interface IConnectionHostManagementEntry {
 	readonly id: string;
@@ -39,7 +39,6 @@ export interface IConnectionHostManagementEntry {
 	readonly hidden: boolean;
 	readonly autoConnectSuppressed: boolean;
 	readonly connectable: boolean;
-	readonly hideable: boolean;
 }
 
 export interface IConnectionHostManagementState {

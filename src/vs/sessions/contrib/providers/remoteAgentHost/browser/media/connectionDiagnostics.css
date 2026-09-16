@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .connection-diagnostics-overlay {
+	box-sizing: border-box;
 	align-items: center;
 }
 
@@ -88,17 +89,48 @@
 	cursor: pointer;
 }
 
-.connection-diagnostics-host-section summary {
-	padding-right: calc(2 * var(--vscode-spacing-size400) + var(--vscode-spacing-size80));
+.connection-diagnostics-hosts h2,
+.connection-diagnostics-snapshot-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size80);
+}
+
+.connection-diagnostics-host-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.connection-diagnostics-host-label {
+	flex: 1 1 160px;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.connection-diagnostics-host-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .connection-diagnostics-host-actions {
 	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
 	gap: var(--vscode-spacing-size40);
-	position: absolute;
-	top: var(--vscode-spacing-size80);
-	right: 0;
-	z-index: 1;
+}
+
+.connection-diagnostics-host-actions .monaco-button {
+	width: auto;
+	min-height: 32px;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+}
+
+.connection-diagnostics-overlay.phone-layout .connection-diagnostics-host-actions .monaco-button {
+	min-height: 44px;
 }
 
 .connection-diagnostics-host-error {

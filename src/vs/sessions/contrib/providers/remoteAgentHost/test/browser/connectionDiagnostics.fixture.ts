@@ -118,7 +118,6 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 							hidden: false,
 							autoConnectSuppressed: false,
 							connectable: true,
-							hideable: true,
 						}, {
 							id: 'disconnected',
 							label: 'Home server',
@@ -129,7 +128,6 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 							hidden: false,
 							autoConnectSuppressed: true,
 							connectable: true,
-							hideable: true,
 						}, {
 							id: 'tunnel:hidden',
 							label: 'Build machine',
@@ -140,7 +138,6 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 							hidden: true,
 							autoConnectSuppressed: false,
 							connectable: false,
-							hideable: false,
 						}],
 						isDiscovering: false,
 					};
@@ -156,11 +153,14 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 		rediscoverOnRefresh: true,
 		onDidCreate: (report, api) => {
 			disposableStore.add(toDisposable(() => api.close()));
+			api.overlay.classList.add(width < 600 ? 'phone-layout' : 'desktop-layout');
 			api.overlay.style.height = '100%';
 			api.sheet.style.maxHeight = '100%';
 			if (expandClient) {
 				for (const target of report.getFocusTargets().slice(1)) {
-					target.click();
+					if (target.tagName === 'SUMMARY') {
+						target.click();
+					}
 				}
 			}
 			const header = api.sheet.querySelector<HTMLElement>('.mobile-picker-sheet-title-row')!;

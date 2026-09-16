@@ -25,13 +25,11 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { CopyConnectionDiagnosticsCommandId, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 import './connectionDiagnosticsService.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
 
 const connectionDiagnosticsFocused = new RawContextKey<boolean>('connectionDiagnosticsFocused', false);
-const phoneLayoutContextKeys = new Set([IsPhoneLayoutContext.key]);
 
 interface IActiveConnectionDiagnostics {
 	readonly report: ConnectionDiagnosticsReport;
@@ -102,11 +100,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 			api.overlay.classList.toggle('desktop-layout', !phoneLayout);
 		};
 		updateLayoutClass();
-		store.add(this.contextKeyService.onDidChangeContext(event => {
-			if (event.affectsSome(phoneLayoutContextKeys)) {
-				updateLayoutClass();
-			}
-		}));
+		store.add(this.layoutService.onDidLayoutMainContainer(updateLayoutClass));
 		const context = store.add(this.contextKeyService.createScoped(api.sheet));
 		connectionDiagnosticsFocused.bindTo(context).set(true);
 		for (const sibling of Array.from(container.children).filter(dom.isHTMLElement)) {
@@ -161,7 +155,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		active.overlay.remove();
 		active.close();
 		const help = [
-			localize('connectionDiagnostics.help.overview', "Connection information shows a diagnostic snapshot with live management actions beside applicable hosts."),
+			localize('connectionDiagnostics.help.overview', "Connection information shows live hosts followed by a separately captured diagnostic snapshot. Connect and Disconnect act on current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. Hidden hosts have a Restore action that returns them to discovery; it does not guarantee a connection."),
 			localize('connectionDiagnostics.help.navigation', "Use Tab and Shift+Tab to move between host actions, header actions, the report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details."),
 			localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh re-runs host discovery and then captures current local state."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
