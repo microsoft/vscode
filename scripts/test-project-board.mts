@@ -80,6 +80,15 @@ try {
 	assert.ok(dimensions.height <= dimensions.viewport, 'The scroll viewport must fit the real window');
 	assert.ok(dimensions.scrollHeight > dimensions.height, 'Expand board cells until content extends below the window before running this gate');
 	await focus(board);
+	const trayToggle = board.locator('[data-board-control="collapse:unassigned"]');
+	await expect(trayToggle).toHaveAttribute('aria-expanded', 'true');
+	await trayToggle.focus();
+	await expect(trayToggle).toHaveCSS('border-top-width', '0px');
+	await expect(trayToggle).toHaveCSS('outline-style', 'solid');
+	await board.keyboard.press('Space');
+	await expect(trayToggle).toHaveAttribute('aria-expanded', 'false');
+	await board.keyboard.press('Space');
+	await expect(trayToggle).toHaveAttribute('aria-expanded', 'true');
 	await board.mouse.move(dimensions.width - 20, Math.min(200, dimensions.height - 20));
 	await board.mouse.wheel(10000, 10000);
 	await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
