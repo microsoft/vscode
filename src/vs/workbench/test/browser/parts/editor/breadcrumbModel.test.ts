@@ -9,14 +9,17 @@ import { IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../pl
 import { BreadcrumbsModel, FileElement } from '../../../../browser/parts/editor/breadcrumbsModel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
-import { TestContextService } from '../../../common/workbenchTestServices.js';
+import { TestContextService, TestStorageService } from '../../../common/workbenchTestServices.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
 import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { LabelService } from '../../../../services/label/common/labelService.js';
+import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../workbenchTestServices.js';
 
 suite('Breadcrumb Model', function () {
 
@@ -52,7 +55,7 @@ suite('Breadcrumb Model', function () {
 		model.dispose();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('file element equality includes the rendered label', function () {
 		model = createModel(URI.parse('foo:/bar/baz/ws/file.ts'));
@@ -150,6 +153,42 @@ suite('Breadcrumb Model', function () {
 		]);
 		registration.dispose();
 	});
+
+	for (const template of [false, true]) {
+		(isWindows ? test : test.skip)(`stops at a local ${template ? 'template' : 'static'} home with different Windows path casing`, () => {
+			const labels = disposables.add(new LabelService(
+				TestEnvironmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(),
+				disposables.add(new TestStorageService()), disposables.add(new TestLifecycleService())
+			));
+			const home = URI.file('c:\\Users\\test\\.copilot\\session-state\\session-id');
+			disposables.add(labels.registerFormatter(template ? {
+				home: URI.file('c:\\Users\\test\\.copilot\\session-state\\${sessionId}'),
+				onDidChangeFormatting: Event.None,
+				formatting: () => ({ label: 'Copilot', separator: '/' }),
+			} : {
+				scheme: home.scheme,
+				home: home.path,
+				formatting: { label: 'Copilot', separator: '/' },
+			}));
+			const resource = URI.file('C:\\Users\\Test\\.copilot\\session-state\\session-id\\files\\workflow-sessions-review.html');
+			model = new BreadcrumbsModel(resource, undefined, configService, workspaceService, workspaceFolderLabelService, outlineService, labels);
+
+			assert.deepStrictEqual({
+				isRelative: model.isRelative(),
+				elements: (model.getElements() as FileElement[]).map(element => ({
+					name: element.label ?? element.uri.path.split('/').at(-1),
+					kind: element.kind,
+				})),
+			}, {
+				isRelative: true,
+				elements: [
+					{ name: 'Copilot', kind: FileKind.ROOT_FOLDER },
+					{ name: 'files', kind: FileKind.FOLDER },
+					{ name: 'workflow-sessions-review.html', kind: FileKind.FILE },
+				],
+			});
+		});
+	}
 
 	test('stops at a resource label home when the resource has a query', function () {
 		const home = URI.from({ scheme: 'vscode-agent-host', authority: 'remote', path: '/home/.copilot/session-state/session' });

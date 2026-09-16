@@ -11,7 +11,7 @@ import { LabelService } from '../../common/labelService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { isWindows } from '../../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../../common/memento.js';
 import { ResourceLabelFormatter } from '../../../../../platform/label/common/label.js';
@@ -19,6 +19,7 @@ import { sep } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -212,6 +213,64 @@ suite('URI Label', () => {
 		registration.dispose();
 		assert.strictEqual(labelService.getUriLabel(resource), 'Static Session/files/result.md');
 		staticRegistration.dispose();
+	});
+
+	for (const template of [false, true]) {
+		for (const authority of ['', 'server']) {
+			test(`local resource label ${template ? 'template' : 'static'} homes respect path casing (${authority ? 'UNC' : 'drive'})`, () => {
+				const root = authority ? '/share/Users/Test' : '/c:/Users/Test';
+				const home = URI.from({ scheme: Schemas.file, authority, path: `${root}/.copilot/session-state/Session-ID` });
+				const registration = labelService.registerFormatter(template ? {
+					home: home.with({ path: `${root}/.copilot/session-state/\${sessionId}` }),
+					onDidChangeFormatting: Event.None,
+					formatting: context => context.parameters.get('sessionId') === 'Session-ID' ? { label: 'Copilot', separator: '\\' } : undefined,
+				} : {
+					scheme: home.scheme,
+					authority,
+					home: home.path,
+					formatting: { label: 'Copilot', separator: '\\' },
+				});
+				const resource = home.with({
+					authority: authority.toUpperCase(),
+					path: `${root.toUpperCase()}/.copilot/session-state/Session-ID/files/Workflow.html`,
+					query: 'metadata',
+					fragment: 'section',
+				});
+				const resolvedHome = labelService.getUriHome(resource);
+
+				assert.deepStrictEqual({
+					home: resolvedHome?.path,
+					query: resolvedHome?.query,
+					fragment: resolvedHome?.fragment,
+					label: resolvedHome ? labelService.getUriLabel(resource) : undefined,
+					sibling: labelService.getUriHome(home.with({ path: `${home.path}-other/files/Workflow.html` })),
+				}, {
+					home: isLinux ? undefined : `${root.toUpperCase()}/.copilot/session-state/Session-ID`,
+					query: isLinux ? undefined : '',
+					fragment: isLinux ? undefined : '',
+					label: isLinux ? undefined : 'Copilot\\files\\Workflow.html',
+					sibling: undefined,
+				});
+				registration.dispose();
+			});
+		}
+	}
+
+	test('URI home templates for non-file schemes remain case-sensitive', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.parse('test://current/Sessions/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Session', separator: '/' }),
+		});
+
+		assert.deepStrictEqual({
+			matching: labelService.getUriLabel(URI.parse('test://current/Sessions/session-id/file.md')),
+			differentCase: labelService.getUriHome(URI.parse('test://current/sessions/session-id/file.md')),
+		}, {
+			matching: 'Session/file.md',
+			differentCase: undefined,
+		});
+		registration.dispose();
 	});
 
 	test('URI home templates without an authority match any authority', () => {

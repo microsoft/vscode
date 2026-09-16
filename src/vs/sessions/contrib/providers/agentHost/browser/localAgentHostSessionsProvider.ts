@@ -12,7 +12,7 @@ import { DisposableStore, IDisposable } from '../../../../../base/common/lifecyc
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
-import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -228,10 +228,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				if (session.sessionType === 'copilotcli') {
 					homes.push({ uri: joinPath(sessionStateRoot, rawId), label });
 					for (const artifact of session.artifacts?.get() ?? []) {
-						if (!artifact.uri || !isEqualOrParent(artifact.uri, sessionStateRoot)) {
+						if (!artifact.uri || !extUriBiasedIgnorePathCase.isEqualOrParent(artifact.uri, sessionStateRoot)) {
 							continue;
 						}
-						const artifactSessionId = relativePath(sessionStateRoot, artifact.uri)?.split('/')[0];
+						const artifactSessionId = artifact.uri.path.slice(sessionStateRoot.path.length + 1).split('/')[0];
 						if (artifactSessionId) {
 							homes.push({ uri: joinPath(sessionStateRoot, artifactSessionId), label });
 						}

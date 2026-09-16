@@ -12,7 +12,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
-import { basenameOrAuthority, basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { basenameOrAuthority, basename, dirname, ExtUri, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { tildify, getPathLabel } from '../../../../base/common/labels.js';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity, ResourceLabelTemplateFormatter } from '../../../../platform/label/common/label.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
@@ -21,7 +21,7 @@ import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecy
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { isProposedApiEnabled } from '../../extensions/common/extensions.js';
-import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { isLinux, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -144,6 +144,7 @@ interface IResolvedHomeFormatter {
 }
 
 const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
+const homeExtUri = new ExtUri(uri => uri.scheme === Schemas.file && !isLinux);
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
@@ -248,12 +249,12 @@ export class LabelService extends Disposable implements ILabelService {
 		for (const formatter of this.formatters) {
 			if (!formatter.home || formatter.scheme !== resource.scheme ||
 				(formatter.authority && !match(formatter.authority, resource.authority, { ignoreCase: true })) ||
-				!isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				!homeExtUri.isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
 				continue;
 			}
 
 			const result: IResolvedHomeFormatter = {
-				home: resource.with({ path: formatter.home, query: null, fragment: null }),
+				home: resource.with({ path: resource.path.slice(0, formatter.home.length), query: null, fragment: null }),
 				formatting: formatter.formatting,
 				literalLabel: false,
 				homeLength: formatter.home.length,
@@ -578,7 +579,7 @@ export class LabelService extends Disposable implements ILabelService {
 		const isRootHome = homePath === '' || homePath === '/';
 		return {
 			formatter,
-			templateMatcher: new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`),
+			templateMatcher: new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`, homeExtUri.ignorePathCasing(home) ? 'i' : ''),
 		};
 	}
 
