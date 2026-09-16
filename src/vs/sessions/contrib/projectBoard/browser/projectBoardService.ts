@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, addStandardDisposableListener, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -141,7 +143,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private rendering = false;
 	private menuOpen = false;
 	private menuGeneration = 0;
-	private boardElement: HTMLElement | undefined;
+	private readonly boardElement = mainWindow.document.createElement('main');
+	private readonly scrollable: DomScrollableElement | undefined;
+	private readonly scrollObserver: DisposableResizeObserver | undefined;
 	private readonly sessionsManagementService: ISessionsManagementService;
 	private readonly notificationService: INotificationService;
 	private readonly logService: ILogService;
@@ -189,6 +193,25 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.contextMenuService = services.contextMenuService;
 		this.instantiationService = services.instantiationService;
 		this.chatSidePanel = services.chatSidePanel;
+		this.boardElement.className = 'project-board';
+		if (showHeader) {
+			const scrollable = this.scrollable = this._register(new DomScrollableElement(this.boardElement, {
+				horizontal: ScrollbarVisibility.Auto,
+				vertical: ScrollbarVisibility.Auto,
+				useShadows: false,
+			}));
+			scrollable.getDomNode().classList.add('project-board-scrollable');
+			this.container.appendChild(scrollable.getDomNode());
+			this._register(toDisposable(() => scrollable.getDomNode().remove()));
+			this._register(addDisposableListener(this.boardElement, EventType.SCROLL, () => {
+				scrollable.scanDomNode();
+			}));
+			this.scrollObserver = this._register(new DisposableResizeObserver('ProjectBoardView.scrollable', () => scrollable.scanDomNode(), getWindow(this.container)));
+			this._register(this.scrollObserver.observe(this.boardElement));
+		} else {
+			this.container.appendChild(this.boardElement);
+			this._register(toDisposable(() => this.boardElement.remove()));
+		}
 		if (!showHeader) {
 			this.customViewContexts = {
 				editable: KanbanBoardEditableContext.bindTo(contextKeyService),
@@ -246,13 +269,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	layout(_width: number, height: number): void {
-		if (this.boardElement) {
-			if (this.showHeader) {
-				this.boardElement.style.height = `${height}px`;
-			} else {
-				this.boardElement.style.minHeight = `${height}px`;
-			}
+		if (this.showHeader) {
+			this.boardElement.style.height = `${height}px`;
+		} else {
+			this.boardElement.style.minHeight = `${height}px`;
 		}
+		this.scrollable?.scanDomNode();
 	}
 
 	async addAxis(kind: 'row' | 'column'): Promise<void> {
@@ -607,8 +629,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.collapsedColumns.delete(id);
 			}
 		}
-		const scrollTop = this.boardElement?.scrollTop ?? 0;
-		const scrollLeft = this.boardElement?.scrollLeft ?? 0;
+		const scrollTop = this.boardElement.scrollTop;
+		const scrollLeft = this.boardElement.scrollLeft;
 		const ownerDocument = this.container.ownerDocument;
 		// A background document retains activeElement but must not reclaim window focus.
 		const activeElement = ownerDocument.hasFocus() ? ownerDocument.activeElement : null;
@@ -622,12 +644,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.cardElements.clear();
 		this.controlElements.clear();
 		this.durationElements.clear();
-		// Context-view hosts share the auxiliary container and must survive board rerenders.
-		this.boardElement?.remove();
+		// Keep the scroll viewport and context-view hosts intact while rebuilding card content.
+		this.boardElement.replaceChildren();
 
 		const document = mainWindow.document;
-		const board = document.createElement('main');
-		board.className = 'project-board';
+		const board = this.boardElement;
 
 		if (this.showHeader) {
 			const header = document.createElement('header');
@@ -727,10 +748,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 
 		board.appendChild(grid);
-		this.container.appendChild(board);
-		this.boardElement = board;
 		board.scrollTop = scrollTop;
 		board.scrollLeft = scrollLeft;
+		this.scrollable?.scanDomNode();
+		if (this.scrollObserver) {
+			for (const child of board.children) {
+				store.add(this.scrollObserver.observe(child, { box: 'border-box' }));
+			}
+		}
 		if (this.durationElements.size) {
 			store.add(disposableWindowInterval(getWindow(this.container), () => {
 				for (const [id, element] of this.durationElements) {

@@ -347,10 +347,12 @@ suite('ProjectBoardService', () => {
 		assert.deepStrictEqual({
 			hasBoard: !!embeddedContainer.querySelector('.project-board'),
 			hasInlineHeader: !!embeddedContainer.querySelector('.project-board-header'),
+			hasOwnScrollbar: !!embeddedContainer.querySelector('.project-board-scrollable'),
 			inlineControls: embeddedContainer.querySelectorAll('[data-board-control="add-row"], [data-board-control="add-column"], [data-board-control="show-archived"], [data-board-control="new-session"], [data-board-control="settings"]').length,
 		}, {
 			hasBoard: true,
 			hasInlineHeader: false,
+			hasOwnScrollbar: false,
 			inlineControls: 0,
 		});
 	});
@@ -1175,18 +1177,38 @@ suite('ProjectBoardService', () => {
 		// The auxiliary service mirrors the main workbench's classes after opening.
 		h.container.className = 'monaco-workbench';
 		const board = () => h.container.querySelector<HTMLElement>('.project-board')!;
+		const scrollable = board().parentElement!;
+		assert.ok(scrollable.classList.contains('monaco-scrollable-element'), 'Standalone scrolling uses the workbench scrollbar, not a native light gutter');
+		assert.strictEqual(mainWindow.getComputedStyle(board()).overflow, 'hidden');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-scrollable').length, 1);
+		const verticalSlider = scrollable.querySelector<HTMLElement>(':scope > .scrollbar.vertical > .slider')!;
+		const horizontalSlider = scrollable.querySelector<HTMLElement>(':scope > .scrollbar.horizontal > .slider')!;
+		assert.ok(verticalSlider && horizontalSlider);
 		assert.ok(board().clientHeight <= h.container.clientHeight, 'The scroll viewport must fit its auxiliary host');
 		assert.ok(board().scrollHeight > board().clientHeight);
 		assert.ok(board().scrollWidth > board().clientWidth);
 		board().scrollTop = board().scrollHeight;
 		board().scrollLeft = board().scrollWidth;
+		board().dispatchEvent(new mainWindow.Event('scroll'));
 		const position = { top: board().scrollTop, left: board().scrollLeft };
 		assert.ok(position.top > 0 && position.left > 0);
+		assert.ok(parseFloat(verticalSlider.style.top) > 0 && parseFloat(horizontalSlider.style.left) > 0, 'Thumbs follow native/programmatic scroll on both axes');
 		const lastCell = h.container.querySelector('[aria-label="General, P3"]')!;
 		assert.ok(lastCell.getBoundingClientRect().bottom <= board().getBoundingClientRect().bottom);
 		assert.ok(lastCell.getBoundingClientRect().right <= board().getBoundingClientRect().right);
 		chats[0].title.set('Updated while scrolled', undefined);
 		assert.deepStrictEqual({ top: board().scrollTop, left: board().scrollLeft }, position);
+		assert.strictEqual(board().parentElement, scrollable, 'Live updates retain the active scrollbar');
+		assert.strictEqual(scrollable.querySelector(':scope > .scrollbar.vertical > .slider'), verticalSlider);
+		h.container.style.setProperty('--vscode-scrollbar-background', 'transparent');
+		for (const color of ['rgb(121, 121, 121)', 'rgb(80, 80, 80)']) {
+			h.container.style.setProperty('--vscode-scrollbarSlider-background', color);
+			assert.strictEqual(mainWindow.getComputedStyle(verticalSlider).backgroundColor, color, 'Scrollbars react to workbench theme tokens');
+		}
+		assert.strictEqual(mainWindow.getComputedStyle(verticalSlider.parentElement!).backgroundColor, 'rgba(0, 0, 0, 0)');
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
+		assert.strictEqual(board().scrollTop, board().scrollHeight - board().clientHeight, 'Collapsing clamps the old scroll position to the new range');
+		assert.ok(parseFloat(verticalSlider.style.height) > 0);
 	});
 
 	test('PB-05/PB-11 arrows follow card geometry, reveal focus, and Enter opens exactly that chat', async () => {
@@ -1214,6 +1236,49 @@ suite('ProjectBoardService', () => {
 		press(13);
 		assert.deepStrictEqual(h.opened, [chats[1].resource]);
 		assert.ok(chats.every(chat => !chat.isRead.get()), 'Navigation itself never marks read');
+	});
+
+	test('PB-14 standalone scrollbars rescan late content growth and viewport resizing', async () => {
+		const observers: { observed: Map<Element, ResizeObserverOptions | undefined>; resize: () => void }[] = [];
+		const resizeObserver = sinon.stub(mainWindow, 'ResizeObserver').callsFake(callback => {
+			const observed = new Map<Element, ResizeObserverOptions | undefined>();
+			const observer: ResizeObserver = {
+				observe: (target, options) => { observed.set(target, options); },
+				unobserve: target => { observed.delete(target); },
+				disconnect: () => observed.clear(),
+			};
+			observers.push({ observed, resize: () => callback([], observer) });
+			return observer;
+		});
+		store.add(toDisposable(() => resizeObserver.restore()));
+		const h = createBoard(mainWindow.document, Array.from({ length: 8 }, (_, index) => new TestChat(`Resize ${index}`)));
+		h.container.style.cssText = 'height: 400px; width: 600px; position: relative;';
+		await h.service.open();
+		const board = h.container.querySelector<HTMLElement>('.project-board')!;
+		const scrollable = board.parentElement!;
+		const slider = scrollable.querySelector<HTMLElement>(':scope > .scrollbar.vertical > .slider')!;
+		const observer = observers.find(observer => observer.observed.has(board))!;
+		assert.ok(observer);
+		const grid = h.container.querySelector<HTMLElement>('.project-board-grid')!;
+		assert.strictEqual(observer.observed.get(grid)?.box, 'border-box');
+		const initialHeight = parseFloat(slider.style.height);
+		const initialScrollHeight = board.scrollHeight;
+		// Question and tool widgets can grow without a board model change.
+		grid.style.paddingBottom = '800px';
+		observer.resize();
+		assert.ok(board.scrollHeight > initialScrollHeight);
+		assert.ok(parseFloat(slider.style.height) < initialHeight, `Content resizing updates the thumb without another board render: ${initialHeight} -> ${slider.style.height}, content ${initialScrollHeight} -> ${board.scrollHeight}`);
+		h.container.style.height = '180px';
+		h.container.style.width = '420px';
+		observer.resize();
+		assert.strictEqual(parseFloat(slider.parentElement!.style.height), board.clientHeight);
+		assert.ok(board.clientHeight <= 180 && board.clientWidth <= 420);
+		const horizontal = scrollable.querySelector<HTMLElement>(':scope > .scrollbar.horizontal')!;
+		assert.ok(parseFloat(horizontal.style.width) <= board.clientWidth);
+		h.closeBoard();
+		await Promise.resolve();
+		assert.strictEqual(h.container.querySelector('.project-board-scrollable'), null, 'Closing disposes the viewport and its resize listeners');
+		assert.strictEqual(observer.observed.size, 0);
 	});
 
 	test('session card delete action confirms, deletes the backing session, and does not open the card', async () => {
