@@ -613,9 +613,7 @@ function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destin
 		const nodeModulesDir = path.join(outputDir, 'node_modules');
 
 		const builtInCopilotExtensionDir = path.join(outputDir, 'extensions', 'copilot');
-		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, nodeModulesDir, {
-			sourceCopilotSdkDir: path.join(REPO_ROOT, '.build', 'extensions', 'copilot', 'node_modules', '@github', 'copilot', 'sdk')
-		});
+		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, nodeModulesDir);
 	};
 }
 

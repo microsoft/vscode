@@ -10,12 +10,11 @@ import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOp
 
 /**
  * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
- * options with overrides for the staged SDK and extension lockfile used to
- * verify natives fetched for the pinned version.
+ * options with an override for the extension lockfile used to verify natives
+ * fetched for the pinned version.
  */
 export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
 	extensionLockfilePath?: string;
-	sourceCopilotSdkDir?: string;
 }
 
 /**
@@ -252,15 +251,8 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	const extensionNodeModules = path.join(builtInCopilotExtensionDir, 'node_modules');
 	const copilotBase = path.join(extensionNodeModules, '@github', 'copilot');
 	const copilotSdkBase = path.join(copilotBase, 'sdk');
-	const copilotSdkEntrypoint = path.join(copilotSdkBase, 'index.js');
-	if (!fs.existsSync(copilotSdkEntrypoint)) {
-		if (!options.sourceCopilotSdkDir) {
-			throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK entrypoint not found at ${copilotSdkEntrypoint}`);
-		}
-		copyRequiredDirectory(options.sourceCopilotSdkDir, copilotSdkBase, 'Copilot SDK');
-		if (!fs.existsSync(copilotSdkEntrypoint)) {
-			throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK entrypoint not found in staged SDK at ${path.join(options.sourceCopilotSdkDir, 'index.js')}`);
-		}
+	if (!fs.existsSync(copilotSdkBase)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
 	materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch, tgrepPlatformArch, copilotBase, appNodeModulesDir, options);
 	pruneNonTargetCopilotSdkPrebuilds(copilotPackagePlatformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
