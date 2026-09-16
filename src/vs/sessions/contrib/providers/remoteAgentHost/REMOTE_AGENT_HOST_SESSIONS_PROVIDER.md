@@ -55,6 +55,8 @@ their context by address, request an explicit reconnect, and wait for the servic
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
+On web, an intentional tunnel disconnect keeps the host cached and selectable while suppressing automatic reconnect. Reconnecting explicitly clears that suppression. Picker dismissal remains a separate persistent Hide operation and must have an explicit Restore path.
+
 ## Session lifecycle
 
 Drafts expose the shared untitled `ISession` contract and use remote workspace metadata. First send commits through the shared Agent Host lifecycle. Existing sessions use the shared adapter and cache.
@@ -73,6 +75,12 @@ The remote Agent Host services may remember a user's preferred run location. The
 
 Transport-specific fallback and retry algorithms belong in the owning SSH, tunnel, or remote-host service and its tests.
 Tunnel discovery persists picker dismissals independently from auto-connect suppression; only an explicit user connection clears a dismissal.
+
+## Connection information
+
+The remote-host contribution owns the web connection-information UI. Host summaries and their connection controls use live state; expanded diagnostic details and exports use the captured snapshot. Hidden-host recovery clears dismissal and reruns discovery without promising a connection; it does not clear system-imposed auto-connect suppression. Explicit removal remains in host management. Actions read current provider, picker, connection, and tunnel-visibility state again when invoked. The service builds a client-local diagnostics snapshot of discovery results, cached and configured hosts, picker visibility, and observed connection activity. It presents recorded facts rather than inferred root causes or recovery recommendations. Background and interactive enumeration use the same diagnostics wrapper, which preserves the operation's result or rejection. Discovery records include hosts excluded from the picker, so diagnostics remain useful when no selectable host exists. The service reads dismissal and auto-connect suppression through the tunnel service rather than accessing its storage keys.
+
+Showing, copying, or downloading diagnostics does not probe a remote, re-run discovery, or change connection policy. Refresh explicitly re-runs registered host discovery before capturing a new local snapshot. The displayed snapshot, copied text, and downloaded text file represent the same evidence, including the client information collapsed at the end of the report. Downloads are user-initiated and do not upload anything; host names and addresses should be reviewed before sharing. Activity is bounded to the current window lifetime; missing earlier history or transport-level error details must not be presented as proof that an attempt never occurred.
 
 ## Testing
 

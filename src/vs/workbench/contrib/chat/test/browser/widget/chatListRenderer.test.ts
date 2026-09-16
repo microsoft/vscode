@@ -6,45 +6,65 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
-import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
+import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
+import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
-import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { HookType } from '../../../common/promptSyntax/hookTypes.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
+import { MockChatWidgetService } from './mockChatWidget.js';
+import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
+import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
+import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -182,6 +202,54 @@ suite('ChatListRenderer', () => {
 					mcpAppFirst: 0,
 					multipleMcpApps: 1,
 				});
+			});
+
+			test('keeps active subagents outside completed response disclosure', async () => {
+				const invocation = new ChatToolInvocation(
+					{ toolSpecificData: { kind: 'subagent', hasStarted: true, isActive: true } },
+					{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+					'launch', undefined, { mode: 'background' },
+				);
+				await invocation.didExecuteTool(undefined);
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Task completed') } as const;
+				const active = [invocation, invocation.toJSON()].map(part => ({
+					collapses: shouldCollapseCompletedResponsePart(part),
+					collapseEnd: getCompletedResponseCollapseEndIndex([part, finalResponse], 1),
+				}));
+				invocation.toolSpecificData = { kind: 'subagent', hasStarted: true, isActive: false };
+				const completed = [invocation, invocation.toJSON()].map(part => ({
+					collapses: shouldCollapseCompletedResponsePart(part),
+					collapseEnd: getCompletedResponseCollapseEndIndex([part, finalResponse], 1),
+				}));
+
+				assert.deepStrictEqual({ active, completed }, {
+					active: [{ collapses: false, collapseEnd: 0 }, { collapses: false, collapseEnd: 0 }],
+					completed: [{ collapses: true, collapseEnd: 1 }, { collapses: true, collapseEnd: 1 }],
+				});
+			});
+
+			test('collapses only the prefix before active subagents and all steps after completion', async () => {
+				const data: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+				const invocation = createSubagentTool('launch', data);
+				await invocation.didExecuteTool(undefined);
+				const ordinary = new ChatToolInvocation(
+					{ invocationMessage: 'Ordinary work' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'ordinary', undefined, {},
+				);
+				await ordinary.didExecuteTool(undefined);
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+				const content = [ordinary, invocation, ordinary, finalResponse];
+				const active = getCompletedResponseCollapseEndIndex(content, 3);
+				data.isActive = false;
+				const completed = getCompletedResponseCollapseEndIndex(content, 3);
+				const nested = createSubagentTool('nested', { kind: 'subagent', hasStarted: true, isActive: true }, invocation.toolCallId);
+
+				assert.deepStrictEqual({
+					active,
+					completed,
+					lateNested: getCompletedResponseCollapseEndIndex([invocation.toJSON(), finalResponse, nested.toJSON()], 1),
+				}, { active: 1, completed: 3, lateNested: 0 });
 			});
 
 			test('moves durable tool outcomes after the final response and before trailing adjuncts', () => {
@@ -1480,6 +1548,241 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	for (const { incremental, remount } of [false, true].flatMap(incremental => ([undefined, 'afterUpdate', 'withoutUpdate'] as const).map(remount => ({ incremental, remount })))) {
+		test(`keeps Mermaid output mounted while the rest of a response streams (incremental=${incremental}, remount=${remount})`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
+			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+			instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => undefined! });
+			const outputStates = new Map<string, IOutputPartState>();
+			instantiationService.stub(IChatOutputPartStateCache, {
+				get: key => outputStates.get(key),
+				set: (key, state) => outputStates.set(key, state),
+			});
+			const frames: HTMLIFrameElement[] = [];
+			const loads: Promise<void>[] = [];
+			let reinitializations = 0;
+			instantiationService.stub(IChatOutputRendererService, {
+				hasCodeBlockRenderer: identifier => identifier === 'mermaid',
+				renderCodeBlock: async (_identifier, _data, parent) => {
+					const iframe = mainWindow.document.createElement('iframe');
+					frames.push(iframe);
+					loads.push(new Promise<void>(resolve => {
+						disposables.add(dom.addDisposableListener(iframe, 'load', () => resolve()));
+					}));
+					iframe.srcdoc = '<!DOCTYPE html><html><body>Rendered diagram</body></html>';
+					parent.appendChild(iframe);
+					return {
+						webview: upcastPartial<RenderedOutputPart['webview']>({ onDidUpdateState: Event.None }),
+						onDidChangeHeight: Event.None,
+						reinitialize: () => { reinitializations++; },
+						dispose: () => iframe.remove(),
+					};
+				},
+			});
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const request = model.addRequest({
+				text: 'Diagram',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'Diagram')],
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer, {} as ChatEditorOptions, {},
+				{
+					getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+					currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+				},
+				undefined, viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```mermaid\ngraph TD\n```') });
+			renderer.renderElement(node, 0, template);
+			assert.strictEqual(frames.length, 1);
+			await loads[0];
+			let originalDocument = frames[0].contentDocument;
+			assert.ok(originalDocument);
+			const originalPart = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+			assert.ok(originalPart);
+			const documentsPreserved = [];
+			let codeBlocksAfterRemount: number[] | undefined;
+
+			if (remount) {
+				renderer.disposeElement(node, 0, template);
+				container.remove();
+				assert.deepStrictEqual(renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex), []);
+				if (remount === 'afterUpdate') {
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nOffscreen update') });
+					await timeout(500);
+				}
+				const reloaded = new Promise<void>(resolve => {
+					disposables.add(dom.addDisposableListener(frames[0], 'load', () => resolve()));
+				});
+				mainWindow.document.body.appendChild(container);
+				assert.strictEqual(template.renderedPartsMounted, false);
+				renderer.renderElement(node, 0, template);
+				// Navigation must work as soon as the row is back, without waiting for another token.
+				codeBlocksAfterRemount = renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex);
+				await retry(async () => {
+					assert.strictEqual(reinitializations, 1);
+				}, 10, 100);
+				await reloaded;
+				originalDocument = frames[0].contentDocument;
+				assert.ok(originalDocument);
+			}
+
+			for (let i = 0; i < 3; i++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\nFollowing ${i}`) });
+				renderer.renderElement(node, 0, template);
+				await retry(async () => {
+					assert.ok(template.value.textContent?.includes(`Following ${i}`));
+				}, 10, 100);
+				documentsPreserved.push(frames[0].contentDocument === originalDocument);
+			}
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\n```mermaid\ngraph LR\n```') });
+			renderer.renderElement(node, 0, template);
+			await retry(async () => {
+				assert.strictEqual(frames.length, 2);
+			}, 10, 100);
+			await loads[1];
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await retry(async () => {
+				assert.strictEqual(response.renderData, undefined);
+			}, 10, 100);
+
+			assert.deepStrictEqual({
+				documentsPreserved,
+				preservedAfterCompletion: frames[0].contentDocument === originalDocument,
+				frameCount: frames.length,
+				reinitializations,
+				partPreserved: template.renderedParts?.includes(originalPart) ?? false,
+				codeBlocksAfterRemount,
+				codeBlockIndices: renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex),
+				finalTextRendered: template.value.textContent?.includes('Following 2'),
+			}, {
+				documentsPreserved: [true, true, true],
+				preservedAfterCompletion: true,
+				frameCount: 2,
+				reinitializations: remount ? 1 : 0,
+				partPreserved: true,
+				codeBlocksAfterRemount: remount ? [0] : undefined,
+				codeBlockIndices: [0, 1],
+				finalTextRendered: true,
+			});
+		});
+	}
+
+	test('a queued render from a virtualized row does not claim code block registrations owned by another template', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		// Incremental rendering defers the re-render to a rAF, so a retained part's render can land
+		// after the response was re-rendered into a different template.
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
+		configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+		configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
+		configurationService.setUserConfiguration('chat', {
+			editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 0, wordWrap: 'on' }
+		});
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'Consolas',
+			fontLigatures: false,
+			accessibilitySupport: 'off',
+		});
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => undefined! });
+		instantiationService.stub(IChatOutputRendererService, { hasCodeBlockRenderer: () => false });
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None,
+			onDidChangeContainer: Event.None,
+			getViewLocationById: () => null,
+		});
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const request = model.addRequest({
+			text: 'Diagram',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'Diagram')],
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const editorOptions = disposables.add(instantiationService.createInstance(
+			ChatEditorOptions,
+			undefined,
+			'foreground',
+			'chat.requestEditor.background',
+			'chat.responseEditor.background',
+		));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer, editorOptions, {},
+			{
+				getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+				currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+			},
+			undefined, viewModel,
+		));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		const markdownPartOf = (template: IChatListItemTemplate) => template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+
+		const firstTemplate = renderer.renderTemplate(container);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```js\nconst first = 1;\n```') });
+		renderer.renderElement(node, 0, firstTemplate);
+		const firstPart = markdownPartOf(firstTemplate);
+		assert.ok(firstPart);
+
+		// The row is virtualized while a further update leaves a render queued on the retained part.
+		renderer.disposeElement(node, 0, firstTemplate);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nOffscreen update') });
+		renderer.renderElement(node, 0, firstTemplate);
+
+		// The response comes back in a different cached template before that queued render runs.
+		const secondTemplate = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(secondTemplate)));
+		renderer.renderElement(node, 0, secondTemplate);
+		const secondPart = markdownPartOf(secondTemplate);
+		assert.ok(secondPart && secondPart !== firstPart);
+
+		await retry(async () => {
+			assert.ok(firstPart.isRenderComplete && secondPart.isRenderComplete);
+		}, 10, 100);
+		const ownersAfterQueuedRender = renderer.getCodeBlockInfosForResponse(response).map(info => info.ownerMarkdownPartId);
+
+		// Recycling the stale template must not delete the visible response's registrations.
+		renderer.disposeTemplate(firstTemplate);
+
+		assert.deepStrictEqual({
+			ownersAfterQueuedRender,
+			ownersAfterRecyclingStaleTemplate: renderer.getCodeBlockInfosForResponse(response).map(info => info.ownerMarkdownPartId),
+		}, {
+			ownersAfterQueuedRender: [secondPart.codeblocksPartId],
+			ownersAfterRecyclingStaleTemplate: [secondPart.codeblocksPartId],
+		});
+	});
+
 	test('disposing a sticky row preserves code block mappings owned by the rendered row', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -1902,6 +2205,1200 @@ suite('ChatListRenderer', () => {
 			disclosureBeforeProviderOutput: true,
 		});
 
+		disposables.dispose();
+	});
+
+	function createBackgroundSubagentRenderer(chatWidgetService?: IChatWidgetService) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, !!chatWidgetService);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		if (chatWidgetService) {
+			instantiationService.stub(IChatWidgetService, chatWidgetService);
+			instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+			configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+			configurationService.setUserConfiguration('chat', { editor: { fontFamily: 'default', fontSize: 14, fontWeight: 'normal', lineHeight: 20, wordWrap: 'on' } });
+			instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+				override readonly onDidChangeLocation = Event.None;
+			}());
+		}
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const request = model.addRequest({
+			text: 'test',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			chatWidgetService
+				? disposables.add(instantiationService.createInstance(ChatEditorOptions, undefined, 'editor.foreground', 'editor.background', 'editor.background'))
+				: {} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		return { disposables, instantiationService, model, viewModel, request, response, container, renderer, template, configurationService, render: () => renderer.renderElement(node, 0, template) };
+	}
+
+	function createSubagentTool(toolCallId: string, data: IChatSubagentToolInvocationData, parentToolCallId?: string): ChatToolInvocation {
+		return new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work', toolSpecificData: data },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			toolCallId, parentToolCallId, { mode: 'background' },
+		);
+	}
+
+	function installSubagentPillRenderer(instantiationService: ReturnType<typeof workbenchInstantiationService>): void {
+		const openAction = instantiationService.createInstance(MenuItemAction, { id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' }, undefined, undefined, undefined, undefined);
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override getMenuActions(id: MenuId): [string, MenuItemAction[]][] {
+				return id === MenuId.ChatSubagentContent ? [['navigation', [openAction]]] : [];
+			}
+		}());
+		instantiationService.stub(IActionViewItemService, new class extends NullActionViewItemService {
+			override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+				return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
+					? (action, options, instantiationService) => instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, false)
+					: undefined;
+			}
+		}());
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
+	}
+
+	suite('section completion and working progress', () => {
+		for (const tail of ['subagents', 'completedSubagent', 'markdown', 'tool', 'runningTool', 'thinking']) {
+			test(`finishes sections and shows shimmer only after non-subagent content (${tail})`, async () => {
+				const context = createBackgroundSubagentRenderer();
+				installSubagentPillRenderer(context.instantiationService);
+				context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
+				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.Collapsed);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'delegating', value: 'Delegating the reviews' });
+				const agents: ChatToolInvocation[] = [];
+				for (let i = 0; i < 4; i++) {
+					const agent = createSubagentTool(`agent-${i}`, {
+						kind: 'subagent', description: `Review ${i}`, hasStarted: true, isActive: true, isChatAvailable: true,
+						chatResource: `ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/agent-${i}`,
+					});
+					context.model.acceptResponseProgress(context.request, agent);
+					await agent.didExecuteTool(undefined);
+					agents.push(agent);
+				}
+				const trailingAgent = agents[3].toolSpecificData;
+				if (tail === 'completedSubagent' && trailingAgent?.kind === 'subagent') {
+					trailingAgent.isActive = false;
+					agents[3].notifyToolSpecificDataChanged();
+				} else if (tail === 'markdown') {
+					context.model.acceptResponseProgress(context.request, { kind: 'markdownContent', content: new MarkdownString('The parent checked the local changes.') });
+				} else if (tail === 'tool' || tail === 'runningTool') {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: 'Read agent `catalog-perf`' },
+						{ id: 'read_agent', displayName: 'Read Agent', modelDescription: 'Read agent results', source: ToolDataSource.Internal },
+						'read-agent', undefined, {},
+					);
+					context.model.acceptResponseProgress(context.request, tool);
+					if (tail === 'tool') {
+						await tool.didExecuteTool(undefined);
+					}
+				} else if (tail === 'thinking') {
+					context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'assessing', value: 'Assessing final output steps' });
+				}
+				context.render();
+				context.model.acceptResponseProgress(context.request, { kind: 'thinking', value: '' });
+				context.render();
+
+				assert.deepStrictEqual({
+					shimmer: context.template.value.querySelector('.shimmer-progress')?.textContent,
+					pills: context.template.value.querySelectorAll('.chat-subagent-pill-widget').length,
+					thinkingActive: context.template.renderedParts?.some(part => part instanceof ChatThinkingContentPart && part.getIsActive()),
+					subagentsActive: context.template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).map(part => part.getIsActive()),
+					parentComplete: context.request.response!.isComplete,
+				}, {
+					shimmer: tail === 'subagents' || tail === 'runningTool' ? undefined : 'Working',
+					pills: 4,
+					thinkingActive: false,
+					subagentsActive: tail === 'completedSubagent' ? [true, true, true, false] : [true, true, true, true],
+					parentComplete: false,
+				});
+			});
+		}
+
+		for (const ending of ['answer text', 'section marker']) {
+			test(`collapses an expanded thinking preview the same way when a section ends with ${ending}`, () => {
+				const context = createBackgroundSubagentRenderer();
+				context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
+				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.CollapsedPreview);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'assessing', value: 'Assessing final output steps' });
+				context.render();
+				const thinking = context.template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				assert.ok(thinking instanceof ChatThinkingContentPart);
+				thinking.expandContent();
+				const expandedBefore = thinking.expanded.get();
+				context.model.acceptResponseProgress(context.request, ending === 'answer text'
+					? { kind: 'markdownContent', content: new MarkdownString('Answer text ends the section.') }
+					: { kind: 'thinking', value: '' });
+				context.render();
+				const expandedAfter = thinking.expanded.get();
+				const activeAfter = thinking.getIsActive();
+				context.request.response!.complete();
+				context.render();
+
+				assert.deepStrictEqual({ expandedBefore, expandedAfter, activeAfter }, { expandedBefore: true, expandedAfter: false, activeAfter: false });
+			});
+		}
+	});
+
+	suite('model-driven tool confirmations', () => {
+		function createConfirmationRenderer() {
+			const carousels = store.add(new DisposableMap<string, ChatToolConfirmationCarouselPart>());
+			const confirmationContainer = dom.$('.test-confirmations');
+			confirmationContainer.style.width = '600px';
+			mainWindow.document.body.appendChild(confirmationContainer);
+			store.add(toDisposable(() => confirmationContainer.remove()));
+			const revealed: ChatTreeItem[] = [];
+			const factoriesUsed: string[][] = [];
+			let currentViewModel: IChatViewModel | undefined;
+			const inputPart = new class extends mock<ChatInputPart>() {
+				override readonly onDidChangeActiveConfirmationSubagent = Event.None;
+				override get activeConfirmationSubagentId() { return this.currentCarousel?.activeSubAgentInvocationId; }
+				override get activeToolConfirmation() { return this.currentCarousel?.activeToolConfirmation; }
+				override acceptActiveToolConfirmation(): void { this.currentCarousel?.acceptActiveConfirmation(); }
+				override get hasActiveToolConfirmationCarousel() { return !!this.currentCarousel?.pendingCount; }
+				get currentCarousel() { return currentViewModel ? carousels.get(currentViewModel.sessionResource.toString()) : undefined; }
+				override hasToolInConfirmationCarousel(id: string): boolean { return this.currentCarousel?.hasToolInvocation(id) ?? false; }
+				override addToolToConfirmationCarousel(...args: Parameters<ChatInputPart['addToolToConfirmationCarousel']>): void {
+					const [tool, factory, subagentId, title, reveal, revealLabel, toolPart] = args;
+					assert.ok(currentViewModel);
+					const key = currentViewModel.sessionResource.toString();
+					const itemFactory: typeof factory = invocation => {
+						factoriesUsed.push([tool.toolCallId, invocation.toolCallId]);
+						return factory(invocation);
+					};
+					let carousel = carousels.get(key);
+					if (!carousel) {
+						carousel = new ChatToolConfirmationCarouselPart(itemFactory, []);
+						carousels.set(key, carousel);
+						confirmationContainer.appendChild(carousel.domNode);
+						const part = carousel;
+						part.addDisposable(Event.once(part.onDidEmpty)(() => {
+							part.domNode.remove();
+							carousels.deleteAndDispose(key);
+						}));
+					}
+					carousel.addToolInvocation(tool, subagentId, title, reveal, revealLabel, toolPart, itemFactory);
+				}
+				override removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
+					carousels.get(sessionResource.toString())?.removeToolInvocation(tool);
+				}
+			}();
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly inputPart = inputPart;
+				override get viewModel() { return currentViewModel; }
+				override reveal(item: ChatTreeItem): void { revealed.push(item); }
+				override focusInput(): void { }
+			}();
+			const widgetService = new class extends MockChatWidgetService {
+				override getWidgetBySessionResource(): IChatWidget { return widget; }
+			}();
+			const context = createBackgroundSubagentRenderer(widgetService);
+			currentViewModel = context.viewModel;
+			context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
+			context.instantiationService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+			context.instantiationService.stub(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
+				override isEnabled(): boolean { return false; }
+			}());
+			context.renderer.layout(600);
+			return {
+				...context, inputPart, confirmationContainer, revealed, factoriesUsed,
+				get carousel() { return inputPart.currentCarousel; },
+				getConfirmationEditor() {
+					const editorService = context.instantiationService.invokeFunction(accessor => accessor.get(ICodeEditorService));
+					const editor = editorService.listCodeEditors().find(editor => confirmationContainer.contains(editor.getDomNode()));
+					assert.ok(editor);
+					return editor;
+				},
+				setViewModel(viewModel: IChatViewModel | undefined) {
+					currentViewModel = viewModel;
+					context.renderer.updateViewModel(viewModel);
+				},
+			};
+		}
+
+		function createPendingTool(toolCallId: string, parentToolCallId?: string, preparation: IPreparedToolInvocation = {}): ChatToolInvocation {
+			return new ChatToolInvocation(
+				{ invocationMessage: 'Run a check', confirmationMessages: { title: `Approve ${toolCallId}`, message: new MarkdownString('Run this check?') }, ...preparation },
+				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+				toolCallId, parentToolCallId, {},
+			);
+		}
+
+		test('shows offscreen retained subagent approvals and allows each original invocation independently', async () => {
+			const context = createConfirmationRenderer();
+			const { model, request, confirmationContainer, factoriesUsed } = context;
+			for (const id of ['language', 'host']) {
+				const parent = createSubagentTool(id, { kind: 'subagent', description: `${id} agent`, isActive: false, hasStarted: true });
+				model.acceptResponseProgress(request, parent);
+				await parent.didExecuteTool(undefined);
+			}
+			request.response!.complete();
+			model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+			const first = createPendingTool('compiler-check', 'language');
+			const second = createPendingTool('helper-tests', 'host');
+			request.response!.updateContent(first);
+			request.response!.updateContent(second);
+
+			const before = {
+				pending: context.carousel?.pendingCount,
+				hasApprovalHeading: !!confirmationContainer.querySelector('.chat-tool-carousel-approval-status'),
+				title: confirmationContainer.querySelector('.chat-tool-carousel-agent-label')?.textContent,
+				transcriptRendered: context.template.currentElement !== undefined,
+			};
+			const allow = confirmationContainer.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+			assert.ok(allow, 'An offscreen approval must expose its real Allow button');
+			allow.click();
+			const afterFirst = {
+				pending: context.carousel?.pendingCount,
+				hasApprovalHeading: !!confirmationContainer.querySelector('.chat-tool-carousel-approval-status'),
+				first: first.state.get().type,
+				second: second.state.get().type,
+				title: confirmationContainer.querySelector('.chat-tool-carousel-agent-label')?.textContent,
+			};
+			const allowSecond = confirmationContainer.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+			assert.ok(allowSecond);
+			allowSecond.click();
+
+			assert.deepStrictEqual({
+				before, afterFirst,
+				afterSecond: { pending: context.carousel?.pendingCount ?? 0, state: second.state.get().type },
+				factoriesUsed,
+			}, {
+				before: { pending: 2, hasApprovalHeading: false, title: '\u2014 language agent', transcriptRendered: false },
+				afterFirst: { pending: 1, hasApprovalHeading: false, first: IChatToolInvocation.StateKind.Executing, second: IChatToolInvocation.StateKind.WaitingForConfirmation, title: '\u2014 host agent' },
+				afterSecond: { pending: 0, state: IChatToolInvocation.StateKind.Executing },
+				factoriesUsed: [['compiler-check', 'compiler-check'], ['helper-tests', 'helper-tests']],
+			});
+		});
+
+		test('deduplicates rendered approvals and reveals their original response', async () => {
+			const context = createConfirmationRenderer();
+			const { model, request, response, revealed, confirmationContainer } = context;
+			const parent = createSubagentTool('retained', { kind: 'subagent', description: 'Retained agent', isActive: true, hasStarted: true });
+			model.acceptResponseProgress(request, parent);
+			await parent.didExecuteTool(undefined);
+			const tool = createPendingTool('retained-check', parent.toolCallId);
+			model.acceptResponseProgress(request, tool);
+			context.render();
+			const pendingAfterRender = context.carousel?.pendingCount;
+			confirmationContainer.querySelector<HTMLButtonElement>('.chat-tool-carousel-agent-label')?.click();
+			context.render();
+			assert.deepStrictEqual({
+				pendingAfterRender, pendingAfterRerender: context.carousel?.pendingCount,
+				revealedOriginal: revealed[0] === response,
+				renderedCopies: context.factoriesUsed.length,
+			}, { pendingAfterRender: 1, pendingAfterRerender: 1, revealedOriginal: true, renderedCopies: 1 });
+		});
+
+		test('shows offscreen subagent approvals without an extra heading or working indicator', async () => {
+			const context = createConfirmationRenderer();
+			context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+			context.request.response!.complete();
+			const latestRequest = context.model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+			const latestResponse = context.viewModel.getItems().find(item => isResponseVM(item) && item.model === latestRequest.response);
+			assert.ok(latestResponse && isResponseVM(latestResponse));
+			const node = {
+				element: latestResponse, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0,
+				collapsible: false, collapsed: false, visible: true, filterData: undefined,
+			};
+			context.renderer.renderElement(node, 0, context.template);
+			const beforeApproval = !!context.template.value.querySelector('.shimmer-progress');
+			context.request.response!.updateContent(createPendingTool('offscreen-check', 'retained'));
+			await timeout(0);
+			const workingWhileWaiting = context.template.value.querySelector('.shimmer-progress')?.textContent;
+			context.renderer.renderElement(node, 0, context.template);
+
+			assert.deepStrictEqual({
+				beforeApproval, workingWhileWaiting,
+				workingAfterRerender: context.template.value.querySelector('.shimmer-progress')?.textContent,
+				confirmationTitle: context.confirmationContainer.querySelector('.chat-tool-carousel-collapsed-title')?.textContent,
+				hasApprovalHeading: !!context.confirmationContainer.querySelector('.chat-tool-carousel-approval-status'),
+				originalResponseRendered: context.template.currentElement === context.response,
+			}, {
+				beforeApproval: true, workingWhileWaiting: undefined, workingAfterRerender: undefined,
+				confirmationTitle: 'Approve offscreen-check', hasApprovalHeading: false, originalResponseRendered: false,
+			});
+		});
+
+		test('preserves the existing current-request confirmation presentation', () => {
+			const context = createConfirmationRenderer();
+			context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+			context.model.acceptResponseProgress(context.request, createPendingTool('current-check'));
+			context.render();
+
+			assert.deepStrictEqual({
+				title: context.confirmationContainer.querySelector('.chat-tool-carousel-collapsed-title')?.textContent,
+				hasApprovalHeading: !!context.confirmationContainer.querySelector('.chat-tool-carousel-approval-status'),
+				progress: context.template.value.querySelector('.shimmer-progress')?.textContent,
+				pending: context.carousel?.pendingCount,
+			}, {
+				title: 'Approve current-check',
+				hasApprovalHeading: false,
+				progress: '1\u00a0confirmation\u00a0pending',
+				pending: 1,
+			});
+		});
+
+		test('keeps offscreen shell command editors and edits attached to the selected invocation', () => {
+			const context = createConfirmationRenderer();
+			const first = createPendingTool('first-command', 'first-agent');
+			const second = createPendingTool('second-command', 'second-agent');
+			const firstData: IChatTerminalToolInvocationData = { kind: 'terminal', commandLine: { original: 'echo first' }, language: 'shellscript' };
+			const secondData: IChatTerminalToolInvocationData = { kind: 'terminal', commandLine: { original: 'echo second' }, language: 'shellscript', editable: false };
+			first.toolSpecificData = firstData;
+			second.toolSpecificData = secondData;
+			context.model.acceptResponseProgress(context.request, first);
+			context.model.acceptResponseProgress(context.request, second);
+			const firstCommand = context.getConfirmationEditor().getValue();
+			context.getConfirmationEditor().setValue('echo edited');
+			context.confirmationContainer.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button')?.click();
+			assert.deepStrictEqual({
+				firstCommand, secondCommand: context.getConfirmationEditor().getValue(),
+				firstEdited: firstData.commandLine.userEdited, secondEdited: secondData.commandLine.userEdited,
+				firstState: first.state.get().type, secondState: second.state.get().type,
+			}, {
+				firstCommand: 'echo first', secondCommand: 'echo second',
+				firstEdited: 'echo edited', secondEdited: undefined,
+				firstState: IChatToolInvocation.StateKind.Executing, secondState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
+
+		for (const cdPrefix of ['', 'cd /workspace && ']) {
+			test(`restores edited shell approvals after switching sessions (${cdPrefix ? 'directory prefix' : 'no prefix'})`, async () => {
+				const context = createConfirmationRenderer();
+				const tool = createPendingTool('edited-command', 'retained');
+				const data: IChatTerminalToolInvocationData = {
+					kind: 'terminal',
+					commandLine: { original: `${cdPrefix}echo original` },
+					confirmation: cdPrefix ? { commandLine: 'echo original', cdPrefix } : undefined,
+					language: 'shellscript',
+				};
+				tool.toolSpecificData = data;
+				context.model.acceptResponseProgress(context.request, tool);
+				await timeout(0);
+				context.getConfirmationEditor().setValue('echo edited');
+
+				const otherModel = context.disposables.add(context.instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const otherViewModel = context.disposables.add(context.instantiationService.createInstance(ChatViewModel, otherModel, undefined));
+				context.setViewModel(otherViewModel);
+				const pendingInOtherSession = context.carousel?.pendingCount ?? 0;
+				context.setViewModel(context.viewModel);
+				await timeout(0);
+				const restored = { displayed: context.getConfirmationEditor().getValue(), saved: data.commandLine.userEdited };
+
+				context.getConfirmationEditor().setValue('echo another edit');
+				context.getConfirmationEditor().setValue('echo edited');
+				const savedAfterReturningToEdit = data.commandLine.userEdited;
+				context.getConfirmationEditor().setValue('echo original');
+				const savedAfterRestoringOriginal = data.commandLine.userEdited;
+				context.getConfirmationEditor().setValue('echo edited');
+				const displayedBeforeApproval = context.getConfirmationEditor().getValue();
+				const allow = context.confirmationContainer.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+				assert.ok(allow);
+				allow.click();
+
+				assert.deepStrictEqual({
+					pendingInOtherSession, restored, savedAfterReturningToEdit, savedAfterRestoringOriginal,
+					displayedBeforeApproval, approvedCommand: data.commandLine.userEdited,
+					state: tool.state.get().type,
+				}, {
+					pendingInOtherSession: 0, restored: { displayed: 'echo edited', saved: `${cdPrefix}echo edited` },
+					savedAfterReturningToEdit: `${cdPrefix}echo edited`, savedAfterRestoringOriginal: undefined,
+					displayedBeforeApproval: 'echo edited', approvedCommand: `${cdPrefix}echo edited`,
+					state: IChatToolInvocation.StateKind.Executing,
+				});
+			});
+		}
+
+		test('Accept and Skip commands target the selected historical approval rather than the latest response', () => {
+			const context = createConfirmationRenderer();
+			store.add(registerChatToolActions());
+			const first = createPendingTool('first-check', 'first-agent');
+			const second = createPendingTool('second-check', 'second-agent');
+			context.model.acceptResponseProgress(context.request, first);
+			context.model.acceptResponseProgress(context.request, second);
+			context.model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+			context.carousel?.activateFirstToolForSubagent('second-agent');
+
+			const accept = CommandsRegistry.getCommand(AcceptToolConfirmationActionId);
+			const skip = CommandsRegistry.getCommand(SkipToolConfirmationActionId);
+			assert.ok(accept && skip);
+			context.instantiationService.invokeFunction(accessor => accept.handler(accessor, { sessionResource: context.model.sessionResource }));
+			const afterAccept = { first: first.state.get().type, second: second.state.get().type };
+			context.instantiationService.invokeFunction(accessor => skip.handler(accessor, { sessionResource: context.model.sessionResource }));
+			const firstState = first.state.get();
+			assert.deepStrictEqual({
+				afterAccept,
+				afterSkip: { first: firstState.type, reason: firstState.type === IChatToolInvocation.StateKind.Cancelled ? firstState.reason : undefined },
+				pending: context.carousel?.pendingCount ?? 0,
+			}, {
+				afterAccept: { first: IChatToolInvocation.StateKind.WaitingForConfirmation, second: IChatToolInvocation.StateKind.Executing },
+				afterSkip: { first: IChatToolInvocation.StateKind.Cancelled, reason: ToolConfirmKind.Skipped },
+				pending: 0,
+			});
+		});
+
+		const optionConfirmations: { name: string; preparation: IPreparedToolInvocation; primaryLabel: string; reason: ConfirmedReason }[] = [
+			{
+				name: 'custom approve option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Choose an action',
+						message: 'Choose how to handle this request.',
+						customOptions: [
+							{ id: 'deny-once', label: 'Deny Once', kind: ConfirmationOptionKind.Deny },
+							{ id: 'approve-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+							{ id: 'approve-session', label: 'Allow for Session', kind: ConfirmationOptionKind.Approve },
+						],
+					},
+				},
+				primaryLabel: 'Allow Once',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'approve-once', selectedButtonKind: ConfirmationOptionKind.Approve },
+			},
+			{
+				name: 'custom deny-only option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Choose an action',
+						message: 'Choose how to handle this request.',
+						customOptions: [
+							{ id: 'deny-once', label: 'Deny Once', kind: ConfirmationOptionKind.Deny },
+							{ id: 'deny-always', label: 'Always Deny', kind: ConfirmationOptionKind.Deny },
+						],
+					},
+				},
+				primaryLabel: 'Deny Once',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'deny-once', selectedButtonKind: ConfirmationOptionKind.Deny },
+			},
+			{
+				name: 'modified-file option',
+				preparation: {
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Apply Changes', 'Apply Selected Changes'],
+						modifiedFiles: [{ uri: URI.file('/workspace/example.ts') }],
+					},
+				},
+				primaryLabel: 'Apply Changes',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'Apply Changes' },
+			},
+		];
+
+		for (const { name, preparation, primaryLabel, reason } of optionConfirmations) {
+			test(`Accept matches the displayed primary action for a historical ${name}`, () => {
+				const context = createConfirmationRenderer();
+				store.add(registerChatToolActions());
+				context.request.response!.complete();
+				context.model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+				const untouched = createPendingTool('untouched', 'untouched-agent');
+				const clicked = createPendingTool('clicked', 'clicked-agent', preparation);
+				const accepted = createPendingTool('accepted', 'accepted-agent', preparation);
+				for (const tool of [untouched, clicked, accepted]) {
+					context.request.response!.updateContent(tool);
+				}
+
+				context.carousel?.activateFirstToolForSubagent('clicked-agent');
+				const primaryButton = context.confirmationContainer.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+				assert.ok(primaryButton);
+				const displayedLabel = primaryButton.textContent?.replaceAll('\u00a0', ' ');
+				primaryButton.click();
+
+				context.carousel?.activateFirstToolForSubagent('accepted-agent');
+				const accept = CommandsRegistry.getCommand(AcceptToolConfirmationActionId);
+				assert.ok(accept);
+				context.instantiationService.invokeFunction(accessor => accept.handler(accessor, { sessionResource: context.model.sessionResource }));
+
+				assert.deepStrictEqual({
+					displayedLabel,
+					clicked: IChatToolInvocation.executionConfirmedOrDenied(clicked),
+					accepted: IChatToolInvocation.executionConfirmedOrDenied(accepted),
+					untouched: untouched.state.get().type,
+					pending: context.carousel?.pendingCount,
+					transcriptRendered: context.template.currentElement !== undefined,
+				}, {
+					displayedLabel: primaryLabel,
+					clicked: reason,
+					accepted: reason,
+					untouched: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					pending: 1,
+					transcriptRendered: false,
+				});
+			});
+		}
+
+		test('discovers an existing offscreen tool entering confirmation and re-arming without transcript updates', () => {
+			const context = createConfirmationRenderer();
+			const tool = ChatToolInvocation.createStreaming({
+				toolCallId: 'streaming-check', toolId: 'test_tool', subagentInvocationId: 'retained',
+				toolData: { id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			});
+			context.model.acceptResponseProgress(context.request, tool);
+			context.model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+			const preparation = { confirmationMessages: { title: 'Run the check?', message: new MarkdownString('Confirm the check.') } };
+			tool.requestConfirmation(preparation);
+			const firstCount = context.carousel?.pendingCount;
+			for (let i = 0; i < 20; i++) {
+				context.request.response!.updateContent({ kind: 'markdownContent', content: new MarkdownString('Additional progress.') });
+			}
+			const partsCreatedDuringProgress = context.factoriesUsed.length;
+			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+			tool.requestConfirmation(preparation);
+			assert.deepStrictEqual({
+				firstCount, partsCreatedDuringProgress, rearmedCount: context.carousel?.pendingCount, rearmedTool: context.carousel?.activeToolConfirmation === tool,
+			}, { firstCount: 1, partsCreatedDuringProgress: 1, rearmedCount: 1, rearmedTool: true });
+		});
+
+		test('removes stale approvals on model detach and restores the live callback when rebound', () => {
+			const context = createConfirmationRenderer();
+			const tool = createPendingTool('pending-check', 'retained');
+			context.model.acceptResponseProgress(context.request, tool);
+			context.setViewModel(undefined);
+			const detached = context.confirmationContainer.querySelector('.chat-tool-confirmation-carousel') !== null;
+			context.setViewModel(context.viewModel);
+			const rebound = context.carousel?.hasToolInvocation(tool.toolCallId);
+			context.model.removeRequest(context.request.id);
+			assert.deepStrictEqual({
+				detached, rebound, pendingAfterRemoval: context.carousel?.pendingCount ?? 0, toolState: tool.state.get().type,
+			}, {
+				detached: false, rebound: true, pendingAfterRemoval: 0, toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
+
+		test('shows offscreen approvals after cancelling request editing without further progress', () => {
+			const context = createConfirmationRenderer();
+			context.request.response!.complete();
+			const latestRequest = context.model.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+			const editingRequest = context.viewModel.getItems().find(item => isRequestVM(item) && item.id === latestRequest.id);
+			assert.ok(editingRequest && isRequestVM(editingRequest));
+			context.viewModel.setEditing(editingRequest);
+			const tool = createPendingTool('late-approval', 'retained');
+			context.request.response!.updateContent(tool);
+			const whileEditing = context.carousel?.pendingCount ?? 0;
+
+			let unrelatedChanges = 0;
+			context.disposables.add(context.viewModel.onDidChange(() => unrelatedChanges++));
+			context.viewModel.setEditing(undefined);
+			const afterCancelling = context.carousel?.pendingCount ?? 0;
+			context.viewModel.setEditing(editingRequest);
+			const afterEditingAgain = context.carousel?.pendingCount ?? 0;
+			context.viewModel.setEditing(undefined);
+
+			assert.deepStrictEqual({
+				whileEditing, afterCancelling, afterEditingAgain,
+				afterCancellingAgain: context.carousel?.pendingCount ?? 0,
+				originalInvocation: context.carousel?.activeToolConfirmation === tool,
+				transcriptRendered: context.template.currentElement !== undefined,
+				unrelatedChanges,
+			}, {
+				whileEditing: 0, afterCancelling: 1, afterEditingAgain: 0, afterCancellingAgain: 1,
+				originalInvocation: true, transcriptRendered: false, unrelatedChanges: 0,
+			});
+		});
+
+		test('respects read-only rendering and the carousel setting without approving hidden tools', () => {
+			const context = createConfirmationRenderer();
+			context.renderer.updateOptions({ readOnly: true });
+			const tool = createPendingTool('pending-check', 'retained');
+			context.model.acceptResponseProgress(context.request, tool);
+			const readOnlyCount = context.carousel?.pendingCount ?? 0;
+			context.renderer.updateOptions({ readOnly: false });
+			const editableCount = context.carousel?.pendingCount ?? 0;
+			context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, false);
+			context.setViewModel(context.viewModel);
+			const disabledCount = context.carousel?.pendingCount ?? 0;
+			tool.presentation = ToolInvocationPresentation.Hidden;
+			context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			context.setViewModel(context.viewModel);
+			assert.deepStrictEqual({
+				readOnlyCount, editableCount, disabledCount, hiddenCount: context.carousel?.pendingCount ?? 0, toolState: tool.state.get().type,
+			}, {
+				readOnlyCount: 0, editableCount: 1, disabledCount: 0, hiddenCount: 0, toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
+	});
+
+	test('replaces a completed thinking group with a late background subagent', async () => {
+		const { disposables, model, viewModel, request, response, template, render } = createBackgroundSubagentRenderer();
+		const invocation = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'launch', undefined, { mode: 'background' },
+		);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting a background review.') });
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Agent started in background.' }] });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const initiallyThinking = template.renderedParts?.some(part => part instanceof ChatThinkingContentPart);
+		disposables.add(viewModel.onDidChange(render));
+
+		invocation.toolSpecificData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		invocation.notifyToolSpecificDataChanged();
+		const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		const activeAfterDiscovery = subagent?.getIsActive();
+		const hiddenAfterDiscovery = !!subagent?.domNode.closest('details:not([open])');
+
+		invocation.toolSpecificData.isActive = false;
+		invocation.notifyToolSpecificDataChanged();
+		const activeAfterCompletion = subagent?.getIsActive();
+		const hiddenAfterCompletion = !!subagent?.domNode.closest('details:not([open])');
+
+		invocation.toolSpecificData.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			initiallyThinking,
+			responseComplete: response.isComplete,
+			subagentCount: template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length,
+			thinkingCount: template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart).length,
+			activeAfterDiscovery,
+			hiddenAfterDiscovery,
+			activeAfterCompletion,
+			hiddenAfterCompletion,
+			activeAfterFollowUp: subagent?.getIsActive(),
+			hiddenAfterFollowUp: !!subagent?.domNode.closest('details:not([open])'),
+			retainedPart: subagent !== undefined && template.renderedParts?.includes(subagent),
+		}, {
+			initiallyThinking: true,
+			responseComplete: true,
+			subagentCount: 1,
+			thinkingCount: 0,
+			activeAfterDiscovery: true,
+			hiddenAfterDiscovery: false,
+			activeAfterCompletion: false,
+			hiddenAfterCompletion: true,
+			activeAfterFollowUp: true,
+			hiddenAfterFollowUp: false,
+			retainedPart: true,
+		});
+
+		disposables.dispose();
+	});
+
+	for (const launchIndex of [0, 1]) {
+		for (const materialized of [false, true]) {
+			test(`preserves grouped tools when a background launch is promoted (index=${launchIndex}, materialized=${materialized})`, async () => {
+				const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+				const invocation = new ChatToolInvocation(
+					{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+					{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+					'launch', undefined, { mode: 'background' },
+				);
+				const ordinaryTools = ['First ordinary tool', 'Second ordinary tool'].map((label, index) => new ChatToolInvocation(
+					{ invocationMessage: label, pastTenseMessage: label },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					`ordinary-${index}`, undefined, {},
+				));
+				const tools = [...ordinaryTools];
+				tools.splice(launchIndex, 0, invocation);
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+					render();
+					await tool.didExecuteTool(undefined);
+					render();
+				}
+				model.acceptResponseProgress(request, {
+					kind: 'hook', hookType: HookType.PostToolUse, systemMessage: 'Sibling hook result',
+				});
+				render();
+				if (materialized) {
+					for (const part of new Set(template.renderedParts)) {
+						if (part instanceof ChatThinkingContentPart) {
+							part.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button')?.click();
+						}
+					}
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+				request.response?.complete();
+				render();
+
+				invocation.toolSpecificData = {
+					kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+				};
+				invocation.notifyToolSpecificDataChanged();
+				render();
+				for (const part of new Set(template.renderedParts)) {
+					if (part instanceof ChatThinkingContentPart) {
+						part.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button')?.click();
+					}
+				}
+				await timeout(0);
+				for (const button of template.value.querySelectorAll<HTMLElement>('.chat-hook-outcome-warning .chat-used-context-label > .monaco-button')) {
+					button.click();
+				}
+				const toolRows = [...template.value.querySelectorAll<HTMLElement>('.chat-tool-invocation-part')];
+				const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+				const finalResponse = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+				const precedes = (first: HTMLElement | undefined, second: HTMLElement | undefined) =>
+					!!first && !!second && !!(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+				assert.deepStrictEqual({
+					subagents: template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length,
+					ordinaryTools: toolRows.map(row => row.textContent?.replace(/\s+/g, ' ').trim()),
+					launcherBeforeFirst: precedes(subagent?.domNode, toolRows[0]),
+					launcherBeforeSecond: precedes(subagent?.domNode, toolRows[1]),
+					toolsBeforeFinal: precedes(toolRows[1], finalResponse?.domNode),
+					hookMessages: [...template.value.querySelectorAll<HTMLElement>('.chat-hook-message')].map(message => message.textContent),
+				}, {
+					subagents: 1,
+					ordinaryTools: ['First ordinary tool', 'Second ordinary tool'],
+					launcherBeforeFirst: launchIndex === 0,
+					launcherBeforeSecond: true,
+					toolsBeforeFinal: true,
+					hookMessages: ['Sibling hook result'],
+				});
+				disposables.dispose();
+			});
+		}
+	}
+
+	test('promotes a background launch without crossing an in-progress thinking-group boundary', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const firstTool = new ChatToolInvocation(
+			{ invocationMessage: 'First group tool', pastTenseMessage: 'First group tool' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'first', undefined, {},
+		);
+		const launch = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'launch', undefined, { mode: 'background' },
+		);
+		const secondTool = new ChatToolInvocation(
+			{ invocationMessage: 'Second group tool', pastTenseMessage: 'Second group tool' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'second', undefined, {},
+		);
+		model.acceptResponseProgress(request, firstTool);
+		render();
+		await firstTool.didExecuteTool(undefined);
+		render();
+		model.acceptResponseProgress(request, launch);
+		render();
+		await launch.didExecuteTool(undefined);
+		render();
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Continuing parent work.') });
+		render();
+		model.acceptResponseProgress(request, secondTool);
+		render();
+
+		const groupsBefore = [...new Set(template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart))];
+		assert.strictEqual(groupsBefore.length, 2);
+		launch.toolSpecificData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		launch.notifyToolSpecificDataChanged();
+		render();
+		const groupsAfter = [...new Set(template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart))];
+		for (const group of groupsAfter) {
+			group.expandContent();
+		}
+		const toolRows = [...template.value.querySelectorAll<HTMLElement>('.chat-tool-invocation-part')];
+		const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		const markdown = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+		const precedes = (first: HTMLElement | undefined, second: HTMLElement | undefined) =>
+			!!first && !!second && !!(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+		assert.deepStrictEqual({
+			responseComplete: request.response?.isComplete,
+			groupCount: groupsAfter.length,
+			secondGroupRetained: groupsAfter[1] === groupsBefore[1],
+			firstGroupActive: groupsAfter[0]?.getIsActive(),
+			secondGroupActive: groupsAfter[1]?.getIsActive(),
+			subagents: template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length,
+			toolLabels: toolRows.map(row => row.textContent?.replace(/\s+/g, ' ').trim()),
+			firstToolBeforeSubagent: precedes(toolRows[0], subagent?.domNode),
+			subagentBeforeMarkdown: precedes(subagent?.domNode, markdown?.domNode),
+			markdownBeforeSecondTool: precedes(markdown?.domNode, toolRows[1]),
+		}, {
+			responseComplete: false,
+			groupCount: 2,
+			secondGroupRetained: true,
+			firstGroupActive: false,
+			secondGroupActive: true,
+			subagents: 1,
+			toolLabels: ['First group tool', 'Second group tool'],
+			firstToolBeforeSubagent: true,
+			subagentBeforeMarkdown: true,
+			markdownBeforeSecondTool: true,
+		});
+		disposables.dispose();
+	});
+
+	for (const focusedToolIndex of [0, 1]) {
+		test(`preserves a grouped tool control and expansion when its sibling launch is promoted (focusedToolIndex=${focusedToolIndex})`, async () => {
+			const { disposables, model, request, template, configurationService, render } = createBackgroundSubagentRenderer();
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			const ordinaryTools = ['First tool result', 'Second tool result'].map((label, index) => new ChatToolInvocation(
+				{ invocationMessage: label, pastTenseMessage: label },
+				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+				`ordinary-${index}`, undefined, {},
+			));
+			const launch = new ChatToolInvocation(
+				{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+				{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+				'launch', undefined, { mode: 'background' },
+			);
+			for (const tool of [ordinaryTools[0], launch, ordinaryTools[1]]) {
+				model.acceptResponseProgress(request, tool);
+				await tool.didExecuteTool(tool === launch ? undefined : {
+					content: [],
+					toolResultDetails: { input: '{"path":"file.ts"}', output: [{ type: 'embed', value: 'No issues found', isText: true }] },
+				});
+			}
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+			request.response?.complete();
+			render();
+			const group = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+			assert.ok(group);
+			group.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button')?.click();
+			const toolButtons = [...group.domNode.querySelectorAll<HTMLElement>('.chat-tool-invocation-part .chat-confirmation-widget-title')];
+			assert.strictEqual(toolButtons.length, 2);
+			const toolButton = toolButtons[focusedToolIndex];
+			toolButton.focus();
+
+			launch.toolSpecificData = {
+				kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+			};
+			launch.notifyToolSpecificDataChanged();
+			render();
+			const groupsAfterPromotion = [...new Set(template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart))];
+			const buttonsAfterPromotion = [...template.value.querySelectorAll<HTMLElement>('.chat-tool-invocation-part .chat-confirmation-widget-title')];
+
+			assert.deepStrictEqual({
+				expanded: groupsAfterPromotion.map(part => part.expanded.get()),
+				toolControlsRetained: buttonsAfterPromotion.map((button, index) => button === toolButtons[index]),
+				toolControlFocused: mainWindow.document.activeElement === toolButton,
+				toolControlHidden: !!toolButton.closest('.chat-used-context-collapsed, details:not([open])'),
+			}, {
+				expanded: [true, true],
+				toolControlsRetained: [true, true],
+				toolControlFocused: true,
+				toolControlHidden: false,
+			});
+			disposables.dispose();
+		});
+	}
+
+	for (const hasStarted of [false, true]) {
+		test(`keeps child startup visible after parent finalization and repeated renders (started=${hasStarted})`, async () => {
+			const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+			const data: IChatSubagentToolInvocationData = {
+				kind: 'subagent', description: 'Review changes', hasStarted, isActive: true, isChatAvailable: hasStarted,
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+			};
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Delegating work', toolSpecificData: data,
+				confirmationMessages: { title: 'Approve agent', message: new MarkdownString('Allow the background agent?') },
+			}, {
+				id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal,
+			}, 'launch', undefined, { mode: 'background' });
+			model.acceptResponseProgress(request, invocation);
+			render();
+			const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+			assert.ok(subagent);
+			assert.strictEqual(IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction }), true);
+			await invocation.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+			const ordinary = new ChatToolInvocation(
+				{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
+				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+				'ordinary', undefined, {},
+			);
+			model.acceptResponseProgress(request, ordinary);
+			await ordinary.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+			request.response?.complete();
+			render();
+			render();
+			const afterParent = { active: subagent.getIsActive(), hidden: !!subagent.domNode.closest('details:not([open])') };
+
+			data.hasStarted = true;
+			data.isActive = true;
+			data.isChatAvailable = true;
+			invocation.notifyToolSpecificDataChanged();
+
+			assert.deepStrictEqual({
+				afterParent,
+				afterStartup: { active: subagent.getIsActive(), hidden: !!subagent.domNode.closest('details:not([open])') },
+			}, {
+				afterParent: { active: hasStarted, hidden: !hasStarted },
+				afterStartup: { active: true, hidden: false },
+			});
+			disposables.dispose();
+		});
+	}
+
+	test('preserves summary focus when a background child changes the disclosure boundary', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const data: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		const invocation = createSubagentTool('launch', data);
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Checking work', pastTenseMessage: 'Checked work' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'ordinary', undefined, {},
+		);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Earlier work.') });
+		model.acceptResponseProgress(request, ordinary);
+		await ordinary.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const summary = template.completedResponseDisclosure?.querySelector('summary');
+		assert.ok(summary);
+		summary.focus();
+
+		data.isActive = false;
+		invocation.notifyToolSpecificDataChanged();
+		const afterCompletion = mainWindow.document.activeElement === template.completedResponseDisclosure?.querySelector('summary');
+		data.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			afterCompletion,
+			afterFollowUp: mainWindow.document.activeElement === template.completedResponseDisclosure?.querySelector('summary'),
+		}, { afterCompletion: true, afterFollowUp: true });
+		disposables.dispose();
+	});
+
+	for (const retainDisclosure of [false, true]) {
+		test(`preserves focused response controls when a background child changes the disclosure boundary (retainDisclosure=${retainDisclosure})`, async () => {
+			const { disposables, instantiationService, model, request, template, render } = createBackgroundSubagentRenderer();
+			installSubagentPillRenderer(instantiationService);
+			const data: IChatSubagentToolInvocationData = {
+				kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+			};
+			const ordinary = new ChatToolInvocation(
+				{ invocationMessage: 'Checking work', pastTenseMessage: 'Checked work' },
+				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+				'ordinary', undefined, {},
+			);
+			const invocation = createSubagentTool('launch', data);
+			if (retainDisclosure) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Earlier work.') });
+			}
+			model.acceptResponseProgress(request, ordinary);
+			await ordinary.didExecuteTool({ content: [], toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'Checked work', isText: true }] } });
+			model.acceptResponseProgress(request, invocation);
+			await invocation.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+			request.response?.complete();
+			render();
+			const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+			assert.ok(subagent);
+			subagent.focus();
+			const childControl = mainWindow.document.activeElement;
+			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-widget'));
+
+			data.isActive = false;
+			invocation.notifyToolSpecificDataChanged();
+			const afterCompletion = {
+				childFocused: mainWindow.document.activeElement === childControl,
+				childInsideDisclosure: !!template.completedResponseDisclosure?.contains(childControl),
+				disclosureOpen: template.completedResponseDisclosure?.open,
+			};
+			const siblingControl = template.value.querySelector<HTMLElement>('.chat-tool-invocation-part .chat-confirmation-widget-title');
+			assert.ok(siblingControl);
+			siblingControl.focus();
+
+			data.isActive = true;
+			invocation.notifyToolSpecificDataChanged();
+
+			assert.deepStrictEqual({
+				afterCompletion,
+				afterResume: {
+					childInsideDisclosure: !!template.completedResponseDisclosure?.contains(childControl),
+					siblingFocused: mainWindow.document.activeElement === siblingControl,
+					siblingInsideDisclosure: !!template.completedResponseDisclosure?.contains(siblingControl),
+				},
+			}, {
+				afterCompletion: { childFocused: true, childInsideDisclosure: true, disclosureOpen: true },
+				afterResume: { childInsideDisclosure: false, siblingFocused: true, siblingInsideDisclosure: retainDisclosure },
+			});
+			disposables.dispose();
+		});
+	}
+
+	test('moves summary focus to a leading subagent when its startup removes the disclosure', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const data: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: false, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		const invocation = createSubagentTool('launch', data);
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'ordinary', undefined, {},
+		);
+		model.acceptResponseProgress(request, ordinary);
+		await ordinary.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		const summary = template.completedResponseDisclosure?.querySelector('summary');
+		assert.ok(subagent && summary);
+		summary.focus();
+
+		data.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		const content = template.renderedContent ?? [];
+		const leadingPart = content[0];
+		assert.deepStrictEqual({
+			leadingReferences: leadingPart?.kind === 'references' ? leadingPart.references : undefined,
+			collapseEndIndex: getCompletedResponseCollapseEndIndex(content, content.length - 1),
+			disclosureRemoved: !template.completedResponseDisclosure,
+			childFocused: subagent.domNode.contains(mainWindow.document.activeElement),
+		}, { leadingReferences: [], collapseEndIndex: 1, disclosureRemoved: true, childFocused: true });
+		disposables.dispose();
+	});
+
+	test('keeps a completed root group visible while a nested background child is active', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const root = createSubagentTool('root', {
+			kind: 'subagent', description: 'Root reviewer', hasStarted: true, isActive: false, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/root',
+		});
+		const nestedData: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Nested reviewer', hasStarted: false, isActive: true, isChatAvailable: false,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/nested',
+		};
+		const nested = createSubagentTool('nested', nestedData, root.toolCallId);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Earlier work.') });
+		model.acceptResponseProgress(request, root);
+		await root.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, nested);
+		await nested.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const part = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(part);
+		const beforeNestedStart = !!part.domNode.closest('details:not([open])');
+		nestedData.hasStarted = true;
+		nestedData.isChatAvailable = true;
+		nested.notifyToolSpecificDataChanged();
+		const whileNestedActive = !!part.domNode.closest('details:not([open])');
+
+		nestedData.isActive = false;
+		nested.notifyToolSpecificDataChanged();
+		const afterNestedCompletion = !!part.domNode.closest('details:not([open])');
+		nestedData.isActive = true;
+		nested.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			beforeNestedStart,
+			whileNestedActive,
+			afterNestedCompletion,
+			afterNestedFollowUp: !!part.domNode.closest('details:not([open])'),
+		}, { beforeNestedStart: true, whileNestedActive: false, afterNestedCompletion: true, afterNestedFollowUp: false });
+		disposables.dispose();
+	});
+
+	test('releases child activity observers when a template is reused for another response', async () => {
+		const { disposables, model, viewModel, request, template, renderer, render } = createBackgroundSubagentRenderer();
+		const data: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Original child', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/original',
+		};
+		const invocation = createSubagentTool('original', data);
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Original response.') });
+		request.response?.complete();
+		render();
+
+		const replacementRequest = model.addRequest({
+			text: 'next',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'next')],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(replacementRequest, { kind: 'markdownContent', content: new MarkdownString('Replacement work.') });
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Replacement check', pastTenseMessage: 'Checked replacement' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'replacement-tool', undefined, {},
+		);
+		model.acceptResponseProgress(replacementRequest, ordinary);
+		await ordinary.didExecuteTool(undefined);
+		model.acceptResponseProgress(replacementRequest, { kind: 'markdownContent', content: new MarkdownString('Replacement response.') });
+		replacementRequest.response?.complete();
+		const replacement = viewModel.getItems().find(item => isResponseVM(item) && item.model === replacementRequest.response);
+		assert.ok(replacement && isResponseVM(replacement));
+		renderer.renderElement({
+			element: replacement, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0,
+			collapsible: false, collapsed: false, visible: true, filterData: undefined,
+		}, 0, template);
+		const disclosure = template.completedResponseDisclosure;
+		assert.ok(disclosure);
+		const renderedContent = template.renderedContent;
+
+		data.isActive = false;
+		invocation.notifyToolSpecificDataChanged();
+		data.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			currentResponse: template.currentElement === replacement,
+			sameDisclosure: template.completedResponseDisclosure === disclosure && disclosure.isConnected,
+			sameContent: template.renderedContent === renderedContent,
+		}, { currentResponse: true, sameDisclosure: true, sameContent: true });
 		disposables.dispose();
 	});
 

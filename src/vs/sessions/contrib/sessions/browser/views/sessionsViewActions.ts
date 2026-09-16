@@ -26,11 +26,11 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -342,6 +342,28 @@ registerAction2(class GroupByTimeAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.setGrouping(SessionsGrouping.Date);
+	}
+});
+
+registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.toggleCompact',
+			title: localize2('toggleCompactSessionsView', "Compact View"),
+			category: SessionsCategories.Sessions,
+			toggled: SessionsViewCompactContext,
+			menu: [{
+				id: SessionsViewFilterSubMenu,
+				group: '3_view',
+				order: 0,
+				when: IsPhoneLayoutContext.negate(),
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		view?.toggleCompact();
 	}
 });
 
@@ -1128,8 +1150,8 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			title: localize2('markRead', "Mark as Read"),
 			menu: [{
 				id: SessionItemContextMenuId,
-				group: '0_read',
-				order: 0,
+				group: '1_edit',
+				order: 1.5,
 				when: ContextKeyExpr.and(
 					SessionIsReadContext.negate(),
 					SessionIsArchivedContext.negate(),
@@ -1162,8 +1184,8 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			title: localize2('markUnread', "Mark as Unread"),
 			menu: [{
 				id: SessionItemContextMenuId,
-				group: '0_read',
-				order: 0,
+				group: '1_edit',
+				order: 1.5,
 				when: ContextKeyExpr.and(
 					SessionIsReadContext,
 					SessionIsArchivedContext.negate(),
@@ -1198,8 +1220,8 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			title: localize2('openToTheSide', "Open to the Side"),
 			menu: [{
 				id: SessionItemContextMenuId,
-				group: 'navigation',
-				order: -1,
+				group: '0_pin',
+				order: 1,
 				when: IsSessionsWindowContext,
 			}]
 		});
@@ -1241,6 +1263,7 @@ registerAction2(class MarkAllSessionsReadAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '0_read',
 				order: 1,
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Date),
 			}]
 		});
 	}

@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -34,6 +35,7 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelVisibility,
 	ITunnelAgentHostService,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -263,7 +265,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 
 		const auth = await this._getToken(options?.silent ?? false);
 		if (!auth) {
-			return [];
+			throw new Error(localize('browserTunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 		}
 
 		try {
@@ -279,7 +281,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 			return results;
 		} catch (error) {
 			this._logService.error(`${LOG_PREFIX} Failed to enumerate tunnels`, error);
-			return [];
+			throw error;
 		}
 	}
 
@@ -445,6 +447,10 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

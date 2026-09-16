@@ -208,11 +208,11 @@ export interface ISessionsService {
 	 */
 	openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void>;
 
-	/** Place a session to the right of the last visible session and activate it. */
-	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
+	/** Place a session to the right of a visible reference, or the last visible session, and activate it. */
+	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI; referenceSessionId?: string }): Promise<void>;
 
-	/** Open a chat to the side of its session view, redirecting a superseded resource first. */
-	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+	/** Open a chat beside a visible reference chat, or its current group, redirecting a superseded resource first. */
+	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void>;
 
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
@@ -998,7 +998,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return true;
 	}
 
-	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI; referenceSessionId?: string }): Promise<void> {
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
 		// Redirect a superseded resource before inserting a slot, so the side-by-side
@@ -1012,9 +1012,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			options = { ...options, chatResource: resolved.chatUri };
 		}
 		const visible = this.visibleSessions.get();
-		const lastVisible = visible[visible.length - 1];
-		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-			this.insertAt(session, lastVisible.sessionId, 'right');
+		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
+		if (reference && reference.sessionId !== session.sessionId) {
+			this.insertAt(session, reference.sessionId, 'right');
 		}
 		if (options?.chatResource) {
 			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
@@ -1029,7 +1029,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * rather than the old facade. Provider-neutral: the redirect is the
 	 * `resolveSessionResource` hook, not a scheme check.
 	 */
-	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
 		const resolved = await this._resolveSessionForOpen(session, chatResource);
@@ -1043,7 +1043,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!sessionView) {
 			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
 		}
-		await sessionView.openChatToSide(chatResource);
+		await sessionView.openChatToSide(chatResource, options?.referenceChatResource);
 	}
 
 	/**
@@ -1169,7 +1169,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
 
-		const targetSession = newSession ?? undefined;
+		const activeSession = this._visibility.activeSession.get();
+		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
+			? undefined
+			: newSession;
 		this._activateOrInsert(targetSession, options?.toSide);
 		return { session: targetSession, trustDeclined: false };
 	}

@@ -1338,7 +1338,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
-	public requestModelByIdentifier(identifier: string): Promise<boolean> {
+	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
+		this.restoreModelConfiguration(identifier, configuration, false);
 		return this._requestProgrammaticLanguageModel(() => this.getModels().find(model => model.identifier === identifier));
 	}
 
@@ -1465,9 +1466,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * the configuration follows the model through the same resolution hierarchy.
 	 * No-op for sessions that pre-date configuration capture (no value stored).
 	 */
-	private restoreModelConfiguration(modelId: string, modelConfiguration: IStringDictionary<unknown> | undefined): void {
+	private restoreModelConfiguration(modelId: string, modelConfiguration: IStringDictionary<unknown> | undefined, persist = true): void {
 		if (modelConfiguration) {
-			this._modelConfigStore.restoreModelConfiguration(modelId, modelConfiguration);
+			this._modelConfigStore.restoreModelConfiguration(modelId, modelConfiguration, persist);
 		}
 	}
 
@@ -4533,7 +4534,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
+			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);
 			this.updateToolConfirmationCarouselMaxHeight();
 			return existing;
 		}
@@ -4544,10 +4545,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const part = new ChatToolConfirmationCarouselPart(factory, [], revealSubagent, revealSubagentLabel, subAgentInvocationId, subagentTitle);
-		part.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
+		part.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);
 		this._chatToolConfirmationCarousels.set(key, part);
 		const capturedKey = key;
-		this._register(part.onDidChangeActiveSubagent(id => {
+		part.addDisposable(part.onDidChangeActiveSubagent(id => {
 			if (this._currentSessionKey === capturedKey) {
 				this._onDidChangeActiveConfirmationSubagent.fire(id);
 			}
@@ -4559,7 +4560,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.show(this.chatToolConfirmationCarouselContainer);
 		this.updateToolConfirmationCarouselMaxHeight();
 
-		this._register(Event.once(part.onDidEmpty)(() => {
+		part.addDisposable(Event.once(part.onDidEmpty)(() => {
 			this._chatToolConfirmationCarousels.deleteAndDispose(capturedKey);
 			if (this._currentSessionKey === capturedKey) {
 				this._onDidChangeActiveConfirmationSubagent.fire(undefined);
@@ -4574,15 +4575,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	addToolToConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
+			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);
 			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
 			this.renderToolConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
 		}
 	}
 
+	removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
+		this._chatToolConfirmationCarousels.get(sessionResource.toString())?.removeToolInvocation(tool);
+	}
+
 	get activeConfirmationSubagentId(): string | undefined {
 		return this._currentToolConfirmationCarousel?.activeSubAgentInvocationId;
+	}
+
+	get activeToolConfirmation(): IChatToolInvocation | undefined {
+		return this._currentToolConfirmationCarousel?.activeToolConfirmation;
+	}
+
+	acceptActiveToolConfirmation(): void {
+		this._currentToolConfirmationCarousel?.acceptActiveConfirmation();
 	}
 
 	/**

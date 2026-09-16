@@ -124,13 +124,16 @@
 	overflow: hidden;
 }
 
+.new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container,
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
 	display: flex;
 	align-items: center;
 	gap: 2px;
 	min-width: 0;
 	overflow: hidden;
+}
 
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
 	.sync-changes-action-view-item {
 		display: flex;
 		align-items: center;
@@ -141,14 +144,16 @@
 		}
 	}
 
-	.new-chat-status-toolbar.has-no-actions {
-		display: none;
-	}
+}
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar.has-no-actions {
+	display: none;
 }
 
 /* Toolbar hosts can shrink, while individual expanded pickers remain intrinsic
  * and switch to compact form before their labels would truncate. */
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > *,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container > *,
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container > * {
 	min-width: 0;
 	overflow: hidden;
@@ -224,7 +229,7 @@
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;
-	padding: 0 var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size40);
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 	background-color: var(--session-view-background);

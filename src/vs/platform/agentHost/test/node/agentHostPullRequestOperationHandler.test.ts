@@ -313,7 +313,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				return state;
 			},
 			async () => options?.baseBranch ?? 'main',
-			event => {
+			async event => {
 				createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`);
 				createdBranches.push(event.branchName);
 			},

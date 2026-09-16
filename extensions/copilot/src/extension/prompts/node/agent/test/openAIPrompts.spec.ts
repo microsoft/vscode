@@ -13,6 +13,7 @@ import { createExtensionUnitTestingServices } from '../../../../test/node/servic
 import '../allAgentPrompts';
 import { DefaultAgentPrompt } from '../defaultAgentInstructions';
 import { Gpt56PromptResolver } from '../openai/gpt56Prompt';
+import { Gpt6PromptResolver } from '../openai/gpt6Prompt';
 import { AgentPromptRegistry, IAgentPrompt, PromptRegistry } from '../promptRegistry';
 
 suite('OpenAI prompt fallback', () => {
@@ -46,7 +47,6 @@ suite('OpenAI prompt fallback', () => {
 		['gpt-5.40', 'copilot'],
 		['gpt-5.50', 'copilot'],
 		['gpt-5.60', 'copilot'],
-		['gpt-6-preview', 'Azure'],
 		['OpenAI', 'copilot'],
 		['preview-model', 'OpenAI'],
 		['preview-model', 'openai'],
@@ -75,9 +75,25 @@ suite('OpenAI prompt fallback', () => {
 		['gpt-5.4', 'Gpt54Prompt'],
 		['gpt-5.5', 'Gpt55Prompt'],
 		['gpt-5.6', 'Gpt56Prompt'],
+		['gpt-6', 'Gpt6Prompt'],
 		['vscModelE-preview', 'VSCModelPromptE'],
 	])('preserves the explicit prompt for %s', async (family, expected) => {
 		expect((await resolve(createEndpoint(family, 'OpenAI'))).SystemPrompt.name).toBe(expected);
+	});
+
+	test.each([
+		['gpt-6', 'copilot'],
+		['gpt-6-preview', 'Azure'],
+		['gpt-6-codex', 'OpenAI'],
+		['gpt-6.1', 'custom'],
+		['gpt-6.1-mini', 'copilot'],
+		['gpt-6-astra', 'copilot'],
+	])('%s from %s receives the complete GPT-6 prompt bundle', async (family, provider) => {
+		const endpoint = createEndpoint(family, provider);
+		endpoint.model = 'preview-model';
+		const registry = new AgentPromptRegistry();
+		registry.registerPrompt(Gpt6PromptResolver);
+		expect(await resolve(endpoint)).toEqual(await registry.resolveAllCustomizations(instantiationService, createEndpoint('gpt-6')));
 	});
 
 	test.each(['claude-sonnet-4.6', 'gemini-2.0-flash', 'grok-code-fast-1', 'kimi-k3'])('keeps %s family routing ahead of provider metadata', async family => {

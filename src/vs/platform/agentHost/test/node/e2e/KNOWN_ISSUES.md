@@ -382,7 +382,7 @@ The following tests remain scoped at their call sites:
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
 - `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows because the host terminal tool does not expose a terminal resource there, as described below.
 
-The prompt snapshots in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only — every model, by construction rather than because of an observed failure.
+The prompt and skill-budget tests in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only, by construction rather than because of an observed failure.
 
 - Expected: one committed baseline per model describes the prompt the bundled CLI assembles.
 - Observed: the Windows prompt is not a renaming of the POSIX one. Beyond the shell tool names, the CLI runtime carries PowerShell-only sections that POSIX never emits — no-heredoc guidance ("avoid `python - <<'PY'`", use a single-quoted here-string), `; with explicit checks such as `if ($?) { ... }`` for dependent steps, and the caveat that "the PATH/LIB/INCLUDE changes from the .bat will not be available". A fixture handles the name difference by storing a `${shell}` placeholder that `expandShellToolName` swaps back in, but here the prose *is* the asserted artifact — projecting it away would delete the tool instructions the snapshot exists to pin.
@@ -709,9 +709,9 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
 
 ## Platform and deterministic-replay limitations
 
-### Copilot prompt snapshots on Windows
+### Copilot prompt and skill-budget tests on Windows
 
-- Tests: all models in `copilotPromptsE2E.integrationTest.ts`.
+- Tests: all cases in `copilotPromptsE2E.integrationTest.ts`.
 - Scope: Windows.
 - Expected: one committed baseline per model describes the prompt assembled by the bundled CLI.
 - Observed: the Windows prompt includes PowerShell-specific instructions and host-probed capabilities, so it is not a stable renaming of the POSIX prompt.

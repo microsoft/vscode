@@ -6,10 +6,13 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { createAgentHostSandboxToggle } from '../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
-import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { getAgentHostOperatingSystem } from '../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -23,6 +26,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
@@ -54,6 +58,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	/** Fires every time any agent-host provider's session config changes. */
 	private readonly _configChangedSignal = observableSignal('agentHostPermissionPicker.configChanged');
 	private readonly _providerSubscriptions = this._register(new DisposableMap<string>());
+	private _sandboxConnection: IAgentConnection | undefined;
+	private readonly _hostOperatingSystem = observableValue<OperatingSystem | undefined>(this, undefined);
+	private _hostOperatingSystemRequest: Promise<void> | undefined;
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
@@ -62,6 +69,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
 	readonly sandboxEnabled: IObservable<boolean | undefined>;
+	readonly sandboxToggleSettingId: IObservable<string | undefined>;
 	readonly sandboxToggleConfigurationKeys = [
 		AgentHostCustomTerminalToolEnabledSettingId,
 		AgentHostSdkSandboxEnabledSettingId,
@@ -78,13 +86,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			&& !!this._getProvider(session.providerId)?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.SandboxEnabled];
 	};
 
-	readonly getSandboxToggleSettingId = (): string | undefined => {
-		if (!this.isSandboxToggleApplicable()) {
-			return undefined;
-		}
-		const customTerminalToolEnabled = this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true;
-		return getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled);
-	};
+	readonly getSandboxToggleSettingId = (): string | undefined => this.sandboxToggleSettingId.get();
 
 	get availableLevels(): readonly ChatPermissionLevel[] {
 		const session = this._session.get();
@@ -129,6 +131,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IChatPhoneInputPresenter phoneInputPresenter: IChatPhoneInputPresenter,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
@@ -155,6 +159,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const value = session && this._getProvider(session.providerId)?.getSessionConfig(session.sessionId)?.values[SessionConfigKey.SandboxEnabled];
 			return value === 'on' ? true : value === 'off' ? false : undefined;
 		});
+		this.sandboxToggleSettingId = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			this._session.read(reader);
+			const os = this._hostOperatingSystem.read(reader);
+			return this.isSandboxToggleApplicable() && os !== undefined ? getAgentHostCopilotSandboxSettingId(os === OperatingSystem.Windows) : undefined;
+		});
 		this.isModePickerCombined = derived(this, reader => {
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
@@ -176,10 +186,43 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const provider = this._getProvider(session.providerId);
 			return provider?.isSessionConfigResolving(session.sessionId).read(reader) ?? false;
 		});
+		this._register(this._connectionsService.onDidChangeSessionResolution(async () => {
+			const connection = this._sandboxConnection;
+			const request = this._hostOperatingSystemRequest;
+			// Recovery can be reported before an interrupted diagnostics request settles.
+			await request;
+			if (!this._store.isDisposed && connection && request && this._sandboxConnection === connection && this._hostOperatingSystemRequest === request && this._hostOperatingSystem.get() === undefined) {
+				this._hostOperatingSystemRequest = this._resolveHostOperatingSystem(connection);
+			}
+		}));
+		const connectionsChanged = observableSignalFromEvent(this, this._connectionsService.onDidChangeSessionResolution);
+		this._register(autorun(reader => {
+			connectionsChanged.read(reader);
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			const connection = session && this.isSandboxToggleApplicable() ? this._connectionsService.resolveSessionResource(session.resource)?.connection : undefined;
+			if (connection === this._sandboxConnection) {
+				return;
+			}
+			this._sandboxConnection = connection;
+			this._hostOperatingSystem.set(undefined, undefined);
+			this._hostOperatingSystemRequest = connection ? this._resolveHostOperatingSystem(connection) : undefined;
+		}));
+	}
+
+	private async _resolveHostOperatingSystem(connection: IAgentConnection): Promise<void> {
+		try {
+			const os = await getAgentHostOperatingSystem(connection);
+			if (!this._store.isDisposed && this._sandboxConnection === connection) {
+				this._hostOperatingSystem.set(os, undefined);
+			}
+		} catch (error) {
+			this._logService.error('Failed to resolve agent host OS for the sandbox picker', error);
+		}
 	}
 
 	getSandboxToggle() {
-		if (!this.isSandboxToggleApplicable()) {
+		if (!this.isSandboxToggleApplicable() || this.getSandboxToggleSettingId() === undefined) {
 			return undefined;
 		}
 		return createAgentHostSandboxToggle(() => {
