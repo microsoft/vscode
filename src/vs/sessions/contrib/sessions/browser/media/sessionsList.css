@@ -392,18 +392,10 @@
 			min-width: var(--vscode-spacing-size160);
 			height: var(--vscode-spacing-size160);
 			padding: 0;
-			border: 0;
 			border-radius: var(--vscode-cornerRadius-small);
-			background: transparent;
-			color: var(--vscode-errorForeground);
 
 			.codicon {
 				font-size: var(--vscode-codiconFontSize-compact);
-			}
-
-			&:hover {
-				background: color-mix(in srgb, var(--vscode-errorForeground) 16%, transparent);
-				color: var(--vscode-errorForeground);
 			}
 		}
 	}
@@ -1170,18 +1162,10 @@
 		min-width: var(--vscode-spacing-size160);
 		height: var(--vscode-spacing-size160);
 		padding: 0;
-		border: 0;
 		border-radius: var(--vscode-cornerRadius-small);
-		background: transparent;
-		color: var(--vscode-errorForeground);
 
 		.codicon {
 			font-size: var(--vscode-codiconFontSize-compact);
-		}
-
-		&:hover {
-			background: color-mix(in srgb, var(--vscode-errorForeground) 16%, transparent);
-			color: var(--vscode-errorForeground);
 		}
 	}
 }

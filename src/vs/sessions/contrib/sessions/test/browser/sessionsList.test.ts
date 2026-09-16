@@ -2047,6 +2047,7 @@ suite('Sessions - SessionsList', () => {
 			const memberships = new Map(sessions.map(session => [session.sessionId, group.id]));
 			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison] });
 			const container = harness.createContainer();
+			container.style.setProperty('--vscode-errorForeground', 'rgb(255, 0, 0)');
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
 				sorting: () => SessionsSorting.Created,
@@ -2090,6 +2091,8 @@ suite('Sessions - SessionsList', () => {
 					hasSpinner: attempt.querySelector('.session-comparison-attempt-status-icon')?.classList.contains('codicon-modifier-spin'),
 					stopAriaLabel: attempt.querySelector('.session-comparison-participant-stop')?.getAttribute('aria-label'),
 					stopHidden: attempt.querySelector<HTMLButtonElement>('.session-comparison-participant-stop')?.hidden,
+					stopColor: attempt.querySelector<HTMLElement>('.session-comparison-participant-stop')?.style.color,
+					stopComputedColor: mainWindow.getComputedStyle(attempt.querySelector<HTMLElement>('.session-comparison-participant-stop')!).color,
 					details: attempt.querySelector('.session-details-row')?.textContent,
 					height: attempt.closest<HTMLElement>('.monaco-list-row')?.style.height,
 					connectorVisibility: mainWindow.getComputedStyle(attempt.querySelector<HTMLElement>('.session-icon')!).visibility,
@@ -2117,8 +2120,8 @@ suite('Sessions - SessionsList', () => {
 				},
 				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5', 'Codex · GPT-5'],
 				attempts: [
-					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Copilot · Claude Opus 5', stopHidden: false, details: '', height: '30px', connectorVisibility: 'visible' },
-					{ title: 'Codex · GPT-5', ariaLabel: 'Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Codex · GPT-5', stopHidden: false, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Copilot · Claude Opus 5', stopHidden: false, stopColor: 'var(--vscode-errorForeground)', stopComputedColor: 'rgb(255, 0, 0)', details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Codex · GPT-5', ariaLabel: 'Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Codex · GPT-5', stopHidden: false, stopColor: 'var(--vscode-errorForeground)', stopComputedColor: 'rgb(255, 0, 0)', details: '', height: '30px', connectorVisibility: 'visible' },
 				],
 				independentStops: [
 					{ title: 'Synthesis', ariaLabel: 'Stop Synthesis', hidden: false, stopOnly: true },
@@ -2157,25 +2160,38 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('stops all running comparison participants from the group header', async () => {
-			const { attempt1, container, harness } = renderComparison();
+			const { attempt1, attempt2, judge, synthesis, container, harness } = renderComparison();
 			attempt1.status.set(SessionStatus.Completed, undefined);
 			const stopAll = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-stop-all');
 			assert.ok(stopAll);
 			assert.deepStrictEqual({
 				ariaLabel: stopAll.getAttribute('aria-label'),
 				hidden: stopAll.hidden,
+				color: stopAll.style.color,
+				computedColor: mainWindow.getComputedStyle(stopAll).color,
 			}, {
 				ariaLabel: 'Stop All',
 				hidden: false,
+				color: 'var(--vscode-errorForeground)',
+				computedColor: 'rgb(255, 0, 0)',
 			});
 
 			stopAll.click();
 			await Promise.resolve();
 
-			assert.deepStrictEqual(
-				harness.managementService.cancelled.map(session => session.sessionId).sort(),
-				['attempt-2', 'judge', 'synthesis'],
-			);
+			attempt2.status.set(SessionStatus.Completed, undefined);
+			judge.status.set(SessionStatus.Completed, undefined);
+			synthesis.status.set(SessionStatus.Completed, undefined);
+
+			assert.deepStrictEqual({
+				cancelled: harness.managementService.cancelled.map(session => session.sessionId).sort(),
+				stopAllHidden: stopAll.hidden,
+				participantStopsHidden: [...container.querySelectorAll<HTMLButtonElement>('.session-comparison-participant-stop')].map(button => button.hidden),
+			}, {
+				cancelled: ['attempt-2', 'judge', 'synthesis'],
+				stopAllHidden: true,
+				participantStopsHidden: [true, true, true, true],
+			});
 		});
 
 		test('opens from the parent and reserves disclosure for the chevron', () => {

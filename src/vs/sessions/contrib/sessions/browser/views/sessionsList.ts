@@ -42,6 +42,7 @@ import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listSe
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
+import { errorForeground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -701,6 +702,13 @@ class SessionItemActionRunner extends ActionRunner {
 const SESSION_TITLE_SHIMMER_ANIMATION_NAME = 'session-title-shimmer';
 const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set([SESSION_TITLE_SHIMMER_ANIMATION_NAME]);
 const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
+const comparisonStopButtonStyles = {
+	...defaultButtonStyles,
+	buttonSecondaryBackground: 'transparent',
+	buttonSecondaryForeground: asCssVariable(errorForeground),
+	buttonSecondaryHoverBackground: `color-mix(in srgb, ${asCssVariable(errorForeground)} 16%, transparent)`,
+	buttonSecondaryBorder: 'transparent',
+};
 
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
@@ -866,7 +874,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		comparisonAttemptStatusIcon.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatusLabel = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-label'));
 		const comparisonParticipantStop = disposables.add(new Button(comparisonAttemptStatus, {
-			...defaultButtonStyles,
+			...comparisonStopButtonStyles,
 			secondary: true,
 			supportIcons: true,
 			title: false,
@@ -1779,7 +1787,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const comparisonStopAll = disposables.add(new Button(toolbarContainer, {
-			...defaultButtonStyles,
+			...comparisonStopButtonStyles,
 			secondary: true,
 			supportIcons: true,
 			title: false,
