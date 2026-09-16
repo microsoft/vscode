@@ -339,12 +339,13 @@ async function main(): Promise<void> {
 		agentService.markStartupComplete();
 
 		const urls = resolveServerUrls(options.host, listeningPort);
+		const connectionQuery = options.connectionToken ? `?tkn=${encodeURIComponent(options.connectionToken)}` : '';
 		for (const url of urls.local) {
-			log(`  Local:   ${url}`);
+			log(`  Local:   ${url}${connectionQuery}`);
 			logService.info(`[AgentHostServer] Local:   ${url}`);
 		}
 		for (const url of urls.network) {
-			log(`  Network: ${url}`);
+			log(`  Network: ${url}${connectionQuery}`);
 			logService.info(`[AgentHostServer] Network: ${url}`);
 		}
 		if (urls.network.length === 0 && options.host === undefined) {

@@ -66,7 +66,7 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		this.onDidChangeTunnels = this._delegate.onDidChangeTunnels;
 	}
 
-	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+	listTunnels(options?: { silent?: boolean; authProvider?: 'github' | 'microsoft' }): Promise<ITunnelInfo[]> {
 		return this._delegate.listTunnels(options);
 	}
 
@@ -82,8 +82,8 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		return this._delegate.canDeleteTunnels;
 	}
 
-	deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
-		return this._delegate.deleteTunnel(tunnel);
+	deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+		return this._delegate.deleteTunnel(tunnel, authProvider);
 	}
 
 	disconnect(address: string): Promise<void> {
