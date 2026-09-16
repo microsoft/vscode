@@ -349,7 +349,7 @@ suite('TunnelAgentHostContribution', () => {
 	});
 
 	for (const web of [false, true]) {
-		test(`on-demand connect preserves ${web ? 'web' : 'native'} suppression semantics`, async () => {
+		test(`on-demand ${web ? 'web' : 'native'} connect leaves suppression clearing to connection staging`, async () => {
 			const tunnelService = store.add(new StubTunnelService());
 			const remoteService = store.add(new StubRemoteAgentHostService());
 			const providersService = store.add(new StubSessionsProvidersService());
@@ -392,7 +392,7 @@ suite('TunnelAgentHostContribution', () => {
 				providers: providersService.getProviders().map(provider => provider.id),
 			}, {
 				dismissed: false,
-				suppressed: !web,
+				suppressed: true,
 				connectCalls: [true],
 				providers: [`agenthost-${address}`],
 			});

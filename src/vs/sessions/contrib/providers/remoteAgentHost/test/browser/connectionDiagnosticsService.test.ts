@@ -280,7 +280,7 @@ suite('ConnectionDiagnosticsService', () => {
 			filterDisconnects: ['host'],
 			tunnelDisconnects: [],
 			reconnects: ['host'],
-			suppressed: [],
+			suppressed: ['mock'],
 			dismissed: [],
 			rediscoverCount: 1,
 		});

@@ -189,9 +189,6 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			await this._filterService.disconnect(current.id);
 			return;
 		}
-		if (current.address?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
-			this._tunnelService.clearAutoConnectSuppression(current.address.slice(TUNNEL_ADDRESS_PREFIX.length));
-		}
 		await this._filterService.reconnect(current.id);
 	}
 

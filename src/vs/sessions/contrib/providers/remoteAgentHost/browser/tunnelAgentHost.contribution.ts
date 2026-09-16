@@ -306,9 +306,6 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		if (options.userInitiated) {
 			this._tunnelService.clearTunnelDismissal(tunnelId);
-			if (this.isWebPlatform) {
-				this._tunnelService.clearAutoConnectSuppression(tunnelId);
-			}
 		}
 		const cached = this._tunnelService.getCachedTunnels().find(t => t.tunnelId === tunnelId);
 		const attemptStart = Date.now();

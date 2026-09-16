@@ -316,6 +316,8 @@ export interface IRemoteAgentHostConnectionFactory {
 	readonly kind: RemoteAgentHostEntryType;
 	/** Entries owned by this factory. */
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
+	/** Effective initiation mode staged by the factory for the next dial, before createConnection consumes it. */
+	getPendingConnectionInitiation?(entry: IRemoteAgentHostEntry): boolean | undefined;
 	/**
 	 * Build a client bound to a transport for `entry`.
 	 *

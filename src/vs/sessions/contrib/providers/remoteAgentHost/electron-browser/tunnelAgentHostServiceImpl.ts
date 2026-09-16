@@ -121,6 +121,10 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 		}
 	}
 
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedUserInitiated.get(getEntryAddress(entry));
+	}
+
 	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.Tunnel) {
 			throw new Error(`Tunnel factory cannot create a ${entry.connection.type} connection.`);

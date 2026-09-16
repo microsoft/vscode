@@ -730,6 +730,39 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('factory connections', () => {
+		test('pending metadata honors factory-staged initiation without relabeling later automatic attempts', async () => {
+			let stagedInitiation: boolean | undefined = true;
+			let pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+			let started = new DeferredPromise<void>();
+			const factory = disposables.add(new class extends TestConnectionFactory {
+				getPendingConnectionInitiation(): boolean | undefined { return stagedInitiation; }
+				override createConnection(): Promise<IRemoteAgentHostCreatedConnection> {
+					stagedInitiation = undefined;
+					void started.complete();
+					return pending.p;
+				}
+			}(RemoteAgentHostEntryType.Tunnel));
+			disposables.add(service.registerConnectionFactory(factory));
+			const entry: IRemoteAgentHostEntry = { name: 'Staged tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'staged', clusterId: 'test' } };
+			factory.publishEntry(entry);
+			await started.p;
+			const manual = service.pendingConnections[0]?.userInitiated;
+			await pending.error(new NonReconnectableTransportError('setup failed'));
+			while (service.pendingConnections.length) {
+				await Event.toPromise(service.onDidChangePendingConnections);
+			}
+			pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+			started = new DeferredPromise<void>();
+			service.reconnect(getEntryAddress(entry), false);
+			await started.p;
+			const automatic = service.pendingConnections[0]?.userInitiated;
+			await pending.error(new NonReconnectableTransportError('setup failed'));
+			while (service.pendingConnections.length) {
+				await Event.toPromise(service.onDidChangePendingConnections);
+			}
+			assert.deepStrictEqual({ manual, automatic }, { manual: true, automatic: false });
+		});
+
 		for (const outcome of ['success', 'failure', 'removed', 'disabled', 'disposed'] as const) {
 			test(`exposes pending automatic setup before a client exists and clears it on ${outcome}`, async () => {
 				const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();

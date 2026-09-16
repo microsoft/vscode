@@ -566,7 +566,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const pendingConnect = new DeferredPromise<void>();
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated: options.userInitiated } };
+		const userInitiated = this._connectionFactories.get(entryToCreate.connection.type)?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
+		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated } };
 		this._pendingConnects.set(address, attempt);
 		this._onDidChangePendingConnections.fire();
 		void (async () => {
