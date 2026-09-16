@@ -175,9 +175,7 @@ export function getSessionComparisonHarnessDisplayLabel(harness: ISessionCompari
 	const configuredLabel = typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
 		? localize('sessionComparison.harnessModelAndEffort', "{0} · {1}", harnessLabel, getReasoningEffortLabel(reasoningEffort))
 		: harnessLabel;
-	return harness.permissionId && harness.permissionId !== 'default' && harness.permissionLabel
-		? localize('sessionComparison.harnessAndPermissions', "{0} · {1}", configuredLabel, harness.permissionLabel)
-		: configuredLabel;
+	return configuredLabel;
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {

@@ -608,7 +608,13 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				}
 				const title = getSessionComparisonHarnessLabel(participant);
 				const legacyTitle = localize('sessionComparison.legacyAttemptTitle', "Attempt {0}: {1}", index + 1, title);
-				if (session.title.get() !== legacyTitle) {
+				const permissionTitle = participant.harness.permissionId && participant.harness.permissionId !== 'default' && participant.harness.permissionLabel
+					? localize('sessionComparison.harnessAndPermissions', "{0} · {1}", title, participant.harness.permissionLabel)
+					: undefined;
+				const currentTitle = session.title.get();
+				if (currentTitle !== legacyTitle
+					&& currentTitle !== permissionTitle
+					&& currentTitle !== (permissionTitle ? localize('sessionComparison.legacyAttemptTitle', "Attempt {0}: {1}", index + 1, permissionTitle) : undefined)) {
 					continue;
 				}
 				this._migratingAttemptTitles.add(session.sessionId);

@@ -583,7 +583,7 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
-	test('removes attempt numbers from untouched legacy session titles', async () => {
+	test('removes attempt numbers and permission labels from untouched generated session titles', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessions.comparisons', JSON.stringify([{
 			id: 'comparison',
@@ -593,24 +593,39 @@ suite('SessionComparisonService', () => {
 			workspace: 'file:///workspace',
 			prompt: 'Implement',
 			participants: [{
-				id: 'attempt',
+				id: 'attempt-one',
 				role: SessionComparisonParticipantRole.Attempt,
 				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Copilot', modelLabel: 'Claude Opus 5' },
-				sessionResource: 'test:/attempt',
+				sessionResource: 'test:/attempt-one',
+			}, {
+				id: 'attempt-two',
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Copilot', modelLabel: 'Auto', permissionId: 'autoApprove', permissionLabel: 'Allow all' },
+				sessionResource: 'test:/attempt-two',
 			}],
 		}]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const { sessionsManagementService } = createServices(storageService);
 		sessionsManagementService.addSession({
-			...stubSession('attempt'),
+			...stubSession('attempt-one'),
 			title: constObservable('Attempt 1: Copilot · Claude Opus 5'),
+		});
+		sessionsManagementService.addSession({
+			...stubSession('attempt-two'),
+			title: constObservable('Copilot · Auto · Allow all'),
 		});
 		sessionsManagementService.fireChange();
 		await timeout(0);
 
-		assert.deepStrictEqual(sessionsManagementService.renameCalls, [{
-			sessionId: 'attempt',
-			title: 'Copilot · Claude Opus 5',
-		}]);
+		assert.deepStrictEqual(sessionsManagementService.renameCalls, [
+			{
+				sessionId: 'attempt-one',
+				title: 'Copilot · Claude Opus 5',
+			},
+			{
+				sessionId: 'attempt-two',
+				title: 'Copilot · Auto',
+			},
+		]);
 	});
 
 	test('synthesizes only after an explicit request with the configured harness', async () => {

@@ -92,7 +92,7 @@ suite('SessionComparisonTool', () => {
 			baseBranch: 'main',
 			attempts: [{
 				attemptNumber: 1,
-				label: 'Attempt 1: Copilot · Claude · High · Bypass Permissions',
+				label: 'Attempt 1: Copilot · Claude · High',
 				harness: { agent: 'Copilot', model: 'Claude', reasoningEffort: 'high', permissions: { id: 'bypassPermissions', label: 'Bypass Permissions' } },
 				status: 'completed',
 				sessionContextTarget: 'agent-host-session://copilot/attempt',
