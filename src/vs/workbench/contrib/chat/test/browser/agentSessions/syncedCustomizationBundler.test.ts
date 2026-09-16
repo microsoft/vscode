@@ -14,7 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { FileType, IFileService, IStat } from '../../../../../../platform/files/common/files.js';
+import { FileType, IFileService, IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly symbolicLinks = new ResourceSet();
 	private readonly statFailures = new ResourceSet();
+	private readonly writeFailures = new ResourceSet();
 	private statDelay = 0;
 	activeStats = 0;
 	maxActiveStats = 0;
@@ -42,6 +43,10 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 
 	failStat(resource: URI): void {
 		this.statFailures.add(resource);
+	}
+
+	failNextWrite(resource: URI): void {
+		this.writeFailures.add(resource);
 	}
 
 	override async stat(resource: URI): Promise<IStat> {
@@ -61,6 +66,13 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 			this.activeStats--;
 		}
 	}
+
+	override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+		if (this.writeFailures.delete(resource)) {
+			throw new Error('Unavailable test resource');
+		}
+		return super.writeFile(resource, content, options);
+	}
 }
 
 suite('SyncedCustomizationBundler', () => {
@@ -68,6 +80,7 @@ suite('SyncedCustomizationBundler', () => {
 	const disposables = new DisposableStore();
 	let fileService: FileService;
 	let memFs: TestInMemoryFileSystemProvider;
+	let syncedFs: TestInMemoryFileSystemProvider;
 	let instantiationService: TestInstantiationService;
 
 	const enabledMcpServer = (name: string, configuration: IMcpServerConfiguration): ISyncableMcpServer => ({
@@ -82,8 +95,8 @@ suite('SyncedCustomizationBundler', () => {
 		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
 
 		// Register the synced-customization scheme via a mock service
-		const syncedProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, syncedProvider));
+		syncedFs = disposables.add(new TestInMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, syncedFs));
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
@@ -416,7 +429,7 @@ suite('SyncedCustomizationBundler', () => {
 		});
 	});
 
-	test('bundles binary skill resources and invalidates the nonce when metadata changes', async () => {
+	test('bundles binary skill resources and invalidates the nonce when content changes', async () => {
 		const bundler = createBundler();
 		const skill = await seedFile('/skills/binary/SKILL.md', 'skill content');
 		const binary = await seedBinaryFile('/skills/binary/assets/data.bin', [0x80]);
@@ -445,7 +458,7 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(parsed.name, 'VS Code Synced Data');
 	});
 
-	test('nonce is stable when file metadata is unchanged', async () => {
+	test('nonce is stable when files are unchanged', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/stable.md', 'same content');
 
@@ -454,7 +467,7 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
 
-	test('nonce changes when file metadata changes', async () => {
+	test('nonce changes when file content changes', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/changing.md', 'v1');
 
@@ -659,6 +672,56 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(result2, result1);
 		const survived = await fileService.readFile(sentinel);
 		assert.strictEqual(survived.value.toString(), 'keep me');
+	});
+
+	test('touching a file without changing its content reuses the previous result', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+		await timeout(10);
+		await fileService.writeFile(uri, VSBuffer.fromString('unchanged content'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(result2, result1);
+		assert.strictEqual((await fileService.readFile(sentinel)).value.toString(), 'keep me');
+	});
+
+	test('retries a changed bundle after a write failure', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/retry.md', 'v1');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		syncedFs.failNextWrite(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.plugin/plugin.json' }));
+		await assert.rejects(() => bundler.bundle([{ uri, type: PromptsType.instructions }]));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.notStrictEqual(result2!.ref.nonce, result1.ref.nonce);
+		assert.strictEqual((await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/retry.md' }))).value.toString(), 'version 2');
+	});
+
+	test('rewrites a reverted bundle after a write failure', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/revert.md', 'v1');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		syncedFs.failNextWrite(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.plugin/plugin.json' }));
+		await assert.rejects(() => bundler.bundle([{ uri, type: PromptsType.instructions }]));
+		await fileService.writeFile(uri, VSBuffer.fromString('v1'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(result2!.ref.nonce, result1.ref.nonce);
+		assert.strictEqual((await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/revert.md' }))).value.toString(), 'v1');
 	});
 
 	test('reused rebundle still detects a later content change', async () => {

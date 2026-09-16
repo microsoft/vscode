@@ -454,6 +454,7 @@ export class CreatePullRequestWidget extends Disposable {
 
 	private updateMergeOptions(): void {
 		const autoMergeAllowed = this.details?.autoMergeAllowed && !this.draftCheckbox.checked && this.details.mergeMethods.length > 0;
+		const autoMergeUnavailableReason = autoMergeAllowed ? undefined : this.getAutoMergeUnavailableReason();
 		this.mergeMode = this.preferredMergeMode;
 		if ((this.mergeMode === 'auto' && !autoMergeAllowed) || (this.mergeMode === 'agent' && !this.details?.agentMergeAvailable)) {
 			this.mergeMode = 'manual';
@@ -469,12 +470,11 @@ export class CreatePullRequestWidget extends Disposable {
 			ariaLabel: labels[mode],
 			isActive: this.mergeMode === mode,
 			disabled: this.loading || this.submitting || (mode === 'auto' && !autoMergeAllowed),
-			tooltip: mode === 'auto' && !autoMergeAllowed
-				? this.draftCheckbox.checked
-					? localize('createPR.autoMergeDraft', "Mark the pull request ready before enabling GitHub auto-merge.")
-					: localize('createPR.autoMergeUnavailable', "GitHub auto-merge is not available for this repository or session.")
-				: labels[mode],
+			tooltip: mode === 'auto' ? autoMergeUnavailableReason ?? labels[mode] : labels[mode],
 		})));
+		if (autoMergeUnavailableReason) {
+			this.mergeModeRadio.optionElements[this.mergeModes.indexOf('auto')].setAttribute('aria-description', autoMergeUnavailableReason);
+		}
 		const mergeMethods = this.details?.mergeMethods ?? [];
 		this.mergeMethod = this.preferredMergeMethod;
 		if (mergeMethods.length > 0 && !mergeMethods.includes(this.mergeMethod)) {
@@ -491,6 +491,22 @@ export class CreatePullRequestWidget extends Disposable {
 			disabled: this.loading || this.submitting,
 		})));
 		this.updateMergeDescription();
+	}
+
+	private getAutoMergeUnavailableReason(): string {
+		if (this.draftCheckbox.checked) {
+			return localize('createPR.autoMergeDraft', "Mark the pull request ready before enabling GitHub auto-merge.");
+		}
+		if (this.loading) {
+			return localize('createPR.autoMergeLoading', "Checking GitHub auto-merge availability...");
+		}
+		if (!this.details) {
+			return localize('createPR.autoMergeDetailsUnavailable', "Repository merge settings could not be loaded. Check your GitHub access and retry loading the pull request details.");
+		}
+		if (this.details.mergeMethods.length === 0) {
+			return localize('createPR.autoMergeSettingsUnavailable', "Repository merge settings could not be loaded or no merge methods are enabled. Check your GitHub access and the repository's Settings > General > Pull Requests.");
+		}
+		return localize('createPR.autoMergeDisabled', "GitHub auto-merge is disabled for this repository. Ask a repository administrator to enable \"Allow auto-merge\" in the repository's Settings > General > Pull Requests.");
 	}
 
 	private updateMergeDescription(): void {

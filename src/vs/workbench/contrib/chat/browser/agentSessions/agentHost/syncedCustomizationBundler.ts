@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { hash } from '../../../../../../base/common/hash.js';
+import { hash, hashAsync } from '../../../../../../base/common/hash.js';
 import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -186,13 +186,14 @@ interface IBundleResult {
  * skills/         ← skill directories
  * ```
  *
- * The bundler computes a metadata-based nonce so the agent host can
+ * The bundler computes a content-based nonce so the agent host can
  * skip re-loading when nothing has changed.
  */
 export class SyncedCustomizationBundler extends Disposable {
 
 	private readonly _fileOperationLimiter = this._register(new DrainingFileOperationLimiter());
 	private readonly _authority: string;
+	private _lastMetadataNonce: string | undefined;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	private _isDisposed = false;
@@ -235,7 +236,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	 * filesystem.
 	 *
 	 * Overwrites any previous bundle content. Returns a {@link ClientPluginCustomization}
-	 * pointing at the virtual plugin directory with a metadata-based nonce.
+	 * pointing at the virtual plugin directory with a content-based nonce.
 	 *
 	 * @returns The bundle result, or `undefined` if there is nothing to sync.
 	 */
@@ -258,10 +259,10 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		const entries: { sourceUri: URI; destUri: URI; hashPart: string }[] = [];
+		const entries: { sourceUri: URI; destUri: URI; hashKey: string; metadataHashPart: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		const addEntry = (file: ISyncableFile, source: IFileStatWithPartialMetadata, destUri: URI, hashKey: string): void => {
-			entries.push({ sourceUri: source.resource, destUri, hashPart: `${hashKey}:${source.mtime}:${source.size}` });
+			entries.push({ sourceUri: source.resource, destUri, hashKey, metadataHashPart: `${hashKey}:${source.mtime}:${source.size}` });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
 					uri: source.resource,
@@ -326,39 +327,51 @@ export class SyncedCustomizationBundler extends Disposable {
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
-		const hashParts = entries.map(e => e.hashPart);
+		const metadataHashParts = entries.map(e => e.metadataHashPart);
 		if (mcpContent !== undefined) {
-			hashParts.push(`.mcp.json:${mcpContent}`);
+			metadataHashParts.push(`.mcp.json:${mcpContent}`);
 		}
 		if (mcpDefaultCwds !== undefined) {
-			hashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
+			metadataHashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
 		}
 
-		// Stable nonce: sort so file ordering doesn't matter.
-		hashParts.sort();
-		const nonce = String(hash(hashParts.join('\n')));
+		metadataHashParts.sort();
+		const metadataNonce = String(hash(metadataHashParts.join('\n')));
 		this._throwIfDisposed();
 
 		// Nothing changed since the last successful bundle — reuse it and skip
 		// reading file contents and rewriting the in-memory plugin tree.
-		if (nonce === this._lastNonce && this._lastRef) {
-			this._originByDest = originByDest;
-			if (mcpServers.length > 0 && !equals(childEnablement, this._lastRef.ref.childEnablement)) {
-				return {
-					ref: {
-						...this._lastRef.ref,
-						childEnablement,
-					},
-				};
-			}
-			return this._lastRef;
+		if (metadataNonce === this._lastMetadataNonce && this._lastRef) {
+			return this._reuseLastBundle(this._lastRef, originByDest, childEnablement, mcpServers.length > 0);
 		}
 
 		const fileContents = await Promise.all(entries.map(async entry => ({
 			destUri: entry.destUri,
+			hashKey: entry.hashKey,
 			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
 		})));
 		this._throwIfDisposed();
+
+		const contentHashParts = await Promise.all(fileContents.map(async entry => `${entry.hashKey}:${await hashAsync(entry.content)}`));
+		if (mcpContent !== undefined) {
+			contentHashParts.push(`.mcp.json:${mcpContent}`);
+		}
+		if (mcpDefaultCwds !== undefined) {
+			contentHashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
+		}
+		contentHashParts.sort();
+		const nonce = String(hash(contentHashParts.join('\n')));
+		this._throwIfDisposed();
+
+		if (nonce === this._lastNonce && this._lastRef) {
+			this._lastMetadataNonce = metadataNonce;
+			return this._reuseLastBundle(this._lastRef, originByDest, childEnablement, mcpServers.length > 0);
+		}
+
+		this._lastMetadataNonce = undefined;
+		this._lastNonce = undefined;
+		this._lastRef = undefined;
+		this._originByDest.clear();
 
 		// Delete the previous tree for this authority, preserving other authorities
 		try {
@@ -388,6 +401,7 @@ export class SyncedCustomizationBundler extends Disposable {
 
 		this._throwIfDisposed();
 		this._originByDest = originByDest;
+		this._lastMetadataNonce = metadataNonce;
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
@@ -408,6 +422,20 @@ export class SyncedCustomizationBundler extends Disposable {
 		};
 		this._lastRef = result;
 		return result;
+	}
+
+	private _reuseLastBundle(lastRef: IBundleResult, originByDest: ResourceMap<ISyncedCustomizationOrigin>, childEnablement: Record<string, CustomizationEnablement[]>, hasMcpServers: boolean): IBundleResult {
+		this._originByDest = originByDest;
+		if (hasMcpServers && !equals(childEnablement, lastRef.ref.childEnablement)) {
+			this._lastRef = {
+				ref: {
+					...lastRef.ref,
+					childEnablement,
+				},
+			};
+			return this._lastRef;
+		}
+		return lastRef;
 	}
 
 	/**

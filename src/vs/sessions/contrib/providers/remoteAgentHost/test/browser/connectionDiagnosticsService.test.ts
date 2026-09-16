@@ -44,12 +44,17 @@ suite('ConnectionDiagnosticsService', () => {
 			cached: ICachedTunnel[] = [];
 			dismissed = new Set<string>();
 			suppressed = new Set<string>();
+			disconnects: string[] = [];
 			list: (() => Promise<ITunnelInfo[]>) | undefined;
 			override readonly canDeleteTunnels = false;
 			override getCachedTunnels(): ICachedTunnel[] { return this.cached; }
 			override isTunnelDismissed(id: string): boolean { return this.dismissed.has(id); }
 			override isAutoConnectSuppressed(id: string): boolean { return this.suppressed.has(id); }
 			override getTunnelVisibility() { return { dismissed: [...this.dismissed], autoConnectSuppressed: [...this.suppressed] }; }
+			override clearTunnelDismissal(id: string): void { this.dismissed.delete(id); }
+			override dismissTunnel(id: string): void { this.dismissed.add(id); }
+			override clearAutoConnectSuppression(id: string): void { this.suppressed.delete(id); }
+			override async disconnect(address: string): Promise<void> { this.disconnects.push(address); }
 			override listTunnels(): Promise<ITunnelInfo[]> {
 				if (!this.list) {
 					throw new Error('Diagnostics must not make discovery requests');
@@ -64,8 +69,18 @@ suite('ConnectionDiagnosticsService', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		const filter = new class extends mock<IAgentHostFilterService>() {
 			override readonly onDidChange = Event.None;
+			override readonly onDidChangeDiscovering = Event.None;
 			override hosts: IAgentHostFilterEntry[] = [];
 			override readonly selectedHost = undefined;
+			override readonly selectedHostId = undefined;
+			override readonly isDiscovering = false;
+			readonly reconnects: string[] = [];
+			readonly disconnects: string[] = [];
+			rediscoverCount = 0;
+			discoverySucceeded = true;
+			override async reconnect(id: string): Promise<void> { this.reconnects.push(id); }
+			override async disconnect(id: string): Promise<void> { this.disconnects.push(id); }
+			override async rediscover(): Promise<boolean> { this.rediscoverCount++; return this.discoverySucceeded; }
 		}();
 		instantiation.stub(IAgentHostFilterService, filter);
 		instantiation.stub(IProductService, { version: '1.139.0', commit: 'test-commit' });
@@ -95,7 +110,7 @@ suite('ConnectionDiagnosticsService', () => {
 				'Address': 'tunnel:mock',
 				'Connection type': 'tunnel',
 				'Connection status': 'No connection entry',
-				'In host picker': 'No',
+				'Selectable': 'No',
 				'Configured': 'No',
 				'Cached': 'No',
 				'In last successful discovery': 'Yes',
@@ -111,7 +126,7 @@ suite('ConnectionDiagnosticsService', () => {
 		});
 	});
 
-	test('collapsed host summary distinguishes connectivity from picker availability', () => {
+	test('collapsed host summary distinguishes connectivity from selectability', () => {
 		const { service, remote, filter } = createService();
 		remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status: RemoteAgentHostConnectionStatus.connected }];
 		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected }];
@@ -123,10 +138,77 @@ suite('ConnectionDiagnosticsService', () => {
 			disconnected: disconnected[1].title,
 			allCollapsed: connected.every(section => section.collapsed) && disconnected.every(section => section.collapsed),
 		}, {
-			connected: 'Mock host - connected, available',
-			disconnected: 'Mock host - disconnected, available',
+			connected: 'Mock host - connected, selectable',
+			disconnected: 'Mock host - disconnected, selectable',
 			allCollapsed: true,
 		});
+	});
+
+	test('manages selectable and hidden hosts from current state', async () => {
+		const { service, remote, filter, tunnels } = createService();
+		remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status: RemoteAgentHostConnectionStatus.connected }];
+		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected }];
+		tunnels.suppressed.add('mock');
+		tunnels.dismissed.add('hidden');
+
+		const before = service.getHostManagementState();
+		await service.runHostAction('host', 'disconnect');
+		await service.runHostAction('host', 'reconnect');
+		await service.runHostAction('tunnel:hidden', 'restore');
+
+		assert.deepStrictEqual({
+			before,
+			filterDisconnects: filter.disconnects,
+			tunnelDisconnects: tunnels.disconnects,
+			reconnects: filter.reconnects,
+			suppressed: [...tunnels.suppressed],
+			dismissed: [...tunnels.dismissed],
+			rediscoverCount: filter.rediscoverCount,
+		}, {
+			before: {
+				hosts: [{
+					id: 'host',
+					label: 'Mock host',
+					address: 'tunnel:mock',
+					status: 'connected',
+					selectable: true,
+					selected: false,
+					hidden: false,
+					autoConnectSuppressed: true,
+					connectable: true,
+				}, {
+					id: 'tunnel:hidden',
+					label: 'hidden',
+					address: 'tunnel:hidden',
+					status: 'disconnected',
+					selectable: false,
+					selected: false,
+					hidden: true,
+					autoConnectSuppressed: false,
+					connectable: false,
+				}],
+				isDiscovering: false,
+			},
+			filterDisconnects: ['host'],
+			tunnelDisconnects: [],
+			reconnects: ['host'],
+			suppressed: [],
+			dismissed: [],
+			rediscoverCount: 1,
+		});
+	});
+
+	test('restore reports discovery failure without clearing unrelated suppression', async () => {
+		const { service, filter, tunnels } = createService();
+		tunnels.dismissed.add('hidden');
+		tunnels.suppressed.add('hosted-here');
+		filter.discoverySucceeded = false;
+		await assert.rejects(service.runHostAction('tunnel:hidden', 'restore'), /Host is no longer hidden, but discovery failed/);
+		assert.deepStrictEqual({
+			dismissed: [...tunnels.dismissed],
+			suppressed: [...tunnels.suppressed],
+			reconnects: filter.reconnects,
+		}, { dismissed: [], suppressed: ['hosted-here'], reconnects: [] });
 	});
 
 	test('preserves last successful inventory after failure and excludes raw error content', async () => {
@@ -311,8 +393,8 @@ suite('ConnectionDiagnosticsService', () => {
 			textMatches: snapshot.sections.every(section => section.entries.every(entry => snapshot.text.includes(`${entry.label}: ${entry.value}`))),
 		}, {
 			count: 100,
-			newest: 'tunnel:104: disconnect requested; removed from cache and dismissed from automatic discovery.',
-			oldest: 'tunnel:5: disconnect requested; removed from cache and dismissed from automatic discovery.',
+			newest: 'tunnel:104: disconnect requested by the user; automatic reconnect suppressed.',
+			oldest: 'tunnel:5: disconnect requested by the user; automatic reconnect suppressed.',
 			textMatches: true,
 		});
 
@@ -330,7 +412,7 @@ suite('ConnectionDiagnosticsService', () => {
 			exported: client.entries.every(entry => snapshot.text.includes(`${entry.label}: ${entry.value}`)),
 			containsRecommendation: /possible issue|No issue identified|Explicitly connect|Check protocol compatibility/.test(snapshot.text),
 		}, {
-			titles: ['Tunnel discovery successful with 1 tunnel', 'Mock host - no connection, not in picker', 'Recent activity logs', 'This client'],
+			titles: ['Tunnel discovery successful with 1 tunnel', 'Mock host - no connection, not selectable', 'Recent activity logs', 'This client'],
 			collapsed: true,
 			exported: true,
 			containsRecommendation: false,

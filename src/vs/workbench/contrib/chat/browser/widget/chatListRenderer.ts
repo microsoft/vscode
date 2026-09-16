@@ -689,6 +689,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
 	private readonly codeBlocksByEditorUri = new ResourceMap<IChatCodeBlockInfo>();
+	/** Re-applies a rendered part's code block registrations, which `disposeElement` drops when the row is virtualized. */
+	private readonly codeBlockRegistrationsByPart = new WeakMap<IChatContentPart, () => void>();
 
 	private readonly fileTreesByResponseId = new Map<string, IChatFileTreeInfo[]>();
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
@@ -2631,7 +2633,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const contentIsAlreadyRendered = partsToRender.length === (templateData.renderedParts?.length ?? 0) && partsToRender.every(part => part === null);
 		if (!contentIsAlreadyRendered) {
 			this.renderChatContentDiff(partsToRender, contentForThisTurn.content, element, index, templateData);
+		} else {
+			this.remountRenderedParts(templateData);
 		}
+	}
+
+	/**
+	 * Notifies retained parts that their row is back in the DOM, and restores the code block
+	 * registrations that `disposeElement` dropped while it was virtualized. Rendering a content diff
+	 * already does both, so this only covers the progressive paths that skip it because nothing changed.
+	 */
+	private remountRenderedParts(templateData: IChatListItemTemplate): void {
+		if (templateData.renderedPartsMounted || !templateData.renderedParts || !templateData.rowContainer.isConnected) {
+			return;
+		}
+
+		templateData.renderedPartsMounted = true;
+		for (const part of templateData.renderedParts) {
+			if (part) {
+				this.remountRenderedPart(part);
+			}
+		}
+	}
+
+	/**
+	 * Re-applies a retained part's code block registrations and tells it that it was remounted, so
+	 * code block navigation works as soon as the row is back rather than after the next re-render.
+	 */
+	private remountRenderedPart(part: IChatContentPart): void {
+		this.codeBlockRegistrationsByPart.get(part)?.();
+		part.onDidRemount?.();
 	}
 
 	/**
@@ -2694,6 +2725,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const contentIsAlreadyRendered = partsToRender.length === (templateData.renderedParts?.length ?? 0) && partsToRender.every(part => part === null);
 		if (contentIsAlreadyRendered) {
+			if (!element.isComplete) {
+				this.remountRenderedParts(templateData);
+			}
 			if (contentForThisTurn.moreContentAvailable) {
 				// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
 				this.traceLayout('doNextProgressiveRender', 'not rendering any new content this tick, but more available');
@@ -2765,8 +2799,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			if (!partToRender) {
 				// null=no change
-				if (!templateData.renderedPartsMounted) {
-					alreadyRenderedPart?.onDidRemount?.();
+				if (!templateData.renderedPartsMounted && alreadyRenderedPart) {
+					this.remountRenderedPart(alreadyRenderedPart);
 				}
 				return;
 			}
@@ -2793,15 +2827,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return;
 				}
 
-				// Incremental rendering: try an incremental DOM morph instead of
-				// tearing down and rebuilding the entire markdown part.
+				// Preserve rendered code blocks even when incremental streaming animations are disabled.
 				if (partToRender.kind === 'markdownContent'
 					&& alreadyRenderedPart instanceof ChatMarkdownContentPart
 					&& !rebuildThinkingGroup
-					&& this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering)
 				) {
 					if (alreadyRenderedPart.tryIncrementalUpdate(partToRender)) {
 						renderedParts[contentIndex] = alreadyRenderedPart;
+						if (!templateData.renderedPartsMounted) {
+							this.remountRenderedPart(alreadyRenderedPart);
+						}
 						return;
 					}
 				}
@@ -3203,7 +3238,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				} else {
 					// Only taking part of this markdown part
 					moreContentAvailable = true;
-					partsToRender.push({ ...part, content: new MarkdownString(wordCountResult.value, part.content) });
+					const previousPart = templateData.renderedContent?.[partsToRender.length];
+					// Word counting can omit a closing fence that was already rendered before the next words arrived.
+					const value = previousPart?.kind === 'markdownContent'
+						&& previousPart.content.value.length > wordCountResult.value.length
+						&& part.content.value.startsWith(previousPart.content.value)
+						? previousPart.content.value
+						: wordCountResult.value;
+					partsToRender.push({ ...part, content: new MarkdownString(value, part.content) });
 				}
 
 				if (numNeededWords <= 0) {
@@ -3930,41 +3972,60 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return citationsPart;
 	}
 
-	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number): void {
+	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number, templateData: IChatListItemTemplate): void {
 		if (!part.addDisposable || part.codeblocksPartId === undefined) {
 			return;
 		}
 
-		const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id) ?? [];
-		this.codeBlocksByResponseId.set(element.id, codeBlocksByResponseId);
-		part.addDisposable(toDisposable(() => {
-			const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id);
-			if (codeBlocksByResponseId) {
-				// Only delete if this is my code block
-				part.codeblocks?.forEach((info, i) => {
-					const codeblock = codeBlocksByResponseId[codeBlockStartIndex + i];
-					if (codeblock?.ownerMarkdownPartId === part.codeblocksPartId) {
-						delete codeBlocksByResponseId[codeBlockStartIndex + i];
-					}
-				});
+		const registrations = new MutableDisposable<DisposableStore>();
+		part.addDisposable(registrations);
+		const updateCodeblocks = () => {
+			// A retained part can re-render after its row was virtualized - with incremental
+			// rendering its queued render can even land after the response was re-rendered into
+			// another template. Only the template that currently owns the element may rewrite
+			// these registrations, so a detached row cannot claim entries that belong to the
+			// template that replaced it and then delete them when it is recycled.
+			if (this.templateDataByRequestId.get(element.id) !== templateData) {
+				return;
 			}
-		}));
 
-		part.codeblocks?.forEach((info, i) => {
-			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
+			registrations.clear();
+			const store = new DisposableStore();
+			registrations.value = store;
+			const codeblocks = part.codeblocks?.slice() ?? [];
+			const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id) ?? [];
+			this.codeBlocksByResponseId.set(element.id, codeBlocksByResponseId);
+			store.add(toDisposable(() => {
+				const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id);
+				if (codeBlocksByResponseId) {
+					codeblocks.forEach((info, i) => {
+						const codeblock = codeBlocksByResponseId[codeBlockStartIndex + i];
+						if (codeblock?.ownerMarkdownPartId === part.codeblocksPartId) {
+							delete codeBlocksByResponseId[codeBlockStartIndex + i];
+						}
+					});
+				}
+			}));
 
-			const uri = info.uri;
-			if (uri) {
-				this.codeBlocksByEditorUri.set(uri, info);
-				part.addDisposable!(toDisposable(() => {
-					const codeblock = this.codeBlocksByEditorUri.get(uri);
-					if (codeblock?.ownerMarkdownPartId === part.codeblocksPartId) {
-						this.codeBlocksByEditorUri.delete(uri);
-					}
-				}));
-			}
-		});
-
+			codeblocks.forEach((info, i) => {
+				codeBlocksByResponseId[codeBlockStartIndex + i] = info;
+				const uri = info.uri;
+				if (uri) {
+					this.codeBlocksByEditorUri.set(uri, info);
+					store.add(toDisposable(() => {
+						const codeblock = this.codeBlocksByEditorUri.get(uri);
+						if (codeblock?.ownerMarkdownPartId === part.codeblocksPartId) {
+							this.codeBlocksByEditorUri.delete(uri);
+						}
+					}));
+				}
+			});
+		};
+		updateCodeblocks();
+		this.codeBlockRegistrationsByPart.set(part, updateCodeblocks);
+		if (part instanceof ChatMarkdownContentPart) {
+			part.addDisposable(part.onDidChangeCodeblocks(updateCodeblocks));
+		}
 	}
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
@@ -4005,7 +4066,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			lazilyCreatedPart = partToReuse ?? this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, codeBlockStartIndex);
 			if (!partToReuse) {
 				lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
-				this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
+				this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex, templateData);
 			}
 			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart };
 		};
@@ -4761,7 +4822,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), { codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions });
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, () => this._currentLayoutWidth.get(), { codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions });
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
@@ -4809,7 +4870,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
-			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
+			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex, templateData);
 		}
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');

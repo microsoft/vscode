@@ -1338,7 +1338,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
-	public requestModelByIdentifier(identifier: string): Promise<boolean> {
+	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
+		this.restoreModelConfiguration(identifier, configuration, false);
 		return this._requestProgrammaticLanguageModel(() => this.getModels().find(model => model.identifier === identifier));
 	}
 
@@ -1465,9 +1466,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * the configuration follows the model through the same resolution hierarchy.
 	 * No-op for sessions that pre-date configuration capture (no value stored).
 	 */
-	private restoreModelConfiguration(modelId: string, modelConfiguration: IStringDictionary<unknown> | undefined): void {
+	private restoreModelConfiguration(modelId: string, modelConfiguration: IStringDictionary<unknown> | undefined, persist = true): void {
 		if (modelConfiguration) {
-			this._modelConfigStore.restoreModelConfiguration(modelId, modelConfiguration);
+			this._modelConfigStore.restoreModelConfiguration(modelId, modelConfiguration, persist);
 		}
 	}
 

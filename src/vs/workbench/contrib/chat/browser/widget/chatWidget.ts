@@ -2287,7 +2287,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart.element.classList.add('editing');
 			}
 			if (currentElement.modelId) {
-				void this.input.requestModelByIdentifier(currentElement.modelId);
+				void this.input.requestModelByIdentifier(currentElement.modelId, currentElement.modelConfiguration);
 			}
 
 			this.inputPart.toggleChatInputOverlay(!isInput);

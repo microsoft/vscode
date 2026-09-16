@@ -372,6 +372,7 @@ suite('ChatPills', () => {
 		let shownLabels: readonly (string | undefined)[] = [];
 		let shownAriaLabels: readonly (string | null)[] = [];
 		let updatedLabels: readonly (string | undefined)[] = [];
+		let updatePreserveHover: boolean | undefined;
 		let hideCount = 0;
 		const dropdownFocus = mainWindow.document.createElement('button');
 		mainWindow.document.body.appendChild(dropdownFocus);
@@ -388,8 +389,9 @@ suite('ChatPills', () => {
 				onHide = delegate.onHide;
 				dropdownFocus.focus();
 			}
-			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+			override updateItems<T>(items: readonly IActionListItem<T>[], _focusItemId?: string, options?: { readonly preserveHover?: boolean }): void {
 				updatedLabels = items.map(item => item.label);
+				updatePreserveHover = options?.preserveHover;
 			}
 			override hide(didCancel?: boolean): void {
 				hideCount++;
@@ -432,6 +434,7 @@ suite('ChatPills', () => {
 			title: 'Pull Requests',
 			entries: [entry('2'), entry('3')],
 		}], undefined);
+		const focusPreservedOnRefresh = { updatePreserveHover };
 		includeSibling.set(true, undefined);
 		const expandedAfterUpdate = button.getAttribute('aria-expanded');
 		const dropdownFocusPreserved = mainWindow.document.activeElement === dropdownFocus;
@@ -447,6 +450,7 @@ suite('ChatPills', () => {
 			shownLabels,
 			shownAriaLabels,
 			updatedLabels,
+			focusPreservedOnRefresh,
 			expandedAfterUpdate,
 			dropdownFocusPreserved,
 			single,
@@ -460,6 +464,7 @@ suite('ChatPills', () => {
 				'Open Pull Request #2, open. Checks passed. https://github.com/microsoft/vscode/pull/2',
 				'Open Pull Request #3, open. Checks passed. https://github.com/microsoft/vscode/pull/3',
 			],
+			focusPreservedOnRefresh: { updatePreserveHover: true },
 			updatedLabels: ['Pull Requests', 'Pull Request #2', 'Pull Request #3'],
 			expandedAfterUpdate: 'true',
 			dropdownFocusPreserved: true,

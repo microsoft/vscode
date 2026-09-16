@@ -65,6 +65,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.readSessions.push(session);
 	}
 
+	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
+		this.readSessions.push(...sessions);
+	}
+
 	override async renameSession(session: ISession, title: string): Promise<void> {
 		this.renamed.push({ session, title });
 		if (this.renameError) {

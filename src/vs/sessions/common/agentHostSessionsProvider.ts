@@ -155,6 +155,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * it. Present on remote providers that manage their own transport.
 	 */
 	disconnect?(): Promise<void>;
+	/** Permanently remove this host from the user-visible host inventory. */
+	remove?(): Promise<void>;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.

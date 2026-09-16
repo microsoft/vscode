@@ -34,6 +34,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
+import { MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 suite('Sessions - Actions', () => {
 
@@ -73,6 +74,35 @@ suite('Sessions - Actions', () => {
 			order: 0,
 			when: 'sessionIsCreated && sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived',
 		});
+	});
+
+	test('groups related session list context menu actions', () => {
+		const actionIds = new Set([
+			'sessionsViewPane.pinSession',
+			'sessionsViewPane.unpinSession',
+			'sessionsViewPane.openToTheSide',
+			MARK_SESSION_READ_COMMAND_ID,
+			MARK_SESSION_UNREAD_COMMAND_ID,
+			'sessionsViewPane.markAllRead',
+		]);
+		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.map(item => ({
+				id: item.command.id,
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
+
+		assert.deepStrictEqual(actions, [
+			{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
+			{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
+			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
+			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
+			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
+			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
+		]);
 	});
 
 	test('groups session management actions before creation and close', () => {
