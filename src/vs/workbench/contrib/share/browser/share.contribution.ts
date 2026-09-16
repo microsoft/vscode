@@ -391,7 +391,7 @@ class ShareWorkbenchContribution extends Disposable {
 	 */
 	private registerShareCodeActionProvider(): void {
 		const provider: CodeActionProvider = {
-			providedCodeActionKinds: [CodeActionKind.QuickFix.value],
+			providedCodeActionKinds: [CodeActionKind.QuickFix.value, CodeActionKind.Refactor.value],
 			provideCodeActions: (model: ITextModel, range: Range | Selection): CodeActionList | undefined => {
 				if (range.isEmpty()) {
 					return undefined;
