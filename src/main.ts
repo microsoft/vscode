@@ -144,12 +144,7 @@ let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 // The API might return an empty array on Linux, such as when
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
-//
-// Note: this call is expensive (~90ms on Electron 42 / Windows) because it forces
-// Chromium's locale subsystem to initialize. That initialization is not avoidable:
-// deferring the call until after `app.ready` makes it cost ~1ms, but the same ~90ms
-// then shows up inside the `ready` event instead (measured A/B, n=18 per variant).
-// The marks below therefore attribute Electron's locale init, not our own work.
+// Note: this forces Chromium's locale init and costs ~90ms; deferring it past `app.ready` only relocates that cost.
 perf.mark('code/willGetPreferredSystemLanguages');
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 perf.mark('code/didGetPreferredSystemLanguages');
@@ -179,11 +174,9 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 }
 
 // Load our code once ready
-// Note: the gap between this mark and `code/mainAppReady` is time spent waiting for
-// Electron itself to become ready. It is not work we control, so it is marked
-// separately from the top-level work above it.
 perf.mark('code/willWaitForAppReady');
 app.once('ready', function () {
+	perf.mark('code/didWaitForAppReady');
 	if (args['trace']) {
 		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
 		if (args['trace-memory-infra']) {
@@ -249,12 +242,7 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	perf.mark('code/didBootstrapESM');
 
 	// Load Main
-	// Note: this mark pair is the key signal for attributing main-process startup
-	// cost. `out/main.js` is a single bundle that is already compiled by the time we
-	// get here, so the dynamic import below only *executes* the module bodies of the
-	// `vs/code/electron-main` graph. Time spent between these two marks is therefore
-	// our own code, as distinct from the Electron/Chromium work that dominates the
-	// phases before `code/mainAppReady`.
+	// Note: `out/main.js` is already compiled here, so this only executes the electron-main module graph.
 	perf.mark('code/willRunMainBundle');
 	await import('./vs/code/electron-main/main.js');
 	perf.mark('code/didRunMainBundle');
