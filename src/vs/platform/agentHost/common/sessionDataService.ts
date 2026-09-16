@@ -551,6 +551,33 @@ export interface ISessionDataService {
 	 * otherwise be lost when the process exits.
 	 */
 	whenIdle(): Promise<void>;
+
+	/**
+	 * Cumulative per-session storage access counts for this host process, when
+	 * the implementation tracks them.
+	 *
+	 * Opening a session database is the dominant cost of any listing that
+	 * cannot be served from the catalog, and it is the one figure that
+	 * compares across machines — wall-clock timings do not, because per-file
+	 * costs differ by an order of magnitude between platforms (virus
+	 * scanning, filesystem). Diagnostics log these counts so a single log
+	 * export explains a slow session list without needing a custom build.
+	 *
+	 * Optional because it is diagnostics only: an implementation that does not
+	 * own real files (test doubles, in-memory fakes) has nothing to report.
+	 */
+	readonly storageAccessCounts?: ISessionStorageAccessCounts;
+}
+
+/**
+ * Cumulative counts of per-session storage accesses. See
+ * {@link ISessionDataService.storageAccessCounts}.
+ */
+export interface ISessionStorageAccessCounts {
+	/** Databases actually opened (cache misses), not reference acquisitions. */
+	readonly opens: number;
+	/** Existence probes performed by `tryOpenDatabase`. */
+	readonly stats: number;
 }
 
 /**

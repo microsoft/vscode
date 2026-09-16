@@ -207,4 +207,40 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 
 		await ref2.object.close();
 	});
+
+	test('storageAccessCounts counts real opens and existence probes, not reference acquisitions', async () => {
+		const session = AgentSession.uri('copilot', 'access-counts');
+		const other = AgentSession.uri('copilot', 'access-counts-other');
+		const baseline = service.storageAccessCounts;
+
+		const ref1 = service.openDatabase(session);
+		// A second reference to the same session is served from the live
+		// collection, so it must not count as another open.
+		const ref2 = service.openDatabase(session);
+		const afterSharedRefs = service.storageAccessCounts;
+
+		// A missing database still costs an existence probe.
+		const missing = await service.tryOpenDatabase(other);
+		const afterMissingProbe = service.storageAccessCounts;
+
+		ref1.dispose();
+		ref2.dispose();
+		await ref1.object.close();
+
+		assert.deepStrictEqual({
+			baseline,
+			opensAfterSharedRefs: afterSharedRefs.opens - baseline.opens,
+			statsAfterSharedRefs: afterSharedRefs.stats - baseline.stats,
+			missingProbeResolved: missing,
+			opensAfterMissingProbe: afterMissingProbe.opens - afterSharedRefs.opens,
+			statsAfterMissingProbe: afterMissingProbe.stats - afterSharedRefs.stats,
+		}, {
+			baseline: { opens: 0, stats: 0 },
+			opensAfterSharedRefs: 1,
+			statsAfterSharedRefs: 0,
+			missingProbeResolved: undefined,
+			opensAfterMissingProbe: 0,
+			statsAfterMissingProbe: 1,
+		});
+	});
 });
