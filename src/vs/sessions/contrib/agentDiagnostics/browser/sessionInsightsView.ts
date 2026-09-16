@@ -6,9 +6,12 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { localize } from '../../../../nls.js';
+import { getReasoningEffortLabel } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getEventCreatedText, getEventDetailsText, getEventNameText } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEventList.js';
@@ -25,7 +28,9 @@ interface ITraceNode {
 
 interface ITurnNode {
 	readonly element: HTMLElement;
-	readonly prompt: HTMLElement;
+	readonly store: DisposableStore;
+	readonly header: Button;
+	readonly body: HTMLElement;
 	readonly model: HTMLElement;
 	readonly traces: HTMLElement;
 	readonly debugEvents: HTMLElement;
@@ -42,6 +47,7 @@ export class SessionInsightsView extends Disposable {
 	private readonly activityContainer: HTMLElement;
 	private readonly turnNodes = new Map<string, ITurnNode>();
 	private readonly expandedSpanIds = new Set<string>();
+	private readonly expandedTurnBySession = new Map<string, string | null>();
 
 	constructor(
 		parent: HTMLElement,
@@ -96,7 +102,7 @@ export class SessionInsightsView extends Disposable {
 		DOM.show(this.overview);
 		DOM.show(this.turnsContainer);
 		this.renderOverview(state.summary.turns, state.summary.inputTokens + state.summary.outputTokens, state.summary.duration);
-		this.renderTurns(state.turns);
+		this.renderTurns(state.turns, `${state.sessionResource.toString()}\0${state.chatResource.toString()}`);
 		this.renderActivity(state.sessionActivity);
 		this.scrollable.scanDomNode();
 	}
@@ -129,13 +135,15 @@ export class SessionInsightsView extends Disposable {
 		labelElement.textContent = label;
 	}
 
-	private renderTurns(turns: readonly ISessionDiagnosticsTurn[]): void {
+	private renderTurns(turns: readonly ISessionDiagnosticsTurn[], sessionKey: string): void {
 		const activeIds = new Set(turns.map(turn => turn.id));
+		const savedExpandedTurn = this.expandedTurnBySession.get(sessionKey);
+		if (!this.expandedTurnBySession.has(sessionKey) || (savedExpandedTurn && !activeIds.has(savedExpandedTurn))) {
+			this.expandedTurnBySession.set(sessionKey, turns.at(-1)?.id ?? null);
+		}
 		for (const [id, node] of this.turnNodes) {
 			if (!activeIds.has(id)) {
-				for (const traceNode of node.traceNodes.values()) {
-					traceNode.store.dispose();
-				}
+				node.store.dispose();
 				node.element.remove();
 				this.turnNodes.delete(id);
 			}
@@ -153,36 +161,71 @@ export class SessionInsightsView extends Disposable {
 	}
 
 	private createTurnNode(id: string): ITurnNode {
+		const store = new DisposableStore();
 		const element = DOM.$('section.agent-diagnostics-turn');
 		element.dataset.turnId = id;
-		const prompt = DOM.append(element, DOM.$('.agent-diagnostics-prompt'));
-		const model = DOM.append(element, DOM.$('.agent-diagnostics-model-context'));
-		const otelSection = DOM.append(element, DOM.$('.agent-diagnostics-data-section.agent-diagnostics-otel-section'));
+		const header = store.add(new Button(element, { ...defaultButtonStyles, secondary: true }));
+		header.element.classList.add('agent-diagnostics-turn-header');
+		store.add(header.onDidClick(() => this.toggleTurn(id)));
+		const body = DOM.append(element, DOM.$('.agent-diagnostics-turn-body'));
+		const model = DOM.append(body, DOM.$('.agent-diagnostics-model-context'));
+		const otelSection = DOM.append(body, DOM.$('.agent-diagnostics-data-section.agent-diagnostics-otel-section'));
 		const otelHeading = DOM.append(otelSection, DOM.$('h3.agent-diagnostics-section-heading'));
 		otelHeading.textContent = localize('agentDiagnostics.openTelemetry', "OpenTelemetry");
 		const traces = DOM.append(otelSection, DOM.$('.agent-diagnostics-traces'));
-		const debugSection = DOM.append(element, DOM.$('.agent-diagnostics-data-section.agent-diagnostics-debug-section'));
+		const debugSection = DOM.append(body, DOM.$('.agent-diagnostics-data-section.agent-diagnostics-debug-section'));
 		const debugHeading = DOM.append(debugSection, DOM.$('h3.agent-diagnostics-section-heading'));
 		debugHeading.textContent = localize('agentDiagnostics.agentDebug', "Agent Debug");
 		const debugEvents = DOM.append(debugSection, DOM.$('.agent-diagnostics-turn-debug-events'));
-		return { element, prompt, model, traces, debugEvents, traceNodes: new Map() };
+		return { element, store, header, body, model, traces, debugEvents, traceNodes: new Map() };
 	}
 
 	private updateTurnNode(node: ITurnNode, turn: ISessionDiagnosticsTurn, index: number): void {
-		DOM.clearNode(node.prompt);
-		const turnLabel = DOM.append(node.prompt, DOM.$('.agent-diagnostics-prompt-label'));
-		turnLabel.textContent = localize('agentDiagnostics.turnLabel', "Turn {0}", index + 1);
-		const prompt = DOM.append(node.prompt, DOM.$('.agent-diagnostics-prompt-text'));
-		prompt.textContent = turn.prompt;
+		const expanded = this.isTurnExpanded(turn.id);
+		node.element.classList.toggle('expanded', expanded);
+		node.header.label = localize('agentDiagnostics.turnHeader', "Turn {0}: {1}", index + 1, turn.prompt);
+		node.header.icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
+		node.header.element.setAttribute('aria-expanded', String(expanded));
+		node.body.toggleAttribute('hidden', !expanded);
+		if (!expanded) {
+			return;
+		}
 
 		DOM.clearNode(node.model);
-		const requested = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
-		requested.textContent = localize('agentDiagnostics.requestedModel', "Requested: {0}", turn.requestedModel ?? localize('agentDiagnostics.modelUnknown', "Unknown"));
-		const resolved = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
-		resolved.textContent = localize('agentDiagnostics.resolvedModel', "Resolved: {0}", turn.resolvedModel ?? localize('agentDiagnostics.modelUnknown', "Unknown"));
+		if (turn.resolvedModel) {
+			const model = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
+			model.textContent = localize('agentDiagnostics.model', "Model: {0}", turn.resolvedModel);
+		}
+		if (turn.thinkingLevel) {
+			const thinking = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
+			thinking.textContent = localize('agentDiagnostics.thinkingLevel', "Thinking: {0}", getReasoningEffortLabel(turn.thinkingLevel));
+		}
+		if (turn.context !== undefined) {
+			const context = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
+			context.textContent = localize('agentDiagnostics.context', "Context: {0}", formatContext(turn.context));
+		}
+		node.model.toggleAttribute('hidden', node.model.childElementCount === 0);
 
 		this.renderTraceNodes(node, turn);
 		this.renderDebugEvents(node.debugEvents, turn.debugEvents);
+	}
+
+	private isTurnExpanded(turnId: string): boolean {
+		const state = this.model.state;
+		if (!state) {
+			return false;
+		}
+		return this.expandedTurnBySession.get(`${state.sessionResource.toString()}\0${state.chatResource.toString()}`) === turnId;
+	}
+
+	private toggleTurn(turnId: string): void {
+		const state = this.model.state;
+		if (!state) {
+			return;
+		}
+		const sessionKey = `${state.sessionResource.toString()}\0${state.chatResource.toString()}`;
+		this.expandedTurnBySession.set(sessionKey, this.expandedTurnBySession.get(sessionKey) === turnId ? null : turnId);
+		this.render();
 	}
 
 	private renderDebugEvents(container: HTMLElement, events: readonly IChatDebugEvent[]): void {
@@ -223,6 +266,7 @@ export class SessionInsightsView extends Disposable {
 			let node = turnNode.traceNodes.get(trace.traceId);
 			if (!node) {
 				node = this.createTraceNode(trace.traceId);
+				turnNode.store.add(node.store);
 				turnNode.traceNodes.set(trace.traceId, node);
 			}
 			this.updateTraceNode(node, turn, trace);
@@ -355,10 +399,31 @@ export class SessionInsightsView extends Disposable {
 			}
 		}
 	}
+
+	override dispose(): void {
+		for (const node of this.turnNodes.values()) {
+			node.store.dispose();
+		}
+		this.turnNodes.clear();
+		super.dispose();
+	}
 }
 
 function formatDuration(duration: number): string {
 	return duration >= 1000
 		? localize('agentDiagnostics.durationSeconds', "{0}s", (duration / 1000).toFixed(1))
 		: localize('agentDiagnostics.durationMilliseconds', "{0}ms", Math.round(duration));
+}
+
+function formatContext(context: string | number): string {
+	if (typeof context === 'number') {
+		return formatTokenCount(context);
+	}
+	if (context === 'long_context') {
+		return localize('agentDiagnostics.contextLong', "Long");
+	}
+	if (context === 'default') {
+		return localize('agentDiagnostics.contextDefault', "Default");
+	}
+	return context;
 }

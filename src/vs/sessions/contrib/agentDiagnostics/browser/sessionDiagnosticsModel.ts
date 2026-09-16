@@ -17,8 +17,9 @@ export interface ISessionDiagnosticsTurn {
 	readonly prompt: string;
 	readonly startTime: number;
 	readonly endTime: number;
-	readonly requestedModel: string | undefined;
 	readonly resolvedModel: string | undefined;
+	readonly thinkingLevel: string | undefined;
+	readonly context: string | number | undefined;
 	readonly otelMessages: readonly IOTelDiagnosticsMessage[];
 	readonly otelTraces: readonly IOTelDiagnosticsTrace[];
 	readonly debugEvents: readonly IChatDebugEvent[];
@@ -162,6 +163,19 @@ export class SessionDiagnosticsModel extends Disposable {
 		}
 
 		const debugEvents = this.chatDebugService.getEvents(chatResource);
+		const modelOptions = new Map<string, Readonly<Record<string, string | number | boolean | null>>>();
+		await Promise.all(debugEvents.map(async event => {
+			if (event.kind !== 'modelTurn' || !event.id) {
+				return;
+			}
+			const resolved = await this.chatDebugService.resolveEvent(event.id);
+			if (resolved?.kind === 'modelTurn' && resolved.requestOptions) {
+				modelOptions.set(event.id, JSON.parse(resolved.requestOptions) as Readonly<Record<string, string | number | boolean | null>>);
+			}
+		}));
+		if (generation !== this.generation) {
+			return;
+		}
 		const debugPrompts = debugEvents.filter((event): event is IChatDebugUserMessageEvent => event.kind === 'userMessage');
 		const prompts: IPromptProjection[] = debugPrompts.length > 0
 			? debugPrompts.map(event => ({ id: event.id ?? `${event.created.getTime()}`, content: event.message, timestamp: event.created.getTime() }))
@@ -182,15 +196,18 @@ export class SessionDiagnosticsModel extends Disposable {
 			otelTraces.forEach(trace => assignedTraceIds.add(trace.traceId));
 			turnDebugEvents.forEach(event => assignedDebugEvents.add(event));
 
-			const debugModel = turnDebugEvents.find((event): event is IChatDebugModelTurnEvent => event.kind === 'modelTurn')?.model;
+			const debugModelEvent = turnDebugEvents.findLast((event): event is IChatDebugModelTurnEvent => event.kind === 'modelTurn');
+			const debugModel = debugModelEvent?.model;
+			const options = debugModelEvent?.id ? modelOptions.get(debugModelEvent.id) : undefined;
 			const modelSpans = otelTraces.flatMap(trace => traceDetails.get(trace.traceId)?.spans ?? []);
 			return {
 				id: prompt.id,
 				prompt: prompt.content,
 				startTime: prompt.timestamp,
 				endTime,
-				requestedModel: modelSpans.find(span => span.requestModel)?.requestModel ?? debugModel,
 				resolvedModel: modelSpans.findLast(span => span.responseModel)?.responseModel ?? debugModel,
+				thinkingLevel: readStringModelOption(options, 'thinkingLevel', 'reasoningEffort'),
+				context: readModelOption(options, 'contextSize', 'contextTier'),
 				otelMessages,
 				otelTraces,
 				debugEvents: turnDebugEvents,
@@ -209,4 +226,24 @@ export class SessionDiagnosticsModel extends Disposable {
 		};
 		this._onDidChange.fire();
 	}
+}
+
+function readModelOption(options: Readonly<Record<string, string | number | boolean | null>> | undefined, ...keys: readonly string[]): string | number | undefined {
+	for (const key of keys) {
+		const value = options?.[key];
+		if (typeof value === 'string' || typeof value === 'number') {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+function readStringModelOption(options: Readonly<Record<string, string | number | boolean | null>> | undefined, ...keys: readonly string[]): string | undefined {
+	for (const key of keys) {
+		const value = options?.[key];
+		if (typeof value === 'string') {
+			return value;
+		}
+	}
+	return undefined;
 }

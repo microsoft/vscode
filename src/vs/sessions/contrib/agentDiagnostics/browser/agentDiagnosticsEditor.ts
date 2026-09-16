@@ -317,7 +317,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		];
 		state.turns.forEach((turn, index) => {
 			lines.push(localize('agentDiagnostics.combinedTurn', "Turn {0}: {1}", index + 1, turn.prompt));
-			lines.push(localize('agentDiagnostics.combinedTurnModels', "Requested model: {0}; resolved model: {1}; OpenTelemetry traces: {2}; Agent Debug events: {3}.", turn.requestedModel ?? '-', turn.resolvedModel ?? '-', turn.otelTraces.length, turn.debugEvents.length));
+			lines.push(localize('agentDiagnostics.combinedTurnModel', "Model: {0}; thinking level: {1}; context: {2}; OpenTelemetry traces: {3}; Agent Debug events: {4}.", turn.resolvedModel ?? '-', turn.thinkingLevel ?? '-', turn.context ?? '-', turn.otelTraces.length, turn.debugEvents.length));
 		});
 		lines.push(localize('agentDiagnostics.combinedActivity', "Session activity: {0} records; unmatched OpenTelemetry traces: {1}; unmatched Agent Debug events: {2}.", state.sessionActivity.length, state.unmatchedTraces.length, state.unmatchedDebugEvents.length));
 		return lines.join('\n\n');

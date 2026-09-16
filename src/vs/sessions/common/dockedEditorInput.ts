@@ -15,6 +15,8 @@ import { EditorInputCapabilities } from '../../workbench/common/editor.js';
  * cannot evict the managed tabs.
  */
 export abstract class DockedEditorInput extends EditorInput {
+	readonly reserveEditorHeaderSpace: boolean = true;
+
 	override get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.ExcludeFromEditorLimit;
 	}

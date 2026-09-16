@@ -15,6 +15,7 @@ export class AgentDiagnosticsEditorInput extends DockedEditorInput {
 
 	static readonly ID = 'workbench.input.agentSessions.agentDiagnostics';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.agentDiagnostics';
+	override readonly reserveEditorHeaderSpace = false;
 
 	override get resource(): undefined {
 		return undefined;

@@ -683,6 +683,7 @@ function convertAgentHostChatStateToDebugEvents(
 			outputTokens,
 			cachedTokens,
 			totalTokens,
+			requestOptions: turn.message.model?.config ? JSON.stringify(turn.message.model.config) : undefined,
 			sections: modelSections,
 		});
 
