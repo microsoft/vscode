@@ -125,8 +125,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _isTransientChat = false;
 	private _lastAnnouncementSignature: string | undefined;
 	private _visible = false;
-	/** Whether the owning Chat input/host is currently shown to the user. */
-	private _hostVisible = true;
 	private _slot: HTMLElement | undefined;
 
 	constructor(
@@ -201,21 +199,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		if (hadFocus) {
 			// The region is rebuilt on every render; keep focus inside it.
 			this.focus();
-		}
-	}
-
-	/**
-	 * Reports whether the containing Chat input is visible. Hidden hosts still
-	 * keep a live notification widget, so shown callbacks must wait until the
-	 * host is actually on screen (e.g. collapsed Chat must not mark a sale as seen).
-	 */
-	setHostVisible(visible: boolean): void {
-		if (this._hostVisible === visible) {
-			return;
-		}
-		this._hostVisible = visible;
-		if (visible) {
-			this._render();
 		}
 	}
 
@@ -495,9 +478,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	}
 
 	private _handleShown(notification: IChatInputNotification): void {
-		if (!this._hostVisible) {
-			return;
-		}
 		const data = this._getTelemetryData(notification);
 		if (this._lastShownTelemetryData?.id === data.id && this._lastShownTelemetryData.telemetryId === data.telemetryId) {
 			return;

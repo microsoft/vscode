@@ -529,42 +529,6 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	}
 
-	test('defers onDidShow until the host is visible', () => {
-		const telemetryService = new RecordingTelemetryService();
-		let shownCount = 0;
-		const { notificationService, widget } = createWidget({ telemetryService });
-		widget.setHostVisible(false);
-		showNotification(notificationService, {
-			id: 'promo',
-			message: 'Sale',
-			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Try', commandId: 'test.try' }],
-			onDidShow: () => { shownCount++; },
-		});
-
-		assert.deepStrictEqual({
-			shownCount,
-			telemetry: telemetryService.events.map(event => event.name),
-			rendered: !!widget.domNode.querySelector('.chat-input-notification-header'),
-		}, {
-			shownCount: 0,
-			telemetry: [],
-			rendered: true,
-		});
-
-		widget.setHostVisible(true);
-		assert.deepStrictEqual({
-			shownCount,
-			telemetry: telemetryService.events.map(event => event.name),
-		}, {
-			shownCount: 1,
-			telemetry: ['chatInputNotificationShown'],
-		});
-
-		widget.setHostVisible(false);
-		widget.setHostVisible(true);
-		assert.strictEqual(shownCount, 1);
-	});
-
 	test('action commands execute with provided args', async () => {
 		const commandService = new TestCommandService();
 		const { notificationService, widget } = createWidget({ commandService });
