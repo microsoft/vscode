@@ -2457,7 +2457,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		function renderSessionChats(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): HTMLElement {
+		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): { readonly container: HTMLElement; readonly list: SessionsList } {
 			const harness = createListHarness(disposables, [session], enableMotion
 				? instantiationService => instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 					override isMotionReduced(): boolean { return false; }
@@ -2471,7 +2471,11 @@ suite('Sessions - SessionsList', () => {
 				onChatOpen,
 			}));
 			list.layout(300, 400);
-			return container;
+			return { container, list };
+		}
+
+		function renderSessionChats(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): HTMLElement {
+			return renderSessionChatsList(session, onChatOpen, enableMotion).container;
 		}
 
 		function chatRowTitles(container: HTMLElement): string[] {
@@ -2641,6 +2645,39 @@ suite('Sessions - SessionsList', () => {
 					parentHasProgress: true,
 					childHasProgress: false,
 				},
+			});
+		});
+
+		test('clears collapsed child progress when a filtered session is reinserted expanded', () => {
+			const main = createChat('Main chat');
+			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status: constObservable(SessionStatus.InProgress),
+				chats: constObservable([main, active]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session, undefined, true);
+			const twistie = container.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			const collapsedParentHasProgress = !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner');
+
+			list.setStatusExcluded(SessionStatus.InProgress, true);
+			list.setStatusExcluded(SessionStatus.InProgress, false);
+
+			assert.deepStrictEqual({
+				collapsedParentHasProgress,
+				parent: sessionRowSnapshot(container),
+				parentHasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
+				childHasProgress: !!container.querySelector('.session-chat-item .session-chat-icon > .monaco-pixel-spinner'),
+			}, {
+				collapsedParentHasProgress: true,
+				parent: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
+				parentHasProgress: false,
+				childHasProgress: true,
 			});
 		});
 

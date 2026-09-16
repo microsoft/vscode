@@ -3087,13 +3087,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.saveSectionCollapseState(element.id, e.node.collapsed);
 				}
 			} else if (element && isSessionItem(element)) {
-				const collapsedSessionIds = new Set(this.collapsedSessionIds.get());
-				if (e.node.collapsed) {
-					collapsedSessionIds.add(element.sessionId);
-				} else {
-					collapsedSessionIds.delete(element.sessionId);
-				}
-				this.collapsedSessionIds.set(collapsedSessionIds, undefined);
+				this.syncCollapsedSessionIds();
 			}
 		}));
 
@@ -3571,8 +3565,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		this.tree.setChildren(null, children);
+		this.syncCollapsedSessionIds();
 		this.reconcileChatApprovalHeights();
 		this._onDidUpdate.fire();
+	}
+
+	private syncCollapsedSessionIds(): void {
+		const collapsedSessionIds = new Set<string>();
+		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			if (node.element && isSessionItem(node.element) && node.collapsed) {
+				collapsedSessionIds.add(node.element.sessionId);
+			}
+			for (const child of node.children) {
+				collect(child);
+			}
+		};
+		collect(this.tree.getNode(null));
+
+		const current = this.collapsedSessionIds.get();
+		if (current.size !== collapsedSessionIds.size || [...current].some(sessionId => !collapsedSessionIds.has(sessionId))) {
+			this.collapsedSessionIds.set(collapsedSessionIds, undefined);
+		}
 	}
 
 	/**
