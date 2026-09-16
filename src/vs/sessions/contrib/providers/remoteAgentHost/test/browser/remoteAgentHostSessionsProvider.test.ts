@@ -52,6 +52,8 @@ import { IObservable, constObservable } from '../../../../../../base/common/obse
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../../base/common/resources.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -277,6 +279,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}));
 	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(ILabelService, overrides?.labelService ?? new MockLabelService());
+	instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+		override readonly extUri = extUri;
+	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
