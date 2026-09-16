@@ -466,8 +466,7 @@
 	}
 
 	.monaco-list-row:hover .session-item:not(.quick-chat),
-	.monaco-list-row.focused .session-item:not(.quick-chat),
-	.session-item.pinned:not(.quick-chat) {
+	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat) {
 		.session-title-row {
 			grid-column: 1 / -1;
 
