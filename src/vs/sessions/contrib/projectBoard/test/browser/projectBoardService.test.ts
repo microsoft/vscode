@@ -355,6 +355,14 @@ suite('ProjectBoardService', () => {
 		chat.title.set('Updated approval card', undefined);
 		assert.strictEqual(h.container.querySelector('.project-board-live-actions'), actionElement);
 		assert.strictEqual(document.activeElement, button);
+		const collapse = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!;
+		collapse().focus();
+		collapse().click();
+		assert.ok(actionElement.closest('.project-board-card-list[hidden]'));
+		assert.strictEqual(disposed, false, 'Collapsing must retain pending action controls');
+		collapse().click();
+		assert.strictEqual(h.container.querySelector('.project-board-live-actions'), actionElement);
+		button.focus();
 		button.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 		const drag = new mainWindow.DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new mainWindow.DataTransfer() });
 		button.dispatchEvent(drag);
@@ -364,6 +372,95 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelector('.project-board-live-actions'), null);
 		assert.strictEqual(disposed, true);
 		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-22 collapsed Unassigned retains counts, live attention and drafts without changing chats', async () => {
+		const chats = [new TestChat('First'), new TestChat('Second')];
+		const h = createBoard(mainWindow.document, chats);
+		h.drafts.set([{ id: 'draft', resource: URI.parse('test-draft:/collapse'), hasContent: true, submitted: false }], undefined);
+		await h.service.open();
+		const tray = () => h.currentContainer.querySelector<HTMLElement>('.project-board-unassigned')!;
+		const toggle = () => h.currentContainer.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!;
+		toggle().click();
+		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
+		assert.strictEqual(toggle().getAttribute('aria-controls'), tray().querySelector('.project-board-card-list')!.id);
+		assert.strictEqual(mainWindow.getComputedStyle(tray().querySelector('.project-board-card-list')!).display, 'none');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 cards');
+		chats[1].status.set(SessionStatus.NeedsInput, undefined);
+		assert.strictEqual(tray().querySelector('.project-board-attention')?.textContent, '1 Needs Input');
+		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
+		toggle().click();
+		assert.strictEqual(tray().querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
+		assert.strictEqual(tray().querySelectorAll('.project-board-card').length, 3);
+		assert.deepStrictEqual(h.opened, []);
+		assert.ok(chats.every(chat => !chat.isRead.get()));
+		toggle().click();
+		h.closeBoard();
+		await h.service.open();
+		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'true', 'Collapse is local to the view lifetime');
+	});
+
+	test('PB-22 rows and columns collapse independently, reduce layout and retain placements', async () => {
+		const chats = [new TestChat('P0 card'), new TestChat('P1 card')];
+		const h = createBoard(mainWindow.document, chats);
+		h.container.style.cssText = 'width: 1200px; height: 600px; position: relative;';
+		await h.service.open();
+		await h.moveViaPicker('General, P0', chats[0].resource);
+		await h.moveViaPicker('General, P1', chats[1].resource);
+		const cell = (column: string) => h.container.querySelector<HTMLElement>(`[aria-label="General, ${column}"]`)!;
+		const toggle = (key: string) => h.container.querySelector<HTMLElement>(`[data-board-control="collapse:${key}"]`)!.click();
+		const height = cell('P0').getBoundingClientRect().height;
+		const width = cell('P1').getBoundingClientRect().width;
+		toggle('row:general');
+		assert.ok(cell('P0').getBoundingClientRect().height < height);
+		assert.ok(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden);
+		toggle('column:p1');
+		assert.ok(cell('P1').getBoundingClientRect().width < width);
+		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 card');
+		toggle('row:general');
+		assert.strictEqual(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
+		assert.strictEqual(cell('P1').querySelector<HTMLElement>('.project-board-card-list')!.hidden, true);
+		const p0 = cell('P0').querySelector<HTMLElement>('[data-chat-resource]')!;
+		p0.focus();
+		p0.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 35, bubbles: true, cancelable: true }));
+		assert.notStrictEqual(mainWindow.document.activeElement, cell('P1').querySelector('[data-chat-resource]'), 'End cannot select a collapsed card');
+		assert.ok(h.service.getAccessibleContent().includes('General, P1 (collapsed)'));
+		toggle('column:p1');
+		assert.strictEqual(cell('P1').querySelector('h4')?.textContent, 'P1 card');
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('PB-22 dropping into a collapsed cell expands its axes and returning from chat reveals its card', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Reveal moved card')]);
+		await h.service.open();
+		for (const key of ['row:general', 'column:p1']) {
+			h.container.querySelector<HTMLElement>(`[data-board-control="collapse:${key}"]`)!.click();
+		}
+		const transfer = new mainWindow.DataTransfer();
+		h.container.querySelector('[data-chat-resource]')!.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+		h.container.querySelector('[aria-label="General, P1"]')!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+		assert.strictEqual(h.container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Reveal moved card');
+		for (const key of ['row:general', 'column:p1']) {
+			assert.strictEqual(h.container.querySelector(`[data-board-control="collapse:${key}"]`)?.getAttribute('aria-expanded'), 'true');
+			h.container.querySelector<HTMLElement>(`[data-board-control="collapse:${key}"]`)!.click();
+		}
+		h.state.closedResource = h.session.chats.get()[0].resource;
+		await h.service.closeSession(12345);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('[aria-label="General, P1"] .project-board-card-list')!.hidden, false);
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('PB-22 embedded and auxiliary collapse independently while sharing card data', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Both surfaces')]);
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		store.add(h.service.createView(container));
+		await h.service.open();
+		container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
+		assert.strictEqual(container.querySelector<HTMLElement>('.project-board-card-list')!.hidden, true);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
+		assert.notStrictEqual(container.querySelector('.project-board-unassigned')!.id, h.container.querySelector('.project-board-unassigned')!.id);
 	});
 
 	test('PB-18 top-right settings independently toggle metrics and restore across board reopen', async () => {
@@ -1510,7 +1607,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(chat.isRead.get(), false);
 	});
 
-	test('PB-15 custom answers and focus survive board refreshes and submit through the shared widget', async () => {
+	test('PB-15/PB-22 custom answers survive collapse and refreshes before shared-widget submission', async () => {
 		const { document } = createBoardDocument();
 		const chat = new TestChat('Custom question');
 		chat.status.set(SessionStatus.NeedsInput, undefined);
@@ -1527,6 +1624,14 @@ suite('ProjectBoardService', () => {
 		textarea.value = 'Calendar layout';
 		textarea.setSelectionRange(3, 7);
 		textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		const collapse = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!;
+		collapse().focus();
+		collapse().click();
+		assert.strictEqual(h.container.querySelector('textarea'), textarea);
+		assert.ok(textarea.closest('.project-board-card-list[hidden]'));
+		assert.deepStrictEqual([textarea.value, textarea.selectionStart, textarea.selectionEnd], ['Calendar layout', 3, 7]);
+		collapse().click();
+		textarea.focus();
 		for (const keyCode of [37, 38, 39, 40, 35, 36]) {
 			textarea.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true }));
 			assert.strictEqual(document.activeElement, textarea, 'Card navigation must not capture answer-field keys');
