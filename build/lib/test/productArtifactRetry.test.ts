@@ -164,7 +164,7 @@ suite('product artifact retry', () => {
 		assert.deepStrictEqual(declared.map(name => name.replace('$(VSCODE_ARCH)', 'x64')), artifactNames);
 		assert(compile.indexOf('${{ parameters.preBuildSteps }}') > compile.indexOf('- task: NodeTool@0'));
 		assert(compile.indexOf('${{ parameters.preBuildSteps }}') < compile.indexOf('exec { npm ci }'));
-		assert(job.includes("condition: and(succeeded(), gt(variables['System.JobAttempt'], 1))"));
+		assert(job.includes('condition: and(succeeded(), gt(variables[\'System.JobAttempt\'], 1))'));
 		assert.strictEqual(job.match(/ne\(variables\['PRODUCT_ARTIFACT_RETRY_CHECK_FAILED'\], 'true'\)/g)?.length, 3);
 	});
 });
