@@ -576,8 +576,38 @@ suite('CommandAutoApprover', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('Write-Host hi>../../outside.txt', options),
 				approver.shouldAutoApprove('Write-Host hi >../../outside.txt', options),
-			], ['approved', 'noMatch']);
-			assert.deepStrictEqual(seen, ['../../outside.txt']);
+				approver.shouldAutoApprove('Write-Host pre"literal>text"post>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host pre"literal>text"post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal>text\'post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal\'\'>text\'post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal\'\'>text\'post>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host escaped`>text', options),
+				approver.shouldAutoApprove('Write-Host payload>$null', options),
+			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'noMatch', 'approved', 'approved']);
+			assert.deepStrictEqual(seen, ['../../outside.txt', '../../outside.txt', '../../outside.txt', '../../outside.txt']);
+		});
+
+		test('detects every PowerShell redirect in a generic token', () => {
+			const seen: string[] = [];
+			const options = {
+				...pwsh,
+				isWriteDestApproved: (dest: string) => {
+					seen.push(dest);
+					return dest === '/workspace/inside';
+				},
+			};
+
+			const commands = [
+				'Write-Host hi>/workspace/inside>/outside',
+				...['2', '3', '4', '5', '6', '*'].map(stream => `Write-Host hi>'../../outside.txt'${stream}>$null`),
+				'Write-Host hi>>\'../../outside.txt\'2>$null',
+			];
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, options)), commands.map(() => 'noMatch'));
+			assert.deepStrictEqual(seen, [
+				'/workspace/inside',
+				'/outside',
+				...commands.slice(1).map(() => '../../outside.txt'),
+			]);
 		});
 
 		// The grammar parses `--flag=value` as an assignment expression that
