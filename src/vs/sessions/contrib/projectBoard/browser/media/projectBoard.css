@@ -132,6 +132,49 @@
 	gap: 8px;
 }
 
+.project-board-card-list[hidden] {
+	display: none;
+}
+
+.project-board-axis-controls,
+.project-board-tray-heading {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
+.project-board-axis-controls > .monaco-button {
+	min-width: 0;
+	flex: 1;
+}
+
+.project-board-axis-controls > .project-board-collapse,
+.project-board-tray-heading > .project-board-collapse {
+	flex: 0 0 22px;
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+}
+
+.project-board-card-group-collapsed {
+	min-height: 0;
+	padding: var(--vscode-spacing-size40, 4px);
+}
+
+.project-board-grid .project-board-card-group-collapsed > h3 {
+	display: none;
+}
+
+.project-board-collapsed-summary {
+	display: block;
+	margin-top: var(--vscode-spacing-size40, 4px);
+	font-size: var(--vscode-fontSize-label1, 12px);
+	font-weight: var(--vscode-fontWeight-regular, 400);
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
 .project-board-grid .project-board-card-list {
 	flex-direction: column;
 }

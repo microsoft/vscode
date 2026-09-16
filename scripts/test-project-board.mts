@@ -86,10 +86,10 @@ try {
 	if (dimensions.scrollWidth > dimensions.width) {
 		await expect.poll(() => scroller.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
 	}
-	assert.ok(await scroller.evaluate(element => {
+	await expect.poll(() => scroller.evaluate(element => {
 		const lastCell = element.querySelector('.project-board-grid .project-board-card-group:last-child');
 		return lastCell && lastCell.getBoundingClientRect().bottom <= element.getBoundingClientRect().bottom;
-	}), 'The last row must be reachable with the wheel, not just present in the DOM');
+	}), { message: 'The last row must be reachable with the wheel, not just present in the DOM' }).toBe(true);
 
 	const card = board.locator(`[data-chat-resource=${JSON.stringify(resource)}], [data-draft-id=${JSON.stringify(resource)}]`);
 	await expect(card).toHaveCount(1);
