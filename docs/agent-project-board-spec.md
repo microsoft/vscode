@@ -46,6 +46,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Support adding, renaming, reordering and deleting both axes. Persist stable IDs rather than labels.
 - Keep at least one row and column; require nonempty labels.
 - A chat has one placement or is Unassigned. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
+- Auto-include Sessions defaults on. Turning it off hides unplaced chats and drafts without deleting them; collapsed Unassigned counts exclude those entries. Dragging a session from the Sessions list into a cell explicitly places its visible chats, even with auto-inclusion off, and expands a collapsed destination.
 - Hover/focus reveals the card Delete action where supported. Deletion requires confirmation and deletes the backing session (including its chats), not merely its board placement. Draft deletion closes its editor through the normal close lifecycle before discarding the owned draft; canceling either confirmation preserves it.
 - Card context menus do not enumerate every destination. Axis-edit menus remain.
 - Deleting an occupied axis requires confirmation and returns affected placements to Unassigned, including archived placements. Cancellation changes nothing.
