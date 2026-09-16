@@ -241,7 +241,7 @@
 
 .agent-diagnostics-model {
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-badge-foreground);
 	background: var(--vscode-badge-background);
 	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-fontSize-label2);
