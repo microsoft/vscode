@@ -839,14 +839,6 @@ registerAction2(class PinSessionAction extends Action2 {
 			title: localize2('pinSession', "Pin"),
 			icon: Codicon.pin,
 			menu: [{
-				id: SessionItemToolbarMenuId,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
-					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-				),
-			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
@@ -877,14 +869,6 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			title: localize2('unpinSession', "Unpin"),
 			icon: Codicon.pinned,
 			menu: [{
-				id: SessionItemToolbarMenuId,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
-					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-				),
-			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
@@ -948,7 +932,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: Menus.AutomationsHistoryItem,
