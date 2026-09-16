@@ -18,7 +18,7 @@ export async function suggestNativePreview(
 	pluginManager: PluginManager
 ): Promise<void> {
 	if (context.globalState.get<boolean>(suggestTS7NoPluginsStorageKey)) {
-		// return;
+		return;
 	}
 
 	// Only show when the window is active
