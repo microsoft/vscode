@@ -3267,6 +3267,15 @@ suite('PromptsService', () => {
 		test('should discover bundled skills in the editor prompt service', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			await mockFiles(fileService, [{
+				path: `${BUILTIN_SKILLS_URI.path}/dbgjs-runtime-debugging/SKILL.md`,
+				contents: [
+					'---',
+					'name: dbgjs-runtime-debugging',
+					'description: Investigate a running JavaScript process with dbgjs.',
+					'---',
+					'# Runtime Debugging with dbgjs',
+				],
+			}, {
 				path: `${BUILTIN_SKILLS_URI.path}/issue-wizard/SKILL.md`,
 				contents: [
 					'---',
@@ -3307,13 +3316,18 @@ suite('PromptsService', () => {
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 
-			const builtinSkillNames = ['issue-wizard', 'vscode-bug-fix', 'vscode-dev-setup', 'vscode-extension-fix'];
+			const builtinSkillNames = ['dbgjs-runtime-debugging', 'issue-wizard', 'vscode-bug-fix', 'vscode-dev-setup', 'vscode-extension-fix'];
 			assert.deepStrictEqual(result?.filter(skill => builtinSkillNames.includes(skill.name)).map(skill => ({
 				name: skill.name,
 				uri: skill.uri.toString(),
 				storage: skill.storage,
 				userInvocable: skill.userInvocable,
 			})), [{
+				name: 'dbgjs-runtime-debugging',
+				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'dbgjs-runtime-debugging/SKILL.md').toString(),
+				storage: PromptsStorage.builtIn,
+				userInvocable: true,
+			}, {
 				name: 'issue-wizard',
 				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'issue-wizard/SKILL.md').toString(),
 				storage: PromptsStorage.builtIn,
