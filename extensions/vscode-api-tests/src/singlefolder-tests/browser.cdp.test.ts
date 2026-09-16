@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as http from 'http';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { window, workspace } from 'vscode';
-import { assertNoRpc, closeAllEditors } from '../utils';
+import { assertNoRpc, closeAllEditors, poll } from '../utils';
 
 /**
  * We only care about target-lifecycle and browser-level events.
@@ -89,6 +90,54 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 		}
 
 		return { log, cdpSend, waitForEvent };
+	}
+
+	async function withBrowserPage(run: (tab: vscode.BrowserTab, sessionId: string, harness: ReturnType<typeof createHarness>) => Promise<void>): Promise<void> {
+		// Attach the model and CDP before navigating so initial subscription timing is not part of the fixture.
+		const tab = await window.openBrowserTab('');
+		const session = await tab.startCDPSession();
+		try {
+			const harness = createHarness(session);
+			const browser: { sessionId: string } = await harness.cdpSend('Target.attachToBrowserTarget');
+			const targets: { targetInfos: { targetId: string; type: string }[] } = await harness.cdpSend('Target.getTargets', {}, browser.sessionId);
+			const target = targets.targetInfos.find(target => target.type === 'page');
+			assert.ok(target);
+			const page: { sessionId: string } = await harness.cdpSend('Target.attachToTarget', { targetId: target.targetId, flatten: true }, browser.sessionId);
+			await run(tab, page.sessionId, harness);
+		} finally {
+			await session.close();
+		}
+	}
+
+	async function withHttpServer(listener: http.RequestListener, run: (port: number) => Promise<void>): Promise<void> {
+		const server = http.createServer(listener);
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, '127.0.0.1', () => {
+				server.off('error', reject);
+				resolve();
+			});
+		});
+		try {
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			await run(address.port);
+		} finally {
+			server.closeAllConnections();
+			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+		}
+	}
+
+	function createFavicon(color: string): string {
+		return 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="${color}"/></svg>`).toString('base64');
+	}
+
+	async function waitForBrowserIcon(tab: vscode.BrowserTab, url: string, icon: string): Promise<void> {
+		await poll(
+			async () => ({ url: tab.url, icon: tab.icon instanceof vscode.Uri ? tab.icon.toString(true) : tab.icon instanceof vscode.ThemeIcon ? tab.icon.id : undefined }),
+			state => state.url === url && state.icon === icon,
+			`Browser favicon for ${url} should be ${icon}`,
+		);
 	}
 
 	/**
@@ -178,6 +227,157 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 	}
 
 	// #endregion
+
+	(vscode.env.remoteName ? test.skip : test)('favicons follow native document navigation and redirect history', async function () {
+		this.timeout(30_000);
+		const red = createFavicon('red');
+		const blue = createFavicon('blue');
+		const ignoredIcon = createFavicon('green');
+		let sharedIconUrl = '';
+		await withHttpServer((request, response) => {
+			const url = new URL(request.url ?? '/', 'http://localhost');
+			if (url.pathname === '/redirect') {
+				response.writeHead(302, { Location: url.searchParams.get('to')! });
+				response.end();
+			} else if (url.pathname === '/favicon.ico') {
+				response.writeHead(404);
+				response.end();
+			} else if (url.pathname === '/shared.svg') {
+				response.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+				response.end(Buffer.from(blue.slice(blue.indexOf(',') + 1), 'base64'));
+			} else {
+				const icon = url.pathname === '/first' || url.pathname === '/same-icon' ? red : url.pathname === '/second' ? blue : url.pathname === '/shared-icon' ? sharedIconUrl : undefined;
+				const ignoredLinks = url.pathname === '/shared-icon'
+					? `<link rel="shortcut&#160;icon" href="${ignoredIcon}"><link rel="icon" media="not all" href="${ignoredIcon}">`
+					: '';
+				response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
+				response.end(`<!doctype html><html><head><title>${url.pathname}</title>${icon ? `<link rel="SHORTCUT ICON" media="all" href="${icon}">` : ''}${ignoredLinks}</head><body>${url.pathname}</body></html>`);
+			}
+		}, async port => {
+			sharedIconUrl = `http://127.0.0.1:${port}/shared.svg`;
+			const firstUrl = `http://127.0.0.1:${port}/first`;
+			const secondUrl = `http://localhost:${port}/second`;
+			await withBrowserPage(async (tab, sessionId, { cdpSend, waitForEvent }) => {
+				const waitForIcon = (url: string, icon: string) => waitForBrowserIcon(tab, url, icon);
+				await cdpSend('Page.navigate', { url: firstUrl }, sessionId);
+				await waitForIcon(firstUrl, red);
+				await cdpSend('Page.navigate', { url: secondUrl }, sessionId);
+				await waitForIcon(secondUrl, blue);
+				const history: { currentIndex: number; entries: { id: number }[] } = await cdpSend('Page.getNavigationHistory', {}, sessionId);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: history.entries[history.currentIndex - 1].id }, sessionId);
+				await waitForIcon(firstUrl, red);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: history.entries[history.currentIndex].id }, sessionId);
+				await waitForIcon(secondUrl, blue);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: history.entries[history.currentIndex - 1].id }, sessionId);
+				await waitForIcon(firstUrl, red);
+
+				await cdpSend('Page.enable', {}, sessionId);
+				const sameIconUrl = `http://localhost:${port}/same-icon`;
+				const loaded = waitForEvent(message => message.method === 'Page.loadEventFired' && message.sessionId === sessionId);
+				await cdpSend('Page.navigate', { url: sameIconUrl }, sessionId);
+				await loaded;
+				await waitForIcon(sameIconUrl, red);
+
+				for (const host of ['127.0.0.1', 'localhost']) {
+					const url = `http://${host}:${port}/shared-icon`;
+					const loaded = waitForEvent(message => message.method === 'Page.loadEventFired' && message.sessionId === sessionId);
+					await cdpSend('Page.navigate', { url }, sessionId);
+					await loaded;
+					await waitForIcon(url, blue);
+				}
+				const sharedHistory: typeof history = await cdpSend('Page.getNavigationHistory', {}, sessionId);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: sharedHistory.entries[sharedHistory.currentIndex - 1].id }, sessionId);
+				await waitForIcon(`http://127.0.0.1:${port}/shared-icon`, blue);
+				await cdpSend('Page.navigateToHistoryEntry', { entryId: sharedHistory.entries[sharedHistory.currentIndex].id }, sessionId);
+				await waitForIcon(`http://localhost:${port}/shared-icon`, blue);
+
+				await cdpSend('Page.navigate', { url: firstUrl }, sessionId);
+				await waitForIcon(firstUrl, red);
+				const finalUrl = `http://127.0.0.1:${port}/iconless`;
+				const intermediate = `http://localhost:${port}/redirect?to=${encodeURIComponent(finalUrl)}`;
+				await cdpSend('Page.navigate', { url: `http://127.0.0.1:${port}/redirect?to=${encodeURIComponent(intermediate)}` }, sessionId);
+				await waitForIcon(finalUrl, 'globe');
+			});
+		});
+	});
+
+	(vscode.env.remoteName ? test.skip : test)('favicons retain outgoing document updates across cancelled navigation', async function () {
+		this.timeout(30_000);
+		const red = createFavicon('red');
+		const blue = createFavicon('blue');
+		let pendingRequested = false;
+		await withHttpServer((request, response) => {
+			if (request.url === '/pending') {
+				pendingRequested = true;
+				return;
+			}
+			response.writeHead(200, { 'Content-Type': 'text/html' });
+			response.end(`<!doctype html><html><head><title>Retained page</title><link rel="icon" href="${red}"></head><body>Retained page</body></html>`);
+		}, async port => {
+			await withBrowserPage(async (tab, sessionId, { cdpSend, waitForEvent }) => {
+				const firstUrl = `http://127.0.0.1:${port}/first`;
+				await cdpSend('Page.navigate', { url: firstUrl }, sessionId);
+				await waitForBrowserIcon(tab, firstUrl, red);
+				const contextReady = waitForEvent(message => message.method === 'Runtime.executionContextCreated' && message.sessionId === sessionId && message.params.context.auxData?.isDefault);
+				await cdpSend('Runtime.enable', {}, sessionId);
+				const context: { params: { context: { uniqueId: string } } } = await contextReady;
+				const target = `http://localhost:${port}/pending`;
+				try {
+					const source: { result: { value: string }; exceptionDetails?: object } = await cdpSend('Runtime.evaluate', {
+						expression: `(() => { const source = location.href; location.href = ${JSON.stringify(target)}; setTimeout(() => document.querySelector('link').href = ${JSON.stringify(blue)}, 0); return source; })()`,
+						uniqueContextId: context.params.context.uniqueId,
+						returnByValue: true,
+					}, sessionId);
+					assert.deepStrictEqual({ url: source.result.value, exception: source.exceptionDetails }, { url: firstUrl, exception: undefined });
+					await poll(async () => pendingRequested, requested => requested, 'Destination headers should still be pending');
+					await waitForBrowserIcon(tab, firstUrl, blue);
+				} finally {
+					await cdpSend('Page.stopLoading', {}, sessionId);
+				}
+				await waitForBrowserIcon(tab, firstUrl, blue);
+			});
+		});
+	});
+
+	(vscode.env.remoteName ? test.skip : test)('favicon recovery preserves cached defaults without new CSP-blocked requests', async function () {
+		this.timeout(30_000);
+		const red = createFavicon('red');
+		const defaultRequests: http.IncomingHttpHeaders[] = [];
+		await withHttpServer((request, response) => {
+			if (request.url === '/favicon.ico') {
+				defaultRequests.push(request.headers);
+				response.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+				response.end(Buffer.from(red.slice(red.indexOf(',') + 1), 'base64'));
+				return;
+			}
+			response.writeHead(200, {
+				'Content-Type': 'text/html',
+				'Cache-Control': 'no-store',
+				...(request.url === '/blocked' ? { 'Content-Security-Policy': 'img-src \'none\'' } : {}),
+			});
+			response.end('<!doctype html><html><head><title>Default favicon</title></head><body>Default favicon</body></html>');
+		}, async port => {
+			await withBrowserPage(async (tab, sessionId, { cdpSend, waitForEvent }) => {
+				const firstUrl = `http://127.0.0.1:${port}/first`;
+				await cdpSend('Page.navigate', { url: firstUrl }, sessionId);
+				await waitForBrowserIcon(tab, firstUrl, red);
+				await cdpSend('Page.enable', {}, sessionId);
+				// Same-origin navigation keeps the cached icon; a new blocked origin must not be fetched.
+				for (const [host, path, icon] of [
+					['127.0.0.1', '/second', red],
+					['127.0.0.1', '/blocked', red],
+					['localhost', '/blocked', 'globe'],
+				]) {
+					const url = `http://${host}:${port}${path}`;
+					const loaded = waitForEvent(message => message.method === 'Page.loadEventFired' && message.sessionId === sessionId);
+					await cdpSend('Page.navigate', { url }, sessionId);
+					await loaded;
+					await waitForBrowserIcon(tab, url, icon);
+				}
+				assert.strictEqual(defaultRequests.filter(headers => headers.host === `localhost:${port}`).length, 0, 'CSP must prevent a default favicon request on the new host');
+			});
+		});
+	});
 
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote
 	// workspaces: the workspace folder is a `vscode-remote://` URI so it
