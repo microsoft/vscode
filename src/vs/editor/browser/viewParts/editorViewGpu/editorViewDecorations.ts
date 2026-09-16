@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { DecorationInput, DecorationKindInput, DecorationStrokeStyle } from '@vscode/editor-view';
+import type { DecorationInput, DecorationKindInput, DecorationStrokeStyle } from './editorViewTypes.js';
 import { Color } from '../../../../base/common/color.js';
 import type { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
 

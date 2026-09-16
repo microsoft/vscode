@@ -16,6 +16,9 @@ import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
+import { Emitter } from '../../../base/common/event.js';
+import { markAsSingleton } from '../../../base/common/lifecycle.js';
+import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -1416,6 +1419,47 @@ class EditorStringEnumOption<K extends EditorOption, V extends string> extends S
 
 	public override validate(input: unknown): V {
 		return stringSet<V>(input, this.defaultValue, this._allowedValues);
+	}
+}
+
+/**
+ * @internal
+ */
+export class EditorExperimentalGpuAcceleration extends EditorStringEnumOption<EditorOption.experimentalGpuAcceleration, 'off' | 'on' | 'editorView'> {
+	private readonly _onDidChangeAvailability = new Emitter<void>();
+	public readonly onDidChangeAvailability = this._onDidChangeAvailability.event;
+	declare public readonly schema: IConfigurationPropertySchema;
+	private readonly _values: ('off' | 'on' | 'editorView')[];
+
+	constructor(hasEditorView: boolean) {
+		const values: ('off' | 'on' | 'editorView')[] = hasEditorView ? ['off', 'on', 'editorView'] : ['off', 'on'];
+		const descriptions = [
+			nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
+			nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
+		];
+		if (hasEditorView) {
+			descriptions.push(nls.localize('experimentalGpuAcceleration.editorView', "Use the experimental @vscode/editor-view (Rust/WASM) GPU renderer."));
+		}
+		super(EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration', 'off', values, {
+			tags: ['experimental'],
+			enumDescriptions: descriptions,
+			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the experimental GPU acceleration to render the editor.")
+		});
+		this._values = values;
+	}
+
+	public disableEditorView(): void {
+		if (this._values.length === 2) {
+			return;
+		}
+		this._values.pop();
+		this.schema.enum = this._values.slice();
+		this.schema.enumDescriptions?.pop();
+		this._onDidChangeAvailability.fire();
+	}
+
+	public dispose(): void {
+		this._onDidChangeAvailability.dispose();
 	}
 }
 
@@ -6015,6 +6059,9 @@ export const enum EditorOption {
 	effectiveFullwidthCharacterWidth
 }
 
+/** @internal */
+export const editorGpuAcceleration = markAsSingleton(new EditorExperimentalGpuAcceleration(product.hasEditorView === true));
+
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
 		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
@@ -6329,20 +6376,7 @@ export const EditorOptions = {
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
-	experimentalGpuAcceleration: register(new EditorStringEnumOption(
-		EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration',
-		'off' as 'off' | 'on' | 'editorView',
-		['off', 'on', 'editorView'] as const,
-		{
-			tags: ['experimental'],
-			enumDescriptions: [
-				nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
-				nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
-				nls.localize('experimentalGpuAcceleration.editorView', "Use the experimental @vscode/editor-view (Rust/WASM) GPU renderer."),
-			],
-			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the experimental GPU acceleration to render the editor.")
-		}
-	)),
+	experimentalGpuAcceleration: register(editorGpuAcceleration),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
 		'svg' as 'svg' | 'font' | 'off',

@@ -48,6 +48,7 @@ import { BufferLogger } from '../../platform/log/common/bufferLog.js';
 import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../platform/log/common/log.js';
 import product from '../../platform/product/common/product.js';
 import { IProductService } from '../../platform/product/common/productService.js';
+import { isEditorViewInstalled } from '../../platform/product/node/editorView.js';
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
 import { ProtocolMainService } from '../../platform/protocol/electron-main/protocolMainService.js';
 import { ITunnelService } from '../../platform/tunnel/common/tunnel.js';
@@ -191,6 +192,9 @@ class CodeMain {
 			disposables.add(registerDevConsoleLogForwarder(logService));
 		}
 		services.set(ILogService, logService);
+
+		productService.hasEditorView = isEditorViewInstalled(Boolean(productService.commit), logService);
+		Object.assign(product, { hasEditorView: productService.hasEditorView });
 
 		// Files
 		const fileService = new FileService(logService);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { LineInput, ModelDeltaInput } from '@vscode/editor-view';
+import type { LineInput, ModelDeltaInput } from './editorViewTypes.js';
 
 /**
  * A batch of work to apply to the `@vscode/editor-view` mirror at present time.

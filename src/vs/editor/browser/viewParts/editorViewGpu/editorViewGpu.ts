@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { EditorView, EditorViewConfig, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from '@vscode/editor-view';
+import type { EditorView, EditorViewConfig, EditorViewModule, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from './editorViewTypes.js';
 import { addDisposableListener, EventType, getActiveWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { Color } from '../../../../base/common/color.js';
@@ -12,7 +12,7 @@ import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { editorBackground, editorForeground, editorSelectionBackground, editorInactiveSelection } from '../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { editorActiveLineNumber, editorGutter, editorGutterFoldingControlForeground, editorLineNumbers, editorLineHighlight, editorLineHighlightBorder, editorInactiveLineHighlight, editorCursorForeground, editorCursorBackground, editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground, editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground, editorWhitespaces, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from '../../../common/core/editorColorRegistry.js';
-import { EditorFontLigatures, EditorOption, RenderLineNumbersType, TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from '../../../common/config/editorOptions.js';
+import { EditorFontLigatures, EditorOption, editorGpuAcceleration, RenderLineNumbersType, TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { TokenizationRegistry } from '../../../common/languages.js';
 import { HorizontalGuidesState } from '../../../common/textModelGuides.js';
@@ -202,7 +202,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		try {
 			const url = resolveAmdNodeModulePath('@vscode/editor-view', 'dist/index.js');
 			// Runtime-computed URL to keep bundlers from rewriting the import (same as @vscode/diff).
-			const mod = await import(/* webpackIgnore: true */ /* @vite-ignore */ `${url}`) as typeof import('@vscode/editor-view');
+			const mod = await import(/* webpackIgnore: true */ /* @vite-ignore */ `${url}`) as EditorViewModule;
 			if (this._disposed) {
 				return;
 			}
@@ -226,7 +226,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			// state, so the first present loads the whole model.
 			this._present();
 		} catch (err) {
+			if (this._disposed) {
+				return;
+			}
 			this._editorRoot.classList.remove('editor-view-gpu-folding-controls');
+			editorGpuAcceleration.disableEditorView();
 			onUnexpectedError(err);
 		}
 	}

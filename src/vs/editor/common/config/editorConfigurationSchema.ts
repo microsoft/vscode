@@ -5,7 +5,8 @@
 
 import type { IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
 import { diffEditorDefaultOptions } from './diffEditor.js';
-import { editorOptionsRegistry } from './editorOptions.js';
+import { editorGpuAcceleration, editorOptionsRegistry } from './editorOptions.js';
+import { markAsSingleton } from '../../../base/common/lifecycle.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
@@ -356,6 +357,9 @@ export function isDiffEditorConfigurationKey(key: string): boolean {
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration(editorConfiguration);
+markAsSingleton(editorGpuAcceleration.onDidChangeAvailability(() => {
+	configurationRegistry.notifyConfigurationSchemaUpdated(editorConfiguration);
+}));
 
 export async function registerEditorFontConfigurations(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
 	const editorKeysWithFont = ['editor.fontFamily'];
