@@ -236,7 +236,7 @@ export class SessionComparisonResult extends Disposable {
 				addPrimaryActionToDropdown: false,
 				dropdownLayer: 1,
 			}));
-			synthesize.label = localize('sessionComparisonResult.synthesize', "Synthesize Recommended");
+			synthesize.label = localize('sessionComparisonResult.synthesize', "Synthesize Attempts");
 			synthesize.dropdownButton.setAriaLabel(localize('sessionComparisonResult.synthesisOptionsAriaLabel', "More synthesis options"));
 			this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize, createRecommendedSynthesisPlan(instructions.getValue()))));
 			if (decisionCount > 1) {

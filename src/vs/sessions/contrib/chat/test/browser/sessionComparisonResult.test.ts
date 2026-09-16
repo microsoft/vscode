@@ -191,7 +191,7 @@ suite('Sessions - Comparison Result', () => {
 		const initialText = result.domNode.textContent ?? '';
 		const buttons = result.domNode.querySelectorAll<HTMLElement>('.monaco-button');
 		const focusWinner = [...buttons].find(button => button.textContent === 'Focus Winning Session');
-		const synthesizeRecommended = [...buttons].find(button => button.textContent === 'Synthesize Recommended');
+		const synthesizeAttempts = [...buttons].find(button => button.textContent === 'Synthesize Attempts');
 		const startWithInstructions = [...buttons].find(button => button.textContent === 'Start Synthesis with Instructions');
 		const customSynthesis = [...buttons].find(button => button.textContent === 'Custom Synthesis');
 		const focusAttemptDropdown = [...buttons].find(button => button.getAttribute('aria-label') === 'Focus another attempt');
@@ -207,7 +207,7 @@ suite('Sessions - Comparison Result', () => {
 		const otherAttemptLink = strengthsTable?.querySelector<HTMLAnchorElement>('tbody .session-comparison-result-attempt-link');
 		const actions = result.domNode.querySelector<HTMLElement>('.session-comparison-result-actions');
 		const actionButtons = [...actions?.children ?? []];
-		const synthesisSplitButton = synthesizeRecommended?.closest<HTMLElement>('.monaco-button-dropdown');
+		const synthesisSplitButton = synthesizeAttempts?.closest<HTMLElement>('.monaco-button-dropdown');
 		const synthesisPrimaryButton = synthesisSplitButton?.querySelector<HTMLElement>('.monaco-text-button');
 		const instructionsPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-instructions');
 		const instructionsInput = instructionsPanel?.querySelector<HTMLInputElement>('input, textarea');
@@ -316,7 +316,7 @@ suite('Sessions - Comparison Result', () => {
 			instructionsInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		}
 		startWithInstructions?.click();
-		synthesizeRecommended?.click();
+		synthesizeAttempts?.click();
 		customSynthesis?.click();
 		useClaude?.click();
 		synthesizerDecides?.click();
@@ -346,7 +346,7 @@ suite('Sessions - Comparison Result', () => {
 		const singleDecisionCustomSynthesis = {
 			action: [...result.domNode.querySelectorAll<HTMLElement>('.monaco-button')].some(button => button.textContent === 'Custom Synthesis'),
 			panel: !!result.domNode.querySelector('.session-comparison-synthesis-plan'),
-			recommended: [...result.domNode.querySelectorAll<HTMLElement>('.monaco-button')].some(button => button.textContent === 'Synthesize Recommended'),
+			recommended: [...result.domNode.querySelectorAll<HTMLElement>('.monaco-button')].some(button => button.textContent === 'Synthesize Attempts'),
 		};
 		result.layout(1200);
 		const comparisonLayout = {
@@ -528,7 +528,7 @@ suite('Sessions - Comparison Result', () => {
 			actionLayout: {
 				count: 3,
 				sameRow: true,
-				synthesisLabel: 'Synthesize Recommended',
+				synthesisLabel: 'Synthesize Attempts',
 				synthesisPrimaryWiderThanDropdown: true,
 			},
 			resultScroll: {

@@ -146,6 +146,9 @@ suite('SessionComparisonService', () => {
 				hasComparisonId: sessionsManagementService.createCalls[2].options.query.includes(comparison.id),
 				readsComparison: sessionsManagementService.createCalls[2].options.query.includes('#readAttemptComparison'),
 				completesComparison: sessionsManagementService.createCalls[2].options.query.includes('#completeAttemptComparison'),
+				readsReportedValidationFirst: sessionsManagementService.createCalls[2].options.query.includes('Use `get_session_context` with the exact manifest target to identify validation that the attempt already completed.'),
+				doesNotRerunReportedValidation: sessionsManagementService.createCalls[2].options.query.includes('Do not rerun a validation category when the attempt report contains a clear result.'),
+				doesNotSubstituteValidation: sessionsManagementService.createCalls[2].options.query.includes('do not substitute a different validation category.'),
 			},
 		}, {
 			createCalls: 3,
@@ -170,6 +173,9 @@ suite('SessionComparisonService', () => {
 				hasComparisonId: true,
 				readsComparison: true,
 				completesComparison: true,
+				readsReportedValidationFirst: true,
+				doesNotRerunReportedValidation: true,
+				doesNotSubstituteValidation: true,
 			},
 		});
 	});
