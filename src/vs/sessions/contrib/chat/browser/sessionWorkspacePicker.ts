@@ -1658,7 +1658,7 @@ export class WorkspacePicker extends Disposable {
 			const actionLabel = action === this._localBrowseAction
 				&& this._useConsolidatedRemoteWorkspaces()
 				&& this._directPickerAttachesContext !== true
-				? localize('workspacePicker.chooseFolder', "Choose Folder")
+				? localize('workspacePicker.openFolder', "Open Folder...")
 				: this._useConsolidatedRemoteWorkspaces()
 					? action.label.replace(/(?:\.\.\.|\u2026)$/, '')
 					: action.label;
@@ -1892,7 +1892,7 @@ export class WorkspacePicker extends Disposable {
 
 	private _getNoWorkspaceLabel(): string {
 		return this._useConsolidatedRemoteWorkspaces()
-			? localize('workspacePicker.startFromScratch', "Start from Scratch")
+			? localize('workspacePicker.noFolder', "No Folder")
 			: localize('workspacePicker.noWorkspace', "No workspace");
 	}
 
