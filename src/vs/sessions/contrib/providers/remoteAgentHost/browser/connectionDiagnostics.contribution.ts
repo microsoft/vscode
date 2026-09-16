@@ -155,7 +155,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		active.overlay.remove();
 		active.close();
 		const help = [
-			localize('connectionDiagnostics.help.overview', "Connection information shows live hosts followed by a separately captured diagnostic snapshot. Connect and Disconnect act on current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. Hidden hosts have a Restore action that returns them to discovery; it does not guarantee a connection."),
+			localize('connectionDiagnostics.help.overview', "Connection information shows live host summaries with Connect and Disconnect beside each host. Expand a host to read its captured diagnostic details. Actions use current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. The separate Hidden hosts section has Restore actions that return hosts to discovery; restoration does not guarantee a connection."),
 			localize('connectionDiagnostics.help.navigation', "Use Tab and Shift+Tab to move between host actions, header actions, the report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details."),
 			localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh re-runs host discovery and then captures current local state."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),

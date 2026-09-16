@@ -125,7 +125,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			buttons: container.querySelectorAll('button, [role="button"]').length,
 			scrollables: container.querySelectorAll('.monaco-scrollable-element.connection-diagnostics-scrollable').length,
 		}, {
-			headings: ['Diagnostic snapshot', 'Discovery', 'This client'],
+			headings: ['Discovery', 'This client'],
 			details: ['<script>not markup</script>', 'Web browser'],
 			clientOpen: false,
 			last: 'DETAILS',
@@ -205,7 +205,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		});
 	});
 
-	test('separates live connection controls and hidden recovery from the frozen snapshot', async () => {
+	test('keeps live connection controls in existing host summaries without a separate host list', async () => {
 		const container = dom.$('div');
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
@@ -271,6 +271,8 @@ suite('ConnectionDiagnosticsReport', () => {
 		));
 		const initialHiddenRows = container.querySelectorAll('.connection-diagnostics-hidden-hosts .connection-diagnostics-host-row').length;
 		const disconnect = container.querySelector<HTMLElement>('[aria-label="Disconnect Work laptop"]')!;
+		const actionInSummary = disconnect.closest('summary') !== null;
+		const initialHostLists = container.querySelectorAll('.connection-diagnostics-hosts:not(.connection-diagnostics-hidden-hosts)').length;
 		disconnect.focus();
 		disconnect.click();
 		await Promise.resolve();
@@ -284,30 +286,36 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual({
 			actions,
 			initialHiddenRows,
+			actionInSummary,
+			initialHostLists,
+			hostDetailsOpen: container.querySelector('details')?.open,
 			focusAfterDisconnect,
 			focusAfterRestore: dom.getActiveElement()?.getAttribute('aria-label'),
 			liveStatuses: Array.from(container.querySelectorAll('.connection-diagnostics-host-status'), element => element.textContent),
 			buttonLabels: Array.from(container.querySelectorAll('.connection-diagnostics-host-actions .monaco-button'), element => element.textContent?.trim()),
 			focusTargets: report.getFocusTargets().map(target => target.classList.contains('connection-diagnostics-content')
 				? target.tagName
-				: `${target.tagName}:${target.getAttribute('aria-label') ?? target.childNodes[0]?.textContent}`),
+				: `${target.tagName}:${target.getAttribute('aria-label') ?? target.querySelector('.connection-diagnostics-host-name')?.textContent ?? target.childNodes[0]?.textContent}`),
 			snapshotActions: container.querySelectorAll('.connection-diagnostics-section .monaco-button').length,
 			hiddenSections: container.querySelectorAll('.connection-diagnostics-hidden-hosts').length,
 			snapshot: report.getSnapshot().text,
 		}, {
 			actions: ['work:disconnect', 'tunnel:hidden:restore'],
 			initialHiddenRows: 1,
+			actionInSummary: true,
+			initialHostLists: 0,
+			hostDetailsOpen: false,
 			focusAfterDisconnect: 'Connect Work laptop',
 			focusAfterRestore: 'Connect Hidden laptop',
-			liveStatuses: ['Disconnected. Automatic connection paused.', 'Disconnected'],
+			liveStatuses: ['Disconnected', 'Disconnected. Automatic connection paused.'],
 			buttonLabels: ['Connect', 'Connect'],
 			focusTargets: [
 				'DIV',
-				'A:Connect Work laptop',
 				'A:Connect Hidden laptop',
-				'SUMMARY:Work laptop - connected, selectable',
+				'SUMMARY:Work laptop',
+				'A:Connect Work laptop',
 			],
-			snapshotActions: 0,
+			snapshotActions: 2,
 			hiddenSections: 0,
 			snapshot: hostSnapshot.text,
 		});

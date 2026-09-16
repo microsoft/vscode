@@ -89,11 +89,23 @@
 	cursor: pointer;
 }
 
-.connection-diagnostics-hosts h2,
-.connection-diagnostics-snapshot-title {
+.connection-diagnostics-hosts h2 {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size80);
+}
+
+.connection-diagnostics-host-heading {
+	display: inline-flex;
+	align-items: center;
+	vertical-align: middle;
+	width: calc(100% - var(--vscode-spacing-size200));
+	gap: var(--vscode-spacing-size80);
+}
+
+.connection-diagnostics-host-name,
+.connection-diagnostics-host-heading .connection-diagnostics-host-status {
+	display: block;
 }
 
 .connection-diagnostics-host-row {
@@ -113,6 +125,7 @@
 .connection-diagnostics-host-status {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .connection-diagnostics-host-actions {

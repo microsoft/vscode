@@ -139,15 +139,23 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		dom.clearNode(this.content);
 		this.bodyFocusTargets.length = 0;
 		this.hostFocusTargets.clear();
+		const hosts = this.options.enableHostManagement ? this.diagnosticsService.getHostManagementState().hosts : [];
+		const hostsByAddress = new Map(hosts.flatMap(host => host.address ? [[host.address, host] as const] : []));
 		if (this.options.enableHostManagement) {
-			const hosts = this.diagnosticsService.getHostManagementState().hosts;
-			this.renderHosts(hosts.filter(host => !host.hidden), false);
-			this.renderHosts(hosts.filter(host => host.hidden), true);
-			dom.append(this.content, dom.$('h2.connection-diagnostics-snapshot-title')).textContent = localize('connectionDiagnostics.snapshot', "Diagnostic snapshot");
+			this.renderHiddenHosts(hosts.filter(host => host.hidden));
+			dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.liveSummaries', "Host summaries and controls are live. Details and exports use the captured snapshot.");
 		}
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot. Review host names and addresses before sharing.");
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.captured', "Captured: {0}", this.snapshot.capturedAt);
-		for (const section of [...this.snapshot.sections.filter(section => !section.collapsed), ...this.snapshot.sections.filter(section => section.collapsed)]) {
+		const snapshotAddresses = new Set(this.snapshot.sections.map(section => section.hostAddress));
+		const newHostSections = hosts.filter(host => !host.hidden && host.address && !snapshotAddresses.has(host.address)).map(host => ({
+			title: host.label,
+			hostAddress: host.address,
+			collapsed: false,
+			description: localize('connectionDiagnostics.notCaptured', "Not included in the captured snapshot. Refresh to capture details."),
+			entries: [],
+		}));
+		for (const section of [...this.snapshot.sections.filter(section => !section.collapsed), ...newHostSections, ...this.snapshot.sections.filter(section => section.collapsed)]) {
 			const element = dom.append(this.content, dom.$(section.collapsed ? 'details.connection-diagnostics-section' : 'section.connection-diagnostics-section'));
 			if (section.hostAddress) {
 				element.classList.add('connection-diagnostics-host-section');
@@ -163,6 +171,24 @@ export class ConnectionDiagnosticsReport extends Disposable {
 				(element as HTMLDetailsElement).open = openSections.has(section.hostAddress ?? section.title);
 				this.managementStore.add(dom.addDisposableListener(element, 'toggle', () => this.scrollable.scanDomNode()));
 			}
+			const host = section.hostAddress ? hostsByAddress.get(section.hostAddress) : undefined;
+			if (host && !host.hidden) {
+				heading.textContent = '';
+				const row = dom.append(heading, dom.$('span.connection-diagnostics-host-heading'));
+				const label = dom.append(row, dom.$('span.connection-diagnostics-host-label'));
+				dom.append(label, dom.$('span.connection-diagnostics-host-name')).textContent = host.label;
+				dom.append(label, dom.$('span.connection-diagnostics-host-status')).textContent = !host.connectable
+					? localize('connectionDiagnostics.onDemand', "Connections managed on demand")
+					: host.status === 'disconnected' && host.autoConnectSuppressed
+						? localize('connectionDiagnostics.paused', "Disconnected. Automatic connection paused.")
+						: this.getHostStatusLabel(host.status);
+				const actions = dom.append(row, dom.$('span.connection-diagnostics-host-actions'));
+				if (host.address) {
+					this.hostFocusTargets.set(host.address, heading);
+				}
+				this.renderHostManagementAction(actions, host);
+				this.managementStore.add(dom.addDisposableListener(actions, dom.EventType.CLICK, event => event.stopPropagation()));
+			}
 			if (section.description) {
 				dom.append(element, dom.$('p')).textContent = section.description;
 			}
@@ -177,15 +203,12 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		this.restoreManagementFocus(focusedHostId, focusedHostAddress, focusedAction, focusedSummary);
 	}
 
-	private renderHosts(hosts: readonly IConnectionHostManagementEntry[], hidden: boolean): void {
+	private renderHiddenHosts(hosts: readonly IConnectionHostManagementEntry[]): void {
 		if (!hosts.length) {
 			return;
 		}
-		const section = dom.append(this.content, dom.$('section.connection-diagnostics-hosts'));
-		section.classList.toggle('connection-diagnostics-hidden-hosts', hidden);
-		dom.append(section, dom.$('h2')).textContent = hidden
-			? localize('connectionDiagnostics.hiddenHosts', "Hidden hosts")
-			: localize('connectionDiagnostics.hosts', "Hosts");
+		const section = dom.append(this.content, dom.$('section.connection-diagnostics-hosts.connection-diagnostics-hidden-hosts'));
+		dom.append(section, dom.$('h2')).textContent = localize('connectionDiagnostics.hiddenHosts', "Hidden hosts");
 		for (const host of hosts) {
 			const row = dom.append(section, dom.$('div.connection-diagnostics-host-row'));
 			row.tabIndex = -1;
@@ -195,13 +218,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			}
 			const details = dom.append(row, dom.$('div.connection-diagnostics-host-label'));
 			dom.append(details, dom.$('div')).textContent = host.label;
-			dom.append(details, dom.$('div.connection-diagnostics-host-status')).textContent = hidden
-				? localize('connectionDiagnostics.hiddenStatus', "Hidden from host picker")
-				: !host.connectable
-					? localize('connectionDiagnostics.onDemand', "Connections managed on demand")
-					: host.status === 'disconnected' && host.autoConnectSuppressed
-						? localize('connectionDiagnostics.paused', "Disconnected. Automatic connection paused.")
-						: this.getHostStatusLabel(host.status);
+			dom.append(details, dom.$('div.connection-diagnostics-host-status')).textContent = localize('connectionDiagnostics.hiddenStatus', "Hidden from host picker");
 			const actions = dom.append(row, dom.$('div.connection-diagnostics-host-actions'));
 			this.renderHostManagementAction(actions, host);
 		}
