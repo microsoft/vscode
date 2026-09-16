@@ -254,11 +254,35 @@ class ShareWorkbenchContribution extends Disposable {
 					f1: true,
 					category: localize2('shareCategory', 'Share'),
 					icon: Codicon.github,
-					menu: {
-						id: MenuId.EditorLineNumberContext,
-						group: '1_cutcopypaste',
-						order: 3,
-					}
+					// Surface next to existing Share entries (e.g. Copy vscode.dev Link),
+					// including when there is no text selection.
+					menu: [
+						{
+							id: MenuId.EditorContextShare,
+							group: '0_vscode',
+							order: 1,
+						},
+						{
+							id: MenuId.MenubarShare,
+							group: '0_vscode',
+							order: 1,
+						},
+						{
+							id: MenuId.EditorTitleContextShare,
+							group: '0_vscode',
+							order: 1,
+						},
+						{
+							id: MenuId.ExplorerContextShare,
+							group: '0_vscode',
+							order: 1,
+						},
+						{
+							id: MenuId.EditorLineNumberContext,
+							group: '1_cutcopypaste',
+							order: 3,
+						},
+					]
 				});
 			}
 
