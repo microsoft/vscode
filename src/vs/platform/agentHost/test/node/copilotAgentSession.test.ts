@@ -9947,6 +9947,7 @@ Use the attached image as context.
 		});
 
 		test('deferred aborted session idle does not tear down a newer running turn', async () => {
+			const processingGate = new DeferredPromise<void>();
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-aborted');
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-aborted' });
@@ -9956,15 +9957,19 @@ Use the attached image as context.
 
 			session.resetTurnState('turn-new');
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-new' });
+			mockSession.metadataIsProcessingGate = processingGate.p;
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
 			mockSession.fire('session.idle', { aborted: true });
+			processingGate.complete();
 			await timeout(0);
 
 			assert.deepStrictEqual({
 				currentTurn: session.currentTurnId,
-				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
 			}, {
-				currentTurn: 'turn-new',
-				completedTurns: 0,
+				currentTurn: undefined,
+				completedTurns: ['turn-new'],
 			});
 		});
 
@@ -10061,6 +10066,17 @@ Use the attached image as context.
 				idleSince: new Date(1).toISOString(),
 			}];
 			const idleAgentTask = await session.hasRunningBackgroundTasks();
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-running',
+				toolCallId: 'tool-agent',
+				description: 'Research',
+				status: 'running',
+				agentType: 'explore',
+				prompt: 'Inspect',
+				startedAt: new Date(0).toISOString(),
+			}];
+			const runningAgentTask = await session.hasRunningBackgroundTasks();
 			mockSession.backgroundTasks = [{ ...runningShell, status: 'completed', completedAt: new Date().toISOString() }];
 			const completed = await session.hasRunningBackgroundTasks();
 			mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
@@ -10069,17 +10085,19 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				runningShellTask,
 				idleAgentTask,
+				runningAgentTask,
 				completed,
 				failedRead,
 				listCalls: mockSession.backgroundTaskListCalls,
 				refreshCalls: mockSession.backgroundTaskRefreshCalls,
 			}, {
 				runningShellTask: true,
-				idleAgentTask: true,
+				idleAgentTask: false,
+				runningAgentTask: true,
 				completed: false,
 				failedRead: true,
-				listCalls: 4,
-				refreshCalls: 4,
+				listCalls: 5,
+				refreshCalls: 5,
 			});
 		});
 

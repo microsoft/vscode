@@ -427,6 +427,10 @@ const ASSISTANT_IDLE_PROCESSING_PROBE_TIMEOUT_MS = 1_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 const BACKGROUND_TASK_STATUS_RETRY_DELAY_MS = 1_000;
 
+function isRunningBackgroundTask(task: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'][number]): boolean {
+	return task.status === 'running' || (task.type === 'shell' && task.status === 'idle');
+}
+
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
 }
@@ -1735,7 +1739,7 @@ export class CopilotAgentSession extends Disposable {
 				return false;
 			}
 			this._backgroundTaskStatusRetryScheduler.cancel();
-			this._setHasBackgroundTasks(tasks.tasks.some(task => task.status === 'running' || task.status === 'idle'));
+			this._setHasBackgroundTasks(tasks.tasks.some(isRunningBackgroundTask));
 			for (const task of tasks.tasks) {
 				if (task.type !== 'agent') {
 					continue;
@@ -1919,7 +1923,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._wrapper.session.rpc.tasks.refresh();
 			const tasks = await this._wrapper.session.rpc.tasks.list();
-			return tasks.tasks.some(task => task.status === 'running' || task.status === 'idle');
+			return tasks.tasks.some(isRunningBackgroundTask);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read background task state; deferring release: ${getErrorMessage(err)}`);
 			return true;
@@ -2085,10 +2089,15 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Handles root-loop completion separately from the later background-task drain. */
 	private async _handleIdle(aborted: boolean, source: 'assistant' | 'session'): Promise<void> {
+		const turn = this._currentTurn.value;
+		const abortingTurn = aborted || source === 'session' ? this._abortingTurn : undefined;
+		if (aborted && source === 'session' && this._hasObservedAssistantIdle && !abortingTurn) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring deferred aborted session idle after the aborted turn was already finalized`);
+			return;
+		}
 		if (source === 'session') {
 			this._cancelAssistantIdleCompletion();
 		}
-		const abortingTurn = aborted || source === 'session' ? this._abortingTurn : undefined;
 		if (aborted || source === 'session') {
 			this._abortingTurn = undefined;
 		}
@@ -2099,12 +2108,7 @@ export class CopilotAgentSession extends Disposable {
 		if (aborted || source === 'session') {
 			this._clearActivity();
 		}
-		const turn = this._currentTurn.value;
 		if (!turn) {
-			return;
-		}
-		if (aborted && source === 'session' && this._hasObservedAssistantIdle && !abortingTurn) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring deferred aborted session idle after the aborted turn was already finalized`);
 			return;
 		}
 		if (aborted && (!abortingTurn || turn === abortingTurn)) {
