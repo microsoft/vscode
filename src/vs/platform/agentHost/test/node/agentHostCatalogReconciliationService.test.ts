@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
-import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
+import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
@@ -602,7 +602,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 			_serviceBrand: undefined,
 			onDidChange: Event.None,
 			loadError: new Error('corrupt storage'),
-			get: <T>(key: string) => key === 'agentHost.catalogReconciliation.verificationVersion' ? 1 as T : undefined,
+			get: <T>(key: string) => key === 'agentHost.catalogReconciliation.verificationVersion' ? CATALOG_VERIFICATION_VERSION as T : undefined,
 			set: () => { throw new Error('storage unavailable'); },
 			setAndFlush: async () => { throw new Error('storage unavailable'); },
 			delete: () => { throw new Error('storage unavailable'); },

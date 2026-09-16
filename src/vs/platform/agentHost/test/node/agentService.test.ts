@@ -54,7 +54,7 @@ import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, Ag
 import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
-import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY } from '../../node/agentHostCatalogReconciliationService.js';
+import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -1432,7 +1432,7 @@ suite('AgentService (node dispatcher)', () => {
 				// The gate is frozen at its first read, so it must be set before any provider work.
 				getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: enabled });
 				const storage = (svc as unknown as { _storageService: IAgentHostStorageService })._storageService;
-				storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, 1);
+				storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION);
 				const agent = disposables.add(new MetadataCountingAgent('copilot'));
 				registerTestAgentProvider(svc, agent);
 				const session = await svc.createSession({ provider: 'copilot' });
@@ -1456,7 +1456,7 @@ suite('AgentService (node dispatcher)', () => {
 					listed: [session.toString()],
 					centralPayloadPresent: true,
 					askedProviderForMetadata: !enabled,
-					verificationMarker: enabled ? 1 : undefined,
+					verificationMarker: enabled ? CATALOG_VERIFICATION_VERSION : undefined,
 				});
 			});
 		}
@@ -7256,6 +7256,62 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					persistedRead: '',
 					catalogRead: false,
+				});
+			});
+
+			test('import aggregates a legacy changeset blob into the catalog chip', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'legacy-changeset-blob');
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+				// An older build persisted the diff blob but never the modern
+				// aggregate, so the provider has no counts to offer and the
+				// session database is the only source for the chip.
+				await perSession.database(session).setMetadata('configValues', JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }));
+				await perSession.database(session).setMetadata(META_CHANGESET_SESSION, JSON.stringify([{ diff: { added: 504, removed: 1 } }]));
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(session)];
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				const expected = { additions: 504, deletions: 1, files: 1 };
+				assert.deepStrictEqual({
+					catalogChanges: catalogDataOf(await database.getSessionV2(session.toString()))?.changes,
+					migratedSummary: JSON.parse((await perSession.database(session).getMetadata(META_CHANGES_SUMMARY))!),
+				}, {
+					catalogChanges: expected,
+					migratedSummary: expected,
+				});
+			});
+
+			test('import reuses a persisted aggregate without reading the large diff blobs', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'already-aggregated');
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+				const local = perSession.database(session);
+				await local.setMetadata('configValues', JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }));
+				await local.setMetadata(META_CHANGES_SUMMARY, JSON.stringify({ additions: 7, deletions: 2, files: 1 }));
+				await local.setMetadata(META_CHANGESET_SESSION, JSON.stringify([{ diff: { added: 7, removed: 2 } }]));
+				const requestedKeys: string[][] = [];
+				const originalGetMetadataObject = local.getMetadataObject.bind(local);
+				local.getMetadataObject = async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> => {
+					requestedKeys.push(Object.keys(keys));
+					return originalGetMetadataObject(keys);
+				};
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(session)];
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					catalogChanges: catalogDataOf(await database.getSessionV2(session.toString()))?.changes,
+					readAnyDiffBlob: requestedKeys.some(keys => keys.includes(META_CHANGESET_SESSION) || keys.includes(META_CHANGESET_BRANCH)),
+				}, {
+					catalogChanges: { additions: 7, deletions: 2, files: 1 },
+					readAnyDiffBlob: false,
 				});
 			});
 

@@ -25,7 +25,13 @@ const VERIFICATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.verific
 export const AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY = 'agentHost.catalogReconciliation.verificationVersion';
 const VERIFICATION_VERSION_STORAGE_KEY = AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY;
 const LAST_VERIFICATION_STORAGE_KEY = 'agentHost.catalogReconciliation.lastVerification';
-const CATALOG_VERIFICATION_VERSION = 1;
+/**
+ * Bumped to 2 so upgraded profiles re-verify every cached payload once. Rows
+ * imported before the importer resolved legacy changeset blobs were written
+ * clean, so nothing else would ever revisit them and their file-change chips
+ * would stay missing (see `_migrateLegacyChangesetAggregate`).
+ */
+export const CATALOG_VERIFICATION_VERSION = 2;
 type AgentHostCatalogSyncPendingReason = Extract<AgentHostCatalogSyncResult, { status: 'pending' }>['reason'];
 type ScheduledPassKind = 'background' | 'periodic';
 
