@@ -80,7 +80,7 @@ export async function resolveAgentHostRepositoryConfig(connection: IAgentConnect
 	if (!confirmed || confirmed.urlProperty !== descriptor.urlProperty || confirmed.revisionProperty !== descriptor.revisionProperty) {
 		throw new Error(localize('agentHost.repositoryConfigChanged', "The agent host changed its repository configuration while resolving the session."));
 	}
-	return { ...resolved.values, ...requested };
+	return { ...resolved.values, ...config, [descriptor.urlProperty]: url };
 }
 
 /** Wait for opted-in repository initialization, preserving other sessions' existing lifecycle handling. */

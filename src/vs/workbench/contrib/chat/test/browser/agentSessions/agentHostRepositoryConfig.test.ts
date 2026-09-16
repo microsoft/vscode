@@ -70,6 +70,15 @@ suite('AgentHostRepositoryConfig', () => {
 		assert.strictEqual(h.calls.length, 1);
 	});
 
+	test('repository-dependent defaults replace the initial context defaults', async () => {
+		const h = connectionWithResponses([
+			{ schema, values: { branch: 'previous-context', obsolete: 'old-default' } },
+			{ schema, values: { branch: 'repository-default', source: repository.toString() } },
+		]);
+		const config = await resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, undefined, CancellationToken.None);
+		assert.deepStrictEqual(config, { branch: 'repository-default', source: repository.toString() });
+	});
+
 	test('an older host without configuration discovery preserves legacy behavior', async () => {
 		const h = connectionWithResponses([new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Unsupported')]);
 		assert.strictEqual(await resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, undefined, CancellationToken.None), undefined);
