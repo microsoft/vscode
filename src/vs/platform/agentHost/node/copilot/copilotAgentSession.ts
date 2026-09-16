@@ -2424,22 +2424,18 @@ export class CopilotAgentSession extends Disposable {
 			wrapper.dispose();
 			throw new CancellationError();
 		}
+		this._wrapper = this._register(wrapper);
 		const samplingInterest = await wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
 		if (this._store.isDisposed) {
-			await wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle });
-			wrapper.dispose();
 			throw new CancellationError();
 		}
-		this._register(toDisposable(() => {
-			if (wrapper.lifecycleState === 'shutdown') {
-				wrapper.dispose();
-				return;
+		wrapper.setBeforeDisconnect(async () => {
+			try {
+				await this._awaitControlPlaneRpc('rpc.eventLog.releaseInterest', wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle }));
+			} catch (error) {
+				this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
 			}
-			void wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle })
-				.catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`))
-				.finally(() => wrapper.dispose());
-		}));
-		this._wrapper = wrapper;
+		});
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			if (!event.sessions.includes(this._ownerSessionUri.toString())) {
 				return;
