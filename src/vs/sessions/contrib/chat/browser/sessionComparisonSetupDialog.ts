@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { IModelPickerDelegate, IModelPickerPresentationOptions, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { createModelConfigurationActions, ILanguageModelChatMetadataAndIdentifier, IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -70,6 +70,17 @@ export interface ISessionComparisonSetupResult {
 
 function harnessKey(providerId: string, sessionTypeId: string): string {
 	return `${providerId}\0${sessionTypeId}`;
+}
+
+export function getSessionComparisonModelPickerPresentationOptions(): IModelPickerPresentationOptions {
+	return {
+		useGroupedModelPicker: false,
+		showFeatured: false,
+		showUnavailableFeatured: false,
+		showManageModelsAction: false,
+		showAutoModel: true,
+		showModelIcon: false,
+	};
 }
 
 export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
@@ -748,14 +759,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 						onChange(harness);
 					},
 					getModels: () => [...pickerModels],
-					getPresentationOptions: () => ({
-						useGroupedModelPicker: true,
-						showFeatured: false,
-						showUnavailableFeatured: false,
-						showManageModelsAction: false,
-						showAutoModel: true,
-						showModelIcon: false,
-					}),
+					getPresentationOptions: getSessionComparisonModelPickerPresentationOptions,
 					isCacheWarm: () => false,
 				};
 				const modelPicker = rowsDisposables.add(this.instantiationService.createInstance(

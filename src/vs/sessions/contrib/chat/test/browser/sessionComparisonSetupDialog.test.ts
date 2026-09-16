@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { getSessionComparisonWorkspaceError, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
+import { getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
 import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
 
 const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
@@ -115,6 +115,17 @@ suite('SessionComparisonDialogResizeController', () => {
 	});
 
 	suite('setup behavior', () => {
+		test('shows the actual comparison models without an Other Models reveal step', () => {
+			assert.deepStrictEqual(getSessionComparisonModelPickerPresentationOptions(), {
+				useGroupedModelPicker: false,
+				showFeatured: false,
+				showUnavailableFeatured: false,
+				showManageModelsAction: false,
+				showAutoModel: true,
+				showModelIcon: false,
+			});
+		});
+
 		test('applies and clears bulk permissions for attempts and evaluators', () => {
 			const applyBulkPermissionSelection = Reflect.get(SessionComparisonSetupDialog.prototype, '_applyBulkPermissionSelection') as (
 				this: object,

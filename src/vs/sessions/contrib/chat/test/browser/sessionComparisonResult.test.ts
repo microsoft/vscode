@@ -185,6 +185,7 @@ suite('Sessions - Comparison Result', () => {
 		};
 		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => layouts++, markdownRenderer));
 		result.domNode.style.width = '800px';
+		result.domNode.style.setProperty('--vscode-spacing-size120', '12px');
 		mainWindow.document.body.append(result.domNode);
 		store.add({ dispose: () => result.domNode.remove() });
 
@@ -214,6 +215,7 @@ suite('Sessions - Comparison Result', () => {
 		const synthesisPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan');
 		const decisionTable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table');
 		const rationaleList = result.domNode.querySelector<HTMLElement>('.session-comparison-result-rationale');
+		const resultContent = result.domNode.querySelector<HTMLElement>('.session-comparison-result-content');
 		const metricsDetails = result.domNode.querySelector<HTMLDetailsElement>('.session-comparison-result-metrics');
 		const metricsTable = result.domNode.querySelector<HTMLTableElement>('.session-comparison-result-metrics-table');
 		const panelHiddenBefore = synthesisPanel?.hidden;
@@ -284,6 +286,7 @@ suite('Sessions - Comparison Result', () => {
 			overflowY: mainWindow.getComputedStyle(result.domNode).overflowY,
 			contentExceedsViewport: result.domNode.scrollHeight > result.domNode.clientHeight,
 			scrollAdvanced: result.domNode.scrollTop > 0,
+			contentRightInset: resultContent ? Math.round(result.domNode.getBoundingClientRect().right - resultContent.getBoundingClientRect().right) : undefined,
 		};
 		otherAttemptLink?.click();
 		await timeout(0);
@@ -535,6 +538,7 @@ suite('Sessions - Comparison Result', () => {
 				overflowY: 'auto',
 				contentExceedsViewport: true,
 				scrollAdvanced: true,
+				contentRightInset: 12,
 			},
 			accessibility: {
 				regionRole: 'region',

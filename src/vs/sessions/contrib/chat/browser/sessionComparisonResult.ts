@@ -37,6 +37,7 @@ export const SessionComparisonResultFocused = new RawContextKey<boolean>('sessio
 export class SessionComparisonResult extends Disposable {
 
 	readonly domNode = dom.$('.session-comparison-result');
+	private readonly contentNode = dom.append(this.domNode, dom.$('.session-comparison-result-content'));
 	private readonly renderStore = this._register(new DisposableStore());
 	private readonly titleId = `session-comparison-result-title-${generateUuid()}`;
 	private announcedComparisonId: string | undefined;
@@ -99,7 +100,7 @@ export class SessionComparisonResult extends Disposable {
 		this.renderedVerdict = comparison?.verdict;
 		this.renderedParticipants = comparison?.participants;
 		this.renderStore.clear();
-		dom.clearNode(this.domNode);
+		dom.clearNode(this.contentNode);
 		this.winnerTitle = undefined;
 		const wasHidden = this.domNode.hidden;
 		this.domNode.hidden = !comparison;
@@ -118,7 +119,7 @@ export class SessionComparisonResult extends Disposable {
 			return;
 		}
 		const winnerLabel = getSessionComparisonAttemptLabel(winner, attempts.indexOf(winner) + 1);
-		const title = dom.append(this.domNode, dom.$('h2.session-comparison-result-title'));
+		const title = dom.append(this.contentNode, dom.$('h2.session-comparison-result-title'));
 		title.id = this.titleId;
 		const winnerTitle = localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
 		this.winnerTitle = winnerTitle;
@@ -131,17 +132,17 @@ export class SessionComparisonResult extends Disposable {
 		} else {
 			title.textContent = winnerTitle;
 		}
-		dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle')).textContent =
+		dom.append(this.contentNode, dom.$('h3.session-comparison-result-subtitle')).textContent =
 			localize('sessionComparisonResult.whyWinner', "Why it won");
 		this.renderRationale(comparison.verdict);
 
 		const otherAttempts = attempts.filter(attempt => attempt.id !== winner.id);
 		if (otherAttempts.length > 0) {
-			const strengthsTitle = dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle'));
+			const strengthsTitle = dom.append(this.contentNode, dom.$('h3.session-comparison-result-subtitle'));
 			strengthsTitle.id = `session-comparison-strengths-${generateUuid()}`;
 			strengthsTitle.textContent =
 				localize('sessionComparisonResult.otherStrengths', "Strong points from other attempts");
-			const table = dom.append(this.domNode, dom.$('table.session-comparison-result-strengths'));
+			const table = dom.append(this.contentNode, dom.$('table.session-comparison-result-strengths'));
 			table.setAttribute('aria-labelledby', strengthsTitle.id);
 			const head = dom.append(table, dom.$('thead'));
 			const headerRow = dom.append(head, dom.$('tr'));
@@ -175,7 +176,7 @@ export class SessionComparisonResult extends Disposable {
 
 		this.renderAttemptMetrics(attempts);
 
-		const actions = dom.append(this.domNode, dom.$('.session-comparison-result-actions'));
+		const actions = dom.append(this.contentNode, dom.$('.session-comparison-result-actions'));
 		actions.setAttribute('role', 'group');
 		actions.setAttribute('aria-label', localize('sessionComparisonResult.actionsAriaLabel', "Comparison result actions"));
 		if (winner.sessionResource) {
@@ -271,7 +272,7 @@ export class SessionComparisonResult extends Disposable {
 	private renderAttemptMetrics(attempts: readonly ISessionComparisonParticipant[]): void {
 		const timeWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.elapsedMs);
 		const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCount);
-		const details = dom.append(this.domNode, dom.$('details.session-comparison-result-metrics'));
+		const details = dom.append(this.contentNode, dom.$('details.session-comparison-result-metrics'));
 		const summary = dom.append(details, dom.$('summary.session-comparison-result-metrics-summary'));
 		summary.id = `session-comparison-metrics-${generateUuid()}`;
 		summary.textContent = localize('sessionComparisonResult.attemptMetrics', "Attempt time and token usage");
@@ -327,7 +328,7 @@ export class SessionComparisonResult extends Disposable {
 
 	private renderRationale(verdict: ISessionComparisonVerdict): void {
 		if (!verdict.rationale) {
-			this.renderMarkdown(dom.append(this.domNode, dom.$('.session-comparison-result-explanation')), verdict.explanation);
+			this.renderMarkdown(dom.append(this.contentNode, dom.$('.session-comparison-result-explanation')), verdict.explanation);
 			return;
 		}
 		const primaryEntries = [
@@ -338,7 +339,7 @@ export class SessionComparisonResult extends Disposable {
 			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: verdict.rationale.validation },
 			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: verdict.rationale.codeQuality },
 		];
-		const rationale = dom.append(this.domNode, dom.$('.session-comparison-result-rationale'));
+		const rationale = dom.append(this.contentNode, dom.$('.session-comparison-result-rationale'));
 		this.renderRationaleEntries(rationale, primaryEntries, true);
 		this.renderRationaleEntries(rationale, supportingEntries, false);
 	}
@@ -359,7 +360,7 @@ export class SessionComparisonResult extends Disposable {
 	}
 
 	private renderSynthesisInstructions(comparison: ISessionComparison): { readonly getValue: () => string | undefined; readonly toggle: () => void } {
-		const panel = dom.append(this.domNode, dom.$('section.session-comparison-synthesis-instructions'));
+		const panel = dom.append(this.contentNode, dom.$('section.session-comparison-synthesis-instructions'));
 		panel.hidden = true;
 		panel.id = `session-comparison-synthesis-instructions-${generateUuid()}`;
 		const title = dom.append(panel, dom.$('h3.session-comparison-result-subtitle'));
@@ -442,7 +443,7 @@ export class SessionComparisonResult extends Disposable {
 		custom.label = localize('sessionComparisonResult.customSynthesis', "Custom Synthesis");
 		custom.element.setAttribute('aria-expanded', 'false');
 
-		const panel = dom.append(this.domNode, dom.$('section.session-comparison-synthesis-plan'));
+		const panel = dom.append(this.contentNode, dom.$('section.session-comparison-synthesis-plan'));
 		panel.hidden = true;
 		panel.id = `session-comparison-synthesis-plan-${generateUuid()}`;
 		custom.element.setAttribute('aria-controls', panel.id);
