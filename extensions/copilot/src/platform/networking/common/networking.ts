@@ -259,6 +259,7 @@ export type IChatRequestTelemetryProperties = {
 	messageId?: string;
 	conversationId?: string;
 	messageSource?: string;
+	mode?: string;
 	associatedRequestId?: string;
 	retryAfterError?: string;
 	retryAfterErrorGitHubRequestId?: string;

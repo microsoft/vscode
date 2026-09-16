@@ -11,7 +11,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation } from '../../../../platform/endpoint/common/endpointProvider';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../../platform/endpoint/node/searchAgentChatEndpoint';
-import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { IChatEndpoint, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -31,13 +31,15 @@ class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 	public buildPromptCalls = 0;
 	public makeChatRequestCalls = 0;
 	public readonly responseQueue: ChatResponse[] = [];
+	public readonly requestOptions: IMakeChatRequestOptions[] = [];
 
 	public readonly fakeEndpoint = {
 		modelMaxPromptTokens: 100_000,
 		acquireTokenizer: () => ({ countToolTokens: async () => 0 }),
 		cloneWithTokenOverride: () => this.fakeEndpoint,
-		makeChatRequest2: async (): Promise<ChatResponse> => {
+		makeChatRequest2: async (options: IMakeChatRequestOptions): Promise<ChatResponse> => {
 			this.makeChatRequestCalls++;
+			this.requestOptions.push(options);
 			const next = this.responseQueue.shift();
 			if (!next) {
 				throw new Error('responseQueue exhausted');
@@ -222,6 +224,10 @@ describe('SearchSubagentToolCallingLoop.fetch context-overflow retry', () => {
 		expect(loop.makeChatRequestCalls).toBe(1);
 		expect(loop.buildPromptCalls).toBe(0);
 		expect(loop.didRetryAfterOverflow).toBe(false);
+		expect(loop.requestOptions[0].telemetryProperties).toMatchObject({
+			mode: 'editAgent',
+			subType: 'search_subagent',
+		});
 	});
 
 	it('retries once on context overflow and succeeds with shrunk budget', async () => {

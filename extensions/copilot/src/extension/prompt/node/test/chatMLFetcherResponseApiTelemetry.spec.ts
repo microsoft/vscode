@@ -157,6 +157,27 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 			expect(messagesJson.length).toBe(0);
 		}
 	});
+
+	it('forwards the chat mode to response telemetry', async () => {
+		const responseApiEndpoint = createResponseApiEndpoint();
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+
+		const opts: IFetchMLOptions = {
+			debugName: 'test-response-mode',
+			messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }] }],
+			endpoint: responseApiEndpoint,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			finishedCb: undefined,
+			telemetryProperties: { mode: 'editAgent' },
+		};
+
+		await fetcher.fetchMany(opts, cancellationTokenSource.token);
+
+		const responseEvent = spyingTelemetryService.getEvents().telemetryServiceEvents.find(e => e.eventName === 'response.success');
+		const responseProperties = responseEvent?.properties as Record<string, string> | undefined;
+		expect(responseProperties?.mode).toBe('editAgent');
+	});
 });
 
 describe('ChatMLFetcherImpl request.options.tools telemetry', () => {

@@ -41,6 +41,7 @@ export interface IChatMLFetcherCancellationProperties {
 	apiType: string | undefined;
 	transport: string;
 	interactionType: string;
+	mode?: string;
 	conversationId?: string;
 	associatedRequestId?: string;
 	parentRequestId?: string;
@@ -146,6 +147,7 @@ export class ChatMLFetcherTelemetrySender {
 				"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source of the initial request" },
 				"initiatorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was initiated by a user or an agent" },
 				"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
+				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Chat mode associated with the request." },
 				"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selection for the response" },
 				"modelInvoked": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Actual model invoked for the response" },
 				"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
@@ -215,6 +217,7 @@ export class ChatMLFetcherTelemetrySender {
 			source: baseTelemetry?.properties.messageSource ?? 'unknown',
 			initiatorType: userInitiatedRequest ? 'user' : 'agent',
 			requestKind: interactionType,
+			mode: baseTelemetry?.properties.mode,
 			conversationId: baseTelemetry?.properties.conversationId,
 			model: chatEndpointInfo?.model,
 			modelInvoked: chatCompletion.model,
@@ -273,6 +276,7 @@ export class ChatMLFetcherTelemetrySender {
 			apiType,
 			transport,
 			interactionType,
+			mode,
 			conversationId,
 			associatedRequestId,
 			parentRequestId,
@@ -308,6 +312,7 @@ export class ChatMLFetcherTelemetrySender {
 				"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
 				"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source for why the request was made" },
 				"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
+				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Chat mode associated with the request." },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request" },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
@@ -358,6 +363,7 @@ export class ChatMLFetcherTelemetrySender {
 			requestId,
 			model,
 			requestKind: interactionType,
+			mode,
 			conversationId,
 			associatedRequestId,
 			parentRequestId,
@@ -419,6 +425,7 @@ export class ChatMLFetcherTelemetrySender {
 				"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
 				"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source for why the request was made" },
 				"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
+				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Chat mode associated with the request." },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
@@ -471,6 +478,7 @@ export class ChatMLFetcherTelemetrySender {
 			reason: processed.reasonDetail || processed.reason,
 			source: telemetryProperties?.messageSource ?? 'unknown',
 			requestKind: interactionType,
+			mode: telemetryProperties?.mode,
 			requestId: processed.requestId,
 			gitHubRequestId: processed.serverRequestId,
 			model: chatEndpointInfo.model,
