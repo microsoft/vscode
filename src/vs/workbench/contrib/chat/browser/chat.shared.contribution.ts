@@ -1221,6 +1221,14 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
+		[ChatConfiguration.McpAuthenticationHintsEnabled]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: nls.localize('chat.mcp.authenticationHints.enabled', "Controls whether agent host chats show proactive MCP authentication reminders. Authentication prompts for tool calls and sign-in actions in MCP server management remain available."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[mcpAutoStartConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.autostart', "Controls whether MCP servers should be automatically started when the chat messages are submitted."),
