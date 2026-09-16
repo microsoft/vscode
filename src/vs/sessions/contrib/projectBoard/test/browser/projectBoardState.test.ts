@@ -99,6 +99,36 @@ suite('ProjectBoardState', () => {
 		assert.strictEqual(create(storage).state.configuration.get().autoIncludeSessions, true);
 	});
 
+	test('side-panel opening defaults off and roundtrips independently of board contents', () => {
+		const { state, storage } = create();
+		const legacy = JSON.stringify(defaults);
+		storage.store(key, legacy, StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.strictEqual(!!create(storage).state.configuration.get().openChatInSidePanel, false);
+		state.moveCard('child', { rowId: 'general', columnId: 'p1' });
+		state.setDisplayOption('showCredits', true);
+		state.setOpenChatInSidePanel(true);
+		const restored = create(storage).state;
+		assert.deepStrictEqual(restored.configuration.get(), {
+			...defaults,
+			placements: [{ cardId: 'child', rowId: 'general', columnId: 'p1' }],
+			display: { showStateDuration: false, showCredits: true },
+			openChatInSidePanel: true,
+		});
+		restored.setOpenChatInSidePanel(false);
+		assert.strictEqual(state.configuration.get().openChatInSidePanel, false);
+		state.reset();
+		assert.deepStrictEqual(create(storage).state.configuration.get(), defaults);
+	});
+
+	test('failed side-panel preference writes preserve the previous choice and notify', () => {
+		const { state, storage, notifications } = create();
+		state.setOpenChatInSidePanel(true);
+		const previous = state.configuration.get();
+		sinon.stub(storage, 'store').throws(new Error('settings write failed'));
+		assert.throws(() => state.setOpenChatInSidePanel(false), /settings write failed/);
+		assert.deepStrictEqual({ configuration: state.configuration.get(), errors: notifications.length }, { configuration: previous, errors: 1 });
+	});
+
 	test('batch placement explicitly includes every visible chat from a dropped session', () => {
 		const { state } = create();
 		state.moveCards(['first', 'second'], { rowId: 'general', columnId: 'p1' });
@@ -221,6 +251,8 @@ suite('ProjectBoardState', () => {
 		['invalid model details toggle', { ...defaults, display: { showStateDuration: true, showCredits: false, showModelDetails: 1 } }],
 		['unknown display key', { ...defaults, display: { showStateDuration: true, showCredits: true, other: false } }],
 		['invalid auto-include sessions option', { ...defaults, autoIncludeSessions: 'yes' }],
+		['invalid side-panel opening option', { ...defaults, openChatInSidePanel: 'yes' }],
+		['null side-panel opening option', { ...defaults, openChatInSidePanel: null }],
 		['null', null],
 		['array', []],
 		['unknown version', { ...defaults, version: 2 }],

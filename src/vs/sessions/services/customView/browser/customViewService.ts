@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -17,8 +17,8 @@ const ACTIVE_CUSTOM_VIEW_STORAGE_KEY = 'sessions.activeCustomView';
 /**
  * Owns which custom view (if any) should be rendered in place of the sessions
  * grid. Only one view can be shown at a time. The Agents workbench observes
- * {@link activeCustomView} and, while it is set, renders the custom view grid
- * and hides the sessions grid, the side panel and the bottom panel.
+ * {@link activeCustomView} and renders it instead of session content, optionally
+ * alongside the auxiliary bar for descriptors that support it.
  */
 export interface ICustomViewService {
 
@@ -27,12 +27,18 @@ export interface ICustomViewService {
 	/** The view that should currently be rendered, or `undefined` for none. */
 	readonly activeCustomView: IObservable<ICustomViewDescriptor | undefined>;
 
+	/** Transient auxiliary-bar presentation for the active, opted-in custom view. */
+	readonly auxiliaryBarVisible: IObservable<boolean>;
+
 	registerCustomView(descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }): IDisposable;
 
 	/** Shows the registered view with the given id, replacing any shown view. */
 	showCustomView(id: string): void;
 
 	hideCustomView(): void;
+
+	/** Does not change the session layout; resets when the active custom view changes or closes. */
+	setAuxiliaryBarVisible(visible: boolean): void;
 }
 
 export class CustomViewService extends Disposable implements ICustomViewService {
@@ -44,6 +50,9 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 
 	private readonly _activeCustomView = observableValue<ICustomViewDescriptor | undefined>(this, undefined);
 	readonly activeCustomView: IObservable<ICustomViewDescriptor | undefined> = this._activeCustomView;
+
+	private readonly _auxiliaryBarVisible = observableValue(this, false);
+	readonly auxiliaryBarVisible: IObservable<boolean> = this._auxiliaryBarVisible;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -64,14 +73,14 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 				this._desiredCustomViewId = undefined;
 				this._storageService.remove(ACTIVE_CUSTOM_VIEW_STORAGE_KEY, StorageScope.WORKSPACE);
 			} else {
-				this._activeCustomView.set(descriptor, undefined);
+				this._setActiveCustomView(descriptor);
 			}
 		}
 
 		return toDisposable(() => {
 			this._descriptors.delete(descriptor.id);
 			if (this._activeCustomView.get() === descriptor) {
-				this._activeCustomView.set(undefined, undefined);
+				this._setActiveCustomView(undefined);
 			}
 		});
 	}
@@ -85,13 +94,31 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 
 		this._desiredCustomViewId = id;
 		this._storageService.store(ACTIVE_CUSTOM_VIEW_STORAGE_KEY, id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		this._activeCustomView.set(descriptor, undefined);
+		this._setActiveCustomView(descriptor);
 	}
 
 	hideCustomView(): void {
 		this._desiredCustomViewId = undefined;
 		this._storageService.remove(ACTIVE_CUSTOM_VIEW_STORAGE_KEY, StorageScope.WORKSPACE);
-		this._activeCustomView.set(undefined, undefined);
+		this._setActiveCustomView(undefined);
+	}
+
+	setAuxiliaryBarVisible(visible: boolean): void {
+		if (visible && !this._activeCustomView.get()?.supportsAuxiliaryBar) {
+			this._logService.warn('[CustomViewService] setAuxiliaryBarVisible: the active custom view does not support the auxiliary bar');
+			return;
+		}
+		this._auxiliaryBarVisible.set(visible, undefined);
+	}
+
+	private _setActiveCustomView(descriptor: ICustomViewDescriptor | undefined): void {
+		if (this._activeCustomView.get() === descriptor) {
+			return;
+		}
+		transaction(tx => {
+			this._auxiliaryBarVisible.set(false, tx);
+			this._activeCustomView.set(descriptor, tx);
+		});
 	}
 }
 

@@ -15,7 +15,7 @@ Title bar
 Content
 ├── Sidebar
 └── Main region
-    ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
+    ├── Sessions Part | Custom View Grid | Editor | Auxiliary Bar
     └── Panel
 ```
 
@@ -84,7 +84,11 @@ Session providers register internal per-session directories as resource label ho
 
 `ICustomViewService` owns the active contributed full-surface view.
 
-A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
+A custom view is mutually exclusive with the Sessions Part, grid Editor, and Panel. The title bar and Sidebar remain available. The Auxiliary Bar is also covered by default; descriptors may opt into presenting the real Auxiliary Bar to the right of the Custom View Grid with `supportsAuxiliaryBar`.
+
+`ICustomViewService.auxiliaryBarVisible` and `setAuxiliaryBarVisible` own this transient presentation for the active opted-in view. The state resets on hide, replacement, or unregistration and is not restored across reloads. Auxiliary-bar open and toggle requests affect this presentation instead of the underlying session layout. In single-pane mode, the shared editor grid node hosts the Auxiliary Bar while editor content and tabs remain hidden.
+
+Covered parts retain desired visibility and sizes separately from effective grid visibility. Custom-view presentation must not change session preferences, editor working sets, or persisted layout; leaving it restores the desired layout. The custom-view contribution owns any pane-composite selection and restoration associated with its auxiliary content.
 
 Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
 

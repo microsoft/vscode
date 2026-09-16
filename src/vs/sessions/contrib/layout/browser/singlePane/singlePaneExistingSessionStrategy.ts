@@ -92,6 +92,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 			const session = this._sessionsService.activeSession.get();
 			if (this._ctx.isRestoringSessionLayout
+				|| this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)
 				|| this._ctx.multipleSessionsVisibleObs.get()
 				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
 				|| !session
@@ -127,6 +128,8 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	// --- Side-pane visibility ------------------------------------------------------------
 
 	private _registerVisibility(): void {
+		const customViewVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART));
 		let initialized = false;
 		let wasExistingActive = false;
 		let previousQuickChatResource: URI | undefined;
@@ -135,6 +138,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		let togglingSidePane = false;
 
 		this._register(autorun(reader => {
+			if (customViewVisibleObs.read(reader)) {
+				return;
+			}
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
@@ -265,6 +271,8 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	// --- Detail panel ----------------------------------------------------------------------
 
 	private _registerDetailPanel(): void {
+		const customViewVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART));
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => isMainPartEmpty(this._editorGroupsService));
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
@@ -280,6 +288,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		let previousQuickChatResource: URI | undefined;
 
 		const sync = (reader: IReader | undefined) => {
+			if (customViewVisibleObs.read(reader)) {
+				return;
+			}
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
 			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
@@ -353,7 +364,8 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			sync(undefined);
 		}));
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
-			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
+			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize'
+				&& !this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
 				this._detailHiddenTransiently = false;
 				this._detailHiddenByEditor = false;
 			}

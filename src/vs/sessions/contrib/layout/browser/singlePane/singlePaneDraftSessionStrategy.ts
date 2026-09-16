@@ -171,7 +171,12 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 	}
 
 	private _registerQuickChatVisibility(): void {
+		const customViewVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART));
 		this._register(autorun(reader => {
+			if (customViewVisibleObs.read(reader)) {
+				return;
+			}
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession || !(activeSession.isQuickChat?.read(reader) ?? false)) {
 				this._activeQuickChatKey = undefined;
@@ -199,6 +204,7 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 			const sessionKey = activeSession?.resource.toString();
 			if (!activeSession
 				|| !(activeSession.isQuickChat?.get() ?? false)
+				|| this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)
 				|| this._ctx.multipleSessionsVisibleObs.get()) {
 				return;
 			}
@@ -415,6 +421,8 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 	// --- Detail panel ----------------------------------------------------------------------
 
 	private _registerDetailPanel(): void {
+		const customViewVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART));
 		const activeEditorObs = observableFromEvent(
 			this,
 			this._editorService.onDidActiveEditorChange,
@@ -436,6 +444,9 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 
 		this._register(
 			autorun((reader) => {
+				if (customViewVisibleObs.read(reader)) {
+					return;
+				}
 				const activeSession = this._sessionsService.activeSession.read(reader);
 				if (!activeSession) {
 					previousActiveEditor = undefined;
@@ -478,7 +489,8 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 			this._layoutService.onDidChangePartVisibility((event) => {
 				if (
 					event.partId === Parts.AUXILIARYBAR_PART &&
-					event.source !== 'resize'
+					event.source !== 'resize' &&
+					!this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)
 				) {
 					this._detailHiddenTransiently = false;
 					this._detailHiddenByEditor = false;

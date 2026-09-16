@@ -49,6 +49,10 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	override toggleSecondarySideBar(): void {
+		if (this.partVisibility.customViewGrid) {
+			super.toggleSecondarySideBar();
+			return;
+		}
 		const visible = this.toggleSidePane();
 		alert(visible
 			? localize('sidePaneVisible', "Side pane shown")
@@ -84,7 +88,7 @@ export class SinglePaneWorkbench extends Workbench {
 
 	override setDockedAuxiliaryBarWidth(width: number): void {
 		this._dockedAuxiliaryBarWidth = width;
-		if (this.workbenchGrid && this.partVisibility.auxiliaryBar && !this.partVisibility.editor) {
+		if (this.workbenchGrid && this._effectiveVisible(Parts.AUXILIARYBAR_PART) && !this._effectiveVisible(Parts.EDITOR_PART)) {
 			this._syncingEditorVisibility = true;
 			try {
 				this.workbenchGrid.resizeView(this.editorPartView, {
@@ -153,7 +157,7 @@ export class SinglePaneWorkbench extends Workbench {
 		// descriptor, which adds the detail width back only when the detail is
 		// visible. Subtracting it unconditionally would shrink an Editor-only
 		// session's side pane by the detail width on every reload (compounding).
-		const dockedDetailWidth = this.partVisibility.auxiliaryBar ? this._dockedAuxiliaryBarWidth : 0;
+		const dockedDetailWidth = this.partVisibility.auxiliaryBar ? (this._customViewCoveredPartWidths?.auxiliaryBar ?? this._dockedAuxiliaryBarWidth) : 0;
 		return Math.max(0, editorGridWidth - dockedDetailWidth);
 	}
 
@@ -161,7 +165,7 @@ export class SinglePaneWorkbench extends Workbench {
 		// The docked auxiliary bar is not a grid view (it lives inside the editor
 		// node), so its width comes from the docked layout state, not the grid.
 		if (view === this.auxiliaryBarPartView) {
-			return this._dockedAuxiliaryBarWidth;
+			return this._customViewCoveredPartWidths?.auxiliaryBar ?? this._dockedAuxiliaryBarWidth;
 		}
 		return super._persistedGridViewSize(view, dimension, visible);
 	}
@@ -171,6 +175,9 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	protected override _editorNodeSize(effectiveEditorWidth: number, effectiveAuxBarWidth: number): number {
+		if (this.partVisibility.customViewGrid && this._effectiveVisible(Parts.AUXILIARYBAR_PART)) {
+			return this._dockedAuxiliaryBarWidth;
+		}
 		// The editor part spans the editor + auxiliary bar width (the aux bar is
 		// docked inside it, not a grid column) so the editor tab bar spans the full width.
 		if (!this.partVisibility.editor && this.partVisibility.auxiliaryBar) {
@@ -192,7 +199,7 @@ export class SinglePaneWorkbench extends Workbench {
 
 	protected override _topRightSectionChildren(sessionsNode: ISerializedNode, editorNode: ISerializedNode, _auxiliaryBarNode: ISerializedNode, customViewGridNode: ISerializedNode): ISerializedNode[] {
 		// The auxiliary bar is inside the editor part and omitted from the grid.
-		return [sessionsNode, editorNode, customViewGridNode];
+		return [sessionsNode, customViewGridNode, editorNode];
 	}
 
 	protected override _layoutSidePane(): void {
@@ -248,6 +255,12 @@ export class SinglePaneWorkbench extends Workbench {
 		// The auxiliary bar is docked inside the editor node rather than being a
 		// grid view of its own, so the node covers both.
 		this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
+		if (this.partVisibility.customViewGrid && this._effectiveVisible(Parts.AUXILIARYBAR_PART)) {
+			this.workbenchGrid.resizeView(this.editorPartView, {
+				width: this._dockedAuxiliaryBarWidth,
+				height: this.workbenchGrid.getViewSize(this.editorPartView).height,
+			});
+		}
 		this._layoutDockedAuxBar();
 	}
 
@@ -261,7 +274,7 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	private _syncEditorVisibility(nodeWidth: number): void {
-		if (this._syncingEditorVisibility) {
+		if (this._syncingEditorVisibility || this.partVisibility.customViewGrid) {
 			return;
 		}
 		// A session-switch / reload layout restore holds `suppressEditorPartAutoVisibility`
@@ -376,6 +389,10 @@ export class SinglePaneWorkbench extends Workbench {
 	 * snap view, so sash-drag collapse/reveal maps onto hiding/showing the auxiliary bar.
 	 */
 	protected override _onEditorPartGridVisibilityChange(visible: boolean): void {
+		if (this.partVisibility.customViewGrid) {
+			this.setAuxiliaryBarHiddenForResize(!visible);
+			return;
+		}
 		if (this.partVisibility.editor) {
 			return;
 		}

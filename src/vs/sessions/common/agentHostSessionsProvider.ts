@@ -314,14 +314,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Replaces an agent-host customization's explicit enablement decisions. */
 	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void;
 
-	/**
-	 * Set (or clear) the selected custom agent for a session. Optional so
-	 * providers that don't expose custom agents can omit it.
-	 * @param sessionId The ID of the session.
-	 * @param agent The agent to select, or `undefined` to clear the selection
-	 *              and use the provider's default behavior.
-	 */
-	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
+	/** Sets or clears the selected custom agent, targeting the supplied chat or the session's active chat. */
+	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined, chatResource?: URI): void;
 
 	/**
 	 * Returns the agent-host annotations channel for a session so that

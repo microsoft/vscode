@@ -17,7 +17,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
-import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singlePaneDetailPanelCoordinator.js';
+import { DetailPanelTarget, SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singlePaneDetailPanelCoordinator.js';
 import { SinglePaneDraftSessionStrategy } from '../../browser/singlePane/singlePaneDraftSessionStrategy.js';
 import { SinglePaneExistingSessionStrategy } from '../../browser/singlePane/singlePaneExistingSessionStrategy.js';
 import { ISinglePaneLayoutContext } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
@@ -112,6 +112,61 @@ suite('SinglePane layout strategies', () => {
 
 	function createDraftStrategy(ctx: ISinglePaneLayoutContext, visibilityStore = createVisibilityStore()): SinglePaneDraftSessionStrategy {
 		return store.add(harness.instaService.createInstance(SinglePaneDraftSessionStrategy, ctx, createDetailPanel(), visibilityStore));
+	}
+
+	test('queued detail selection never replaces custom-view auxiliary content', async () => {
+		setup();
+		const detailPanel = createDetailPanel();
+		detailPanel.sync(DetailPanelTarget.Files);
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await timeout(0);
+		const whileCovered = [...harness.openedViewContainers];
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, false);
+		detailPanel.sync(DetailPanelTarget.Files);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileCovered, afterClose: harness.openedViewContainers }, {
+			whileCovered: [], afterClose: [SESSIONS_FILES_CONTAINER_ID],
+		});
+	});
+
+	for (const isCreated of [false, true]) {
+		test(`custom-view visibility does not change ${isCreated ? 'Existing' : 'New'} Session details or profiles`, async () => {
+			const ctx = setup();
+			const visibilityStore = createVisibilityStore();
+			const expectedProfile = { editorVisible: true, auxiliaryBarVisible: false };
+			visibilityStore.set(SessionVisibilityProfile.Existing, expectedProfile);
+			const session = makeSession(URI.parse('session:custom-view'), { isCreated });
+			harness.activeGroupEditors.push(store.add(new TestStubEditorInput(URI.file('/repo/file.ts'))));
+			harness.activeEditorInput = harness.activeGroupEditors[0];
+			if (isCreated) {
+				store.add(harness.instaService.createInstance(SinglePaneExistingSessionStrategy, ctx, visibilityStore, createDetailPanel()));
+			} else {
+				createDraftStrategy(ctx, visibilityStore);
+			}
+			activate(session);
+			await timeout(0);
+			harness.openedViewContainers.length = 0;
+			harness.openedViews.length = 0;
+			harness.setPartHiddenCalls.length = 0;
+
+			harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+			harness.partVisibility.set(Parts.EDITOR_PART, false);
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+			harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true });
+			harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+			harness.onDidActiveEditorChange.fire();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				openedViews: harness.openedViews,
+				openedContainers: harness.openedViewContainers,
+				visibilityChanges: harness.setPartHiddenCalls,
+				profile: visibilityStore.get(SessionVisibilityProfile.Existing),
+			}, { openedViews: [], openedContainers: [], visibilityChanges: [], profile: expectedProfile });
+		});
 	}
 
 	test('Existing Session toggles only the detail panel', () => {
