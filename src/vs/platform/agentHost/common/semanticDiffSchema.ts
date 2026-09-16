@@ -29,47 +29,25 @@ const definitions: Record<string, IJSONSchema> = {
 	count,
 	aggregateCount: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
 	reason: text(400),
-	changeType: { enum: ['logic', 'test', 'supporting', 'generated'] },
-	confidence: { enum: ['high', 'medium', 'low', null] },
+	changeType: { enum: ['logic', 'test', 'supporting'] },
+	confidence: { enum: ['high', 'medium', 'low'] },
 	range: object({ start: reference('count'), count: reference('count') }),
 	reviewRange: object({
 		start: reference('count'),
 		count: { type: 'integer', minimum: 1, maximum: 2147483647 }
 	}),
-	reviewFocus: {
-		...object({
-			oldRanges: {
-				...array('reviewRange', 20),
-				description: 'Absolute baseline ranges containing the changed lines that form the review focus. Use an empty array when the focus exists only on the modified side.',
-			},
-			newRanges: {
-				...array('reviewRange', 20),
-				description: 'Absolute modified-file ranges containing the changed lines that form the review focus. Use an empty array when the focus exists only on the baseline side.',
-			},
-			reason: {
-				...text(160),
-				description: 'A concise evidence-based explanation of why these changed lines are the best place to begin reviewing this hunk.',
-			},
-		}),
-		description: 'Optional review focus for a narrower behavioral or contractual core within a Git hunk. Include only changed lines assigned to the hunk\'s primary change type and use absolute file coordinates. Split ranges around secondary-type or unchanged lines. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
-	},
-	changeTypeRanges: {
-		...object({
-			changeType: {
-				...nullable(reference('changeType')),
-				description: 'Type of these changed lines, not inherited from the hunk primary type. Every changed import declaration line, including multi-line continuations, is supporting, never logic, test, or generated.',
-			},
-			oldRanges: {
-				...array('reviewRange', 100),
-				description: 'Absolute baseline ranges for every changed line assigned this type. Use an empty array when this type exists only on the modified side.',
-			},
-			newRanges: {
-				...array('reviewRange', 100),
-				description: 'Absolute modified-file ranges for every changed line assigned this type. Use an empty array when this type exists only on the baseline side.',
-			},
-		}),
-		description: 'Exhaustive changed-line classification for one primary or secondary type. Ranges contain changed lines only, do not overlap another type, and use absolute file coordinates. Across all type entries, original range counts must total the hunk deletions and modified range counts must total the hunk additions. Changed imports belong exclusively to the supporting entry on each side; other entries must exclude them even in a primarily logic or test hunk.',
-	},
+	attentionBlock: object({
+		attention: {
+			enum: ['hot', 'warm', 'cold'],
+			description: 'Review attention within the hunk, independent of its change type and classification confidence. Hot: core behavior, contract, failure path, or distinguishing assertion. Warm: implementation needed to understand that core. Cold: accompanying wiring, formatting, generated output, or documentation. No level means safe or skippable.',
+		},
+		oldRanges: array('reviewRange', 100),
+		newRanges: array('reviewRange', 100),
+		reason: {
+			...text(160),
+			description: 'Concrete source-based reason for this block attention. Do not infer attention from an AST structural/code label alone.',
+		},
+	}),
 	source: {
 		...object({
 			repositoryLabel: text(120),
@@ -109,54 +87,36 @@ const definitions: Record<string, IJSONSchema> = {
 	classification: {
 		...object({
 			groupId: {
-				...nullable(reference('id')),
-				description: 'The single group that owns this hunk. Choose the best-supported primary intent; never duplicate a hunk across groups. Null is a last resort after targeted investigation when no assignment is defensible.',
+				...reference('id'),
+				description: 'The single group that owns this hunk. Choose the best-supported intent and never duplicate a hunk across groups.',
 			},
 			changeType: {
-				...nullable(reference('changeType')),
-				description: 'The best-supported primary change type. Import-only hunks are supporting, including imports in test or generated files. A bare constructor parameter or field that only makes a dependency available to behavior in another changed hunk is also supporting; it is logic when it changes a public or construction contract, default, optionality, ordering, or directly executes behavior. Changed imports mixed with non-import logic or test edits contribute supporting in secondaryChangeTypes while logic or test stays primary; their actual coordinates must also be assigned supporting in changeTypeRanges, never copied into a logic or test range. Unchanged imports in context do not count. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
+				...reference('changeType'),
+				description: 'The single hunk-level change type that controls filtering. Use logic for production behavior or public contracts, test for hand-authored tests and fixtures, and supporting for import-only, comment-only, formatting-only, routine wiring, and generated-output hunks. For mixed hunks, choose by intent precedence: logic, then test, then supporting.',
 			},
-			secondaryChangeTypes: { ...array('changeType', 3), uniqueItems: true },
 			summary: text(160), groupReason: reference('reason'), typeReason: reference('reason'),
 			groupConfidence: reference('confidence'), typeConfidence: reference('confidence'),
 			uncertainty: nullable(reference('reason'))
 		}),
-		allOf: [
-			{
-				if: { properties: { groupId: { type: 'null' } } },
-				then: { properties: { groupConfidence: { type: 'null' } } },
-				else: { properties: { groupConfidence: { enum: ['high', 'medium', 'low'] } } }
+		allOf: [{
+			if: {
+				anyOf: [
+					{ properties: { groupConfidence: { const: 'low' } } },
+					{ properties: { typeConfidence: { const: 'low' } } }
+				]
 			},
-			{
-				if: { properties: { changeType: { type: 'null' } } },
-				then: { properties: { typeConfidence: { type: 'null' }, secondaryChangeTypes: { maxItems: 0 } } },
-				else: { properties: { typeConfidence: { enum: ['high', 'medium', 'low'] } } }
-			},
-			{
-				if: {
-					anyOf: [
-						{ properties: { groupId: { type: 'null' } } },
-						{ properties: { changeType: { type: 'null' } } },
-						{ properties: { groupConfidence: { const: 'low' } } },
-						{ properties: { typeConfidence: { const: 'low' } } }
-					]
-				},
-				then: { properties: { uncertainty: reference('reason') } }
-			}
-		]
+			then: { properties: { uncertainty: reference('reason') } }
+		}]
 	},
 	hunk: object({
 		id: reference('id'), fileId: reference('id'), oldRange: reference('range'), newRange: reference('range'),
 		additions: reference('count'), deletions: reference('count'), classification: reference('classification'),
-		changeTypeRanges: {
-			...array('changeTypeRanges', 4),
-			description: 'One entry for the primary type followed by one entry for each secondary type. Together the ranges must classify every changed line on both sides exactly once: original range counts total deletions and modified range counts total additions. Put changed imports in supporting ranges even when the hunk primary is logic or test; listing supporting only as a secondary type is insufficient. A hunk with an unresolved primary type uses one null entry.',
+		attentionBlocks: {
+			...array('attentionBlock', 100),
+			minItems: 1,
+			description: 'Partition all changed lines into coherent blocks with hot, warm, or cold review attention. Use absolute baseline and modified coordinates, ordered non-overlapping ranges, and changed lines only. Cover every added and deleted line exactly once. Attention changes the hue of the hunk change-type color without changing filtering or badge counts.',
 		},
-		reviewFocus: {
-			...reference('reviewFocus'),
-			description: 'Optional review focus for a narrower behavioral or contractual core within this Git hunk. Each focus range must be contained within a changed-line range for the hunk\'s primary change type. Split ranges around secondary-type or unchanged lines. For large or branch-heavy hunks, identify a narrower core when one exists; do not repeat nearly all primary-type ranges as focus. Omit this field when the whole hunk deserves equal attention or the evidence does not support a narrower focus. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
-		},
-	}, ['changeTypeRanges', 'reviewFocus']),
+	}),
 	limitation: object({
 		code: { enum: ['incompleteInventory', 'truncatedDiff', 'missingContext', 'nonTextChange', 'excludedContent', 'unsupportedChange', 'staleSource'] },
 		message: reference('reason'), fileId: nullable(reference('id')), hunkId: nullable(reference('id'))
@@ -170,7 +130,7 @@ const definitions: Record<string, IJSONSchema> = {
 		files: array('file', 200),
 		hunks: {
 			...array('hunk', 500),
-			description: 'Every observed Git hunk exactly once. Do not copy a file/range under another ID or group. Revisit unresolved classifications before submission; preserve explicit uncertainty only where the available evidence cannot support an assignment.',
+			description: 'Every classified Git hunk exactly once. Do not copy a file or range under another ID or group. If evidence cannot support a concrete group or change type, omit the unresolved hunk, mark the inventory incomplete, and record a limitation.',
 		},
 		limitations: {
 			...array('limitation', 200),
@@ -179,12 +139,10 @@ const definitions: Record<string, IJSONSchema> = {
 	}),
 	summary: object({
 		groups: reference('count'), files: reference('count'), hunks: reference('count'),
-		assignedHunks: reference('count'), unassignedHunks: reference('count'), untypedHunks: reference('count'),
-		uncertainHunks: reference('count'), mixedTypeHunks: reference('count'),
+		uncertainHunks: reference('count'),
 		additions: reference('aggregateCount'), deletions: reference('aggregateCount'),
 		byChangeType: object({
-			logic: reference('count'), test: reference('count'), supporting: reference('count'),
-			generated: reference('count'), unknown: reference('count')
+			logic: reference('count'), test: reference('count'), supporting: reference('count')
 		})
 	})
 };
@@ -197,8 +155,6 @@ export const semanticDiffValidationSubmissionSchema: IJSONSchema = {
 
 /** Provider schema bridges do not all resolve references or recognize const. */
 const providerAnalysisSchema = inlineSchema(definitions.analysis);
-const providerHunkSchema = providerAnalysisSchema.properties!.hunks.items as IJSONSchema;
-providerHunkSchema.required = [...providerHunkSchema.required!, 'changeTypeRanges'];
 
 export const semanticDiffSubmissionSchema: ObjectSchema = {
 	$schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -207,7 +163,11 @@ export const semanticDiffSubmissionSchema: ObjectSchema = {
 
 function inlineSchema(schema: IJSONSchema): IJSONSchema {
 	if (schema.$ref) {
-		return inlineSchema(definitions[schema.$ref.slice('#/$defs/'.length)]);
+		const { $ref, ...overrides } = schema;
+		return inlineSchema({
+			...inlineSchema(definitions[$ref.slice('#/$defs/'.length)]),
+			...overrides,
+		});
 	}
 	const result = { ...schema };
 	if (schema.properties) {

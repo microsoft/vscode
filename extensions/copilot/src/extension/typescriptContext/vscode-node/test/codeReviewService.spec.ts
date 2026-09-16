@@ -7,9 +7,11 @@ import assert from 'node:assert';
 import { beforeEach, suite, test, vi } from 'vitest';
 
 const executeCommand = vi.hoisted(() => vi.fn());
+const openTextDocument = vi.hoisted(() => vi.fn());
 
 vi.mock('vscode', () => ({
 	commands: { executeCommand },
+	workspace: { openTextDocument },
 	extensions: {
 		getExtension: () => ({ activate: async () => { } }),
 	},
@@ -31,6 +33,7 @@ import { TS6CodeReviewProvider } from '../ts6/codeReviewService';
 suite('TypeScript 6 code review service', () => {
 	beforeEach(() => {
 		executeCommand.mockReset();
+		openTextDocument.mockReset();
 	});
 
 	test('sends file content to the tsserver metrics handler', async () => {
@@ -59,8 +62,12 @@ suite('TypeScript 6 code review service', () => {
 					})),
 				},
 				command: executeCommand.mock.calls[1],
+				openedDocuments: openTextDocument.mock.calls,
+				openedBeforePing: openTextDocument.mock.invocationCallOrder[0] < executeCommand.mock.invocationCallOrder[0],
 			}, {
 				actual: expectedResult,
+				openedDocuments: [[{ fsPath: 'C:\\workspace\\metrics.ts' }]],
+				openedBeforePing: true,
 				command: [
 					'typescript.tsserverRequest',
 					'_.copilot.typeScriptMetrics',
@@ -117,8 +124,12 @@ suite('TypeScript 6 code review service', () => {
 			assert.deepStrictEqual({
 				actual,
 				command: executeCommand.mock.calls[1],
+				openedDocuments: openTextDocument.mock.calls,
+				openedBeforePing: openTextDocument.mock.invocationCallOrder[0] < executeCommand.mock.invocationCallOrder[0],
 			}, {
 				actual: expectedResult,
+				openedDocuments: [[{ fsPath: 'C:\\workspace\\calculator.ts' }]],
+				openedBeforePing: true,
 				command: [
 					'typescript.tsserverRequest',
 					'_.copilot.typeScriptChangeClassification',
@@ -139,6 +150,25 @@ suite('TypeScript 6 code review service', () => {
 					{ executionTarget: 0 },
 				],
 			});
+		} finally {
+			provider.dispose();
+		}
+	});
+
+	test.each(['metrics', 'classification'] as const)('does not dispatch %s when the document cannot be loaded', async operation => {
+		executeCommand.mockResolvedValue({ type: 'response', body: { kind: 'ok' } });
+		const error = new Error('Document could not be loaded');
+		openTextDocument.mockRejectedValue(error);
+		const provider = new TS6CodeReviewProvider();
+		try {
+			await assert.rejects(operation === 'metrics'
+				? provider.computeMetrics('/workspace/missing.ts')
+				: provider.classifyChanges({
+					filePath: '/workspace/missing.ts',
+					modified: { content: 'const value = 2;', added: [], changed: [{ start: 0, end: 1 }] },
+					original: { content: 'const value = 1;', deleted: [{ start: 0, end: 1 }] },
+				}), error);
+			assert.deepStrictEqual(executeCommand.mock.calls, []);
 		} finally {
 			provider.dispose();
 		}

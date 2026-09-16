@@ -65,9 +65,8 @@ function partialResult(): SemanticDiffValidationResult {
 				...hunk,
 				classification: {
 					...hunk.classification,
-					groupId: null, groupConfidence: null,
-					changeType: null, typeConfidence: null,
-					secondaryChangeTypes: [],
+					groupConfidence: 'low',
+					typeConfidence: 'low',
 					uncertainty: 'The surrounding context was omitted.',
 				},
 			}),

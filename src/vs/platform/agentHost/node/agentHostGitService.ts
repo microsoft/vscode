@@ -973,7 +973,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return { patch: '', tooLarge: false };
 		}
 		try {
-			const canonicalOptions = options.canonical ? ['--no-textconv', '--no-color', '--unified=3', '--inter-hunk-context=0', '--src-prefix=a/', '--dst-prefix=b/'] : [];
+			const canonicalOptions = options.canonical ? ['--no-textconv', '--no-color', '--unified=0', '--inter-hunk-context=0', '--src-prefix=a/', '--dst-prefix=b/'] : [];
 			const patch = await this._runGit(repositoryRoot, [...(options.allowLazyFetch === false ? ['--no-lazy-fetch'] : []), 'diff', '--patch', '--no-ext-diff', '--find-renames', '--diff-filter=ADMR', ...canonicalOptions, options.fromRef, options.toRef, '--', ...paths], { maxBuffer: options.maxBuffer, throwOnError: true });
 			return patch === undefined ? undefined : { patch, tooLarge: false };
 		} catch (error) {

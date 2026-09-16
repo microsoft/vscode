@@ -5,12 +5,11 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
-import { ISemanticDiffChangeTypeRanges, ISemanticDiffFile, ISemanticDiffHunk, ISemanticDiffRange, SemanticDiffChangeType } from './semanticDiff.js';
+import { ISemanticDiffAttentionBlock, ISemanticDiffFile, ISemanticDiffHunk, ISemanticDiffRange, SemanticDiffChangeType } from './semanticDiff.js';
 
 /** A canonical classified hunk with its exact, context-inclusive source text. */
-export interface ISemanticDiffVerifiedHunk extends Readonly<Omit<ISemanticDiffHunk, 'changeTypeRanges'>> {
-	readonly hasSubmittedChangeTypeRanges: boolean;
-	readonly changeTypeRanges: readonly Readonly<ISemanticDiffChangeTypeRanges>[];
+export interface ISemanticDiffVerifiedHunk extends Readonly<Omit<ISemanticDiffHunk, 'attentionBlocks'>> {
+	readonly attentionBlocks: readonly Readonly<ISemanticDiffAttentionBlock>[];
 	readonly original: string;
 	readonly modified: string;
 	readonly originalChangedRanges: readonly Readonly<ISemanticDiffRange>[];
@@ -362,54 +361,28 @@ export function resolveSemanticDiffFile(file: ISemanticDiffFile, hunks: readonly
 		if (index <= previous || !actual || actual.additions !== hunk.additions || actual.deletions !== hunk.deletions) {
 			invalidHunk();
 		}
-		if (hunk.reviewFocus && (
-			!hunk.reviewFocus.oldRanges.every(range => actual.originalChangedRanges.some(changed => containsRange(changed, range))) ||
-			!hunk.reviewFocus.newRanges.every(range => actual.modifiedChangedRanges.some(changed => containsRange(changed, range)))
-		)) {
-			invalidHunk();
-		}
-		if (hunk.changeTypeRanges && (
-			!rangesExactlyCover(actual.originalChangedRanges, hunk.changeTypeRanges.flatMap(ranges => ranges.oldRanges)) ||
-			!rangesExactlyCover(actual.modifiedChangedRanges, hunk.changeTypeRanges.flatMap(ranges => ranges.newRanges))
-		)) {
+		if (!rangesExactlyCover(actual.originalChangedRanges, hunk.attentionBlocks.flatMap(block => block.oldRanges)) ||
+			!rangesExactlyCover(actual.modifiedChangedRanges, hunk.attentionBlocks.flatMap(block => block.newRanges))) {
 			invalidHunk();
 		}
 		previous = index;
-		const classification = { ...hunk.classification, secondaryChangeTypes: [...hunk.classification.secondaryChangeTypes] };
-		Object.freeze(classification.secondaryChangeTypes);
-		const changeTypeRanges = (hunk.changeTypeRanges ?? [{
-			changeType: hunk.classification.changeType,
-			oldRanges: actual.originalChangedRanges,
-			newRanges: actual.modifiedChangedRanges,
-		}]).map(ranges => {
-			const item = {
-				...ranges,
-				oldRanges: ranges.oldRanges.map(range => Object.freeze({ ...range })),
-				newRanges: ranges.newRanges.map(range => Object.freeze({ ...range })),
+		const attentionBlocks = hunk.attentionBlocks.map(block => {
+			const result = {
+				...block,
+				oldRanges: block.oldRanges.map(range => Object.freeze({ ...range })),
+				newRanges: block.newRanges.map(range => Object.freeze({ ...range })),
 			};
-			Object.freeze(item.oldRanges);
-			Object.freeze(item.newRanges);
-			return Object.freeze(item);
+			Object.freeze(result.oldRanges);
+			Object.freeze(result.newRanges);
+			return Object.freeze(result);
 		});
-		Object.freeze(changeTypeRanges);
-		const reviewFocus = hunk.reviewFocus && {
-			...hunk.reviewFocus,
-			oldRanges: hunk.reviewFocus.oldRanges.map(range => Object.freeze({ ...range })),
-			newRanges: hunk.reviewFocus.newRanges.map(range => Object.freeze({ ...range })),
-		};
-		if (reviewFocus) {
-			Object.freeze(reviewFocus.oldRanges);
-			Object.freeze(reviewFocus.newRanges);
-			Object.freeze(reviewFocus);
-		}
+		Object.freeze(attentionBlocks);
 		return Object.freeze({
 			...hunk,
 			oldRange: Object.freeze({ ...hunk.oldRange }),
 			newRange: Object.freeze({ ...hunk.newRange }),
-			classification: Object.freeze(classification),
-			hasSubmittedChangeTypeRanges: hunk.changeTypeRanges !== undefined,
-			changeTypeRanges,
-			reviewFocus,
+			classification: Object.freeze({ ...hunk.classification }),
+			attentionBlocks,
 			original: actual.original.join(''),
 			modified: actual.modified.join(''),
 			originalChangedRanges: Object.freeze(actual.originalChangedRanges.map(range => Object.freeze({ ...range }))),
@@ -417,10 +390,6 @@ export function resolveSemanticDiffFile(file: ISemanticDiffFile, hunks: readonly
 		});
 	});
 	return Object.freeze({ file: Object.freeze({ ...file }), original, modified, hunks: Object.freeze(verified) });
-}
-
-function containsRange(outer: ISemanticDiffRange, inner: ISemanticDiffRange): boolean {
-	return inner.start >= outer.start && inner.start + inner.count <= outer.start + outer.count;
 }
 
 function rangesExactlyCover(expected: readonly ISemanticDiffRange[], ranges: readonly ISemanticDiffRange[]): boolean {
@@ -454,23 +423,20 @@ function groupHunks(files: readonly ISemanticDiffResolvedFile[], groupId: string
 	return hunks;
 }
 
-/** Enable the highest-priority primary type present, plus unclassified hunks when present. */
-export function getDefaultSemanticDiffEnabledTypes(files: readonly ISemanticDiffResolvedFile[], groupId: string): ReadonlySet<SemanticDiffChangeType | null> {
+/** Enable the highest-priority hunk type present. */
+export function getDefaultSemanticDiffEnabledTypes(files: readonly ISemanticDiffResolvedFile[], groupId: string): ReadonlySet<SemanticDiffChangeType> {
 	const present = new Set(groupHunks(files, groupId).map(hunk => hunk.classification.changeType));
-	const types: readonly SemanticDiffChangeType[] = ['logic', 'test', 'supporting', 'generated'];
+	const types: readonly SemanticDiffChangeType[] = ['logic', 'test', 'supporting'];
 	const highest = types.find(type => present.has(type));
-	const enabled = new Set<SemanticDiffChangeType | null>();
+	const enabled = new Set<SemanticDiffChangeType>();
 	if (highest) {
 		enabled.add(highest);
-	}
-	if (present.has(null)) {
-		enabled.add(null);
 	}
 	return enabled;
 }
 
-/** Rebuild read-only presentations from the baseline, applying only the group's enabled primary hunks. */
-export function projectSemanticDiffFiles(files: readonly ISemanticDiffResolvedFile[], groupId: string, enabledTypes: ReadonlySet<SemanticDiffChangeType | null>): readonly ISemanticDiffProjectedFile[] {
+/** Rebuild read-only presentations from the baseline, applying only the group's enabled hunks. */
+export function projectSemanticDiffFiles(files: readonly ISemanticDiffResolvedFile[], groupId: string, enabledTypes: ReadonlySet<SemanticDiffChangeType>): readonly ISemanticDiffProjectedFile[] {
 	groupHunks(files, groupId);
 	const projected: ISemanticDiffProjectedFile[] = [];
 	for (const resolved of files) {

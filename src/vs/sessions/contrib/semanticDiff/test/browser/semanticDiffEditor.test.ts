@@ -25,7 +25,7 @@ import { ISemanticDiffSourceResolverService } from '../../../../../workbench/con
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SemanticDiffEditorInput } from '../../browser/semanticDiffEditorInput.js';
 import { SemanticDiffEditorWidget } from '../../browser/semanticDiffEditorWidget.js';
-import { createSemanticDiffBoundaryData, createSemanticDiffContextData, createSemanticDiffEditorData, createSemanticDiffMixedImportData } from './semanticDiffTestUtils.js';
+import { createSemanticDiffAttentionData, createSemanticDiffBoundaryData, createSemanticDiffContextData, createSemanticDiffEditorData, createSemanticDiffMixedImportData } from './semanticDiffTestUtils.js';
 
 suite('SemanticDiffEditorWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -114,17 +114,18 @@ suite('SemanticDiffEditorWidget', () => {
 		assert.deepStrictEqual([...input.selectedTypes.get()], ['logic']);
 	});
 
-	test('type badges and gutter bars use independent palette tokens without recoloring line totals', async () => {
+	test('type badges use warm palette backgrounds with the badge foreground without recoloring line totals', async () => {
 		const palette = {
 			logic: 'rgb(100, 50, 150)', test: 'rgb(0, 110, 120)', supporting: 'rgb(130, 90, 50)',
-			generated: 'rgb(50, 100, 160)', unclassified: 'rgb(100, 100, 100)',
 		};
-		for (const types of [['supporting', 'logic', 'test'], ['generated', 'logic', null]] as const) {
+		for (const types of [['supporting', 'logic', 'test'], ['test', 'supporting', 'logic']] as const) {
 			const { widget, input } = await createWidget(createSemanticDiffEditorData(types));
 			widget.domNode.style.setProperty('--vscode-spacing-size40', '4px');
 			for (const [type, color] of Object.entries(palette)) {
 				widget.domNode.style.setProperty(`--vscode-semanticDiff-${type}Foreground`, color);
 			}
+			widget.domNode.style.setProperty('--vscode-editor-background', 'rgb(0, 0, 0)');
+			widget.domNode.style.setProperty('--vscode-badge-foreground', 'rgb(255, 255, 255)');
 			widget.domNode.style.setProperty('--vscode-chat-linesAddedForeground', 'rgb(0, 128, 0)');
 			widget.domNode.style.setProperty('--vscode-chat-linesRemovedForeground', 'rgb(192, 0, 0)');
 			input.showAll();
@@ -132,15 +133,19 @@ suite('SemanticDiffEditorWidget', () => {
 			const targetWindow = getWindow(widget.domNode);
 			assert.deepStrictEqual({
 				types: types.map(type => {
-					const key = type ?? 'unclassified';
-					const badge = widget.domNode.querySelector(`.semantic-diff-type-${key} .monaco-count-badge`)!;
-					const bar = widget.domNode.querySelector(`.semantic-diff-hunk-decoration.semantic-diff-type-${key}`)!;
-					return [targetWindow.getComputedStyle(badge).color, targetWindow.getComputedStyle(bar).borderLeftColor];
+					const badge = widget.domNode.querySelector(`.semantic-diff-type-${type} .monaco-count-badge`)!;
+					const bar = widget.domNode.querySelector(`.semantic-diff-hunk-decoration.semantic-diff-type-${type}`)!;
+					const badgeStyle = targetWindow.getComputedStyle(badge);
+					return [badgeStyle.backgroundColor, badgeStyle.color, targetWindow.getComputedStyle(bar).getPropertyValue('--semantic-diff-type-color')];
 				}),
 				additions: targetWindow.getComputedStyle(widget.domNode.querySelector('.semantic-diff-lines-added')!).color,
 				deletions: targetWindow.getComputedStyle(widget.domNode.querySelector('.semantic-diff-lines-removed')!).color,
 			}, {
-				types: types.map(type => [palette[type ?? 'unclassified'], palette[type ?? 'unclassified']]),
+				types: types.map(type => [{
+					logic: 'color(srgb 0.215686 0.107843 0.323529)',
+					test: 'color(srgb 0 0.237255 0.258824)',
+					supporting: 'color(srgb 0.280392 0.194118 0.107843)',
+				}[type], 'rgb(255, 255, 255)', palette[type]]),
 				additions: 'rgb(0, 128, 0)',
 				deletions: 'rgb(192, 0, 0)',
 			});
@@ -164,90 +169,236 @@ suite('SemanticDiffEditorWidget', () => {
 				blocks.push([change.top, change.bottom]);
 			}
 		}
+		const markerBlocks: number[][] = [];
+		for (const marker of markers) {
+			const previous = markerBlocks.at(-1);
+			if (previous && previous[1] === marker.top) {
+				previous[1] = marker.bottom;
+			} else {
+				markerBlocks.push([marker.top, marker.bottom]);
+			}
+		}
 		assert.deepStrictEqual({
 			count: markers.length,
 			lefts: [...new Set(markers.map(marker => marker.left))],
-			blocks: markers.map(marker => [marker.top, marker.bottom]),
-		}, { count: 2, lefts: [widget.domNode.getBoundingClientRect().left], blocks });
+			blocks: markerBlocks,
+		}, { count: 4, lefts: [widget.domNode.getBoundingClientRect().left], blocks });
 		input.setSelectedTypes([]);
 		assert.strictEqual(widget.domNode.querySelectorAll('.semantic-diff-hunk-decoration').length, 0);
 	});
 
-	test('review focus uses the full type color over a quieter surrounding marker', async () => {
+	test('hot attention uses the full hunk color while warm attention is distinctly quieter', async () => {
 		const { widget } = await createWidget(createSemanticDiffContextData('', true));
 		widget.domNode.style.setProperty('--vscode-semanticDiff-logicForeground', 'rgb(120, 60, 180)');
 		widget.domNode.style.setProperty('--vscode-editor-background', 'rgb(0, 0, 0)');
 		widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
 		const targetWindow = getWindow(widget.domNode);
-		const surrounding = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-has-review-focus')];
-		const focus = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-review-focus')];
+		const warm = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-attention-warm')];
+		const hot = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-attention-hot')];
 		assert.deepStrictEqual({
-			surroundingCount: surrounding.length,
-			focusCount: focus.length,
-			surroundingColors: [...new Set(surrounding.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
-			focusColors: [...new Set(focus.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
-			focusInsideSurrounding: focus.every(element => {
-				const bounds = element.getBoundingClientRect();
-				return surrounding.some(candidate => {
-					const candidateBounds = candidate.getBoundingClientRect();
-					return bounds.top >= candidateBounds.top && bounds.bottom <= candidateBounds.bottom;
-				});
-			}),
-			accessible: widget.getAccessibleContent().includes('Review focus: The second replacement changes the guarded billing outcome.\nOriginal: line 4. Modified: line 5. This suggests where to begin reading, not which lines can be skipped.'),
+			warmCount: warm.length,
+			hotCount: hot.length,
+			warmColors: [...new Set(warm.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			hotColors: [...new Set(hot.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			accessible: widget.getAccessibleContent().includes('Hot attention: The second replacement changes the guarded billing outcome.'),
 		}, {
-			surroundingCount: 2,
-			focusCount: 1,
-			surroundingColors: ['color(srgb 0.211765 0.105882 0.317647)'],
-			focusColors: ['rgb(120, 60, 180)'],
-			focusInsideSurrounding: true,
+			warmCount: 2,
+			hotCount: 2,
+			warmColors: ['color(srgb 0.258824 0.129412 0.388235)'],
+			hotColors: ['rgb(120, 60, 180)'],
 			accessible: true,
 		});
 	});
 
-	test('mixed import and logic hunk uses shades of its primary type while preserving line types', async () => {
+	test('mixed import and logic hunk keeps one Logic type with cold and hot attention', async () => {
 		const { widget, input } = await createWidget(createSemanticDiffMixedImportData());
 		widget.domNode.style.setProperty('--vscode-semanticDiff-logicForeground', 'rgb(120, 60, 180)');
 		widget.domNode.style.setProperty('--vscode-semanticDiff-supportingForeground', 'rgb(130, 90, 50)');
 		widget.domNode.style.setProperty('--vscode-editor-background', 'rgb(0, 0, 0)');
 		widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
 		const targetWindow = getWindow(widget.domNode);
-		const quiet = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-hunk-decoration.semantic-diff-type-logic.semantic-diff-has-review-focus')];
-		const focus = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-hunk-decoration.semantic-diff-type-logic.semantic-diff-review-focus')];
+		const cold = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-hunk-decoration.semantic-diff-attention-cold')];
+		const hot = [...widget.domNode.querySelectorAll<HTMLElement>('.semantic-diff-hunk-decoration.semantic-diff-type-logic.semantic-diff-attention-hot')];
 		const model = widget.diffWidget.tryGetCodeEditor(input.getProjectionUri('file', 'modified'))!.editor.getModel()!;
 		const annotations = model.getAllDecorations()
-			.filter(decoration => decoration.options.description === 'semantic-diff-hunk-type')
+			.filter(decoration => decoration.options.description === 'semantic-diff-block-attention')
 			.map(decoration => ({
 				range: [decoration.range.startLineNumber, decoration.range.endLineNumber],
 				type: annotationType(decoration),
 			}));
 		assert.deepStrictEqual({
-			quietCount: quiet.length,
-			focusCount: focus.length,
+			coldCount: cold.length,
+			hotCount: hot.length,
 			supportingColorCount: widget.domNode.querySelectorAll('.semantic-diff-hunk-decoration.semantic-diff-type-supporting').length,
-			quietColors: [...new Set(quiet.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
-			focusColors: [...new Set(focus.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			coldColors: [...new Set(cold.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
+			hotColors: [...new Set(hot.map(element => targetWindow.getComputedStyle(element).borderLeftColor))],
 			annotations,
-			accessible: widget.getAccessibleContent().includes('Supporting changed lines. Original: none. Modified: lines 1-2, line 5, line 7.'),
+			accessible: widget.getAccessibleContent().includes('Cold attention: Imports, documentation, and spacing accompany the matcher.'),
 		}, {
-			quietCount: 3,
-			focusCount: 1,
+			coldCount: 2,
+			hotCount: 1,
 			supportingColorCount: 0,
-			quietColors: ['color(srgb 0.211765 0.105882 0.317647)'],
-			focusColors: ['rgb(120, 60, 180)'],
+			coldColors: ['color(srgb 0.117647 0.0588235 0.176471)'],
+			hotColors: ['rgb(120, 60, 180)'],
 			annotations: [
-				{ range: [1, 2], type: 'Supporting' },
-				{ range: [5, 5], type: 'Supporting' },
+				{ range: [1, 2], type: 'Logic' },
+				{ range: [4, 5], type: 'Logic' },
 				{ range: [6, 6], type: 'Logic' },
 			],
 			accessible: true,
 		});
 	});
 
+	test('attention preserves the hunk type while controlling emphasis', async () => {
+		const { widget, input } = await createWidget(createSemanticDiffAttentionData());
+		widget.domNode.style.setProperty('--vscode-semanticDiff-logicForeground', 'rgb(120, 60, 180)');
+		widget.domNode.style.setProperty('--vscode-semanticDiff-supportingForeground', 'rgb(130, 90, 50)');
+		widget.domNode.style.setProperty('--vscode-editor-background', 'rgb(0, 0, 0)');
+		widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
+		const targetWindow = getWindow(widget.domNode);
+		const editor = widget.diffWidget.tryGetCodeEditor(input.getProjectionUri('file', 'modified'))!.editor;
+		const attention = ['hot', 'warm', 'cold'].map(level => {
+			const markers = [...widget.domNode.querySelectorAll<HTMLElement>(`.semantic-diff-attention-${level}`)];
+			return {
+				level,
+				count: markers.length,
+				primary: markers.every(marker => marker.classList.contains('semantic-diff-type-logic')),
+				colors: [...new Set(markers.map(marker => targetWindow.getComputedStyle(marker).borderLeftColor))],
+			};
+		});
+		const annotations = editor.getModel()!.getAllDecorations()
+			.filter(decoration => decoration.options.description === 'semantic-diff-block-attention')
+			.map(decoration => ({
+				range: [decoration.range.startLineNumber, decoration.range.endLineNumber],
+				type: annotationType(decoration),
+				text: isMarkdownString(decoration.options.hoverMessage) ? decoration.options.hoverMessage.value.replaceAll('&nbsp;', ' ') : '',
+			}));
+		assert.deepStrictEqual({
+			attention,
+			annotationRanges: annotations.map(item => item.range),
+			annotationTypes: annotations.map(item => item.type),
+			annotationAttention: ['Cold attention', 'Warm attention', 'Hot attention'].map(label => annotations.some(item => item.text.includes(label))),
+			accessible: ['Cold attention: Import wiring', 'Warm attention: Resolve the input', 'Hot attention: The guard'].map(text => widget.getAccessibleContent().includes(text)),
+			count: widget.domNode.querySelector('.semantic-diff-filter-count')?.textContent,
+			types: input.availableTypes,
+			lines: input.projections.get().map(file => [file.additions, file.deletions]),
+		}, {
+			attention: [
+				{ level: 'hot', count: 1, primary: true, colors: ['rgb(120, 60, 180)'] },
+				{ level: 'warm', count: 1, primary: true, colors: ['color(srgb 0.258824 0.129412 0.388235)'] },
+				{ level: 'cold', count: 1, primary: true, colors: ['color(srgb 0.117647 0.0588235 0.176471)'] },
+			],
+			annotationRanges: [[1, 2], [4, 4], [5, 7]],
+			annotationTypes: ['Logic', 'Logic', 'Logic'],
+			annotationAttention: [true, true, true], accessible: [true, true, true],
+			count: '1', types: ['logic'], lines: [[6, 0]],
+		});
+		input.toggleType('logic');
+		assert.deepStrictEqual({ files: input.projections.get().length, markers: widget.domNode.querySelectorAll('.semantic-diff-hunk-decoration').length }, { files: 0, markers: 0 });
+		input.toggleType('logic');
+		assert.strictEqual(input.projections.get()[0].additions, 6);
+	});
+
+	for (const theme of ['hc-black', 'hc-light']) {
+		test(`attention uses solid, dashed, and dotted hunk colors in ${theme}`, async () => {
+			const { widget } = await createWidget(createSemanticDiffAttentionData());
+			widget.domNode.parentElement!.classList.add(theme);
+			widget.domNode.style.setProperty('--vscode-semanticDiff-logicForeground', 'rgb(120, 60, 180)');
+			widget.domNode.style.setProperty('--vscode-semanticDiff-supportingForeground', 'rgb(130, 90, 50)');
+			widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
+			const targetWindow = getWindow(widget.domNode);
+			assert.deepStrictEqual(['hot', 'warm', 'cold'].map(level => {
+				const marker = widget.domNode.querySelector<HTMLElement>(`.semantic-diff-attention-${level}`)!;
+				const style = targetWindow.getComputedStyle(marker);
+				return [style.borderLeftStyle, style.borderLeftColor];
+			}), [['solid', 'rgb(120, 60, 180)'], ['dashed', 'rgb(120, 60, 180)'], ['dotted', 'rgb(120, 60, 180)']]);
+		});
+	}
+
+	test('one attention block preserves the Logic hunk type across disjoint ranges', async () => {
+		const data = createSemanticDiffMixedImportData();
+		const file = data.request.report.analysis.files[0];
+		const hunk = {
+			...data.request.report.analysis.hunks[0],
+			oldRange: { start: 3, count: 10 }, newRange: { start: 3, count: 10 },
+			additions: 4, deletions: 4,
+			attentionBlocks: [{
+				attention: 'hot' as const,
+				oldRanges: [{ start: 6, count: 3 }, { start: 11, count: 1 }],
+				newRanges: [{ start: 6, count: 3 }, { start: 11, count: 1 }],
+				reason: 'Review the imported helper and changed return together.',
+			}],
+		};
+		const result = buildSemanticDiffReport({
+			schemaVersion: 1,
+			analysis: { ...data.request.report.analysis, hunks: [hunk] },
+		});
+		assert.ok(result.ok);
+		const header = '// Header\n\n// Module\n\n// Imports\n';
+		const original = `${header}import type {\n\tOldHelper,\n} from './old.js';\n\nexport function run() {\n\treturn false;\n}\n`;
+		const modified = `${header}import {\n\tnewHelper,\n} from './new.js';\n\nexport function run() {\n\treturn true;\n}\n`;
+		const patch = `diff --git a/${file.path} b/${file.path}\nindex 1111111..2222222 100644\n--- a/${file.path}\n+++ b/${file.path}\n@@ -3,10 +3,10 @@\n // Module\n \n // Imports\n-import type {\n-\tOldHelper,\n-} from './old.js';\n+import {\n+\tnewHelper,\n+} from './new.js';\n \n export function run() {\n-\treturn false;\n+\treturn true;\n }\n`;
+		const { widget, input } = await createWidget({
+			request: { ...data.request, report: result.report },
+			source: { repository: data.source.repository, files: [resolveSemanticDiffFile(file, [hunk], original, modified, patch)] },
+		});
+		widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
+		assert.deepStrictEqual({
+			annotations: (['original', 'modified'] as const).map(side => widget.diffWidget.tryGetCodeEditor(input.getProjectionUri(file.id, side))!.editor.getModel()!.getAllDecorations()
+				.filter(decoration => decoration.options.description === 'semantic-diff-block-attention')
+				.map(decoration => ({ range: [decoration.range.startLineNumber, decoration.range.endLineNumber], type: annotationType(decoration) }))),
+			logicMarkers: widget.domNode.querySelectorAll('.semantic-diff-attention-hot.semantic-diff-type-logic').length,
+			counts: input.projections.get().map(file => [file.hunks.length, file.additions, file.deletions]),
+		}, {
+			annotations: [
+				[{ range: [6, 8], type: 'Logic' }, { range: [11, 11], type: 'Logic' }],
+				[{ range: [6, 8], type: 'Logic' }, { range: [11, 11], type: 'Logic' }],
+			],
+			logicMarkers: 4, counts: [[1, 4, 4]],
+		});
+	});
+
+	test('adjacent deleted blocks retain separate attention markers and original-side annotations', async () => {
+		const { widget, input } = await createWidget(createSemanticDiffAttentionData('delete'));
+		const editor = widget.diffWidget.getActiveControl()!;
+		editor.getModifiedEditor().render(true);
+		const originalModel = widget.diffWidget.tryGetCodeEditor(input.getProjectionUri('file', 'original'))!.editor.getModel()!;
+		const annotations = originalModel.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention');
+		const bounds = ['cold', 'warm', 'hot'].map(level => {
+			const marker = widget.domNode.querySelector<HTMLElement>(`.semantic-diff-attention-${level}`)!;
+			return marker.getBoundingClientRect();
+		});
+		assert.deepStrictEqual({
+			ranges: annotations.map(decoration => [decoration.range.startLineNumber, decoration.range.endLineNumber]),
+			types: annotations.map(annotationType),
+			markers: bounds.map(bound => bound.height > 0),
+			separated: bounds[0].bottom < bounds[1].top,
+			adjacent: bounds[1].bottom === bounds[2].top,
+			heights: bounds.map(bound => Math.round(bound.height / bounds[1].height)),
+			counts: input.projections.get().map(file => [file.additions, file.deletions]),
+		}, { ranges: [[1, 2], [4, 4], [5, 7]], types: ['Logic', 'Logic', 'Logic'], markers: [true, true, true], separated: true, adjacent: true, heights: [2, 1, 3], counts: [[0, 6]] });
+	});
+
+	test('deleted block attention follows wrapped source lines without bleeding into the next block', async () => {
+		const { widget } = await createWidget(createSemanticDiffAttentionData('delete', ' + \'long path segment\''.repeat(10)));
+		widget.diffWidget.setDiffWordWrap('on');
+		widget.layout(new Dimension(380, 650));
+		await timeout(10);
+		widget.diffWidget.getActiveControl()!.getModifiedEditor().render(true);
+		const medium = widget.domNode.querySelector<HTMLElement>('.semantic-diff-attention-warm')!.getBoundingClientRect();
+		const high = widget.domNode.querySelector<HTMLElement>('.semantic-diff-attention-hot')!.getBoundingClientRect();
+		assert.deepStrictEqual({
+			wrapped: medium.height > high.height,
+			adjacent: medium.bottom === high.top,
+			visible: high.height > 0,
+		}, { wrapped: true, adjacent: true, visible: true });
+	});
+
 	test('hunk markers use projected ranges and primary types, and are replaced when filters change', async () => {
 		const { widget, input } = await createWidget();
 		const markers = () => {
 			const model = widget.diffWidget.tryGetCodeEditor(input.getProjectionUri('file', 'modified'))!.editor.getModel()!;
-			return model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type').map(decoration => ({
+			return model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention').map(decoration => ({
 				range: [decoration.range.startLineNumber, decoration.range.endLineNumber],
 				type: annotationType(decoration),
 			}));
@@ -273,8 +424,8 @@ suite('SemanticDiffEditorWidget', () => {
 		const file = data.request.report.analysis.files[0];
 		const template = data.request.report.analysis.hunks[0];
 		const hunks = [
-			{ ...template, id: 'insert', oldRange: { start: 1, count: 0 }, newRange: { start: 2, count: 1 }, additions: 1, deletions: 0, classification: { ...template.classification, changeType: 'supporting' as const } },
-			{ ...template, id: 'remove', oldRange: { start: 3, count: 1 }, newRange: { start: 3, count: 0 }, additions: 0, deletions: 1, classification: { ...template.classification, changeType: 'logic' as const } },
+			{ ...template, id: 'insert', oldRange: { start: 1, count: 0 }, newRange: { start: 2, count: 1 }, additions: 1, deletions: 0, classification: { ...template.classification, changeType: 'supporting' as const }, attentionBlocks: [{ attention: 'cold' as const, oldRanges: [], newRanges: [{ start: 2, count: 1 }], reason: 'Inserted support line.' }] },
+			{ ...template, id: 'remove', oldRange: { start: 3, count: 1 }, newRange: { start: 3, count: 0 }, additions: 0, deletions: 1, classification: { ...template.classification, changeType: 'logic' as const }, attentionBlocks: [{ attention: 'hot' as const, oldRanges: [{ start: 3, count: 1 }], newRanges: [], reason: 'Removed behavior.' }] },
 		];
 		const validated = buildSemanticDiffReport({
 			schemaVersion: 1,
@@ -287,12 +438,12 @@ suite('SemanticDiffEditorWidget', () => {
 			source: { repository: data.source.repository, files: [resolveSemanticDiffFile(file, hunks, 'first\nsecond\ndelete\nlast\n', 'first\ninserted\nsecond\nlast\n', patch)] },
 		});
 		const model = widget.diffWidget.tryGetCodeEditor(input.getProjectionUri(file.id, 'modified'))!.editor.getModel()!;
-		const decorations = model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type');
+		const decorations = model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention');
 		const original = widget.diffWidget.getActiveControl()!.getOriginalEditor().getModel()!;
 		assert.deepStrictEqual({
 			text: model.getValue(),
 			modifiedMarkers: decorations.length,
-			deletedMarkers: original.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type').map(decoration => ({ line: decoration.range.startLineNumber, type: annotationType(decoration) })),
+			deletedMarkers: original.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention').map(decoration => ({ line: decoration.range.startLineNumber, type: annotationType(decoration) })),
 		}, { text: 'first\nsecond\nlast\n', modifiedMarkers: 0, deletedMarkers: [{ line: 3, type: 'Logic' }] });
 	});
 
@@ -303,7 +454,7 @@ suite('SemanticDiffEditorWidget', () => {
 		const diff = widget.diffWidget.getActiveControl()!;
 		const original = diff.getOriginalEditor().getModel()!;
 		const modified = diff.getModifiedEditor().getModel()!;
-		const ranges = (model: typeof original) => model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type')
+		const ranges = (model: typeof original) => model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention')
 			.map(decoration => [decoration.range.startLineNumber, decoration.range.endLineNumber]);
 		assert.deepStrictEqual({
 			original: ranges(original),
@@ -327,7 +478,7 @@ suite('SemanticDiffEditorWidget', () => {
 				const diff = widget.diffWidget.getActiveControl()!;
 				const ranges = (side: 'original' | 'modified') => {
 					const editor = side === 'original' ? diff.getOriginalEditor() : diff.getModifiedEditor();
-					return editor.getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type')
+					return editor.getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention')
 						.map(decoration => [decoration.range.startLineNumber, decoration.range.endLineNumber]);
 				};
 				const native = diff.getDiffComputationResult()!.changes2.map(change => ({
@@ -345,10 +496,27 @@ suite('SemanticDiffEditorWidget', () => {
 				{ markers: expected, native: [expected] },
 			]);
 		});
+
+		test(`${direction} markers preserve split attention after native blank-line realignment`, async () => {
+			const { widget } = await createWidget(createSemanticDiffBoundaryData(direction, true));
+			const diff = widget.diffWidget.getActiveControl()!;
+			const side = direction === 'insert' ? 'modified' : 'original';
+			const editor = side === 'original' ? diff.getOriginalEditor() : diff.getModifiedEditor();
+			const markers = editor.getModel()!.getAllDecorations()
+				.filter(decoration => decoration.options.description === 'semantic-diff-block-attention')
+				.map(decoration => ({
+					range: [decoration.range.startLineNumber, decoration.range.endLineNumber],
+					attention: isMarkdownString(decoration.options.hoverMessage) && decoration.options.hoverMessage.value.includes('separator') ? 'cold' : 'hot',
+				}));
+			assert.deepStrictEqual(markers, [
+				{ range: [2, 2], attention: 'cold' },
+				{ range: [3, 5], attention: 'hot' },
+			]);
+		});
 	}
 
-	test('generated and unclassified types have badges and matching markers', async () => {
-		const { widget, input } = await createWidget(createSemanticDiffEditorData(['generated', 'logic', null]));
+	test('the three hunk types have badges and matching markers', async () => {
+		const { widget, input } = await createWidget(createSemanticDiffEditorData());
 		input.showAll();
 		await widget.load();
 		const model = widget.diffWidget.tryGetCodeEditor(input.getProjectionUri('file', 'modified'))!.editor.getModel()!;
@@ -357,10 +525,10 @@ suite('SemanticDiffEditorWidget', () => {
 				type: [...element.classList].find(name => name.startsWith('semantic-diff-type-')),
 				count: element.querySelector('.monaco-count-badge')?.textContent,
 			})),
-			markers: model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type').map(annotationType),
+			markers: model.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention').map(annotationType),
 		}, {
-			badges: [{ type: 'semantic-diff-type-logic', count: '1' }, { type: 'semantic-diff-type-generated', count: '1' }, { type: 'semantic-diff-type-unclassified', count: '1' }],
-			markers: ['Generated', 'Logic', 'Unclassified type'],
+			badges: [{ type: 'semantic-diff-type-logic', count: '1' }, { type: 'semantic-diff-type-test', count: '1' }, { type: 'semantic-diff-type-supporting', count: '1' }],
+			markers: ['Supporting', 'Logic', 'Test'],
 		});
 	});
 
@@ -370,6 +538,7 @@ suite('SemanticDiffEditorWidget', () => {
 		const hunk = {
 			...data.request.report.analysis.hunks[0],
 			oldRange: { start: 1, count: 1 }, newRange: { start: 0, count: 0 }, additions: 0, deletions: 1,
+			attentionBlocks: [{ attention: 'cold' as const, oldRanges: [{ start: 1, count: 1 }], newRanges: [], reason: 'Removed supporting line.' }],
 		};
 		const validated = buildSemanticDiffReport({
 			schemaVersion: 1,
@@ -386,10 +555,10 @@ suite('SemanticDiffEditorWidget', () => {
 		const marker = widget.domNode.querySelector('.semantic-diff-hunk-decoration')!.getBoundingClientRect();
 		const deleted = widget.domNode.querySelector('.editor.modified .view-zones .line-delete')!.getBoundingClientRect();
 		assert.deepStrictEqual({
-			original: diff.getOriginalEditor().getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type').map(decoration => ({
+			original: diff.getOriginalEditor().getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention').map(decoration => ({
 				line: decoration.range.startLineNumber, type: annotationType(decoration),
 			})),
-			modified: diff.getModifiedEditor().getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-hunk-type').length,
+			modified: diff.getModifiedEditor().getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'semantic-diff-block-attention').length,
 			gutterBounds: [marker.top, marker.bottom],
 		}, { original: [{ line: 1, type: 'Supporting' }], modified: 0, gutterBounds: [deleted.top, deleted.bottom] });
 	});
@@ -400,6 +569,7 @@ suite('SemanticDiffEditorWidget', () => {
 		const hunk = {
 			...data.request.report.analysis.hunks[0],
 			oldRange: { start: 1, count: 1 }, newRange: { start: 1, count: 1 },
+			attentionBlocks: [{ attention: 'cold' as const, oldRanges: [{ start: 1, count: 1 }], newRanges: [{ start: 1, count: 1 }], reason: 'Whitespace-only change.' }],
 		};
 		const validated = buildSemanticDiffReport({
 			schemaVersion: 1,

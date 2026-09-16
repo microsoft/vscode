@@ -98,7 +98,7 @@ suite('TypeScript change classification tool', () => {
 		const service = new TestCodeReviewService(classification);
 		const tool = new TypeScriptChangeClassificationTool(service);
 		const input: ITypeScriptChangeClassificationToolInput = {
-			filePath: 'C:\\workspace\\calculator.ts',
+			filePath: Uri.file('/workspace/calculator.ts').fsPath,
 			modified: {
 				content: 'class Calculator {}',
 				added: [{ start: 0, end: 1 }],
@@ -129,13 +129,30 @@ suite('TypeScript change classification tool', () => {
 		});
 	});
 
+	test('requires AST evidence before semantic classification without conflating the taxonomies', () => {
+		const definition = packageJson.contributes.languageModelTools.find(tool => tool.name === getContributedToolName(ToolName.TypeScriptChangeClassification));
+		assert.deepStrictEqual([
+			'invoke this for every eligible changed TypeScript or JavaScript file before classify_diff_hunks',
+			'supply both source snapshots from the exact comparison',
+			'changed-line runs without hunk context',
+			'Include removed original lines from replacements in deleted',
+			'mixed structural/code labels do not partition them',
+			'do not determine semantic intent, logic/test/supporting/generated types, or review priority',
+			'Whole-entity additions/deletions are structural even when their bodies contain important code',
+			'assign changed-line block importance',
+			'never copy whole entity ranges into semantic classifications',
+			'When using results only as evidence for classify_diff_hunks',
+			'preserve its existing schema and navigation',
+		].filter(clause => !definition?.modelDescription.includes(clause)), []);
+	});
+
 	test('rejects invalid buckets without invoking the service', async () => {
 		const service = new TestCodeReviewService({ modified: [], original: [] });
 		const tool = new TypeScriptChangeClassificationTool(service);
 
 		await assert.rejects(
 			tool.invoke(createOptions({
-				filePath: 'C:\\workspace\\calculator.ts',
+				filePath: Uri.file('/workspace/calculator.ts').fsPath,
 				modified: {
 					added: [],
 					changed: [{ start: 4, end: 2 }],

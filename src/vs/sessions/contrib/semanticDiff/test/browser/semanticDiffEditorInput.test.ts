@@ -16,11 +16,11 @@ import { createSemanticDiffEditorData } from './semanticDiffTestUtils.js';
 suite('SemanticDiffEditorInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('defaults to the highest primary type plus unclassified, never secondary types', () => {
-		const { request } = createSemanticDiffEditorData(['supporting', 'test', null]);
+	test('defaults to the highest present hunk type', () => {
+		const { request } = createSemanticDiffEditorData(['supporting', 'test', 'supporting']);
 		const input = store.add(new SemanticDiffEditorInput(request));
 		assert.deepStrictEqual({ available: input.availableTypes, selected: [...input.selectedTypes.get()] }, {
-			available: ['test', 'supporting', null], selected: ['test', null],
+			available: ['test', 'supporting'], selected: ['test'],
 		});
 	});
 

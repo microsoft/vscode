@@ -28,13 +28,13 @@ import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDi
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
-import { formatSemanticDiffRange, getSemanticDiffChangeTypeLabel, SemanticDiffChangeType } from '../../../../platform/agentHost/common/semanticDiff.js';
+import { formatSemanticDiffAttentionBlock, formatSemanticDiffRange, getSemanticDiffAttentionLabel, getSemanticDiffChangeTypeLabel, ISemanticDiffAttentionBlock, SemanticDiffChangeType } from '../../../../platform/agentHost/common/semanticDiff.js';
 import { ISemanticDiffProjectedFile, ISemanticDiffVerifiedHunk } from '../../../../platform/agentHost/common/semanticDiffProjection.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -70,9 +70,14 @@ export const semanticDiffReadonlyOptions: IDiffEditorConstructionOptions = {
 
 interface ISemanticDiffGutterItem extends IGutterItemInfo {
 	readonly hunk: ISemanticDiffVerifiedHunk;
-	readonly changeType: SemanticDiffChangeType | null;
-	readonly hasReviewFocus: boolean;
-	readonly isReviewFocus: boolean;
+	readonly changeType: SemanticDiffChangeType;
+	readonly attentionBlock: Readonly<ISemanticDiffAttentionBlock>;
+	readonly blockRange?: {
+		readonly side: 'original' | 'modified';
+		readonly range: LineRange;
+		readonly originalChange: LineRange;
+		readonly modifiedChange: LineRange;
+	};
 }
 
 class SemanticDiffFilterActionViewItem extends CheckboxActionViewItem {
@@ -82,7 +87,7 @@ class SemanticDiffFilterActionViewItem extends CheckboxActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add(`semantic-diff-type-${this.type ?? 'unclassified'}`);
+		container.classList.add(`semantic-diff-type-${this.type}`);
 		const badgeContainer = append(this.label!, $('span.semantic-diff-filter-count', { 'aria-hidden': 'true' }));
 		this._register(new CountBadge(badgeContainer, { count: this.count }, {
 			badgeBackground: undefined, badgeForeground: undefined, badgeBorder: undefined,
@@ -138,13 +143,13 @@ export class SemanticDiffEditorWidget extends Disposable {
 		this._register(toDisposable(() => focused.reset()));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		const actions = input.availableTypes.map(type => {
-			const action = this._register(new Action(`semanticDiff.filter.${type ?? 'unclassified'}`, getSemanticDiffChangeTypeLabel(type), undefined, true, () => input.toggleType(type)));
+			const action = this._register(new Action(`semanticDiff.filter.${type}`, getSemanticDiffChangeTypeLabel(type), undefined, true, () => input.toggleType(type)));
 			action.checked = input.selectedTypes.get().has(type);
 			const count = input.hunks.filter(hunk => hunk.classification.changeType === type).length;
 			return { type, action, count };
 		});
 		this.toolbar = this._register(scopedInstantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
-			ariaLabel: localize('semanticDiff.filterToolbar', "Primary change type filters"),
+			ariaLabel: localize('semanticDiff.filterToolbar', "Hunk type filters"),
 			actionViewItemProvider: (action, options) => {
 				const filter = actions.find(filter => filter.action === action);
 				return filter
@@ -247,7 +252,9 @@ export class SemanticDiffEditorWidget extends Disposable {
 	}
 
 	private createGutter(editor: DiffEditorWidget, hoverService: IHoverService): IDisposable {
+		const originalEditor = editor.getOriginalEditor();
 		const modifiedEditor = editor.getModifiedEditor();
+		assertType(originalEditor instanceof CodeEditorWidget, 'CodeEditorWidget');
 		assertType(modifiedEditor instanceof CodeEditorWidget, 'CodeEditorWidget');
 		const store = new DisposableStore();
 		const container = append(editor.getContainerDomNode(), $('.semantic-diff-gutter', { 'aria-hidden': 'true' }));
@@ -275,57 +282,19 @@ export class SemanticDiffEditorWidget extends Disposable {
 					}
 					const range = modifiedRange ?? change.modified;
 					const projectedOffset = mapping.projectedModified.start - mapping.canonicalModified.start;
-					const hasReviewFocus = hunk.reviewFocus !== undefined || hunk.changeTypeRanges.length > 1;
-					const typedItems = hunk.changeTypeRanges.flatMap((typeRanges, typeIndex) => {
-						const modifiedRanges = typeRanges.newRanges
-							.map(item => LineRange.ofLength(item.start + projectedOffset, item.count).intersect(change.modified))
-							.filter((item): item is LineRange => item !== undefined && !item.isEmpty);
-						const hasOriginalRange = typeRanges.oldRanges.some(item => {
-							const intersection = LineRange.ofLength(item.start, item.count).intersect(change.original);
-							return intersection !== undefined && !intersection.isEmpty;
-						});
-						const renderedRanges = modifiedRanges.length > 0 ? modifiedRanges : hasOriginalRange ? [range] : [];
-						return renderedRanges.flatMap((renderedRange, rangeIndex): ISemanticDiffGutterItem[] => {
-							const hasExplicitFocus = hunk.reviewFocus !== undefined && (
-								hunk.reviewFocus.newRanges.some(focus => {
-									const intersection = LineRange.ofLength(focus.start + projectedOffset, focus.count).intersect(renderedRange);
-									return intersection !== undefined && !intersection.isEmpty;
-								}) ||
-								hunk.reviewFocus.oldRanges.some(focus => {
-									const focusRange = LineRange.ofLength(focus.start, focus.count);
-									const changeIntersection = focusRange.intersect(change.original);
-									return changeIntersection !== undefined && !changeIntersection.isEmpty && typeRanges.oldRanges.some(item => {
-										const intersection = focusRange.intersect(LineRange.ofLength(item.start, item.count));
-										return intersection !== undefined && !intersection.isEmpty;
-									});
-								})
-							);
-							const isReviewFocus = hunk.reviewFocus
-								? hasExplicitFocus
-								: hunk.changeTypeRanges.length > 1 && typeRanges.changeType === hunk.classification.changeType;
-							const item: ISemanticDiffGutterItem = {
-								id: `${hunk.id}:${index}:type:${typeIndex}:${rangeIndex}`,
-								range: renderedRange,
-								hunk,
-								changeType: typeRanges.changeType,
-								hasReviewFocus,
-								isReviewFocus: false,
-							};
-							return isReviewFocus ? [item, {
-								...item,
-								id: `${item.id}:review-focus`,
-								isReviewFocus: true,
-							}] : [item];
-						});
+					return (['original', 'modified'] as const).flatMap(side => {
+						const hunkRange = side === 'original' ? original : modified;
+						const nativeRange = hunkRange.intersect(change[side]) ? change[side] : undefined;
+						const model = side === 'original' ? originalEditor.getModel()! : modifiedEditor.getModel()!;
+						return nativeRange ? mapAttentionBlocksToNativeRanges(hunk, side, nativeRange, projectedOffset, model).map(({ block, range: renderedSourceRange }, blockIndex): ISemanticDiffGutterItem => ({
+							id: `${hunk.id}:${index}:block:${blockIndex}:${side}`,
+							range: side === 'modified' ? renderedSourceRange : range,
+							hunk,
+							attentionBlock: block,
+							blockRange: { side, range: renderedSourceRange, originalChange: change.original, modifiedChange: change.modified },
+							changeType: hunk.classification.changeType,
+						})) : [];
 					});
-					return typedItems.length > 0 ? typedItems : [{
-						id: `${hunk.id}:${index}`,
-						range,
-						hunk,
-						changeType: hunk.classification.changeType,
-						hasReviewFocus: false,
-						isReviewFocus: false,
-					}];
 				});
 			});
 		});
@@ -344,14 +313,39 @@ export class SemanticDiffEditorWidget extends Disposable {
 					viewStore.add(autorun(reader => {
 						const current = item.read(reader);
 						const hunk = current.hunk;
-						target.className = `semantic-diff-hunk-decoration semantic-diff-type-${hunk.classification.changeType ?? 'unclassified'}`;
-						target.classList.toggle('semantic-diff-has-review-focus', current.hasReviewFocus && !current.isReviewFocus);
-						target.classList.toggle('semantic-diff-review-focus', current.isReviewFocus);
+						target.className = `semantic-diff-hunk-decoration semantic-diff-type-${current.changeType} semantic-diff-attention-${current.attentionBlock.attention}`;
 						reader.store.add(hoverService.setupDelayedHover(target, {
-							content: getSemanticDiffHunkTooltip(hunk, current.changeType, current.isReviewFocus),
+							content: getAttentionBlockTooltip(hunk, current.attentionBlock),
 						}));
 					}));
-					return { layout: () => { }, dispose: () => viewStore.dispose() };
+					return {
+						layout: () => {
+							const block = item.read(undefined).blockRange;
+							if (!block) {
+								return;
+							}
+							let top: number;
+							let bottom: number;
+							if (block.side === 'modified') {
+								top = modifiedEditor.getTopForLineNumber(block.range.startLineNumber);
+								bottom = modifiedEditor.getBottomForLineNumber(block.range.endLineNumberExclusive - 1);
+							} else {
+								// The original editor's alignment zones include wrapping in the inline deleted code.
+								const zoneTop = modifiedEditor.getTopForLineNumber(block.modifiedChange.startLineNumber, true);
+								const zoneBottom = modifiedEditor.getTopForLineNumber(block.modifiedChange.startLineNumber);
+								const originalTop = originalEditor.getTopForLineNumber(block.originalChange.startLineNumber);
+								top = zoneTop + originalEditor.getTopForLineNumber(block.range.startLineNumber) - originalTop;
+								const end = block.range.endLineNumberExclusive;
+								const originalBottom = end <= originalEditor.getModel()!.getLineCount()
+									? originalEditor.getTopForLineNumber(end)
+									: originalEditor.getBottomForLineNumber(end - 1, true);
+								bottom = Math.min(zoneBottom, zoneTop + originalBottom - originalTop);
+							}
+							target.style.top = `${top - modifiedEditor.getScrollTop()}px`;
+							target.style.height = `${Math.max(0, bottom - top)}px`;
+						},
+						dispose: () => viewStore.dispose(),
+					};
 				},
 			}));
 		}));
@@ -404,38 +398,20 @@ export class SemanticDiffEditorWidget extends Disposable {
 					const model = item.diffEditorViewModel.model[side];
 					const decorations: IModelDeltaDecoration[] = projection.mappings.flatMap(mapping => {
 						const hunk = hunks.get(mapping.hunkId)!;
-						if (!hunk.hasSubmittedChangeTypeRanges) {
-							const sourceRange = side === 'original' ? mapping.original : mapping.projectedModified;
-							if (sourceRange.count === 0) {
-								return [];
-							}
-							const hunkRange = LineRange.ofLength(sourceRange.start, sourceRange.count);
-							return diff.mappings.flatMap(change => {
-								const range = hunkRange.intersect(change.lineRangeMapping[side])?.toInclusiveRange();
-								return range ? [{
-									range,
-									options: {
-										description: 'semantic-diff-hunk-type',
-										hoverMessage: new MarkdownString().appendText(localize('semanticDiff.hunkTypeTooltip', "{0}: {1}", getSemanticDiffChangeTypeLabel(hunk.classification.changeType), hunk.classification.summary)),
-									},
-								}] : [];
-							});
-						}
 						const projectedOffset = mapping.projectedModified.start - mapping.canonicalModified.start;
-						return hunk.changeTypeRanges.flatMap(typeRanges => {
-							const sourceRanges = (side === 'original' ? typeRanges.oldRanges : typeRanges.newRanges).map(range =>
-								LineRange.ofLength(side === 'original' ? range.start : range.start + projectedOffset, range.count));
-							// Git and the editor can align identical context lines differently; follow the rendered diff.
-							return sourceRanges.flatMap(sourceRange => diff.mappings.flatMap(change => {
-								const range = sourceRange.intersect(change.lineRangeMapping[side])?.toInclusiveRange();
-								return range ? [{
-									range,
-									options: {
-										description: 'semantic-diff-hunk-type',
-										hoverMessage: new MarkdownString().appendText(localize('semanticDiff.hunkTypeTooltip', "{0}: {1}", getSemanticDiffChangeTypeLabel(typeRanges.changeType), hunk.classification.summary)),
-									},
-								}] : [];
-							}));
+						const hunkRange = LineRange.ofLength(
+							side === 'original' ? mapping.original.start : mapping.projectedModified.start,
+							side === 'original' ? mapping.original.count : mapping.projectedModified.count);
+						return diff.mappings.flatMap(change => {
+							const changedRange = change.lineRangeMapping[side];
+							const nativeRange = hunkRange.intersect(changedRange) ? changedRange : undefined;
+							return nativeRange ? mapAttentionBlocksToNativeRanges(hunk, side, nativeRange, projectedOffset, model).map(({ block, range }) => ({
+								range: range.toInclusiveRange()!,
+								options: {
+									description: 'semantic-diff-block-attention',
+									hoverMessage: new MarkdownString().appendText(getAttentionBlockTooltip(hunk, block)),
+								},
+							})) : [];
 						});
 					});
 					const ids = model.deltaDecorations([], decorations);
@@ -494,7 +470,7 @@ export class SemanticDiffEditorWidget extends Disposable {
 			input.group.title, input.group.description, formatSemanticDiffComparison(input),
 			localize('semanticDiff.accessibleProjection', "Read-only filtered projection. Original lines refer to the baseline. Modified lines refer to the projection, not the target file."),
 			this.statusMessage,
-			localize('semanticDiff.accessibleTypes', "Selected primary types: {0}", [...input.selectedTypes.get()].map(getSemanticDiffChangeTypeLabel).join(', ') || localize('semanticDiff.none', "none")),
+			localize('semanticDiff.accessibleTypes', "Selected hunk types: {0}", [...input.selectedTypes.get()].map(getSemanticDiffChangeTypeLabel).join(', ') || localize('semanticDiff.none', "none")),
 		];
 		for (const limitation of input.request.report.analysis.limitations) {
 			lines.push(localize('semanticDiff.accessibleLimitation', "Limitation ({0}): {1}", limitation.code, limitation.message));
@@ -505,25 +481,12 @@ export class SemanticDiffEditorWidget extends Disposable {
 				lines.push(localize('semanticDiff.renamedFrom', "Renamed from {0}", file.file.oldPath));
 			}
 			for (const hunk of file.hunks) {
-				lines.push(localize('semanticDiff.accessibleHunk', "Hunk {0}: {1}. {2}. {3}. Primary: {4}. Secondary: {5}. {6}",
+				lines.push(localize('semanticDiff.accessibleHunk', "Hunk {0}: {1}. {2}. {3}. Type: {4}. {5}",
 					hunk.id, hunk.classification.summary, formatSemanticDiffRange(hunk.oldRange, 'old'),
 					formatSemanticDiffRange(hunk.newRange, 'new'), getSemanticDiffChangeTypeLabel(hunk.classification.changeType),
-					hunk.classification.secondaryChangeTypes.map(getSemanticDiffChangeTypeLabel).join(', ') || localize('semanticDiff.none', "none"),
 					hunk.classification.uncertainty ?? ''));
-				if (hunk.reviewFocus) {
-					lines.push(localize('semanticDiff.accessibleReviewFocus', "Review focus: {0}\nOriginal: {1}. Modified: {2}. This suggests where to begin reading, not which lines can be skipped.",
-						hunk.reviewFocus.reason,
-						hunk.reviewFocus.oldRanges.map(range => formatSemanticDiffRange(range, 'old')).join(', ') || localize('semanticDiff.none', "none"),
-						hunk.reviewFocus.newRanges.map(range => formatSemanticDiffRange(range, 'new')).join(', ') || localize('semanticDiff.none', "none")));
-				} else if (hunk.changeTypeRanges.length > 1) {
-					lines.push(localize('semanticDiff.accessiblePrimaryEmphasis', "Review emphasis begins with the primary-type changed lines; secondary-type lines remain visible and must not be skipped."));
-				}
-				for (const typeRanges of hunk.changeTypeRanges) {
-					lines.push(localize('semanticDiff.accessibleChangeTypeRanges', "{0} changed lines. Original: {1}. Modified: {2}.",
-						getSemanticDiffChangeTypeLabel(typeRanges.changeType),
-						typeRanges.oldRanges.map(range => formatSemanticDiffRange(range, 'old')).join(', ') || localize('semanticDiff.none', "none"),
-						typeRanges.newRanges.map(range => formatSemanticDiffRange(range, 'new')).join(', ') || localize('semanticDiff.none', "none")));
-				}
+				lines.push(...hunk.attentionBlocks.map(formatSemanticDiffAttentionBlock),
+					localize('semanticDiff.attentionReadingOrder', "Block attention suggests reading order, not safety, confidence, or which lines can be skipped."));
 				lines.push(hunk.classification.groupReason, hunk.classification.typeReason);
 			}
 			for (const mapping of file.mappings) {
@@ -545,16 +508,86 @@ export class SemanticDiffEditorWidget extends Disposable {
 	}
 }
 
-function getSemanticDiffHunkTooltip(hunk: ISemanticDiffVerifiedHunk, changeType: SemanticDiffChangeType | null, isReviewFocus: boolean): string {
-	const type = getSemanticDiffChangeTypeLabel(changeType);
-	if (!hunk.reviewFocus) {
-		return isReviewFocus
-			? localize('semanticDiff.primaryTypeEmphasisTooltip', "Review emphasis: primary {0} lines\n\n{1}", type, hunk.classification.summary)
-			: localize('semanticDiff.hunkTypeTooltip', "{0}: {1}", type, hunk.classification.summary);
+function getAttentionBlockRanges(block: Readonly<ISemanticDiffAttentionBlock>, side: 'original' | 'modified'): LineRange[] {
+	return (side === 'original' ? block.oldRanges : block.newRanges).map(range => LineRange.ofLength(range.start, range.count));
+}
+
+function mapAttentionBlocksToNativeRanges(
+	hunk: ISemanticDiffVerifiedHunk,
+	side: 'original' | 'modified',
+	nativeRange: LineRange,
+	projectedOffset: number,
+	model: ITextModel,
+): { block: Readonly<ISemanticDiffAttentionBlock>; range: LineRange }[] {
+	const offset = side === 'modified' ? projectedOffset : 0;
+	const candidates = hunk.attentionBlocks.flatMap(block => getAttentionBlockRanges(block, side).flatMap(range => {
+		const projectedRange = range.delta(offset);
+		const lines = [];
+		for (let lineNumber = projectedRange.startLineNumber; lineNumber < projectedRange.endLineNumberExclusive; lineNumber++) {
+			lines.push({ block, lineNumber, content: model.getLineContent(lineNumber) });
+		}
+		return lines;
+	}));
+	if (!candidates.length || nativeRange.isEmpty) {
+		return [];
 	}
-	return isReviewFocus
-		? localize('semanticDiff.reviewFocusTooltip', "Review focus: {0}\n\n{1}: {2}", hunk.reviewFocus.reason, type, hunk.classification.summary)
-		: localize('semanticDiff.hunkTypeWithReviewFocusTooltip', "{0}: {1}\n\nReview focus: {2}", type, hunk.classification.summary, hunk.reviewFocus.reason);
+	candidates.sort((a, b) => a.lineNumber - b.lineNumber);
+	const candidatesByLine = new Map(candidates.map(candidate => [candidate.lineNumber, candidate]));
+	const candidatesByContent = new Map<string, typeof candidates>();
+	for (const candidate of candidates) {
+		const matching = candidatesByContent.get(candidate.content);
+		if (matching) {
+			matching.push(candidate);
+		} else {
+			candidatesByContent.set(candidate.content, [candidate]);
+		}
+	}
+
+	const result: { block: Readonly<ISemanticDiffAttentionBlock>; range: LineRange }[] = [];
+	let currentBlock: Readonly<ISemanticDiffAttentionBlock> | undefined;
+	let currentStart = nativeRange.startLineNumber;
+	for (let lineNumber = nativeRange.startLineNumber; lineNumber < nativeRange.endLineNumberExclusive; lineNumber++) {
+		const exact = candidatesByLine.get(lineNumber);
+		const content = model.getLineContent(lineNumber);
+		const candidate = exact ?? findClosestCandidate(candidatesByContent.get(content) ?? candidates, lineNumber);
+		if (currentBlock && currentBlock !== candidate.block) {
+			result.push({ block: currentBlock, range: new LineRange(currentStart, lineNumber) });
+			currentStart = lineNumber;
+		}
+		currentBlock = candidate.block;
+	}
+	if (currentBlock) {
+		result.push({ block: currentBlock, range: new LineRange(currentStart, nativeRange.endLineNumberExclusive) });
+	}
+	return result;
+}
+
+function findClosestCandidate<T extends { lineNumber: number }>(candidates: readonly T[], lineNumber: number): T {
+	let low = 0;
+	let high = candidates.length;
+	while (low < high) {
+		const middle = Math.floor((low + high) / 2);
+		if (candidates[middle].lineNumber < lineNumber) {
+			low = middle + 1;
+		} else {
+			high = middle;
+		}
+	}
+	if (low === 0) {
+		return candidates[0];
+	}
+	if (low === candidates.length) {
+		return candidates[candidates.length - 1];
+	}
+	const before = candidates[low - 1];
+	const after = candidates[low];
+	return lineNumber - before.lineNumber <= after.lineNumber - lineNumber ? before : after;
+}
+
+function getAttentionBlockTooltip(hunk: ISemanticDiffVerifiedHunk, block: Readonly<ISemanticDiffAttentionBlock>): string {
+	return localize('semanticDiff.blockAttentionTooltip', "{0}: {1}\n\n{2}: {3}",
+		getSemanticDiffChangeTypeLabel(hunk.classification.changeType), hunk.classification.summary,
+		getSemanticDiffAttentionLabel(block.attention), block.reason);
 }
 
 function getSemanticDiffCounts(input: SemanticDiffEditorInput, files: readonly ISemanticDiffProjectedFile[]): string {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { chartsBlue, chartsPurple, descriptionForeground, editorBackground, opaque, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { chartsPurple, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 
 registerColor('semanticDiff.logicForeground', chartsPurple,
 	localize('semanticDiff.logicForeground', "Color of Logic change-type badges and gutter markers in the semantic diff editor."));
@@ -16,9 +16,3 @@ registerColor('semanticDiff.testForeground',
 registerColor('semanticDiff.supportingForeground',
 	{ dark: '#C49A6C', light: '#855C33', hcDark: '#DDB78D', hcLight: '#6B431F' },
 	localize('semanticDiff.supportingForeground', "Color of Supporting change-type badges and gutter markers in the semantic diff editor."));
-
-registerColor('semanticDiff.generatedForeground', chartsBlue,
-	localize('semanticDiff.generatedForeground', "Color of Generated change-type badges and gutter markers in the semantic diff editor."));
-
-registerColor('semanticDiff.unclassifiedForeground', opaque(descriptionForeground, editorBackground),
-	localize('semanticDiff.unclassifiedForeground', "Color of Unclassified change-type badges and gutter markers in the semantic diff editor."));

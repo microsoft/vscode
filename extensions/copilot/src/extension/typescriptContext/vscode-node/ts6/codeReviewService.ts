@@ -35,11 +35,12 @@ export class TS6CodeReviewProvider implements vscode.Disposable {
 	private activation: Promise<boolean> | undefined;
 
 	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {
-		if (!await this.ensureActivated()) {
+		const file = await this.prepareFile(filePath);
+		if (file === undefined) {
 			return undefined;
 		}
 		const args: TypeScriptMetricsRequestArgs = {
-			file: vscode.Uri.file(filePath),
+			file,
 			line: 1,
 			offset: 1,
 			content,
@@ -57,11 +58,12 @@ export class TS6CodeReviewProvider implements vscode.Disposable {
 	}
 
 	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult | undefined> {
-		if (!await this.ensureActivated()) {
+		const file = await this.prepareFile(input.filePath);
+		if (file === undefined) {
 			return undefined;
 		}
 		const args: TypeScriptChangeClassificationRequestArgs = {
-			file: vscode.Uri.file(input.filePath),
+			file,
 			line: 1,
 			offset: 1,
 			modified: input.modified,
@@ -85,17 +87,24 @@ export class TS6CodeReviewProvider implements vscode.Disposable {
 		// No resources to dispose for the TS6 implementation.
 	}
 
+	/** Load the document before pinging the project's plugin or resolving its URI in tsserver. */
+	private async prepareFile(filePath: string): Promise<vscode.Uri | undefined> {
+		const typeScriptExtension = vscode.extensions.getExtension('vscode.typescript-language-features');
+		if (typeScriptExtension === undefined) {
+			return undefined;
+		}
+		await typeScriptExtension.activate();
+		const file = vscode.Uri.file(filePath);
+		await vscode.workspace.openTextDocument(file);
+		return await this.ensureActivated() ? file : undefined;
+	}
+
 	private ensureActivated(): Promise<boolean> {
 		this.activation ??= this.activate();
 		return this.activation;
 	}
 
 	private async activate(): Promise<boolean> {
-		const typeScriptExtension = vscode.extensions.getExtension('vscode.typescript-language-features');
-		if (typeScriptExtension === undefined) {
-			return false;
-		}
-		await typeScriptExtension.activate();
 		const response = await vscode.commands.executeCommand<protocol.PingResponse | undefined>(
 			'typescript.tsserverRequest',
 			'_.copilot.ping',

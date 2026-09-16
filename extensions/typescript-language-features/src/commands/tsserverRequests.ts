@@ -39,6 +39,9 @@ export class TSServerRequestCommand implements Command {
 				if (hasFile) {
 					const client = this.lazyClientHost.value.serviceClient;
 					newArgs.file = client.toOpenTsFilePath(requestArgs.file);
+					if (newArgs.file === undefined) {
+						throw new Error(vscode.l10n.t("Cannot send a TypeScript server request for an unloaded or unsupported document."));
+					}
 				}
 				if (hasTraceId) {
 					const telemetryReporter = this.lazyClientHost.value.serviceClient.telemetryReporter;

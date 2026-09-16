@@ -161,16 +161,36 @@ suite('ChatSemanticDiffResultSubPart', () => {
 			files: files.querySelectorAll('.semantic-diff-file').length,
 			hunks: billing.querySelectorAll('.semantic-diff-hunk').length,
 			ranges: [...billing.querySelectorAll('.semantic-diff-ranges')].map(range => range.textContent),
-			mixedLabels: [...billing.querySelectorAll('.semantic-diff-hunk')].map(hunk => [...hunk.querySelectorAll('.semantic-diff-type')].map(label => label.textContent)),
+			typeLabels: [...billing.querySelectorAll('.semantic-diff-hunk')].map(hunk => [...hunk.querySelectorAll('.semantic-diff-type')].map(label => label.textContent)),
 			nestedButtons: part.domNode.querySelectorAll('[role="button"] [role="button"], button button').length,
 		}, {
 			initial: { cards: 3, files: 0, hunks: 0 },
 			files: 3,
 			hunks: 2,
 			ranges: ['Old: lines 1-5; New: lines 1-5', 'Old: lines 10-12; New: lines 10-13'],
-			mixedLabels: [['Supporting'], ['Logic', 'Also supporting']],
+			typeLabels: [['Supporting'], ['Logic']],
 			nestedButtons: 0,
 		});
+	});
+
+	test('classification details and accessible text expose block attention and reasons', () => {
+		const report = createSemanticDiffExample();
+		report.analysis.hunks[0].attentionBlocks = [
+			{ attention: 'cold', oldRanges: [{ start: 1, count: 1 }], newRanges: [{ start: 1, count: 1 }], reason: 'Accompanying spacing.' },
+			{ attention: 'warm', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }], reason: 'Read the surrounding loop.' },
+			{ attention: 'hot', oldRanges: [{ start: 3, count: 1 }], newRanges: [{ start: 3, count: 1 }], reason: 'Begin with the changed expression.' },
+		];
+		const validated = reportFor(report.analysis);
+		const part = render(validated);
+		const files = activate(part.domNode, '.semantic-diff-group-toggle');
+		const hunks = activate(files, '.semantic-diff-file-toggle');
+		const details = activate(hunks, '.semantic-diff-rationale-toggle');
+		const expected = ['Cold attention: Accompanying spacing.', 'Warm attention: Read the surrounding loop.', 'Hot attention: Begin with the changed expression.'];
+		assert.deepStrictEqual({
+			visible: expected.map(text => details.textContent?.includes(text)),
+			accessible: expected.map(text => formatSemanticDiffReport(validated).includes(text)),
+			primary: [...hunks.querySelectorAll('.semantic-diff-hunk')][0].querySelector('.semantic-diff-type')?.textContent,
+		}, { visible: [true, true, true], accessible: [true, true, true], primary: 'Supporting' });
 	});
 
 	test('renders the submitted review sequence without sorting by title or change type', () => {
@@ -402,7 +422,7 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		}, { title: '<script>alert(1)</script>', description: text, activeContent: 0, pathIncluded: true });
 	});
 
-	test('discloses partial, stale, unknown axes, and unsupported file evidence without losing hunks', () => {
+	test('discloses partial, stale, uncertain, and unsupported file evidence without losing hunks', () => {
 		const example = createSemanticDiffExample();
 		const report = reportFor({
 			...example.analysis,
@@ -412,11 +432,8 @@ suite('ChatSemanticDiffResultSubPart', () => {
 				...hunk,
 				classification: {
 					...hunk.classification,
-					groupId: index === 0 ? null : hunk.classification.groupId,
-					groupConfidence: index === 0 ? null : hunk.classification.groupConfidence,
-					changeType: null,
-					typeConfidence: null,
-					secondaryChangeTypes: [],
+					groupConfidence: index === 0 ? 'low' : hunk.classification.groupConfidence,
+					typeConfidence: 'low',
 					uncertainty: 'The input lacks surrounding context.',
 				},
 			}),
@@ -437,12 +454,11 @@ suite('ChatSemanticDiffResultSubPart', () => {
 		assert.deepStrictEqual({
 			notice: button(part.domNode, '.semantic-diff-notice > p').textContent,
 			stale: button(part.domNode, '.semantic-diff-stale').textContent,
-			ungrouped: button(part.domNode, '.semantic-diff-ungrouped').querySelectorAll('.semantic-diff-hunk').length,
 			hunks: part.domNode.querySelectorAll('.semantic-diff-hunk').length,
 			binary: button(part.domNode, '.semantic-diff-nontext').textContent?.includes('Binary image has no text hunks.'),
 			changeSummary: button(part.domNode, '.semantic-diff-group-toggle .semantic-diff-disclosure-label').textContent,
 			compactHunkTotals: [...part.domNode.querySelectorAll('.semantic-diff-hunk .semantic-diff-counts')].every(element => /^\+\d+ -\d+$/.test(element.textContent ?? '')),
-		}, { notice: 'Hunks without a group: 1; hunks without a type: 2; uncertain hunks: 2. Axis counts may overlap.', stale: 'Stale analysis: Source changed after capture.', ungrouped: 1, hunks: 8, binary: true, changeSummary: '3 files +9 -2', compactHunkTotals: true });
+		}, { notice: 'The submitted inventory is incomplete. Classified hunks: 8; uncertain hunks: 2.', stale: 'Stale analysis: Source changed after capture.', hunks: 8, binary: true, changeSummary: '3 files +12 -5', compactHunkTotals: true });
 	});
 
 	test('distinguishes complete empty and partial empty reports', () => {

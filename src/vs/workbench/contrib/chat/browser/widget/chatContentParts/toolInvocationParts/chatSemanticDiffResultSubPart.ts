@@ -12,7 +12,7 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { posix } from '../../../../../../../base/common/path.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { formatSemanticDiffRange, getSemanticDiffChangeTypeLabel, getSemanticDiffConfidenceLabel, ISemanticDiffAnalysis, ISemanticDiffReport, isSemanticDiffHunkUncertain, validateSemanticDiffReport } from '../../../../../../../platform/agentHost/common/semanticDiff.js';
+import { formatSemanticDiffAttentionBlock, formatSemanticDiffRange, getSemanticDiffChangeTypeLabel, getSemanticDiffConfidenceLabel, ISemanticDiffAnalysis, ISemanticDiffReport, isSemanticDiffHunkUncertain, validateSemanticDiffReport } from '../../../../../../../platform/agentHost/common/semanticDiff.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { FileKind } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -30,8 +30,6 @@ import '../media/chatSemanticDiffResult.css';
 
 type Hunk = ISemanticDiffAnalysis['hunks'][number];
 type File = ISemanticDiffAnalysis['files'][number];
-type ChangeType = Hunk['classification']['changeType'];
-
 interface IFileProjection {
 	readonly file: File;
 	readonly hunks: readonly Hunk[];
@@ -76,15 +74,6 @@ function getDisclosureState(owner: object, toolCallId: string): IDisclosureState
 		invocations.set(toolCallId, state);
 	}
 	return state;
-}
-
-function secondaryTypeLabel(type: Exclude<ChangeType, null>): string {
-	switch (type) {
-		case 'logic': return localize('semanticDiff.alsoLogic', "Also logic");
-		case 'test': return localize('semanticDiff.alsoTest', "Also test");
-		case 'supporting': return localize('semanticDiff.alsoSupporting', "Also supporting");
-		case 'generated': return localize('semanticDiff.alsoGenerated', "Also generated");
-	}
 }
 
 function fileLabel(file: File): string {
@@ -160,7 +149,7 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		if (report.status === 'partial') {
 			const notice = dom.append(this.domNode, dom.$('.semantic-diff-notice'));
 			dom.append(notice, dom.$('h3', undefined, localize('semanticDiff.partial', "Partial analysis")));
-			dom.append(notice, dom.$('p', undefined, localize('semanticDiff.unresolved', "Hunks without a group: {0}; hunks without a type: {1}; uncertain hunks: {2}. Axis counts may overlap.", summary.unassignedHunks, summary.untypedHunks, summary.uncertainHunks)));
+			dom.append(notice, dom.$('p', undefined, localize('semanticDiff.partialSummary', "The submitted inventory is incomplete. Classified hunks: {0}; uncertain hunks: {1}.", summary.hunks, summary.uncertainHunks)));
 			const limitations = dom.append(notice, dom.$('ul'));
 			for (const limitation of analysis.limitations) {
 				const file = analysis.files.find(file => file.id === limitation.fileId);
@@ -181,13 +170,6 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 
 		for (const [index, projection] of projectSemanticDiffGroups(analysis).entries()) {
 			this.renderGroup(report, projection, index);
-		}
-
-		const ungrouped = analysis.hunks.filter(hunk => hunk.classification.groupId === null);
-		if (ungrouped.length) {
-			const section = dom.append(this.domNode, dom.$('section.semantic-diff-ungrouped'));
-			dom.append(section, dom.$('h3', undefined, localize('semanticDiff.needsGrouping', "Needs grouping")));
-			this.renderFiles(section, report, null, projectFiles(analysis.files, ungrouped));
 		}
 
 		const withoutHunks = analysis.files.filter(file => !analysis.hunks.some(hunk => hunk.fileId === file.id));
@@ -313,14 +295,11 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		dom.append(parent, dom.$('p.semantic-diff-ranges', undefined, localize('semanticDiff.ranges', "Old: {0}; New: {1}", formatSemanticDiffRange(hunk.oldRange, 'old'), formatSemanticDiffRange(hunk.newRange, 'new'))));
 		const types = dom.append(parent, dom.$('p.semantic-diff-types'));
 		dom.append(types, dom.$('span.semantic-diff-type', undefined, getSemanticDiffChangeTypeLabel(classification.changeType)));
-		for (const type of classification.secondaryChangeTypes) {
-			dom.append(types, dom.$('span.semantic-diff-type', undefined, secondaryTypeLabel(type)));
-		}
 		dom.append(parent, dom.$('p.semantic-diff-counts', undefined, this.renderLineCounts([hunk])));
 		if (isSemanticDiffHunkUncertain(hunk)) {
 			const axes = [
-				...(classification.groupId === null ? [localize('semanticDiff.noGroup', "Unclassified group")] : classification.groupConfidence === 'low' ? [localize('semanticDiff.lowGroup', "Low group confidence")] : []),
-				...(classification.changeType === null ? [getSemanticDiffChangeTypeLabel(null)] : classification.typeConfidence === 'low' ? [localize('semanticDiff.lowType', "Low type confidence")] : []),
+				...(classification.groupConfidence === 'low' ? [localize('semanticDiff.lowGroup', "Low group confidence")] : []),
+				...(classification.typeConfidence === 'low' ? [localize('semanticDiff.lowType', "Low type confidence")] : []),
 			];
 			dom.append(parent, dom.$('p.semantic-diff-uncertainty', undefined, localize('semanticDiff.uncertaintyReason', "{0}: {1}", axes.join('; '), classification.uncertainty ?? '')));
 		}
@@ -330,6 +309,9 @@ export class ChatSemanticDiffResultSubPart extends BaseChatToolInvocationSubPart
 		this.createDisclosure(parent, parent, localize('semanticDiff.classificationDetails', "Classification Details"), JSON.stringify(['rationale', hunk.id]), 'semantic-diff-rationale-toggle', panel => {
 			dom.append(panel, dom.$('p', undefined, localize('semanticDiff.groupReason', "Group: {0}", classification.groupReason)));
 			dom.append(panel, dom.$('p', undefined, localize('semanticDiff.typeReason', "Type: {0}", classification.typeReason)));
+			for (const block of hunk.attentionBlocks) {
+				dom.append(panel, dom.$('p', undefined, formatSemanticDiffAttentionBlock(block)));
+			}
 			dom.append(panel, dom.$('p', undefined, localize('semanticDiff.confidences', "Group confidence: {0}; Type confidence: {1}", getSemanticDiffConfidenceLabel(classification.groupConfidence), getSemanticDiffConfidenceLabel(classification.typeConfidence))));
 			if (classification.uncertainty && !isSemanticDiffHunkUncertain(hunk)) {
 				dom.append(panel, dom.$('p', undefined, classification.uncertainty));

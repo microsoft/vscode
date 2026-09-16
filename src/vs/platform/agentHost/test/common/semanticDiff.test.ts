@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import {
 	buildSemanticDiffReport, formatSemanticDiffRange, formatSemanticDiffReport, getSemanticDiffChangeTypeLabel,
 	getSemanticDiffConfidenceLabel, ISemanticDiffErrorEnvelope, ISemanticDiffHunk, ISemanticDiffReport,
-	ISemanticDiffChangeTypeRanges, ISemanticDiffReviewFocus, ISemanticDiffSubmission, parseSemanticDiffReport, parseSemanticDiffToolResult, serializeSemanticDiffToolResult, SEMANTIC_DIFF_INPUT_BYTE_LIMIT, SEMANTIC_DIFF_MIME_TYPE, SEMANTIC_DIFF_RESULT_BYTE_LIMIT,
+	ISemanticDiffSubmission, parseSemanticDiffReport, parseSemanticDiffToolResult, serializeSemanticDiffToolResult, SEMANTIC_DIFF_INPUT_BYTE_LIMIT, SEMANTIC_DIFF_MIME_TYPE, SEMANTIC_DIFF_RESULT_BYTE_LIMIT,
 	SEMANTIC_DIFF_TOOL_NAME, SemanticDiffIssueCode, semanticDiffSubmissionSchema, validateSemanticDiffReport
 } from '../../common/semanticDiff.js';
 import { createSemanticDiffExample } from './semanticDiffFixtures.js';
@@ -52,6 +52,18 @@ function expectIssue(raw: unknown, path: string, code: SemanticDiffIssueCode, re
 	assert.ok(error.error.issues.some(issue => issue.path === path && issue.code === code), JSON.stringify(error));
 }
 
+function withFullAttention(hunk: ISemanticDiffHunk): ISemanticDiffHunk {
+	return {
+		...hunk,
+		attentionBlocks: [{
+			attention: 'hot',
+			oldRanges: hunk.deletions ? [{ start: hunk.oldRange.start, count: hunk.deletions }] : [],
+			newRanges: hunk.additions ? [{ start: hunk.newRange.start, count: hunk.additions }] : [],
+			reason: 'The complete changed block is review-relevant.',
+		}],
+	};
+}
+
 function sizedSubmission(bytes: number): ISemanticDiffSubmission {
 	const submission = minimalSubmission();
 	const template = submission.analysis.hunks[0];
@@ -59,7 +71,7 @@ function sizedSubmission(bytes: number): ISemanticDiffSubmission {
 	submission.analysis.files = Array.from({ length: 200 }, (_, index) => ({
 		...submission.analysis.files[0], id: `f${index}`, path: `file${index}`
 	}));
-	submission.analysis.hunks = Array.from({ length: 500 }, (_, index) => ({
+	submission.analysis.hunks = Array.from({ length: 500 }, (_, index) => withFullAttention({
 		...template, id: `h${index}`, fileId: `f${index % 200}`,
 		oldRange: { start: index + 1, count: 1 }, newRange: { start: index + 1, count: 1 },
 		additions: 1, deletions: 1,
@@ -82,6 +94,77 @@ function sizedSubmission(bytes: number): ISemanticDiffSubmission {
 suite('Semantic diff classification', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('accepts one hunk change type and exhaustive attention blocks', () => {
+		const input = minimalSubmission();
+		const template = input.analysis.hunks[0];
+		const hunk = {
+			...template,
+			classification: { ...template.classification, changeType: 'logic' as const },
+			attentionBlocks: [
+				{ attention: 'cold', oldRanges: [{ start: 1, count: 1 }], newRanges: [{ start: 1, count: 1 }], reason: 'Accompanying wiring.' },
+				{ attention: 'warm', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }], reason: 'Prepare the core input.' },
+				{ attention: 'hot', oldRanges: [{ start: 3, count: 1 }], newRanges: [{ start: 3, count: 1 }], reason: 'Establish the changed result.' },
+			],
+		};
+
+		const report = success({ ...input, analysis: { ...input.analysis, hunks: [hunk] } });
+		assert.deepStrictEqual({
+			changeType: report.analysis.hunks[0].classification.changeType,
+			attentionBlocks: report.analysis.hunks[0].attentionBlocks,
+		}, {
+			changeType: 'logic',
+			attentionBlocks: hunk.attentionBlocks,
+		});
+	});
+
+	test('rejects legacy secondary and line-level change classifications', () => {
+		const input = minimalSubmission();
+		const hunk = input.analysis.hunks[0];
+		expectIssue({
+			...input,
+			analysis: {
+				...input.analysis,
+				hunks: [{ ...hunk, classification: { ...hunk.classification, secondaryChangeTypes: [] } }],
+			},
+		}, '/analysis/hunks/0/classification/secondaryChangeTypes', 'SCHEMA_VIOLATION');
+	});
+
+	test('round trips exhaustive attention blocks independently of hunk type and confidence', () => {
+		const input = minimalSubmission();
+		input.analysis.hunks[0].attentionBlocks = [
+			{ attention: 'cold', oldRanges: [{ start: 1, count: 1 }], newRanges: [{ start: 1, count: 1 }], reason: 'Accompanying wiring.' },
+			{ attention: 'warm', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }], reason: 'Prepare the core input.' },
+			{ attention: 'hot', oldRanges: [{ start: 3, count: 1 }], newRanges: [{ start: 3, count: 1 }], reason: 'Establish the changed result.' },
+		];
+		const report = success(input);
+		assert.deepStrictEqual({
+			restored: parseSemanticDiffReport(JSON.stringify(report)),
+			primary: report.analysis.hunks[0].classification.changeType,
+			confidence: report.analysis.hunks[0].classification.typeConfidence,
+			attentionText: ['Cold attention: Accompanying wiring.', 'Warm attention: Prepare the core input.', 'Hot attention: Establish the changed result.'].every(text => formatSemanticDiffReport(report).includes(text)),
+		}, {
+			restored: { ok: true, report }, primary: 'supporting', confidence: 'high', attentionText: true,
+		});
+	});
+
+	test('rejects missing, overlapping, out-of-hunk, unordered, and invalid attention blocks', () => {
+		const block = { attention: 'hot', oldRanges: [{ start: 1, count: 3 }], newRanges: [{ start: 1, count: 3 }], reason: 'Core change.' };
+		const cases = [
+			{ blocks: [], path: '/attentionBlocks', code: 'SCHEMA_VIOLATION' },
+			{ blocks: [{ ...block, attention: 'urgent' }], path: '/attentionBlocks/0/attention', code: 'SCHEMA_VIOLATION' },
+			{ blocks: [{ ...block, reason: '' }], path: '/attentionBlocks/0/reason', code: 'SCHEMA_VIOLATION' },
+			{ blocks: [{ ...block, oldRanges: [], newRanges: [] }], path: '/attentionBlocks/0', code: 'INVALID_RANGE' },
+			{ blocks: [{ ...block, newRanges: [{ start: 1, count: 2 }] }], path: '/attentionBlocks', code: 'INVALID_RANGE' },
+			{ blocks: [block, block], path: '/attentionBlocks', code: 'INVALID_RANGE' },
+			{ blocks: [{ ...block, oldRanges: [{ start: 0, count: 3 }] }], path: '/attentionBlocks/0/oldRanges/0', code: 'INVALID_RANGE' },
+			{ blocks: [{ ...block, oldRanges: [{ start: 3, count: 1 }, { start: 1, count: 2 }] }], path: '/attentionBlocks/0/oldRanges/1', code: 'INVALID_RANGE' },
+		] as const;
+		for (const { blocks, path, code } of cases) {
+			const input = minimalSubmission();
+			expectIssue({ ...input, analysis: { ...input.analysis, hunks: [{ ...input.analysis.hunks[0], attentionBlocks: blocks }] } }, `/analysis/hunks/0${path}`, code);
+		}
+	});
+
 	test('publishes the exact v1 model-facing constants and schema envelope', () => {
 		assert.deepStrictEqual({
 			tool: SEMANTIC_DIFF_TOOL_NAME, mime: SEMANTIC_DIFF_MIME_TYPE,
@@ -95,11 +178,11 @@ suite('Semantic diff classification', () => {
 			tool: 'classify_diff_hunks', mime: 'application/vnd.vscode.semantic-diff-classification+json',
 			inputBytes: 1048576, resultBytes: 1052672,
 			required: ['schemaVersion', 'analysis'], fields: ['schemaVersion', 'analysis'], extra: false,
-			limits: [100, 200, 500, 200], conditionalRules: 3
+			limits: [100, 200, 500, 200], conditionalRules: 1
 		});
 	});
 
-	test('inlines every provider-facing schema reference and preserves nullable structures', () => {
+	test('inlines every provider-facing schema reference and exposes the concrete hunk contract', () => {
 		const serialized = JSON.stringify(semanticDiffSubmissionSchema);
 		const analysis = semanticDiffSubmissionSchema.properties.analysis;
 		const hunk = analysis.properties!.hunks.items as IJSONSchema;
@@ -110,21 +193,19 @@ suite('Semantic diff classification', () => {
 			analysisType: analysis.type, required: analysis.required,
 			hunkType: hunk.type,
 			hunkRequired: hunk.required,
-			changeTypeRangesFields: Object.keys((hunk.properties!.changeTypeRanges.items as IJSONSchema).properties!),
-			reviewFocusFields: Object.keys(hunk.properties!.reviewFocus.properties!),
-			groupId: classification.properties!.groupId.anyOf?.map(schema => schema.type),
-			changeType: classification.properties!.changeType.anyOf?.map(schema => schema.enum ?? schema.type),
+			attentionBlockFields: Object.keys((hunk.properties!.attentionBlocks.items as IJSONSchema).properties!),
+			groupId: classification.properties!.groupId.type,
+			changeType: classification.properties!.changeType.enum,
 			confidence: classification.properties!.groupConfidence.enum,
 			uncertainty: classification.properties!.uncertainty.anyOf?.map(schema => schema.type),
 			target: analysis.properties!.source.properties!.targetRevision.anyOf?.map(schema => schema.type)
 		}, {
 			references: false, definitions: false, version: [1], analysisType: 'object',
 			required: ['source', 'groups', 'files', 'hunks', 'limitations'], hunkType: 'object',
-			hunkRequired: ['id', 'fileId', 'oldRange', 'newRange', 'additions', 'deletions', 'classification', 'changeTypeRanges'],
-			changeTypeRangesFields: ['changeType', 'oldRanges', 'newRanges'],
-			reviewFocusFields: ['oldRanges', 'newRanges', 'reason'],
-			groupId: ['string', 'null'], changeType: [['logic', 'test', 'supporting', 'generated'], 'null'],
-			confidence: ['high', 'medium', 'low', null], uncertainty: ['string', 'null'], target: ['string', 'null']
+			hunkRequired: ['id', 'fileId', 'oldRange', 'newRange', 'additions', 'deletions', 'classification', 'attentionBlocks'],
+			attentionBlockFields: ['attention', 'oldRanges', 'newRanges', 'reason'],
+			groupId: 'string', changeType: ['logic', 'test', 'supporting'],
+			confidence: ['high', 'medium', 'low'], uncertainty: ['string', 'null'], target: ['string', 'null']
 		});
 	});
 
@@ -176,9 +257,8 @@ suite('Semantic diff classification', () => {
 			partialText: formatSemanticDiffReport(partial).includes('No changes reported for this comparison.')
 		}, {
 			complete: ['complete', {
-				groups: 0, files: 0, hunks: 0, assignedHunks: 0, unassignedHunks: 0, untypedHunks: 0,
-				uncertainHunks: 0, mixedTypeHunks: 0, additions: 0, deletions: 0,
-				byChangeType: { logic: 0, test: 0, supporting: 0, generated: 0, unknown: 0 }
+				groups: 0, files: 0, hunks: 0, uncertainHunks: 0, additions: 0, deletions: 0,
+				byChangeType: { logic: 0, test: 0, supporting: 0 }
 			}],
 			partial: ['partial', complete.summary], completeText: true, partialText: false
 		});
@@ -266,7 +346,7 @@ suite('Semantic diff classification', () => {
 			{ value: { ...analysis, hunks: [{ ...hunk, oldRange: [] }] }, path: '/analysis/hunks/0/oldRange' },
 			{ value: { ...analysis, hunks: [{ ...hunk, classification: { ...hunk.classification, changeType: 'safe' } }] }, path: '/analysis/hunks/0/classification/changeType' },
 			{ value: { ...analysis, hunks: [{ ...hunk, classification: { ...hunk.classification, groupConfidence: 'certain' } }] }, path: '/analysis/hunks/0/classification/groupConfidence' },
-			{ value: { ...analysis, hunks: [{ ...hunk, classification: { ...hunk.classification, secondaryChangeTypes: ['safe'] } }] }, path: '/analysis/hunks/0/classification/secondaryChangeTypes/0' },
+			{ value: { ...analysis, hunks: [{ ...hunk, attentionBlocks: [{ ...hunk.attentionBlocks[0], attention: 'urgent' }] }] }, path: '/analysis/hunks/0/attentionBlocks/0/attention' },
 			{ value: { ...analysis, limitations: [{ code: 'other', message: 'Missing.', fileId: null, hunkId: null }] }, path: '/analysis/limitations/0/code' }
 		];
 		for (const sample of cases) {
@@ -422,7 +502,7 @@ suite('Semantic diff classification', () => {
 			const maximum = 2147483647;
 			const template = input.analysis.hunks[0];
 			input.analysis.files.push({ ...input.analysis.files[0], id: 'second', path: 'second' });
-			input.analysis.hunks = [template.fileId, 'second'].map((fileId, index) => ({
+			input.analysis.hunks = [template.fileId, 'second'].map((fileId, index) => withFullAttention({
 				...template, id: `h${index}`, fileId, oldRange: { start: maximum, count: maximum },
 				newRange: { start: maximum, count: maximum }, additions: maximum, deletions: maximum
 			}));
@@ -437,6 +517,7 @@ suite('Semantic diff classification', () => {
 				hunk[status === 'added' ? 'oldRange' : 'newRange'] = { start: 0, count: 0 };
 				hunk.additions = status === 'added' ? 5 : 0;
 				hunk.deletions = status === 'deleted' ? 5 : 0;
+				input.analysis.hunks[0] = withFullAttention(hunk);
 				assert.strictEqual(success(input).status, 'complete');
 			}
 		});
@@ -480,7 +561,7 @@ suite('Semantic diff classification', () => {
 						additions: side === 'oldRange' ? 1 : 0, deletions: side === 'newRange' ? 1 : 0
 					};
 					second[side] = { start: anchor, count: 0 };
-					input.analysis.hunks.push(second);
+					input.analysis.hunks.push(withFullAttention(second));
 					if (anchor === 3) {
 						expectIssue(input, '/analysis/hunks/1', 'OVERLAPPING_HUNKS');
 					} else {
@@ -521,177 +602,36 @@ suite('Semantic diff classification', () => {
 			expectIssue(input, '/analysis/hunks/0/classification/groupId', 'UNKNOWN_GROUP');
 			expectIssue(input, '/analysis/groups/0', 'EMPTY_GROUP');
 		});
-		for (const nullGroup of [false, true]) {
-			for (const nullType of [false, true]) {
-				test(`independent axes: null group ${nullGroup}, null type ${nullType}`, () => {
-					const input = minimalSubmission();
-					const classification = input.analysis.hunks[0].classification;
-					if (nullGroup) {
-						input.analysis.groups = [];
-						classification.groupId = null;
-						classification.groupConfidence = null;
-					}
-					if (nullType) {
-						classification.changeType = null;
-						classification.typeConfidence = null;
-					}
-					classification.uncertainty = nullGroup || nullType ? 'Needs human judgment.' : null;
-					const report = success(input);
-					assert.deepStrictEqual({
-						status: report.status, group: report.summary.unassignedHunks, type: report.summary.untypedHunks,
-						uncertain: report.summary.uncertainHunks, unknown: report.summary.byChangeType.unknown
-					}, {
-						status: nullGroup || nullType ? 'partial' : 'complete', group: Number(nullGroup),
-						type: Number(nullType), uncertain: Number(nullGroup || nullType), unknown: Number(nullType)
-					});
-				});
-			}
-		}
-		test('low confidence and mixed types do not alone make complete reports partial', () => {
+		test('low confidence does not alone make a complete report partial', () => {
 			const input = minimalSubmission();
 			const classification = input.analysis.hunks[0].classification;
 			classification.changeType = 'logic';
-			classification.secondaryChangeTypes = ['test', 'supporting', 'generated'];
 			classification.typeConfidence = 'low';
 			classification.uncertainty = 'Limited supporting context.';
-			assert.deepStrictEqual([success(input).status, success(input).summary.uncertainHunks, success(input).summary.mixedTypeHunks, success(input).summary.byChangeType],
-				['complete', 1, 1, { logic: 1, test: 0, supporting: 0, generated: 0, unknown: 0 }]);
+			assert.deepStrictEqual([success(input).status, success(input).summary.uncertainHunks, success(input).summary.byChangeType],
+				['complete', 1, { logic: 1, test: 0, supporting: 0 }]);
 		});
-		test('review focus is optional, bounded by the hunk, and preserved in plain text', () => {
-			const input = minimalSubmission();
-			input.analysis.hunks[0].reviewFocus = {
-				oldRanges: [{ start: 2, count: 1 }],
-				newRanges: [{ start: 2, count: 1 }],
-				reason: 'The changed expression establishes the new behavior.',
-			};
-			const report = success(input);
-			assert.deepStrictEqual({
-				focus: report.analysis.hunks[0].reviewFocus,
-				text: formatSemanticDiffReport(report).includes('Review focus: The changed expression establishes the new behavior.\nOriginal: line 2. Modified: line 2.'),
-			}, { focus: input.analysis.hunks[0].reviewFocus, text: true });
-		});
-		test('review focus requires changed-side ranges ordered within the hunk', () => {
-			const cases: { reviewFocus: ISemanticDiffReviewFocus; path: string; code: SemanticDiffIssueCode }[] = [
-				{ reviewFocus: { oldRanges: [], newRanges: [], reason: 'Empty.' }, path: '/analysis/hunks/0/reviewFocus', code: 'INVALID_RANGE' },
-				{ reviewFocus: { oldRanges: [{ start: 0, count: 1 }], newRanges: [], reason: 'Outside.' }, path: '/analysis/hunks/0/reviewFocus/oldRanges/0', code: 'INVALID_RANGE' },
-				{ reviewFocus: { oldRanges: [{ start: 2, count: 2 }, { start: 3, count: 1 }], newRanges: [], reason: 'Overlap.' }, path: '/analysis/hunks/0/reviewFocus/oldRanges/1', code: 'INVALID_RANGE' },
-				{ reviewFocus: { oldRanges: [{ start: 2, count: 0 }], newRanges: [], reason: 'Zero.' }, path: '/analysis/hunks/0/reviewFocus/oldRanges/0/count', code: 'SCHEMA_VIOLATION' },
-			];
-			for (const { reviewFocus, path, code } of cases) {
-				const input = minimalSubmission();
-				input.analysis.hunks[0].reviewFocus = reviewFocus;
-				expectIssue(input, path, code);
-			}
-		});
-		test('review focus cannot cross from the primary type into secondary changed lines', () => {
+		test('rejects legacy hunk classification fields', () => {
 			const input = minimalSubmission();
 			const hunk = input.analysis.hunks[0];
-			hunk.classification.changeType = 'logic';
-			hunk.classification.secondaryChangeTypes = ['supporting'];
-			hunk.changeTypeRanges = [
-				{ changeType: 'logic', oldRanges: [{ start: 1, count: 2 }], newRanges: [{ start: 1, count: 2 }] },
-				{ changeType: 'supporting', oldRanges: [{ start: 3, count: 1 }], newRanges: [{ start: 3, count: 1 }] },
-			];
-			hunk.reviewFocus = {
-				oldRanges: [{ start: 1, count: 3 }],
-				newRanges: [{ start: 1, count: 2 }],
-				reason: 'The focus spans logic and a supporting line.',
-			};
-			expectIssue(input, '/analysis/hunks/0/reviewFocus/oldRanges/0', 'INVALID_RANGE');
-			hunk.reviewFocus.oldRanges = [{ start: 1, count: 2 }];
-			assert.strictEqual(success(input).status, 'complete');
-		});
-		test('changed-line classifications are optional for stored reports and preserve typed ranges in plain text', () => {
-			const input = minimalSubmission();
-			input.analysis.hunks[0].classification.changeType = 'logic';
-			input.analysis.hunks[0].classification.secondaryChangeTypes = ['supporting'];
-			input.analysis.hunks[0].changeTypeRanges = [
-				{ changeType: 'logic', oldRanges: [{ start: 1, count: 2 }], newRanges: [{ start: 1, count: 2 }] },
-				{ changeType: 'supporting', oldRanges: [{ start: 4, count: 1 }], newRanges: [{ start: 4, count: 1 }] },
-			];
-			const report = success(input);
-			assert.deepStrictEqual({
-				ranges: report.analysis.hunks[0].changeTypeRanges,
-				text: formatSemanticDiffReport(report).includes('Supporting changed lines. Original: line 4. Modified: line 4.'),
-			}, { ranges: input.analysis.hunks[0].changeTypeRanges, text: true });
-		});
-		test('changed-line range totals must match hunk additions and deletions', () => {
-			const input = minimalSubmission();
-			input.analysis.hunks[0].changeTypeRanges = [{
-				changeType: 'supporting',
-				oldRanges: [{ start: 1, count: 2 }],
-				newRanges: [{ start: 1, count: 3 }],
-			}];
-			expectIssue(input, '/analysis/hunks/0/changeTypeRanges', 'INVALID_RANGE');
-			input.analysis.hunks[0].changeTypeRanges[0].oldRanges = [{ start: 1, count: 3 }];
-			input.analysis.hunks[0].changeTypeRanges[0].newRanges = [{ start: 1, count: 2 }];
-			expectIssue(input, '/analysis/hunks/0/changeTypeRanges', 'INVALID_RANGE');
-			input.analysis.hunks[0].changeTypeRanges[0].newRanges = [{ start: 1, count: 3 }];
-			assert.strictEqual(success(input).status, 'complete');
-		});
-		test('changed-line classifications match declared types and do not overlap', () => {
-			const cases: { ranges: ISemanticDiffChangeTypeRanges[]; path: string; code: SemanticDiffIssueCode }[] = [
-				{
-					ranges: [{ changeType: 'supporting', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }] }],
-					path: '/analysis/hunks/0/changeTypeRanges', code: 'INVALID_TYPE_COMBINATION'
-				},
-				{
-					ranges: [
-						{ changeType: 'logic', oldRanges: [{ start: 2, count: 2 }], newRanges: [] },
-						{ changeType: 'supporting', oldRanges: [{ start: 3, count: 1 }], newRanges: [] },
-					],
-					path: '/analysis/hunks/0/changeTypeRanges', code: 'INVALID_RANGE'
-				},
-			];
-			for (const { ranges, path, code } of cases) {
-				const input = minimalSubmission();
-				input.analysis.hunks[0].classification.changeType = 'logic';
-				input.analysis.hunks[0].classification.secondaryChangeTypes = ['supporting'];
-				input.analysis.hunks[0].changeTypeRanges = ranges;
-				expectIssue(input, path, code);
+			for (const [field, value] of [
+				['changeTypeRanges', []],
+				['reviewBlocks', []],
+				['reviewFocus', { oldRanges: [], newRanges: [], reason: 'Legacy focus.' }],
+			] as const) {
+				expectIssue({
+					...input,
+					analysis: { ...input.analysis, hunks: [{ ...hunk, [field]: value }] },
+				}, `/analysis/hunks/0/${field}`, 'SCHEMA_VIOLATION');
 			}
 		});
-		for (const secondaryChangeTypes of [['logic'], ['test', 'test'], ['generated', 'test'], ['test', 'supporting', 'generated', 'logic']] as const) {
-			test(`rejects duplicate, repeated primary, unordered, or excess secondary types ${secondaryChangeTypes.join(',')}`, () => {
+		test('requires uncertainty for low confidence', () => {
+			for (const axis of ['groupConfidence', 'typeConfidence'] as const) {
 				const input = minimalSubmission();
-				input.analysis.hunks[0].classification.changeType = 'logic';
-				input.analysis.hunks[0].classification.secondaryChangeTypes = [...secondaryChangeTypes];
-				expectIssue(input, '/analysis/hunks/0/classification/secondaryChangeTypes', 'INVALID_TYPE_COMBINATION');
-			});
-		}
-		test('primary must have higher priority than all secondary types', () => {
-			const input = minimalSubmission();
-			input.analysis.hunks[0].classification.secondaryChangeTypes = ['logic'];
-			expectIssue(input, '/analysis/hunks/0/classification/secondaryChangeTypes', 'INVALID_TYPE_COMBINATION');
-		});
-		test('unknown primary requires no secondary types', () => {
-			const input = minimalSubmission();
-			Object.assign(input.analysis.hunks[0].classification, { changeType: null, typeConfidence: null, uncertainty: 'Not enough evidence.', secondaryChangeTypes: ['test'] });
-			expectIssue(input, '/analysis/hunks/0/classification/secondaryChangeTypes', 'INVALID_TYPE_COMBINATION');
-		});
-		for (const axis of ['groupConfidence', 'typeConfidence'] as const) {
-			test(`${axis} enforces null and assigned-axis confidence`, () => {
-				const input = minimalSubmission();
-				input.analysis.hunks[0].classification[axis] = null;
-				expectIssue(input, `/analysis/hunks/0/classification/${axis}`, 'INVALID_CONFIDENCE');
 				input.analysis.hunks[0].classification[axis] = 'low';
+				input.analysis.hunks[0].classification.uncertainty = null;
 				expectIssue(input, '/analysis/hunks/0/classification/uncertainty', 'MISSING_UNCERTAINTY');
-				const classification = input.analysis.hunks[0].classification;
-				if (axis === 'groupConfidence') {
-					classification.groupId = null;
-					input.analysis.groups = [];
-				} else {
-					classification.changeType = null;
-				}
-				classification.uncertainty = 'Unclassified.';
-				expectIssue(input, `/analysis/hunks/0/classification/${axis}`, 'INVALID_CONFIDENCE');
-			});
-		}
-		test('null axes require explicit uncertainty even with null confidence', () => {
-			const input = minimalSubmission();
-			input.analysis.hunks[0].classification.changeType = null;
-			input.analysis.hunks[0].classification.typeConfidence = null;
-			expectIssue(input, '/analysis/hunks/0/classification/uncertainty', 'MISSING_UNCERTAINTY');
+			}
 		});
 		test('limitation references and hunk/file scope are consistent', () => {
 			const input = exampleSubmission();
@@ -809,7 +749,7 @@ suite('Semantic diff classification', () => {
 			const group = input.analysis.groups[0];
 			const hunk = input.analysis.hunks[0];
 			input.analysis.groups = Array.from({ length: 100 }, (_, index) => ({ ...group, id: `group${index}` }));
-			input.analysis.hunks = input.analysis.groups.map((item, index) => ({
+			input.analysis.hunks = input.analysis.groups.map((item, index) => withFullAttention({
 				...hunk, id: `hunk${index}`, oldRange: { start: index * 10 + 1, count: 5 }, newRange: { start: index * 10 + 1, count: 5 },
 				classification: { ...hunk.classification, groupId: item.id }
 			}));
@@ -976,12 +916,12 @@ suite('Semantic diff classification', () => {
 					formatSemanticDiffRange({ start: 1, count: 1 }, 'old'),
 					formatSemanticDiffRange({ start: 41, count: 5 }, 'new')
 				],
-				types: (['logic', 'test', 'supporting', 'generated', null] as const).map(getSemanticDiffChangeTypeLabel),
-				confidence: (['high', 'medium', 'low', null] as const).map(getSemanticDiffConfidenceLabel)
+				types: (['logic', 'test', 'supporting'] as const).map(getSemanticDiffChangeTypeLabel),
+				confidence: (['high', 'medium', 'low'] as const).map(getSemanticDiffConfidenceLabel)
 			}, {
 				ranges: ['insertion at start of file', 'insertion after line 40', 'deletion at start of file', 'deletion after line 40', 'line 1', 'lines 41-45'],
-				types: ['Logic', 'Test', 'Supporting', 'Generated', 'Unclassified type'],
-				confidence: ['High', 'Medium', 'Low', 'Unclassified']
+				types: ['Logic', 'Test', 'Supporting'],
+				confidence: ['High', 'Medium', 'Low']
 			});
 		});
 		test('includes every example group, file, hunk, explanation, range, confidence and provenance', () => {
@@ -997,18 +937,17 @@ suite('Semantic diff classification', () => {
 				report.analysis.source.repositoryLabel, report.analysis.source.baseRevision, report.analysis.source.capturedAt,
 				'3 groups, 6 files, 8 hunks; observed +17/-10', '3 files, 4 hunks; observed +12/-5',
 				'2 files, 2 hunks; observed +2/-2', '2 files, 2 hunks; observed +3/-3',
-				'Group confidence: Medium; type confidence: High.', 'Also: Supporting',
+				'Group confidence: Medium; type confidence: High.', 'Cold attention: Formatting-only changes.',
 				'Classification and source metadata reported by the agent; not verified against Git.',
 				'Source freshness is unknown beyond the reported capture time.'
 			];
 			assert.deepStrictEqual(required.filter(value => !text.includes(value)), []);
 			assert.deepStrictEqual(report.analysis.hunks.map(hunk => text.split(`Hunk ${hunk.id}:`).length - 1), Array(8).fill(1));
 		});
-		test('exposes unknown axes, uncertainty, stale analysis, nontext files and scoped limitations without interaction', () => {
+		test('exposes uncertainty, stale analysis, nontext files and scoped limitations without interaction', () => {
 			const input = minimalSubmission();
-			input.analysis.groups = [];
 			Object.assign(input.analysis.hunks[0].classification, {
-				groupId: null, changeType: null, groupConfidence: null, typeConfidence: null, uncertainty: 'Shared test covers two unrelated features.'
+				groupConfidence: 'low', typeConfidence: 'low', uncertainty: 'Shared test covers two unrelated features.'
 			});
 			input.analysis.files.push({ id: 'binary', path: 'image.png', oldPath: 'old.png', status: 'renamed', contentKind: 'binary' });
 			input.analysis.limitations.push(
@@ -1018,10 +957,9 @@ suite('Semantic diff classification', () => {
 			);
 			const text = formatSemanticDiffReport(success(input));
 			assert.deepStrictEqual([
-				'Partial analysis', 'Needs grouping: 1 hunks; unclassified type: 1 hunks.', 'Needs grouping\n',
-				'Unclassified type', 'Uncertainty: Shared test covers two unrelated features.', 'Stale analysis',
+				'Partial analysis', 'Uncertainty: Shared test covers two unrelated features.', 'Stale analysis',
 				'Not analyzed as text', 'old.png → image.png', 'Image cannot be analyzed as text.', 'Callers are unavailable.',
-				'The index changed after capture.', 'Group confidence: Unclassified; type confidence: Unclassified.'
+				'The index changed after capture.', 'Group confidence: Low; type confidence: Low.'
 			].filter(value => !text.includes(value)), []);
 		});
 		test('model markup, commands, and instructions are inert text and remain unchanged', () => {

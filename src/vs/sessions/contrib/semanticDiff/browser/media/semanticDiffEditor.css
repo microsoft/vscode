@@ -63,17 +63,9 @@
 	--semantic-diff-type-color: var(--vscode-semanticDiff-supportingForeground);
 }
 
-.semantic-diff-editor .semantic-diff-type-generated {
-	--semantic-diff-type-color: var(--vscode-semanticDiff-generatedForeground);
-}
-
-.semantic-diff-editor .semantic-diff-type-unclassified {
-	--semantic-diff-type-color: var(--vscode-semanticDiff-unclassifiedForeground);
-}
-
 .semantic-diff-editor .semantic-diff-filter-count .monaco-count-badge {
-	color: var(--semantic-diff-type-color);
-	background-color: color-mix(in srgb, var(--semantic-diff-type-color) 8%, var(--vscode-editor-background));
+	color: var(--vscode-badge-foreground);
+	background-color: color-mix(in srgb, var(--semantic-diff-type-color) 55%, var(--vscode-editor-background));
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
 	border-radius: var(--vscode-cornerRadius-small);
 	min-width: var(--vscode-spacing-size200);
@@ -111,22 +103,29 @@
 	pointer-events: auto;
 }
 
-.semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-has-review-focus {
-	border-left-color: color-mix(in srgb, var(--semantic-diff-type-color) 45%, var(--vscode-editor-background));
-}
-
-.semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-review-focus {
+.semantic-diff-editor .semantic-diff-attention-hot {
 	border-left-color: var(--semantic-diff-type-color);
+	border-left-style: solid;
 }
 
-.hc-black .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-has-review-focus,
-.hc-light .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-has-review-focus {
+.semantic-diff-editor .semantic-diff-attention-warm {
+	border-left-color: color-mix(in srgb, var(--semantic-diff-type-color) 55%, var(--vscode-editor-background));
+}
+
+.semantic-diff-editor .semantic-diff-attention-cold {
+	border-left-color: color-mix(in srgb, var(--semantic-diff-type-color) 25%, var(--vscode-editor-background));
+}
+
+.hc-black .semantic-diff-editor .semantic-diff-attention-warm,
+.hc-light .semantic-diff-editor .semantic-diff-attention-warm {
 	border-left-color: var(--semantic-diff-type-color);
+	border-left-style: dashed;
 }
 
-.hc-black .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-review-focus,
-.hc-light .semantic-diff-editor .semantic-diff-hunk-decoration.semantic-diff-review-focus {
-	border-left-style: double;
+.hc-black .semantic-diff-editor .semantic-diff-attention-cold,
+.hc-light .semantic-diff-editor .semantic-diff-attention-cold {
+	border-left-color: var(--semantic-diff-type-color);
+	border-left-style: dotted;
 }
 
 .semantic-diff-editor .semantic-diff-body {

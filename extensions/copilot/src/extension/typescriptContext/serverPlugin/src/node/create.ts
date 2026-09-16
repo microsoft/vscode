@@ -135,6 +135,9 @@ const resolveInput = <T extends tt.server.protocol.FileRequestArgs & tt.server.p
 	if (args === undefined) {
 		return { response: { error: ErrorCode.noArguments, message: 'No arguments provided' }, responseRequired: true };
 	}
+	if (typeof args.file !== 'string' || args.file.length === 0) {
+		return { response: { error: ErrorCode.invalidArguments, message: 'File must be a non-empty string' }, responseRequired: true };
+	}
 
 	const fileAndProject = languageServerSession?.getFileAndProject(args);
 	if (fileAndProject === undefined) {

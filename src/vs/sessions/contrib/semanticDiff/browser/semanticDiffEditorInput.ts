@@ -20,8 +20,8 @@ import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { ISemanticDiffEditorRequest, ISemanticDiffEditorSource, ISemanticDiffSourceResolverService } from '../../../../workbench/contrib/chat/common/semanticDiffEditor.js';
 
-export type SemanticDiffFilter = SemanticDiffChangeType | null;
-export const semanticDiffFilterOrder: readonly SemanticDiffFilter[] = ['logic', 'test', 'supporting', 'generated', null];
+export type SemanticDiffFilter = SemanticDiffChangeType;
+export const semanticDiffFilterOrder: readonly SemanticDiffFilter[] = ['logic', 'test', 'supporting'];
 
 type SourceState = { readonly kind: 'initial' | 'loading' } | { readonly kind: 'error'; readonly message: string } | { readonly kind: 'ready'; readonly source: ISemanticDiffEditorSource };
 
@@ -70,7 +70,7 @@ export class SemanticDiffEditorInput extends EditorInput {
 		});
 		const present = new Set(this.hunks.map(hunk => hunk.classification.changeType));
 		this.availableTypes = Object.freeze(semanticDiffFilterOrder.filter(type => present.has(type)));
-		this.setSelectedTypes(this.availableTypes.filter((type, index) => index === 0 || type === null));
+		this.setSelectedTypes(this.availableTypes.slice(0, 1));
 	}
 
 	get hunks() { return this.request.report.analysis.hunks.filter(hunk => hunk.classification.groupId === this.request.groupId); }
