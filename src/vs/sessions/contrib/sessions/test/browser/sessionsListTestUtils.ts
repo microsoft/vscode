@@ -42,6 +42,7 @@ export class TestCommandService extends mock<ICommandService>() {
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	override readonly onDidChangeSessions = Event.None;
+	override readonly onDidDeleteSession: ISessionsManagementService['onDidDeleteSession'] = Event.None;
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];

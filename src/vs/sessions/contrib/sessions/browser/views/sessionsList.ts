@@ -3060,6 +3060,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (!this.suspendCollapseStatePersistence) {
 					this.saveSectionCollapseState(element.id, e.node.collapsed);
 				}
+			} else if (element && isSessionItem(element)) {
+				if (!this.suspendCollapseStatePersistence) {
+					this.saveSectionCollapseState(`session:${element.sessionId}`, e.node.collapsed);
+				}
 			}
 		}));
 
@@ -3103,6 +3107,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 			}
 		}));
+		this._register(this._sessionsManagementService.onDidDeleteSession(session => this.removeSessionCollapseState(session.sessionId)));
 
 		this._register(this._sessionsListModelService.onDidChange(() => {
 			if (this.visible) {
@@ -3202,6 +3207,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	update(expandAll?: boolean): void {
 		const activeSession = this._sessionsService.activeSession.get();
 		const archiveOnboardingSession = this.archiveOnboardingSession.get();
+		const savedCollapseState = this.readCollapseState();
+		const getSavedCollapseState = (id: string): boolean | undefined => savedCollapseState[id];
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
@@ -3350,13 +3357,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
 				const chats = getSessionListChats(session);
+				const children = chats.map(chat => ({ element: new SessionChatItem(session, chat) }));
 				return {
-					element: session as SessionListItem,
-					collapsible: chats.length > 0,
-					collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
-					children: chats.length > 0
-						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
-						: undefined,
+					element: session,
+					collapsible: children.length > 0,
+					collapsed: getSavedCollapseState(`session:${session.sessionId}`) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
+					children,
 				};
 			});
 
@@ -3418,7 +3424,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return {
 				element: section as SessionListItem,
 				collapsible: true,
-				collapsed: this.getSavedCollapseState(section.id) ?? defaultCollapsed,
+				collapsed: getSavedCollapseState(section.id) ?? defaultCollapsed,
 				children: sectionChildren,
 			};
 		};
@@ -3438,7 +3444,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return {
 				element: groupItem,
 				collapsible: true,
-				collapsed: this.getSavedCollapseState(sectionId) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
+				collapsed: getSavedCollapseState(sectionId) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
 				children: groupChildren,
 			};
 		};
@@ -4210,7 +4216,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	resetSectionCollapseState(): void {
-		this.storageService.remove(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		const sessionStates = Object.entries(this.readCollapseState()).filter(([key]) => key.startsWith('session:'));
+		this.writeCollapseState(Object.fromEntries(sessionStates));
 	}
 
 	// -- Pinning --
@@ -4429,46 +4436,72 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// -- Section collapse persistence --
 
-	private getSavedCollapseState(sectionId: string): boolean | undefined {
+	private readCollapseState(): Record<string, boolean> {
+		const state: Record<string, boolean> = {};
 		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
-				const state: Record<string, boolean> = JSON.parse(raw);
-				if (typeof state[sectionId] === 'boolean') {
-					return state[sectionId];
+				const parsed: unknown = JSON.parse(raw);
+				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+					for (const [key, value] of Object.entries(parsed)) {
+						if (typeof value === 'boolean') {
+							state[key] = value;
+						}
+					}
 				}
 			} catch {
 				// ignore corrupt data
 			}
 		}
-		return undefined;
+		return state;
 	}
 
 	private saveSectionCollapseState(sectionId: string, collapsed: boolean): void {
-		let state: Record<string, boolean> = {};
-		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
-		if (raw) {
-			try {
-				const parsed = JSON.parse(raw);
-				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-					state = parsed;
-				}
-			} catch {
-				// ignore corrupt data
-			}
+		this.saveCollapseState({ [sectionId]: collapsed });
+	}
+
+	private saveCollapseState(changes: Readonly<Record<string, boolean>>): void {
+		const state = this.readCollapseState();
+		Object.assign(state, changes);
+		this.writeCollapseState(state);
+	}
+
+	private removeSessionCollapseState(sessionId: ISession['sessionId']): void {
+		const key = `session:${sessionId}`;
+		const state = this.readCollapseState();
+		if (state[key] !== undefined) {
+			delete state[key];
+			this.writeCollapseState(state);
 		}
-		state[sectionId] = collapsed;
-		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private writeCollapseState(state: Readonly<Record<string, boolean>>): void {
+		if (Object.keys(state).length > 0) {
+			this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		} else {
+			this.storageService.remove(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		}
 	}
 
 	private saveBulkCollapseState(collapsed: boolean): void {
 		const state: Record<string, boolean> = {};
-		for (const child of this.tree.getNode(null).children) {
-			if (child.element && isSessionSection(child.element)) {
-				state[child.element.id] = collapsed;
+		const save = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			const element = node.element;
+			if (element && node.collapsible) {
+				if (isSessionItem(element)) {
+					state[`session:${element.sessionId}`] = collapsed;
+				} else if (isSessionGroupItem(element)) {
+					state[`group:${element.group.id}`] = collapsed;
+				} else if (isSessionSection(element)) {
+					state[element.id] = collapsed;
+				}
 			}
-		}
-		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+			for (const child of node.children) {
+				save(child);
+			}
+		};
+		save(this.tree.getNode(null));
+		this.saveCollapseState(state);
 	}
 
 }
