@@ -109,6 +109,55 @@ suite('ProjectBoardModel', () => {
 		]);
 	});
 
+	test('session list presents one session and keeps new chats with its occupied cell', () => {
+		const first = createChat('first', ChatInteractivity.Full);
+		const second = createChat('second', ChatInteractivity.Full);
+		const session = createSession(first, second);
+		const model = new ProjectBoardModel();
+		model.updateSessions([session]);
+		const firstId = model.cards[0].id;
+		const configuration: IProjectBoardConfiguration = {
+			version: 1,
+			rows: [{ id: 'general', label: 'General' }],
+			columns: [{ id: 'p0', label: 'P0' }, { id: 'p1', label: 'P1' }],
+			placements: [{ cardId: firstId, rowId: 'general', columnId: 'p0' }],
+			autoIncludeSessions: true,
+			display: { showStateDuration: false, showCredits: false, showSessionList: true },
+		};
+		model.updateConfiguration(configuration);
+		const list = { placed: model.getCards('general', 'p0').map(card => card.sessionTitle), unassigned: model.getUnassignedCards().length };
+		model.updateConfiguration({ ...configuration, display: undefined });
+		assert.deepStrictEqual({
+			list,
+			cards: { placed: model.getCards('general', 'p0').map(card => card.title), unassigned: model.getUnassignedCards().map(card => card.title) },
+		}, {
+			list: { placed: ['Shared session'], unassigned: 0 },
+			cards: { placed: ['first'], unassigned: ['second'] },
+		});
+	});
+
+	test('conflicting chat placements are unassigned only when auto-inclusion is enabled', () => {
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(createChat('first', ChatInteractivity.Full), createChat('second', ChatInteractivity.Full))]);
+		const configuration: IProjectBoardConfiguration = {
+			version: 1,
+			rows: [{ id: 'general', label: 'General' }],
+			columns: [{ id: 'p0', label: 'P0' }, { id: 'p1', label: 'P1' }],
+			placements: model.cards.map((card, index) => ({ cardId: card.id, rowId: 'general', columnId: `p${index}` })),
+			autoIncludeSessions: true,
+			display: { showStateDuration: false, showCredits: false, showSessionList: true },
+		};
+		const counts = () => [model.getUnassignedCards().length, model.getCards('general', 'p0').length, model.getCards('general', 'p1').length];
+		model.updateConfiguration(configuration);
+		const autoIncluded = counts();
+		model.updateConfiguration({ ...configuration, autoIncludeSessions: false });
+		const explicitlyIncluded = counts();
+		model.updateConfiguration({ ...configuration, display: undefined });
+		assert.deepStrictEqual({ autoIncluded, explicitlyIncluded, originalCards: counts() }, {
+			autoIncluded: [1, 0, 0], explicitlyIncluded: [0, 0, 0], originalCards: [0, 1, 1],
+		});
+	});
+
 	test('PB-09 archived chats and archived owners hide without losing placements', () => {
 		const chat = createChat('archivable', ChatInteractivity.Full);
 		const session = createSession(chat);

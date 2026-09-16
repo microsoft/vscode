@@ -14,7 +14,7 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -48,6 +48,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { ProjectBoardChatSidePanel } from '../../browser/projectBoardChatSidePanel.js';
+import { createListHarness, createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 
 class TestChat extends mock<IChat>() {
 	override readonly capabilities = observableValue('capabilities', { canRename: false, canDelete: true });
@@ -60,6 +61,7 @@ class TestChat extends mock<IChat>() {
 	override readonly modelId = observableValue<string | undefined>('modelId', undefined);
 	override readonly mode = observableValue<{ id: string; kind: string } | undefined>('mode', undefined);
 	override readonly resource = URI.parse(`test-chat:session#${this.name}`);
+	override readonly updatedAt = constObservable(new Date());
 
 	constructor(private readonly name: string) { super(); }
 }
@@ -77,7 +79,7 @@ suite('ProjectBoardService', () => {
 		return { document, nativeFocus };
 	}
 
-	function createBoard(document: Document, chats: readonly IChat[] = [], storage = store.add(new InMemoryStorageService())) {
+	function createBoard(document: Document, chats: readonly IChat[] = [], storage = store.add(new InMemoryStorageService()), withSessionLists = false) {
 		const container = mainWindow.document.createElement('div');
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
@@ -93,13 +95,14 @@ suite('ProjectBoardService', () => {
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
 			override readonly capabilities = observableValue('capabilities', { supportsMultipleChats: true, supportsDelete: true });
 		}();
+		const initialSessions: ISession[] = chats.length ? [session] : [];
 		const state = {
 			focusCount: 0,
 			ownerFocusCount: 0,
 			openCount: 0,
 			disposeCount: 0,
 			createdCount: 0,
-			sessions: chats.length ? [session] : [] as ISession[],
+			sessions: initialSessions,
 			navigationError: undefined as Error | undefined,
 			deletionError: undefined as Error | undefined,
 			closedResource: undefined as URI | undefined,
@@ -132,7 +135,7 @@ suite('ProjectBoardService', () => {
 		}();
 		const onOpened = store.add(new Emitter<URI>());
 		const errors = store.add(new Emitter<string>());
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const instantiationService = withSessionLists ? createListHarness(store, state.sessions).instantiationService : workbenchInstantiationService(undefined, store);
 		const quickInput = { selectedLabel: undefined as string | undefined, labels: [] as string[], inputValues: [] as string[] };
 		const pick = sinon.stub().callsFake((items: IQuickPickItem[]) => {
 			quickInput.labels = items.map(item => item.label);
@@ -313,6 +316,141 @@ suite('ProjectBoardService', () => {
 		await service.open();
 		assert.strictEqual(state.openCount, 1);
 		assert.ok(state.focusCount > firstFocusCount);
+	});
+
+	suite('session list presentation', () => {
+		function createSessionBoard(document = mainWindow.document) {
+			const storage = store.add(new InMemoryStorageService());
+			const h = createBoard(document, [], storage, true);
+			h.container.style.width = '1400px';
+			const first = new TestChat('Main chat');
+			const second = new TestChat('Nested chat');
+			const base = createTestSession('Shared session');
+			const chats = observableValue<readonly IChat[]>('chats', [first, second]);
+			const session: ISession = {
+				...base.session,
+				chats,
+				mainChat: constObservable(first),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			h.state.sessions = [session];
+			const view = store.add(h.service.createView(h.container));
+			h.service.toggleDisplayOption('showSessionList');
+			view.layout(1400, 800);
+			const rows = (cell: string) => h.container.querySelector(`[aria-label="${cell}"]`)!.querySelectorAll('.session-item').length;
+			const drop = (cell: string, source?: HTMLElement, draggedSession = session) => {
+				const dataTransfer = new mainWindow.DataTransfer();
+				if (source) {
+					source.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+				} else {
+					dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: draggedSession.sessionId, resource: draggedSession.resource.toString() }));
+				}
+				const group = h.container.querySelector(`[aria-label="${cell}"]`)!;
+				const target = group.classList.contains('project-board-card-group-collapsed') ? group : group.querySelector('.monaco-list-row') ?? group;
+				target.dispatchEvent(new mainWindow.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+				target.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			};
+			return { ...h, storage, session, chats, first, second, view, rows, drop };
+		}
+
+		test('reuses shared rows, nests chats and restores the card renderer', () => {
+			const h = createSessionBoard();
+			const row = h.container.querySelector('.session-item');
+			assert.ok(row);
+			const list = {
+				sessions: h.rows('Unassigned'),
+				groups: h.container.querySelectorAll('.session-section').length,
+				nested: h.container.querySelectorAll('.session-chat-item').length,
+				cards: h.container.querySelectorAll('.project-board-card').length,
+			};
+			h.service.toggleDisplayOption('showSessionList');
+			assert.deepStrictEqual({ list, cards: h.container.querySelectorAll('.project-board-card').length }, {
+				list: { sessions: 1, groups: 0, nested: 1, cards: 0 }, cards: 2,
+			});
+		});
+
+		test('session drags move rather than copy, including collapsed cells and Unassigned', () => {
+			const h = createSessionBoard();
+			h.service.toggleAutoIncludeSessions();
+			const hidden = h.rows('Unassigned');
+			h.drop('General, P0');
+			const otherChat = new TestChat('Other main');
+			const other: ISession = {
+				...createTestSession('Other session').session,
+				mainChat: constObservable(otherChat), chats: constObservable([otherChat]),
+			};
+			h.state.sessions.push(other);
+			h.sessionsChanged.fire({ added: [other], removed: [], changed: [] });
+			h.drop('General, P1', undefined, other);
+			const source = h.container.querySelector<HTMLElement>('[aria-label="General, P0"] .session-chat-item')!.closest<HTMLElement>('.monaco-list-row')!;
+			h.drop('General, P1', source);
+			const moved = [h.rows('General, P0'), h.rows('General, P1'), h.rows('Unassigned')];
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
+			h.drop('General, P0', h.container.querySelector<HTMLElement>('[aria-label="General, P1"] .session-chat-item')!.closest<HTMLElement>('.monaco-list-row')!);
+			const expanded = h.container.querySelector('[data-board-control="collapse:column:p0"]')!.getAttribute('aria-expanded');
+			h.service.toggleDisplayOption('showSessionList');
+			const cardCount = h.container.querySelectorAll('[aria-label="General, P0"] .project-board-card').length;
+			h.service.toggleDisplayOption('showSessionList');
+			h.service.toggleAutoIncludeSessions();
+			const returnedRow = h.container.querySelector<HTMLElement>('[aria-label="General, P0"] .monaco-list-row')!;
+			h.drop('Unassigned', returnedRow);
+			assert.deepStrictEqual({ hidden, moved, expanded, cardCount, returned: [h.rows('General, P1'), h.rows('Unassigned')] }, {
+				hidden: 0, moved: [0, 2, 0], expanded: 'true', cardCount: 2, returned: [1, 1],
+			});
+		});
+
+		test('live updates retain the list and new chats stay in the session cell', () => {
+			const h = createSessionBoard();
+			h.drop('General, P0');
+			const originalTree = h.container.querySelector('[aria-label="General, P0"] .monaco-list');
+			h.first.title.set('Renamed chat', undefined);
+			h.chats.set([h.first, h.second, new TestChat('Third chat')], undefined);
+			h.view.layout(1200, 600);
+			assert.deepStrictEqual({
+				sameTree: originalTree === h.container.querySelector('[aria-label="General, P0"] .monaco-list'),
+				placed: h.rows('General, P0'), unassigned: h.rows('Unassigned'),
+			}, { sameTree: true, placed: 1, unassigned: 0 });
+		});
+
+		test('opening nested chats honors side-panel routing and restores focus', async () => {
+			const h = createSessionBoard();
+			h.service.toggleOpenChatInSidePanel();
+			const child = h.container.querySelector<HTMLElement>('.session-chat-item')!;
+			assert.ok(child);
+			child.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, button: 0 }));
+			await Promise.resolve();
+			await Promise.resolve();
+			h.service.toggleOpenChatInSidePanel();
+			assert.deepStrictEqual({
+				opened: h.sidePanelOpened.map(resource => resource.toString()),
+				focusedChat: h.container.querySelector('.monaco-list-row.focused .session-chat-title')?.textContent,
+			}, { opened: [h.second.resource.toString()], focusedChat: 'Nested chat' });
+		});
+
+		test('keyboard movement relocates the entire session and preserves focus', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			mainWindow.document.body.appendChild(frame);
+			store.add(toDisposable(() => frame.remove()));
+			const document = frame.contentDocument!;
+			const h = createSessionBoard(document);
+			document.hasFocus = () => true;
+			h.view.focus();
+			h.quickInput.selectedLabel = 'General, P2';
+			h.container.querySelector<HTMLElement>('[role="tree"]')!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', {
+				keyCode: 77, ctrlKey: !isMacintosh, metaKey: isMacintosh, shiftKey: true, bubbles: true, cancelable: true,
+			}));
+			assert.strictEqual(h.pick.callCount, 1);
+			await h.pick.lastCall.returnValue;
+			await Promise.resolve();
+			const focused = h.container.querySelector('[aria-label="General, P2"] .monaco-list-row.focused .session-title')?.textContent;
+			const focusedRole = document.activeElement?.getAttribute('role');
+			h.service.toggleDisplayOption('showSessionList');
+			assert.deepStrictEqual({
+				focused, focusedRole,
+				movedChats: h.container.querySelectorAll('[aria-label="General, P2"] .project-board-card').length,
+				unassigned: h.container.querySelectorAll('.project-board-unassigned .project-board-card').length,
+			}, { focused: 'Shared session', focusedRole: 'tree', movedChats: 2, unassigned: 0 });
+		});
 	});
 
 	test('PB-21 board notifies content size changes so the host can rescan after +more expands a column', async () => {
