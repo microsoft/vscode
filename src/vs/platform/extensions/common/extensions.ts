@@ -17,18 +17,15 @@ export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 /**
  * Returns the name of the manifest cache file for the given extension type and scan language.
- *
- * Manifests are localized while they are scanned, so a scan result is only valid for the language
- * it was produced with and every language needs its own cache file. Sharing a single file makes
- * scans that use different languages - for example the window, which always passes a language, and
- * the shared process, which does not - overwrite each other's entry, so neither ever gets a cache hit.
+ * Scan results are localized, so each language needs its own file or scans that use different
+ * languages overwrite each other's entry and neither ever gets a cache hit.
  */
 export function getManifestCacheFileName(type: ExtensionType, language: string | undefined): string {
 	const prefix = type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
 	if (!language) {
 		return `${prefix}.cache`;
 	}
-	// The language can originate from a remote client, so reduce it to characters that are safe in a file name
+	// The language can come from a remote client, so reduce it to characters that are safe in a file name
 	return `${prefix}.${language.toLowerCase().replace(/[^a-z0-9]/g, '-')}.cache`;
 }
 

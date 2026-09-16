@@ -967,9 +967,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		this.input = input;
 		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
 			this.logService.debug('Using cached extensions scan result', input.type === ExtensionType.System ? 'system' : 'user', input.location.toString());
-			// Validating the cache scans everything again, so only do it when the extensions can actually
-			// have changed on disk behind our back. Built-in extensions of an installed product cannot:
-			// they are replaced as a whole by an update, which changes the product commit in the cache key.
+			// Built-in extensions of an installed product cannot change on disk behind our back
 			if (input.type !== ExtensionType.System || input.devMode) {
 				this.cacheValidatorThrottler.trigger(() => this.validateCache());
 			}

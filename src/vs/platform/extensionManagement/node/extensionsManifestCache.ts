@@ -54,10 +54,7 @@ export class ExtensionsManifestCache extends Disposable {
 
 	private async deleteUserCacheFiles(profile: IUserDataProfile): Promise<void> {
 		try {
-			// Scan results are localized, so there is one cache file per language that extensions were
-			// scanned with, and every consumer of this cache scans with a language: the window uses the
-			// display language and a remote server uses the language of the connecting client. Deleting
-			// only the unsuffixed file would therefore no longer invalidate anything.
+			// Every consumer scans with a language, so there is one cache file per language
 			const cacheHome = await this.fileService.resolve(profile.cacheHome);
 			await Promise.all((cacheHome.children ?? [])
 				.filter(child => !child.isDirectory && child.name.startsWith(`${USER_MANIFEST_CACHE_FILE_PREFIX}.`) && child.name.endsWith('.cache'))
