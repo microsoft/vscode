@@ -207,8 +207,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 
+		const riskAssessmentParameters = terminalData.commandLine.forRiskAssessment === undefined
+			? undefined
+			: { command: terminalData.commandLine.forRiskAssessment };
 		const riskBadge = createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)
-			?? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
+			?? (riskAssessmentParameters && createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, riskAssessmentParameters, 'terminal'));
 
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,

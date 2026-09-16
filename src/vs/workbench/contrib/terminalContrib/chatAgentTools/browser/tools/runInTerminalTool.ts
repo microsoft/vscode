@@ -96,6 +96,24 @@ const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
 
+function getRiskAssessmentParserLanguage(shell: string, os: OperatingSystem): TreeSitterCommandParserLanguage | undefined {
+	if (isPowerShell(shell, os)) {
+		return TreeSitterCommandParserLanguage.PowerShell;
+	}
+	const shellName = (os === OperatingSystem.Windows ? win32 : posix).basename(shell).replace(/\.exe$/i, '').toLowerCase();
+	switch (shellName) {
+		case 'bash':
+		case 'dash':
+		case 'fish':
+		case 'ksh':
+		case 'sh':
+		case 'zsh':
+			return TreeSitterCommandParserLanguage.Bash;
+		default:
+			return undefined;
+	}
+}
+
 export interface ISandboxingOnNetworkRestrictedOptions {
 	sandboxMode: 'on-network-restricted';
 	allowToRunUnsandboxedCommands: boolean;
@@ -524,6 +542,19 @@ interface IResolvedExecutionOptions {
 }
 
 type AutomaticSandboxRetryKind = 'unsandboxed' | 'allowNetwork';
+
+export function createAutomaticSandboxRetryRiskAssessment(retryParameters: IRunInTerminalInputParams, command: string | undefined): { toolId: string; parameters: IRunInTerminalInputParams } | undefined {
+	if (command === undefined) {
+		return undefined;
+	}
+	return {
+		toolId: TerminalToolId.RunInTerminal,
+		parameters: {
+			...retryParameters,
+			command,
+		},
+	};
+}
 
 interface IAutomaticSandboxRetryPredicateOptions {
 	readonly retryAllowed: boolean;
@@ -985,6 +1016,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalSandboxService.checkForSandboxingPrereqs(false, sandboxPrecheckInputs)
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+		const riskAssessmentParserLanguage = getRiskAssessmentParserLanguage(shell, os);
+		let commandForRiskAssessment: string | undefined;
+		if (riskAssessmentParserLanguage !== undefined) {
+			try {
+				commandForRiskAssessment = await this._treeSitterCommandParser.getCommandForRiskAssessment(riskAssessmentParserLanguage, args.command);
+			} catch (e) {
+				this._logService.warn('RunInTerminalTool: Failed to prepare command for risk assessment', e);
+			}
+		}
 		const isSandboxEnabled = sandboxPrereqs.enabled;
 		const isSandboxAllowNetworkEnabled = isSandboxEnabled && await this._terminalSandboxService.isSandboxAllowNetworkEnabled();
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
@@ -1024,6 +1064,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalCommandId,
 					commandLine: {
 						original: args.command,
+						forRiskAssessment: commandForRiskAssessment,
 						forDisplay: commandToDisplay,
 					},
 					cwd,
@@ -1047,6 +1088,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalCommandId,
 					commandLine: {
 						original: args.command,
+						forRiskAssessment: commandForRiskAssessment,
 						forDisplay: commandToDisplay,
 					},
 					cwd,
@@ -1085,6 +1127,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
+				forRiskAssessment: commandForRiskAssessment,
 				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
 				isSandboxWrapped,
 			},
@@ -1144,7 +1187,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			cwd,
 			os,
 			shell,
-			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+			treeSitterLanguage: riskAssessmentParserLanguage ?? (isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash),
 			terminalToolSessionId,
 			chatSessionResource,
 			requiresUnsandboxConfirmation,
@@ -1689,13 +1732,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requestAllowNetwork,
 			requestAllowNetworkReason: requestAllowNetwork ? rewrittenRetryReason : undefined,
 		};
-		const retryRiskAssessment = {
-			toolId: TerminalToolId.RunInTerminal,
-			parameters: {
-				...retryParameters,
-				command: retryRewriteResult.rewrittenCommand,
-			},
-		};
+		const retryRiskAssessment = createAutomaticSandboxRetryRiskAssessment(retryParameters, options.toolSpecificData.commandLine.forRiskAssessment);
 		const retryConfirmationCommand = options.toolSpecificData.presentationOverrides?.commandLine ?? options.command;
 		const shouldRetry = await this._confirmAutomaticSandboxRetry(options.retryKind, options.invocation.context?.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, retryRiskAssessment, options.token);
 		if (!shouldRetry) {
@@ -1708,6 +1745,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: options.args.command,
 				toolEdited: retryRewriteResult.rewrittenCommand === options.args.command ? undefined : retryRewriteResult.rewrittenCommand,
+				forRiskAssessment: options.toolSpecificData.commandLine.forRiskAssessment,
 				forDisplay: retryRewriteResult.forDisplayCommand ?? normalizeTerminalCommandForDisplay(retryRewriteResult.rewrittenCommand ?? options.args.command),
 				isSandboxWrapped: retryRewriteResult.isSandboxWrapped,
 			},
