@@ -99,6 +99,30 @@ suite('ProjectBoardState', () => {
 		assert.strictEqual(create(storage).state.configuration.get().autoIncludeSessions, true);
 	});
 
+	test('session list preference defaults off, persists and resets without changing placements', () => {
+		const { state, storage } = create();
+		const initiallyEnabled = !!state.configuration.get().display?.showSessionList;
+		state.moveCard('chat', { rowId: 'general', columnId: 'p1' });
+		state.setDisplayOption('showSessionList', true);
+		const restored = create(storage).state;
+		const enabled = restored.configuration.get().display?.showSessionList;
+		restored.setDisplayOption('showSessionList', false);
+		const disabled = state.configuration.get().display?.showSessionList;
+		const placement = state.getPlacement('chat');
+		state.reset();
+		assert.deepStrictEqual({ initiallyEnabled, enabled, disabled, placement, reset: state.configuration.get() }, {
+			initiallyEnabled: false, enabled: true, disabled: false,
+			placement: { rowId: 'general', columnId: 'p1' }, reset: defaults,
+		});
+	});
+
+	test('invalid saved session list preference is reported instead of silently ignored', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(key, JSON.stringify({ ...defaults, display: { showStateDuration: false, showCredits: false, showSessionList: 'true' } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { state, notifications } = create(storage);
+		assert.deepStrictEqual({ canEdit: state.canEdit, errors: notifications.length }, { canEdit: false, errors: 1 });
+	});
+
 	test('side-panel opening defaults off and roundtrips independently of board contents', () => {
 		const { state, storage } = create();
 		const legacy = JSON.stringify(defaults);

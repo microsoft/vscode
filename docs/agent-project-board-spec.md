@@ -62,6 +62,14 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Collapsed cells remain drop targets; a local move into one expands the destination. Returning from a standalone chat reveals its collapsed row/column/tray. Card-arrow navigation skips hidden cards.
 - Retain pending question/approval DOM and the existing bounded model references while collapsed so entered answers are not discarded. Collapsed content is hidden from tab navigation; accessible overview text labels collapsed groups.
 
+### Session list presentation
+
+- **Toggle Session List** in Board Settings is off by default and saved with the profile's board preferences. It replaces live cards with the shared Sessions list renderer, following the Automations embedding pattern, without workspace or date sections. The board's axes remain unchanged.
+- A session appears in only one cell, with its visible chats nested using the sidebar's expand/collapse behavior. A single occupied cell determines its destination; additional unplaced chats stay nested under the same session. If saved chats occupy conflicting cells, the session is Unassigned in list mode, or hidden when Auto-include Sessions is off. Merely toggling the presentation does not rewrite saved chat placements.
+- Dragging either a session row or a nested chat, or using Ctrl/Cmd+Shift+M, moves all of that session's visible chats together. Returning to cards reflects the move. Dropping into a collapsed destination expands it, and dropping into Unassigned removes placements.
+- Lists retain their identity and expansion state during live updates and use the board's outer scroller. Opening the session row opens its main chat; opening a nested row opens that exact chat, honoring the board's side-panel preference.
+- Card-only metrics and question-answer widgets remain available in card mode. List mode retains standard session approval controls, and drafts and unavailable placements retain their existing fallback presentation.
+
 ### Live cards
 
 - Render visible chats separately, including multiple chats from one session. Exclude provider-hidden internal workers; label visible read-only chats.
