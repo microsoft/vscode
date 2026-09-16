@@ -4293,7 +4293,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		assert.deepStrictEqual(picker.getItemLabels(), ['Open Folder...']);
 	});
 
-	test('selects No Folder through the consolidated picker', async () => {
+	test('selects Chat through the consolidated picker', async () => {
 		let noWorkspaceSelected = false;
 		const picker = createTestablePicker(disposables, providersService, true, {
 			getNoWorkspaceOption: () => ({
@@ -4321,7 +4321,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			})),
 			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
 		};
-		await picker.select('No Folder');
+		await picker.select('Chat');
 
 		assert.deepStrictEqual({
 			before,
@@ -4340,10 +4340,10 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, {
 			before: {
 				items: [{
-					label: 'No Folder',
+					label: 'Chat',
 					description: undefined,
 					ariaDescription: 'Start the session in a temporary directory.',
-					hover: 'Start the session in a temporary directory.',
+					hover: undefined,
 					icon: 'comment',
 					checked: undefined,
 				}],
@@ -4351,20 +4351,20 @@ suite('WorkspacePicker - Tab discovery', () => {
 			},
 			after: {
 				items: [{
-					label: 'No Folder',
+					label: 'Chat',
 					description: undefined,
 					ariaDescription: 'Start the session in a temporary directory.',
-					hover: 'Start the session in a temporary directory.',
+					hover: undefined,
 					icon: 'comment',
 					checked: true,
 				}],
-				triggerLabel: 'No Folder',
-				triggerAriaLabel: 'Workspace: No Folder',
+				triggerLabel: 'Chat',
+				triggerAriaLabel: 'Workspace: Chat',
 			},
 		});
 	});
 
-	test('persists No Folder as the checked selection until a workspace is selected', () => {
+	test('persists Chat as the checked selection until a workspace is selected', () => {
 		const storage = disposables.add(new TestStorageService());
 		const localProvider = createMockProvider('local-1');
 		providersService.setProviders([localProvider]);

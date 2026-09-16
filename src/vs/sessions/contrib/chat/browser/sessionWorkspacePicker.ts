@@ -1867,15 +1867,14 @@ export class WorkspacePicker extends Disposable {
 			return items;
 		}
 
-		const noFolderDescription = this._useConsolidatedRemoteWorkspaces()
+		const noWorkspaceAriaDescription = this._useConsolidatedRemoteWorkspaces()
 			? localize('workspacePicker.noFolderDescription', "Start the session in a temporary directory.")
 			: undefined;
 		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
 			kind: ActionListItemKind.Action,
 			label: this._getNoWorkspaceLabel(),
 			description: this._useConsolidatedRemoteWorkspaces() ? undefined : noWorkspaceOption.description,
-			ariaDescription: noFolderDescription,
-			hover: noFolderDescription ? { content: noFolderDescription } : undefined,
+			ariaDescription: noWorkspaceAriaDescription,
 			group: { title: '', icon: this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion },
 			item: {
 				checked: noWorkspaceOption.isSelected || undefined,
@@ -1897,7 +1896,7 @@ export class WorkspacePicker extends Disposable {
 
 	private _getNoWorkspaceLabel(): string {
 		return this._useConsolidatedRemoteWorkspaces()
-			? localize('workspacePicker.noFolder', "No Folder")
+			? localize('workspacePicker.chat', "Chat")
 			: localize('workspacePicker.noWorkspace', "No workspace");
 	}
 
