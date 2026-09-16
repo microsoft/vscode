@@ -37,6 +37,7 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
@@ -208,7 +209,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			} else {
 				this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
 			}
-			return [];
+			throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 		}
 
 		const additionalNames = this._configurationService.getValue<string[]>(TunnelAgentHostsSettingId) ?? [];
@@ -607,6 +608,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

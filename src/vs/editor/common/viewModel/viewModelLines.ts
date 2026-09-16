@@ -42,6 +42,7 @@ export interface IViewModelLines extends IDisposable {
 	getViewLineLength(viewLineNumber: number): number;
 	getViewLineMinColumn(viewLineNumber: number): number;
 	getViewLineMaxColumn(viewLineNumber: number): number;
+	getViewLineContinuesWithWrappedLine(viewLineNumber: number): boolean;
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
@@ -759,6 +760,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineMaxColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
+	public getViewLineContinuesWithWrappedLine(viewLineNumber: number): boolean {
+		const info = this.getViewLineInfo(viewLineNumber);
+		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineContinuesWithWrappedLine(info.modelLineWrappedLineIdx);
+	}
+
 	public getViewLineData(viewLineNumber: number): ViewLineData {
 		const info = this.getViewLineInfo(viewLineNumber);
 		const baseViewLineNumber = this.projectedModelLineLineCounts.getPrefixSum(info.modelLineNumber - 1) + 1;
@@ -1228,6 +1234,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public getViewLineMaxColumn(viewLineNumber: number): number {
 		return this.model.getLineMaxColumn(viewLineNumber);
+	}
+
+	public getViewLineContinuesWithWrappedLine(_viewLineNumber: number): boolean {
+		return false;
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {

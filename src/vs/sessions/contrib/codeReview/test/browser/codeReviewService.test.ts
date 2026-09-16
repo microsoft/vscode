@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -25,10 +26,11 @@ import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnab
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
-import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
+import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
+import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
+import { commentableRightLines, mapCurrentLineToPullRequestLine, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -176,6 +178,8 @@ suite('CodeReviewService', () => {
 
 		getPullRequestCalls = 0;
 		getPullRequestReviewThreadsCalls = 0;
+		readonly failingPullRequestNumbers = new Set<number>();
+		readonly postedReviewComments: { owner: string; repo: string; number: number; body: string; commitId: string; path: string; line: number; pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined }[] = [];
 
 		override readonly activeSessionPullRequestReviewThreadsObs: IObservable<GitHubPullRequestReviewThreadsModel | undefined>;
 
@@ -216,6 +220,66 @@ suite('CodeReviewService', () => {
 		override createPullRequestReviewThreadsModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestReviewThreadsModel> {
 			this.getPullRequestReviewThreadsCalls++;
 			return new ImmortalReference(this.getReviewThreadsModel(owner, repo, prNumber));
+		}
+
+		override createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
+			this.getPullRequestCalls++;
+			const postedReviewComments = this.postedReviewComments;
+			const shouldFail = this.failingPullRequestNumbers.has(prNumber);
+			return new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+				override readonly pullRequest = constObservable({
+					number: prNumber,
+					title: 'Test PR',
+					body: '',
+					state: GitHubPullRequestState.Open,
+					author: { login: 'author', avatarUrl: '' },
+					headRef: 'feature',
+					headSha: 'abc123',
+					baseRef: 'main',
+					isDraft: false,
+					createdAt: '',
+					updatedAt: '',
+					mergedAt: undefined,
+					mergeable: true,
+					mergeableState: 'clean',
+				});
+				override readonly reviews = constObservable([{
+					id: 42,
+					nodeId: 'PRR_pending',
+					author: { login: 'reviewer', avatarUrl: '' },
+					state: 'PENDING',
+					submittedAt: undefined,
+				}]);
+				override refresh(): Promise<void> {
+					return shouldFail ? Promise.reject(new Error('not found')) : Promise.resolve();
+				}
+				override async postReviewComment(body: string, commitId: string, path: string, line: number, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>): Promise<void> {
+					postedReviewComments.push({ owner, repo, number: prNumber, body, commitId, path, line, pendingReview });
+				}
+			}());
+		}
+
+		override getPullRequestChangedFiles() {
+			return Promise.resolve([{
+				filename: 'src/a.ts',
+				previous_filename: undefined,
+				status: 'modified' as const,
+				additions: 2,
+				deletions: 1,
+				patch: '@@ -3,2 +4,4 @@\n context\n+added\n+also added\n context',
+			}]);
+		}
+
+		override getFileContent(): Promise<string> {
+			return Promise.resolve([
+				'one',
+				'two',
+				'three',
+				'context',
+				'added',
+				'also added',
+				'context',
+			].join('\n'));
 		}
 
 		private _key(owner: string, repo: string, prNumber: number): string {
@@ -268,7 +332,134 @@ suite('CodeReviewService', () => {
 				legacyThreadRefreshes: 0,
 				reviewThreadRefreshes: 1,
 			});
+
 		}
+	});
+
+	test('creates line-comment targets and posts a PR review comment', async () => {
+		const workspaceResource = URI.file('/workspace/src/a.ts');
+		const virtualResource = URI.parse('git:/workspace/src/a.ts?ref=head');
+		sessionsManagement.addSession(session, [{
+			uri: workspaceResource,
+			originalUri: virtualResource,
+			modifiedUri: workspaceResource,
+			insertions: 1,
+			deletions: 0,
+		}]);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		const currentContent = [
+			'one',
+			'two',
+			'three',
+			'context',
+			'added',
+			'also added',
+			'context',
+		].join('\n');
+		const pullRequests = service.getPRReviewCommentPullRequests(session, virtualResource);
+		const pullRequestModelCallsAfterChoices = gitHubService.getPullRequestCalls;
+		const target = (await service.getPRReviewCommentTargets(session, virtualResource, new Range(4, 1, 7, 1), currentContent))[0];
+		assert.ok(target);
+
+		await service.createPRReviewComment(target, 'Please update this.');
+
+		assert.deepStrictEqual({
+			pullRequests: pullRequests.map(pullRequest => ({
+				owner: pullRequest.owner,
+				repo: pullRequest.repo,
+				number: pullRequest.number,
+			})),
+			pullRequestModelCallsAfterChoices,
+			target: {
+				pr: target.pullRequest.number,
+				commitId: target.commitId,
+				path: target.path,
+				line: target.line,
+				pendingReview: target.pendingReview,
+			},
+			outsideTargets: await service.getPRReviewCommentTargets(session, URI.file('/outside/a.ts'), new Range(1, 1, 1, 1), currentContent),
+			nonDiffTargets: await service.getPRReviewCommentTargets(session, URI.file('/workspace/src/a.ts'), new Range(20, 1, 20, 1), currentContent),
+			postedReviewComments: gitHubService.postedReviewComments,
+			threadRefreshes: gitHubService.reviewThreadsFetcher.getReviewThreadsCalls,
+		}, {
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 1 }],
+			pullRequestModelCallsAfterChoices: 0,
+			target: {
+				pr: 1,
+				commitId: 'abc123',
+				path: 'src/a.ts',
+				line: 7,
+				pendingReview: { id: 42, nodeId: 'PRR_pending' },
+			},
+			outsideTargets: [],
+			nonDiffTargets: [],
+			postedReviewComments: [{
+				owner: 'owner',
+				repo: 'repo',
+				number: 1,
+				body: 'Please update this.',
+				commitId: 'abc123',
+				path: 'src/a.ts',
+				line: 7,
+				pendingReview: { id: 42, nodeId: 'PRR_pending' },
+			}],
+			threadRefreshes: 1,
+		});
+	});
+
+	test('parses right-side commentable lines from a unified patch', () => {
+		assert.deepStrictEqual([...commentableRightLines([
+			'@@ -2,3 +4,4 @@',
+			' context',
+			'-removed',
+			'+added',
+			' context',
+			'+last',
+			'@@ -20 +22 @@',
+			'-old',
+			'+new',
+		].join('\n'))], [4, 5, 6, 7, 22]);
+	});
+
+	test('resolves only the selected pull request comment target', async () => {
+		const workspaceResource = URI.file('/workspace/src/a.ts');
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		gitHubService.failingPullRequestNumbers.add(2);
+
+		const targets = await service.getPRReviewCommentTargets(
+			session,
+			workspaceResource,
+			new Range(7, 1, 7, 1),
+			['one', 'two', 'three', 'context', 'added', 'also added', 'context'].join('\n'),
+			{ owner: 'owner', repo: 'repo', number: 1 },
+		);
+
+		assert.deepStrictEqual({
+			targets: targets.map(target => target.pullRequest.number),
+			pullRequestModelCalls: gitHubService.getPullRequestCalls,
+		}, {
+			targets: [1],
+			pullRequestModelCalls: 1,
+		});
+	});
+
+	test('maps unchanged current lines back to the pull request head', () => {
+		assert.deepStrictEqual({
+			shiftedLine: mapCurrentLineToPullRequestLine('one\ntwo\nthree', 'inserted\none\ntwo\nthree', 3),
+			localOnlyLine: mapCurrentLineToPullRequestLine('one\ntwo\nthree', 'inserted\none\ntwo\nthree', 1),
+		}, {
+			shiftedLine: 2,
+			localOnlyLine: undefined,
+		});
 	});
 
 	test('PR review state combines comments from every associated pull request', async () => {

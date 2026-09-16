@@ -52,11 +52,11 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/keytar.node',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/mediaremote-adapter/**',
-			'!node_modules/@github/copilot-linux-x64/prebuilds/*/cli-native.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linux-x64', [
 			'index.js',
 			'app.js',
+			'prebuilds/linux-x64/cli-native.node',
 			'prebuilds/linux-x64/runtime.node',
 			'prebuilds/linux-x64/pty.node',
 		]);
@@ -85,11 +85,11 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/keytar.node',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/mediaremote-adapter/**',
-			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/cli-native.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linuxmusl-x64', [
 			'index.js',
 			'app.js',
+			'prebuilds/linuxmusl-x64/cli-native.node',
 			'prebuilds/linuxmusl-x64/runtime.node',
 		]);
 		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
@@ -160,6 +160,7 @@ suite('copilot', () => {
 			'app.js',
 			'sdk/index.js',
 			'sea-loader.js',
+			'prebuilds/darwin-arm64/cli-native.node',
 			'prebuilds/darwin-arm64/runtime.node',
 			'prebuilds/darwin-arm64/pty.node',
 			'prebuilds/darwin-arm64/spawn-helper',
@@ -168,6 +169,31 @@ suite('copilot', () => {
 		assertCopilotOutOfProcessRuntimeExecutablesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 	});
+
+	for (const { platform, arch, packagePlatformArch } of [
+		{ platform: 'darwin', arch: 'arm64', packagePlatformArch: 'darwin-arm64' },
+		{ platform: 'darwin', arch: 'x64', packagePlatformArch: 'darwin-x64' },
+		{ platform: 'linux', arch: 'arm64', packagePlatformArch: 'linux-arm64' },
+		{ platform: 'linux', arch: 'x64', packagePlatformArch: 'linux-x64' },
+		{ platform: 'alpine', arch: 'arm64', packagePlatformArch: 'linuxmusl-arm64' },
+		{ platform: 'alpine', arch: 'x64', packagePlatformArch: 'linuxmusl-x64' },
+		{ platform: 'linux', arch: 'alpine', packagePlatformArch: 'linuxmusl-x64' },
+		{ platform: 'win32', arch: 'arm64', packagePlatformArch: 'win32-arm64' },
+		{ platform: 'win32', arch: 'x64', packagePlatformArch: 'win32-x64' },
+	]) {
+		test(`keeps cli-native.node in desktop and remote runtime packages for ${platform}-${arch}`, () => {
+			for (const nodeModulesRoot of ['node_modules', 'remote/node_modules']) {
+				const nativeFile = `${nodeModulesRoot}/@github/copilot-${packagePlatformArch}/prebuilds/${packagePlatformArch}/cli-native.node`;
+				assert.deepStrictEqual({
+					runtime: matchesGlob(nativeFile, getCopilotRuntimePrebuildFiles(platform, arch, nodeModulesRoot)),
+					dependencies: matchesGlob(nativeFile, getCopilotExcludeFilter(platform, arch)),
+				}, {
+					runtime: true,
+					dependencies: true,
+				}, nativeFile);
+			}
+		});
+	}
 
 	test('materializes missing target platform packages from the lockfile', () => {
 		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-platform-test-'));
@@ -422,11 +448,6 @@ function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], pac
 	assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/keytar.node`, patterns), 'keytar.node');
 	assert(patterns.includes(`!${packageDir}/prebuilds/*/mediaremote-adapter/**`), 'mediaremote-adapter');
 	assert(!matchesGlob(`${packageDir}/prebuilds/darwin-arm64/mediaremote-adapter/MediaRemoteAdapter.framework/MediaRemoteAdapter`, patterns), 'mediaremote-adapter');
-
-	if (!packageDir.includes('win32')) {
-		assert(patterns.includes(`!${packageDir}/prebuilds/*/cli-native.node`), 'cli-native.node');
-		assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/cli-native.node`, patterns), 'cli-native.node');
-	}
 }
 
 function matchesGlob(file: string, patterns: string[]): boolean {

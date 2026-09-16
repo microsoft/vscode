@@ -434,6 +434,81 @@
 	}
 }
 
+.sessions-list-control.compact {
+	.session-item:not(.quick-chat) {
+		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+
+		.session-main {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr);
+			align-items: center;
+		}
+
+		.session-title-row {
+			padding-bottom: 0;
+			line-height: var(--vscode-spacing-size160);
+		}
+
+		.session-details-row {
+			display: none;
+		}
+
+		.session-approval-row,
+		.session-ci-row {
+			grid-column: 1 / -1;
+		}
+
+		.session-approval-row {
+			margin-top: var(--vscode-spacing-size60);
+			padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
+			padding-bottom: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
+		}
+	}
+
+	.monaco-list-row:hover .session-item:not(.quick-chat),
+	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat) {
+		.session-title-row {
+			grid-column: 1 / -1;
+
+			.session-title {
+				flex: 0 1 auto;
+			}
+
+			.session-compact-hover-description {
+				display: flex;
+			}
+
+			.session-title-toolbar {
+				margin-left: auto;
+			}
+		}
+
+	}
+
+	.monaco-list-row[aria-expanded="true"] .session-item:not(.quick-chat)::after {
+		top: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size120));
+	}
+
+}
+
+.session-compact-hover-description {
+	display: none;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40);
+	margin-right: var(--vscode-spacing-size80);
+	max-width: 40%;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+
+	.session-badge {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
 /* Approval prompt shown when a chat is waiting for the user to allow a pending
 	tool action. Rendered on the session row (for the session's main chat) and on
 	each nested/side chat row (for that chat), so it is scoped to neither. */

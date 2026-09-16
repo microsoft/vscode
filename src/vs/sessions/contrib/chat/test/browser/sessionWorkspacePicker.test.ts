@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -497,6 +497,20 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.deepStrictEqual({
 			tabbed: getRemoteItems(tabbedPicker),
 			unifiedTopLevel: getRemoteItems(unifiedPicker),
+			unifiedListOptions: {
+				submenuPointerIntent: unifiedPicker.getListOptions().submenuPointerIntent,
+				preserveVerticalPosition: unifiedRemoteItem?.hover?.preserveVerticalPosition,
+				alignToAnchorTop: unifiedRemoteItem?.hover?.alignToAnchorTop,
+				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
+				submenuFilterPlaceholder: unifiedRemoteItem?.submenuOptions?.filterPlaceholder,
+				submenuFocusFilterOnOpen: unifiedRemoteItem?.submenuOptions?.focusFilterOnOpen,
+				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
+				openSubmenuOnClick: unifiedRemoteItem?.openSubmenuOnClick,
+			},
+			unifiedFilteredRemoteItems: unifiedRemoteItem?.filterItems?.map(item => ({
+				label: item.label,
+				ariaLabel: item.item?.ariaLabel,
+			})),
 			unifiedSubmenu: unifiedRemoteActions instanceof SubmenuAction
 				? unifiedRemoteActions.actions.map(action => ({
 					label: action.label,
@@ -512,12 +526,29 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Provider agenthost-wsl', description: 'Online · 2 active sessions', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
 			],
 			unifiedTopLevel: [],
+			unifiedListOptions: {
+				submenuPointerIntent: true,
+				preserveVerticalPosition: true,
+				alignToAnchorTop: true,
+				submenuFilter: true,
+				submenuFilterPlaceholder: 'Search Remote',
+				submenuFocusFilterOnOpen: true,
+				submenuWidth: 180,
+				openSubmenuOnClick: true,
+			},
+			unifiedFilteredRemoteItems: [
+				{ label: 'Manage Provider agenthost-tunnel-one', ariaLabel: 'Provider agenthost-tunnel-one, Online · 1 active session' },
+				{ label: 'Manage Provider agenthost-tunnel-two', ariaLabel: 'Provider agenthost-tunnel-two, Online · 2 active sessions' },
+				{ label: 'Manage Provider agenthost-tunnel-idle', ariaLabel: 'Provider agenthost-tunnel-idle, Online' },
+				{ label: 'Manage Provider agenthost-ssh', ariaLabel: 'Provider agenthost-ssh, Online · 1 active session' },
+				{ label: 'Manage Provider agenthost-wsl', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
+			],
 			unifiedSubmenu: [
-				{ label: 'Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
-				{ label: 'Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
-				{ label: 'Provider agenthost-tunnel-idle', icon: Codicon.cloud.id },
-				{ label: 'Provider agenthost-ssh', icon: Codicon.remote.id },
-				{ label: 'Provider agenthost-wsl', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-tunnel-idle', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-ssh', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-wsl', icon: Codicon.remote.id },
 			],
 		});
 	});
@@ -3817,6 +3848,10 @@ class TestablePicker extends WorkspacePicker {
 		return this._buildItems();
 	}
 
+	getListOptions(): IActionListOptions {
+		return this._buildListOptions(this.getItems(), undefined);
+	}
+
 	getItemLabels(): string[] {
 		return this.getItems().flatMap(entry => entry.label ? [entry.label] : []);
 	}
@@ -4012,6 +4047,20 @@ suite('WorkspacePicker - Tab discovery', () => {
 			focusesFilter: true,
 			filterPlaceholder: 'Search',
 		});
+	});
+
+	test('strips only trailing ellipses from unified browse action labels', () => {
+		const labels = ['Repository...', 'Repository\u2026', 'Repo...sitory', 'Repo\u2026sitory', 'Repository'];
+		providersService.setProviders([
+			createMockProvider('github', {
+				browseActions: labels.map(label => makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, label)),
+			}),
+		]);
+		const picker = createTestablePicker(disposables, providersService, false, {}, undefined, undefined, true);
+
+		picker.selectWorkspaceActions();
+
+		assert.deepStrictEqual(picker.getItemLabels(), ['Repository', 'Repository', 'Repo...sitory', 'Repo\u2026sitory', 'Repository']);
 	});
 
 	test('uses location icons and hides GitHub recents represented by local folders when enabled', () => {
@@ -4544,7 +4593,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			remoteItems: [
 				{ label: 'remote-project', enabled: false, removable: true },
 				{ label: 'Select Remote', enabled: false, removable: false },
-				{ label: 'Provider agenthost-menu', enabled: true, removable: false },
+				{ label: 'Manage Provider agenthost-menu', enabled: true, removable: false },
 			],
 		});
 	});

@@ -422,13 +422,14 @@ export async function createRealSession(
 	trackingList: string[],
 	workingDirectory: URI,
 	beforeCreateSession?: () => Promise<void>,
+	beforeAuthenticate?: () => Promise<void>,
 ): Promise<string> {
 	const sessionUri = await createProviderSession(c, {
 		provider: config.provider,
 		scheme: config.scheme,
 		githubToken: config.githubToken ?? resolveGitHubToken(),
 		sessionConfig: config.sessionConfig,
-	}, clientId, trackingList, workingDirectory, beforeCreateSession);
+	}, clientId, trackingList, workingDirectory, beforeCreateSession, beforeAuthenticate);
 	c.setAhpSnapshotNormalization({
 		workingDirectory: workingDirectory.fsPath,
 		homeDirectory: homedir(),

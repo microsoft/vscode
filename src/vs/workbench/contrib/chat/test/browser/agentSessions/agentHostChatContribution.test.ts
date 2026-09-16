@@ -1411,15 +1411,15 @@ suite('AgentHostChatContribution', () => {
 		test('editor window renders SDK download progress from root/progress notifications', () => {
 			const { agentHostService, openedTitles } = createWithProgressRecorder(false);
 
-			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' });
 
-			assert.deepStrictEqual(openedTitles, ['Downloading Claude agent']);
+			assert.deepStrictEqual(openedTitles, ['Downloading Claude Agent']);
 		});
 
 		test('sessions window does not render download progress via the chat contribution', () => {
 			const { agentHostService, openedTitles } = createWithProgressRecorder(true);
 
-			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' });
 
 			assert.strictEqual(openedTitles.length, 0);
 		});
@@ -5309,14 +5309,21 @@ suite('AgentHostChatContribution', () => {
 			]);
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'Claude Sonnet 4.6 • 1 credit');
+			assert.deepStrictEqual({
+				details: result.details,
+				actualModels: collected.flat().filter(part => part.kind === 'usage').map(part => part.actualModelId),
+			}, {
+				details: 'Claude Sonnet 4.6 • 1 credit',
+				actualModels: [undefined, 'agent-host-copilot:claude-sonnet-4.6'],
+			});
 		}));
 
 		test('unregistered billed id shows model-id suffix (e.g. Auto billed as raptor-mini)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -5430,9 +5437,11 @@ suite('AgentHostChatContribution', () => {
 			const subagentData = subagentInvocation!.toolSpecificData as IChatSubagentToolInvocationData;
 			assert.deepStrictEqual({
 				credits: subagentData.credits,
+				modelId: subagentData.modelId,
 				modelName: subagentData.modelName,
 			}, {
 				credits: 5.0,
+				modelId: 'agent-host-copilot:openrouter/amazon/nova-micro-v1',
 				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
 			});
 		}));
@@ -5440,7 +5449,7 @@ suite('AgentHostChatContribution', () => {
 		test('subagent model reads Auto when explainability is hidden and the routed model when it is not', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// The subagent bills to the model Auto routed it to. Which of the two
 			// names the pill shows is the whole point of the treatment.
-			const runWithTreatment = async (hideAutoExplainability: boolean): Promise<string | undefined> => {
+			const runWithTreatment = async (hideAutoExplainability: boolean) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
 					['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
@@ -5498,17 +5507,69 @@ suite('AgentHostChatContribution', () => {
 				const subagentInvocation = collected.flat()
 					.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation')
 					.find(p => p.toolSpecificData?.kind === 'subagent');
-				return (subagentInvocation?.toolSpecificData as IChatSubagentToolInvocationData | undefined)?.modelName;
+				const data = subagentInvocation?.toolSpecificData?.kind === 'subagent' ? subagentInvocation.toolSpecificData : undefined;
+				return { modelId: data?.modelId, modelName: data?.modelName };
 			};
 
 			assert.deepStrictEqual({
 				hidden: await runWithTreatment(true),
 				shown: await runWithTreatment(false),
 			}, {
-				hidden: 'Auto',
-				shown: 'GPT-5.4 mini',
+				hidden: { modelId: 'agent-host-copilot:auto', modelName: 'Auto' },
+				shown: { modelId: 'agent-host-copilot:gpt-5.4-mini', modelName: 'GPT-5.4 mini' },
 			});
 		}));
+
+		for (const [background, delayedMetadata] of [[false, false], [true, false], [true, true]]) {
+			test(`shows the subagent model from its starting message before usage (background=${background}, delayedMetadata=${delayedMetadata})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const modelId = 'agent-host-copilot:claude-sonnet-4.6';
+				const metadata = upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' });
+				const languageModels = new Map<string, ILanguageModelChatMetadata>(delayedMetadata ? [] : [[modelId, metadata]]);
+				const onDidChangeLanguageModels = disposables.add(new Emitter<string>());
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					languageModels, languageModelsServiceOverride: { onDidChangeLanguageModels: onDidChangeLanguageModels.event },
+				});
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				const parentSession = parseDefaultChatUri(session);
+				assert.ok(parentSession);
+				const childChat = buildSubagentChatUri(parentSession, 'launch');
+				fire({
+					type: ActionType.ChatToolCallStart, turnId, toolCallId: 'launch', toolName: 'task', displayName: 'Task',
+				});
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'launch', invocationMessage: 'Delegating work',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				});
+				if (background) {
+					fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'launch', result: { success: true, pastTenseMessage: 'Delegated work' } });
+				}
+				await timeout(0);
+				agentHostService.fireAction({
+					channel: childChat,
+					action: {
+						type: ActionType.ChatTurnStarted, turnId: 'child-turn', startedAt: '2025-01-01T00:00:00.000Z',
+						message: { text: 'Explore', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-4.6' } },
+					},
+					serverSeq: 1000, origin: undefined,
+				});
+				await timeout(0);
+				const invocation = collected.flat().find(part => part.kind === 'toolInvocation' && part.toolCallId === 'launch');
+				const data = invocation?.kind === 'toolInvocation' && invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
+				const atStart = data?.modelName;
+				if (delayedMetadata) {
+					languageModels.set(modelId, metadata);
+					onDidChangeLanguageModels.fire(modelId);
+				}
+				const whileRunning = { modelId: data?.modelId, model: data?.modelName, active: data?.isActive, credits: data?.credits };
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+				await turnPromise;
+
+				assert.deepStrictEqual({ atStart, whileRunning }, {
+					atStart: delayedMetadata ? 'claude-sonnet-4.6' : 'Claude Sonnet 4.6',
+					whileRunning: { modelId, model: 'Claude Sonnet 4.6', active: true, credits: undefined },
+				});
+			}));
+		}
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -8046,7 +8107,58 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(session.history.length, 0);
 		});
 
-		test('history requests get per-turn modelId from usage or message model', async () => {
+		for (const [activeModel, hideAutoExplainability] of [['gpt-5', false], [undefined, false], ['gpt-5', true], ['claude-sonnet-4-6', false]] as const) {
+			test(`restored Auto requests preserve selected and actual models (active: ${activeModel}, hidden: ${hideAutoExplainability})`, async () => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
+					['agent-host-copilot:gpt-5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5' })],
+					['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' })],
+				]);
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, hideAutoExplainability });
+				const sessionUri = AgentSession.uri('copilot', 'sess-auto-survey');
+				const rawModelId = activeModel ?? 'gpt-5';
+				const actualModelId = activeModel === 'claude-sonnet-4-6' ? 'agent-host-copilot:claude-sonnet-4.6' : 'agent-host-copilot:gpt-5';
+				const modelName = languageModels.get(actualModelId)?.name;
+				const usage = { model: rawModelId, inputTokens: 100, outputTokens: 20, _meta: { autoModeResolved: { chosenModel: rawModelId } } };
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [{
+						id: 'completed-auto',
+						message: { text: 'Completed Auto request', origin: { kind: MessageKind.User }, model: { id: 'auto' } },
+						responseParts: [],
+						usage,
+						state: TurnState.Complete,
+					}],
+					activeTurn: {
+						id: 'active-auto',
+						startedAt: '2025-01-01T00:00:00.000Z',
+						message: { text: 'Active Auto request', origin: { kind: MessageKind.User }, model: { id: 'auto' } },
+						responseParts: [],
+						usage: activeModel ? usage : undefined,
+					},
+				});
+
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sess-auto-survey' });
+				const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+
+				assert.deepStrictEqual(session.history.map(item => item.type === 'request'
+					? { type: item.type, modelId: item.modelId }
+					: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
+					{ type: 'request', modelId: 'agent-host-copilot:auto' },
+					{ type: 'response', details: hideAutoExplainability ? 'Auto' : modelName, actualModelId },
+					{ type: 'request', modelId: 'agent-host-copilot:auto' },
+					{ type: 'response', details: hideAutoExplainability || !activeModel ? 'Auto' : modelName, actualModelId: undefined },
+				]);
+				assert.strictEqual(session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId, activeModel ? actualModelId : undefined);
+			});
+		}
+
+		test('history requests get per-turn model selection from usage or message model', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
 				['agent-host-copilot:sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Sonnet 4.6', pricing: '2x' })],
@@ -8070,7 +8182,7 @@ suite('AgentHostChatContribution', () => {
 					},
 					{
 						id: 'turn-2',
-						message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
+						message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'xhigh' } } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-2', content: 'A2' }],
 						usage: undefined,
 						state: TurnState.Complete,
@@ -8079,7 +8191,7 @@ suite('AgentHostChatContribution', () => {
 				activeTurn: {
 					id: 'turn-active',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
+					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'max' } } },
 					responseParts: [],
 					usage: { _meta: { cost: 1 } },
 				},
@@ -8091,11 +8203,11 @@ suite('AgentHostChatContribution', () => {
 
 			const requests = session.history.filter((h): h is IChatSessionRequestHistoryItem => h.type === 'request');
 			assert.deepStrictEqual(
-				requests.map(r => ({ prompt: r.prompt, modelId: r.modelId })),
+				requests.map(r => ({ prompt: r.prompt, modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
 				[
-					{ prompt: 'Q1', modelId: 'agent-host-copilot:opus-4.7' },
-					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6' },
-					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6' },
+					{ prompt: 'Q1', modelId: 'agent-host-copilot:opus-4.7', modelConfiguration: undefined },
+					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6', modelConfiguration: { reasoningEffort: 'xhigh' } },
+					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6', modelConfiguration: { reasoningEffort: 'max' } },
 				],
 			);
 
@@ -11789,6 +11901,9 @@ suite('AgentHostChatContribution', () => {
 			test(`restored background subagent pills observe their child chat completing (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
+					languageModels: new Map([
+						['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' })],
+					]),
 					languageModelToolsServiceOverride: {
 						getToolByName: () => toolData,
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
@@ -11820,7 +11935,7 @@ suite('AgentHostChatContribution', () => {
 						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
 					}),
 					lifecycle: SessionLifecycle.Ready,
-					activeTurn: createActiveTurn('child-turn', { text: 'Review', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
+					activeTurn: createActiveTurn('child-turn', { text: 'Review', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-4.6' } }, '2025-01-01T00:00:00.000Z'),
 				});
 				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-background-subagent' }), CancellationToken.None);
 				disposables.add(toDisposable(() => session.dispose()));
@@ -11830,7 +11945,7 @@ suite('AgentHostChatContribution', () => {
 				) ?? [];
 				const parent = parents[0];
 				assert.ok(parent?.toolSpecificData?.kind === 'subagent');
-				const beforeCompletion = { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive };
+				const beforeCompletion = { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive, modelId: parent.toolSpecificData.modelId, model: parent.toolSpecificData.modelName };
 				agentHostService.fireAction({
 					channel: childChatUri,
 					action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 1000 },
@@ -11847,7 +11962,7 @@ suite('AgentHostChatContribution', () => {
 				}, {
 					parentCount: 1,
 					kind: 'toolInvocation',
-					beforeCompletion: { available: true, active: true },
+					beforeCompletion: { available: true, active: true, modelId: 'agent-host-copilot:claude-sonnet-4.6', model: 'Claude Sonnet 4.6' },
 					afterCompletion: { available: true, active: false, duration: 1000 },
 				});
 			}));
@@ -12300,7 +12415,12 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 			const metadata = { 'test.request': { enabled: true } };
-			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: { metadata } });
+			const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+			pendingRequests.push({
+				request,
+				kind: ChatRequestQueueKind.Queued,
+				sendOptions: { metadata, userSelectedModelId: 'agent-host-copilot:claude-opus-4.8', userSelectedModelConfiguration: modelConfiguration },
+			});
 			chatModel.firePendingRequestsChanged();
 
 			const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
@@ -12326,6 +12446,7 @@ suite('AgentHostChatContribution', () => {
 						text,
 						origin: { kind: MessageKind.User },
 						_meta: metadata,
+						model: { id: 'claude-opus-4.8', config: modelConfiguration },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',
@@ -12387,6 +12508,7 @@ suite('AgentHostChatContribution', () => {
 					message: {
 						text: 'queued elsewhere',
 						origin: { kind: MessageKind.User },
+						model: { id: 'auto' },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',
@@ -12405,7 +12527,7 @@ suite('AgentHostChatContribution', () => {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
 					id: 'remote-steering-1',
-					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User } },
+					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User }, model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } } },
 				} as ChatAction,
 				serverSeq: 2,
 				origin: undefined,
@@ -12416,6 +12538,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				model: pendingRequests.map(p => ({ id: p.request.id, kind: p.kind, message: p.request.message.text })),
 				protocol: last?.requests.map(r => ({ id: r.id, kind: r.kind, message: r.message })),
+				selections: last?.requests.map(r => ({ modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
 				elementCorrelationId: elementVariable ? getElementAttachmentCorrelationId(elementVariable) : undefined,
 				echoedActions: agentHostService.dispatchedActions.filter(d =>
 					d.action.type === ActionType.ChatPendingMessageSet
@@ -12430,6 +12553,10 @@ suite('AgentHostChatContribution', () => {
 				protocol: [
 					{ id: 'remote-steering-1', kind: ChatRequestQueueKind.Steering, message: 'steered elsewhere' },
 					{ id: 'remote-queued-1', kind: ChatRequestQueueKind.Queued, message: 'queued elsewhere' },
+				],
+				selections: [
+					{ modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } },
+					{ modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
 				],
 				elementCorrelationId: 'remote-element',
 				echoedActions: [],
@@ -12565,6 +12692,7 @@ suite('AgentHostChatContribution', () => {
 					message: withMessageRequestHiddenFromTranscript({
 						text: 'Continue in the requested workspace.',
 						origin: { kind: MessageKind.SystemNotification },
+						model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } },
 						_meta: toAgentWorkspaceContinuationMessageMeta(),
 					}, true),
 				} as ChatAction,
@@ -12576,8 +12704,8 @@ suite('AgentHostChatContribution', () => {
 
 			// onDidStartServerRequest should have fired, carrying the provider turn id
 			assert.deepStrictEqual(
-				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden })),
-				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.', isHidden: false, isRequestHidden: true }],
+				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden, modelId: e.modelId, modelConfiguration: e.modelConfiguration })),
+				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.', isHidden: false, isRequestHidden: true, modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } }],
 			);
 
 			// isCompleteObs should be false (turn in progress)

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Application, ApplicationOptions, Logger } from '../../../../automation';
+import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 
@@ -74,7 +74,7 @@ function probeLinuxDocker(): { readonly available: boolean; readonly reason?: st
 	};
 }
 
-export function setup(logger: Logger) {
+export function setup(logger: Logger, quality: Quality) {
 
 	describe('Agents Window (local AgentHost)', () => {
 
@@ -149,8 +149,10 @@ export function setup(logger: Logger) {
 	});
 
 	const linuxDocker = probeLinuxDocker();
-	const runDevContainerSuite = linuxDocker.available || process.platform === 'linux';
-	if (!linuxDocker.available) {
+	const runDevContainerSuite = quality !== Quality.Exploration && (linuxDocker.available || process.platform === 'linux');
+	if (quality === Quality.Exploration) {
+		logger.log('Skipping Agents Window (Dev Container AgentHost) on Exploration builds');
+	} else if (!linuxDocker.available) {
 		logger.log(process.platform === 'linux'
 			? `Linux Docker probe failed: ${linuxDocker.reason}`
 			: `Skipping Agents Window (Dev Container AgentHost): ${linuxDocker.reason}`);

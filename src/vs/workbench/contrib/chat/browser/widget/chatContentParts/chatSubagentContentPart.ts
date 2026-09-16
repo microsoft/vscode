@@ -367,6 +367,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
 				isActive: this.isActive,
 				...(this.credits ? { credits: this.credits } : {}),
+				...(data?.kind === 'subagent' && data.modelId ? { modelId: data.modelId } : {}),
 				...(this.modelName ? { modelName: this.modelName } : {}),
 				...(parentModelId ? { parentModelId } : {}),
 				...(parentModelName ? { parentModelName } : {}),
@@ -729,6 +730,14 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	public getSubagentTitle(): string {
 		return this.description;
+	}
+
+	public focus(): void {
+		if (this._openChatToolbar && !this._openChatToolbarContainer?.classList.contains('hidden')) {
+			this._openChatToolbar.focus();
+		} else {
+			this._collapseButton?.element.focus({ preventScroll: true });
+		}
 	}
 
 	public markAsInactive(force: boolean = false): void {
