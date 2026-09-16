@@ -44,6 +44,7 @@ export class KanbanCustomView extends AbstractCustomView {
 		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
 		this._register({ dispose: () => focusContext.reset() });
 		this.view = this._register(this.projectBoardService.createView(container));
+		this._register(this.view.onDidChangeContentSize(() => this.fireDidChangeContentSize()));
 	}
 
 	layout(width: number, height: number): void {
