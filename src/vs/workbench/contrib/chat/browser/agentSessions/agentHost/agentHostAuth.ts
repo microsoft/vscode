@@ -69,6 +69,7 @@ export class AgentHostAuthTokenCache {
 	private readonly _completedTokens = new Map<string, string>();
 	private readonly _pendingAuthentications = new Map<string, { readonly token: string; readonly promise: Promise<void> }>();
 	private readonly _keyGenerations = new Map<string, number>();
+	private readonly _rejectedSessions = new Map<string, AuthenticationSessionIdentity>();
 	private _globalGeneration = 0;
 
 	/**
@@ -150,7 +151,20 @@ export class AgentHostAuthTokenCache {
 			this._completedTokens.clear();
 			this._pendingAuthentications.clear();
 			this._keyGenerations.clear();
+			this._rejectedSessions.clear();
 		}
+	}
+
+	rejectSession(resource: string, scopes: readonly string[] | undefined, session: AuthenticationSession): void {
+		this._rejectedSessions.set(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
+	}
+
+	getRejectedSession(resource: string, scopes: readonly string[] | undefined): AuthenticationSessionIdentity | undefined {
+		return this._rejectedSessions.get(this._key(resource, scopes));
+	}
+
+	clearRejectedSession(resource: string, scopes: readonly string[] | undefined): void {
+		this._rejectedSessions.delete(this._key(resource, scopes));
 	}
 
 	private _invalidateKey(key: string): void {
@@ -170,6 +184,23 @@ type AuthenticationSessionResolution =
 	| { readonly kind: 'resolved'; readonly session: AuthenticationSession }
 	| { readonly kind: 'signedOut' }
 	| { readonly kind: 'unavailable' };
+
+type AuthenticationSessionReference = Pick<AuthenticationSession, 'id' | 'accessToken'>;
+type AuthenticationSessionIdentity = AuthenticationSessionReference & { readonly accountId: string };
+
+interface AuthenticationSessionSelection {
+	readonly excludedSession?: AuthenticationSessionReference;
+	readonly accountId?: string;
+}
+
+function isSameAuthenticationSession(first: AuthenticationSessionReference, second: AuthenticationSessionReference): boolean {
+	return first.id === second.id && first.accessToken === second.accessToken;
+}
+
+function isAuthenticationSessionCandidate(session: AuthenticationSession, selection: AuthenticationSessionSelection): boolean {
+	return (!selection.accountId || session.account.id === selection.accountId)
+		&& (!selection.excludedSession || !isSameAuthenticationSession(session, selection.excludedSession));
+}
 
 /**
  * Returns a stable identity for an authentication challenge.
@@ -217,43 +248,59 @@ export class AgentHostAuthenticationRecovery {
 		const commandService = accessor.get(ICommandService);
 		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
-		const resolution = await resolveAuthenticationSessionForResource(
-			URI.parse(resource.resource),
-			resource.authorization_servers ?? [],
-			scopes,
-			authenticationService,
-			logService,
-			options.logPrefix,
-		);
+		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, {});
 		throwIfAuthenticationStale(options);
+		if (resolution.kind === 'signedOut') {
+			this._resentTokens.delete(key);
+		}
 		if (resolution.kind !== 'resolved') {
 			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
-			if (resolution.kind === 'signedOut') {
-				this._resentTokens.delete(key);
-			}
 			return;
 		}
-		const session = resolution.session;
-
+		const currentSession = resolution.session;
 		const previousToken = this._resentTokens.get(key);
-		if (previousToken !== undefined && previousToken === session.accessToken) {
-			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+		const isQuarantined = rejectedSession !== undefined && isSameAuthenticationSession(currentSession, rejectedSession);
+		let candidateResolution: AuthenticationSessionResolution = resolution;
+		if (isQuarantined || previousToken === currentSession.accessToken) {
+			candidateResolution = await resolveSessionForProtectedResource(
+				authenticationService,
+				logService,
+				resource,
+				options,
+				{ accountId: currentSession.account?.id, excludedSession: currentSession },
+			);
 			throwIfAuthenticationStale(options);
-			const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
-			throwIfAuthenticationStale(options);
-			if (interactiveSession) {
-				this._resentTokens.set(key, interactiveSession.accessToken);
-				if (interactiveSession.accessToken === session.accessToken) {
-					logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
-				}
+		}
+		if (isQuarantined && candidateResolution.kind === 'unavailable') {
+			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, candidateResolution);
+			return;
+		}
+
+		if (candidateResolution.kind === 'resolved' && (!isQuarantined || candidateResolution.session.accessToken !== previousToken)) {
+			const session = candidateResolution.session;
+			const isNewAlternative = session !== currentSession && !isQuarantined;
+			if (isNewAlternative) {
+				options.authTokenCache?.rejectSession(resource.resource, scopes, currentSession);
+			}
+			options.authTokenCache?.clear(resource.resource, isNewAlternative ? scopes : resource.scopes_supported);
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
+				this._resentTokens.set(key, session.accessToken);
+				logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 			}
 			return;
 		}
 
 		options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
-		if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], session)) {
-			this._resentTokens.set(key, session.accessToken);
-			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+		const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
+		throwIfAuthenticationStale(options);
+		if (!interactiveSession) {
+			return;
+		}
+		this._resentTokens.set(key, interactiveSession.accessToken);
+		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
+		if (interactiveSession.accessToken === challengedToken) {
+			logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 		}
 	}
 }
@@ -290,6 +337,7 @@ async function resolveAuthenticationSessionForResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	logPrefix: string,
+	selection: AuthenticationSessionSelection = {},
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
 	for (const server of authorizationServers) {
@@ -326,7 +374,7 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const exactSession = sessions[0];
+		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, selection));
 		if (exactSession) {
 			return { kind: 'resolved', session: exactSession };
 		}
@@ -344,6 +392,9 @@ async function resolveAuthenticationSessionForResource(
 		let bestSession: AuthenticationSession | undefined;
 		let bestExtraScopes = Infinity;
 		for (const session of allSessions) {
+			if (!isAuthenticationSessionCandidate(session, selection)) {
+				continue;
+			}
 			const sessionScopes = new Set(session.scopes);
 			let isSuperset = true;
 			for (const scope of requestedSet) {
@@ -408,10 +459,15 @@ async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> | undefined,
+	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id'>>) | undefined,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
+	const rejectedSession = options.authTokenCache?.getRejectedSession(resource, scopes);
+	// The lookup may have started before this session was quarantined.
+	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
+		throw new CancellationError();
+	}
 	const expiresAfter = session?.expiresAfter;
 	const request: IAgentHostAuthenticateRequest = {
 		resource,
@@ -511,8 +567,13 @@ export async function revokeAuthenticationForRemovedSessions(
 			if (!await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
 				continue;
 			}
+			throwIfAuthenticationStale(options);
 			reconciledResources.add(key);
 
+			const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+			if (rejectedSession && removedSessions.some(session => session.id === rejectedSession.id)) {
+				options.authTokenCache?.clearRejectedSession(resource.resource, scopes);
+			}
 			const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 			throwIfAuthenticationStale(options);
 			if (resolution.kind === 'unavailable') {
@@ -605,8 +666,10 @@ async function resolveSessionForProtectedResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IAgentHostAuthenticationOptions, 'logPrefix'>,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'logPrefix'>,
+	selection?: AuthenticationSessionSelection,
 ): Promise<AuthenticationSessionResolution> {
+	const rejectedSession = selection ? undefined : options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported);
 	return resolveAuthenticationSessionForResource(
 		URI.parse(resource.resource),
 		resource.authorization_servers ?? [],
@@ -614,6 +677,7 @@ async function resolveSessionForProtectedResource(
 		authenticationService,
 		logService,
 		options.logPrefix,
+		selection ?? (rejectedSession ? { accountId: rejectedSession.accountId, excludedSession: rejectedSession } : {}),
 	);
 }
 
@@ -644,18 +708,11 @@ export async function resolveAuthenticationInteractively(
 	const logService = accessor.get(ILogService);
 	for (const resource of protectedResources) {
 		throwIfAuthenticationStale(options);
-		const resourceUri = URI.parse(resource.resource);
 		const scopes = resource.scopes_supported ?? [];
-		const existingSession = await resolveSessionForResource(
-			resourceUri,
-			resource.authorization_servers ?? [],
-			scopes,
-			authenticationService,
-			logService,
-			options.logPrefix,
-		);
+		const existingSessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 		throwIfAuthenticationStale(options);
-		if (existingSession) {
+		if (existingSessionResolution.kind === 'resolved') {
+			const existingSession = existingSessionResolution.session;
 			await forwardAuthenticationToken(options, resource.resource, scopes, existingSession);
 			logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
 			return true;
@@ -690,19 +747,16 @@ async function forceAuthenticationInteractively(
 	if (!setupResult.success) {
 		throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
 	}
-	const session = await resolveSessionForResource(
-		URI.parse(resource.resource),
-		resource.authorization_servers ?? [],
-		scopes,
-		authenticationService,
-		logService,
-		options.logPrefix,
-	);
+	let sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+	if (sessionResolution.kind === 'signedOut' && options.authTokenCache?.getRejectedSession(resource.resource, scopes)) {
+		sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, {});
+	}
 	throwIfAuthenticationStale(options);
-	if (!session) {
+	if (sessionResolution.kind !== 'resolved') {
 		logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
 		return undefined;
 	}
+	const session = sessionResolution.session;
 	options.authTokenCache?.clear(resource.resource, scopes);
 	if (!await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
 		return undefined;
