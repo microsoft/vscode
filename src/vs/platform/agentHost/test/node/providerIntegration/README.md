@@ -11,3 +11,17 @@ Run one suite with:
 ```bash
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotMockLlm.integrationTest.ts
 ```
+
+## Codex workspace hooks
+
+The trusted and untrusted `SessionStart` cases in [codexCustomizations.integrationTest.ts](./codexCustomizations.integrationTest.ts) use fresh workspaces and an isolated Codex home. Keep that isolation: pre-existing native project trust can hide first-thread initialization bugs.
+
+Codex can omit project hooks from `hooks/list` until `thread/start` establishes native project trust. The provider rechecks hook trust before the first turn and uses its existing pre-turn restart path when the discovered hashes differ from those supplied at startup. A failed recheck is logged without discarding existing grants or triggering a restart. Hook grants remain thread-scoped and gated by Workspace Trust.
+
+The marker hook is synchronous. A successfully completed model turn without the marker calls for checking hook discovery, trust, and execution diagnostics, not a longer model-response timeout.
+
+On Windows, run just these cases with:
+
+```bat
+.\scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\providerIntegration\codexCustomizations.integrationTest.ts --grep "workspace SessionStart"
+```
