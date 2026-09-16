@@ -1424,13 +1424,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
-		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
+		try {
+			await this.sendText(await this.preparePathForShell(originalPath, shouldExecute), shouldExecute);
+		} catch (error) {
+			this._logService.warn('Could not prepare terminal path', error);
+		}
 	}
 
-	async preparePathForShell(originalPath: string | URI): Promise<string> {
+	async preparePathForShell(originalPath: string | URI, shouldExecute: boolean = false): Promise<string> {
 		// Wait for shell type to be ready
 		await this.processReady;
-		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
+		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os, isWindows, shouldExecute);
 	}
 
 	async getUriLabelForShell(uri: URI): Promise<string> {
