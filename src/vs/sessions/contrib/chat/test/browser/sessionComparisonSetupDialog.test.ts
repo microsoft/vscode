@@ -57,6 +57,48 @@ suite('SessionComparisonDialogResizeController', () => {
 		});
 	});
 
+	test('places the content scrollbar at the dialog edge without moving the form content', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const { body } = createController(storageService);
+		body.style.width = '400px';
+		body.style.setProperty('--vscode-spacing-size320', '32px');
+		const scroll = dom.append(body, dom.$('.session-comparison-setup-content-scroll'));
+		const content = dom.append(scroll, dom.$('.session-comparison-setup-content'));
+
+		assert.deepStrictEqual({
+			scrollWidth: scroll.getBoundingClientRect().width,
+			scrollRightOffset: scroll.getBoundingClientRect().right - body.getBoundingClientRect().right,
+			contentRightPadding: mainWindow.getComputedStyle(content).paddingRight,
+		}, {
+			scrollWidth: 432,
+			scrollRightOffset: 32,
+			contentRightPadding: '32px',
+		});
+	});
+
+	test('keeps the title and description spacing stable between setup steps', () => {
+		const dialog = dom.append(mainWindow.document.body, dom.$('.monaco-dialog-box.session-comparison-setup-dialog'));
+		const messageRow = dom.append(dialog, dom.$('.dialog-message-row'));
+		const messageContainer = dom.append(messageRow, dom.$('.dialog-message-container'));
+		const message = dom.append(messageContainer, dom.$('.dialog-message'));
+		const detail = dom.append(messageContainer, dom.$('.dialog-message-detail'));
+		disposables.add({ dispose: () => dialog.remove() });
+
+		assert.deepStrictEqual({
+			message: {
+				grow: mainWindow.getComputedStyle(message).flexGrow,
+				shrink: mainWindow.getComputedStyle(message).flexShrink,
+			},
+			detail: {
+				grow: mainWindow.getComputedStyle(detail).flexGrow,
+				shrink: mainWindow.getComputedStyle(detail).flexShrink,
+			},
+		}, {
+			message: { grow: '0', shrink: '0' },
+			detail: { grow: '0', shrink: '0' },
+		});
+	});
+
 	suite('SessionComparisonPermissions', () => {
 		const options = [{
 			id: 'default',
