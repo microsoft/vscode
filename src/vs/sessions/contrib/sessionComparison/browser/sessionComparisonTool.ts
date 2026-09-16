@@ -157,8 +157,9 @@ export class ReadSessionComparisonTool implements IToolImpl {
 				changedFilesTruncated: changes.length > changedFiles.length,
 			};
 		});
-		const synthesisPlan = comparison.synthesisPlan && comparison.verdict?.decisionSections ? {
-			sections: comparison.synthesisPlan.selections.flatMap(selection => {
+		const synthesisPlan = comparison.synthesisPlan ? {
+			instructions: comparison.synthesisPlan.instructions,
+			sections: comparison.verdict?.decisionSections ? comparison.synthesisPlan.selections.flatMap(selection => {
 				const section = comparison.verdict!.decisionSections!.find(section => section.id === selection.sectionId);
 				if (!section) {
 					return [];
@@ -178,7 +179,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 						approach: option.approach,
 					} : { kind: 'synthesizer' },
 				}];
-			}),
+			}) : [],
 		} : undefined;
 		return toolResult(JSON.stringify({
 			comparisonId: comparison.id,
@@ -186,7 +187,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			baseBranch: comparison.branch,
 			attempts,
 			synthesisPlan,
-			next: 'Review every completed attempt diff in its authoritative worktree and treat error as failed and inProgress or needsInput as unfinished. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. If synthesisPlan is present, treat every selected section as an explicit user requirement and resolve dependencies coherently rather than copying hunks mechanically. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
+			next: 'Review every completed attempt diff in its authoritative worktree and treat error as failed and inProgress or needsInput as unfinished. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget only for rationale, validation claims, or other non-code evidence; never recover implementation code or paths from a transcript. Run missing targeted validation when needed, record whether each result came from the attempt report or the Judge run, and use notApplicable for both validation state and source when a category genuinely does not apply. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. If synthesisPlan is present, treat its instructions and every selected section as explicit user requirements and resolve dependencies coherently rather than copying hunks mechanically. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
 		}));
 	}
 }

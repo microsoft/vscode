@@ -698,7 +698,7 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. If the manifest includes a synthesisPlan, treat every selected section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nSolution: Implements the requested behavior.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nComparison: The other attempt leaves the failure unresolved.`,
+			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Treat \`synthesisPlan.instructions\` as explicit user requirements when present. Treat every selected synthesis-plan section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nSolution: Implements the requested behavior.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nComparison: The other attempt leaves the failure unresolved.`,
 			plan: {
 				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
 			},
@@ -757,12 +757,14 @@ suite('SessionComparisonService', () => {
 		});
 		service.setSynthesisPlan(comparison.id, {
 			selections: [{ sectionId: 'tests', participantId: attempts[0].id }],
+			instructions: 'Preserve the public API.',
 		});
 		assert.throws(() => service.submitVerdict(comparison.id, verdict(attempts[1].id, attempts.map(attempt => attempt.id))), /already been submitted/);
 		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
 		const restored = createServices(storageService).service.getComparison(comparison.id)?.synthesisPlan;
 		let unknownSection: string | undefined;
 		let unknownAttempt: string | undefined;
+		let invalidInstructions: string | undefined;
 		try {
 			service.setSynthesisPlan(comparison.id, { selections: [{ sectionId: 'missing' }] });
 		} catch (error) {
@@ -773,6 +775,11 @@ suite('SessionComparisonService', () => {
 		} catch (error) {
 			unknownAttempt = error instanceof Error ? error.message : String(error);
 		}
+		try {
+			service.setSynthesisPlan(comparison.id, { selections: [], instructions: 'x'.repeat(4001) });
+		} catch (error) {
+			invalidInstructions = error instanceof Error ? error.message : String(error);
+		}
 
 		assert.deepStrictEqual({
 			live: service.getComparison(comparison.id)?.synthesisPlan,
@@ -781,13 +788,15 @@ suite('SessionComparisonService', () => {
 			invalidAssessments,
 			unknownSection,
 			unknownAttempt,
+			invalidInstructions,
 		}, {
-			live: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
-			stored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
-			restored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }] },
+			live: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
+			stored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
+			restored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
 			invalidAssessments: 'The comparison verdict contains an invalid synthesis decision section.',
 			unknownSection: 'The synthesis plan contains an invalid section selection.',
 			unknownAttempt: 'The synthesis plan contains an invalid section selection.',
+			invalidInstructions: 'The synthesis plan contains invalid additional instructions.',
 		});
 	});
 

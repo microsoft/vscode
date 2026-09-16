@@ -123,8 +123,11 @@ export interface ISessionComparisonSynthesisSelection {
 	readonly participantId?: string;
 }
 
+export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
+
 export interface ISessionComparisonSynthesisPlan {
 	readonly selections: readonly ISessionComparisonSynthesisSelection[];
+	readonly instructions?: string;
 }
 
 export interface ISessionComparison {

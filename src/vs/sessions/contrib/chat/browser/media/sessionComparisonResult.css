@@ -23,21 +23,25 @@
 }
 
 .session-comparison-result-rationale {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	margin: 0;
-	padding-left: var(--vscode-spacing-size200);
-}
-
-.session-comparison-result-rationale-row {
-	display: flex;
-	align-items: baseline;
+	text-align: left;
 }
 
 .session-comparison-result-rationale-category {
-	flex: 0 0 auto;
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-result-rationale dd {
+	min-width: 0;
+	margin: 0;
+}
+
+.session-comparison-result-rationale ul {
+	margin: 0;
+	padding-left: var(--vscode-spacing-size200);
 }
 
 .session-comparison-result-rationale-point {
@@ -92,6 +96,42 @@
 .session-comparison-result-actions > .monaco-button,
 .session-comparison-result-actions > .monaco-button-dropdown,
 .session-comparison-synthesis-plan-actions > .monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+	min-width: max-content;
+}
+
+.session-comparison-result-actions > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	flex: 0 0 auto;
+	width: max-content;
+}
+
+.session-comparison-result-actions > .monaco-button-dropdown > .monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+}
+
+.session-comparison-synthesis-instructions {
+	margin-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.session-comparison-synthesis-instructions-description {
+	margin: var(--vscode-spacing-size80) 0 0;
+}
+
+.session-comparison-synthesis-instructions-input {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.session-comparison-synthesis-instructions-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.session-comparison-synthesis-instructions-actions > .monaco-button {
 	flex: 0 0 auto;
 	width: auto;
 }

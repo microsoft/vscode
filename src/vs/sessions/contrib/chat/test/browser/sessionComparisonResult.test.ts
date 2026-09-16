@@ -13,9 +13,9 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -115,6 +115,7 @@ suite('Sessions - Comparison Result', () => {
 		let synthesisPlan: ISessionComparisonSynthesisPlan | undefined;
 		const synthesisPlans: (ISessionComparisonSynthesisPlan | undefined)[] = [];
 		let focusAttemptActions: readonly IAction[] = [];
+		let synthesisActions: readonly IAction[] = [];
 		let synthesized = 0;
 		let layouts = 0;
 		const instantiationService = store.add(new TestInstantiationService());
@@ -127,6 +128,9 @@ suite('Sessions - Comparison Result', () => {
 				synthesisPlan = plan;
 				synthesisPlans.push(plan);
 			}
+			override getComparison(): ISessionComparison {
+				return { ...comparison, synthesisPlan };
+			}
 			override async synthesize(): Promise<void> {
 				synthesized++;
 			}
@@ -138,7 +142,12 @@ suite('Sessions - Comparison Result', () => {
 		}());
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 			override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
-				focusAttemptActions = delegate.getActions?.() ?? [];
+				const actions = delegate.getActions?.() ?? [];
+				if (actions.some(action => action.id === 'sessionComparison.additionalSynthesisInstructions')) {
+					synthesisActions = actions;
+				} else {
+					focusAttemptActions = actions;
+				}
 			}
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
@@ -158,8 +167,12 @@ suite('Sessions - Comparison Result', () => {
 
 		const initialText = result.domNode.textContent ?? '';
 		const buttons = result.domNode.querySelectorAll<HTMLElement>('.monaco-button');
+		const focusWinner = [...buttons].find(button => button.textContent === 'Focus Winning Session');
+		const synthesizeRecommended = [...buttons].find(button => button.textContent === 'Synthesize Recommended');
+		const startWithInstructions = [...buttons].find(button => button.textContent === 'Start Synthesis with Instructions');
 		const customSynthesis = [...buttons].find(button => button.textContent === 'Custom Synthesis');
-		const focusAttemptDropdown = [...buttons].find(button => button.classList.contains('monaco-dropdown-button'));
+		const focusAttemptDropdown = [...buttons].find(button => button.getAttribute('aria-label') === 'Focus another attempt');
+		const synthesisDropdown = [...buttons].find(button => button.getAttribute('aria-label') === 'More synthesis options');
 		const useClaude = [...buttons].find(button => button.textContent === 'Use Claude');
 		const useCodex = [...buttons].find(button => button.textContent === 'Use Codex');
 		const synthesizerDecides = [...buttons].find(button => button.textContent === 'Synthesizer Decides');
@@ -169,10 +182,15 @@ suite('Sessions - Comparison Result', () => {
 		const strengthsTable = result.domNode.querySelector<HTMLElement>('.session-comparison-result-strengths');
 		const actions = result.domNode.querySelector<HTMLElement>('.session-comparison-result-actions');
 		const actionButtons = [...actions?.children ?? []];
+		const synthesisSplitButton = synthesizeRecommended?.closest<HTMLElement>('.monaco-button-dropdown');
+		const synthesisPrimaryButton = synthesisSplitButton?.querySelector<HTMLElement>('.monaco-text-button');
+		const instructionsPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-instructions');
+		const instructionsInput = instructionsPanel?.querySelector<HTMLInputElement>('input, textarea');
 		const synthesisPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan');
 		const decisionTable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table');
 		const rationaleList = result.domNode.querySelector<HTMLElement>('.session-comparison-result-rationale');
 		const panelHiddenBefore = synthesisPanel?.hidden;
+		const instructionsHiddenBefore = instructionsPanel?.hidden;
 		const accessibility = {
 			regionRole: result.domNode.getAttribute('role'),
 			regionLabelledBy: result.domNode.getAttribute('aria-labelledby'),
@@ -184,10 +202,24 @@ suite('Sessions - Comparison Result', () => {
 			focusAttemptDropdownLabel: focusAttemptDropdown?.getAttribute('aria-label'),
 			customControls: customSynthesis?.getAttribute('aria-controls'),
 			panelId: synthesisPanel?.id,
+			synthesisDropdownLabel: synthesisDropdown?.getAttribute('aria-label'),
+			instructionsLabelledBy: instructionsPanel?.getAttribute('aria-labelledby'),
+			instructionsTitleId: instructionsPanel?.querySelector('h3')?.id,
+			instructionsDescribedBy: instructionsInput?.getAttribute('aria-describedby'),
+			instructionsDescriptionId: instructionsPanel?.querySelector('p')?.id,
+			instructionsInputLabel: instructionsInput?.getAttribute('aria-label'),
+			startWithInstructionsLabel: startWithInstructions?.getAttribute('aria-label'),
 			columnHeaders: [...decisionTable?.querySelectorAll('thead th') ?? []].map(header => header.textContent),
 			rowHeaderScope: decisionTable?.querySelector('tbody th')?.getAttribute('scope'),
 			rationaleElement: rationaleList?.tagName,
-			rationaleItems: [...rationaleList?.querySelectorAll('li') ?? []].map(item => item.textContent),
+			rationaleCategories: [...rationaleList?.querySelectorAll('dt') ?? []].map(item => item.textContent),
+			rationaleItems: [...rationaleList?.querySelectorAll('dd li') ?? []].map(item => item.textContent),
+		};
+		const actionLayout = {
+			count: actionButtons.length,
+			sameRow: new Set(actionButtons.map(button => button.getBoundingClientRect().top)).size === 1,
+			synthesisLabel: synthesisPrimaryButton?.textContent,
+			synthesisPrimaryWiderThanDropdown: (synthesisPrimaryButton?.getBoundingClientRect().width ?? 0) > (synthesisDropdown?.getBoundingClientRect().width ?? 0),
 		};
 		focusAttemptDropdown?.click();
 		await focusAttemptActions[0]?.run();
@@ -195,12 +227,20 @@ suite('Sessions - Comparison Result', () => {
 			selected,
 			opened: opened?.toString(),
 		};
-		buttons[0].click();
+		focusWinner?.click();
 		await timeout(0);
 		const winnerFocus = {
 			selected,
 			opened: opened?.toString(),
 		};
+		synthesisDropdown?.click();
+		await synthesisActions[0]?.run();
+		if (instructionsInput) {
+			instructionsInput.value = 'Preserve the public API and add focused tests.';
+			instructionsInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		}
+		startWithInstructions?.click();
+		synthesizeRecommended?.click();
 		customSynthesis?.click();
 		useClaude?.click();
 		synthesizerDecides?.click();
@@ -210,6 +250,8 @@ suite('Sessions - Comparison Result', () => {
 		const choiceState = {
 			customExpanded: customSynthesis?.getAttribute('aria-expanded'),
 			panelHidden: synthesisPanel?.hidden,
+			instructionsPanelHidden: instructionsPanel?.hidden,
+			instructionsValue: instructionsInput?.value,
 			claudePressed: useClaude?.getAttribute('aria-pressed'),
 			codexPressed: useCodex?.getAttribute('aria-pressed'),
 			synthesizerPressed: synthesizerDecides?.getAttribute('aria-pressed'),
@@ -240,10 +282,14 @@ suite('Sessions - Comparison Result', () => {
 				fileSummary: initialText.includes('1 file affected'),
 				rawFileHidden: !initialText.includes('src/parser.ts'),
 				assessments: initialText.includes('Better choice') && initialText.includes('Worse choice'),
-				rationale: initialText.includes('Solution: Handled the edge case with typed diagnostics.')
-					&& initialText.includes('Validation: Passed focused tests, build, lint, and diagnostics.')
-					&& initialText.includes('Code quality: Kept the change small and aligned with existing types.')
-					&& initialText.includes('Comparison: Resolved the failure that the other attempt left open.'),
+				rationale: initialText.includes('Solution')
+					&& initialText.includes('Handled the edge case with typed diagnostics.')
+					&& initialText.includes('Validation')
+					&& initialText.includes('Passed focused tests, build, lint, and diagnostics.')
+					&& initialText.includes('Code quality')
+					&& initialText.includes('Kept the change small and aligned with existing types.')
+					&& initialText.includes('Comparison')
+					&& initialText.includes('Resolved the failure that the other attempt left open.'),
 				legacyExplanationHidden: !initialText.includes('This legacy explanation should not render'),
 			},
 			selected,
@@ -256,13 +302,11 @@ suite('Sessions - Comparison Result', () => {
 			synthesisPlans,
 			hiddenOutsideJudge,
 			singleDecisionCustomSynthesis,
-			layouts,
+			layoutNotified: layouts >= 5,
 			panelHiddenBefore,
+			instructionsHiddenBefore,
 			choiceState,
-			actionLayout: {
-				count: actionButtons.length,
-				sameRow: new Set([...actionButtons].map(button => button.getBoundingClientRect().top)).size === 1,
-			},
+			actionLayout,
 			accessibility,
 			renderedMarkdown,
 		}, {
@@ -288,37 +332,45 @@ suite('Sessions - Comparison Result', () => {
 				opened: attempt1Resource.toString(),
 			},
 			focusAttemptActions: ['Focus Claude'],
-			synthesized: 1,
+			synthesized: 3,
 			synthesisPlan: {
 				selections: [
 					{ sectionId: 'error-handling', participantId: 'attempt-2' },
 					{ sectionId: 'validation', participantId: 'attempt-2' },
 				],
+				instructions: 'Preserve the public API and add focused tests.',
 			},
 			synthesisPlans: [
+				{ selections: [], instructions: 'Preserve the public API and add focused tests.' },
+				{ selections: [], instructions: 'Preserve the public API and add focused tests.' },
+				{ selections: [], instructions: 'Preserve the public API and add focused tests.' },
 				{
 					selections: [
 						{ sectionId: 'error-handling', participantId: 'attempt-1' },
 						{ sectionId: 'validation', participantId: 'attempt-2' },
 					],
+					instructions: 'Preserve the public API and add focused tests.',
 				},
 				{
 					selections: [
 						{ sectionId: 'error-handling', participantId: undefined },
 						{ sectionId: 'validation', participantId: 'attempt-2' },
 					],
+					instructions: 'Preserve the public API and add focused tests.',
 				},
 				{
 					selections: [
 						{ sectionId: 'error-handling', participantId: 'attempt-2' },
 						{ sectionId: 'validation', participantId: 'attempt-2' },
 					],
+					instructions: 'Preserve the public API and add focused tests.',
 				},
 				{
 					selections: [
 						{ sectionId: 'error-handling', participantId: 'attempt-2' },
 						{ sectionId: 'validation', participantId: 'attempt-2' },
 					],
+					instructions: 'Preserve the public API and add focused tests.',
 				},
 			],
 			hiddenOutsideJudge: true,
@@ -327,11 +379,14 @@ suite('Sessions - Comparison Result', () => {
 				panel: false,
 				recommended: false,
 			},
-			layouts: 4,
+			layoutNotified: true,
 			panelHiddenBefore: true,
+			instructionsHiddenBefore: true,
 			choiceState: {
 				customExpanded: 'true',
 				panelHidden: false,
+				instructionsPanelHidden: false,
+				instructionsValue: 'Preserve the public API and add focused tests.',
 				claudePressed: 'false',
 				codexPressed: 'true',
 				synthesizerPressed: 'false',
@@ -340,6 +395,8 @@ suite('Sessions - Comparison Result', () => {
 			actionLayout: {
 				count: 3,
 				sameRow: true,
+				synthesisLabel: 'Synthesize Recommended',
+				synthesisPrimaryWiderThanDropdown: true,
 			},
 			accessibility: {
 				regionRole: 'region',
@@ -352,14 +409,22 @@ suite('Sessions - Comparison Result', () => {
 				focusAttemptDropdownLabel: 'Focus another attempt',
 				customControls: synthesisPanel?.id,
 				panelId: synthesisPanel?.id,
+				synthesisDropdownLabel: 'More synthesis options',
+				instructionsLabelledBy: instructionsPanel?.querySelector('h3')?.id,
+				instructionsTitleId: instructionsPanel?.querySelector('h3')?.id,
+				instructionsDescribedBy: instructionsPanel?.querySelector('p')?.id,
+				instructionsDescriptionId: instructionsPanel?.querySelector('p')?.id,
+				instructionsInputLabel: 'Additional synthesis instructions',
+				startWithInstructionsLabel: 'Start recommended synthesis with the additional instructions',
 				columnHeaders: ['Decision', 'Claude', 'Codex', 'Synthesizer'],
 				rowHeaderScope: 'row',
-				rationaleElement: 'UL',
+				rationaleElement: 'DL',
+				rationaleCategories: ['Solution', 'Validation', 'Code quality', 'Comparison'],
 				rationaleItems: [
-					'Solution: Handled the edge case with typed diagnostics.',
-					'Validation: Passed focused tests, build, lint, and diagnostics.',
-					'Code quality: Kept the change small and aligned with existing types.',
-					'Comparison: Resolved the failure that the other attempt left open.',
+					'Handled the edge case with typed diagnostics.',
+					'Passed focused tests, build, lint, and diagnostics.',
+					'Kept the change small and aligned with existing types.',
+					'Resolved the failure that the other attempt left open.',
 				],
 			},
 			renderedMarkdown: [
