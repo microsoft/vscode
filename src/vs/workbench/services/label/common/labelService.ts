@@ -26,8 +26,8 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ResourceLabelTemplate } from './resourceLabelTemplate.js';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -133,7 +133,7 @@ interface IStoredFormatters {
 
 interface IHomeFormatterRegistration {
 	readonly formatter: ResourceLabelTemplateFormatter;
-	readonly templateMatcher: RegExp;
+	readonly template: ResourceLabelTemplate;
 }
 
 interface IResolvedHomeFormatter {
@@ -143,8 +143,6 @@ interface IResolvedHomeFormatter {
 	readonly homeLength: number;
 	readonly authorityLength: number;
 }
-
-const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
@@ -215,22 +213,20 @@ export class LabelService extends Disposable implements ILabelService {
 				(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
 				continue;
 			}
-			const templateMatch = registration.templateMatcher.exec(resource.path);
+			const templateMatch = registration.template.match(resource, this.uriIdentityService.extUri);
 			if (!templateMatch) {
 				continue;
 			}
-			const parameters = new Map(Object.entries(templateMatch.groups ?? {}));
-			const home = resource.with({ path: templateMatch[0], query: null, fragment: null });
-			const formatting = formatter.formatting({ resource, home, parameters });
+			const formatting = formatter.formatting({ resource, home: templateMatch.home, parameters: templateMatch.parameters });
 			if (!formatting) {
 				continue;
 			}
 
 			const result: IResolvedHomeFormatter = {
-				home,
+				home: templateMatch.home,
 				formatting,
 				literalLabel: true,
-				homeLength: home.path.length,
+				homeLength: templateMatch.home.path.length,
 				authorityLength: formatter.home.authority.length,
 			};
 			if (!bestResult ||
@@ -560,28 +556,9 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private createTemplateFormatterRegistration(formatter: ResourceLabelTemplateFormatter): IHomeFormatterRegistration {
-		const { home } = formatter;
-		const homePath = home.path.length > 1 ? home.path.replace(/\/+$/, '') : home.path;
-		const parameterNames = new Set<string>();
-		const matcherPattern = homePath.split('/').map(segment => {
-			const parameterMatch = homeTemplateParameterRegex.exec(segment);
-			if (parameterMatch?.groups?.name) {
-				const parameterName = parameterMatch.groups.name;
-				if (parameterNames.has(parameterName)) {
-					throw new Error(`Duplicate resource label home template parameter: ${parameterName}`);
-				}
-				parameterNames.add(parameterName);
-				return `(?<${parameterName}>(?!\\.{1,2}(?:/|$))[^/]+)`;
-			}
-			if (segment.includes('${')) {
-				throw new Error(`Resource label home template parameters must occupy an entire path segment: ${segment}`);
-			}
-			return escapeRegExpCharacters(segment);
-		}).join('/');
-		const isRootHome = homePath === '' || homePath === '/';
 		return {
 			formatter,
-			templateMatcher: new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`, this.uriIdentityService.extUri.ignorePathCasing(home) ? 'i' : ''),
+			template: new ResourceLabelTemplate(formatter.home),
 		};
 	}
 
