@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKControlGetContextUsageResponse, SDKMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -18,13 +18,16 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IContextAttributionData, UsageInfo } from '../../common/state/sessionState.js';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
-import { toClaudeContextAttribution } from './claudeContextUsage.js';
+import { contextPromptTokens, toClaudeContextAttribution } from './claudeContextUsage.js';
 import { buildClaudeUsageInfo } from './claudeMapSessionEvents.js';
 import type { IClaudeModelLimits } from './claudeModelSelection.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+
+/** Upper bound, in milliseconds, on the post-result `getContextUsage` control round-trip. See {@link ClaudeSdkPipeline._contextUsageTimeoutMs}. */
+const DEFAULT_CONTEXT_USAGE_TIMEOUT_MS = 2000;
 
 /** A model named in a result's `modelUsage`, with the limits the SDK reported for it. */
 export interface IClaudeObservedModelLimits extends IClaudeModelLimits {
@@ -214,32 +217,37 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Emit the turn's single `ChatUsage` for a successful `result`: the base
-	 * usage built from the message, enriched with the SDK's context-window
-	 * breakdown (`_meta.contextAttribution`) when {@link _fetchContextAttribution}
+	 * Emit a `ChatUsage` for a successful `result`: the base usage built from
+	 * the message, enriched with the SDK's context-window breakdown
+	 * (`_meta.contextAttribution`) when {@link _fetchContextAttribution}
 	 * answers, so the context-usage widget can show what occupies the window
 	 * and not just the last call's token counts.
 	 *
 	 * The mapper deliberately emits no usage for results. The workbench treats
 	 * a second report with different prompt tokens as another model call and
-	 * counts its completion tokens again, so a turn must report usage exactly
-	 * once — enriched or not.
+	 * counts its completion tokens again, so this emits one `ChatUsage` per
+	 * successful SDK `result` — enriched or not — not one per protocol turn (a
+	 * steered protocol turn has several results, one per preempted `result`).
 	 *
-	 * `inputTokens` on the enriched report is the SDK's estimate of the tokens
-	 * currently in the window. The base report's `input_tokens` is the
-	 * Anthropic API's *uncached* input count, which excludes the cache reads
-	 * that make up most of a long conversation — so it undercounts the window
-	 * badly. The widget reads `inputTokens` as the prompt size, and the
-	 * `cacheReadTokens` field still carries the raw value.
+	 * `inputTokens` on the enriched report prefers {@link contextPromptTokens}
+	 * — the last API call's actual prompt size — over the context report's
+	 * `totalTokens`, which for `detail: 'summary'` may already include that
+	 * same call's output tokens and would double-count them against
+	 * `outputTokens`. The base report's `input_tokens` is the Anthropic API's
+	 * *uncached* input count, which excludes the cache reads that make up
+	 * most of a long conversation — so it undercounts the window badly. The
+	 * widget reads `inputTokens` as the prompt size, and the `cacheReadTokens`
+	 * field still carries the raw value.
 	 */
-	private async _emitTurnUsage(query: Query, message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>, turnId: string): Promise<void> {
+	private async _emitResultUsage(query: Query, message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>, turnId: string): Promise<void> {
 		const base = buildClaudeUsageInfo(message);
-		const contextAttribution = await this._fetchContextAttribution(query);
-		this._fireChatUsage(turnId, contextAttribution
-			? { ...base, inputTokens: contextAttribution.totalTokens, _meta: { ...base._meta, contextAttribution } }
+		const fetched = await this._fetchContextAttribution(query);
+		this._fireChatUsage(turnId, fetched
+			? { ...base, inputTokens: fetched.promptTokens ?? fetched.contextAttribution.totalTokens, _meta: { contextAttribution: fetched.contextAttribution } }
 			: base);
 	}
 
+	/** Fire the turn's `ChatUsage` action on {@link onDidProduceSignal}. */
 	private _fireChatUsage(turnId: string, usage: UsageInfo): void {
 		this._onDidProduceSignal.fire({
 			kind: 'action',
@@ -264,13 +272,17 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * stays pending in the subprocess. While one is pending on this query, later
 	 * turns skip the fetch instead of queueing another request behind it. A
 	 * rebind swaps the query and lifts the guard.
+	 *
+	 * Mapping the raw response (`toClaudeContextAttribution` /
+	 * {@link contextPromptTokens}) happens inside the same `try`: a malformed
+	 * report must fall back to the base usage like any other enrichment
+	 * failure, never fail the turn.
 	 */
-	private async _fetchContextAttribution(query: Query): Promise<IContextAttributionData | undefined> {
+	private async _fetchContextAttribution(query: Query): Promise<{ readonly contextAttribution: IContextAttributionData; readonly promptTokens: number | undefined } | undefined> {
 		if (this._pendingContextUsage?.query === query) {
 			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage still pending from an earlier turn, skipping enrichment`);
 			return undefined;
 		}
-		let contextUsage: SDKControlGetContextUsageResponse | undefined;
 		try {
 			const request = query.getContextUsage({ detail: 'summary' });
 			const pending = { query };
@@ -280,19 +292,23 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._pendingContextUsage = undefined;
 				}
 			});
-			contextUsage = await raceTimeout(request, this._contextUsageTimeoutMs);
+			const contextUsage = await raceTimeout(request, this._contextUsageTimeoutMs);
+			if (!contextUsage) {
+				this._logService.trace(`[Claude:${this.sessionId}] getContextUsage timed out after ${this._contextUsageTimeoutMs}ms`);
+				return undefined;
+			}
+			if (this._query !== query || this._abortController.signal.aborted) {
+				return undefined;
+			}
+			const contextAttribution = toClaudeContextAttribution(contextUsage);
+			if (!contextAttribution) {
+				return undefined;
+			}
+			return { contextAttribution, promptTokens: contextPromptTokens(contextUsage) };
 		} catch (err) {
 			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage failed: ${err}`);
 			return undefined;
 		}
-		if (!contextUsage) {
-			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage timed out after ${this._contextUsageTimeoutMs}ms`);
-			return undefined;
-		}
-		if (this._query !== query || this._abortController.signal.aborted) {
-			return undefined;
-		}
-		return toClaudeContextAttribution(contextUsage);
 	}
 
 	/**
@@ -323,7 +339,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	private _warm: WarmQuery;
 
 	/** Upper bound on the post-result `getContextUsage` control round-trip. Overridable by tests. */
-	protected _contextUsageTimeoutMs = 2000;
+	protected _contextUsageTimeoutMs = DEFAULT_CONTEXT_USAGE_TIMEOUT_MS;
 	/** The `getContextUsage` request still unanswered on its query, if any. See {@link _fetchContextAttribution}. */
 	private _pendingContextUsage: { readonly query: Query } | undefined;
 	private _abortController: AbortController;
@@ -684,7 +700,9 @@ export class ClaudeSdkPipeline extends Disposable {
 	 *
 	 * A rebind ({@link _rebindQuery}) swaps in a new `_query` while the loop is
 	 * still draining the OLD (now-disposed) one; that old pass then ends with
-	 * the "stream ended without a result" guard. Because `_consumerLoopRunning`
+	 * the "stream ended without a result" guard, or it may end earlier via the
+	 * mid-loop return right after the usage await in {@link _processMessages},
+	 * once that pass notices `_query` has moved on. Because `_consumerLoopRunning`
 	 * stays `true` for the whole handoff, the {@link send} that queued the
 	 * post-rebind prompt already saw {@link _ensureConsumerLoop} no-op — so if
 	 * this pass just stopped, nothing would ever read the new query and `send`
@@ -827,14 +845,30 @@ export class ClaudeSdkPipeline extends Disposable {
 				const clientContext = parent?.clientContext;
 				const turnDuration = parent?.stopWatch.elapsed();
 				if (message.type === 'result' && message.subtype === 'success' && turnId !== undefined) {
-					// The turn's only usage report. Must land before the router
-					// maps the result: a success result with `is_error` maps to
-					// `ChatError`, and the chat reducer ends the active turn on
-					// `ChatError` / `ChatTurnComplete` and applies `ChatUsage`
-					// only to the active turn. The await stalls this loop, and
-					// so the delivery of any message queued behind the result,
-					// for at most `_contextUsageTimeoutMs`.
-					await this._emitTurnUsage(query, message, turnId);
+					// This result's usage report (one per SDK `result`, see
+					// `_emitResultUsage`). Must land before the router maps the
+					// result: a success result with
+					// `is_error` maps to `ChatError`, and the chat reducer ends the
+					// active turn on `ChatError` / `ChatTurnComplete` and applies
+					// `ChatUsage` only to the active turn. The await stalls this
+					// loop, and so the delivery of any message queued behind the
+					// result, for at most `_contextUsageTimeoutMs`. A Stop that
+					// lands during this await cancels the turn exactly as one
+					// landing while the result is routed; the window is bounded
+					// by `_contextUsageTimeoutMs`, and `detail: 'summary'` is
+					// answered locally by the subprocess.
+					await this._emitResultUsage(query, message, turnId);
+					// An abort during the await above can have re-sent through
+					// `_rebindQuery`, which yields the new turn into the SAME queue
+					// this pass is draining. Resuming a stale pass past this point
+					// would `settleHead()` the WRONG (new) entry and complete it
+					// early, so re-validate before routing/settling.
+					if (this._query !== query) {
+						return;
+					}
+					if (this._abortController.signal.aborted) {
+						throw new CancellationError();
+					}
 				}
 				try {
 					await this._router.handle(message, turnId, {

@@ -20,6 +20,7 @@ import {
 	makeContentBlockStop,
 	makeMessageStart,
 	makeMessageStop,
+	makeModelUsage,
 	makeResultSuccess,
 	makeStreamEvent,
 	makeSystemInitMessage,
@@ -1660,7 +1661,7 @@ suite('ClaudeAgent', () => {
 		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: haiku } });
 		const result = makeResultSuccess(created.sdkSessionId);
 		result.modelUsage = {
-			'claude-haiku-4-5-20251001': { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 64_000 },
+			'claude-haiku-4-5-20251001': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 64_000 }),
 		};
 		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -1674,6 +1675,94 @@ suite('ClaudeAgent', () => {
 				{ id: haiku, maxContextWindow: 200_000, maxPromptTokens: 136_000, maxOutputTokens: 64_000 },
 				{ id: sonnet, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
 			],
+		});
+	});
+
+	test('a second turn reporting identical limits does not republish the catalog', async () => {
+		// `_recordObservedModelLimits` only calls `_models.set(...)` when the
+		// observation changed; an unchanged repeat must leave the published
+		// array untouched (same reference) so subscribers don't re-render for
+		// nothing.
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		const sonnet = toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929');
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: sonnet } });
+		const modelUsage = { 'claude-sonnet-4-5-20250929': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 64_000 }) };
+		const result1 = makeResultSuccess(created.sdkSessionId);
+		result1.modelUsage = modelUsage;
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result1];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const afterFirst = agent.models.get();
+
+		const result2 = makeResultSuccess(created.sdkSessionId);
+		result2.modelUsage = modelUsage;
+		sdk.nextQueryMessages = [result2];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.strictEqual(agent.models.get(), afterFirst, 'repeat observation republishes nothing');
+	});
+
+	test('a result naming a model with no catalog row leaves the published catalog untouched', async () => {
+		// `_recordObservedModelLimits` records the observation either way, but an
+		// observation that matches no catalog row must not republish an
+		// identical catalog: `applied.length === 0` short-circuits before
+		// `_models.set(...)`, so subscribers don't re-render for nothing.
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		const sonnet = toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929');
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: sonnet } });
+		const before = agent.models.get();
+		const result = makeResultSuccess(created.sdkSessionId);
+		result.modelUsage = {
+			'claude-model-not-in-catalog': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 64_000 }),
+		};
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.strictEqual(agent.models.get(), before, 'observation with no matching catalog row republishes nothing');
+	});
+
+	test('a later turn reporting a different window republishes the catalog with the new values', async () => {
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		const sonnet = toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929');
+		const limitsOf = (models: readonly IAgentModelInfo[]) => models.map(m => ({ id: m.id, maxContextWindow: m.maxContextWindow, maxPromptTokens: m.maxPromptTokens, maxOutputTokens: m.maxOutputTokens }));
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: sonnet } });
+		const result1 = makeResultSuccess(created.sdkSessionId);
+		result1.modelUsage = { 'claude-sonnet-4-5-20250929': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 64_000 }) };
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result1];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const afterFirst = limitsOf(agent.models.get());
+
+		const result2 = makeResultSuccess(created.sdkSessionId);
+		result2.modelUsage = { 'claude-sonnet-4-5-20250929': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 1_000_000, maxOutputTokens: 32_000 }) };
+		sdk.nextQueryMessages = [result2];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.deepStrictEqual({ afterFirst, afterSecond: limitsOf(agent.models.get()) }, {
+			afterFirst: [{ id: sonnet, maxContextWindow: 200_000, maxPromptTokens: 136_000, maxOutputTokens: 64_000 }],
+			afterSecond: [{ id: sonnet, maxContextWindow: 1_000_000, maxPromptTokens: 968_000, maxOutputTokens: 32_000 }],
 		});
 	});
 
@@ -1697,7 +1786,7 @@ suite('ClaudeAgent', () => {
 		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: copilotOpus } });
 		const result = makeResultSuccess(created.sdkSessionId);
 		result.modelUsage = {
-			'claude-sonnet-4-5-20250929': { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 64_000 },
+			'claude-sonnet-4-5-20250929': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 64_000 }),
 		};
 		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -3851,16 +3940,7 @@ suite('ClaudeAgent', () => {
 		result.usage.output_tokens = 42;
 		result.usage.cache_read_input_tokens = 5;
 		result.modelUsage = {
-			'claude-sonnet-4-test': {
-				inputTokens: 17,
-				outputTokens: 42,
-				cacheReadInputTokens: 5,
-				cacheCreationInputTokens: 0,
-				webSearchRequests: 0,
-				costUSD: 0,
-				contextWindow: 200000,
-				maxOutputTokens: 8192,
-			},
+			'claude-sonnet-4-test': makeModelUsage({ inputTokens: 17, outputTokens: 42, cacheReadInputTokens: 5, contextWindow: 200000, maxOutputTokens: 8192 }),
 		};
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), result];
 

@@ -584,7 +584,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * Remember a model's SDK-reported limits and, when they are new or changed,
 	 * re-publish the catalog so native models gain a context window. Nothing is
-	 * re-published for a repeat observation, so the per-turn event is cheap.
+	 * re-published for a repeat observation, so the per-turn event is cheap. An
+	 * observation that matches no catalog row also republishes nothing: the
+	 * limits stay recorded in {@link _observedModelLimits} and the next refresh
+	 * folds them in once the catalog has a row for the model.
 	 */
 	private _recordObservedModelLimits(limits: IClaudeObservedModelLimits): void {
 		const key = toSdkModelId(limits.model);
@@ -599,6 +602,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			.filter((m, i) => m.maxContextWindow !== before[i].maxContextWindow || m.maxPromptTokens !== before[i].maxPromptTokens || m.maxOutputTokens !== before[i].maxOutputTokens)
 			.map(m => m.id);
 		this._logService.info(`[Claude] Observed limits for model ${limits.model}: contextWindow=${limits.contextWindow}, maxOutputTokens=${limits.maxOutputTokens}; applied to ${applied.length ? applied.join(', ') : 'no catalog rows'}`);
+		if (applied.length === 0) {
+			return;
+		}
 		this._models.set(published, undefined);
 	}
 

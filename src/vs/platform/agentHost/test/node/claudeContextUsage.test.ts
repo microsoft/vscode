@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { SDKControlGetContextUsageResponse } from '@anthropic-ai/claude-agent-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { toClaudeContextAttribution } from '../../node/claude/claudeContextUsage.js';
+import { contextPromptTokens, toClaudeContextAttribution, type ClaudeContextUsageReport } from '../../node/claude/claudeContextUsage.js';
 import { makeContextUsageResponse } from './claudeContextUsageTestUtils.js';
 
 suite('claudeContextUsage', () => {
@@ -13,8 +14,13 @@ suite('claudeContextUsage', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('returns undefined when the report has no usable total', () => {
-		assert.strictEqual(toClaudeContextAttribution(makeContextUsageResponse({ totalTokens: 0 })), undefined);
-		assert.strictEqual(toClaudeContextAttribution(makeContextUsageResponse({ totalTokens: NaN })), undefined);
+		assert.deepStrictEqual(
+			{
+				zero: toClaudeContextAttribution(makeContextUsageResponse({ totalTokens: 0 })),
+				nan: toClaudeContextAttribution(makeContextUsageResponse({ totalTokens: NaN })),
+			},
+			{ zero: undefined, nan: undefined },
+		);
 	});
 
 	test('maps every structured section onto the adapter kinds, leaving the remainder for Messages', () => {
@@ -75,5 +81,37 @@ suite('claudeContextUsage', () => {
 			skills: { totalSkills: 0, includedSkills: 0, tokens: 0, skillFrontmatter: [] },
 		}));
 		assert.deepStrictEqual(attribution, { totalTokens: 42, entries: [], compactions: { count: 0 } });
+	});
+
+	test('a report missing mcpTools/agents (detail: summary skips per-category calls) still maps without throwing', () => {
+		// The `.d.ts` types `mcpTools`/`agents` as required, but the SDK's own
+		// `detail: 'summary'` JSDoc says it skips per-category calls, so the
+		// runtime report can omit them. `ClaudeContextUsageReport` makes the two
+		// lists optional, so the fixture needs no cast.
+		const report: ClaudeContextUsageReport = { ...makeContextUsageResponse({ totalTokens: 12, systemTools: [{ name: 'Read', tokens: 4 }] }) };
+		delete report.mcpTools;
+		delete report.agents;
+		const attribution = toClaudeContextAttribution(report);
+		assert.deepStrictEqual(attribution, {
+			totalTokens: 12,
+			compactions: { count: 0 },
+			entries: [{ kind: 'toolDefinition', id: 'tool:Read', label: 'Read', tokens: 4 }],
+		});
+	});
+
+	suite('contextPromptTokens', () => {
+
+		test('null, non-finite, and valid apiUsage', () => {
+			const withApiUsage = (apiUsage: SDKControlGetContextUsageResponse['apiUsage']) => contextPromptTokens(makeContextUsageResponse({ apiUsage }));
+			assert.deepStrictEqual(
+				{
+					nullApiUsage: withApiUsage(null),
+					nonFiniteField: withApiUsage({ input_tokens: NaN, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }),
+					zeroSum: withApiUsage({ input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }),
+					valid: withApiUsage({ input_tokens: 4_000, cache_creation_input_tokens: 500, cache_read_input_tokens: 300, output_tokens: 200 }),
+				},
+				{ nullApiUsage: undefined, nonFiniteField: undefined, zeroSum: undefined, valid: 4_800 },
+			);
+		});
 	});
 });

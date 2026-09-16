@@ -180,8 +180,9 @@ export interface IClaudeModelLimits {
  *
  * The SDK's `supportedModels()` catalog carries no context window, so a native
  * model is published without limits and the context-usage widget, which needs
- * a denominator, stays hidden for it. Every successful turn does report the
- * serving model's window and output cap, so the agent records those and
+ * a denominator, stays hidden for it. Every turn's `result` reports the
+ * serving model's window and output cap (limits come from any result
+ * subtype, not just `success`), so the agent records those and
  * re-publishes the catalog through this helper. Copilot-routed models already
  * carry CAPI's limits and are left untouched; a native model with no
  * observation yet is also left untouched.
@@ -190,10 +191,13 @@ export interface IClaudeModelLimits {
  * completion. Consumers derive the total window as `maxPromptTokens +
  * maxOutputTokens` (the workbench's context-usage widget and its language
  * model provider), so the prompt limit is published as the window minus the
- * output cap, matching how CAPI reports `max_prompt_tokens` for Copilot-routed
- * models. An observation without a usable output cap (missing, or not below
- * the window) publishes the whole window as the prompt limit and a zero
- * output cap so the sum still equals the window.
+ * output cap — the same split the BYOK provider's `resolveModelTokenLimits`
+ * (`byokProvider.ts`) applies when it derives `maxInputTokens` as
+ * `contextWindow - maxOutputTokens`. An observation without a usable output
+ * cap (missing, or not below the window) publishes the whole window as the
+ * prompt limit and `maxOutputTokens: 0` so the sum still equals the window.
+ * The zero is deliberate: for an `undefined` cap the language model provider
+ * falls back to a known-catalogue value, which would break that sum.
  *
  * The SDK catalog names most models by alias (`sonnet`, `opus`, `haiku`) and
  * only carries the concrete id in `resolvedModel`, while `modelUsage` keys by

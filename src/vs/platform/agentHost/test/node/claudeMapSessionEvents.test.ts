@@ -26,6 +26,7 @@ import {
 	makeInputJsonDelta,
 	makeMessageStart,
 	makeMessageStop,
+	makeModelUsage,
 	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
@@ -864,8 +865,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		// Pipeline (Phase 9 refactor) owns the protocol-Turn boundary; it
 		// fires ChatTurnComplete via `onTurnComplete` only on the FINAL
 		// result of a turn (intermediate results during steering preempt do
-		// NOT close the protocol Turn). It also owns the turn's single
-		// ChatUsage (`_emitTurnUsage`), so a success result maps to nothing.
+		// NOT close the protocol Turn). It also owns the successful result's
+		// ChatUsage (`_emitResultUsage`), so a success result maps to nothing.
 		assert.deepStrictEqual(signals, []);
 	});
 
@@ -879,7 +880,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		result.usage.cache_read_input_tokens = 5;
 		result.total_cost_usd = 0.1234;
 		result.modelUsage = {
-			'claude-test': { inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 },
+			'claude-test': makeModelUsage({ inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, contextWindow: 200_000, maxOutputTokens: 8192 }),
 		};
 
 		assert.deepStrictEqual(buildClaudeUsageInfo(result), { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' });

@@ -448,8 +448,9 @@ function isToolResultTextBlock(block: unknown): block is { type: 'text'; text: s
 
 /**
  * The protocol {@link UsageInfo} for a successful SDK `result` message.
- * Consumed by `ClaudeSdkPipeline._emitTurnUsage`, which emits the turn's
- * single `ChatUsage` — either this shape verbatim or with `inputTokens` and
+ * Consumed by `ClaudeSdkPipeline._emitResultUsage`, which emits one
+ * `ChatUsage` per successful SDK `result` (a steered protocol turn has
+ * several results) — either this shape verbatim or with `inputTokens` and
  * `_meta.contextAttribution` overlaid from the SDK's context-usage report.
  *
  * `modelUsage` is keyed by model name; the first key is reported as the
@@ -482,10 +483,12 @@ function mapResult(
 	registry: SubagentRegistry,
 ): AgentSignal[] {
 	const signals: AgentSignal[] = [];
-	// `ChatUsage` for a successful result is emitted once by
-	// `ClaudeSdkPipeline._emitTurnUsage` (optionally enriched with the
+	// `ChatUsage` for a successful result is emitted by
+	// `ClaudeSdkPipeline._emitResultUsage` (optionally enriched with the
 	// context-window breakdown), NOT here: the workbench counts a second
-	// usage report with different prompt tokens as another model call.
+	// usage report with different prompt tokens as another model call, so
+	// this fires exactly once per successful SDK `result`, not once per
+	// protocol turn.
 
 	// Surface execution errors (e.g. an upstream CAPI failure relayed by the
 	// proxy) as a ChatError so the turn renders an error instead of

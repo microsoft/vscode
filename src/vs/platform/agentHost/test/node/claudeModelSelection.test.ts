@@ -153,7 +153,8 @@ suite('claudeModelSelection', () => {
 		});
 
 		test('no observations is a no-op copy', () => {
-			assert.deepStrictEqual(applyObservedNativeModelLimits(merged, new Map()), merged);
+			const applied = applyObservedNativeModelLimits(merged, new Map());
+			assert.deepStrictEqual({ applied, isCopy: applied !== merged }, { applied: merged, isCopy: true });
 		});
 	});
 

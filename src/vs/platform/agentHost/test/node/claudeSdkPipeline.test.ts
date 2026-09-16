@@ -6,7 +6,7 @@
 import type { Query, SDKControlGetContextUsageResponse, SDKControlInterruptResponse, SDKMessage, SDKResultSuccess, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,7 +27,7 @@ import { ClaudeSdkPipeline, IRematerializer, type IClaudeObservedModelLimits } f
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { makeContextUsageResponse } from './claudeContextUsageTestUtils.js';
-import { makeResultError, makeResultSuccess } from './claudeMapSessionEventsTestUtils.js';
+import { makeModelUsage, makeResultError, makeResultSuccess } from './claudeMapSessionEventsTestUtils.js';
 
 // ===== Test doubles =====
 
@@ -214,7 +214,9 @@ class ScriptedQuery extends ImmediatelyDoneQuery {
 			this._promptIterator ??= this._prompt[Symbol.asyncIterator]();
 			// A disposed subprocess ends its stream even while the SDK is
 			// waiting on the prompt iterable, so the pull must not outlive it.
-			const pulled = await Promise.race([this._promptIterator.next().then(() => true), this._ended.p.then(() => false)]);
+			// A `{ done: true }` result from the prompt iterable itself (queue
+			// torn down without yielding anything) is likewise not a pull.
+			const pulled = await Promise.race([this._promptIterator.next().then(r => !r.done), this._ended.p.then(() => false)]);
 			if (!pulled) {
 				return done;
 			}
@@ -228,8 +230,15 @@ class ScriptedQuery extends ImmediatelyDoneQuery {
 			return done;
 		}
 		return new Promise<IteratorResult<SDKMessage, void>>(resolve => {
-			this._signal.addEventListener('abort', () => resolve(done), { once: true });
-			void this._ended.p.then(() => resolve(done));
+			// Whichever settles first must remove the other's listener: an
+			// abort listener left registered after `_ended` resolves (or vice
+			// versa) would leak for the query's remaining lifetime.
+			const onAbort = () => { resolve(done); };
+			this._signal.addEventListener('abort', onAbort, { once: true });
+			void this._ended.p.then(() => {
+				this._signal.removeEventListener('abort', onAbort);
+				resolve(done);
+			});
 		});
 	}
 
@@ -275,8 +284,17 @@ class ScriptedWarmQuery extends FakeWarmQuery {
 
 // ===== Harness =====
 
+/**
+ * Test-only subclass exposing a setter for the protected
+ * `_contextUsageTimeoutMs`, so tests that need a short timeout don't reach
+ * for an `as unknown as { ... }` cast on the production class.
+ */
+class TestClaudeSdkPipeline extends ClaudeSdkPipeline {
+	setContextUsageTimeoutMs(ms: number): void { this._contextUsageTimeoutMs = ms; }
+}
+
 interface IPipelineHarness {
-	readonly pipeline: ClaudeSdkPipeline;
+	readonly pipeline: TestClaudeSdkPipeline;
 	readonly warm: FakeWarmQuery;
 	readonly controller: AbortController;
 }
@@ -302,7 +320,7 @@ function createPipeline(
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
 	const pipeline = disposables.add(inst.createInstance(
-		ClaudeSdkPipeline,
+		TestClaudeSdkPipeline,
 		'sess-1',
 		URI.parse(buildDefaultChatUri('claude:/sess-1')),
 		URI.parse('claude:/sess-1'),
@@ -659,13 +677,16 @@ suite('ClaudeSdkPipeline', () => {
 
 	suite('context usage enrichment', () => {
 
+		/** The base `ChatUsage` {@link makeResultWithUsage} yields absent any enrichment. */
+		const baseUsage = { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' };
+
 		function makeResultWithUsage(): SDKResultSuccess {
 			const result = makeResultSuccess('sess-1');
 			result.usage.input_tokens = 12;
 			result.usage.output_tokens = 34;
 			result.usage.cache_read_input_tokens = 5;
 			result.modelUsage = {
-				'claude-test': { inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 },
+				'claude-test': makeModelUsage({ inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, contextWindow: 200_000, maxOutputTokens: 8192 }),
 			};
 			return result;
 		}
@@ -780,7 +801,7 @@ suite('ClaudeSdkPipeline', () => {
 			// transport to each query and swaps it together with the query.
 			const limitsOf = (result: SDKResultSuccess) => {
 				result.modelUsage = {
-					'claude-test': { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 },
+					'claude-test': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 8192 }),
 				};
 				return result;
 			};
@@ -810,7 +831,7 @@ suite('ClaudeSdkPipeline', () => {
 			// feed the native catalog; enrichment stays success-only.
 			const result = makeResultError('sess-1', ['boom']);
 			result.modelUsage = {
-				'claude-test': { inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 },
+				'claude-test': makeModelUsage({ inputTokens: 12, outputTokens: 34, contextWindow: 200_000, maxOutputTokens: 8192 }),
 			};
 			const warm = new ScriptedWarmQuery([result], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
 			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
@@ -835,7 +856,7 @@ suite('ClaudeSdkPipeline', () => {
 
 			assert.deepStrictEqual(
 				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
-				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }] },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [baseUsage] },
 			);
 		});
 
@@ -843,9 +864,12 @@ suite('ClaudeSdkPipeline', () => {
 			// Only the attribution can be stale after an abort or rebind; the base
 			// report is the result's own data, so it is emitted regardless.
 			const abortHook: { run?: () => void } = {};
+			const reached = new DeferredPromise<void>();
 			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => {
 				abortHook.run?.();
-				return makeContextUsageResponse({ totalTokens: 5_000 });
+				const response = makeContextUsageResponse({ totalTokens: 5_000 });
+				reached.complete();
+				return response;
 			});
 			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
 			abortHook.run = () => pipeline.abort();
@@ -855,13 +879,16 @@ suite('ClaudeSdkPipeline', () => {
 			// `send` rejects the moment `abort` fails the queue, before the loop
 			// iteration that awaited the breakdown resumes and emits the report.
 			await pipeline.send(makePrompt('p1'), 'turn-1').catch(() => { /* aborted mid-turn */ });
-			for (let i = 0; i < 50 && usageActionsOf(signals).length === 0; i++) {
-				await timeout(0);
-			}
+			// Deterministic handoff: the getContextUsage callback completes
+			// `reached` right before resolving, then the enrichment path still
+			// needs a few more microtask turns (raceTimeout, the aborted-query
+			// check, the base-usage fallback) to fire the ChatUsage signal.
+			await reached.p;
+			await flushMicrotasks();
 
 			assert.deepStrictEqual(
 				usageActionsOf(signals).map(a => a.usage),
-				[{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }],
+				[baseUsage],
 			);
 		});
 
@@ -875,14 +902,94 @@ suite('ClaudeSdkPipeline', () => {
 
 			assert.deepStrictEqual(
 				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
-				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }] },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [baseUsage] },
+			);
+		});
+
+		test('apiUsage, when present, is preferred over totalTokens for inputTokens (additive with outputTokens, no double count)', async () => {
+			// `totalTokens` for `detail: 'summary'` is derived from the last
+			// response's usage and may already include that response's output
+			// tokens; reporting it as `inputTokens` would double-count them
+			// against `outputTokens`. `apiUsage` is the last API call's actual
+			// prompt size and is additive with `outputTokens`.
+			const contextUsage = makeContextUsageResponse({
+				totalTokens: 5_000,
+				apiUsage: { input_tokens: 4_000, cache_creation_input_tokens: 500, cache_read_input_tokens: 300, output_tokens: 200 },
+			});
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => contextUsage);
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				usageActionsOf(signals).map(a => a.usage),
+				[{
+					inputTokens: 4_800,
+					outputTokens: 34,
+					cacheReadTokens: 5,
+					model: 'claude-test',
+					_meta: { contextAttribution: { totalTokens: 5_000, compactions: { count: 0 }, entries: [] } },
+				}],
+			);
+		});
+
+		test('an abort + rebind while getContextUsage is pending does not let the stale pass settle the post-rebind turn', async () => {
+			// Regression: abort -> failAll -> re-send -> `_rebindQuery` rebinds a
+			// fresh query while THIS pass is still suspended inside
+			// `_emitResultUsage`, awaiting `getContextUsage` for turn-1's result.
+			// Without the guard right after `_emitResultUsage`, the stale pass
+			// would resume once `getContextUsage` answers: `settleHead()` finds
+			// nothing (failAll already cleared the queue), and the stale pass
+			// loops around and pulls from the prompt iterable again, which is
+			// shared across queries (the queue survives rebinds), stealing
+			// turn-2's prompt entry off that SAME queue and then ending, leaving
+			// the new query parked forever waiting for a prompt that never comes
+			// (the test would hang). With the guard, the stale pass returns
+			// instead of routing/settling once `_query` has moved on, so turn-2
+			// completes exactly once, driven by the new query.
+			const held = new DeferredPromise<SDKControlGetContextUsageResponse>();
+			const reached = new DeferredPromise<void>();
+			const warm1 = new ScriptedWarmQuery([makeResultWithUsage()], () => { reached.complete(); return held.p; });
+			const { pipeline } = createPipeline(disposables, signal => { warm1.signal = signal; return warm1; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			const p1 = pipeline.send(makePrompt('p1'), 'turn-1');
+			p1.catch(() => { /* expected: failed by abort */ });
+			// Let the loop reach the result message and call getContextUsage.
+			await reached.p;
+			assert.strictEqual(warm1.queries[0].contextUsageCalls.length, 1, 'turn-1 stuck awaiting getContextUsage');
+
+			pipeline.abort();
+
+			let warm2!: ScriptedWarmQuery;
+			pipeline.attachRematerializer(async () => {
+				const ctl = new AbortController();
+				warm2 = new ScriptedWarmQuery([makeResultWithUsage()], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
+				warm2.signal = ctl.signal;
+				return { warm: warm2, abortController: ctl, transportKind: 'native' };
+			});
+			const p2 = pipeline.send(makePrompt('p2'), 'turn-2');
+
+			// Release the held getContextUsage so the stale turn-1 pass resumes.
+			held.complete(makeContextUsageResponse({ totalTokens: 1_000 }));
+
+			await p2;
+			await flushMicrotasks();
+
+			const turnCompletes = signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete);
+			assert.deepStrictEqual(
+				turnCompletes.map(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete ? s.action.turnId : undefined),
+				['turn-2'],
 			);
 		});
 
 		test('a getContextUsage that never answers is bounded by the timeout and does not hang the turn', async () => {
 			const warm = new ScriptedWarmQuery([makeResultWithUsage()], () => new Promise<SDKControlGetContextUsageResponse>(() => { /* never resolves */ }));
 			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
-			(pipeline as unknown as { _contextUsageTimeoutMs: number })._contextUsageTimeoutMs = 5;
+			pipeline.setContextUsageTimeoutMs(5);
 			const signals: AgentSignal[] = [];
 			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
 
@@ -890,7 +997,7 @@ suite('ClaudeSdkPipeline', () => {
 
 			assert.deepStrictEqual(
 				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
-				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [{ inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' }] },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [baseUsage] },
 			);
 		});
 
@@ -900,17 +1007,16 @@ suite('ClaudeSdkPipeline', () => {
 			// in the subprocess.
 			const warm = new ScriptedWarmQuery([makeResultWithUsage(), makeResultWithUsage()], () => new Promise<SDKControlGetContextUsageResponse>(() => { /* never resolves */ }));
 			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
-			(pipeline as unknown as { _contextUsageTimeoutMs: number })._contextUsageTimeoutMs = 5;
+			pipeline.setContextUsageTimeoutMs(5);
 			const signals: AgentSignal[] = [];
 			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
 
 			await pipeline.send(makePrompt('p1'), 'turn-1');
 			await pipeline.send(makePrompt('p2'), 'turn-2');
 
-			const base = { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' };
 			assert.deepStrictEqual(
 				{ contextUsageCalls: warm.queries[0].contextUsageCalls.length, actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
-				{ contextUsageCalls: 1, actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete, ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [base, base] },
+				{ contextUsageCalls: 1, actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete, ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [baseUsage, baseUsage] },
 			);
 		});
 	});
