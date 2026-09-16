@@ -370,7 +370,7 @@ export interface ISessionsProvider {
 	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
 
-	/** Model preferences scoped to an Automation draft rather than the ordinary New Session defaults. */
+	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */
 	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;
 
 	/**

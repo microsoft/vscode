@@ -31,6 +31,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IModelPickerDelegate, IModelPickerPresentationOptions, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { extractSchemaDefaults } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { createModelConfigurationActions, ILanguageModelChatMetadataAndIdentifier, IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -106,6 +107,24 @@ export function resolveSessionComparisonHarnessModel(
 		selectedModel,
 		hadUnavailableModel,
 	};
+}
+
+export function applySessionComparisonModelConfigurationDefaults(
+	harness: ISessionComparisonHarness,
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+): ISessionComparisonHarness {
+	const defaults = extractSchemaDefaults(model?.metadata.configurationSchema);
+	const modelConfiguration: Record<string, string | number | boolean | null> = { ...harness.modelConfiguration };
+	let changed = false;
+	for (const [key, value] of Object.entries(defaults)) {
+		if (modelConfiguration[key] !== undefined
+			|| value !== null && typeof value !== 'string' && typeof value !== 'boolean' && (typeof value !== 'number' || !Number.isFinite(value))) {
+			continue;
+		}
+		modelConfiguration[key] = value;
+		changed = true;
+	}
+	return changed ? { ...harness, modelConfiguration } : harness;
 }
 
 export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
@@ -650,6 +669,13 @@ export class SessionComparisonSetupDialog extends Disposable {
 					status(unavailableModelMessage);
 				}
 				const selectedModel = modelResolution.selectedModel;
+				const configuredHarness = provider?.supportsModelConfigurationForCreation
+					? applySessionComparisonModelConfigurationDefaults(harness, selectedModel)
+					: harness;
+				if (configuredHarness !== harness) {
+					harness = configuredHarness;
+					onChange(harness);
+				}
 				const reasoningEffortSchema = provider?.supportsModelConfigurationForCreation
 					? selectedModel?.metadata.configurationSchema?.properties?.[ReasoningEffortConfigKey]
 					: undefined;

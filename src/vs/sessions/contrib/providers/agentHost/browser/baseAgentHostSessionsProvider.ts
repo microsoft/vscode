@@ -2948,6 +2948,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
+	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, AutomationModelConfiguration>());
 
 	/**
 	 * Last authoritatively-resolved schemas for {@link SEEDED_CONFIG_SCHEMA_KEYS},
@@ -4013,7 +4014,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Dynamic session config ----------------------------------------------
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
-		return this._getNewSession(sessionId)?.modelConfiguration;
+		return this._getNewSession(sessionId)?.modelConfiguration ?? this._runningModelConfigurations.get(sessionId);
 	}
 
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
@@ -5151,11 +5152,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
 		const selectedModelId = this._resolveSendModelId(chatId, cached.getChatModelId(chatResource));
+		const selectedModelConfiguration = this._runningModelConfigurations.get(cached.sessionId)?.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
 			userSelectedModelId: selectedModelId,
+			userSelectedModelConfiguration: selectedModelConfiguration,
 			modeInfo: selectedAgentUri ? {
 				kind: ChatModeKind.Agent,
 				isBuiltin: false,
@@ -5188,14 +5191,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		try {
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri);
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
 
 			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 			if (result.kind === 'rejected') {
 				throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 			}
 
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true });
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true, modelConfiguration: selectedModelConfiguration });
 		} finally {
 			modelRef.dispose();
 		}
@@ -5232,7 +5235,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._chatModelRetentionLeases.set(resourceKey, lease);
 	}
 
-	private _applyChatSessionState(modelRef: IChatModelReference, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): void {
+	private _applyChatSessionState(
+		modelRef: IChatModelReference,
+		modelId: string | undefined,
+		agentUri: string | undefined,
+		options?: {
+			readonly clearDraft?: boolean;
+			readonly modelConfiguration?: IAutomationSessionTemplate['modelConfiguration'];
+		},
+	): void {
 		const inputModel = modelRef.object.inputModel;
 		if (!inputModel) {
 			return;
@@ -5240,7 +5251,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (modelId) {
 			const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
 			if (languageModel) {
-				inputModel.setState({ selectedModel: { identifier: modelId, metadata: languageModel } });
+				inputModel.setState({
+					selectedModel: { identifier: modelId, metadata: languageModel },
+					modelConfiguration: options?.modelConfiguration,
+				});
 			}
 		}
 		inputModel.setState({
@@ -5263,6 +5277,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
+		const selectedModelSource = newSession.session.mainChat.get().modelSource.get() ?? ChatModelSource.Chosen;
+		const selectedModelConfiguration = newSession.modelConfiguration.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgent = newSession.getSelectedAgent();
 
 		const { query, attachedContext } = options;
@@ -5273,7 +5289,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
 			userSelectedModelId: selectedModelId,
-			userSelectedModelConfiguration: newSession.modelConfiguration.getModelConfigurationForRequest(selectedModelId),
+			userSelectedModelConfiguration: selectedModelConfiguration,
 			modeInfo: selectedAgent ? {
 				kind: ChatModeKind.Agent,
 				isBuiltin: false,
@@ -5309,7 +5325,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (selectedModelId) {
 				const languageModel = this._languageModelsService.lookupLanguageModel(selectedModelId);
 				if (languageModel) {
-					modelRef.object.inputModel.setState({ selectedModel: { identifier: selectedModelId, metadata: languageModel } });
+					modelRef.object.inputModel.setState({
+						selectedModel: { identifier: selectedModelId, metadata: languageModel },
+						modelConfiguration: selectedModelConfiguration,
+					});
 				}
 			}
 			if (selectedAgent) {
@@ -5369,17 +5388,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (options.title) {
 					await this.renameSession(committedSession.sessionId, options.title);
 				}
-				// Carry the picked custom agent onto the committed session before
-				// the replace event so the agent picker doesn't reset to the
-				// default once the active session is swapped (the picker mirrors
-				// `session.mode`, which is otherwise `undefined` on the freshly
-				// committed adapter). The host already received the agent with the
-				// first turn (see `sendOptions.modeInfo`), so update only the local
-				// mode observable here rather than re-notifying it via `setAgent`.
-				if (selectedAgent) {
-					const committedRawIdForAgent = this._rawIdFromChatId(committedSession.sessionId);
-					const committedAdapter = committedRawIdForAgent ? this._sessionCache.get(committedRawIdForAgent) : undefined;
-					committedAdapter?.setChatAgent(committedAdapter.resource, selectedAgent);
+				const committedRawIdForSelections = this._rawIdFromChatId(committedSession.sessionId);
+				const committedAdapter = committedRawIdForSelections ? this._sessionCache.get(committedRawIdForSelections) : undefined;
+				if (committedAdapter && selectedModelId) {
+					this._preserveNewSessionModelSelection(committedAdapter, selectedModelId, selectedModelSource, selectedModelConfiguration);
+				}
+				if (committedAdapter && selectedAgent) {
+					committedAdapter.setChatAgent(committedAdapter.resource, selectedAgent);
 				}
 				// Session graduated: release the eager subscription without
 				// firing `disposeSession`. The session handler has already
@@ -5450,6 +5465,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		this._applyWorktreeIsolation(committedSessionId, config?.values);
+	}
+
+	private _preserveNewSessionModelSelection(
+		committedAdapter: AgentHostSessionAdapter,
+		modelId: string,
+		source: ChatModelSource,
+		modelConfiguration: IAutomationSessionTemplate['modelConfiguration'],
+	): void {
+		if (modelConfiguration !== undefined) {
+			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+				modelId,
+				modelConfiguration,
+			}));
+		}
+		committedAdapter.setChatModelId(committedAdapter.resource, modelId, source);
 	}
 
 	protected _rawIdFromChatId(chatId: string): string | undefined {
@@ -5750,6 +5780,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const chatState = chatRef.object.value;
 				const model = chatState && !(chatState instanceof Error) ? chatState.draft?.model : undefined;
 				if (model) {
+					if (model.config !== undefined) {
+						const modelId = `${cached.resource.scheme}:${model.id}`;
+						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+							modelId,
+							modelConfiguration: model.config,
+						}));
+					}
 					cached.hydrateSelectedModel(model);
 				}
 			}
@@ -6167,6 +6204,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					this._sessionCache.delete(key);
 					this._runningSessionConfigs.delete(cached.sessionId);
 					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
+					this._runningModelConfigurations.deleteAndDispose(cached.sessionId);
 					removed.push(cached);
 				}
 			}
@@ -6421,6 +6459,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);
+		this._runningModelConfigurations.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);

@@ -2172,7 +2172,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://live', kind: 'agent' });
 	});
 
-	test('restores the selected model from the default chat draft on resume', () => {
+	test('restores the selected model and configuration from the default chat draft on resume', () => {
 		// Mirrors the draft agent restore. Without it a reopened session reports no model at all,
 		// which model selection reads as "this conversation never chose one" and seeds from a
 		// profile-wide preference — writing that through and changing what the session runs on.
@@ -2192,16 +2192,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 			status: ProtocolSessionStatus.Idle,
 			modifiedAt: new Date(0).toISOString(),
 			turns: [],
-			draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'resumed-model' } },
+			draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'resumed-model', config: { thinkingLevel: 'medium' } } },
 		});
 
 		assert.deepStrictEqual({
 			modelId: session!.modelId.get(),
+			modelConfiguration: provider.getAutomationModelConfiguration(session!.sessionId)?.getModelConfiguration('agent-host-copilotcli:resumed-model'),
 			// The conversation's own model, read back from where the host persisted it — so it
 			// outranks `chat.defaultModel` rather than inviting it.
 			modelSource: session!.mainChat.get().modelSource.get(),
 		}, {
 			modelId: 'agent-host-copilotcli:resumed-model',
+			modelConfiguration: { thinkingLevel: 'medium' },
 			modelSource: ChatModelSource.Chosen,
 		});
 	});
@@ -2327,6 +2329,77 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.deepStrictEqual(committed.mode.get(), { id: 'agent://picked', kind: 'agent' });
+	});
+
+	test('carries the picked model and configuration onto the committed session when a new session graduates', async () => {
+		const modelId = 'agent-host-copilotcli:model';
+		const metadata: ILanguageModelChatMetadata = {
+			...createTestLanguageModel('model'),
+			targetChatSessionType: 'agent-host-copilotcli',
+			configurationSchema: {
+				type: 'object',
+				properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'high' } },
+			},
+		};
+		const sent: IChatSendRequestOptions[] = [];
+		const inputStates: Partial<IChatModelInputState>[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			languageModelIds: [modelId],
+			lookupLanguageModel: () => metadata,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(state: Partial<IChatModelInputState>): void {
+						inputStates.push(state);
+					}
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+				if (options) {
+					sent.push(options);
+				}
+				if (sent.length === 1) {
+					agentHost.addSession(createSession('graduated-model', { summary: 'Graduated Model Session' }));
+				}
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, {
+			modelId,
+			modelConfiguration: { thinkingLevel: 'medium' },
+		});
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'follow up' });
+
+		assert.deepStrictEqual({
+			modelId: committed.modelId.get(),
+			modelSource: committed.mainChat.get().modelSource.get(),
+			modelConfiguration: provider.getAutomationModelConfiguration(committed.sessionId)?.getModelConfiguration(modelId),
+			inputModelConfigurations: inputStates
+				.filter(state => state.selectedModel?.identifier === modelId)
+				.map(state => state.modelConfiguration),
+			sent: sent.map(options => ({
+				modelId: options.userSelectedModelId,
+				modelConfiguration: options.userSelectedModelConfiguration,
+			})),
+		}, {
+			modelId,
+			modelSource: ChatModelSource.Chosen,
+			modelConfiguration: { thinkingLevel: 'medium' },
+			inputModelConfigurations: [
+				{ thinkingLevel: 'medium' },
+				{ thinkingLevel: 'medium' },
+				{ thinkingLevel: 'medium' },
+			],
+			sent: [
+				{ modelId, modelConfiguration: { thinkingLevel: 'medium' } },
+				{ modelId, modelConfiguration: { thinkingLevel: 'medium' } },
+			],
+		});
 	});
 
 	// ---- getCustomAgents / onDidChangeCustomAgents -------

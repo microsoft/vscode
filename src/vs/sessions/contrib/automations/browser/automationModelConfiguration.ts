@@ -12,7 +12,7 @@ import { extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfigu
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { createModelConfigurationActions, ILanguageModelsService, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 
-/** Model preferences for one Automation draft, retaining unavailable values independently of effective configuration. */
+/** Model preferences for one session, retaining unavailable values independently of effective configuration. */
 export class AutomationModelConfiguration extends Disposable implements IModelConfigurationAccess {
 	private readonly preferences = new Map<string, IStringDictionary<unknown>>();
 	private readonly _onDidChange = this._register(new Emitter<string>());

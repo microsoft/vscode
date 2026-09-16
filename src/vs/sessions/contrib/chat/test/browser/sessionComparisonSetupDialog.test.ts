@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, resolveSessionComparisonHarnessModel, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
+import { applySessionComparisonModelConfigurationDefaults, getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, resolveSessionComparisonHarnessModel, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
 import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
 
 const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
@@ -235,6 +235,48 @@ suite('SessionComparisonDialogResizeController', () => {
 					modelId: 'claude/opus',
 					modelConfiguration: undefined,
 					hadUnavailableModel: true,
+				},
+			});
+		});
+
+		test('captures the model defaults displayed in comparison setup', () => {
+			const model = upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+				identifier: 'claude/opus',
+				metadata: upcastPartial<ILanguageModelChatMetadata>({
+					id: 'opus',
+					name: 'Claude Opus',
+					configurationSchema: {
+						type: 'object',
+						properties: {
+							thinkingLevel: { type: 'string', default: 'high' },
+							contextSize: { type: 'number', default: 272000 },
+							unsupported: { type: 'object', default: { enabled: true } },
+						},
+					},
+				}),
+			});
+			const harness: ISessionComparisonHarness = {
+				providerId: 'provider',
+				sessionTypeId: 'claude',
+				label: 'Claude',
+				modelId: model.identifier,
+				modelLabel: model.metadata.name,
+			};
+
+			assert.deepStrictEqual({
+				defaults: applySessionComparisonModelConfigurationDefaults(harness, model).modelConfiguration,
+				override: applySessionComparisonModelConfigurationDefaults({
+					...harness,
+					modelConfiguration: { thinkingLevel: 'max' },
+				}, model).modelConfiguration,
+			}, {
+				defaults: {
+					thinkingLevel: 'high',
+					contextSize: 272000,
+				},
+				override: {
+					thinkingLevel: 'max',
+					contextSize: 272000,
 				},
 			});
 		});
