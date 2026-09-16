@@ -57,6 +57,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { ExperimentalSettingsService } from '../../common/experimentalSettings.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 
 suite('ConfigurationDefaultOverridesContribution', () => {
 
@@ -229,15 +230,24 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 
 		try {
 			await contribution.processExperimentalSettings([firstSetting], false);
+			const initial = {
+				assigned: contribution.experimentalSettingsService.hasAssignment(firstSetting),
+				source: configurationRegistry.getConfigurationProperties()[firstSetting].defaultValueSource,
+				overrides: contribution.registeredExperimentalDefaults.size,
+			};
+			await timeout(0);
 			await contribution.processExperimentalSettings([firstSetting], true);
 			treatments.testFirstAutoExperimentalSetting = undefined;
 			await contribution.processExperimentalSettings([firstSetting], true);
+			await timeout(0);
 
 			assert.deepStrictEqual({
+				initial,
 				changes,
 				default: configurationRegistry.getConfigurationProperties()[firstSetting].default,
+				source: configurationRegistry.getConfigurationProperties()[firstSetting].defaultValueSource,
 				overrides: contribution.registeredExperimentalDefaults.size,
-			}, { changes: [true, false], default: 'control', overrides: 0 });
+			}, { initial: { assigned: true, source: undefined, overrides: 0 }, changes: [true, false], default: 'control', source: undefined, overrides: 0 });
 		} finally {
 			configurationRegistry.deregisterConfigurations([configuration]);
 		}
@@ -277,6 +287,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			await timeout(0);
 			const beforeMetadata = {
 				value: configurationRegistry.getConfigurationProperties()[firstSetting].default,
+				source: configurationRegistry.getConfigurationProperties()[firstSetting].defaultValueSource,
 				assigned: contribution.experimentalSettingsService.hasAssignment(firstSetting),
 			};
 			await assignment.complete(false);
@@ -284,10 +295,29 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			assert.deepStrictEqual({
 				beforeMetadata,
 				assigned: contribution.experimentalSettingsService.hasAssignment(firstSetting),
-			}, { beforeMetadata: { value: 'override', assigned: false }, assigned: false });
+			}, { beforeMetadata: { value: 'override', source: 'experiments', assigned: false }, assigned: false });
 		} finally {
 			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
 			configurationRegistry.deregisterConfigurations([configuration]);
+		}
+	});
+
+	test('coalesces sequentially resolved configuration assignments into one notification', async () => {
+		const keys = Array.from({ length: 40 }, (_, index) => `test.batchedAssignment${index}`);
+		const batchedConfiguration: IConfigurationNode = {
+			id: 'test.batchedAssignments',
+			properties: Object.fromEntries(keys.map(key => [key, { type: 'string' as const, default: 'control', experiment: { mode: 'auto' as const } }])),
+		};
+		const contribution = createTestContribution(Object.fromEntries(keys.map(key => [`config.${key}`, 'control'])));
+		const changes: string[][] = [];
+		store.add(contribution.experimentalSettingsService.onDidChangeAssignments(keys => changes.push([...keys])));
+		configurationRegistry.registerConfiguration(batchedConfiguration);
+		try {
+			await contribution.processExperimentalSettings(keys, false);
+			await timeout(0);
+			assert.deepStrictEqual(changes, [keys]);
+		} finally {
+			configurationRegistry.deregisterConfigurations([batchedConfiguration]);
 		}
 	});
 
@@ -308,6 +338,55 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			}, { assigned: true, errors: ['ConfigurationService#processExperimentalSettings'] });
 		} finally {
 			configurationRegistry.deregisterConfigurations([configuration]);
+		}
+	});
+
+	for (const metadataOnly of [false, true]) {
+		test(`retains assignments without logging ${metadataOnly ? 'metadata' : 'treatment'} cancellation`, async () => {
+			const contribution = createTestContribution({ testFirstAutoExperimentalSetting: 'control' });
+			const errors: string[] = [];
+			contribution.logService = new class extends NullLogService {
+				override error(message: string): void { errors.push(message); }
+			}();
+			configurationRegistry.registerConfiguration(configuration);
+			try {
+				await contribution.processExperimentalSettings([firstSetting], false);
+				contribution.workbenchAssignmentService.getTreatmentWithAssignment = async <T extends string | number | boolean>() => {
+					if (!metadataOnly) {
+						throw new CancellationError();
+					}
+					return { value: 'control' as T, hasAssignment: Promise.reject(new CancellationError()) };
+				};
+				await contribution.processExperimentalSettings([firstSetting], true);
+				assert.deepStrictEqual({ assigned: contribution.experimentalSettingsService.hasAssignment(firstSetting), errors }, { assigned: true, errors: [] });
+			} finally {
+				configurationRegistry.deregisterConfigurations([configuration]);
+			}
+		});
+	}
+
+	test('retries unresolved startup settings after assignment-client cancellation', async () => {
+		const key = 'test.cancelledStartupAssignment';
+		const startupConfiguration: IConfigurationNode = {
+			id: 'test.cancelledStartup',
+			properties: { [key]: { type: 'string', default: 'control', experiment: { mode: 'startup' } } },
+		};
+		const contribution = createTestContribution({ [`config.${key}`]: 'control' });
+		const readTreatment = contribution.workbenchAssignmentService.getTreatmentWithAssignment;
+		contribution.workbenchAssignmentService.getTreatmentWithAssignment = async () => { throw new CancellationError(); };
+		configurationRegistry.registerConfiguration(startupConfiguration);
+		try {
+			await contribution.processExperimentalSettings([key], false);
+			const pendingAfterCancellation = contribution.pendingStartupExperimentalSettings.has(key);
+			contribution.workbenchAssignmentService.getTreatmentWithAssignment = readTreatment;
+			await contribution.processExperimentalSettings([...contribution.pendingStartupExperimentalSettings], true);
+			assert.deepStrictEqual({
+				pendingAfterCancellation,
+				assigned: contribution.experimentalSettingsService.hasAssignment(key),
+				pendingAfterResolution: contribution.pendingStartupExperimentalSettings.has(key),
+			}, { pendingAfterCancellation: true, assigned: true, pendingAfterResolution: false });
+		} finally {
+			configurationRegistry.deregisterConfigurations([startupConfiguration]);
 		}
 	});
 

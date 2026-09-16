@@ -50,6 +50,7 @@ import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
 import { IExperimentalSettingsService } from '../common/experimentalSettings.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -1442,7 +1443,11 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 					if (!this._store.isDisposed && this.assignmentRequests.get(property) === request && allProperties[property]?.experiment === schema.experiment) {
 						this.experimentalSettingsService.setAssignment(property, assigned);
 					}
-				}, error => this.logService.error('ConfigurationService#processExperimentalSettings: assignment', property, error)));
+				}, error => {
+					if (!isCancellationError(error)) {
+						this.logService.error('ConfigurationService#processExperimentalSettings: assignment', property, error);
+					}
+				}));
 				// Latch a `startup` value once it first resolves; keep it pending until then so a
 				// later (sign-in gated) value can still be applied.
 				if (!isAutoExperiment) {
@@ -1469,7 +1474,13 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 					removedDefaults.push(registeredDefault);
 				}
 			} catch (error) {
-				this.logService.error('ConfigurationService#processExperimentalSettings', property, error);
+				if (isCancellationError(error)) {
+					if (!isAutoExperiment && !this._store.isDisposed && this.assignmentRequests.get(property) === request) {
+						this.pendingStartupExperimentalSettings.add(property);
+					}
+				} else {
+					this.logService.error('ConfigurationService#processExperimentalSettings', property, error);
+				}
 			}
 		}
 		if (removedDefaults.length || addedDefaults.length) {

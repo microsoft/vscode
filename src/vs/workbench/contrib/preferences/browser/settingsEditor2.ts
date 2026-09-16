@@ -239,6 +239,7 @@ export class SettingsEditor2 extends EditorPane {
 	private aiResultsAvailable: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DisposableStore>;
+	private pendingAssignmentRefresh = false;
 	private _currentFocusContext: SettingsFocusContext = SettingsFocusContext.Search;
 
 	/** Don't spam warnings */
@@ -354,14 +355,12 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 		this._register(experimentalSettingsService.onDidChangeAssignments(keys => {
-			keys.forEach(key => this.settingsTreeModel.value?.updateElementsByName(key));
 			if (this.searchResultModel && this.viewState.tagFilters?.has(EXP_ASSIGNMENT_SETTING_TAG)) {
-				this.searchResultModel.updateChildren();
-				this.refreshTOCTree();
-				this.renderResultCountMessages(false);
-				this.refreshTree();
-			} else {
-				keys.forEach(key => this.searchResultModel?.updateElementsByName(key));
+				keys.forEach(key => this.settingsTreeModel.value?.updateElementsByName(key));
+				this.pendingAssignmentRefresh = true;
+				this.renderTree();
+			} else if (this.currentSettingsModel) {
+				this.updateElementsByKey(keys);
 			}
 		}));
 
@@ -396,7 +395,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.configurationService.getValue<boolean>(ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING) ?? false) {
 			return true;
 		}
-		return this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false;
+		return !!(this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) || this.viewState.tagFilters?.has(EXP_ASSIGNMENT_SETTING_TAG));
 	}
 
 	/** Allows explicitly targeted settings to bypass the default advanced-settings filter. */
@@ -410,7 +409,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.viewState.query?.toLowerCase().includes(setting.key.toLowerCase())) {
 			return true;
 		}
-		if (this.viewState.tagFilters?.has(POLICY_SETTING_TAG) || this.viewState.tagFilters?.has(EXP_ASSIGNMENT_SETTING_TAG)) {
+		if (this.viewState.tagFilters?.has(POLICY_SETTING_TAG)) {
 			return true;
 		}
 		return false;
@@ -468,6 +467,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private set searchResultModel(value: SearchResultModel | null) {
 		this._searchResultModel.value = value ?? undefined;
+		this.pendingAssignmentRefresh = false;
 
 		this.rootElement.classList.toggle('search-mode', !!this._searchResultModel.value);
 	}
@@ -1727,6 +1727,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private renderTree(key?: string, force = false): void {
+		if (this.pendingAssignmentRefresh) {
+			key = undefined;
+		}
 		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
 			return;
@@ -1761,6 +1764,12 @@ export class SettingsEditor2 extends EditorPane {
 				this.scheduleRefresh(focusedSetting);
 				return;
 			}
+		}
+
+		if (this.pendingAssignmentRefresh) {
+			this.pendingAssignmentRefresh = false;
+			this.searchResultModel?.updateChildren();
+			this.refreshTOCTree();
 		}
 
 		this.renderResultCountMessages(false);
@@ -1887,7 +1896,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async triggerSearch(query: string, expandResults: boolean): Promise<void> {
 		const progressRunner = this.editorProgressService.show(true, 800);
-		const showAdvanced = this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG);
+		const showAdvanced = this.canShowAdvancedSettings();
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
@@ -1903,7 +1912,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
 
-		if (showAdvanced !== this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG)) {
+		if (showAdvanced !== this.canShowAdvancedSettings()) {
 			await this.onConfigUpdate();
 		}
 
