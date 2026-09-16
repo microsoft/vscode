@@ -1,0 +1,44 @@
+{
+	"date": "2026-08-23",
+	"commit": "26e51087e35",
+	"surface": "agents",
+	"skipPreLaunch": true,
+	"fixtureRoot": "/tmp/vscode-launch-prelaunch-verification",
+	"passed": 5,
+	"failed": 0,
+	"medianLaunchMs": 744,
+	"medianScenarioMs": 15696,
+	"medianTotalMs": 16643,
+	"trials": [
+		{
+			"run": 1,
+			"launchMs": 728,
+			"scenarioMs": 14690,
+			"totalMs": 15418
+		},
+		{
+			"run": 2,
+			"launchMs": 835,
+			"scenarioMs": 12677,
+			"totalMs": 13512
+		},
+		{
+			"run": 3,
+			"launchMs": 743,
+			"scenarioMs": 16879,
+			"totalMs": 17622
+		},
+		{
+			"run": 4,
+			"launchMs": 947,
+			"scenarioMs": 15696,
+			"totalMs": 16643
+		},
+		{
+			"run": 5,
+			"launchMs": 744,
+			"scenarioMs": 16302,
+			"totalMs": 17046
+		}
+	]
+}

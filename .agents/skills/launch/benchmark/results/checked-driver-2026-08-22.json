@@ -1,0 +1,45 @@
+{
+	"date": "2026-08-22",
+	"commit": "0cf9811efae",
+	"workspace": "/tmp/vscode-launch-benchmark-workspace",
+	"workspaceIsGitRepository": false,
+	"repositoryWorktreesChanged": false,
+	"trials": [
+		{
+			"surface": "agents",
+			"success": true,
+			"launchMs": 1600,
+			"scenarioMs": 14307,
+			"totalMs": 15907,
+			"automationProcesses": 1,
+			"steps": {
+				"workspaceMs": 1315,
+				"firstResponseMs": 7982,
+				"secondResponseMs": 4503,
+				"forkMs": 226
+			},
+			"handledModals": [
+				"Trust Folder & Continue"
+			],
+			"visibleModalsAfter": 0
+		},
+		{
+			"surface": "editor",
+			"success": true,
+			"launchMs": 1706,
+			"scenarioMs": 13677,
+			"totalMs": 15383,
+			"automationProcesses": 1,
+			"steps": {
+				"workspaceMs": 49,
+				"firstResponseMs": 8759,
+				"secondResponseMs": 4150,
+				"forkMs": 218
+			},
+			"handledModals": [
+				"Trust Folder & Continue"
+			],
+			"visibleModalsAfter": 0
+		}
+	]
+}
