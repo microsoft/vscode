@@ -93,7 +93,7 @@ export class ProjectBoardChatSidePanel extends Disposable {
 	async open(card: IProjectBoardCard, onClose: () => void): Promise<void> {
 		const customView = this.customViewService.activeCustomView.get();
 		if (this.disposed || customView?.id !== KANBAN_CUSTOM_VIEW_ID || this.entitlementService.sentiment.hidden) {
-			throw new Error(localize('kanban.chatUnavailable', "Chat can only be opened beside the embedded Kanban view while AI features are enabled."));
+			throw new Error(localize('kanban.chatUnavailable', "Chat can only be opened beside the embedded Agents Hub view while AI features are enabled."));
 		}
 
 		this.request.value?.cancel();
@@ -124,7 +124,7 @@ export class ProjectBoardChatSidePanel extends Disposable {
 					return;
 				}
 				if (!pane) {
-					throw new Error(localize('kanban.chatPaneUnavailable', "The Kanban chat side panel could not be opened."));
+					throw new Error(localize('kanban.chatPaneUnavailable', "The Agents Hub chat side panel could not be opened."));
 				}
 				this.pane = pane;
 				this.customViewService.setAuxiliaryBarVisible(true);
@@ -236,7 +236,7 @@ export class ProjectBoardChatViewPane extends ViewPane {
 
 	async open(card: IProjectBoardCard, token: CancellationToken, onClose: () => void): Promise<void> {
 		if (!this.chatContainer) {
-			throw new Error(localize('kanban.chatNotRendered', "The Kanban chat side panel has not been rendered."));
+			throw new Error(localize('kanban.chatNotRendered', "The Agents Hub chat side panel has not been rendered."));
 		}
 		this.clear();
 		const content = this.instantiationService.createInstance(ProjectBoardChatContent, card, this.viewStates, this.pendingInputs, onClose);
@@ -304,7 +304,7 @@ export class ProjectBoardChatContent extends Disposable {
 		const title = append(this.header, $('h2.project-board-chat-title'));
 		this._register(autorun(reader => {
 			title.textContent = card.chat.title.read(reader);
-			this.element.setAttribute('aria-label', localize('kanban.chatLabel', "Kanban chat: {0}", title.textContent));
+			this.element.setAttribute('aria-label', localize('kanban.chatLabel', "Agents Hub chat: {0}", title.textContent));
 			reader.store.add(hoverService.setupDelayedHover(title, { content: title.textContent }));
 		}));
 		this.element.setAttribute('role', 'region');

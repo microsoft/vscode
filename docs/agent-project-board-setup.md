@@ -67,6 +67,8 @@ New-Item -ItemType Directory -Path $demo -Force | Out-Null
 
 Keep the Agents owner window open; the board shares its services. If the launcher initially shows an ordinary Editor, use its Agents-window entry point.
 
+After pulling changes that add CSS files, fully restart the isolated OSS instance after compilation. Window reload alone retains the process-cached development CSS module list and can fail to load a newly added stylesheet.
+
 1. Enable/sign into GitHub Copilot through the normal UI using your own account and entitlement.
 2. For bounded tests, choose the empty `$demo` folder in Agents rather than asking a model to modify the VS Code checkout.
 3. Verify that the model picker is populated and a harmless prompt receives a real response. A remote-connection account badge alone does not establish Copilot authentication.
@@ -84,8 +86,10 @@ No maintainer tokens, private planning workspace or synthetic provider is requir
 - Use the chevrons at the right of row/column headers and Unassigned to collapse them. Verify frameless controls retain keyboard focus feedback, compact session counts stay visible, Needs Input counts update, and hidden cards cannot receive keyboard navigation. Expand again and check pending answers remain entered. Drop into a collapsed cell to reveal it; reopening a board resets its local collapse state.
 - Turn off Auto-include Sessions and verify collapsed Unassigned reports zero sessions without discarding drafts. Drag a session from the Sessions list into a collapsed cell: its visible chats should be placed and the destination revealed. Restore auto-inclusion and verify unplaced chats/drafts return.
 - Check the themed board titlebar, maximize/restore and minimize controls. Its fixed title and window controls must not alter the Agents owner window, and the board scroll viewport must stay below the titlebar.
+- In dark and light themes, standalone scrollbars must use workbench track/thumb colors without a native white gutter. Verify wheel scrolling on each axis, thumb dragging and keyboard reveal; resize and expand/collapse content without losing access to the last cell. Live card updates must retain the active scrollbar and scroll position.
 - Type, Backspace/Delete, select/replace text and undo/redo in a new standalone draft and a published chat.
 - Use arrows to move focus, Home/End for first/last card, Enter/Space to open, and Escape to close.
+- In embedded Agents Hub, enable **Open Chat in Side Panel**, open a card and verify the board remains visible and scrollable beside the exact chat. **Close Chat** returns focus to the card; leaving the Hub restores the prior side-panel layout. Restore the setting afterward and verify the separate Hub window still opens chats in standalone windows.
 - On a rename-capable test chat, use F2 or the card's Rename context-menu action. Verify cancel preserves the title and a committed rename changes only that chat; restore the test title afterward.
 - Verify Escape dismisses a popup first and preserves unsent text across close/reopen.
 - Use Ctrl/Cmd+Shift+M for the searchable placement picker. Axis menus remain, but card menus should not enumerate cells.
