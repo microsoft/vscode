@@ -16,6 +16,7 @@ import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
 import { DeferredPromise } from '../../base/common/async.js';
 import { FileAccess } from '../../base/common/network.js';
+import { hasAgentCommand } from './server.cliAgent.js';
 
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
@@ -92,6 +93,12 @@ const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 export async function main(desc: ProductDescription, args: string[]): Promise<void> {
 	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
+		return;
+	}
+
+	if (hasAgentCommand(args)) {
+		console.error(`The 'agent' command is not supported by the remote CLI.`);
+		process.exitCode = 1;
 		return;
 	}
 

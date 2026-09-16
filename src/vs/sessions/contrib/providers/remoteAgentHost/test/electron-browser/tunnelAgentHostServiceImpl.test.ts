@@ -5,17 +5,30 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import type { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IDialogService, IPrompt } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { ITunnelGatewayInventory } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAuthenticationService, type AuthenticationSession } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { TestProductService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import {
-	resolveGatewaySelection,
 	selectDedicatedGatewayFallback,
 	selectEditorGatewayEndpoint,
 	selectGatewayFallbackAfterRejection,
 	shouldNotifyTunnelFailover,
-	shouldTrackTunnelConnection,
+	TunnelAgentHostService,
 	TunnelFailoverTracker,
 } from '../../electron-browser/tunnelAgentHostServiceImpl.js';
 
@@ -28,44 +41,89 @@ const secondEditorEndpoint = { type: 'editor', pid: 112, instanceId: 'editor-0',
 const standaloneEndpoint = { type: 'standalone', pid: 222, instanceId: 'standalone-2', tunnelName: 'my-tunnel', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9001' } as const;
 const secondStandaloneEndpoint = { type: 'standalone', pid: 333, instanceId: 'standalone-1', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9002' } as const;
 
-interface IPreferenceServiceFixture {
-	readonly service: IRemoteAgentHostLocationPreferenceService;
-	readonly setCalls: { hostKey: string; preference: RemoteAgentHostLocationPreference }[];
-}
+suite('TunnelAgentHostService discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-function stubLocationPreferenceService(initial?: RemoteAgentHostLocationPreference): IPreferenceServiceFixture {
-	const store = new Map<string, RemoteAgentHostLocationPreference>();
-	if (initial) {
-		store.set('tunnel:abc', initial);
+	function createService(getSessions: (provider: string) => readonly AuthenticationSession[], channel: IChannel = new class extends mock<IChannel>() { }()): TunnelAgentHostService {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
+			override getChannel(): IChannel {
+				return channel;
+			}
+		}());
+		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+			override readonly onDidChangeConnections = Event.None;
+			override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
+				return { dispose() { } };
+			}
+		}());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override async getSessions(provider: string): Promise<readonly AuthenticationSession[]> {
+				return getSessions(provider);
+			}
+		}());
+		instantiationService.stub(IProductService, {
+			...TestProductService,
+			tunnelApplicationConfig: {
+				authenticationProviders: { github: { scopes: ['tunnel'] }, microsoft: { scopes: ['tunnel'] } },
+				editorWebUrl: '',
+				extension: { extensionId: 'test.remote-tunnels', friendlyName: 'Remote Tunnels' },
+			},
+		});
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() { }());
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, new class extends mock<IRemoteAgentHostLocationPreferenceService>() { }());
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		return store.add(instantiationService.createInstance(TunnelAgentHostService));
 	}
-	const setCalls: { hostKey: string; preference: RemoteAgentHostLocationPreference }[] = [];
-	const service: IRemoteAgentHostLocationPreferenceService = {
-		_serviceBrand: undefined,
-		onDidChangePreference: Event.None,
-		getPreference: hostKey => store.get(hostKey),
-		setPreference: (hostKey, preference) => {
-			store.set(hostKey, preference);
-			setCalls.push({ hostKey, preference });
-		},
-	};
-	return { service, setCalls };
-}
 
-interface IDialogServiceFixture {
-	readonly dialogService: IDialogService;
-	readonly promptCalls: IPrompt<RemoteAgentHostLocationPreference>[];
-}
+	test('rejects silent discovery when authentication is unavailable', async () => {
+		const service = createService(() => []);
+		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+	});
 
-function stubDialogService(result: RemoteAgentHostLocationPreference | undefined): IDialogServiceFixture {
-	const promptCalls: IPrompt<RemoteAgentHostLocationPreference>[] = [];
-	const dialogService = {
-		prompt: async (options: IPrompt<RemoteAgentHostLocationPreference>) => {
-			promptCalls.push(options);
-			return { result };
-		},
-	} as unknown as IDialogService;
-	return { dialogService, promptCalls };
-}
+	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {
+		const sessions = new Map<string, AuthenticationSession>();
+		const session = (provider: string): AuthenticationSession => ({
+			id: provider, accessToken: `${provider}-token`, scopes: ['tunnel'], account: { id: provider, label: provider },
+		});
+		sessions.set('microsoft', session('microsoft'));
+		const calls: { command: string; args: readonly string[] }[] = [];
+		const service = createService(provider => sessions.has(provider) ? [sessions.get(provider)!] : [], new class extends mock<IChannel>() {
+			override async call<T>(command: string, args: readonly string[]): Promise<T> {
+				calls.push({ command, args });
+				return [] as T;
+			}
+		}());
+		await service.listTunnels({ silent: true });
+		sessions.set('github', session('github'));
+		await service.listTunnels({ authProvider: 'github' });
+		await service.getAuthProvider();
+		await service.listTunnels({ authProvider: 'microsoft', silent: true });
+		await service.deleteTunnel({ tunnelId: 'test', clusterId: 'cluster', name: 'Test', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, 'github');
+		await service.listTunnels({ authProvider: 'github' });
+
+		assert.deepStrictEqual(calls, [
+			{ command: 'listTunnels', args: ['microsoft-token', 'microsoft', undefined] },
+			{ command: 'listTunnels', args: ['github-token', 'github', undefined] },
+			{ command: 'listTunnels', args: ['microsoft-token', 'microsoft', undefined] },
+			{ command: 'deleteTunnel', args: ['github-token', 'github', 'test', 'cluster'] },
+			{ command: 'listTunnels', args: ['github-token', 'github', undefined] },
+		]);
+	});
+
+	test('does not fall back to another provider when the explicit provider has no session', async () => {
+		const service = createService(provider => provider === 'microsoft'
+			? [{ id: 'microsoft', accessToken: 'token', scopes: ['tunnel'], account: { id: 'account', label: 'Account' } }]
+			: []);
+		await service.getAuthProvider({ silent: true });
+
+		await assert.rejects(service.listTunnels({ silent: true, authProvider: 'github' }), /No authentication is available to enumerate tunnels/);
+	});
+});
 
 suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -128,142 +186,6 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 				selectGatewayFallbackAfterRejection({ newDedicated: true }, inventory([standaloneEndpoint])),
 				undefined,
 			);
-		});
-	});
-
-	suite('resolveGatewaySelection', () => {
-		test('a delegated instance short-circuits saved preferences and prompts', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('dedicated');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product',
-				inventory: { userDataPath: '/data', delegatedInstanceId: 'editor-1', endpoints: [editorEndpoint] },
-				userInitiated: true,
-			});
-
-			assert.deepStrictEqual({ selection, promptCalls, setCalls }, {
-				selection: { instanceId: 'editor-1' },
-				promptCalls: [],
-				setCalls: [],
-			});
-		});
-
-		test('saved "editor" preference + a live editor selects that editor without prompting or re-persisting', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('editor');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('saved "editor" preference + a background (non-user-initiated) reconnect still selects the live editor (explicit consent)', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('editor');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint]), userInitiated: false,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('saved "editor" preference + no live editor falls back to dedicated without changing the preference', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('editor');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0, 'an unavailable editor preference must not be overwritten');
-		});
-
-		test('saved "dedicated" preference never prompts, even when a live editor exists', async () => {
-			const { service, setCalls } = stubLocationPreferenceService('dedicated');
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('no saved preference + no live editor falls back to dedicated with no prompt and no persistence', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('no saved preference + a live editor + a background connection falls back to dedicated silently, never prompting', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService, promptCalls } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: false,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.strictEqual(promptCalls.length, 0);
-			assert.strictEqual(setCalls.length, 0);
-		});
-
-		test('no saved preference + a live editor + a user-initiated connection prompts the shared modal with the tunnel name and persists an "editor" choice', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService, promptCalls } = stubDialogService('editor');
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
-			assert.strictEqual(promptCalls.length, 1);
-			assert.match(promptCalls[0].message, /My Tunnel/);
-			assert.deepStrictEqual((promptCalls[0] as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails[1], 'Agents are available only while the remote Test Product window is open.');
-			assert.deepStrictEqual(setCalls, [{ hostKey: 'tunnel:abc', preference: 'editor' }]);
-		});
-
-		test('no saved preference + a live editor + a user-initiated connection persists a "dedicated" choice and translates it to a concrete selection', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService } = stubDialogService('dedicated');
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.deepStrictEqual(selection, { instanceId: 'standalone-2' });
-			assert.deepStrictEqual(setCalls, [{ hostKey: 'tunnel:abc', preference: 'dedicated' }]);
-		});
-
-		test('cancelling the modal returns undefined and persists nothing', async () => {
-			const { service, setCalls } = stubLocationPreferenceService();
-			const { dialogService } = stubDialogService(undefined);
-
-			const selection = await resolveGatewaySelection(service, dialogService, {
-				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product', inventory: inventory([editorEndpoint, standaloneEndpoint]), userInitiated: true,
-			});
-
-			assert.strictEqual(selection, undefined);
-			assert.strictEqual(setCalls.length, 0);
 		});
 	});
 
@@ -373,38 +295,4 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 		});
 	});
 
-	suite('shouldTrackTunnelConnection', () => {
-		test('tracks (and may notify) when the connect attempt has no error', () => {
-			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
-		});
-
-		test('does not track when the attempt ended in a connectError (e.g. incompatible handshake)', () => {
-			assert.strictEqual(shouldTrackTunnelConnection(new Error('Unsupported protocol version')), false);
-		});
-	});
-
-	suite('ordering: connectError must gate the tracker/notification step', () => {
-		test('an editor -> standalone automatic reconnect that ends in connectError must not update the tracker or notify', () => {
-			// Models `connect()`'s post-addManagedConnection guard exactly:
-			// `shouldTrackTunnelConnection(connectError)` must be checked (and
-			// found false) BEFORE `TunnelFailoverTracker.recordAndShouldNotify`
-			// is ever called, even though addManagedConnection already
-			// succeeded and registered the endpoint for a possible upgrade.
-			const tracker = new TunnelFailoverTracker();
-			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true); // initial user-initiated connect
-
-			const connectError: unknown = new Error('Unsupported protocol version');
-			let notified: boolean | undefined;
-			if (shouldTrackTunnelConnection(connectError)) {
-				notified = tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false);
-			}
-			assert.strictEqual(notified, undefined, 'the tracker must never be invoked for a failed (incompatible) reconnect');
-
-			// A later, fully successful editor -> standalone reconnect must
-			// still notify: the failed attempt above must not have poisoned
-			// (or prematurely advanced) the retained state.
-			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
-			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), true, 'the retained state must still be "editor" since the failed attempt was never tracked');
-		});
-	});
 });

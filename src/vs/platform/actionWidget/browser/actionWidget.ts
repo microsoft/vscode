@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import './actionWidget.css';
 import { localize, localize2 } from '../../../nls.js';
-import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, previewSelectedActionCommand } from './actionList.js';
+import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions, previewSelectedActionCommand } from './actionList.js';
 import { Action2, registerAction2 } from '../../actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
@@ -48,7 +48,12 @@ export interface IActionWidgetService {
 	 * or repositioning it. Preserves the current filter. When `focusItemId` is
 	 * provided, focuses that item; otherwise preserves the focused item.
 	 */
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void;
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void;
+
+	/**
+	 * The item currently focused in the shown widget, if any.
+	 */
+	getFocusedElement<T>(): IActionListItem<T> | undefined;
 
 	/**
 	 * Focuses the item with the given id in the currently shown widget, without
@@ -61,7 +66,7 @@ export interface IActionWidgetService {
 	readonly isVisible: boolean;
 }
 
-class ActionWidgetService extends Disposable implements IActionWidgetService {
+export class ActionWidgetService extends Disposable implements IActionWidgetService {
 	declare readonly _serviceBrand: undefined;
 
 	get isVisible() {
@@ -83,19 +88,19 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
-
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
-				return this._renderWidget(container, list, actionBarActions ?? []);
+				return this._renderWidget(container, list, actionBarActions ?? [], listOptions);
 			},
 			onHide: (didCancel) => {
 				visibleContext.reset();
 				this._onWidgetClosed(didCancel);
 			},
 			get anchorPosition() { return list.anchorPosition; },
+			focus: () => list.focus(),
 		}, container, false);
 	}
 
@@ -103,8 +108,12 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.value?.acceptSelected(preview);
 	}
 
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void {
-		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId);
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId, options);
+	}
+
+	getFocusedElement<T>(): IActionListItem<T> | undefined {
+		return (this._list.value as ActionList<T> | undefined)?.getFocusedElement();
 	}
 
 	focusItemById(itemId: string): void {
@@ -171,7 +180,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[], listOptions: IActionListOptions | undefined): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		const widgetClassNames = list.widgetClassName?.split(/\s+/).filter(Boolean);
@@ -197,6 +206,14 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			throw new Error('List has no value');
 		}
 		const renderDisposables = new DisposableStore();
+		if (listOptions?.filterAsCombobox) {
+			renderDisposables.add(dom.addStandardDisposableListener(widget, 'keydown', e => {
+				if (e.keyCode === KeyCode.Escape && !e.browserEvent.isComposing) {
+					dom.EventHelper.stop(e, true);
+					this.hide(true);
+				}
+			}));
+		}
 
 		// Clicking the header banner must not move focus out of the list, which
 		// would blur the widget and dismiss it.
@@ -211,15 +228,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		block.classList.add('context-view-block');
 		renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
 
-		// Invisible div to block mouse interaction with the menu
-		const pointerBlockDiv = document.createElement('div');
-		const pointerBlock = element.appendChild(pointerBlockDiv);
-		pointerBlock.classList.add('context-view-pointerBlock');
-
-		// Removes block on click INSIDE widget or ANY mouse movement
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
-		renderDisposables.add(dom.addDisposableGenericMouseDownListener(pointerBlock, () => pointerBlock.remove()));
-
 		// Action bar
 		let actionBarWidth = 0;
 		if (actionBarActions.length) {
@@ -233,8 +241,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const width = this._list.value?.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
-
-		this._list.value?.focus();
 
 		// Track filter input focus state
 		const filterFocusedContext = ActionWidgetContextKeys.FilterFocused.bindTo(this._contextKeyService);

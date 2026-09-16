@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
-import { ISessionGitHubState, withSessionGitHubState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ISessionGitHubState, withMostRecentRelatedSessionPullRequest, withSessionGitHubState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../common/types.js';
@@ -30,48 +30,27 @@ export interface IPullRequestSessionRepository {
 	readonly repo: string;
 }
 
-export interface IRepositoryRemote {
-	readonly name: string;
-	readonly fetchUrl?: string;
-}
-
 export async function resolvePullRequestSessionRepository(
 	sectionSessions: readonly ISession[],
-	resolveGitHubRepository: (folderUri: URI) => Promise<{ readonly owner: string; readonly repo: string } | undefined>,
 ): Promise<IPullRequestSessionRepository | undefined> {
 	let folderUri: URI | undefined;
 	for (const session of sectionSessions) {
 		const workspace = session.workspace.get();
 		for (const folder of workspace?.folders ?? []) {
 			if (folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-				folderUri = folder.root;
-				break;
+				folderUri ??= folder.root;
+				const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+				if (gitHubInfo) {
+					return { folderUri: folder.root, owner: gitHubInfo.owner, repo: gitHubInfo.repo };
+				}
 			}
-		}
-		if (folderUri) {
-			break;
 		}
 	}
 	if (!folderUri) {
 		return undefined;
 	}
-	const identity = getFirstGitHubRepository(sectionSessions) ?? await resolveGitHubRepository(folderUri);
+	const identity = getFirstGitHubRepository(sectionSessions);
 	return identity ? { folderUri, owner: identity.owner, repo: identity.repo } : undefined;
-}
-
-export function getGitHubRepositoryFromRemotes(remotes: readonly IRepositoryRemote[]): { readonly owner: string; readonly repo: string } | undefined {
-	const orderedRemotes = [...remotes].sort((a, b) => Number(b.name === 'origin') - Number(a.name === 'origin'));
-	for (const remote of orderedRemotes) {
-		const fetchUrl = remote.fetchUrl?.trim().replace(/\/$/, '').replace(/\.git$/, '');
-		if (!fetchUrl) {
-			continue;
-		}
-		const match = /^(?:(?:https?|ssh):\/\/(?:git@)?github\.com\/|git@github\.com:)(?<owner>[^/\s]+)\/(?<repo>[^/\s]+)$/i.exec(fetchUrl);
-		if (match?.groups) {
-			return { owner: match.groups.owner, repo: match.groups.repo };
-		}
-	}
-	return undefined;
 }
 
 export function getExistingPullRequests(sessions: readonly ISession[], owner: string, repo: string, repositorySessions: readonly ISession[] = []): IExistingPullRequests {
@@ -132,8 +111,12 @@ export function hasExistingPullRequest(pullRequest: IGitHubPullRequestSummary, e
 	return existingPullRequests.numbers.has(pullRequest.number) || existingPullRequests.headRefs.has(pullRequest.headRef);
 }
 
+export function isPullRequestAvailable(pullRequest: IGitHubPullRequestSummary, existingPullRequests: IExistingPullRequests): boolean {
+	return !pullRequest.isCrossRepository && !hasExistingPullRequest(pullRequest, existingPullRequests);
+}
+
 export function createPullRequestQuickPickItems(pullRequests: readonly IGitHubPullRequestSummary[], existingPullRequests: IExistingPullRequests): readonly (IPullRequestQuickPickItem | IQuickPickSeparator)[] {
-	const available = pullRequests.filter(pullRequest => !hasExistingPullRequest(pullRequest, existingPullRequests));
+	const available = pullRequests.filter(pullRequest => isPullRequestAvailable(pullRequest, existingPullRequests));
 	const waitingForReview = available.filter(pullRequest => pullRequest.reviewRequestedFromViewer);
 	const assigned = available.filter(pullRequest => !pullRequest.reviewRequestedFromViewer && pullRequest.assignedToViewer);
 	const other = available.filter(pullRequest => !pullRequest.reviewRequestedFromViewer && !pullRequest.assignedToViewer);
@@ -182,8 +165,7 @@ export function createPullRequestSessionMetadata(owner: string, repo: string, pu
 	return withSessionGitHubState(undefined, {
 		owner,
 		repo,
-		pullRequestUrls: [pullRequestUrl],
-		pullRequestBranchName: pullRequest.headRef,
+		...withMostRecentRelatedSessionPullRequest(undefined, pullRequestUrl, pullRequest.headRef),
 	} satisfies ISessionGitHubState)!;
 }
 
@@ -202,6 +184,7 @@ export function createPullRequestContextAttachment(context: IGitHubPullRequestCo
 		icon: Codicon.gitPullRequest,
 		uri: URI.parse(context.url),
 		tooltip: localize('pullRequest.context.tooltip', "Pull request #{0} by @{1}", context.number, context.author),
+		readyMessage: localize('pullRequest.sessionReady', "Session ready. Pull request #{0} is checked out and attached.", context.number),
 	};
 }
 

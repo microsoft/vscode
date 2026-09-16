@@ -7,6 +7,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential } from './githubCredentialService.js';
+import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
+import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, IGitHubTransport } from './githubTransport.js';
 
 const unavailableCapabilities: GitHubHostCapabilities = {
@@ -52,6 +54,33 @@ interface ICachedCapabilities {
 	settled: boolean;
 }
 
+/**
+ * How long a degraded probe result is reused before the host is asked again.
+ * A result that cannot be cached is otherwise re-probed on every capability
+ * lookup, and because the fragments that ask still succeed on REST fallbacks
+ * nothing throttles it: a host that always answers with an unexpected error
+ * would pay one extra introspection query per poll forever.
+ */
+const defaultProbeBackoff: GitHubBackoffPolicy = {
+	immediateRetries: 0,
+	base: 60_000,
+	maximum: 900_000,
+	jitter: 5_000,
+};
+
+interface IDegradedCapabilities {
+	readonly capabilities: GitHubHostCapabilities;
+	readonly attempts: number;
+	readonly retryAt: number;
+	/**
+	 * The credential the degraded result was observed with. A probe can be
+	 * refused for the credential rather than the host (SAML enforcement, a
+	 * revoked grant), so re-authenticating must not stay pinned to the
+	 * fallbacks that refusal produced.
+	 */
+	readonly generation: number;
+}
+
 export interface IGitHubCapabilities {
 	getCapabilities(credential: GitHubCredential, enterpriseVersion: string | undefined, signal: AbortSignal): Promise<GitHubHostCapabilities>;
 	clear(): void;
@@ -60,13 +89,18 @@ export interface IGitHubCapabilities {
 export class GitHubHostCapabilitiesService extends Disposable implements IGitHubCapabilities {
 
 	private readonly _cache = new Map<string, ICachedCapabilities>();
+	private readonly _degraded = new Map<string, IDegradedCapabilities>();
+	private readonly _scheduler: IGitHubScheduler;
 
 	constructor(
+		scheduler: IGitHubScheduler | undefined,
+		private readonly _policy: GitHubBackoffPolicy = defaultProbeBackoff,
 		private readonly _transport: IGitHubTransport,
 		private readonly _endpointService: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
 	) {
 		super();
+		this._scheduler = scheduler ?? systemGitHubScheduler;
 		this._register(this._endpointService.onDidChange(() => this.clear()));
 	}
 
@@ -75,6 +109,16 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			return Promise.reject(signal.reason);
 		}
 		const key = `${credential.account.host.toLowerCase()}\x00${enterpriseVersion ?? ''}`;
+		const degraded = this._degraded.get(key);
+		if (degraded && degraded.generation !== credential.generation) {
+			// A new credential has never been refused, so it is probed at once
+			// rather than inheriting the previous one's fallbacks.
+			this._degraded.delete(key);
+			this._logService?.debug(`[GitHubHostCapabilitiesService] Discarding degraded capabilities for ${credential.account.host} because the credential changed`);
+		} else if (degraded && this._scheduler.now() < degraded.retryAt) {
+			this._logService?.trace(`[GitHubHostCapabilitiesService] Reusing degraded capabilities for ${credential.account.host} for another ${degraded.retryAt - this._scheduler.now()}ms`);
+			return Promise.resolve(degraded.capabilities);
+		}
 		let cached = this._cache.get(key);
 		if (!cached) {
 			this._logService?.debug(`[GitHubHostCapabilitiesService] Probing capabilities for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
@@ -83,8 +127,13 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 				controller,
 				promise: this._probe(credential, controller.signal)
 					.then(result => {
-						if (!result.cache && this._cache.get(key) === entry) {
-							this._cache.delete(key);
+						if (result.cache) {
+							this._degraded.delete(key);
+						} else {
+							this._recordDegraded(key, credential, result.capabilities);
+							if (this._cache.get(key) === entry) {
+								this._cache.delete(key);
+							}
 						}
 						this._logService?.debug(`[GitHubHostCapabilitiesService] Capabilities for ${credential.account.host}: ${formatCapabilities(result.capabilities)} (cached: ${result.cache})`);
 						return result.capabilities;
@@ -123,11 +172,22 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			entry.controller.abort(new Error('GitHub capability cache was cleared'));
 		}
 		this._cache.clear();
+		this._degraded.clear();
 	}
 
 	override dispose(): void {
 		this.clear();
 		super.dispose();
+	}
+
+	private _recordDegraded(key: string, credential: GitHubCredential, capabilities: GitHubHostCapabilities): void {
+		const previous = this._degraded.get(key);
+		// Only failures the same credential kept hitting escalate; a fresh one
+		// starts over so it is retried promptly.
+		const attempts = (previous?.generation === credential.generation ? previous.attempts : 0) + 1;
+		const delay = gitHubBackoffDelay(this._policy, this._scheduler, attempts);
+		this._degraded.set(key, { capabilities, attempts, retryAt: this._scheduler.now() + delay, generation: credential.generation });
+		this._logService?.debug(`[GitHubHostCapabilitiesService] Reusing degraded capabilities for ${credential.account.host} for ${delay}ms after ${attempts} unusable probe(s)`);
 	}
 
 	private async _probe(credential: GitHubCredential, signal: AbortSignal): Promise<ICapabilitiesProbeResult> {

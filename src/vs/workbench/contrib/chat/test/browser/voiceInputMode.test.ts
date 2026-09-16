@@ -4,15 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import sinon from 'sinon';
+import * as dom from '../../../../../base/browser/dom.js';
+import { EventType as TouchEventType, Gesture } from '../../../../../base/browser/touch.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { IMicCaptureService } from '../../browser/voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../../browser/voiceClient/ttsPlaybackService.js';
+import { IVoiceSessionController } from '../../browser/voiceClient/voiceSessionController.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
-import { VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
+import { IVoiceInputModeService, VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
+import { VoiceInputModeActionViewItem } from '../../browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { SegmentedVoiceInputModePillActive, SegmentedVoiceInputModePillInactive } from '../../browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
@@ -102,9 +121,99 @@ suite('VoiceInputModeService', () => {
 		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), false);
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), true);
 
-		values['config.agents.voice.handsFree'] = false;
 		values[AGENTS_VOICE_CONNECTED.key] = true;
 		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);
+	});
+});
+
+suite('VoiceInputModeActionViewItem', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('touch activates Voice power and mute exactly once', () => {
+		const ignoredTargets = new Set<HTMLElement>();
+		sinon.stub(Gesture, 'ignoreTarget').callsFake(element => {
+			ignoredTargets.add(element);
+			return { dispose: () => ignoredTargets.delete(element) };
+		});
+		sinon.stub(Gesture, 'addTarget').callsFake(element => dom.addDisposableListener(element, 'touchend', event => {
+			const target = event.target;
+			if (target instanceof Node && [...ignoredTargets].some(ignoredTarget => ignoredTarget.contains(target))) {
+				return;
+			}
+			element.dispatchEvent(new CustomEvent(TouchEventType.Tap));
+			event.preventDefault();
+		}));
+
+		const selectedMode = observableValue<'dictation' | 'voice'>('selectedMode', 'voice');
+		const voiceInputModeService = upcastPartial<IVoiceInputModeService>({
+			selectedMode,
+			voiceAvailable: observableValue('voiceAvailable', true),
+			dictationAvailable: observableValue('dictationAvailable', true),
+			handsFree: observableValue('handsFree', true),
+			simulatedVoiceState: observableValue('simulatedVoiceState', undefined),
+			simulatedHandsFree: observableValue('simulatedHandsFree', undefined),
+			simulatedVersion: observableValue('simulatedVersion', undefined),
+			simulatedHover: observableValue('simulatedHover', false),
+			setSelectedMode: mode => selectedMode.set(mode, undefined),
+		});
+		const isConnected = observableValue('isConnected', true);
+		const isMuted = observableValue('isMuted', false);
+		let voicePowerCount = 0;
+		let muteCount = 0;
+		const voiceSessionController = upcastPartial<IVoiceSessionController>({
+			isConnected,
+			isConnecting: observableValue('isConnecting', false),
+			isReconnecting: observableValue('isReconnecting', false),
+			isMuted,
+			voiceState: observableValue('voiceState', 'idle'),
+			disconnect: () => voicePowerCount++,
+			setMuted: () => muteCount++,
+		});
+		const chatSpeechToTextService = upcastPartial<IChatSpeechToTextService>({
+			onDidChangeState: Event.None,
+			onDidChangePreparingModel: Event.None,
+			onDidChangeDownloadingModel: Event.None,
+			state: ChatSpeechToTextState.Idle,
+			currentSurface: undefined,
+			isPreparingModel: false,
+			isDownloadingModel: false,
+		});
+		const action = store.add(new Action('voiceInputMode', 'Voice Input Mode'));
+		const viewItem = store.add(new VoiceInputModeActionViewItem(
+			action,
+			undefined,
+			voiceInputModeService,
+			voiceSessionController,
+			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
+			new TestConfigurationService(),
+			new MockKeybindingService() as IKeybindingService,
+			upcastPartial<IContextMenuService>({}),
+			NullHoverService as IHoverService,
+			upcastPartial<IMicCaptureService>({ analyserNode: undefined }),
+			upcastPartial<ITtsPlaybackService>({ analyserNode: undefined }),
+			chatSpeechToTextService,
+			new TestAccessibilityService() as IAccessibilityService,
+			new TestThemeService() as IThemeService,
+		));
+		const container = dom.append(document.body, dom.$('.action-item'));
+		store.add({ dispose: () => container.remove() });
+		viewItem.render(container);
+
+		const touch = (selector: string) => {
+			const button = container.querySelector<HTMLButtonElement>(selector)!;
+			const touchEnd = new (dom.getWindow(button).Event)('touchend', { bubbles: true, cancelable: true });
+			button.dispatchEvent(touchEnd);
+			if (!touchEnd.defaultPrevented) {
+				button.click();
+			}
+		};
+		touch('.chat-voice-input-mode-cell.voice');
+		touch('.chat-voice-input-mode-cell.mute');
+
+		assert.deepStrictEqual({ voicePowerCount, muteCount }, { voicePowerCount: 1, muteCount: 1 });
 	});
 });

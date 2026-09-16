@@ -69,6 +69,7 @@ import '../workbench/services/localization/electron-browser/localeService.js';
 import '../workbench/services/extensions/electron-browser/extensionsScannerService.js';
 import '../workbench/services/extensionManagement/electron-browser/extensionManagementServerService.js';
 import '../workbench/services/extensionManagement/electron-browser/extensionGalleryManifestService.js';
+import '../workbench/services/extensionManagement/electron-browser/extensionGalleryAccountService.js';
 import '../workbench/services/extensionManagement/electron-browser/extensionTipsService.js';
 import '../workbench/services/userDataSync/electron-browser/userDataSyncService.js';
 import '../workbench/services/userDataSync/electron-browser/userDataAutoSyncService.js';
@@ -234,6 +235,10 @@ import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/sshAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.js';
+import './contrib/providers/remoteAgentHost/electron-browser/devContainerAgentHostConnector.contribution.js';
 // Change Preferred Remote Agent Location (Chat: ... command)
 import './contrib/providers/remoteAgentHost/electron-browser/remoteAgentHostLocationPreferenceCommand.js';
 import './contrib/providers/remoteAgentHost/electron-browser/forgetSSHHostKeyCommand.js';
@@ -245,6 +250,7 @@ import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/providers/agentHost/electron-browser/localAgentHostLifecycle.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
@@ -255,6 +261,9 @@ import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';
+
+// Sessions (desktop only)
+import './contrib/sessions/electron-browser/sessions.contribution.js';
 
 //#endregion
 

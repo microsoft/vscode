@@ -10,14 +10,12 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ChatViewId } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType, Target, getSourceDescription } from '../../common/promptSyntax/promptTypes.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -309,6 +307,8 @@ export interface IHookQuickPickOptions {
 	readonly onHookFileCreated?: (uri: URI) => void;
 	/** Filter the displayed hook types to those supported by the given target. */
 	readonly target?: Target;
+	/** Restrict hook files and creation destinations to one storage scope. */
+	readonly preferredStorage?: PromptsStorage;
 }
 
 /**
@@ -349,7 +349,7 @@ export async function showConfigureHooksQuickPick(
 		userHome,
 		targetOS,
 		CancellationToken.None,
-		{ includeAgentHooks: true }
+		{ includeAgentHooks: true, preferredStorage: options?.preferredStorage }
 	);
 
 	// Count hooks per type
@@ -575,9 +575,9 @@ export async function showConfigureHooksQuickPick(
 				}
 
 				case Step.SelectFile: {
-					// Step 3: Handle "Add new hook" - show create new file + existing hook files
-					// Get existing hook files (local storage only, not User Data)
-					const hookFiles = await promptsService.listPromptFilesForStorage(PromptsType.hook, PromptsStorage.local, CancellationToken.None);
+					// Step 3: Handle "Add new hook" - show create new file + existing hook files.
+					const hookStorage = options?.preferredStorage ?? PromptsStorage.local;
+					const hookFiles = await promptsService.listPromptFilesForStorage(PromptsType.hook, hookStorage, CancellationToken.None);
 
 					const fileItems: (IHookFileQuickPickItem | IQuickPickSeparator)[] = [];
 
@@ -649,10 +649,13 @@ export async function showConfigureHooksQuickPick(
 				case Step.SelectFolder: {
 					// Get source folders for hooks (uses getSourceFolders which
 					// excludes Claude paths and normalizes to directories)
-					const allFolders = await promptsService.getSourceFolders(PromptsType.hook);
+					const allFolders = (await promptsService.getSourceFolders(PromptsType.hook))
+						.filter(folder => options?.preferredStorage === undefined || folder.storage === options.preferredStorage);
 
 					if (allFolders.length === 0) {
-						notificationService.error(localize('commands.hook.noLocalFolders', "Please open a workspace folder to configure hooks."));
+						notificationService.error(options?.preferredStorage === PromptsStorage.user
+							? localize('commands.hook.noUserFolders', "No user hooks folder is available.")
+							: localize('commands.hook.noLocalFolders', "Please open a workspace folder to configure hooks."));
 						return;
 					}
 
@@ -838,13 +841,7 @@ class ManageHooksAction extends Action2 {
 			icon: Codicon.zap,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 12,
-				group: '1_level'
-			}
+			category: CHAT_CATEGORY
 		});
 	}
 

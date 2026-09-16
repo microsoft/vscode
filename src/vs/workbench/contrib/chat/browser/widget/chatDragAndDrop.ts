@@ -467,7 +467,7 @@ export class ChatDragAndDrop extends Themable {
 		if (type !== undefined) {
 			// Render the overlay text
 
-			const iconAndtextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${this.getOverlayText(type)}`);
+			const iconAndtextElements = renderLabelWithIcons(`$(${Codicon.attachCompact.id}) ${this.getOverlayText(type)}`);
 			const htmlElements = iconAndtextElements.map(element => {
 				if (typeof element === 'string') {
 					return $('span.overlay-text', undefined, element);

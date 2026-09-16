@@ -18,11 +18,17 @@ export interface GitHubIssueRef extends GitHubRepositoryRef {
 	readonly number: number;
 }
 
+export type GitHubHydratableResourceRef =
+	| { readonly kind: 'repository'; readonly ref: GitHubRepositoryRef }
+	| { readonly kind: 'issue'; readonly ref: GitHubIssueRef };
+
 export interface GitHubRepository {
 	readonly id?: string;
 	readonly owner: GitHubActor;
 	readonly name: string;
 	readonly nameWithOwner: string;
+	readonly language?: string;
+	readonly stars?: number;
 	readonly defaultBranch: string;
 	readonly private: boolean;
 	readonly description: string;
@@ -192,6 +198,7 @@ export interface GitHubPullRequestLookup {
 export interface GitHubQueryApi {
 	subscribeRepository(ref: GitHubRepositoryRef, options: GitHubResourceSubscriptionOptions): GitHubRepositorySubscription;
 	subscribeIssue(ref: GitHubIssueRef, options: GitHubResourceSubscriptionOptions): GitHubIssueSubscription;
+	hydrateResources(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void>;
 	compare(ref: GitHubRepositoryRef, base: string, head: string, signal: AbortSignal): Promise<GitHubComparison>;
 	listPullRequests(ref: GitHubRepositoryRef, cursor: string | undefined, signal: AbortSignal): Promise<GitHubPullRequestsPage>;
 	listPullRequestsWaitingForReview(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubPullRequestSummary[]>;

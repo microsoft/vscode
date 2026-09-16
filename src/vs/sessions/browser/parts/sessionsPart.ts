@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsPart.css';
+import { triggerConfettiAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { localize } from '../../../nls.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -15,10 +19,10 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -27,19 +31,10 @@ import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
-import { observableValue } from '../../../base/common/observable.js';
-import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
-
-/**
- * ExP treatment that, when enabled, moves the session type ("harness") picker
- * from its default spot next to the workspace picker down into the bottom input
- * controls (and drops the "with" connector label). Resolved once via the
- * {@link IWorkbenchAssignmentService} and surfaced to new-chat views through
- * the new-chat view options.
- */
-const HARNESS_PICKER_IN_CONTROLS_TREATMENT = 'agentSessionsHarnessPickerInControls';
+import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 
 interface IGridSlot {
 	readonly view: SessionView;
@@ -47,6 +42,13 @@ interface IGridSlot {
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
 }
+
+type CodiconConfettiActivationEvent = {};
+
+type CodiconConfettiActivationClassification = {
+	owner: 'tyleonha';
+	comment: 'Tracks how often users discover and activate the Codicon background confetti button.';
+};
 
 export class SessionsPart extends Part {
 
@@ -91,14 +93,12 @@ export class SessionsPart extends Part {
 	 */
 	private _isPartVisible = true;
 
-	/**
-	 * Whether the session type ("harness") picker should be rendered below the
-	 * input (in the controls) instead of next to the workspace picker. Backed
-	 * by the {@link HARNESS_PICKER_IN_CONTROLS_TREATMENT} A/B experiment, which
-	 * is resolved asynchronously and updates this observable once it is known.
-	 * Passed down to new-chat views, which snapshot it at creation time.
-	 */
-	private readonly _renderSessionTypePickerInControls = observableValue<boolean>(this, false);
+	/** Whether the workbench permits the mounted session views to render. */
+	private _contentVisible = true;
+
+	private get _sessionViewsVisible(): boolean {
+		return this._isPartVisible && this._contentVisible;
+	}
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
@@ -112,7 +112,9 @@ export class SessionsPart extends Part {
 		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -128,42 +130,20 @@ export class SessionsPart extends Part {
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 	}
 
-	/**
-	 * Resolve the harness-picker placement treatment now and whenever the
-	 * assignment service refetches. New-chat views snapshot the value when they
-	 * are created, so views mounted before the treatment resolves keep the
-	 * default placement until they are recreated.
-	 */
-	private _trackOptions(): IDisposable {
-		const store = new DisposableStore();
-
-		// Harness picker placement
-		const updateHarnessPickerPlacement = async () => {
-			const value = await this.assignmentService.getTreatment<boolean>(HARNESS_PICKER_IN_CONTROLS_TREATMENT);
-			this._renderSessionTypePickerInControls.set(value === true, undefined);
-		};
-		store.add(this.assignmentService.onDidRefetchAssignments(() => updateHarnessPickerPlacement()));
-		updateHarnessPickerPlacement();
-
-		return store;
-	}
-
 	override create(parent: HTMLElement): void {
 		this.element = parent;
 		parent.classList.add('sessionspart');
-
-		// Resolve treatments here rather than in the constructor: touching the
-		// assignment service forces it (and its eagerly-constructed filter
-		// providers) to instantiate. Doing that during the part's construction —
-		// which runs while the workbench layout is being initialized — has been
-		// observed to trigger re-entrancy issues in entitlement-dependent filter
-		// providers. `create()` runs later, once layout init has settled.
-		this._register(this._trackOptions());
 
 		super.create(parent);
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
+		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(parent, true));
+		this._register(backgroundRenderer.onDidActivateCodicon(element => this.activateCodicon(element)));
+		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
+		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
+		updateBackground();
+
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
 
@@ -196,6 +176,14 @@ export class SessionsPart extends Part {
 		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
 
 		return contentArea;
+	}
+
+	private activateCodicon(element: HTMLElement): void {
+		if (!this.accessibilityService.isMotionReduced()) {
+			triggerConfettiAnimation(element);
+		}
+		this.accessibilityService.status(localize('sessionsChatBackground.confetti', "Confetti!"));
+		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
 	}
 
 	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined {
@@ -244,7 +232,7 @@ export class SessionsPart extends Part {
 			const slot = this._slots[i];
 			const session = visible[i];
 			slot.boundSessionId = session?.sessionId;
-			slot.view.openSession(session, { renderSessionTypePickerInControls: this._renderSessionTypePickerInControls });
+			slot.view.openSession(session, {});
 		}
 
 		// Mark the active session's element for styling/focus indication.
@@ -322,6 +310,10 @@ export class SessionsPart extends Part {
 		return this._slots.find(s => s.boundSessionId === sessionId)?.view;
 	}
 
+	getFocusedSessionView(): SessionView | undefined {
+		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
+	}
+
 	/**
 	 * Moves keyboard focus into the session view hosting the given session id (or
 	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
@@ -380,7 +372,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
-		view.setPartVisible(this._isPartVisible);
+		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
@@ -423,13 +415,27 @@ export class SessionsPart extends Part {
 		this._gridWidget?.style({ separatorBorder: this._gridSeparatorBorder });
 	}
 
+	setContentVisible(visible: boolean): void {
+		if (this._contentVisible === visible) {
+			return;
+		}
+
+		this._contentVisible = visible;
+		this._updateSessionViewsVisibility();
+	}
+
+	private _updateSessionViewsVisibility(): void {
+		const visible = this._sessionViewsVisible;
+		for (const slot of this._slots) {
+			slot.view.setPartVisible(visible);
+		}
+	}
+
 	override setVisible(visible: boolean): void {
 		if (this._isPartVisible !== visible) {
 			// Update before `super`, whose event re-enters this method.
 			this._isPartVisible = visible;
-			for (const slot of this._slots) {
-				slot.view.setPartVisible(visible);
-			}
+			this._updateSessionViewsVisibility();
 		}
 
 		super.setVisible(visible);

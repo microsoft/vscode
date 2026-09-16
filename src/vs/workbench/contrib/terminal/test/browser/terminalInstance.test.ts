@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -13,9 +14,11 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -32,6 +35,7 @@ import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { writeP } from '../../browser/terminalTestHelpers.js';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
@@ -204,6 +208,12 @@ suite('Workbench - TerminalInstance', () => {
 			return instance;
 		}
 
+		function dispatchFileDrop(container: HTMLElement): void {
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(['/test/file.txt']));
+			container.dispatchEvent(new DragEvent('drop', { dataTransfer }));
+		}
+
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
 			// Wait for the terminal instance to resolve shell launch config env.
@@ -324,6 +334,25 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, GeneralShellType.CommandCode);
 		});
 
+		test('runCommand should wait for prompt input when command detection already exists', async () => {
+			const instance = await createTerminalInstance();
+			await writeP(instance.xterm!.raw, '\x1b]633;A\x07');
+			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+			strictEqual(commandDetection?.promptInputModel.state, PromptInputState.Unknown);
+
+			const sentText: unknown[][] = [];
+			instance.sendText = async (...args) => {
+				sentText.push(args);
+			};
+			const runCommandPromise = instance.runCommand('echo test', true);
+
+			deepStrictEqual(sentText, []);
+			await writeP(instance.xterm!.raw, '\x1b]633;B\x07');
+			await Promise.resolve();
+			deepStrictEqual(sentText, [['echo test', true, undefined]]);
+			await runCommandPromise;
+		});
+
 		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {
 			const instance = await createTerminalInstance();
 			const xterm = await instance.xtermReadyPromise;
@@ -365,6 +394,45 @@ suite('Workbench - TerminalInstance', () => {
 				{ disposalOrder, addonDisposeCount },
 				{ disposalOrder: ['onWillDispose', 'addon', 'xterm', 'onDisposed'], addonDisposeCount: 1 }
 			);
+		});
+
+		test('should stop handling file drops after detaching from a container', async () => {
+			const firstInstance = await createTerminalInstance();
+			const secondInstance = await createTerminalInstance();
+			const container = document.createElement('div');
+			const droppedOn: string[] = [];
+			firstInstance.focus = () => { };
+			firstInstance.sendPath = async () => { droppedOn.push('first'); };
+			secondInstance.focus = () => { };
+			secondInstance.sendPath = async () => { droppedOn.push('second'); };
+
+			firstInstance.attachToElement(container);
+			await timeout(0);
+			firstInstance.detachFromElement();
+			secondInstance.attachToElement(container);
+			await timeout(0);
+			dispatchFileDrop(container);
+
+			deepStrictEqual(droppedOn, ['second']);
+		});
+
+		test('should not start handling file drops after detaching before deferred initialization', async () => {
+			const firstInstance = await createTerminalInstance();
+			const secondInstance = await createTerminalInstance();
+			const container = document.createElement('div');
+			const droppedOn: string[] = [];
+			firstInstance.focus = () => { };
+			firstInstance.sendPath = async () => { droppedOn.push('first'); };
+			secondInstance.focus = () => { };
+			secondInstance.sendPath = async () => { droppedOn.push('second'); };
+
+			firstInstance.attachToElement(container);
+			firstInstance.detachFromElement();
+			secondInstance.attachToElement(container);
+			await timeout(0);
+			dispatchFileDrop(container);
+
+			deepStrictEqual(droppedOn, ['second']);
 		});
 
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {

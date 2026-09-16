@@ -28,6 +28,7 @@
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
+	"linuxDesktopName": "com.visualstudio.CodeOSS",
 	"linuxIconName": "code-oss",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
@@ -116,6 +117,10 @@
 			"apple": {
 				"id": "apple",
 				"name": "Apple"
+			},
+			"microsoft": {
+				"id": "microsoft",
+				"name": "Microsoft"
 			}
 		},
 		"providerExtensionId": "vscode.github-authentication",
@@ -156,6 +161,9 @@
 		],
 		"github-enterprise": [
 			"GitHub.copilot-chat"
+		],
+		"microsoft": [
+			"vscode.github-authentication"
 		]
 	},
 	"onboardingKeymaps": [

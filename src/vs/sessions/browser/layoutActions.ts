@@ -14,6 +14,7 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../platform/accessibility/common/accessibility.js';
 import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
@@ -72,6 +73,17 @@ class ToggleSidebarVisibilityAction extends Action2 {
 }
 
 registerAction2(ToggleSidebarVisibilityAction);
+
+MenuRegistry.appendMenuItem(Menus.TitleBarAccessibility, {
+	command: {
+		id: 'editor.action.toggleScreenReaderAccessibilityMode',
+		title: localize('screenReaderOptimizedBadge', "Screen Reader Optimized"),
+		tooltip: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
+	},
+	group: 'navigation',
+	order: 0,
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsPhoneLayoutContext.negate())
+});
 
 const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate());
 

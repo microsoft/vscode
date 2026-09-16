@@ -349,6 +349,30 @@ suite('BrowserPluginGitCommandService', () => {
 			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), '2222222222222222222222222222222222222222');
 		});
 
+		test('checkoutCommit accepts a cached exact SHA without a request', async () => {
+			const commit = 'aabbccddeeff00112233445566778899aabbccdd';
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: commit }));
+			queueRepoFetch(requestStub, commit, { 'a.txt': 'a' });
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+
+			await service.checkoutCommit(targetDir, commit.toUpperCase());
+
+			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), commit);
+		});
+
+		test('checkoutCommit rejects when a SHA resolves to another commit', async () => {
+			const cachedCommit = '1111111111111111111111111111111111111111';
+			const pinnedCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: cachedCommit }));
+			queueRepoFetch(requestStub, cachedCommit, { 'a.txt': 'a' });
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+			requestStub.queue('GET', new RegExp(`/commits/${pinnedCommit}$`), jsonResponse(200, { sha: cachedCommit }));
+
+			await assert.rejects(() => service.checkoutCommit(targetDir, pinnedCommit), /resolved to a different commit/);
+
+			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), cachedCommit);
+		});
+
 		test('throws when called for a target with no cached metadata', async () => {
 			await assert.rejects(() => service.checkout(targetDir, 'abc'), /no cached metadata/);
 		});

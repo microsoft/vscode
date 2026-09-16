@@ -11,7 +11,29 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+
+suite('getSessionOwnedGitHubPullRequestRefs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('filters multi-PR provenance without falling back to an inherited primary PR', () => {
+		const primary = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
+		const owned = { ...primary, number: 2, createdByThisSession: true };
+		const info: IGitHubInfo = { owner: 'owner', repo: 'repo', pullRequest: primary };
+		assert.deepStrictEqual([
+			getSessionOwnedGitHubPullRequestRefs(undefined),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [primary, owned, { ...primary, createdByThisSession: false }] }),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [] }),
+		], [[], [owned], []]);
+	});
+
+	test('accepts legacy primary PRs and preserves presentation and state', () => {
+		const primary = { number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1'), title: 'PR', icon: Codicon.gitPullRequest, state: 'open' as const, liveState: 'merged' as const };
+		assert.deepStrictEqual(getSessionOwnedGitHubPullRequestRefs({ owner: 'owner', repo: 'repo', pullRequest: primary }), [
+			{ owner: 'owner', repo: 'repo', ...primary },
+		]);
+	});
+});
 
 suite('isActiveSessionStatus', () => {
 
@@ -196,6 +218,23 @@ suite('sessionWorkspaceEqual', () => {
 		const gitHubInfoA: IGitHubInfo = { owner: 'owner', repo: 'repo' };
 		const gitHubInfoB: IGitHubInfo = { owner: 'owner', repo: 'repo' };
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main', constObservable(gitHubInfoA)), workspace('main', constObservable(gitHubInfoB))), true);
+	});
+
+	test('compares recorded issue titles in GitHub info', () => {
+		const uri = URI.parse('https://github.com/owner/repo/issues/42');
+		const base: IGitHubInfo = {
+			owner: 'owner',
+			repo: 'repo',
+			issues: [{ owner: 'owner', repo: 'repo', number: 42, uri, title: 'Recorded title' }],
+		};
+
+		assert.deepStrictEqual({
+			equivalent: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0] }] }))),
+			changedTitle: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0], title: 'Updated title' }] }))),
+		}, {
+			equivalent: true,
+			changedTitle: false,
+		});
 	});
 
 	test('returns false when folder repository metadata changes', () => {

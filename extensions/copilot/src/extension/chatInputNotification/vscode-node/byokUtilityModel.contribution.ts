@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 const NOTIFICATION_ID = 'copilot.byokUtilityModelHint';
@@ -68,7 +69,9 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 			const models = await vscode.lm.selectChatModels({});
 			this._hasByokModels = models.some(m => m.vendor !== 'copilot');
 		} catch (err) {
-			this._logService.warn(`[ByokUtilityModelNotification] Failed to query language models: ${err}`);
+			if (!isCancellationError(err)) {
+				this._logService.warn(`[ByokUtilityModelNotification] Failed to query language models: ${err}`);
+			}
 		} finally {
 			this._refreshing = false;
 		}

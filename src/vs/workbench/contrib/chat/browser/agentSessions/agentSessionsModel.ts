@@ -29,7 +29,7 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { dedupeMigratedCopilotCliSessions } from '../copilotCliEventsUri.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -595,32 +595,15 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	/**
 	 * Hide the extension-host `copilotcli:` row when its agent-host
 	 * `agent-host-copilotcli:` twin is present, so the list shows a single entry
-	 * per legacy Copilot CLI session — the agent-host one, which migrates on open.
-	 * Only display is deduped; {@link getSession} and the cache use the full map so
-	 * a hidden row can still resolve.
+	 * per legacy Copilot CLI session — the agent-host one.
+	 *
+	 * A legacy row with no twin yet stays visible: opening it redirects through the
+	 * agent host and adopts it, so it is never a dead end.
+	 *
+	 * Only display is deduped; {@link getSession} and the cache use the full map.
 	 */
 	private _dedupeMigratedCopilotCliSessions(sessions: IAgentSession[]): IAgentSession[] {
-		let migratedRawIds: Set<string> | undefined;
-		for (const session of sessions) {
-			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId) {
-					(migratedRawIds ??= new Set<string>()).add(rawId);
-				}
-			}
-		}
-		if (!migratedRawIds) {
-			return sessions;
-		}
-		return sessions.filter(session => {
-			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId && migratedRawIds!.has(rawId)) {
-					return false;
-				}
-			}
-			return true;
-		});
+		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource);
 	}
 
 	private _changedSignal: IObservable<void> | undefined;
@@ -715,6 +698,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
+		// Providers that register their session items dynamically (notably the
+		// agent host, e.g. `agent-host-copilotcli` and remote `remote-<auth>-…`)
+		// are neither built-in nor static contributions, so they are preserved
+		// via the live registration signal — otherwise a sibling provider's
+		// partial refresh would drop their rows (sessions vanishing mid-migration).
+		const registeredProviders = new Set(this.chatSessionsService.getRegisteredChatSessionItemProviders());
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
 		const sessions = new ResourceMap<IInternalAgentSession>();
@@ -775,14 +764,23 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// Phase 2: Atomically update sessions (sync - reads latest this._sessions
 		// so concurrent updateItems calls for other providers don't lose data)
 
+		let preservedViaRegistration = 0;
 		for (const [, session] of this._sessions) {
-			if (
-				session.providerType !== provider &&
-				!sessions.has(session.resource) &&
-				(isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))
-			) {
-				sessions.set(session.resource, session);
+			if (session.providerType !== provider && !sessions.has(session.resource)) {
+				const knownProvider = isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType);
+				if (knownProvider || registeredProviders.has(session.providerType)) {
+					sessions.set(session.resource, session);
+					// Count rows kept only because their provider is live-registered
+					// (e.g. agent-host): the old condition dropped these, causing the
+					// mid-migration vanish. A non-zero count means the fix engaged.
+					if (!knownProvider) {
+						preservedViaRegistration++;
+					}
+				}
 			}
+		}
+		if (preservedViaRegistration > 0) {
+			this.logger.logIfTrace(`doResolveProvider(${provider}): preserved ${preservedViaRegistration} live-registered session(s) across a sibling refresh (would have dropped before the preservation fix)`);
 		}
 		for (const resource of this.explicitlyMarkedUnreadSessions) {
 			if (!sessions.has(resource)) {

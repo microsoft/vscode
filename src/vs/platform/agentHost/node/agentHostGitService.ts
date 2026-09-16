@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 
@@ -31,6 +31,9 @@ import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/c
 const WORKTREE_REMOVAL_MAX_ATTEMPTS = 5;
 const WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS = 100;
 const WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS = 500;
+
+/** Budget for reading one blob; a timeout here drops a diff's original side. */
+const SHOW_BLOB_TIMEOUT_MS = 15_000;
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -59,7 +62,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
-		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();
+		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']))?.trim();
 		if (remoteRef) {
 			if (!remoteRef.startsWith('refs/remotes/origin/')) {
 				return { name: remoteRef, startPoint: remoteRef };
@@ -111,8 +114,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
-		const refs = await this.getBranches(workingDirectory, { pattern: name });
-		return refs.length > 0 ? refs[0] : undefined;
+		const ref = name.startsWith('refs/') ? name : `refs/heads/${name}`;
+		const refs = await this.getBranches(workingDirectory, { pattern: ref });
+		return refs.find(branch => branch.ref === ref);
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
@@ -151,26 +155,32 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
-	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
-		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint, track) ?? startPoint;
+	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
+		const resolvedCommitish = options.preferRemoteBranch
+			? await this._resolveRemoteTrackingBranch(repositoryRoot, options.commitish, options.track) ?? options.commitish
+			: options.commitish;
 
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
-		if (!track) {
-			// Pass --no-track so the new agent branch never picks up upstream
-			// tracking from the start point (e.g. when starting from
-			// 'origin/main', without --no-track git would set the new branch's
-			// upstream to origin/main, which would mis-attribute pushes/pulls).
-			args.push('--no-track');
+		if (options.newBranchName) {
+			if (!options.track) {
+				// Pass --no-track so the new agent branch never picks up upstream
+				// tracking from the start point (e.g. when starting from
+				// 'origin/main', without --no-track git would set the new branch's
+				// upstream to origin/main, which would mis-attribute pushes/pulls).
+				args.push('--no-track');
+			}
+
+			args.push('-b', options.newBranchName);
 		}
 
-		args.push('-b', branchName, worktree.fsPath, resolvedStartPoint);
+		args.push(options.path.fsPath, resolvedCommitish);
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
 		// parsed for live feedback. GIT_PROGRESS_DELAY=0 lifts git's default
 		// two-second suppression so the first sample arrives immediately.
-		const progressParser = onProgress ? new GitCheckoutProgressParser(onProgress) : undefined;
+		const progressParser = options.onProgress ? new GitCheckoutProgressParser(options.onProgress) : undefined;
 
 		await this._runGit(repositoryRoot, args, {
 			timeout: 180_000,
@@ -350,9 +360,49 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined;
 	}
 
+	async createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void> {
+		const args = options?.checkout
+			? ['checkout', '-q', '-b', branchName, '--no-track']
+			: ['branch', '-q', branchName];
+
+		await this._runGit(workingDirectory, args, { throwOnError: true });
+	}
+
+	async checkout(workingDirectory: URI, treeish: string): Promise<void> {
+		try {
+			await this._runGit(workingDirectory, ['checkout', '-q', treeish], {
+				throwOnError: true,
+				env: { LANG: 'C', LC_ALL: 'C' },
+			});
+		} catch (error) {
+			if (error instanceof GitCommandError && isCheckoutBlockedByLocalChanges(error.stderr)) {
+				throw new CheckoutBlockedByLocalChangesError(error.message, { cause: error });
+			}
+			throw error;
+		}
+	}
+
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
 		return !!output && output.trim().length > 0;
+	}
+
+	async createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void> {
+		const args = ['stash', 'push'];
+
+		if (options?.includeUntracked) {
+			args.push('-u');
+		}
+
+		if (options?.staged) {
+			args.push('-S');
+		}
+
+		if (options?.message) {
+			args.push('-m', options.message);
+		}
+
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
@@ -693,12 +743,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		// `git show` exits non-zero when the path didn't exist at that
-		// ref; `_runGit` swallows that into `undefined` which is exactly
-		// the contract callers want.
+		const args = ['show', `${ref}:${repoRelativePath}`];
+		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+
+		// Callers only get `undefined`, which surfaces as "git blob not found"
+		// whatever actually went wrong, so log the real reason.
 		return new Promise((resolve) => {
-			cp.execFile('git', ['show', `${ref}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+			cp.execFile('git', args, { cwd: workingDirectory.fsPath, timeout: SHOW_BLOB_TIMEOUT_MS, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 				if (error) {
+					// The timeout above is the only thing that kills this process.
+					this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, SHOW_BLOB_TIMEOUT_MS, error.killed === true, error, (stderr as Buffer).toString())}`);
 					resolve(undefined);
 					return;
 				}
@@ -947,6 +1001,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 			configuredBaseBranch ? undefined : this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
 		]);
 
+		// `git status` is the only probe that reports the branch, so a state
+		// computed without it is not merely incomplete — it is misleading.
+		// Callers persist the result wholesale, so returning a branch-less
+		// object here would overwrite the last known good branch and strand
+		// every consumer that keys off it (Agent Merge binds its pull request
+		// by branch). Report the failure instead and let callers keep what
+		// they already had.
+		if (statusOutput === undefined) {
+			this._logService.warn(`[agentHostGitService] Not reporting session git state because git status failed: ${repositoryRoot.fsPath}`);
+			return undefined;
+		}
+
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
@@ -982,6 +1048,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const result: ISessionGitState = {
 			hasGitHubRemote,
 			branchName: status.branchName,
+			isDetachedHead: status.isDetachedHead,
 			baseBranchName,
 			upstreamBranchName: status.upstreamBranchName,
 			incomingChanges: status.incomingChanges,
@@ -1048,9 +1115,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// raw progress/diagnostic text is still available.
 					if (stderr) {
 						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+					} else if (didTimeOut || error.killed) {
+						// A timed-out or signalled git writes nothing to stderr,
+						// so this is the only trace such a failure ever leaves.
+						// Callers that degrade quietly on `undefined` are then
+						// impossible to diagnose from logs alone.
+						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
+					} else {
+						// A silent non-zero exit is how the `--quiet` probes
+						// report "not found", so this stays below `warn`.
+						this._logService.trace(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
 					}
 					if (options?.throwOnError) {
-						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
+						reject(new GitCommandError(formatGitError(args, timeoutMs, didTimeOut, error, stderr), stderr, error));
 						return;
 					}
 					resolve(undefined);
@@ -1071,6 +1148,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+class GitCommandError extends Error {
+	constructor(message: string, readonly stderr: string, cause: cp.ExecFileException) {
+		super(message, { cause });
+	}
+}
+
+function isCheckoutBlockedByLocalChanges(stderr: string): boolean {
+	return /(?:local changes to the following files|untracked working tree files) would be overwritten by checkout:/i.test(stderr);
 }
 
 export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {
@@ -1308,7 +1395,9 @@ export function parseUntrackedPaths(output: string | undefined): string[] {
  * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
  * output and returns all changed repo-relative paths. Rename/copy entries
  * include both the destination and source paths so scoped `git add -A`
- * stages both sides of the change.
+ * stages both sides of the change. Paths added to the index and then deleted
+ * from the worktree are omitted because they do not exist in either HEAD or
+ * the worktree.
  *
  * Exported for tests.
  */
@@ -1334,7 +1423,10 @@ export function parseChangedPaths(output: string | undefined, includeStatus: (st
 		const path = seg.substring(3);
 		const isRenameOrCopy = status[0] === 'R' || status[1] === 'R' || status[0] === 'C' || status[1] === 'C';
 		if (includeStatus(status)) {
-			addPath(path);
+			const isDeletedIndexAddition = status[1] === 'D' && (status[0] === 'A' || status[0] === 'R' || status[0] === 'C');
+			if (!isDeletedIndexAddition) {
+				addPath(path);
+			}
 			if (isRenameOrCopy) {
 				const sourcePath = segments[++i];
 				if (sourcePath) {
@@ -1504,6 +1596,7 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
  */
 export function parseGitStatusV2(output: string | undefined): {
 	branchName?: string;
+	isDetachedHead?: boolean;
 	upstreamBranchName?: string;
 	outgoingChanges?: number;
 	incomingChanges?: number;
@@ -1513,6 +1606,7 @@ export function parseGitStatusV2(output: string | undefined): {
 		return {};
 	}
 	let branchName: string | undefined;
+	let isDetachedHead: boolean | undefined;
 	let upstreamBranchName: string | undefined;
 	let outgoingChanges: number | undefined;
 	let incomingChanges: number | undefined;
@@ -1522,8 +1616,11 @@ export function parseGitStatusV2(output: string | undefined): {
 		if (!line) { continue; }
 		if (line.startsWith('# branch.head ')) {
 			const head = line.substring('# branch.head '.length).trim();
-			// `(detached)` is what git emits for a detached HEAD. Treat as no branch.
-			branchName = head === '(detached)' ? undefined : head;
+			// `(detached)` is what git emits for a detached HEAD. Treat as no
+			// branch, but report why so consumers can tell an intentionally
+			// branch-less checkout from a status probe that never ran.
+			isDetachedHead = head === '(detached)' ? true : undefined;
+			branchName = isDetachedHead ? undefined : head;
 		} else if (line.startsWith('# branch.upstream ')) {
 			upstreamBranchName = line.substring('# branch.upstream '.length).trim();
 		} else if (line.startsWith('# branch.ab ')) {
@@ -1536,7 +1633,7 @@ export function parseGitStatusV2(output: string | undefined): {
 			uncommittedChanges++;
 		}
 	}
-	return { branchName, upstreamBranchName, outgoingChanges, incomingChanges, uncommittedChanges };
+	return { branchName, isDetachedHead, upstreamBranchName, outgoingChanges, incomingChanges, uncommittedChanges };
 }
 
 /** Exported for tests. */

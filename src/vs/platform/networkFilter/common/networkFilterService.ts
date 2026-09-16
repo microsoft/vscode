@@ -16,6 +16,13 @@ import { AgentNetworkDomainSettingId } from './settings.js';
 
 export const IAgentNetworkFilterService = createDecorator<IAgentNetworkFilterService>('agentNetworkFilterService');
 
+function isFilteredNetworkScheme(uri: URI): boolean {
+	return matchesScheme(uri, Schemas.http)
+		|| matchesScheme(uri, Schemas.https)
+		|| matchesScheme(uri, 'ws')
+		|| matchesScheme(uri, 'wss');
+}
+
 /**
  * Service that filters network requests made by agent tools (fetch tool,
  * integrated browser) based on the configured allowed/denied domain lists.
@@ -32,10 +39,15 @@ export interface IAgentNetworkFilterService {
 	/**
 	 * Extracts the domain from a URI and checks it against the configured
 	 * allowed/denied domain filter.
-	 * File URIs and URIs without an authority always pass.
+	 * File URIs and unfiltered schemes without an authority always pass.
 	 * @returns `true` if the URI's domain is allowed, `false` if blocked.
 	 */
 	isUriAllowed(uri: URI): boolean;
+
+	/**
+	 * Returns whether network filtering is currently enabled.
+	 */
+	isEnabled(): boolean;
 
 	/**
 	 * Formats an error message for a blocked URI based on the current filter configuration.
@@ -90,18 +102,19 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 	isUriAllowed(uri: URI): boolean {
 		// When domain filtering is inactive, allow all requests.
-		if (!this.shouldFilter()) {
+		if (!this.isEnabled()) {
 			return true;
 		}
 
-		// File URIs and URIs without authority always pass
-		if (matchesScheme(uri, Schemas.file) || !uri.authority) {
+		// File URIs and unfiltered schemes without authority always pass
+		if (matchesScheme(uri, Schemas.file)
+			|| (!uri.authority && !isFilteredNetworkScheme(uri))) {
 			return true;
 		}
 
 		const domain = extractDomainFromUri(uri);
 		if (!domain) {
-			return !matchesScheme(uri, Schemas.http) && !matchesScheme(uri, Schemas.https);
+			return !isFilteredNetworkScheme(uri);
 		}
 
 		let result = this.domainCache.get(domain);
@@ -112,9 +125,8 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 		return result;
 	}
-	// Determines whether network filtering should be applied for a given request
-	// based on the global network filter setting.
-	private shouldFilter(): boolean {
+
+	isEnabled(): boolean {
 		return this.networkFilterEnabled;
 	}
 

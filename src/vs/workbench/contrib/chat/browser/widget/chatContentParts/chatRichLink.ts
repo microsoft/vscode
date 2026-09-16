@@ -5,12 +5,14 @@
 
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, type IReader } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationStatus, ILinkPresentationWatcher, LinkPresentationKind, LinkPresentationStatusKind } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ISessionSummaryHoverService } from '../../agentSessions/sessionSummaryHoverService.js';
 import './media/chatRichLink.css';
 
 // Copied and adapted from @vscode/markdown-editor's src/view/content/richLink.ts.
@@ -104,6 +106,7 @@ export class ChatRichLinkDecorator extends Disposable {
 	constructor(
 		private readonly _linkPresentationService: ILinkPresentationService,
 		private readonly _hoverService: IHoverService,
+		private readonly _sessionSummaryHoverService: ISessionSummaryHoverService,
 	) {
 		super();
 	}
@@ -127,13 +130,35 @@ export class ChatRichLinkDecorator extends Disposable {
 		authoredLabel.textContent = anchor.textContent || href;
 		const richLink = store.add(ChatRichLink.mount(anchor, authoredLabel));
 		let tooltip = href;
+		let kind: ChatLinkPresentationKind | undefined;
 		store.add(autorun(reader => {
 			const presentation = readPresentation(reader);
 			tooltip = presentation.tooltip ?? href;
+			kind = presentation.kind;
 			richLink.update(presentation);
 		}));
-		store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), anchor, () => tooltip));
+		store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), anchor, () => {
+			// A session pill gets the same rich hover the sessions list shows, when
+			// this window can resolve the session behind the link. Anything else —
+			// and any link the window does not know — keeps the plain tooltip.
+			if (kind !== 'session' && kind !== 'chat') {
+				return tooltip;
+			}
+			return {
+				element: async token => await this._createSessionHoverElement(href, token) ?? plainTooltipElement(anchor.ownerDocument, tooltip),
+			};
+		}));
 		return true;
+	}
+
+	private async _createSessionHoverElement(href: string, token: CancellationToken): Promise<HTMLElement | undefined> {
+		let resource: URI;
+		try {
+			resource = URI.parse(href);
+		} catch {
+			return undefined;
+		}
+		return this._sessionSummaryHoverService.createHoverElement(resource, token);
 	}
 
 	private _getLinkPresentationWatcher(href: string): ILinkPresentationWatcher | undefined {
@@ -146,6 +171,18 @@ export class ChatRichLinkDecorator extends Disposable {
 		const rule = this._linkPresentationService.getLinkPresentationRule(resource);
 		return rule ? this._linkPresentationService.createLinkPresentationWatcher(rule.id, resource) : undefined;
 	}
+}
+
+/**
+ * The plain tooltip as an element, so a session link whose hover data cannot be
+ * resolved still shows something (the managed hover's element factory has no way
+ * to fall back to a string).
+ */
+function plainTooltipElement(document: Document, tooltip: string): HTMLElement {
+	const element = document.createElement('div');
+	element.className = 'chat-rich-link-plain-hover';
+	element.textContent = tooltip;
+	return element;
 }
 
 interface IChatRichLinkStatusDom {
@@ -168,10 +205,11 @@ const richLinkIcons: Readonly<Record<ChatLinkPresentationKind, string>> = {
 	pullRequest: 'git-pull-request',
 	commit: 'git-commit',
 	file: 'file',
-	folder: 'folder',
-	session: 'comment-discussion',
-	repository: 'repo',
-	branch: 'git-branch',
+	folder: 'folder-compact',
+	session: 'agent',
+	chat: 'comment-discussion',
+	repository: 'repo-compact',
+	branch: 'git-branch-compact',
 };
 
 function createRichLinkStatusDom(document: Document, className: string): IChatRichLinkStatusDom {
@@ -276,8 +314,6 @@ function hasLeadingLifecycleStatus(presentation: IChatLinkPresentation): boolean
 			return statusKind === 'open' || statusKind === 'closed' || statusKind === 'notPlanned';
 		case 'pullRequest':
 			return statusKind === 'open' || statusKind === 'closed' || statusKind === 'merged' || statusKind === 'draft';
-		case 'session':
-			return statusKind !== undefined;
 		default:
 			return false;
 	}
@@ -295,7 +331,7 @@ function getRichLinkStatusIcon(
 			case 'neutral':
 				return 'comment-discussion';
 			case 'error':
-				return 'error';
+				return 'error-compact';
 		}
 	}
 	switch (statusKind) {
@@ -303,11 +339,11 @@ function getRichLinkStatusIcon(
 		case 'closed': return presentationKind === 'pullRequest' ? 'git-pull-request-closed' : 'issue-closed';
 		case 'merged': return 'git-merge';
 		case 'draft': return 'git-pull-request-draft';
-		case 'notPlanned': return 'circle-slash';
-		case 'pending': return 'circle-filled';
-		case 'success': return 'pass-filled';
-		case 'warning': return 'warning';
-		case 'error': return 'error';
+		case 'notPlanned': return 'circle-slash-compact';
+		case 'pending': return 'circle-filled-compact';
+		case 'success': return 'pass-filled-compact';
+		case 'warning': return 'warning-compact';
+		case 'error': return 'error-compact';
 		case 'neutral': return 'circle-outline';
 	}
 }
