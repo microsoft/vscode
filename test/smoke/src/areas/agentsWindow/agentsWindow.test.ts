@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Application, ApplicationOptions, Logger } from '../../../../automation';
+import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 import { createRemoteDevContainerFixture, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
@@ -126,7 +126,7 @@ function installDockerPrerequisite(logger: Logger, required: boolean): void {
 	});
 }
 
-export function setup(logger: Logger) {
+export function setup(logger: Logger, quality: Quality) {
 
 	describe('Agents Window (local AgentHost)', () => {
 
@@ -200,7 +200,11 @@ export function setup(logger: Logger) {
 
 	});
 
-	describe('Agents Window (Dev Container AgentHost)', () => {
+	const runDevContainerSuite = quality !== Quality.Exploration;
+	if (!runDevContainerSuite) {
+		logger.log('Skipping Agents Window (Dev Container AgentHost) on Exploration builds');
+	}
+	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container AgentHost)', () => {
 		installDockerPrerequisite(logger, process.platform === 'linux');
 
 		const devContainer = setupAgentHostSuite(logger, {
@@ -263,9 +267,9 @@ export function setup(logger: Logger) {
 		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
 		const supportedPlatform = process.platform !== 'win32' && (!isCI || process.platform === 'linux');
 		const tunnelRequested = transport === 'ssh' || !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN;
-		const enabled = supportedPlatform && tunnelRequested;
+		const enabled = runDevContainerSuite && supportedPlatform && tunnelRequested;
 		if (!enabled) {
-			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!supportedPlatform ? 'requires macOS/Linux locally or Linux CI' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
+			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!runDevContainerSuite ? 'not supported on Exploration builds' : !supportedPlatform ? 'requires macOS/Linux locally or Linux CI' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
 		}
 		(enabled ? describe : describe.skip)(`Agents Window (${label} Dev Container AgentHost)`, () => {
 			installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');

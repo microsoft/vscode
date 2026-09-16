@@ -27,21 +27,29 @@ import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
 import { CreatePullRequestAction, CreatePullRequestMergeMode, ICreatePullRequestPreferences } from '../common/createPullRequestPreferences.js';
 
 type AgentMergeRepairAction = Exclude<keyof ISessionPullRequestAgentMergeOptions, 'mergePullRequest'>;
 const agentMergePolicies = ['never', 'ifUnchanged', 'always'] as const;
+
+export interface ICreatePullRequestFormContent {
+	readonly title?: string;
+	readonly description?: string;
+}
 
 export interface ICreatePullRequestWidgetOptions {
 	readonly creation: ISessionPullRequestCreation;
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
 	readonly initialDraft?: boolean;
-	readonly sendToChat?: (options: ISessionPullRequestOptions) => Promise<void>;
+	readonly initialContent?: ICreatePullRequestFormContent;
+	readonly sendToChat?: (options: ISessionPullRequestChatOptions) => Promise<void>;
 	readonly preferences?: ICreatePullRequestPreferences;
 	readonly onDidChangePreferences?: (change: ICreatePullRequestPreferences) => void;
 	readonly onCancel: () => void;
+	readonly onDismiss?: () => void;
+	readonly onWillCreate?: () => void;
 	readonly onCreated: (options: ISessionPullRequestOptions, message: string | void) => void;
 	readonly onDidSendToChat?: () => void;
 	readonly onDetachedError: (error: Error) => void;
@@ -284,7 +292,7 @@ export class CreatePullRequestWidget extends Disposable {
 		this.mergeMethodSection.appendChild(this.mergeMethodRadio.domNode);
 		this.mergeMethodDescription = dom.append(this.mergeMethodSection, dom.$('.create-pr-hint'));
 		this._register(this.mergeMethodRadio.onDidSelect(index => {
-			this.mergeMethod = this.details!.mergeMethods[index];
+			this.mergeMethod = this.mergeMethods[index];
 			this.preferredMergeMethod = this.mergeMethod;
 			this.options.onDidChangePreferences?.({ mergeMethod: this.preferredMergeMethod });
 			this.updateMergeMethodDescription();
@@ -308,7 +316,7 @@ export class CreatePullRequestWidget extends Disposable {
 					id: `sessions.createPullRequest.${action}`,
 					label: this.actionLabel(action),
 					checked: this.primaryAction === action,
-					enabled: this.createButton.enabled,
+					enabled: this.isActionEnabled(action),
 					run: () => this.submit(action),
 				})),
 			},
@@ -334,11 +342,26 @@ export class CreatePullRequestWidget extends Disposable {
 		this._register(this.descriptionInput.onDidHeightChange(() => this.relayout()));
 		// Capture before child buttons consume Escape and blur themselves.
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => this.onKeyDown(event), true));
+		if (options.initialContent?.title !== undefined) {
+			this.titleInput.value = options.initialContent.title;
+			this.titleEdited = true;
+		}
+		if (options.initialContent?.description !== undefined) {
+			this.descriptionInput.value = options.initialContent.description;
+			this.descriptionEdited = true;
+		}
 		this.updateMergeOptions();
 		this.ready = this.prepare();
 	}
 
 	get isSubmitting(): boolean { return this.submitting; }
+
+	getFormContent(): ICreatePullRequestFormContent {
+		return {
+			title: this.titleEdited || this.titleInput.value ? this.titleInput.value : undefined,
+			description: this.descriptionEdited || this.descriptionInput.value ? this.descriptionInput.value : undefined,
+		};
+	}
 
 	focus(): void {
 		this.titleInput.focus();
@@ -453,13 +476,15 @@ export class CreatePullRequestWidget extends Disposable {
 	}
 
 	private updateMergeOptions(): void {
-		const autoMergeAllowed = this.details?.autoMergeAllowed && !this.draftCheckbox.checked && this.details.mergeMethods.length > 0;
-		const autoMergeUnavailableReason = autoMergeAllowed ? undefined : this.getAutoMergeUnavailableReason();
+		const focusedRadio = [this.mergeModeRadio, this.mergeMethodRadio].find(radio => radio.domNode.contains(dom.getActiveElement()));
+		const autoMergeAllowed = (this.details?.autoMergeAllowed ?? this.loading) && !this.draftCheckbox.checked && this.mergeMethods.length > 0;
+		const agentMergeAvailable = this.details?.agentMergeAvailable ?? this.loading;
+		const autoMergeUnavailableReason = autoMergeAllowed && !this.loading ? undefined : this.getAutoMergeUnavailableReason();
 		this.mergeMode = this.preferredMergeMode;
-		if ((this.mergeMode === 'auto' && !autoMergeAllowed) || (this.mergeMode === 'agent' && !this.details?.agentMergeAvailable)) {
+		if ((this.mergeMode === 'auto' && !autoMergeAllowed) || (this.mergeMode === 'agent' && !agentMergeAvailable)) {
 			this.mergeMode = 'manual';
 		}
-		this.mergeModes = this.details?.agentMergeAvailable ? ['manual', 'agent', 'auto'] : ['manual', 'auto'];
+		this.mergeModes = agentMergeAvailable ? ['manual', 'agent', 'auto'] : ['manual', 'auto'];
 		const labels: Record<CreatePullRequestMergeMode, string> = {
 			manual: localize('createPR.manual', "Merge Manually"),
 			agent: localize('createPR.agentMerge', "Agent Merge"),
@@ -469,13 +494,13 @@ export class CreatePullRequestWidget extends Disposable {
 			text: labels[mode],
 			ariaLabel: labels[mode],
 			isActive: this.mergeMode === mode,
-			disabled: this.loading || this.submitting || (mode === 'auto' && !autoMergeAllowed),
+			disabled: this.submitting || (mode === 'auto' && !autoMergeAllowed),
 			tooltip: mode === 'auto' ? autoMergeUnavailableReason ?? labels[mode] : labels[mode],
 		})));
 		if (autoMergeUnavailableReason) {
 			this.mergeModeRadio.optionElements[this.mergeModes.indexOf('auto')].setAttribute('aria-description', autoMergeUnavailableReason);
 		}
-		const mergeMethods = this.details?.mergeMethods ?? [];
+		const mergeMethods = this.mergeMethods;
 		this.mergeMethod = this.preferredMergeMethod;
 		if (mergeMethods.length > 0 && !mergeMethods.includes(this.mergeMethod)) {
 			this.mergeMethod = mergeMethods[0];
@@ -488,9 +513,20 @@ export class CreatePullRequestWidget extends Disposable {
 		this.mergeMethodRadio.setItems(mergeMethods.map(method => ({
 			text: methodLabels[method],
 			isActive: this.mergeMethod === method,
-			disabled: this.loading || this.submitting,
+			disabled: this.submitting,
 		})));
 		this.updateMergeDescription();
+		if (focusedRadio && !this.submitting) {
+			(focusedRadio === this.mergeMethodRadio && this.mergeMethodSection.hidden ? this.mergeModeRadio : focusedRadio).focusActiveItem();
+		}
+	}
+
+	private get mergeMethods(): readonly SessionPullRequestMergeMethod[] {
+		return this.details?.mergeMethods ?? (this.loading ? ['SQUASH', 'MERGE', 'REBASE'] : []);
+	}
+
+	private get canConfigureAgentMerge(): boolean {
+		return this.details ? !!this.details.agentMergeOptions : this.loading;
 	}
 
 	private getAutoMergeUnavailableReason(): string {
@@ -511,8 +547,8 @@ export class CreatePullRequestWidget extends Disposable {
 
 	private updateMergeDescription(): void {
 		this.mergeMethodSection.hidden = this.mergeMode !== 'auto';
-		this.agentMergeOptionsSection.hidden = this.mergeMode !== 'agent' || !this.details?.agentMergeOptions;
-		const agentMergeControlsEnabled = !this.agentMergeOptionsSection.hidden && !this.loading && !this.submitting;
+		this.agentMergeOptionsSection.hidden = this.mergeMode !== 'agent' || !this.canConfigureAgentMerge;
+		const agentMergeControlsEnabled = !this.agentMergeOptionsSection.hidden && !this.submitting;
 		for (const checkbox of Object.values(this.agentMergeCheckboxes)) {
 			if (agentMergeControlsEnabled) {
 				checkbox.enable();
@@ -522,7 +558,7 @@ export class CreatePullRequestWidget extends Disposable {
 		}
 		this.agentMergePolicyRadio.setEnabled(agentMergeControlsEnabled);
 		this.mergeDescription.textContent = this.mergeMode === 'agent'
-			? this.details?.agentMergeOptions
+			? this.canConfigureAgentMerge
 				? localize('createPR.agentSessionHint', "Applied to this session on submission. Your choices are remembered for future pull requests. Additional agent usage may apply.")
 				: localize('createPR.agentConfigurationUnavailable', "Uses the session's existing Agent Merge settings. Update the agent host to configure them here.")
 			: this.mergeMode === 'auto'
@@ -549,7 +585,12 @@ export class CreatePullRequestWidget extends Disposable {
 	}
 
 	private updateSubmitButton(): void {
-		this.createButton.enabled = !this.loading && !this.submitting && this.titleInput.value.trim().length > 0;
+		if (this.createButton instanceof ButtonWithDropdown) {
+			this.createButton.enabled = !this.submitting;
+			this.createButton.primaryButton.enabled = this.isActionEnabled(this.primaryAction);
+		} else {
+			this.createButton.enabled = this.isActionEnabled(this.primaryAction);
+		}
 		const label = this.submitting
 			? this.primaryAction === 'sendToChat'
 				? localize('createPR.sending', "Sending Message...")
@@ -557,6 +598,12 @@ export class CreatePullRequestWidget extends Disposable {
 			: this.actionLabel(this.primaryAction);
 		this.createButton.label = this.submitting ? `$(loading~spin) ${label}` : label;
 		this.createButton.setAriaLabel(label);
+	}
+
+	private isActionEnabled(action: CreatePullRequestAction): boolean {
+		return !this._store.isDisposed && !this.submitting && (action === 'sendToChat'
+			? !!this.options.sendToChat
+			: !this.loading && this.titleInput.value.trim().length > 0);
 	}
 
 	private actionLabel(action: CreatePullRequestAction): string {
@@ -589,16 +636,18 @@ export class CreatePullRequestWidget extends Disposable {
 
 	private async submit(action = this.primaryAction): Promise<void> {
 		const sendToChat = this.options.sendToChat;
-		if (this._store.isDisposed || !this.createButton.enabled || (action === 'sendToChat' && !sendToChat)) {
+		if (!this.isActionEnabled(action)) {
 			return;
 		}
+		const agentMergeOptions = this.details?.agentMergeOptions || (!this.details && this.loading && this.agentMergeOptionsEdited)
+			? this.getAgentMergeOptions() : undefined;
 		this.primaryAction = action;
 		this.options.onDidChangePreferences?.({
 			...(sendToChat ? { primaryAction: action } : {}),
 			draft: this.draftCheckbox.checked,
 			mergeMode: this.preferredMergeMode,
 			mergeMethod: this.preferredMergeMethod,
-			...(this.details?.agentMergeOptions ? { agentMergeOptions: this.getAgentMergeOptions() } : {}),
+			...(agentMergeOptions ? { agentMergeOptions } : {}),
 		});
 		const previouslyFocused = dom.getActiveElement();
 		const previouslyFocusedRadio = [this.mergeModeRadio, this.mergeMethodRadio].find(radio => radio.domNode.contains(previouslyFocused));
@@ -614,23 +663,25 @@ export class CreatePullRequestWidget extends Disposable {
 		this.updateMergeOptions();
 		const focusAfterDisabling = dom.getActiveElement();
 
-		const options: ISessionPullRequestOptions = {
-			title: this.titleInput.value.trim(),
-			description: this.descriptionInput.value,
+		const chatOptions: ISessionPullRequestChatOptions = {
 			...(this.details?.context ? { expectedContext: this.details.context } : {}),
 			draft: this.draftCheckbox.checked,
 			agentMerge: this.mergeMode === 'agent',
-			...(this.mergeMode === 'agent' && this.details?.agentMergeOptions ? {
-				agentMergeOptions: this.getAgentMergeOptions(),
-			} : {}),
+			...(this.mergeMode === 'agent' && agentMergeOptions ? { agentMergeOptions } : {}),
 			...(this.mergeMode === 'auto' ? { autoMergeMethod: this.mergeMethod } : {}),
+		};
+		const options: ISessionPullRequestOptions = {
+			...chatOptions,
+			title: this.titleInput.value.trim(),
+			description: this.descriptionInput.value,
 		};
 		let message: string | void = undefined;
 		let failed = false;
 		try {
 			if (action === 'sendToChat' && sendToChat) {
-				await sendToChat(options);
+				await sendToChat(chatOptions);
 			} else {
+				this.options.onWillCreate?.();
 				message = await this.options.creation.create(options);
 			}
 		} catch (error) {
@@ -677,7 +728,7 @@ export class CreatePullRequestWidget extends Disposable {
 		if (key.equals(KeyCode.Escape)) {
 			dom.EventHelper.stop(event, true);
 			if (!this.submitting) {
-				this.options.onCancel();
+				(this.options.onDismiss ?? this.options.onCancel)();
 			}
 		} else if (key.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
 			dom.EventHelper.stop(event, true);

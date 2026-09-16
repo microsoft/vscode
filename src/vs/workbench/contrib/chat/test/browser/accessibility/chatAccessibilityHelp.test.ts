@@ -14,6 +14,24 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents accepting the selected confirmation primary action', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			primaryAction: help.includes('activates the primary button of the selected confirmation'),
+			disabled: help.includes('Disabled actions cannot be accepted'),
+			keybinding: help.includes('<keybinding:workbench.action.chat.acceptTool>'),
+		}, { primaryAction: true, disabled: true, keybinding: true });
+	});
+
+	test('documents finished sections and subagent progress without duplicate shimmer', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			finished: help.includes('Finished thinking and tool-call sections stop showing activity'),
+			subagentTail: help.includes('omitted when subagent pills are the last visible content'),
+			parentTail: help.includes('appears after other content while the response remains in progress'),
+		}, { finished: true, subagentTail: true, parentTail: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

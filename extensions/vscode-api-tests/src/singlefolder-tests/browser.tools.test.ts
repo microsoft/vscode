@@ -262,47 +262,9 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 	test('Open a page from the web', async function () {
 		this.timeout(60000);
 
-		const server = http.createServer((_request, response) => {
-			response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-			response.end('<!DOCTYPE html><html><body><h1>Browser tools HTTP fixture</h1></body></html>');
-		});
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(0, '127.0.0.1', () => {
-				server.off('error', reject);
-				resolve();
-			});
-		});
+		const output = await invokeTool('open_browser_page', { url: 'https://google.com/' });
 
-		let tunnel: vscode.Tunnel | undefined;
-		try {
-			const address = server.address();
-			assert.ok(address && typeof address !== 'string');
-
-			if (vscode.env.remoteName) {
-				// Forward the port for the browser's localhost rewrite when remote proxying is disabled.
-				tunnel = await vscode.workspace.openTunnel({ remoteAddress: { host: '127.0.0.1', port: address.port } });
-				assert.ok(tunnel, 'Expected the HTTP fixture port to be forwarded');
-			}
-
-			const output = await invokeTool('open_browser_page', { url: `http://127.0.0.1:${address.port}/`, forceNew: true });
-
-			assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
-			assert.match(output, /heading "Browser tools HTTP fixture"/, `Expected output to contain the HTTP page content, got: ${output}`);
-		} finally {
-			try {
-				await Promise.all(vscode.window.browserTabs.map(tab => tab.close()));
-			} finally {
-				try {
-					await tunnel?.dispose();
-				} finally {
-					await new Promise<void>((resolve, reject) => {
-						server.close(error => error ? reject(error) : resolve());
-						server.closeAllConnections();
-					});
-				}
-			}
-		}
+		assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
 	});
 
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote

@@ -502,12 +502,16 @@ export function isSubagentToolName(toolName: string): boolean {
 }
 
 export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>): IChatProgress | undefined {
+	const meta = readAgentSystemNotificationMeta({ _meta });
+	if (meta.kind === AgentSystemNotificationKind.ResponseRoundEnded) {
+		// The chat model already treats an empty thinking chunk as the end of a thinking section.
+		return { kind: 'thinking', value: '' };
+	}
 	if (!content) {
 		return undefined;
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
-	const meta = readAgentSystemNotificationMeta({ _meta });
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
