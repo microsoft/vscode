@@ -10020,6 +10020,37 @@ Use the attached image as context.
 			});
 		});
 
+		test('session idle waits for a pending send to resolve', async () => {
+			const sendGate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-completed');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-completed' });
+			mockSession.fire('assistant.idle', {});
+			await timeout(0);
+
+			mockSession.sendGate = sendGate.p;
+			const send = session.send('No-op', undefined, 'turn-no-op');
+			while (mockSession.sendRequests.length === 0) {
+				await timeout(0);
+			}
+			mockSession.fire('session.idle', {});
+			await timeout(0);
+			const activeBeforeSendResolved = session.hasActiveTurn;
+
+			sendGate.complete();
+			await send;
+
+			assert.deepStrictEqual({
+				activeBeforeSendResolved,
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, {
+				activeBeforeSendResolved: true,
+				hasActiveTurn: false,
+				completedTurns: ['turn-completed', 'turn-no-op'],
+			});
+		});
+
 		test('root continuation opens a new visible turn after early completion', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-completed');

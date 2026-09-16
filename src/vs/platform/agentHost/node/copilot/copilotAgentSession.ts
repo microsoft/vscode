@@ -631,6 +631,7 @@ class CopilotTurn extends Disposable {
 	private _state: CopilotTurnState = 'pending';
 	private _providerCallState: AgentTurnProviderCallState = 'notStarted';
 	private _providerTurnStarted = false;
+	private _deferredSessionIdle = false;
 	private readonly _stopWatch = StopWatch.create(false);
 	private readonly _pendingToolCompletions = new Set<Promise<void>>();
 
@@ -767,6 +768,12 @@ class CopilotTurn extends Disposable {
 	markProviderCallResolved(): void { this._providerCallState = 'resolved'; }
 	markProviderCallRejected(): void { this._providerCallState = 'rejected'; }
 	markProviderTurnStarted(): void { this._providerTurnStarted = true; }
+	deferSessionIdle(): void { this._deferredSessionIdle = true; }
+	takeDeferredSessionIdle(): boolean {
+		const deferred = this._deferredSessionIdle;
+		this._deferredSessionIdle = false;
+		return deferred;
+	}
 
 	/** Transition `pending → running` on the first SDK event. No-op once running/finished. */
 	markRunning(): void {
@@ -2148,7 +2155,15 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		if (turn.isPending && this._hasObservedAssistantIdle && turn.providerCallState !== 'resolved') {
-			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring deferred session idle while pending turn ${turn.id} has not been dispatched`);
+			turn.deferSessionIdle();
+			this._logService.trace(`[Copilot:${this.sessionId}] Deferring session idle until pending turn ${turn.id} finishes dispatch`);
+			return;
+		}
+		await this._completeTurnAfterPendingToolCompletions(turn);
+	}
+
+	private async _completeDeferredSessionIdle(turn: CopilotTurn | undefined): Promise<void> {
+		if (!turn?.takeDeferredSessionIdle()) {
 			return;
 		}
 		await this._completeTurnAfterPendingToolCompletions(turn);
@@ -3281,6 +3296,7 @@ export class CopilotAgentSession extends Disposable {
 				return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 			});
 			sendingTurn?.markProviderCallResolved();
+			await this._completeDeferredSessionIdle(sendingTurn);
 		} catch (error) {
 			sendingTurn?.markProviderCallRejected();
 			throw error;
@@ -3303,6 +3319,7 @@ export class CopilotAgentSession extends Disposable {
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
 			turn?.markProviderCallResolved();
+			await this._completeDeferredSessionIdle(turn);
 			this._logService.info(`[Copilot:${this.sessionId}] zero-message continuation returned`);
 		} catch (error) {
 			if (this._resumingTurnAwaitingProviderStart === turn) {
@@ -3449,6 +3466,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			result = await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.fleet.start(rest ? { prompt: rest } : {}));
 			startingTurn.markProviderCallResolved();
+			await this._completeDeferredSessionIdle(startingTurn);
 		} catch (err) {
 			startingTurn.markProviderCallRejected();
 			// A terminal `session.idle` already ended this turn while the RPC was in
