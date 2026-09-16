@@ -12,7 +12,7 @@ import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { localize } from '../../../../nls.js';
 import { getReasoningEffortLabel } from '../../../../platform/agentHost/common/reasoningEffort.js';
-import { IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } from '../../../../platform/otel/common/otelDiagnosticsService.js';
+import { IOTelDiagnosticsMessage, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getEventCreatedText, getEventDetailsText, getEventNameText } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEventList.js';
 import { IChatDebugEvent } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
@@ -47,6 +47,7 @@ export class SessionInsightsView extends Disposable {
 	private readonly activityContainer: HTMLElement;
 	private readonly turnNodes = new Map<string, ITurnNode>();
 	private readonly expandedSpanIds = new Set<string>();
+	private readonly expandedMessageIds = new Set<string>();
 	private readonly expandedTurnBySession = new Map<string, string | null>();
 
 	constructor(
@@ -164,7 +165,7 @@ export class SessionInsightsView extends Disposable {
 		const store = new DisposableStore();
 		const element = DOM.$('section.agent-diagnostics-turn');
 		element.dataset.turnId = id;
-		const header = store.add(new Button(element, { ...defaultButtonStyles, secondary: true }));
+		const header = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		header.element.classList.add('agent-diagnostics-turn-header');
 		store.add(header.onDidClick(() => this.toggleTurn(id)));
 		const body = DOM.append(element, DOM.$('.agent-diagnostics-turn-body'));
@@ -183,8 +184,9 @@ export class SessionInsightsView extends Disposable {
 	private updateTurnNode(node: ITurnNode, turn: ISessionDiagnosticsTurn, index: number): void {
 		const expanded = this.isTurnExpanded(turn.id);
 		node.element.classList.toggle('expanded', expanded);
-		node.header.label = localize('agentDiagnostics.turnHeader', "Turn {0}: {1}", index + 1, turn.prompt);
-		node.header.icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
+		const label = localize('agentDiagnostics.turnHeader', "Turn {0}: {1}", index + 1, turn.prompt);
+		node.header.label = `$(${expanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${label}`;
+		node.header.setAriaLabel(label);
 		node.header.element.setAttribute('aria-expanded', String(expanded));
 		node.body.toggleAttribute('hidden', !expanded);
 		if (!expanded) {
@@ -321,11 +323,7 @@ export class SessionInsightsView extends Disposable {
 			timestamp: turn.startTime,
 		}];
 		for (const message of messages) {
-			const row = DOM.append(conversation, DOM.$('.agent-diagnostics-message'));
-			const role = DOM.append(row, DOM.$('.agent-diagnostics-message-role'));
-			role.textContent = message.role;
-			const content = DOM.append(row, DOM.$('.agent-diagnostics-message-content'));
-			content.textContent = message.content;
+			this.renderConversationMessage(node, conversation, turn, trace, message);
 		}
 
 		const waterfall = DOM.append(node.detail, DOM.$('.agent-diagnostics-waterfall'));
@@ -333,6 +331,28 @@ export class SessionInsightsView extends Disposable {
 		waterfallHeading.textContent = localize('agentDiagnostics.waterfall', "Waterfall");
 		for (const span of details.spans) {
 			this.renderSpan(node, waterfall, trace, span);
+		}
+	}
+
+	private renderConversationMessage(traceNode: ITraceNode, parent: HTMLElement, turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace, message: IOTelDiagnosticsMessage): void {
+		const row = DOM.append(parent, DOM.$('.agent-diagnostics-message'));
+		const button = traceNode.detailStore.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
+		button.element.classList.add('agent-diagnostics-message-pill');
+		button.label = formatMessageRole(message.role);
+		const expanded = this.expandedMessageIds.has(message.id);
+		button.element.setAttribute('aria-expanded', String(expanded));
+		traceNode.detailStore.add(button.onDidClick(() => {
+			if (this.expandedMessageIds.has(message.id)) {
+				this.expandedMessageIds.delete(message.id);
+			} else {
+				this.expandedMessageIds.add(message.id);
+			}
+			this.updateTraceNode(traceNode, turn, trace);
+			this.scrollable.scanDomNode();
+		}));
+		if (expanded) {
+			const content = DOM.append(row, DOM.$('.agent-diagnostics-message-content'));
+			content.textContent = message.content;
 		}
 	}
 
@@ -426,4 +446,19 @@ function formatContext(context: string | number): string {
 		return localize('agentDiagnostics.contextDefault', "Default");
 	}
 	return context;
+}
+
+function formatMessageRole(role: string): string {
+	switch (role) {
+		case 'user':
+			return localize('agentDiagnostics.messageRole.user', "User");
+		case 'assistant':
+			return localize('agentDiagnostics.messageRole.assistant', "Assistant");
+		case 'tool':
+			return localize('agentDiagnostics.messageRole.tool', "Tool");
+		case 'system':
+			return localize('agentDiagnostics.messageRole.system', "System");
+		default:
+			return role.charAt(0).toUpperCase() + role.slice(1);
+	}
 }

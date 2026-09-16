@@ -17,10 +17,10 @@ import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, 
 import { OTelSqliteStore, SpanRow } from './sqlite/otelSqliteStore.js';
 
 interface IRawMessagePart {
-	readonly content?: string;
+	readonly content?: unknown;
 	readonly name?: string;
-	readonly arguments?: string;
-	readonly response?: string;
+	readonly arguments?: unknown;
+	readonly response?: unknown;
 }
 
 interface IRawMessage {
@@ -247,7 +247,7 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 		}
 		const messages = JSON.parse(raw) as IRawMessage[];
 		for (const [index, message] of messages.entries()) {
-			const content = message.parts?.map(part => part.content ?? (part.name ? `${part.name}(${part.arguments ?? ''})` : part.response)).filter(value => !!value).join('\n') ?? '';
+			const content = message.parts?.map(formatMessagePart).filter(value => !!value).join('\n') ?? '';
 			if (!content) {
 				continue;
 			}
@@ -266,6 +266,23 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 			});
 		}
 	}
+}
+
+function formatMessagePart(part: IRawMessagePart): string {
+	if (part.content !== undefined) {
+		return formatMessageValue(part.content);
+	}
+	if (part.name) {
+		return `${part.name}(${formatMessageValue(part.arguments)})`;
+	}
+	return formatMessageValue(part.response);
+}
+
+function formatMessageValue(value: unknown): string {
+	if (value === undefined || value === null) {
+		return '';
+	}
+	return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 function sum(rows: readonly SpanRow[], value: (row: SpanRow) => number | null): number {
