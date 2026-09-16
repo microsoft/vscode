@@ -30,3 +30,26 @@ div.share-private-gist-preview {
 	line-height: 1.4;
 	margin-top: 8px;
 }
+
+.monaco-editor .share-selection-lightbulb {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-left: 2px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-editorLightBulb-foreground, var(--vscode-inputOption-activeForeground));
+	background: var(--vscode-editor-background);
+	box-shadow: 0 0 0 1px var(--vscode-widget-border, transparent);
+	pointer-events: auto;
+}
+
+.monaco-editor .share-selection-lightbulb.visible {
+	display: inline-flex !important;
+}
+
+.monaco-editor .share-selection-lightbulb:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}

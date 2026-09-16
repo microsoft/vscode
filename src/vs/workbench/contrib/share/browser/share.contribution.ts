@@ -12,6 +12,12 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { CodeAction, CodeActionList, CodeActionProvider } from '../../../../editor/common/languages.js';
@@ -44,7 +50,6 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-
 const SHARE_AS_PRIVATE_GIST_COMMAND_ID = 'workbench.action.shareAsPrivateGist';
 const SHOW_SHARE_CODE_TIP_COMMAND_ID = 'workbench.action.showShareCodeTip';
 interface IEditorLineNumberContextArgs {
@@ -515,3 +520,115 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
+
+/**
+ * Selection lightbulb affordance (VS Code content-widget pattern used by Quick Fix).
+ * Shows when text is selected; click opens the share tip quick action.
+ */
+class ShareSelectionLightbulbWidget extends Disposable implements IContentWidget {
+	readonly allowEditorOverflow = true;
+	readonly suppressMouseDown = false;
+
+	private readonly _domNode: HTMLElement;
+	private _position: IContentWidgetPosition | null = null;
+	private _visible = false;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _onClick: () => void,
+	) {
+		super();
+		this._domNode = dom.$('div.share-selection-lightbulb');
+		this._domNode.setAttribute('role', 'button');
+		this._domNode.setAttribute('tabindex', '0');
+		this._domNode.setAttribute('aria-label', localize('shareSelectionLightbulb.aria', "Show me how to share this code"));
+		this._domNode.title = localize('shareSelectionLightbulb.title', "Show me how to share this code");
+		const icon = dom.$('span');
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulb));
+		this._domNode.appendChild(icon);
+
+		const trigger = (e: Event) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._onClick();
+		};
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_DOWN, trigger));
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				trigger(e);
+			}
+		}));
+	}
+
+	getId(): string { return 'share.selectionLightbulb'; }
+	getDomNode(): HTMLElement { return this._domNode; }
+	getPosition(): IContentWidgetPosition | null { return this._position; }
+
+	show(selection: Selection): void {
+		this._position = {
+			position: selection.getStartPosition(),
+			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+		};
+		if (!this._visible) {
+			this._editor.addContentWidget(this);
+			this._visible = true;
+		} else {
+			this._editor.layoutContentWidget(this);
+		}
+		this._domNode.classList.add('visible');
+	}
+
+	hide(): void {
+		if (!this._visible) {
+			return;
+		}
+		this._domNode.classList.remove('visible');
+		this._editor.removeContentWidget(this);
+		this._visible = false;
+		this._position = null;
+	}
+
+	override dispose(): void {
+		this.hide();
+		super.dispose();
+	}
+}
+
+class ShareSelectionLightbulbController extends Disposable implements IEditorContribution {
+	static readonly ID = 'editor.contrib.shareSelectionLightbulb';
+
+	private readonly _widget: ShareSelectionLightbulbWidget;
+	private readonly _update: RunOnceScheduler;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@ICommandService private readonly _commandService: ICommandService,
+	) {
+		super();
+		this._widget = this._register(new ShareSelectionLightbulbWidget(this._editor, () => {
+			void this._commandService.executeCommand(SHOW_SHARE_CODE_TIP_COMMAND_ID);
+		}));
+		this._update = this._register(new RunOnceScheduler(() => this._render(), 100));
+		this._register(this._editor.onDidChangeCursorSelection(() => this._update.schedule()));
+		this._register(this._editor.onDidChangeModel(() => this._update.schedule()));
+		this._register(this._editor.onDidScrollChange(() => this._update.schedule()));
+		this._update.schedule();
+	}
+
+	private _render(): void {
+		const model = this._editor.getModel();
+		const selection = this._editor.getSelection();
+		if (!model || !selection || selection.isEmpty()) {
+			this._widget.hide();
+			return;
+		}
+		const text = model.getValueInRange(selection);
+		if (!text || text.trim().length < 2) {
+			this._widget.hide();
+			return;
+		}
+		this._widget.show(selection);
+	}
+}
+
+registerEditorContribution(ShareSelectionLightbulbController.ID, ShareSelectionLightbulbController, EditorContributionInstantiation.AfterFirstRender);
