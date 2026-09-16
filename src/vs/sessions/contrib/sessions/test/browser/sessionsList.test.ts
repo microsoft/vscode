@@ -2581,27 +2581,66 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('parent session row shows progress while one non-main chat needs input and another is in progress', () => {
-			const main = createChat('Main chat');
-			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+		test('shows child progress on the parent row only while the child is collapsed', () => {
+			const mainStatus = observableValue('main-status', SessionStatus.Completed);
+			const main = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://Main-chat'),
+				title: constObservable('Main chat'),
+				updatedAt: constObservable(new Date()),
+				status: mainStatus,
+				interactivity: constObservable(ChatInteractivity.Full),
+			});
 			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
-				status: constObservable(SessionStatus.NeedsInput),
-				chats: constObservable([main, waiting, active]),
+				chats: constObservable([main, active]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
 
 			const container = renderSessionChats(session, undefined, true);
+			const snapshot = () => ({
+				parent: sessionRowSnapshot(container),
+				parentHasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner'),
+				childHasProgress: !!container.querySelector('.session-chat-item .session-chat-icon > .monaco-pixel-spinner'),
+			});
+			const toggle = () => {
+				const twistie = container.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
+				assert.ok(twistie);
+				twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			};
 
-			assert.deepStrictEqual({
-				session: sessionRowSnapshot(container),
-				hasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner'),
-			}, {
-				session: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
-				hasProgress: true,
+			const childOnlyExpanded = snapshot();
+			toggle();
+			const childOnlyCollapsed = snapshot();
+			toggle();
+			mainStatus.set(SessionStatus.InProgress, undefined);
+			const parentAndChildExpanded = snapshot();
+			toggle();
+			const parentAndChildCollapsed = snapshot();
+
+			assert.deepStrictEqual({ childOnlyExpanded, childOnlyCollapsed, parentAndChildExpanded, parentAndChildCollapsed }, {
+				childOnlyExpanded: {
+					parent: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
+					parentHasProgress: false,
+					childHasProgress: true,
+				},
+				childOnlyCollapsed: {
+					parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+					parentHasProgress: true,
+					childHasProgress: false,
+				},
+				parentAndChildExpanded: {
+					parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+					parentHasProgress: true,
+					childHasProgress: true,
+				},
+				parentAndChildCollapsed: {
+					parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+					parentHasProgress: true,
+					childHasProgress: false,
+				},
 			});
 		});
 
