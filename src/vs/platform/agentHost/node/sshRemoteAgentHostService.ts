@@ -149,6 +149,15 @@ const HANDSHAKE_TIMEOUT_MS = 30_000;
 const INTERACTIVE_TIMEOUT_MS = 300_000;
 
 /**
+ * How long a resolved `ssh -G` result stays reusable. One connect attempt asks
+ * for the same host several times — proxy and identity resolution, then
+ * `known_hosts` lookup during host key verification, plus reconnects that
+ * resolve the alias before connecting — and each spawn costs a process. The
+ * window is short so an edited SSH config is picked up by the next attempt.
+ */
+const RESOLVED_CONFIG_REUSE_MS = 10_000;
+
+/**
  * One entry in the queue of authentication attempts handed to ssh2's
  * `authHandler`. Each attempt corresponds to one of the auth method shapes
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
@@ -766,12 +775,19 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private _nativeRequire: NodeJS.Require | undefined;
 	private readonly _proxies = this._register(new DisposableMap<SSHClient, SSHProxyCommand>());
+	private readonly _resolvedConfigs = new Map<string, { readonly resolved: Promise<ISSHResolvedConfig>; readonly expiry: number }>();
 
 	/**
 	 * Override hook for tests to shorten the relay-creation timeout used on
 	 * the `replaceRelay` reconnect path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
 	 */
 	protected relayCreationTimeoutMs: number = RECONNECT_RELAY_TIMEOUT_MS;
+
+	/**
+	 * Override hook for tests to disable or shorten the reuse of resolved SSH
+	 * configurations. See {@link RESOLVED_CONFIG_REUSE_MS}.
+	 */
+	protected resolvedConfigReuseMs: number = RESOLVED_CONFIG_REUSE_MS;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -1265,6 +1281,29 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+		const now = Date.now();
+		for (const [key, entry] of this._resolvedConfigs) {
+			if (entry.expiry <= now) {
+				this._resolvedConfigs.delete(key);
+			}
+		}
+		const reusable = this._resolvedConfigs.get(host);
+		if (reusable) {
+			return reusable.resolved;
+		}
+		const resolved = this._doResolveSSHConfig(host);
+		this._resolvedConfigs.set(host, { resolved, expiry: now + this.resolvedConfigReuseMs });
+		// A failed resolution says nothing about the next attempt, so only
+		// successful results are worth reusing.
+		resolved.catch(() => {
+			if (this._resolvedConfigs.get(host)?.resolved === resolved) {
+				this._resolvedConfigs.delete(host);
+			}
+		});
+		return resolved;
+	}
+
+	protected async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
 		return new Promise<ISSHResolvedConfig>((resolve, reject) => {
 			cp.execFile('ssh', ['-G', '--', host], { timeout: 5000 }, (err, stdout) => {
 				if (err) {
@@ -1354,14 +1393,23 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	): Promise<SSHClient> {
 		const originalHost = config.sshConfigHost ?? config.host;
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
-		const resolved = await this.resolveSSHConfig(originalHost);
+		// Proxy and identity settings only exist in the user's SSH config, which
+		// OpenSSH alone can expand. Reading it is best effort: like the
+		// `known_hosts` lookup, a failure falls back to the caller's settings
+		// instead of failing a connection that may well work without them.
+		let resolved: ISSHResolvedConfig | undefined;
+		try {
+			resolved = await this.resolveSSHConfig(originalHost);
+		} catch (err) {
+			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for ${originalHost}: ${err}`);
+		}
 		config = {
 			...config,
-			host: resolved.hostname,
-			port: config.port ?? resolved.port,
+			host: resolved?.hostname ?? config.host,
+			port: config.port ?? resolved?.port,
 			sshConfigHost: originalHost,
-			identityAgent: config.identityAgent ?? resolved.identityAgent,
-			privateKeyPath: config.privateKeyPath ?? resolved.identityFile[0],
+			identityAgent: config.identityAgent ?? resolved?.identityAgent,
+			privateKeyPath: config.privateKeyPath ?? resolved?.identityFile[0],
 		};
 		const port = config.port ?? 22;
 		const connectConfig: ConnectConfig = {
@@ -1592,7 +1640,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			armDeadline(HANDSHAKE_TIMEOUT_MS);
 			try {
-				if (resolved.proxyCommand) {
+				if (resolved?.proxyCommand) {
 					const proxy = new SSHProxyCommand(expandSSHProxyCommand(resolved.proxyCommand, config.host, originalHost, port, config.username), this._logService);
 					this._proxies.set(client, proxy);
 					proxy.stream.on('error', error => {
