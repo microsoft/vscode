@@ -9,7 +9,7 @@ import { AsyncIterableObject, raceCancellationError } from '../../../base/common
 import * as errors from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { combinedDisposable } from '../../../base/common/lifecycle.js';
-import { Schemas, matchesScheme } from '../../../base/common/network.js';
+import { Schemas } from '../../../base/common/network.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { TextEditorCursorStyle } from '../../../editor/common/config/editorOptions.js';
@@ -475,15 +475,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostUrls.createAppUri(uri);
 				}
 
-				try {
-					return await extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
-				} catch (err) {
-					if (matchesScheme(uri, Schemas.http) || matchesScheme(uri, Schemas.https)) {
-						return uri;
-					}
-
-					throw err;
-				}
+				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
