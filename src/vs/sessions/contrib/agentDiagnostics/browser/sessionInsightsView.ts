@@ -11,6 +11,8 @@ import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { localize } from '../../../../nls.js';
 import { IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getEventCreatedText, getEventDetailsText, getEventNameText } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEventList.js';
+import { IChatDebugEvent } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 import { ISessionDiagnosticsTurn, SessionDiagnosticsModel } from './sessionDiagnosticsModel.js';
 
 interface ITraceNode {
@@ -26,6 +28,7 @@ interface ITurnNode {
 	readonly prompt: HTMLElement;
 	readonly model: HTMLElement;
 	readonly traces: HTMLElement;
+	readonly debugEvents: HTMLElement;
 	readonly traceNodes: Map<string, ITraceNode>;
 }
 
@@ -154,8 +157,15 @@ export class SessionInsightsView extends Disposable {
 		element.dataset.turnId = id;
 		const prompt = DOM.append(element, DOM.$('.agent-diagnostics-prompt'));
 		const model = DOM.append(element, DOM.$('.agent-diagnostics-model-context'));
-		const traces = DOM.append(element, DOM.$('.agent-diagnostics-traces'));
-		return { element, prompt, model, traces, traceNodes: new Map() };
+		const otelSection = DOM.append(element, DOM.$('.agent-diagnostics-data-section.agent-diagnostics-otel-section'));
+		const otelHeading = DOM.append(otelSection, DOM.$('h3.agent-diagnostics-section-heading'));
+		otelHeading.textContent = localize('agentDiagnostics.openTelemetry', "OpenTelemetry");
+		const traces = DOM.append(otelSection, DOM.$('.agent-diagnostics-traces'));
+		const debugSection = DOM.append(element, DOM.$('.agent-diagnostics-data-section.agent-diagnostics-debug-section'));
+		const debugHeading = DOM.append(debugSection, DOM.$('h3.agent-diagnostics-section-heading'));
+		debugHeading.textContent = localize('agentDiagnostics.agentDebug', "Agent Debug");
+		const debugEvents = DOM.append(debugSection, DOM.$('.agent-diagnostics-turn-debug-events'));
+		return { element, prompt, model, traces, debugEvents, traceNodes: new Map() };
 	}
 
 	private updateTurnNode(node: ITurnNode, turn: ISessionDiagnosticsTurn, index: number): void {
@@ -172,6 +182,25 @@ export class SessionInsightsView extends Disposable {
 		resolved.textContent = localize('agentDiagnostics.resolvedModel', "Resolved: {0}", turn.resolvedModel ?? localize('agentDiagnostics.modelUnknown', "Unknown"));
 
 		this.renderTraceNodes(node, turn);
+		this.renderDebugEvents(node.debugEvents, turn.debugEvents);
+	}
+
+	private renderDebugEvents(container: HTMLElement, events: readonly IChatDebugEvent[]): void {
+		DOM.clearNode(container);
+		if (events.length === 0) {
+			const empty = DOM.append(container, DOM.$('.agent-diagnostics-debug-events-empty'));
+			empty.textContent = localize('agentDiagnostics.noDebugEvents', "No Agent Debug events");
+			return;
+		}
+		for (const event of events) {
+			const row = DOM.append(container, DOM.$('.agent-diagnostics-debug-event'));
+			const created = DOM.append(row, DOM.$('.agent-diagnostics-debug-event-time'));
+			created.textContent = getEventCreatedText(event);
+			const name = DOM.append(row, DOM.$('.agent-diagnostics-debug-event-name'));
+			name.textContent = getEventNameText(event);
+			const details = DOM.append(row, DOM.$('.agent-diagnostics-debug-event-details'));
+			details.textContent = getEventDetailsText(event);
+		}
 	}
 
 	private renderTraceNodes(turnNode: ITurnNode, turn: ISessionDiagnosticsTurn): void {

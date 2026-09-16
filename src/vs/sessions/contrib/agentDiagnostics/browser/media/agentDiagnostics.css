@@ -247,16 +247,64 @@
 	font-size: var(--vscode-fontSize-label2);
 }
 
+.agent-diagnostics-data-section {
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
+}
+
+.agent-diagnostics-data-section + .agent-diagnostics-data-section {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
 .agent-diagnostics-traces {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size60);
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
 }
 
 .agent-diagnostics-traces-empty {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
+}
+
+.agent-diagnostics-turn-debug-events {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+.agent-diagnostics-debug-events-empty {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.agent-diagnostics-debug-event {
+	display: grid;
+	grid-template-columns: auto minmax(160px, auto) 1fr;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.agent-diagnostics-debug-event:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.agent-diagnostics-debug-event-time {
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--monaco-monospace-font);
+}
+
+.agent-diagnostics-debug-event-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-debug-event-details {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .agent-diagnostics-trace {
