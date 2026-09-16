@@ -250,6 +250,7 @@ suite('copilot', () => {
 			const platformPackageDir = path.join(appNodeModulesDir, '@github', 'copilot-win32-x64');
 
 			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'linux-x64'), { recursive: true });
+			fs.writeFileSync(path.join(extensionCopilotDir, 'sdk', 'index.js'), '');
 			fs.writeFileSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'linux-x64', 'runtime.node'), '');
 			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
 			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty'), { recursive: true });
@@ -286,6 +287,37 @@ suite('copilot', () => {
 		}
 	});
 
+	test('restores the packaged Copilot SDK from the staged extension', () => {
+		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-restore-test-'));
+		try {
+			const builtInCopilotExtensionDir = path.join(repoRoot, 'product', 'extensions', 'copilot');
+			const extensionCopilotDir = path.join(builtInCopilotExtensionDir, 'node_modules', '@github', 'copilot');
+			const sourceCopilotSdkDir = path.join(repoRoot, '.build', 'extensions', 'copilot', 'node_modules', '@github', 'copilot', 'sdk');
+			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
+			const platformPackageDir = path.join(appNodeModulesDir, '@github', 'copilot-win32-x64');
+
+			fs.mkdirSync(sourceCopilotSdkDir, { recursive: true });
+			fs.writeFileSync(path.join(sourceCopilotSdkDir, 'index.js'), 'SDK');
+			fs.mkdirSync(extensionCopilotDir, { recursive: true });
+			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
+			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64'), { recursive: true });
+			fs.writeFileSync(path.join(platformPackageDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'runtime.node'), '');
+			fs.mkdirSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64'), { recursive: true });
+			fs.writeFileSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'), '');
+			fs.mkdirSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64'), { recursive: true });
+			fs.writeFileSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64', 'rg.exe'), '');
+
+			prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir, { sourceCopilotSdkDir });
+
+			assert.strictEqual(fs.readFileSync(path.join(extensionCopilotDir, 'sdk', 'index.js'), 'utf8'), 'SDK');
+			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'runtime.node')));
+			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'ripgrep', 'bin', 'win32-x64', 'rg.exe')));
+		} finally {
+			fs.rmSync(repoRoot, { recursive: true, force: true });
+		}
+	});
+
 	test('materializes a version-matched native when app-root diverges from the pinned extension', () => {
 		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-pinned-test-'));
 		try {
@@ -296,6 +328,7 @@ suite('copilot', () => {
 
 			// Extension pinned at 1.0.73.
 			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk'), { recursive: true });
+			fs.writeFileSync(path.join(extensionCopilotDir, 'sdk', 'index.js'), '');
 			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
 
 			// App-root updated ahead of the pinned extension — its (mismatched) native must NOT be used.
@@ -347,6 +380,7 @@ suite('copilot', () => {
 			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
 
 			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk'), { recursive: true });
+			fs.writeFileSync(path.join(extensionCopilotDir, 'sdk', 'index.js'), '');
 			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
 			fs.mkdirSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64'), { recursive: true });
 			fs.writeFileSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64', 'rg.exe'), '');
