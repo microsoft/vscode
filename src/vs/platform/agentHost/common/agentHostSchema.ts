@@ -277,7 +277,7 @@ export interface IPermissionsValue {
 const permissionsProperty = schemaProperty<IPermissionsValue>({
 	type: 'object',
 	title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-	description: localize('agentHost.sessionConfig.permissionsDescription', "Per-tool session permissions. Updated automatically when approving a tool \"in this Session\"."),
+	description: localize('agentHost.sessionConfig.permissionsDescription', "Per-tool session permissions. Allowed tools can run without prompting; providers may omit denied tools from the session."),
 	properties: {
 		allow: {
 			type: 'array',

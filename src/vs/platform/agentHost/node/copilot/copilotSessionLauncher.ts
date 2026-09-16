@@ -13,7 +13,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
@@ -23,6 +23,7 @@ import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
@@ -902,7 +903,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring unusable 'excludedTools' capability override for '${modelId}'; expected an array of tool patterns`);
 		});
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
-		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
+		const modelExcludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
+		const sessionDeniedTools = this._configurationService.getEffectiveValue(runtime.configurationResource.toString(), platformSessionSchema, SessionConfigKey.Permissions)?.deny;
+		const excludedTools = modelExcludedTools || sessionDeniedTools?.length
+			? [...new Set([...(modelExcludedTools ?? []), ...(sessionDeniedTools ?? [])])]
+			: undefined;
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
 		const configuredSdkExcludedTools = plan.isEphemeral
 			? [...(toSdkToolFilterPatterns(excludedTools) ?? []), ...EPHEMERAL_DISABLED_COPILOT_TOOLS]

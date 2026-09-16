@@ -35,6 +35,7 @@ import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { sessionServerToolDefinitions } from '../../../node/shared/sessionServerTools.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
+import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -422,6 +423,39 @@ suite('CodexAgent createChat', () => {
 		}, {
 			multipleChats: { fork: true, sideChat: true },
 			agentHostCapabilities: { workspaceConversion: true },
+		});
+	});
+
+	test('disables request_user_input when the session deny list removes it', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'denied-user-input');
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		const peerChat = URI.parse(buildChatUri(session, 'peer'));
+		const folder = URI.file('/workspace/denied-user-input');
+
+		await createSessionBackedChat(agent, defaultChat, { configurationResource: session, resource: defaultChat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const creating = agent.chats.createChat(peerChat, { configurationResource: session, resource: peerChat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+			config: {
+				[SessionConfigKey.Permissions]: { allow: [], deny: ['request_user_input'] },
+			},
+		});
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'denied-user-input-thread', cwd: folder.fsPath } } });
+		await creating;
+
+		assert.deepStrictEqual({
+			method: start.method,
+			requestUserInputEnabled: start.params.config?.['features.default_mode_request_user_input'],
+		}, {
+			method: 'thread/start',
+			requestUserInputEnabled: false,
 		});
 	});
 

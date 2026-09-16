@@ -3944,6 +3944,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.config, { autoApprove: 'autoApprove' });
 	});
 
+	test('createNewSession applies programmatic initial config before eager creation', async () => {
+		const permissions = { allow: [], deny: ['ask_user'] };
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { permissions },
+		};
+		const provider = createProvider(disposables, agentHost);
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, {
+			initialSessionConfig: { permissions },
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			resolved: agentHost.resolveSessionConfigRequests.at(-1)?.config?.permissions,
+			created: agentHost.createSessionConfigs[0]?.config?.permissions,
+		}, {
+			resolved: permissions,
+			created: permissions,
+		});
+	});
+
 	test('createNewSession does not seed autoApprove when chat.defaultConfiguration approvals is manual', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);

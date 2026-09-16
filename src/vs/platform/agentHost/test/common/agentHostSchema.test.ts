@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { getSessionDeniedTools, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -340,6 +340,18 @@ suite('agentHostSchema', () => {
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, ok), true);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }), true);
+		});
+
+		test('reads only string tool names from the session deny list', () => {
+			assert.deepStrictEqual([
+				getSessionDeniedTools({ permissions: { deny: ['ask_user', 42] } }),
+				getSessionDeniedTools({ permissions: 'invalid' }),
+				getSessionDeniedTools(undefined),
+			], [
+				['ask_user'],
+				[],
+				[],
+			]);
 		});
 
 		test('validates the agent modes', () => {

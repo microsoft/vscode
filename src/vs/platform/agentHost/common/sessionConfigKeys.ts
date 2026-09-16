@@ -19,7 +19,7 @@
 export const enum SessionConfigKey {
 	/** `'autoApprove'` — tool auto-approval level. */
 	AutoApprove = 'autoApprove',
-	/** `'permissions'` — per-tool session allow/deny lists. */
+	/** `'permissions'` — per-tool session allow/deny lists, including provider launch filters. */
 	Permissions = 'permissions',
 	/** Persisted session sandbox selection; omitted or `default` follows the host default. */
 	SandboxEnabled = 'sandboxEnabled',
@@ -43,6 +43,18 @@ export const enum SessionConfigKey {
 	AgentMergeController = 'agentMerge.controller',
 	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
 	ShellInitScripts = 'shellInitScripts',
+}
+
+/** Returns the string entries from a session's per-tool deny list. */
+export function getSessionDeniedTools(config: object | undefined): readonly string[] {
+	const permissions = config
+		? (config as Record<string, unknown>)[SessionConfigKey.Permissions]
+		: undefined;
+	if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) {
+		return [];
+	}
+	const deny = (permissions as { readonly deny?: unknown }).deny;
+	return Array.isArray(deny) ? deny.filter((tool): tool is string => typeof tool === 'string') : [];
 }
 
 export type SessionSandboxEnabled = 'default' | 'on' | 'off';

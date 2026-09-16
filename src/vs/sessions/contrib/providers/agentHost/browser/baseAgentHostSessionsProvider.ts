@@ -3568,6 +3568,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			false,
 			options?.metadata,
 			options?.automationConfiguration,
+			options?.initialSessionConfig,
 		);
 	}
 
@@ -3597,6 +3598,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			true,
 			options?.metadata,
 			options?.automationConfiguration,
+			options?.initialSessionConfig,
 		);
 	}
 
@@ -3605,7 +3607,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * given session type. Shared by {@link createNewSession} (workspace-bound)
 	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
 	 */
-	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>, initialAutomationConfiguration?: IAutomationSessionConfiguration): ISession {
+	private _createDraftSession(
+		sessionType: ISessionType,
+		workspace: ISessionWorkspace | undefined,
+		quickChat: boolean,
+		initialMetadata?: Record<string, unknown>,
+		initialAutomationConfiguration?: IAutomationSessionConfiguration,
+		initialSessionConfig?: Readonly<Record<string, unknown>>,
+	): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -3618,9 +3627,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const initialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
-				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
+				...this._normalizeInitialSessionConfig(initialSessionTemplate?.config),
+				...this._normalizeInitialSessionConfig(initialSessionConfig),
 			}
-			: this._initialNewSessionConfig(workspace);
+			: {
+				...this._initialNewSessionConfig(workspace),
+				...this._normalizeInitialSessionConfig(initialSessionConfig),
+			};
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
@@ -3706,7 +3719,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		};
 	}
 
-	private _normalizeAutomationSessionConfig(config: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
+	private _normalizeInitialSessionConfig(config: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 		return Object.fromEntries(Object.entries(config ?? {}).map(([key, value]) => [
 			key,

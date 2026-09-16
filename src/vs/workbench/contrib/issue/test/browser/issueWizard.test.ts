@@ -28,6 +28,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../
 import { TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IAgentHostActiveClientService } from '../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatAttachmentResolveService } from '../../../chat/browser/attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentModel } from '../../../chat/browser/attachments/chatAttachmentModel.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
@@ -60,6 +61,7 @@ suite('Issue Wizard Launch Command', () => {
 	let exposeOpenedWidgets: boolean;
 	let focusedSessionResources: URI[];
 	let openedSessionOptions: { sessionType: string; displayName: string; workspaceFolder?: URI }[];
+	let initialSessionConfigApplications: Array<{ sessionResource: URI; provider: string; workingDirectory: URI | undefined; config: Record<string, unknown> }>;
 	let revealedEditorResources: (URI | undefined)[];
 	let completionRequests: { sessionResource: URI; params: IChatInputCompletionsParams }[];
 	let languageModelSelectors: ILanguageModelChatSelector[];
@@ -119,6 +121,7 @@ suite('Issue Wizard Launch Command', () => {
 		exposeOpenedWidgets = true;
 		focusedSessionResources = [];
 		openedSessionOptions = [];
+		initialSessionConfigApplications = [];
 		revealedEditorResources = [];
 		completionRequests = [];
 		languageModelSelectors = [];
@@ -148,6 +151,12 @@ suite('Issue Wizard Launch Command', () => {
 				? { uri: defaultSkillUri, source: 'builtin' }
 				: undefined,
 		}));
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+			override async applyConfigChange(sessionResource: URI, provider: string, workingDirectory: URI | undefined, config: Record<string, unknown>): Promise<URI> {
+				initialSessionConfigApplications.push({ sessionResource, provider, workingDirectory, config });
+				return URI.from({ scheme: provider, path: sessionResource.path });
+			}
+		});
 
 		const folders = options?.folders ?? [createWorkspaceFolder(workspaceFolderUri, 'workspace', 0)];
 		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
@@ -291,21 +300,21 @@ suite('Issue Wizard Launch Command', () => {
 							activeAttachments = activeAttachments.filter(attachment => !ids.includes(attachment.id));
 						},
 					}),
-						acceptInput: async query => {
-							if (options?.acceptInputError) {
-								throw options.acceptInputError;
-							}
-							if (options?.acceptInputResultUndefined) {
-								return undefined;
-							}
-							if (query) {
-								acceptedRequests.push({
-									query,
-									attachmentIds: activeAttachments.map(attachment => attachment.id),
-								});
-							}
-							return upcastPartial<IChatResponseModel>({ id: 'response' });
-						},
+					acceptInput: async query => {
+						if (options?.acceptInputError) {
+							throw options.acceptInputError;
+						}
+						if (options?.acceptInputResultUndefined) {
+							return undefined;
+						}
+						if (query) {
+							acceptedRequests.push({
+								query,
+								attachmentIds: activeAttachments.map(attachment => attachment.id),
+							});
+						}
+						return upcastPartial<IChatResponseModel>({ id: 'response' });
+					},
 					setInput: query => acceptedRequests.push({ query: query ?? '', attachmentIds: activeAttachments.map(attachment => attachment.id) }),
 					focusInput: () => focusedSessionResources.push(sessionResource),
 				});
@@ -342,10 +351,10 @@ suite('Issue Wizard Launch Command', () => {
 			selectedFolders: openedSessionOptions.map(options => options.workspaceFolder?.toString()),
 			displayNames: openedSessionOptions.map(options => options.displayName),
 			focusedSessions: focusedSessionResources.map(resource => resource.toString()),
-				queries: acceptedRequests.map(request => request.query),
-				modelSelectors: languageModelSelectors,
-				selectedModels: selectedModelIdentifiers,
-				attachmentKinds: attachedContext.map(context => context.kind),
+			queries: acceptedRequests.map(request => request.query),
+			modelSelectors: languageModelSelectors,
+			selectedModels: selectedModelIdentifiers,
+			attachmentKinds: attachedContext.map(context => context.kind),
 			notifications,
 		}, {
 			sessionTypes: [agentHostSessionType, agentHostSessionType],
@@ -353,10 +362,10 @@ suite('Issue Wizard Launch Command', () => {
 			selectedFolders: [workspaceFolderUri.toString(), workspaceFolderUri.toString()],
 			displayNames: ['Issue Wizard', 'Issue Wizard'],
 			focusedSessions: openedSessionResources.map(resource => resource.toString()),
-				queries: ['/issue-wizard Help me troubleshoot a VS Code issue.', '/issue-wizard Help me troubleshoot a VS Code issue.'],
-				modelSelectors: [{ vendor: agentHostSessionType }, { vendor: agentHostSessionType }],
-				selectedModels: [`${agentHostSessionType}:gpt-6-astra`, `${agentHostSessionType}:gpt-6-astra`],
-				attachmentKinds: ['generic', 'generic'],
+			queries: ['/issue-wizard Help me troubleshoot a VS Code issue.', '/issue-wizard Help me troubleshoot a VS Code issue.'],
+			modelSelectors: [{ vendor: agentHostSessionType }, { vendor: agentHostSessionType }],
+			selectedModels: [`${agentHostSessionType}:gpt-6-astra`, `${agentHostSessionType}:gpt-6-astra`],
+			attachmentKinds: ['generic', 'generic'],
 			notifications: { warn: [], error: [] },
 		});
 	});
@@ -425,6 +434,28 @@ suite('Issue Wizard Launch Command', () => {
 			queries: ['/issue-wizard Help me troubleshoot a VS Code issue.'],
 			notifications: { warn: [], error: [] },
 		});
+	});
+
+	test('denies provider-native ask-user tools before the first request', async () => {
+		setupServices();
+		await runCommand();
+
+		assert.deepStrictEqual(initialSessionConfigApplications.map(application => ({
+			sessionResource: application.sessionResource.toString(),
+			provider: application.provider,
+			workingDirectory: application.workingDirectory?.toString(),
+			config: application.config,
+		})), [{
+			sessionResource: openedSessionResources[0].toString(),
+			provider: 'codex',
+			workingDirectory: workspaceFolderUri.toString(),
+			config: {
+				permissions: {
+					allow: [],
+					deny: ['ask_user', 'AskUserQuestion', 'request_user_input'],
+				},
+			},
+		}]);
 	});
 
 	test('shows the existing floating screenshot bar without recording controls after launch', async () => {
@@ -550,7 +581,19 @@ suite('Issue Wizard Launch Command', () => {
 			notifications,
 		}, {
 			calls: [
-				{ create: { sessionType: agentHostSessionType, displayName: 'Issue Wizard', modelId: `${agentHostSessionType}:gpt-6-astra` } },
+				{
+					create: {
+						sessionType: agentHostSessionType,
+						displayName: 'Issue Wizard',
+						modelId: `${agentHostSessionType}:gpt-6-astra`,
+						initialSessionConfig: {
+							permissions: {
+								allow: [],
+								deny: ['ask_user', 'AskUserQuestion', 'request_user_input'],
+							},
+						},
+					},
+				},
 				{
 					send: {
 						query: '/issue-wizard Help me troubleshoot a VS Code issue.\nSymptom: The window stops responding',

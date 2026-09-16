@@ -63,6 +63,7 @@ class SessionsIssueWizardLaunchTarget implements IIssueWizardLaunchTarget {
 		const createOptions = {
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionTypeId: options.sessionType.slice(LOCAL_AGENT_HOST_SCHEME_PREFIX.length),
+			initialSessionConfig: options.initialSessionConfig,
 		};
 		let createdSession: ISession | undefined;
 		const session = launchContext.folderUri

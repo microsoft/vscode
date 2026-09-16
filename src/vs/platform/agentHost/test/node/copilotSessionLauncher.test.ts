@@ -107,6 +107,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: CopilotCliConfigKey) => rootValues[key],
+		getEffectiveValue: () => undefined,
 		getSessionConfigValues: () => undefined,
 		getSessionSandboxPolicy: () => undefined,
 		setSessionSandboxPolicy: () => { },
@@ -1453,7 +1454,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Builds a launcher over a config service stubbed with a fixed root-value bag. */
-	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition>): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition>, sessionDeniedTools: readonly string[] = []): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
@@ -1461,6 +1462,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		services.set(IAgentConfigurationService, {
 			_serviceBrand: undefined,
 			getRootValue: (_schema: unknown, key: string) => values[key as keyof typeof values],
+			getEffectiveValue: () => ({ allow: [], deny: [...sessionDeniedTools] }),
 		} as unknown as IAgentConfigurationService);
 		// The launcher's other dependencies are unused by this path and resolve
 		// to `undefined` under the non-strict InstantiationService.
@@ -1487,7 +1489,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
 		};
-		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
+		const runtime = { ...testRuntime, createClientSdkTools, createServerSdkTools: () => [] };
 		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean }> })._buildSessionConfig(plan, runtime, () => { });
 	}
 
@@ -1525,6 +1527,14 @@ suite('CopilotSessionLauncher resume config', () => {
 			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
 			[[`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], undefined, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
+		store.dispose();
+	});
+
+	test('removes session-denied tools from the SDK launch config', async () => {
+		const store = new DisposableStore();
+		const config = await buildResumeConfig(createLauncher(store, {}, ['ask_user']), { id: 'gpt-5' });
+
+		assert.deepStrictEqual(config.excludedTools, ['ask_user', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]);
 		store.dispose();
 	});
 

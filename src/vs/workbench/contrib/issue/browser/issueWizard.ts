@@ -13,6 +13,8 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IPermissionsValue } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -28,6 +30,8 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAgentHostActiveClientService } from '../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { toAgentHostBackendSessionUri } from '../../chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, toAgentHostCompletionVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isLocalAgentHostTarget } from '../../chat/common/chatSessionsService.js';
@@ -48,6 +52,7 @@ const ISSUE_WIZARD_SKILL_COMPLETION_ATTEMPTS = Math.ceil(ISSUE_WIZARD_SKILL_COMP
 const ISSUE_WIZARD_SCREENSHOT_TARGET_TIMEOUT = 10_000;
 const ISSUE_WIZARD_SCREENSHOT_TARGET_ATTEMPTS = Math.ceil(ISSUE_WIZARD_SCREENSHOT_TARGET_TIMEOUT / ISSUE_WIZARD_SKILL_COMPLETION_RETRY_DELAY);
 const ISSUE_WIZARD_PREFERRED_MODEL_IDS = ['gpt-6-astra', 'gpt-5.6-sol', 'claude-sonnet-5'] as const;
+const ISSUE_WIZARD_DENIED_TOOLS = ['ask_user', 'AskUserQuestion', 'request_user_input'] as const;
 
 /**
  * Optional context supplied by an Issue Wizard entry point.
@@ -66,6 +71,7 @@ export interface IIssueWizardCreateSessionOptions {
 	readonly sessionType: string;
 	readonly displayName: string;
 	readonly modelId: string;
+	readonly initialSessionConfig: Readonly<Record<string, unknown>>;
 }
 
 /** A surface-owned session that can receive the shared Issue Wizard bootstrap. */
@@ -120,6 +126,7 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentHostActiveClientService private readonly agentHostActiveClientService: IAgentHostActiveClientService,
+		@IAgentHostUntitledProvisionalSessionService private readonly agentHostUntitledProvisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IIssueWizardIntakeService private readonly issueWizardIntakeService: IIssueWizardIntakeService,
@@ -195,10 +202,11 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 	private createEditorLaunchTarget(): IIssueWizardLaunchTarget {
 		return {
 			createSession: async options => {
+				const workspaceFolder = this.getInvokingWorkspaceFolder();
 				const session = await this.chatWidgetService.openNewAgentHostEditorSession({
 					sessionType: options.sessionType,
 					displayName: options.displayName,
-					workspaceFolder: this.getInvokingWorkspaceFolder(),
+					workspaceFolder,
 				});
 				if (!session) {
 					return undefined;
@@ -209,6 +217,16 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 				// composer finishes restoring its remembered profile selection.
 				if (!chatWidget.inputPart.switchModelByIdentifier(options.modelId)) {
 					throw new Error(localize('issueWizard.error.modelUnavailableAfterLaunch', "The selected Issue Wizard model is no longer available."));
+				}
+				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				const configuredSession = backendSession && await this.agentHostUntitledProvisionalSessionService.applyConfigChange(
+					sessionResource,
+					backendSession.scheme,
+					workspaceFolder,
+					{ ...options.initialSessionConfig },
+				);
+				if (!configuredSession) {
+					throw new Error(localize('issueWizard.error.sessionConfigUnavailable', "Issue Wizard could not configure its session."));
 				}
 				return {
 					sessionResource,
@@ -253,6 +271,12 @@ export class IssueWizardLauncherService extends Disposable implements IIssueWiza
 				sessionType: agentHostSessionType,
 				displayName: localize('issueWizard.sessionName', "Issue Wizard"),
 				modelId: model.identifier,
+				initialSessionConfig: {
+					[SessionConfigKey.Permissions]: {
+						allow: [],
+						deny: [...ISSUE_WIZARD_DENIED_TOOLS],
+					} satisfies IPermissionsValue,
+				},
 			});
 			if (!session) {
 				throw new Error(localize('issueWizard.error.chatUnavailable', "Chat session was not created."));

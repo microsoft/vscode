@@ -3476,7 +3476,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('createChat model + config.permissionMode flow into Options on first send (M11 / Phase 6.1 C2)', async () => {
+	test('createChat model and session config flow into Options on first send (M11 / Phase 6.1 C2)', async () => {
 		// Phase 6.1 Cycle E (drift C2). M11 mandates that the
 		// `IAgentCreateSessionConfig` bag (`model` + `config.*`) survives
 		// from `createSession` → provisional record → first `query()`'s
@@ -3492,7 +3492,10 @@ suite('ClaudeAgent', () => {
 		const created = await createSession(agent, {
 			workingDirectories: [URI.file('/work')],
 			model: { id: 'claude-sonnet-4.6' },
-			config: { permissionMode: 'plan' },
+			config: {
+				permissionMode: 'plan',
+				permissions: { allow: [], deny: ['AskUserQuestion'] },
+			},
 		});
 		const sessionId = created.sdkSessionId;
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
@@ -3502,11 +3505,13 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({
 			model: sdk.capturedStartupOptions[0]?.model,
 			permissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
+			disallowedTools: sdk.capturedStartupOptions[0]?.disallowedTools,
 		}, {
 			// Endpoint id `claude-sonnet-4.6` is normalized to SDK format at the
 			// SDK seam (see `toSdkModelId`); the CLI only recognizes the dashed form.
 			model: 'claude-sonnet-4-6',
 			permissionMode: 'plan',
+			disallowedTools: ['WebSearch', 'AskUserQuestion'],
 		});
 	});
 
@@ -6812,6 +6817,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const fakeConfigService: IAgentConfigurationService = {
 			onDidRootConfigChange: Event.None,
 			onDidSessionConfigChange: Event.None,
+			getEffectiveValue: () => undefined,
 			getSessionConfigValues: () => undefined,
 			onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		} as unknown as IAgentConfigurationService;

@@ -2262,6 +2262,27 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('createAndSendNewChatRequest forwards programmatic initial session config during draft creation', async () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		let providerOptions: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions = options;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const initialSessionConfig = { permissions: { allow: [], deny: ['ask_user'] } };
+
+		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, { initialSessionConfig });
+
+		assert.deepStrictEqual(providerOptions, {
+			metadata: undefined,
+			initialSessionConfig,
+		});
+	});
+
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {
 		const session = stubSession({
 			sessionId: 's1',

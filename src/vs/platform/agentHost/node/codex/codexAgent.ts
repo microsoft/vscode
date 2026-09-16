@@ -35,7 +35,7 @@ import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUN
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { getSessionDeniedTools, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
@@ -1817,6 +1817,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._configurationService.getSessionConfigValues(configResource.toString()),
 			codexSessionConfigDefaults,
 		);
+	}
+
+	private _isRequestUserInputEnabled(config: object): boolean {
+		return !getSessionDeniedTools(config).includes('request_user_input');
 	}
 
 	/**
@@ -4852,7 +4856,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const threadConfig: Record<string, JsonValue> = {
 				web_search: narrowWebSearchMode(validatedConfig[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 				...this._modelContextConfigOverrides(model),
-				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
+				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: this._isRequestUserInputEnabled(validatedConfig),
 			};
 			if (Object.keys(mcpServers).length > 0) {
 				threadConfig.mcp_servers = mcpServers as JsonValue;
@@ -5232,7 +5236,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const forkConfig: Record<string, JsonValue> = {
 				...this._modelContextConfigOverrides(model),
 				...this._portableHistoryConfig(hasNativeHistory),
-				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
+				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: this._isRequestUserInputEnabled(forkConfigValues),
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
 			this._applySessionHookTrustState(forkConfig, await this._buildSessionHookTrustState(forkConnection.client, forkCwd));
@@ -5470,7 +5474,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			web_search: narrowWebSearchMode(config[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 			...customizationLaunch.config,
 			...this._modelContextConfigOverrides(model),
-			[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
+			[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: this._isRequestUserInputEnabled(config),
 			'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
 		};
 		const mcpServerNames = Object.keys(mcpServers);
@@ -6574,7 +6578,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (session.disposed) {
 					throw new CancellationError();
 				}
-				const resumeConfig = { ...customizationLaunch.config, ...this._modelContextConfigOverrides(session.model) };
+				const resumeConfig = {
+					...customizationLaunch.config,
+					...this._modelContextConfigOverrides(session.model),
+				};
 				this._applySessionHookTrustState(resumeConfig, await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath));
 				if (session.disposed) {
 					throw new CancellationError();
@@ -6602,6 +6609,7 @@ export class CodexAgent extends Disposable implements IAgent {
 							customizationLaunch.developerInstructions,
 							this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
 							{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },
+							this._isRequestUserInputEnabled(config),
 						),
 						cwd: session.workingDirectory?.fsPath,
 					},

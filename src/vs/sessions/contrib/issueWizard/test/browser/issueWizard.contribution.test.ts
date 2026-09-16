@@ -21,7 +21,7 @@ import { IIssueWizardBootstrapRequest, IIssueWizardLauncherService, IIssueWizard
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatModelSource, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -38,6 +38,12 @@ suite('Sessions Issue Wizard Contribution', () => {
 		id: 'issue-wizard-skill',
 		name: 'issue-wizard',
 		value: 'skill',
+	};
+	const initialSessionConfig = {
+		permissions: {
+			allow: [],
+			deny: ['ask_user', 'AskUserQuestion', 'request_user_input'],
+		},
 	};
 
 	test('contributes an accessible bug action immediately before the account action', () => {
@@ -86,6 +92,7 @@ suite('Sessions Issue Wizard Contribution', () => {
 			calls: harness.calls,
 			modelSelections: harness.modelSelections,
 			screenshotTargets: harness.screenshotTargets,
+			initialSessionConfigs: harness.initialSessionConfigs,
 		}, {
 			calls: [
 				{ launch: { symptom: 'Saving stalls' } },
@@ -113,6 +120,7 @@ suite('Sessions Issue Wizard Contribution', () => {
 				source: ChatModelSource.Chosen,
 			}],
 			screenshotTargets: [{ sessionResource: wizardSession.activeChat.get().resource.toString(), exactWidget: true }],
+			initialSessionConfigs: [initialSessionConfig],
 		});
 	});
 
@@ -238,8 +246,8 @@ suite('Sessions Issue Wizard Contribution', () => {
 				},
 			],
 			sameAttachment: true,
-			});
 		});
+	});
 
 	test('does not bootstrap a same-workspace pre-existing draft when fresh workspace session creation falls back', async () => {
 		const sourceSession = createSession('source', workspaceFolder);
@@ -302,6 +310,7 @@ suite('Sessions Issue Wizard Contribution', () => {
 		const sentRequests: { query: string; attachedContext?: IChatRequestVariableEntry[]; title?: string }[] = [];
 		const retryNotifications: { id: string | undefined; message: string; label: string | undefined; sticky: boolean | undefined }[] = [];
 		const retryActions = new Map<string, () => Promise<void>>();
+		const initialSessionConfigs: (Readonly<Record<string, unknown>> | undefined)[] = [];
 		let latestRetryId: string | undefined;
 		let sessionIndex = 0;
 		let sendErrorIndex = 0;
@@ -326,7 +335,8 @@ suite('Sessions Issue Wizard Contribution', () => {
 			override readonly activeSession = sourceSessionObservable;
 
 			override async openNewSession(openOptions?: IOpenNewSessionOptions) {
-				const { onSessionCreated, ...recordedOptions } = openOptions ?? {};
+				const { onSessionCreated, initialSessionConfig: config, ...recordedOptions } = openOptions ?? {};
+				initialSessionConfigs.push(config);
 				calls.push({
 					openWorkspace: openOptions && {
 						...recordedOptions,
@@ -341,26 +351,28 @@ suite('Sessions Issue Wizard Contribution', () => {
 				return { session, trustDeclined: false };
 			}
 
-				override openQuickChat(options = {}): IActiveSession | undefined {
-				calls.push({ openQuickChat: options });
+			override openQuickChat(options: ICreateNewSessionOptions = {}): IActiveSession | undefined {
+				const { initialSessionConfig: config, ...recordedOptions } = options;
+				initialSessionConfigs.push(config);
+				calls.push({ openQuickChat: recordedOptions });
 				const session = nextSession();
 				if (session) {
 					activateSession(session);
 				}
-					return session;
-				}
+				return session;
+			}
 
-				override async openChat(session: ISession, chatUri: URI): Promise<void> {
-					calls.push({ openChat: { session: session.resource.toString(), chat: chatUri.toString() } });
-					sourceSessionObservable.set(session as IActiveSession, undefined);
-				}
-			}());
+			override async openChat(session: ISession, chatUri: URI): Promise<void> {
+				calls.push({ openChat: { session: session.resource.toString(), chat: chatUri.toString() } });
+				sourceSessionObservable.set(session as IActiveSession, undefined);
+			}
+		}());
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			getWidgetBySessionResource: sessionResource => chatWidgets.get(sessionResource.toString()),
 		}));
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-				override async sendNewChatRequest(session: ISession, request: { query: string; attachedContext?: IChatRequestVariableEntry[]; title?: string }): Promise<void> {
-					sentRequests.push(request);
+			override async sendNewChatRequest(session: ISession, request: { query: string; attachedContext?: IChatRequestVariableEntry[]; title?: string }): Promise<void> {
+				sentRequests.push(request);
 				calls.push({
 					send: {
 						session: session.resource.toString(),
@@ -369,9 +381,9 @@ suite('Sessions Issue Wizard Contribution', () => {
 						title: request.title,
 					},
 				});
-					if (sendErrorIndex < sendErrors.length) {
-						const error = sendErrors[sendErrorIndex++];
-						throw error;
+				if (sendErrorIndex < sendErrors.length) {
+					const error = sendErrors[sendErrorIndex++];
+					throw error;
 				}
 			}
 		}());
@@ -427,7 +439,12 @@ suite('Sessions Issue Wizard Contribution', () => {
 
 			override async launchInTarget(target: IIssueWizardLaunchTarget, options?: IIssueWizardLaunchOptions): Promise<void> {
 				calls.push({ launch: options });
-				const session = await target.createSession({ sessionType: 'agent-host-codex', displayName: 'Issue Wizard', modelId: 'agent-host-codex:gpt-6-astra' });
+				const session = await target.createSession({
+					sessionType: 'agent-host-codex',
+					displayName: 'Issue Wizard',
+					modelId: 'agent-host-codex:gpt-6-astra',
+					initialSessionConfig,
+				});
 				if (!session) {
 					calls.push({ sessionUnavailable: true });
 					return;
@@ -451,6 +468,7 @@ suite('Sessions Issue Wizard Contribution', () => {
 
 		return {
 			calls,
+			initialSessionConfigs,
 			modelSelections,
 			screenshotTargets,
 			sentRequests,

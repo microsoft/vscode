@@ -280,6 +280,15 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		assert.strictEqual(opts.plugins, undefined);
 	});
 
+	test('merges session-denied tools into the SDK disallow list', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			disallowedTools: ['AskUserQuestion', 'WebSearch'],
+		}, proxyTransport, () => { });
+
+		assert.deepStrictEqual(opts.disallowedTools, ['WebSearch', 'AskUserQuestion']);
+	});
+
 	test('projects denied workspace MCP servers into startup settings', async () => {
 		const opts = await buildOptions({
 			...input(undefined),

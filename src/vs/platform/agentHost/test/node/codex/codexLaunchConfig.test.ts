@@ -152,4 +152,26 @@ suite('CodexLaunchConfig', () => {
 			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': false },
 		});
 	});
+
+	test('resume preserves an explicit request-user-input disablement', () => {
+		assert.deepStrictEqual(buildCodexResumeParams(
+			{ modelProvider: 'vscode-proxy', modelId: 'copilot-model' },
+			'thread-a',
+			{},
+			undefined,
+			{},
+			undefined,
+			false,
+			{},
+			false,
+		), {
+			threadId: 'thread-a',
+			model: 'copilot-model',
+			modelProvider: 'vscode-proxy',
+			config: {
+				'features.default_mode_request_user_input': false,
+				'features.image_generation': false,
+			},
+		});
+	});
 });

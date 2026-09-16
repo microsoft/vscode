@@ -67,10 +67,11 @@ export function buildCodexResumeParams(
 	developerInstructions?: string,
 	imageGenerationEnabled = false,
 	permissionOverrides: Pick<ThreadResumeParams, 'approvalPolicy' | 'approvalsReviewer' | 'permissions'> = {},
+	requestUserInputEnabled = true,
 ): ThreadResumeParams {
 	const config = {
 		...configOverrides,
-		[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
+		[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: requestUserInputEnabled,
 		'features.image_generation': imageGenerationEnabled,
 		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
 	};
