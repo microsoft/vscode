@@ -77,7 +77,7 @@ suite('Session comparison navigation', () => {
 		return { service, comparisons, statuses, openedSessions, openedGrids, hiddenParts };
 	}
 
-	test('opens the Judge when it is available and synthesis is not running', async () => {
+	test('opens attempts in the grid when the Judge is available', async () => {
 		const fixture = setup();
 		await fixture.service.open('comparison');
 		assert.deepStrictEqual({
@@ -85,8 +85,8 @@ suite('Session comparison navigation', () => {
 			openedGrids: fixture.openedGrids,
 			hiddenParts: fixture.hiddenParts,
 		}, {
-			openedSessions: ['judge-2'],
-			openedGrids: [],
+			openedSessions: [],
+			openedGrids: [['attempt-0', 'attempt-1']],
 			hiddenParts: [
 				{ hidden: true, part: Parts.EDITOR_PART },
 				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
@@ -94,7 +94,7 @@ suite('Session comparison navigation', () => {
 		});
 	});
 
-	test('opens a running synthesis ahead of the Judge', async () => {
+	test('opens attempts in the grid when synthesis is running', async () => {
 		const fixture = setup();
 		fixture.statuses[3].set(SessionStatus.InProgress, undefined);
 		await fixture.service.open('comparison');
@@ -102,12 +102,12 @@ suite('Session comparison navigation', () => {
 			openedSessions: fixture.openedSessions,
 			openedGrids: fixture.openedGrids,
 		}, {
-			openedSessions: ['synthesis-3'],
-			openedGrids: [],
+			openedSessions: [],
+			openedGrids: [['attempt-0', 'attempt-1']],
 		});
 	});
 
-	test('opens available attempts in the grid before the Judge exists', async () => {
+	test('opens only available attempts in the grid', async () => {
 		const fixture = setup();
 		fixture.comparisons.set([{
 			...fixture.comparisons.get()[0],
@@ -134,7 +134,7 @@ suite('Session comparison navigation', () => {
 		});
 	});
 
-	test('reports when no participant session is available', async () => {
+	test('reports when no attempt session is available', async () => {
 		const fixture = setup();
 		fixture.comparisons.set([{
 			...fixture.comparisons.get()[0],
@@ -143,7 +143,7 @@ suite('Session comparison navigation', () => {
 				sessionResource: undefined,
 			})),
 		}], undefined);
-		await assert.rejects(() => fixture.service.open('comparison'), /No comparison sessions are available/);
+		await assert.rejects(() => fixture.service.open('comparison'), /No comparison attempts are available/);
 		assert.deepStrictEqual({
 			openedSessions: fixture.openedSessions,
 			openedGrids: fixture.openedGrids,

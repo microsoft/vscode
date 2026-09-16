@@ -19,11 +19,11 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ChatInteractivity, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
-import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
 
@@ -160,7 +160,7 @@ suite('SessionComparisonService', () => {
 				branch: undefined,
 				metadata: {
 					'agentHost/sessionComparison': {
-						id: comparison.id,
+						id: hashSessionIdForTelemetry(comparison.id),
 						role: 'judge',
 						attemptCount: 2,
 					},
@@ -174,128 +174,93 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
-	test('snapshots whole-turn usage before starting the Judge', async () => {
-		const { service, sessionsManagementService, chatService, storageService } = createServices();
+	test('reports compared models and the Judge recommendation once', async () => {
+		const { service, sessionsManagementService, storageService, chatService, telemetryService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
 		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
-		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
-		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus, {
+			createdAt: new Date(1_000),
+			updatedAt: new Date(96_000),
+		}));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus, {
+			createdAt: new Date(2_000),
+			updatedAt: new Date(122_000),
+		}));
 		sessionsManagementService.enqueue(stubSession('judge'));
 		chatService.setUsage(URI.parse('test-chat:/attempt-one'), [{
 			kind: 'usage',
 			promptTokens: 10,
 			completionTokens: 2,
-			modelTotals: [{ model: 'Claude', inputTokens: 30, cachedTokens: 12, outputTokens: 8 }],
+			modelTotals: [{ model: 'model-one', inputTokens: 30, cachedTokens: 12, outputTokens: 8 }],
 		}]);
-
-		const comparison = await service.startComparison(startOptions());
-		firstStatus.set(SessionStatus.Completed, undefined);
-		secondStatus.set(SessionStatus.Error, undefined);
-		sessionsManagementService.fireChange();
-		await timeout(0);
-
-		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
-		const expectedUsage = {
-			inputTokens: 30,
-			cachedTokens: 12,
-			outputTokens: 8,
-			models: [{ model: 'Claude', inputTokens: 30, cachedTokens: 12, outputTokens: 8 }],
-			isComplete: true,
-		};
-		assert.deepStrictEqual({
-			live: service.getComparison(comparison.id)?.participants.find(participant => participant.id === 'attempt-one')?.usage,
-			stored: stored[0].participants.find((participant: { id: string }) => participant.id === 'attempt-one')?.usage,
-		}, {
-			live: expectedUsage,
-			stored: expectedUsage,
-		});
-	});
-
-	test('reports terminal usage, Judge outcomes, and the winning harness once', async () => {
-		const { service, sessionsManagementService, chatService, telemetryService } = createServices();
-		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
-		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
-		const judgeStatus = observableValue('judgeStatus', SessionStatus.InProgress);
-		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
-		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
-		sessionsManagementService.enqueue(stubSession('judge', judgeStatus));
-		chatService.setUsage(URI.parse('test-chat:/attempt-one'), [{
-			kind: 'usage',
-			promptTokens: 10,
-			completionTokens: 2,
-			modelTotals: [{ model: 'Claude', inputTokens: 30, cachedTokens: 12, outputTokens: 8 }],
-		}]);
-		chatService.setUsage(URI.parse('test-chat:/judge'), [{
+		chatService.setUsage(URI.parse('test-chat:/attempt-two'), [{
 			kind: 'usage',
 			promptTokens: 20,
 			completionTokens: 5,
-			modelTotals: [{ model: 'judge-model', inputTokens: 40, cachedTokens: 4, outputTokens: 9 }],
 		}]);
 
 		const comparison = await service.startComparison(startOptions());
 		firstStatus.set(SessionStatus.Completed, undefined);
-		secondStatus.set(SessionStatus.Error, undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
 		await timeout(0);
 		const comparisonVerdict = verdict('attempt-two', ['attempt-one', 'attempt-two']);
 		service.submitVerdict(comparison.id, comparisonVerdict);
 		assert.throws(() => service.submitVerdict(comparison.id, comparisonVerdict), /already been submitted/);
-		judgeStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
 
-		const attemptEvents = telemetryService.events.filter(event => event.name !== 'agents/sessionComparisonStageCompleted');
-		const judgeTelemetry = telemetryService.events.find(event => event.data.stage === 'judge')?.data;
+		const completionEvents = telemetryService.events.filter(event => event.name === 'agents/sessionComparisonAttemptCompleted');
+		const outcomeEvents = telemetryService.events.filter(event => event.name === 'agents/sessionComparisonModelOutcome');
+		const storedComparisons = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]') as Array<{
+			participants: Array<{ role: SessionComparisonParticipantRole; completion?: { elapsedMs: number; tokenCount?: number } }>;
+		}>;
 		assert.deepStrictEqual({
-			attemptEvents: attemptEvents.map(event => ({
-				name: event.name,
-				agentSessionId: event.data.agentSessionId,
+			completions: completionEvents.map(event => ({
 				attemptIndex: event.data.attemptIndex,
+				elapsedMs: event.data.elapsedMs,
+			})),
+			outcomes: outcomeEvents.map(event => ({
+				attemptIndex: event.data.attemptIndex,
+				attemptCount: event.data.attemptCount,
 				providerId: event.data.providerId,
 				agentId: event.data.agentId,
 				modelId: event.data.modelId,
-				status: event.data.status,
 				recommended: event.data.recommended,
-				inputTokenCount: event.data.inputTokenCount,
+				judgeProviderId: event.data.judgeProviderId,
+				judgeAgentId: event.data.judgeAgentId,
+				judgeModelId: event.data.judgeModelId,
 			})),
-			judge: judgeTelemetry && {
-				hasComparisonId: typeof judgeTelemetry.comparisonId === 'string',
-				agentSessionId: judgeTelemetry.agentSessionId,
-				stage: judgeTelemetry.stage,
-				providerId: judgeTelemetry.providerId,
-				agentId: judgeTelemetry.agentId,
-				modelId: judgeTelemetry.modelId,
-				status: judgeTelemetry.status,
-				inputTokenCount: judgeTelemetry.inputTokenCount,
-				cachedInputTokenCount: judgeTelemetry.cachedInputTokenCount,
-				outputTokenCount: judgeTelemetry.outputTokenCount,
-				usageCompleteness: judgeTelemetry.usageCompleteness,
-				winningProviderId: judgeTelemetry.winningProviderId,
-				winningAgentId: judgeTelemetry.winningAgentId,
-				winningModelId: judgeTelemetry.winningModelId,
-			},
+			joinKeysMatch: completionEvents.every(completion => outcomeEvents.some(outcome =>
+				outcome.data.comparisonId === completion.data.comparisonId
+				&& outcome.data.attemptIndex === completion.data.attemptIndex)),
+			completionMetrics: service.getComparison(comparison.id)?.participants
+				.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt)
+				.map(participant => participant.completion),
+			storedCompletionMetrics: storedComparisons[0].participants
+				.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt)
+				.map(participant => participant.completion),
+			eventCount: telemetryService.events.length,
+			persistedCompletionCount: JSON.parse(storageService.get('sessions.comparisonAttemptTelemetry', StorageScope.PROFILE) ?? '[]').length,
 		}, {
-			attemptEvents: [
-				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, providerId: 'other', agentId: 'type-one', modelId: 'model-one', status: 'completed', recommended: undefined, inputTokenCount: 30 },
-				{ name: 'agents/sessionComparisonAttemptCompleted', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, providerId: 'other', agentId: 'type-two', modelId: 'model-two', status: 'error', recommended: undefined, inputTokenCount: undefined },
-				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-one'), attemptIndex: 0, providerId: 'other', agentId: 'type-one', modelId: 'model-one', status: undefined, recommended: false, inputTokenCount: undefined },
-				{ name: 'agents/sessionComparisonAttemptJudged', agentSessionId: hashSessionIdForTelemetry('attempt-two'), attemptIndex: 1, providerId: 'other', agentId: 'type-two', modelId: 'model-two', status: undefined, recommended: true, inputTokenCount: undefined },
+			completions: [
+				{ attemptIndex: 0, elapsedMs: 95_000 },
+				{ attemptIndex: 1, elapsedMs: 120_000 },
 			],
-			judge: {
-				hasComparisonId: true,
-				agentSessionId: hashSessionIdForTelemetry('judge'),
-				stage: 'judge',
-				providerId: 'other',
-				agentId: 'judge-type',
-				modelId: 'judge-model',
-				status: 'completed',
-				inputTokenCount: 40,
-				cachedInputTokenCount: 4,
-				outputTokenCount: 9,
-				usageCompleteness: 'complete',
-				winningProviderId: 'other',
-				winningAgentId: 'type-two',
-				winningModelId: 'model-two',
-			},
+			outcomes: [
+				{ attemptIndex: 0, attemptCount: 2, providerId: 'other', agentId: 'type-one', modelId: 'model-one', recommended: false, judgeProviderId: 'other', judgeAgentId: 'judge-type', judgeModelId: 'judge-model' },
+				{ attemptIndex: 1, attemptCount: 2, providerId: 'other', agentId: 'type-two', modelId: 'model-two', recommended: true, judgeProviderId: 'other', judgeAgentId: 'judge-type', judgeModelId: 'judge-model' },
+			],
+			joinKeysMatch: true,
+			completionMetrics: [
+				{ elapsedMs: 95_000, tokenCount: 38 },
+				{ elapsedMs: 120_000, tokenCount: 25 },
+			],
+			storedCompletionMetrics: [
+				{ elapsedMs: 95_000, tokenCount: 38 },
+				{ elapsedMs: 120_000, tokenCount: 25 },
+			],
+			eventCount: 4,
+			persistedCompletionCount: 2,
 		});
 	});
 
@@ -318,14 +283,14 @@ suite('SessionComparisonService', () => {
 				sessionTypeId: 'type-one',
 				modelId: 'model-one',
 				permissionLevel: 'allowedTools',
-				comparison: { id: service.comparisons.get()[0].id, role: 'attempt', attemptIndex: 0, attemptCount: 2 },
+				comparison: { id: hashSessionIdForTelemetry(service.comparisons.get()[0].id), role: 'attempt', attemptIndex: 0, attemptCount: 2 },
 			},
 			{
 				providerId: 'provider-two',
 				sessionTypeId: 'type-two',
 				modelId: 'model-two',
 				permissionLevel: 'allowedTools',
-				comparison: { id: service.comparisons.get()[0].id, role: 'attempt', attemptIndex: 1, attemptCount: 2 },
+				comparison: { id: hashSessionIdForTelemetry(service.comparisons.get()[0].id), role: 'attempt', attemptIndex: 1, attemptCount: 2 },
 			},
 		]);
 	});
@@ -632,17 +597,11 @@ suite('SessionComparisonService', () => {
 	});
 
 	test('synthesizes only after an explicit request with the configured harness', async () => {
-		const { service, sessionsManagementService, chatService, telemetryService } = createServices();
+		const { service, sessionsManagementService } = createServices();
 		const synthesisStatus = observableValue('synthesisStatus', SessionStatus.InProgress);
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
 		sessionsManagementService.enqueue(stubSession('synthesis', synthesisStatus));
-		chatService.setUsage(URI.parse('test-chat:/synthesis'), [{
-			kind: 'usage',
-			promptTokens: 30,
-			completionTokens: 10,
-			modelTotals: [{ model: 'synthesis-model', inputTokens: 55, cachedTokens: 5, outputTokens: 13 }],
-		}]);
 
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
@@ -670,9 +629,7 @@ suite('SessionComparisonService', () => {
 		await service.synthesize(comparison.id);
 		synthesisStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
-
 		const current = service.getComparison(comparison.id);
-		const synthesisTelemetry = telemetryService.events.find(event => event.data.stage === 'synthesis')?.data;
 		assert.deepStrictEqual({
 			synthesisResource: current?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis)?.sessionResource?.toString(),
 			providerId: sessionsManagementService.createCalls[2].createOptions?.providerId,
@@ -680,19 +637,6 @@ suite('SessionComparisonService', () => {
 			modelId: sessionsManagementService.createCalls[2].createOptions?.modelId,
 			prompt: sessionsManagementService.createCalls[2].options.query,
 			plan: current?.synthesisPlan,
-			telemetry: synthesisTelemetry && {
-				hasComparisonId: typeof synthesisTelemetry.comparisonId === 'string',
-				agentSessionId: synthesisTelemetry.agentSessionId,
-				stage: synthesisTelemetry.stage,
-				providerId: synthesisTelemetry.providerId,
-				agentId: synthesisTelemetry.agentId,
-				modelId: synthesisTelemetry.modelId,
-				status: synthesisTelemetry.status,
-				inputTokenCount: synthesisTelemetry.inputTokenCount,
-				cachedInputTokenCount: synthesisTelemetry.cachedInputTokenCount,
-				outputTokenCount: synthesisTelemetry.outputTokenCount,
-				usageCompleteness: synthesisTelemetry.usageCompleteness,
-			},
 		}, {
 			synthesisResource: 'test:/synthesis',
 			providerId: 'synthesis-provider',
@@ -701,19 +645,6 @@ suite('SessionComparisonService', () => {
 			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Treat \`synthesisPlan.instructions\` as explicit user requirements when present. Treat every selected synthesis-plan section as an explicit user requirement and resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nSolution: Implements the requested behavior.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nComparison: The other attempt leaves the failure unresolved.`,
 			plan: {
 				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
-			},
-			telemetry: {
-				hasComparisonId: true,
-				agentSessionId: hashSessionIdForTelemetry('synthesis'),
-				stage: 'synthesis',
-				providerId: 'other',
-				agentId: 'synthesis-type',
-				modelId: 'synthesis-model',
-				status: 'completed',
-				inputTokenCount: 55,
-				cachedInputTokenCount: 5,
-				outputTokenCount: 13,
-				usageCompleteness: 'complete',
 			},
 		});
 	});
@@ -882,12 +813,12 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 	}
 }
 
-function stubSession(sessionId: string, status = observableValue(`${sessionId}Status`, SessionStatus.InProgress)): ISession {
+function stubSession(sessionId: string, status = observableValue(`${sessionId}Status`, SessionStatus.InProgress), timing?: { readonly createdAt: Date; readonly updatedAt: Date }): ISession {
 	const chat = {
 		resource: URI.parse(`test-chat:/${sessionId}`),
-		createdAt: new Date(),
+		createdAt: timing?.createdAt ?? new Date(),
 		title: constObservable(sessionId),
-		updatedAt: constObservable(new Date()),
+		updatedAt: constObservable(timing?.updatedAt ?? new Date()),
 		status,
 		changes: constObservable([]),
 		checkpoints: constObservable(undefined),
@@ -906,10 +837,10 @@ function stubSession(sessionId: string, status = observableValue(`${sessionId}St
 		providerId: 'provider',
 		sessionType: 'type',
 		icon: Codicon.vm,
-		createdAt: new Date(),
+		createdAt: timing?.createdAt ?? new Date(),
 		workspace: constObservable(undefined),
 		title: constObservable(sessionId),
-		updatedAt: constObservable(new Date()),
+		updatedAt: constObservable(timing?.updatedAt ?? new Date()),
 		status,
 		changesets: constObservable([]),
 		changes: constObservable([]),

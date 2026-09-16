@@ -19,12 +19,12 @@ import { withSessionComparisonMetadata } from '../../../../platform/agentHost/co
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { aggregateChatUsage, IChatUsageSummary } from '../../../../workbench/contrib/chat/common/chatUsage.js';
+import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
-import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonAttemptJudged, logSessionComparisonStageCompleted } from '../../../common/sessionsTelemetry.js';
+import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
 	readonly sessionResource?: string;
@@ -46,18 +46,14 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly STORAGE_KEY = 'sessions.comparisons';
-	private static readonly TELEMETRY_STORAGE_KEY = 'sessions.comparisonTelemetry';
-
+	private static readonly ATTEMPT_TELEMETRY_STORAGE_KEY = 'sessions.comparisonAttemptTelemetry';
 	private readonly _comparisons = observableValue<readonly ISessionComparison[]>(this, []);
 	readonly comparisons = this._comparisons;
 	private readonly _judgeStarting = new Set<string>();
 	private readonly _synthesisStarting = new Set<string>();
 	private readonly _migratingAttemptTitles = new Set<string>();
 	private readonly _migratedAttemptTitles = new Set<string>();
-	private readonly _reportedExecutionTelemetry = new Set<string>();
-	private readonly _reportedOutcomeTelemetry = new Set<string>();
-	private readonly _reportedStageTelemetry = new Set<string>();
-
+	private readonly _reportedAttemptTelemetry = new Set<string>();
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionGroupsService private readonly sessionGroupsService: ISessionGroupsService,
@@ -67,7 +63,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-		this._loadTelemetryState();
+		this._loadAttemptTelemetryState();
 		const comparisons = this._load();
 		this._comparisons.set(comparisons, undefined);
 		this._removeComparisonsWithMissingGroups();
@@ -279,7 +275,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				isolationMode: 'worktree',
 				branch: comparison.branch,
 				metadata: withSessionComparisonMetadata(undefined, {
-					id: comparison.id,
+					id: hashSessionIdForTelemetry(comparison.id),
 					role: 'synthesis',
 					attemptCount: comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt).length,
 				}),
@@ -315,7 +311,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			isolationMode: 'worktree',
 			branch: options.branch,
 			metadata: withSessionComparisonMetadata(undefined, {
-				id: comparisonId,
+				id: hashSessionIdForTelemetry(comparisonId),
 				role: 'attempt',
 				attemptIndex,
 				attemptCount: options.attempts.length,
@@ -348,9 +344,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _checkComparison(comparison: ISessionComparison): void {
-		comparison = this._snapshotTerminalParticipantUsage(comparison);
-		this._reportTerminalAttemptTelemetry(comparison);
-		this._reportStageTelemetry(comparison);
+		comparison = this._captureTerminalAttemptMetrics(comparison);
 		if (this._judgeStarting.has(comparison.id)
 			|| comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Judge)) {
 			return;
@@ -390,149 +384,79 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}).finally(() => this._judgeStarting.delete(comparison.id));
 	}
 
-	private _snapshotTerminalParticipantUsage(comparison: ISessionComparison): ISessionComparison {
-		let changed = false;
-		const participants = comparison.participants.map(participant => {
-			if (participant.role === SessionComparisonParticipantRole.Coordinator || participant.usage || !participant.sessionResource) {
-				return participant;
+	private _captureTerminalAttemptMetrics(comparison: ISessionComparison): ISessionComparison {
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource);
+		let comparisonChanged = false;
+		let telemetryChanged = false;
+		const completions = new Map<string, ISessionComparisonParticipant['completion']>();
+		for (const [attemptIndex, participant] of attempts.entries()) {
+			if (!participant.sessionResource) {
+				continue;
 			}
 			const session = this.sessionsManagementService.getSession(participant.sessionResource);
 			const status = session?.status.get();
 			if (!session || (status !== SessionStatus.Completed && status !== SessionStatus.Error)) {
-				return participant;
-			}
-			const usage = this._getSessionUsage(session.mainChat.get().resource);
-			if (!usage) {
-				return participant;
-			}
-			changed = true;
-			return { ...participant, usage };
-		});
-		if (!changed) {
-			return comparison;
-		}
-		const updated = { ...comparison, participants };
-		this._replaceComparison(updated);
-		return updated;
-	}
-
-	private _getSessionUsage(chatResource: URI): IChatUsageSummary | undefined {
-		const model = this.chatService.getSession(chatResource);
-		return aggregateChatUsage(model?.getRequests().map(request => request.response?.usage) ?? []);
-	}
-
-	private _reportTerminalAttemptTelemetry(comparison: ISessionComparison): void {
-		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		let changed = false;
-		for (const [attemptIndex, participant] of attempts.entries()) {
-			const key = `${comparison.id}/${participant.id}`;
-			if (this._reportedExecutionTelemetry.has(key)) {
 				continue;
 			}
-			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
-			const status = session?.status.get();
-			if (!participant.launchError && status !== SessionStatus.Completed && status !== SessionStatus.Error) {
+			const usage = participant.completion ? undefined : aggregateChatUsage(this.chatService.getSession(session.mainChat.get().resource)?.getRequests().map(request => request.response?.usage) ?? []);
+			const completion = participant.completion ?? {
+				elapsedMs: Math.max(0, session.updatedAt.get().getTime() - session.createdAt.getTime()),
+				tokenCount: usage ? usage.inputTokens + usage.outputTokens : undefined,
+			};
+			completions.set(participant.id, completion);
+			if (!participant.completion) {
+				comparisonChanged = true;
+			}
+			const key = `${comparison.id}/${participant.id}`;
+			if (this._reportedAttemptTelemetry.has(key)) {
 				continue;
 			}
 			logSessionComparisonAttemptCompleted(this.telemetryService, {
 				comparisonId: hashSessionIdForTelemetry(comparison.id),
-				agentSessionId: session ? hashSessionIdForTelemetry(session.sessionId) : undefined,
 				attemptIndex,
-				attemptCount: attempts.length,
-				providerId: getSessionsTelemetryProviderId(participant.harness.providerId),
-				agentId: participant.harness.sessionTypeId,
-				modelId: session?.modelId.get() ?? participant.harness.modelId,
-				status: participant.launchError ? 'launchError' : status === SessionStatus.Completed ? 'completed' : 'error',
-				elapsedMs: session ? Math.max(0, session.updatedAt.get().getTime() - session.createdAt.getTime()) : undefined,
-				inputTokenCount: participant.usage?.inputTokens,
-				cachedInputTokenCount: participant.usage?.cachedTokens,
-				outputTokenCount: participant.usage?.outputTokens,
-				usageCompleteness: participant.usage ? participant.usage.isComplete ? 'complete' : 'partial' : 'unavailable',
+				elapsedMs: completion.elapsedMs,
 			});
-			this._reportedExecutionTelemetry.add(key);
-			changed = true;
+			this._reportedAttemptTelemetry.add(key);
+			telemetryChanged = true;
 		}
-		if (changed) {
-			this._saveTelemetryState();
+		if (telemetryChanged) {
+			this._saveAttemptTelemetryState();
 		}
+		if (!comparisonChanged) {
+			return comparison;
+		}
+		const updated = {
+			...comparison,
+			participants: comparison.participants.map(participant => {
+				const completion = completions.get(participant.id);
+				return completion && !participant.completion ? { ...participant, completion } : participant;
+			}),
+		};
+		this._replaceComparison(updated);
+		return updated;
 	}
 
 	private _reportOutcomeTelemetry(comparison: ISessionComparison, verdict: ISessionComparisonVerdict): void {
-		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		let changed = false;
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource);
+		const judge = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
+		if (!judge) {
+			return;
+		}
+		const judgeSession = judge.sessionResource ? this.sessionsManagementService.getSession(judge.sessionResource) : undefined;
 		for (const [attemptIndex, participant] of attempts.entries()) {
-			const attemptVerdict = verdict.attempts.find(candidate => candidate.participantId === participant.id);
-			const key = `${comparison.id}/${participant.id}`;
-			if (!attemptVerdict || this._reportedOutcomeTelemetry.has(key)) {
-				continue;
-			}
 			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
-			logSessionComparisonAttemptJudged(this.telemetryService, {
+			logSessionComparisonModelOutcome(this.telemetryService, {
 				comparisonId: hashSessionIdForTelemetry(comparison.id),
-				agentSessionId: session ? hashSessionIdForTelemetry(session.sessionId) : undefined,
 				attemptIndex,
 				attemptCount: attempts.length,
 				providerId: getSessionsTelemetryProviderId(participant.harness.providerId),
 				agentId: participant.harness.sessionTypeId,
 				modelId: session?.modelId.get() ?? participant.harness.modelId,
 				recommended: verdict.recommendedParticipantId === participant.id,
-				tests: attemptVerdict.validation.tests,
-				build: attemptVerdict.validation.build,
-				lint: attemptVerdict.validation.lint,
-				diagnostics: attemptVerdict.validation.diagnostics,
+				judgeProviderId: getSessionsTelemetryProviderId(judge.harness.providerId),
+				judgeAgentId: judge.harness.sessionTypeId,
+				judgeModelId: judgeSession?.modelId.get() ?? judge.harness.modelId,
 			});
-			this._reportedOutcomeTelemetry.add(key);
-			changed = true;
-		}
-		if (changed) {
-			this._saveTelemetryState();
-		}
-	}
-
-	private _reportStageTelemetry(comparison: ISessionComparison): void {
-		let changed = false;
-		for (const participant of comparison.participants) {
-			if (participant.role !== SessionComparisonParticipantRole.Judge && participant.role !== SessionComparisonParticipantRole.Synthesis) {
-				continue;
-			}
-			const key = `${comparison.id}/${participant.role}`;
-			if (this._reportedStageTelemetry.has(key)) {
-				continue;
-			}
-			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
-			const status = session?.status.get();
-			if (!participant.launchError && status !== SessionStatus.Completed && status !== SessionStatus.Error) {
-				continue;
-			}
-			if (participant.role === SessionComparisonParticipantRole.Judge && status === SessionStatus.Completed && !comparison.verdict) {
-				continue;
-			}
-			const winner = participant.role === SessionComparisonParticipantRole.Judge
-				? comparison.participants.find(candidate => candidate.id === comparison.verdict?.recommendedParticipantId)
-				: undefined;
-			const winnerSession = winner?.sessionResource ? this.sessionsManagementService.getSession(winner.sessionResource) : undefined;
-			logSessionComparisonStageCompleted(this.telemetryService, {
-				comparisonId: hashSessionIdForTelemetry(comparison.id),
-				agentSessionId: session ? hashSessionIdForTelemetry(session.sessionId) : undefined,
-				stage: participant.role,
-				providerId: getSessionsTelemetryProviderId(participant.harness.providerId),
-				agentId: participant.harness.sessionTypeId,
-				modelId: session?.modelId.get() ?? participant.harness.modelId,
-				status: participant.launchError ? 'launchError' : status === SessionStatus.Completed ? 'completed' : 'error',
-				elapsedMs: session ? Math.max(0, session.updatedAt.get().getTime() - session.createdAt.getTime()) : undefined,
-				inputTokenCount: participant.usage?.inputTokens,
-				cachedInputTokenCount: participant.usage?.cachedTokens,
-				outputTokenCount: participant.usage?.outputTokens,
-				usageCompleteness: participant.usage ? participant.usage.isComplete ? 'complete' : 'partial' : 'unavailable',
-				winningProviderId: winner ? getSessionsTelemetryProviderId(winner.harness.providerId) : undefined,
-				winningAgentId: winner?.harness.sessionTypeId,
-				winningModelId: winnerSession?.modelId.get() ?? winner?.harness.modelId,
-			});
-			this._reportedStageTelemetry.add(key);
-			changed = true;
-		}
-		if (changed) {
-			this._saveTelemetryState();
 		}
 	}
 
@@ -556,7 +480,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			isolationMode: 'worktree',
 			branch: comparison.branch,
 			metadata: withSessionComparisonMetadata(undefined, {
-				id: comparison.id,
+				id: hashSessionIdForTelemetry(comparison.id),
 				role: 'judge',
 				attemptCount: comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt).length,
 			}),
@@ -704,34 +628,30 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this.storageService.store(SessionComparisonService.STORAGE_KEY, stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
-	private _loadTelemetryState(): void {
-		const raw = this.storageService.get(SessionComparisonService.TELEMETRY_STORAGE_KEY, StorageScope.PROFILE);
+	private _loadAttemptTelemetryState(): void {
+		const raw = this.storageService.get(SessionComparisonService.ATTEMPT_TELEMETRY_STORAGE_KEY, StorageScope.PROFILE);
 		if (!raw) {
 			return;
 		}
 		try {
-			const stored = JSON.parse(raw) as { readonly execution?: readonly string[]; readonly outcome?: readonly string[]; readonly stage?: readonly string[] };
-			for (const key of stored.execution ?? []) {
-				this._reportedExecutionTelemetry.add(key);
-			}
-			for (const key of stored.outcome ?? []) {
-				this._reportedOutcomeTelemetry.add(key);
-			}
-			for (const key of stored.stage ?? []) {
-				this._reportedStageTelemetry.add(key);
+			const keys = JSON.parse(raw) as readonly string[];
+			for (const key of keys) {
+				this._reportedAttemptTelemetry.add(key);
 			}
 		} catch (error) {
-			this.logService.error('[SessionComparisonService] Failed to restore comparison telemetry state.', error);
+			this.logService.error('[SessionComparisonService] Failed to restore comparison attempt telemetry state.', error);
 		}
 	}
 
-	private _saveTelemetryState(): void {
-		this.storageService.store(SessionComparisonService.TELEMETRY_STORAGE_KEY, JSON.stringify({
-			execution: [...this._reportedExecutionTelemetry],
-			outcome: [...this._reportedOutcomeTelemetry],
-			stage: [...this._reportedStageTelemetry],
-		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+	private _saveAttemptTelemetryState(): void {
+		this.storageService.store(
+			SessionComparisonService.ATTEMPT_TELEMETRY_STORAGE_KEY,
+			JSON.stringify([...this._reportedAttemptTelemetry]),
+			StorageScope.PROFILE,
+			StorageTarget.MACHINE,
+		);
 	}
+
 }
 
 function snapshotAttachedContext(attachedContext: readonly IChatRequestVariableEntry[]): readonly IChatRequestVariableEntry[] {

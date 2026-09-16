@@ -503,13 +503,6 @@ function stubComparison(): ISessionComparison {
 			role: SessionComparisonParticipantRole.Attempt,
 			harness: { providerId: 'provider', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: 'Claude' },
 			sessionResource: attemptResource,
-			usage: {
-				inputTokens: 30,
-				cachedTokens: 12,
-				outputTokens: 8,
-				models: [{ model: 'Claude', inputTokens: 30, cachedTokens: 12, outputTokens: 8 }],
-				isComplete: true,
-			},
 		}, {
 			id: 'judge',
 			role: SessionComparisonParticipantRole.Judge,

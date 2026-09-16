@@ -7,7 +7,6 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -33,27 +32,20 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 		if (!comparison) {
 			throw new Error(localize('sessionComparison.missing', "This comparison is no longer available."));
 		}
-		const availableParticipants = getSessionComparisonParticipantsInDisplayOrder(comparison.participants).flatMap(participant => {
+		const availableAttempts = getSessionComparisonParticipantsInDisplayOrder(comparison.participants).flatMap(participant => {
+			if (participant.role !== SessionComparisonParticipantRole.Attempt) {
+				return [];
+			}
 			if (!participant.sessionResource) {
 				return [];
 			}
 			const session = this.managementService.getSession(participant.sessionResource);
-			return session ? [{ participant, session }] : [];
+			return session ? [session] : [];
 		});
-		if (!availableParticipants.length) {
-			throw new Error(localize('sessionComparison.noParticipants', "No comparison sessions are available to open."));
+		if (!availableAttempts.length) {
+			throw new Error(localize('sessionComparison.noAttempts', "No comparison attempts are available to open."));
 		}
-		const synthesis = availableParticipants.find(({ participant, session }) =>
-			participant.role === SessionComparisonParticipantRole.Synthesis && isActiveSessionStatus(session.status.get()));
-		const judge = availableParticipants.find(({ participant }) => participant.role === SessionComparisonParticipantRole.Judge);
-		const latest = synthesis ?? judge;
-		if (latest) {
-			await this.sessionsService.openSession(latest.session.resource, { source: 'chat' });
-		} else {
-			await this.sessionsService.openSessionsInGrid(availableParticipants
-				.filter(({ participant }) => participant.role === SessionComparisonParticipantRole.Attempt)
-				.map(({ session }) => session));
-		}
+		await this.sessionsService.openSessionsInGrid(availableAttempts);
 		this.layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}

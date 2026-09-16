@@ -9,7 +9,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatUsageSummary } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { getReasoningEffortLabel, isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 
 export const enum SessionComparisonParticipantRole {
@@ -56,7 +55,10 @@ export interface ISessionComparisonParticipant {
 	readonly harness: ISessionComparisonHarness;
 	readonly sessionResource?: URI;
 	readonly launchError?: string;
-	readonly usage?: IChatUsageSummary;
+	readonly completion?: {
+		readonly elapsedMs: number;
+		readonly tokenCount?: number;
+	};
 }
 
 export interface ISessionComparisonAttemptVerdict {

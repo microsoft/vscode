@@ -83,6 +83,46 @@
 	width: 30%;
 }
 
+.session-comparison-result-metrics {
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.session-comparison-result-metrics-summary {
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-result-metrics-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.session-comparison-result-metrics-description {
+	margin: var(--vscode-spacing-size80) 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.session-comparison-result-metrics-scroll {
+	overflow: auto;
+	overscroll-behavior: contain;
+}
+
+.session-comparison-result-metrics-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.session-comparison-result-metrics-table th,
+.session-comparison-result-metrics-table td {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	text-align: left;
+	white-space: nowrap;
+}
+
 .session-comparison-result-actions {
 	display: flex;
 	flex-wrap: wrap;

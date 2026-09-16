@@ -128,6 +128,8 @@ export class SessionComparisonResult extends Disposable {
 			}
 		}
 
+		this.renderAttemptMetrics(attempts);
+
 		const actions = dom.append(this.domNode, dom.$('.session-comparison-result-actions'));
 		actions.setAttribute('role', 'group');
 		actions.setAttribute('aria-label', localize('sessionComparisonResult.actionsAriaLabel', "Comparison result actions"));
@@ -203,6 +205,46 @@ export class SessionComparisonResult extends Disposable {
 		}
 		if (wasHidden) {
 			this.onDidChangeLayout();
+		}
+	}
+
+	private renderAttemptMetrics(attempts: readonly ISessionComparisonParticipant[]): void {
+		const details = dom.append(this.domNode, dom.$('details.session-comparison-result-metrics'));
+		const summary = dom.append(details, dom.$('summary.session-comparison-result-metrics-summary'));
+		summary.id = `session-comparison-metrics-${generateUuid()}`;
+		summary.textContent = localize('sessionComparisonResult.attemptMetrics', "Attempt time and token usage");
+		this.renderStore.add(dom.addDisposableListener(details, 'toggle', () => this.onDidChangeLayout()));
+
+		const description = dom.append(details, dom.$('p.session-comparison-result-metrics-description'));
+		description.textContent = localize('sessionComparisonResult.attemptMetricsDescription', "Time runs from session creation through the terminal first turn. Total tokens are provider-reported input plus output tokens.");
+
+		const scrollContainer = dom.append(details, dom.$('.session-comparison-result-metrics-scroll'));
+		const table = dom.append(scrollContainer, dom.$('table.session-comparison-result-metrics-table'));
+		table.setAttribute('aria-labelledby', summary.id);
+		const head = dom.append(table, dom.$('thead'));
+		const headerRow = dom.append(head, dom.$('tr'));
+		for (const label of [
+			localize('sessionComparisonResult.attempt', "Attempt"),
+			localize('sessionComparisonResult.totalTime', "Total time"),
+			localize('sessionComparisonResult.totalTokens', "Total tokens"),
+		]) {
+			const header = dom.append(headerRow, dom.$('th'));
+			header.setAttribute('scope', 'col');
+			header.textContent = label;
+		}
+
+		const body = dom.append(table, dom.$('tbody'));
+		for (const attempt of attempts) {
+			const row = dom.append(body, dom.$('tr'));
+			const attemptHeader = dom.append(row, dom.$('th'));
+			attemptHeader.setAttribute('scope', 'row');
+			attemptHeader.textContent = getSessionComparisonHarnessLabel(attempt);
+			dom.append(row, dom.$('td')).textContent = attempt.completion
+				? formatElapsedTime(attempt.completion.elapsedMs)
+				: localize('sessionComparisonResult.unavailable', "Unavailable");
+			dom.append(row, dom.$('td')).textContent = attempt.completion?.tokenCount === undefined
+				? localize('sessionComparisonResult.unavailable', "Unavailable")
+				: attempt.completion.tokenCount.toLocaleString();
 		}
 	}
 
@@ -491,6 +533,18 @@ export class SessionComparisonResult extends Disposable {
 		}
 	}
 
+}
+
+function formatElapsedTime(elapsedMs: number): string {
+	const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+	if (totalSeconds < 60) {
+		return localize('sessionComparisonResult.seconds', "{0}s", totalSeconds);
+	}
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	return seconds === 0
+		? localize('sessionComparisonResult.minutes', "{0}m", minutes)
+		: localize('sessionComparisonResult.minutesSeconds', "{0}m {1}s", minutes, seconds);
 }
 
 function getAssessmentLabel(assessment: SessionComparisonDecisionAssessment): string {

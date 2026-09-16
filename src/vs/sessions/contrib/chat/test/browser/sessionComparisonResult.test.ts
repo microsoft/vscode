@@ -41,11 +41,13 @@ suite('Sessions - Comparison Result', () => {
 				role: SessionComparisonParticipantRole.Attempt,
 				sessionResource: attempt1Resource,
 				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Claude' },
+				completion: { elapsedMs: 95_000, tokenCount: 38 },
 			}, {
 				id: 'attempt-2',
 				role: SessionComparisonParticipantRole.Attempt,
 				sessionResource: attempt2Resource,
 				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Codex' },
+				completion: { elapsedMs: 120_000, tokenCount: 25 },
 			}, {
 				id: 'judge',
 				role: SessionComparisonParticipantRole.Judge,
@@ -189,6 +191,8 @@ suite('Sessions - Comparison Result', () => {
 		const synthesisPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan');
 		const decisionTable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table');
 		const rationaleList = result.domNode.querySelector<HTMLElement>('.session-comparison-result-rationale');
+		const metricsDetails = result.domNode.querySelector<HTMLDetailsElement>('.session-comparison-result-metrics');
+		const metricsTable = result.domNode.querySelector<HTMLTableElement>('.session-comparison-result-metrics-table');
 		const panelHiddenBefore = synthesisPanel?.hidden;
 		const instructionsHiddenBefore = instructionsPanel?.hidden;
 		const accessibility = {
@@ -214,6 +218,11 @@ suite('Sessions - Comparison Result', () => {
 			rationaleElement: rationaleList?.tagName,
 			rationaleCategories: [...rationaleList?.querySelectorAll('dt') ?? []].map(item => item.textContent),
 			rationaleItems: [...rationaleList?.querySelectorAll('dd li') ?? []].map(item => item.textContent),
+			metricsCollapsed: !metricsDetails?.open,
+			metricsTableLabelledBy: metricsTable?.getAttribute('aria-labelledby'),
+			metricsSummaryId: metricsDetails?.querySelector('summary')?.id,
+			metricsHeaders: [...metricsTable?.querySelectorAll('thead th') ?? []].map(header => header.textContent),
+			metricsRows: [...metricsTable?.querySelectorAll('tbody tr') ?? []].map(row => [...row.children].map(cell => cell.textContent)),
 		};
 		const actionLayout = {
 			count: actionButtons.length,
@@ -221,6 +230,9 @@ suite('Sessions - Comparison Result', () => {
 			synthesisLabel: synthesisPrimaryButton?.textContent,
 			synthesisPrimaryWiderThanDropdown: (synthesisPrimaryButton?.getBoundingClientRect().width ?? 0) > (synthesisDropdown?.getBoundingClientRect().width ?? 0),
 		};
+		metricsDetails?.querySelector('summary')?.click();
+		await timeout(0);
+		const metricsExpanded = metricsDetails?.open;
 		focusAttemptDropdown?.click();
 		await focusAttemptActions[0]?.run();
 		const alternateFocus = {
@@ -308,6 +320,7 @@ suite('Sessions - Comparison Result', () => {
 			choiceState,
 			actionLayout,
 			accessibility,
+			metricsExpanded,
 			renderedMarkdown,
 		}, {
 			content: {
@@ -426,7 +439,16 @@ suite('Sessions - Comparison Result', () => {
 					'Kept the change small and aligned with existing types.',
 					'Resolved the failure that the other attempt left open.',
 				],
+				metricsCollapsed: true,
+				metricsTableLabelledBy: metricsDetails?.querySelector('summary')?.id,
+				metricsSummaryId: metricsDetails?.querySelector('summary')?.id,
+				metricsHeaders: ['Attempt', 'Total time', 'Total tokens'],
+				metricsRows: [
+					['Claude', '1m 35s', '38'],
+					['Codex', '2m', '25'],
+				],
 			},
+			metricsExpanded: true,
 			renderedMarkdown: [
 				'Handled the `edge case` with typed diagnostics.',
 				'Passed `focused tests`, build, lint, and diagnostics.',

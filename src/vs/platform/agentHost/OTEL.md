@@ -97,12 +97,12 @@ Sessions created by Run Multiple Agents add bounded correlation attributes to th
 
 | Attribute | Description |
 |---|---|
-| `vscode.agent_host.comparison.id` | Random comparison identifier. |
+| `vscode.agent_host.comparison.id` | Hashed random comparison identifier, matching the correlation key in the VS Code comparison telemetry events. |
 | `vscode.agent_host.comparison.role` | `attempt`, `judge`, or `synthesis`. |
 | `vscode.agent_host.comparison.attempt_index` | Zero-based attempt ordinal; present only for attempts. |
 | `vscode.agent_host.comparison.attempt_count` | Number of implementation attempts in the comparison. |
 
-These attributes contain no prompt, title, path, model label, or tool content and do not require content capture. They are emitted only when Agent Host OTel is already enabled; comparisons do not enable or reconfigure OTel.
+These attributes contain no prompt, title, path, model label, or tool content and do not require content capture. They are emitted only when Agent Host OTel is already enabled; comparisons do not enable or reconfigure OTel. Token consumption comes from the provider-native chat spans in the same trace (`gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`) rather than VS Code telemetry.
 
 ## Session Title Metadata
 
