@@ -521,7 +521,7 @@ suite('ChatPromoNotificationContribution', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			seen: fixture.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
-					seenWrites: store.args.filter(args => args[0] === 'chat.seenPromoIds').length,
+			seenWrites: store.args.filter(args => args[0] === 'chat.seenPromoIds').length,
 			dismissed: fixture.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
 			banner: !!fixture.notifications.getNotification(),
 			queries: fixture.getTreatment.callCount,
@@ -1458,7 +1458,7 @@ suite('ChatPromoNotificationContribution', () => {
 		let card: HTMLElement | undefined;
 		stubPromoWidgetServices(instantiation, container, disposables, {
 			hideHover() { },
-					showInstantHover(options: IHoverOptions) {
+			showInstantHover(options: IHoverOptions) {
 				card = options.content as HTMLElement;
 				return undefined;
 			}
