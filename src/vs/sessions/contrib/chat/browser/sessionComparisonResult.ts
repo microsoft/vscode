@@ -88,8 +88,15 @@ export class SessionComparisonResult extends Disposable {
 		const winnerLabel = getSessionComparisonAttemptLabel(winner, attempts.indexOf(winner) + 1);
 		const title = dom.append(this.domNode, dom.$('h2.session-comparison-result-title'));
 		title.id = this.titleId;
-		title.textContent =
-			localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
+		const winnerTitle = localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
+		const winnerLabelOffset = winnerTitle.indexOf(winnerLabel);
+		if (winner.sessionResource && winnerLabelOffset >= 0) {
+			title.append(winnerTitle.slice(0, winnerLabelOffset));
+			this.renderAttemptLink(title, comparison, winner, winnerLabel);
+			title.append(winnerTitle.slice(winnerLabelOffset + winnerLabel.length));
+		} else {
+			title.textContent = winnerTitle;
+		}
 		dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle')).textContent =
 			localize('sessionComparisonResult.whyWinner', "Why it won");
 		this.renderRationale(comparison.verdict);
@@ -118,7 +125,11 @@ export class SessionComparisonResult extends Disposable {
 				const label = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1);
 				const attemptHeader = dom.append(row, dom.$('th'));
 				attemptHeader.setAttribute('scope', 'row');
-				attemptHeader.textContent = label;
+				if (attempt.sessionResource) {
+					this.renderAttemptLink(attemptHeader, comparison, attempt, label);
+				} else {
+					attemptHeader.textContent = label;
+				}
 				const strengthsCell = dom.append(row, dom.$('td'));
 				if (strengths.length > 0) {
 					this.renderMarkdown(strengthsCell, strengths.join('; '));
@@ -502,6 +513,16 @@ export class SessionComparisonResult extends Disposable {
 		this.renderStore.add(synthesizerButton.onDidClick(() => select(undefined)));
 		updateChoiceState(selections.get(section.id));
 		return choiceButtons.find(choice => choice.participantId === selections.get(section.id))?.button.element;
+	}
+
+	private renderAttemptLink(container: HTMLElement, comparison: ISessionComparison, attempt: ISessionComparisonParticipant, label: string): void {
+		const link = dom.append(container, dom.$('a.session-comparison-result-attempt-link'));
+		link.setAttribute('href', '#');
+		link.textContent = label;
+		this.renderStore.add(dom.addDisposableListener(link, dom.EventType.CLICK, event => {
+			event.preventDefault();
+			void this.focusAttempt(comparison, attempt);
+		}));
 	}
 
 	private async focusAttempt(comparison: ISessionComparison, attempt: ISessionComparisonParticipant, button?: IButton): Promise<void> {

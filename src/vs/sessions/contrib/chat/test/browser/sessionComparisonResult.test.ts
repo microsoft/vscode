@@ -180,8 +180,10 @@ suite('Sessions - Comparison Result', () => {
 		const synthesizerDecides = [...buttons].find(button => button.textContent === 'Synthesizer Decides');
 		const startCustomSynthesis = [...buttons].find(button => button.textContent === 'Start Custom Synthesis');
 		const title = result.domNode.querySelector<HTMLElement>('.session-comparison-result-title');
+		const winnerLink = title?.querySelector<HTMLAnchorElement>('.session-comparison-result-attempt-link');
 		const strengthsTitle = result.domNode.querySelector<HTMLElement>('.session-comparison-result-subtitle:last-of-type');
 		const strengthsTable = result.domNode.querySelector<HTMLElement>('.session-comparison-result-strengths');
+		const otherAttemptLink = strengthsTable?.querySelector<HTMLAnchorElement>('tbody .session-comparison-result-attempt-link');
 		const actions = result.domNode.querySelector<HTMLElement>('.session-comparison-result-actions');
 		const actionButtons = [...actions?.children ?? []];
 		const synthesisSplitButton = synthesizeRecommended?.closest<HTMLElement>('.monaco-button-dropdown');
@@ -223,6 +225,8 @@ suite('Sessions - Comparison Result', () => {
 			metricsSummaryId: metricsDetails?.querySelector('summary')?.id,
 			metricsHeaders: [...metricsTable?.querySelectorAll('thead th') ?? []].map(header => header.textContent),
 			metricsRows: [...metricsTable?.querySelectorAll('tbody tr') ?? []].map(row => [...row.children].map(cell => cell.textContent)),
+			winnerLink: { text: winnerLink?.textContent, href: winnerLink?.getAttribute('href') },
+			otherAttemptLink: { text: otherAttemptLink?.textContent, href: otherAttemptLink?.getAttribute('href') },
 		};
 		const actionLayout = {
 			count: actionButtons.length,
@@ -239,6 +243,18 @@ suite('Sessions - Comparison Result', () => {
 			overflowY: mainWindow.getComputedStyle(result.domNode).overflowY,
 			contentExceedsViewport: result.domNode.scrollHeight > result.domNode.clientHeight,
 			scrollAdvanced: result.domNode.scrollTop > 0,
+		};
+		otherAttemptLink?.click();
+		await timeout(0);
+		const otherAttemptLinkFocus = {
+			selected,
+			opened: opened?.toString(),
+		};
+		winnerLink?.click();
+		await timeout(0);
+		const winnerLinkFocus = {
+			selected,
+			opened: opened?.toString(),
 		};
 		focusAttemptDropdown?.click();
 		await focusAttemptActions[0]?.run();
@@ -315,6 +331,8 @@ suite('Sessions - Comparison Result', () => {
 			opened: opened?.toString(),
 			winnerFocus,
 			alternateFocus,
+			otherAttemptLinkFocus,
+			winnerLinkFocus,
 			focusAttemptActions: focusAttemptActions.map(action => action.label),
 			synthesized,
 			synthesisPlan,
@@ -351,6 +369,14 @@ suite('Sessions - Comparison Result', () => {
 			alternateFocus: {
 				selected: 'attempt-1',
 				opened: attempt1Resource.toString(),
+			},
+			otherAttemptLinkFocus: {
+				selected: 'attempt-1',
+				opened: attempt1Resource.toString(),
+			},
+			winnerLinkFocus: {
+				selected: 'attempt-2',
+				opened: attempt2Resource.toString(),
 			},
 			focusAttemptActions: ['Focus Attempt 1 (Claude)'],
 			synthesized: 3,
@@ -460,6 +486,8 @@ suite('Sessions - Comparison Result', () => {
 					['Attempt 1 (Claude)', '1m 35s', '38'],
 					['Attempt 2 (Codex)', '2m', '25'],
 				],
+				winnerLink: { text: 'Attempt 2 (Codex)', href: '#' },
+				otherAttemptLink: { text: 'Attempt 1 (Claude)', href: '#' },
 			},
 			metricsExpanded: true,
 			renderedMarkdown: [
