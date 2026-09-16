@@ -72,6 +72,13 @@ export interface ITerminalSandboxCommand {
 	 * subcommand while ignoring global options.
 	 */
 	args: readonly string[];
+	/**
+	 * `NAME=value` assignments that prefix the command, including those passed
+	 * through `env`. A rule that grants a command extra sandbox capabilities has
+	 * to see these: the environment can redirect what the command actually runs,
+	 * so the same keyword and arguments do not always mean the same thing.
+	 */
+	environmentAssignments?: readonly string[];
 }
 
 /**
