@@ -38,12 +38,6 @@ import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chat
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 export const pastedTextArtifactDefaultMinLength = 10000;
-/**
- * A long single line, such as a URL, a stack frame, or a dictated sentence, is
- * content the user means to write with, so length alone must not turn it into
- * an attachment. Only text that is also shaped like a document qualifies.
- */
-const pastedTextArtifactMinLines = 10;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)(?![\w-])/gi;
 interface SerializedCopyData {
@@ -521,7 +515,7 @@ export function createPastedTextArtifact(
 ): { readonly attachment: IChatRequestPasteVariableEntry; readonly referenceText: string } | undefined {
 	const trimmed = text.trim();
 	const minLength = options?.minLength ?? pastedTextArtifactDefaultMinLength;
-	if (trimmed.length < minLength || countLines(trimmed) < pastedTextArtifactMinLines) {
+	if (!trimmed || trimmed.length < minLength) {
 		return undefined;
 	}
 

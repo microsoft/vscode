@@ -62,11 +62,14 @@ export interface IAgentHostConnectionInfo {
  * the owning {@link IAgentConnection}, its authority, and the canonical backend
  * agent-session URI used for protocol operations on that connection.
  */
-export interface IAgentHostSessionResolution {
-	readonly connection: IAgentConnection;
+export interface IAgentHostSessionIdentity {
 	readonly connectionAuthority: string;
 	readonly backendSession: URI;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
+}
+
+export interface IAgentHostSessionResolution extends IAgentHostSessionIdentity {
+	readonly connection: IAgentConnection;
 }
 
 /** Provider-owned policy needed to resolve a workbench session resource back to its host. */
@@ -136,6 +139,12 @@ export interface IAgentHostConnectionsService {
 	 * At most one policy may be registered for an authority.
 	 */
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
+
+	/**
+	 * Resolves an agent-host chat-session resource to its connection authority
+	 * and backend session URI without requiring the host to be connected.
+	 */
+	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined;
 
 	/**
 	 * Resolves an agent-host chat-session resource to its owning connection and

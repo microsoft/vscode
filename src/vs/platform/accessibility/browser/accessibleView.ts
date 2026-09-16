@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem } from '../../quickinput/browser/pickerQuickAcce
 import { Event } from '../../../base/common/event.js';
 import { IAction } from '../../../base/common/actions.js';
 import { IQuickPickItem } from '../../quickinput/common/quickInput.js';
-import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
@@ -20,6 +20,7 @@ export const enum AccessibleViewProviderId {
 	DiffEditor = 'diffEditor',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
+	CustomizationMigrations = 'customizationMigrations',
 	ChatTerminalOutput = 'chatTerminalOutput',
 	ChatThinking = 'chatThinking',
 	InlineChat = 'inlineChat',
@@ -51,6 +52,7 @@ export const enum AccessibleViewProviderId {
 	SessionsChanges = 'sessionsChanges',
 	Survey = 'survey',
 	Automations = 'automations',
+	ConnectionDiagnostics = 'connectionDiagnostics',
 	BrowserElementCommenting = 'browserElementCommenting',
 	ChatPetAchievements = 'chatPetAchievements',
 }
@@ -168,6 +170,9 @@ export type AccesibleViewContentProvider = AccessibleContentProvider | Extension
 
 export class AccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
 
+	/** Releases caller-owned state on teardown, including context-view replacement without onClose. */
+	onDispose?: () => void;
+
 	constructor(
 		public id: AccessibleViewProviderId,
 		public options: IAccessibleViewOptions,
@@ -184,6 +189,7 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
 	) {
 		super();
+		this._register(toDisposable(() => this.onDispose?.()));
 	}
 }
 

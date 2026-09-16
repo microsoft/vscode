@@ -1190,13 +1190,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (telemetryData.telemetryEventName) {
 			case 'typingsInstalled': {
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
-				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+				properties.installedPackages = typingsInstalledPayload.installedPackages;
 
 				if (typeof typingsInstalledPayload.installSuccess === 'boolean') {
-					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
+					properties.installSuccess = typingsInstalledPayload.installSuccess.toString();
 				}
 				if (typeof typingsInstalledPayload.typingsInstallerVersion === 'string') {
-					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+					properties.typingsInstallerVersion = typingsInstalledPayload.typingsInstallerVersion;
 				}
 				break;
 			}
@@ -1220,7 +1220,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		// Add plugin data here
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
-				this.serverState.updateTsserverVersion(properties['version']);
+				this.serverState.updateTsserverVersion(properties.version);
 			}
 		}
 

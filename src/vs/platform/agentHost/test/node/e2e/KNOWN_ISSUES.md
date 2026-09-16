@@ -314,6 +314,29 @@ A user can reopen an Agent Host session and ask Copilot to edit a file. The file
   in `mcpPluginSuite.ts`, record one scenario at a time, and review the resulting
   Responses fixtures before enabling the group.
 
+### Automation restart execution coverage is Copilot-scoped
+
+Users can save independent Mode and Approvals choices on an Automation and expect every later run to use them, including after the Agent Host restarts. The black-box restart scenario currently covers Copilot only, so equivalent Claude and Codex configuration persistence could regress without this suite detecting it.
+
+- Test: `an automation run restores Mode and Approvals after host restart`.
+- Scope: Claude and Codex.
+- Expected: after the host restarts, the Automation definition retains its provider Mode and Approvals and the next manual run creates a session with those same effective values.
+- Observed: Copilot has deterministic model-backed replay coverage. Claude and Codex variants are not registered and have no captures.
+- Gate: `automationsSuite.ts` registers the model-backed scenario only when `config.provider === 'copilotcli'`.
+- Reproduce:
+
+  Extend the provider gate and adapt the provider-specific Mode and Approvals values, then record one provider at a time:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "an automation run restores Mode and Approvals after host restart"
+
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "an automation run restores Mode and Approvals after host restart"
+  ```
+
 ### Claude paused-turn cancellation is not replay-stable
 
 - Tests:
@@ -359,7 +382,7 @@ The following tests remain scoped at their call sites:
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
 - `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows because the host terminal tool does not expose a terminal resource there, as described below.
 
-The prompt snapshots in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only — every model, by construction rather than because of an observed failure.
+The prompt and skill-budget tests in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only, by construction rather than because of an observed failure.
 
 - Expected: one committed baseline per model describes the prompt the bundled CLI assembles.
 - Observed: the Windows prompt is not a renaming of the POSIX one. Beyond the shell tool names, the CLI runtime carries PowerShell-only sections that POSIX never emits — no-heredoc guidance ("avoid `python - <<'PY'`", use a single-quoted here-string), `; with explicit checks such as `if ($?) { ... }`` for dependent steps, and the caveat that "the PATH/LIB/INCLUDE changes from the .bat will not be available". A fixture handles the name difference by storing a `${shell}` placeholder that `expandShellToolName` swaps back in, but here the prose *is* the asserted artifact — projecting it away would delete the tool instructions the snapshot exists to pin.
@@ -686,9 +709,9 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
 
 ## Platform and deterministic-replay limitations
 
-### Copilot prompt snapshots on Windows
+### Copilot prompt and skill-budget tests on Windows
 
-- Tests: all models in `copilotPromptsE2E.integrationTest.ts`.
+- Tests: all cases in `copilotPromptsE2E.integrationTest.ts`.
 - Scope: Windows.
 - Expected: one committed baseline per model describes the prompt assembled by the bundled CLI.
 - Observed: the Windows prompt includes PowerShell-specific instructions and host-probed capabilities, so it is not a stable renaming of the POSIX prompt.
@@ -807,23 +830,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
 
-### Copilot custom subagent without a display name
-
-A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
-
-- Test: `custom agent without a display name completes as a subagent`.
-- Scope: Copilot.
-- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` and completes.
-- Observed: `subagent.started` is followed by `subagent.failed` before the child makes a model request.
-- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the runtime fix is included in the bundled SDK.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "custom agent without a display name completes as a subagent"
-  ```
-
 ### Mid-turn abort is record-only
 
 - Tests:
@@ -832,6 +838,7 @@ A client-contributed custom agent can specify its stable name, description, and 
 - Scope: deterministic replay for every provider; the second test is Copilot-specific.
 - Reason: replay serves the intentionally truncated response immediately, leaving no real streaming window in which to abort.
 - Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
+- Latest live check (`1.0.84-1`): the Copilot steering variant timed out before reaching cancellation. The steering message started a separate turn, but the expected `chat/pendingMessageRemoved` notification never arrived. This scenario does not currently verify the deferred-idle abort fix.
 - Run:
 
   ```bash
@@ -844,25 +851,18 @@ A client-contributed custom agent can specify its stable name, description, and 
     --grep "accepted steering followed by abort"
   ```
 
-### Retryable Copilot errors are temporarily disabled
+### Mid-turn host shutdown recovery is record-only
 
-Copilot errors currently end a turn without offering an in-place retry. The retry protocol remains implemented, but the host intentionally omits the `resumable` marker from live, restored, and repeated errors until the feature is re-enabled.
+A user can lose the Agent Host process while a model response is still streaming. Reopening the session should restore the unfinished request as a resumable error, and retrying should continue that same turn without adding another user message.
 
-- Tests:
-  - `resumes a failed turn in place`
-  - `resumes the same turn after repeated failures`
-  - `restores and resumes a turn interrupted by host shutdown`
-- Scope: Copilot on all platforms and execution modes.
-- Expected when enabled: a failed turn is marked resumable, and retrying continues the same turn without adding another user message. An unfinished request restored after host shutdown has the same behavior.
-- Observed: Copilot errors intentionally omit the `resumable` marker, so clients cannot request an in-place retry.
-- Gate: all three scenarios are unconditionally skipped. The host-shutdown scenario additionally requires direct `AGENT_HOST_REPLAY_RECORD=1` mode because replay has no active streaming window to terminate.
-- Run after removing the temporary gate:
+- Test: `restores and resumes a turn interrupted by host shutdown`.
+- Scope: deterministic replay for Copilot.
+- Expected: the host dies after streaming starts but before any final turn action; restoration synthesizes a resumable `executionInterrupted` error, and a continuation completes the same turn.
+- Observed: replay serves the full recorded response immediately, leaving no active streaming window in which to kill the host before turn completion.
+- Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
+- Run:
 
   ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "resumes a failed turn in place|resumes the same turn after repeated failures"
-
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "restores and resumes a turn interrupted by host shutdown"

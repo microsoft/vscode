@@ -29,7 +29,7 @@ import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverC
  * session and opening it through {@link ISessionsService}. The link carries the
  * backend session URI; the owning session in the window uses a client scheme
  * (e.g. `agent-host-copilotcli`), so matching goes through
- * {@link IAgentHostConnectionsService.resolveSessionResource}. When the link
+ * {@link IAgentHostConnectionsService.resolveSessionResourceIdentity}. When the link
  * carries a chat id (from `create_chat`), that specific peer chat is opened;
  * otherwise the session's main/default chat is opened, via
  * {@link ISessionsService.openChat} in both cases so the correct chat becomes
@@ -81,7 +81,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 	private _findSessionForLink(resource: URI | string): ISession | undefined {
 		const backendSession = parseOpenSessionLinkUri(resource);
 		return backendSession
-			? findSession(backendSession, this._sessionsManagementService, this._connectionsService)
+			? findSessionForOpenSessionLink(backendSession, this._sessionsManagementService, this._connectionsService)
 			: undefined;
 	}
 
@@ -116,7 +116,7 @@ class AgentSessionLinkPresentationWatcher extends Disposable implements ILinkPre
 			reader => {
 				sessionsChanged.read(reader);
 				const session = backendSession
-					? findSession(backendSession, sessionsManagementService, connectionsService)
+					? findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService)
 					: undefined;
 				return session ? readSessionState(session, chatId, reader, kind) : undefined;
 			},
@@ -154,15 +154,17 @@ export interface ISessionLinkState {
 	readonly chats: IObservable<readonly ISessionLinkChatState[]>;
 }
 
-function findSession(
+export function findSessionForOpenSessionLink(
 	backendSession: URI,
 	sessionsManagementService: ISessionsManagementService,
 	connectionsService: IAgentHostConnectionsService,
 ): ISession | undefined {
 	return sessionsManagementService.getSessions().find(session => {
-		const resolved = connectionsService.resolveSessionResource(session.resource);
-		return isEqual(session.resource, backendSession)
-			|| !!resolved && isEqual(resolved.backendSession, backendSession);
+		if (isEqual(session.resource, backendSession)) {
+			return true;
+		}
+		const identity = connectionsService.resolveSessionResourceIdentity(session.resource);
+		return !!identity && isEqual(identity.backendSession, backendSession);
 	});
 }
 

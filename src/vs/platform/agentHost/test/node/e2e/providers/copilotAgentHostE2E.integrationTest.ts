@@ -32,7 +32,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
 import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
@@ -48,6 +48,20 @@ const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const isWindows = process.platform === 'win32';
 type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
+
+async function waitForTurnCompletion(client: TestProtocolClient, chatUri: string, turnId: string, afterServerSeq = 0): Promise<void> {
+	const notification = await client.waitForNotification(candidate =>
+		(isActionNotification(candidate, ActionType.ChatTurnComplete) || isActionNotification(candidate, ActionType.ChatError))
+		&& getActionEnvelope(candidate).channel === chatUri
+		&& getActionEnvelope(candidate).serverSeq > afterServerSeq
+		&& (getActionEnvelope(candidate).action as { readonly turnId: string }).turnId === turnId,
+		90_000,
+	);
+	const action = getActionEnvelope(notification).action;
+	if (action.type === ActionType.ChatError) {
+		throw new Error(`Resumed turn failed: ${action.part.error.errorType}: ${action.part.error.message}`);
+	}
+}
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -181,7 +195,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			90_000,
 		);
 		const liveErrorPart = (getActionEnvelope(liveNotification).action as ChatErrorAction).part;
-		assert.strictEqual(liveErrorPart.resumable, undefined);
+		assert.strictEqual(liveErrorPart.resumable, true);
 
 		client = await lease.restart();
 		client.setWorkingDirectory(workingDirectory);
@@ -201,12 +215,11 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}, {
 			state: TurnState.Error,
 			error: liveErrorPart.error,
-			resumable: undefined,
+			resumable: true,
 		});
 	});
 
-	// Retryable errors are temporarily disabled.
-	test.skip('resumes a failed turn in place', async function () {
+	test('resumes a failed turn in place', async function () {
 		this.timeout(180_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
@@ -239,7 +252,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			&& getActionEnvelope(notification).channel === chatUri,
 			90_000,
 		);
-		const errorAction = getActionEnvelope(errorNotification).action as ChatErrorAction;
+		const errorEnvelope = getActionEnvelope(errorNotification);
+		const errorAction = errorEnvelope.action as ChatErrorAction;
 		assert.strictEqual(errorAction.part.resumable, true);
 
 		const peerClientId = 'copilot-failed-turn-resume-peer';
@@ -277,12 +291,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			await Promise.all([
 				primaryResumeObserved,
 				peerResumeObserved,
-				...[client, peer].map(resumeClient => resumeClient.waitForNotification(notification =>
-					isActionNotification(notification, ActionType.ChatTurnComplete)
-					&& getActionEnvelope(notification).channel === chatUri
-					&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
-					90_000,
-				)),
+				...[client, peer].map(resumeClient => waitForTurnCompletion(resumeClient, chatUri, turnId, errorEnvelope.serverSeq)),
 			]);
 			await assertRecordedAhpSnapshot(this.test!, client, { profile: 'behavior' });
 
@@ -345,7 +354,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}
 	});
 
-	test.skip('resumes the same turn after repeated failures', async function () {
+	test('resumes the same turn after repeated failures', async function () {
 		this.timeout(180_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-repeated-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
@@ -390,19 +399,15 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			&& getActionEnvelope(notification).serverSeq > firstErrorEnvelope.serverSeq,
 			90_000,
 		);
-		assert.strictEqual((getActionEnvelope(secondErrorNotification).action as ChatErrorAction).part.resumable, true);
+		const secondErrorEnvelope = getActionEnvelope(secondErrorNotification);
+		assert.strictEqual((secondErrorEnvelope.action as ChatErrorAction).part.resumable, true);
 
 		client.dispatch({
 			channel: chatUri,
 			clientSeq: 3,
 			action: { type: ActionType.ChatTurnResume, turnId },
 		});
-		await client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatTurnComplete)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
-			90_000,
-		);
+		await waitForTurnCompletion(client, chatUri, turnId, secondErrorEnvelope.serverSeq);
 
 		const finalState = await fetchSessionWithChat(client, sessionUri);
 		assert.deepStrictEqual({
@@ -426,8 +431,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		});
 	});
 
-	// Retryable errors are temporarily disabled.
-	test.skip('restores and resumes a turn interrupted by host shutdown', async function () {
+	// Replay serves the full recorded response immediately, so it has no active streaming window to terminate.
+	(RECORD_ONLY ? test : test.skip)('restores and resumes a turn interrupted by host shutdown', async function () {
 		this.timeout(240_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-host-shutdown-resume-'));
 		tempDirs.push(workingDirectory);
@@ -490,12 +495,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			clientSeq: 2,
 			action: { type: ActionType.ChatTurnResume, turnId: restoredTurn.id },
 		});
-		await client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatTurnComplete)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === restoredTurn.id,
-			90_000,
-		);
+		await waitForTurnCompletion(client, chatUri, restoredTurn.id);
 		const finalState = await fetchSessionWithChat(client, sessionUri);
 
 		assert.deepStrictEqual({

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { timeout } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -13,7 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { FileType, IFileService, IStat } from '../../../../../../platform/files/common/files.js';
+import { FileType, IFileService, IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -26,9 +27,11 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly symbolicLinks = new ResourceSet();
 	private readonly statFailures = new ResourceSet();
+	private readonly writeFailures = new ResourceSet();
 	private statDelay = 0;
-	private activeStats = 0;
+	activeStats = 0;
 	maxActiveStats = 0;
+	statCalls = 0;
 
 	markSymbolicLink(resource: URI): void {
 		this.symbolicLinks.add(resource);
@@ -42,7 +45,12 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 		this.statFailures.add(resource);
 	}
 
+	failNextWrite(resource: URI): void {
+		this.writeFailures.add(resource);
+	}
+
 	override async stat(resource: URI): Promise<IStat> {
+		this.statCalls++;
 		this.activeStats++;
 		this.maxActiveStats = Math.max(this.maxActiveStats, this.activeStats);
 		try {
@@ -58,6 +66,13 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 			this.activeStats--;
 		}
 	}
+
+	override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+		if (this.writeFailures.delete(resource)) {
+			throw new Error('Unavailable test resource');
+		}
+		return super.writeFile(resource, content, options);
+	}
 }
 
 suite('SyncedCustomizationBundler', () => {
@@ -65,6 +80,7 @@ suite('SyncedCustomizationBundler', () => {
 	const disposables = new DisposableStore();
 	let fileService: FileService;
 	let memFs: TestInMemoryFileSystemProvider;
+	let syncedFs: TestInMemoryFileSystemProvider;
 	let instantiationService: TestInstantiationService;
 
 	const enabledMcpServer = (name: string, configuration: IMcpServerConfiguration): ISyncableMcpServer => ({
@@ -79,8 +95,8 @@ suite('SyncedCustomizationBundler', () => {
 		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
 
 		// Register the synced-customization scheme via a mock service
-		const syncedProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, syncedProvider));
+		syncedFs = disposables.add(new TestInMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, syncedFs));
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
@@ -319,6 +335,71 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(memFs.maxActiveStats, 10);
 	});
 
+	test('cancels while queued skill operations drain after disposal', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/disposed/SKILL.md', 'skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/disposed/references/${index}.md`, `reference ${index}`);
+		}
+		memFs.delayStats(20);
+
+		const bundle = bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		while (memFs.maxActiveStats < 10) {
+			await timeout(0);
+		}
+		const statCallsAtDisposal = memFs.statCalls;
+		bundler.dispose();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
+		await assert.rejects(bundler.bundle([{ uri: skill, type: PromptsType.skill }]), error => isCancellationError(error));
+		while (memFs.activeStats > 0) {
+			await timeout(0);
+		}
+		assert.strictEqual(memFs.statCalls, statCallsAtDisposal);
+	});
+
+	test('normalizes an in-flight provider failure after disposal to cancellation', async () => {
+		const bundler = createBundler();
+		const resource = await seedFile('/test/unavailable.md', 'content');
+		memFs.delayStats(20);
+		memFs.failStat(resource);
+
+		const bundle = bundler.bundle([{ uri: resource, type: PromptsType.instructions }]);
+		while (memFs.activeStats === 0) {
+			await timeout(0);
+		}
+		bundler.dispose();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
+	});
+
+	test('serializes replacement bundles for the same authority', async () => {
+		const disposedBundler = createBundler('shared-agent');
+		const replacementBundler = createBundler('shared-agent');
+		const skill = await seedFile('/skills/replaced/SKILL.md', 'old skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/replaced/references/${index}.md`, `reference ${index}`);
+		}
+		const replacement = await seedFile('/replacement.md', 'replacement content');
+		memFs.delayStats(50);
+
+		const disposedBundle = disposedBundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		while (memFs.maxActiveStats < 10) {
+			await timeout(0);
+		}
+		disposedBundler.dispose();
+		const replacementBundle = replacementBundler.bundle([{ uri: replacement, type: PromptsType.instructions }]);
+		await timeout(0);
+
+		assert.strictEqual(memFs.activeStats, 10);
+		await assert.rejects(disposedBundle, error => isCancellationError(error));
+		await replacementBundle;
+		assert.strictEqual(
+			(await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/shared-agent/rules/replacement.md' }))).value.toString(),
+			'replacement content'
+		);
+	});
+
 	test('skips unreadable nested skill resources', async () => {
 		const bundler = createBundler();
 		const skill = await seedFile('/skills/unreadable/SKILL.md', 'skill content');
@@ -348,7 +429,7 @@ suite('SyncedCustomizationBundler', () => {
 		});
 	});
 
-	test('bundles binary skill resources and invalidates the nonce when metadata changes', async () => {
+	test('bundles binary skill resources and invalidates the nonce when content changes', async () => {
 		const bundler = createBundler();
 		const skill = await seedFile('/skills/binary/SKILL.md', 'skill content');
 		const binary = await seedBinaryFile('/skills/binary/assets/data.bin', [0x80]);
@@ -377,7 +458,7 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(parsed.name, 'VS Code Synced Data');
 	});
 
-	test('nonce is stable when file metadata is unchanged', async () => {
+	test('nonce is stable when files are unchanged', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/stable.md', 'same content');
 
@@ -386,7 +467,7 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
 
-	test('nonce changes when file metadata changes', async () => {
+	test('nonce changes when file content changes', async () => {
 		const bundler = createBundler();
 		const uri = await seedFile('/test/changing.md', 'v1');
 
@@ -591,6 +672,56 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(result2, result1);
 		const survived = await fileService.readFile(sentinel);
 		assert.strictEqual(survived.value.toString(), 'keep me');
+	});
+
+	test('touching a file without changing its content reuses the previous result', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+		await timeout(10);
+		await fileService.writeFile(uri, VSBuffer.fromString('unchanged content'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(result2, result1);
+		assert.strictEqual((await fileService.readFile(sentinel)).value.toString(), 'keep me');
+	});
+
+	test('retries a changed bundle after a write failure', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/retry.md', 'v1');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		syncedFs.failNextWrite(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.plugin/plugin.json' }));
+		await assert.rejects(() => bundler.bundle([{ uri, type: PromptsType.instructions }]));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.notStrictEqual(result2!.ref.nonce, result1.ref.nonce);
+		assert.strictEqual((await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/retry.md' }))).value.toString(), 'version 2');
+	});
+
+	test('rewrites a reverted bundle after a write failure', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/revert.md', 'v1');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		syncedFs.failNextWrite(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.plugin/plugin.json' }));
+		await assert.rejects(() => bundler.bundle([{ uri, type: PromptsType.instructions }]));
+		await fileService.writeFile(uri, VSBuffer.fromString('v1'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(result2!.ref.nonce, result1.ref.nonce);
+		assert.strictEqual((await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/revert.md' }))).value.toString(), 'v1');
 	});
 
 	test('reused rebundle still detects a later content change', async () => {

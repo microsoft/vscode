@@ -18,6 +18,7 @@ import { readUnsupportedProtocolVersionErrorMeta, type IVscodeUpgradeResult } fr
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 import { DEFAULT_RECONNECT_POLICY, type IRemoteAgentHostReconnectPolicy } from './reconnectPolicy.js';
 import { normalizeRemoteAgentHostAddress } from './agentHostUri.js';
+import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
 
@@ -513,11 +514,11 @@ export function readRemoteAgentHostSettings(configurationService: IConfiguration
 	};
 }
 
-/** Reads WebSocket entries from the effective configuration or its owning target. */
+/** Reads WebSocket entries from the global configuration or its owning target. */
 export function readWebSocketRemoteAgentHostEntries(configurationService: IConfigurationService, targetOnly = false): IRemoteAgentHostEntry[] {
 	const entries = targetOnly
 		? readRemoteAgentHostSettings(configurationService).entries
-		: configurationService.getValue<IRawRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
+		: getGlobalConfigurationValue<IRawRemoteAgentHostEntry[]>(configurationService, RemoteAgentHostsSettingId) ?? [];
 	return entries
 		.filter(isRawRemoteAgentHostEntry)
 		.filter(entry => !isLegacySshRawEntry(entry))

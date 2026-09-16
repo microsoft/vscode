@@ -131,6 +131,8 @@ export interface IProductConfiguration {
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
 	readonly nlsCoreBaseUrl?: string;
+	/** Build-time hash of the commit and core NLS tables used to identify translated-message caches. */
+	readonly nlsMetadataHash?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;

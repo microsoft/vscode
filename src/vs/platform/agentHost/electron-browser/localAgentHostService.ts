@@ -424,6 +424,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().createDetachedWorktree(session, prompt);
 	}
 
+	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
 		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
 	}

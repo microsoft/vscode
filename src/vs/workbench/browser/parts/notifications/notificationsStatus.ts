@@ -75,7 +75,7 @@ export class NotificationsStatus extends Disposable {
 		let notificationsInProgress = 0;
 		if (!this.isNotificationsCenterVisible && !this.isNotificationsToastsVisible) {
 			for (const notification of this.model.notifications) {
-				if (notification.hasProgress) {
+				if (notification.hasActiveProgress) {
 					notificationsInProgress++;
 				}
 			}

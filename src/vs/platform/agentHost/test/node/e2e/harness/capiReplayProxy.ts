@@ -65,7 +65,7 @@ const STORED_RESPONSE_HEADERS = new Set(['content-type']);
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
 const COPIED_PLUGIN_DIR_PLACEHOLDER = '${plugin_copy}';
-const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\\\)user-data(?:\/|\\\\)agentPlugins(?:\/|\\\\)[^\/\\"]+/g;
+const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\{1,2})user-data(?:\/|\\{1,2})agentPlugins(?:\/|\\{1,2})(?<directory>[^\/\\"]+)/g;
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 const TEMP_WORKSPACE_COMPONENT_PATTERN = '(?:ahp-|copilot-|read-sdk-simple)[A-Za-z0-9._-]*';
@@ -260,6 +260,7 @@ export class CapiReplayProxy {
 	private readonly _cacheMisses: string[] = [];
 	private readonly _requestMismatches: string[] = [];
 	private readonly _replayPlaceholderValues = new Map<string, string>();
+	private readonly _replayPluginDirectories = new Set<string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
 	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
@@ -373,6 +374,7 @@ export class CapiReplayProxy {
 		this._cacheMisses.length = 0;
 		this._requestMismatches.length = 0;
 		this._replayPlaceholderValues.clear();
+		this._replayPluginDirectories.clear();
 		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
@@ -897,7 +899,7 @@ export class CapiReplayProxy {
 			if (block.type === 'text') {
 				return { type: 'text', text: this._normalizeValue(block.text) as string };
 			}
-			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input: this._normalizeValue(block.input) };
+			return { ...block, name: normalizeShellToolNameForCapture(block.name), input: this._normalizeValue(block.input) };
 		});
 	}
 
@@ -954,7 +956,12 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = scrubUserName(result, this._options.userName);
 		}
-		result = result.replace(COPIED_PLUGIN_DIR_RE, `${HOMEDIR_PLACEHOLDER}/user-data/agentPlugins/${COPIED_PLUGIN_DIR_PLACEHOLDER}`);
+		result = result.replace(COPIED_PLUGIN_DIR_RE, (_match: string, directory: string) => {
+			if (this._isReplaying && directory !== COPIED_PLUGIN_DIR_PLACEHOLDER) {
+				this._replayPluginDirectories.add(directory);
+			}
+			return `${HOMEDIR_PLACEHOLDER}/user-data/agentPlugins/${COPIED_PLUGIN_DIR_PLACEHOLDER}`;
+		});
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
 		result = result.replace(FILE_LISTING_DATE_RE, '${timestamp}');
@@ -997,6 +1004,13 @@ export class CapiReplayProxy {
 
 	private _expandReplayPlaceholders(text: string): string {
 		let result = replaceAll(text, CAPI_PLACEHOLDER, this.url);
+		if (result.includes(COPIED_PLUGIN_DIR_PLACEHOLDER)) {
+			const directories = [...this._replayPluginDirectories];
+			if (directories.length !== 1) {
+				throw new Error(`[capi-replay] cannot resolve ${COPIED_PLUGIN_DIR_PLACEHOLDER}: expected one observed plugin directory, found ${directories.length}`);
+			}
+			result = replaceAll(result, COPIED_PLUGIN_DIR_PLACEHOLDER, directories[0]);
+		}
 		if (this._workingDirectory) {
 			const workspaceName = basename(this._workingDirectory);
 			const suffix = /-(?<suffix>[A-Za-z0-9]{6})$/.exec(workspaceName)?.groups?.suffix;

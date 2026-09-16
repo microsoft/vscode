@@ -47,6 +47,10 @@ export const Menus = {
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 	/** Context menu for session-backed Automation history rows. */
 	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
+	/** Input toolbar actions in the Automation dialog prompt editor. */
+	AutomationsDialogInputToolbar: new MenuId('AutomationsDialogInputToolbar'),
+	/** Target controls above the Automation dialog prompt editor. */
+	AutomationsDialogTargetToolbar: new MenuId('AutomationsDialogTargetToolbar'),
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
@@ -57,6 +61,7 @@ export const Menus = {
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
 	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
+	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),

@@ -9,7 +9,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { autorun, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
@@ -31,6 +31,7 @@ import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, ICh
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -93,6 +94,81 @@ suite('ChatModel', () => {
 		assert.strictEqual(model.sessionId, 'existing-session');
 		assert.strictEqual(model.timestamp, now - 1000);
 		assert.strictEqual(model.customTitle, 'My Chat');
+	});
+
+	test('Agent Merge identity survives JSON and operation log roundtrips', () => {
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: ([undefined, 'agentMerge'] as const).map(requestSource => ({
+				requestId: requestSource ? 'merge' : 'legacy',
+				message: { text: 'Repair the pull request', parts: [] },
+				variableData: { variables: [] },
+				response: [],
+				isSystemInitiated: true,
+				...(requestSource ? { requestSource } : {}),
+			})),
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: exportedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const operationLog = new ChatSessionOperationLog();
+		const serializedModels = [model.toJSON(), operationLog.read(operationLog.createInitial(model))];
+		assert.deepStrictEqual(serializedModels.map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel,
+				{ value, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+			));
+			return restored.getRequests().map(request => ({
+				id: request.id,
+				requestSource: request.requestSource,
+			}));
+		}), [
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
+		]);
+	});
+
+	test('backfills and persists legacy Agent Merge sources without reclassifying other requests', () => {
+		const prompt = '<agent_merge_state>\nAuthorized actions this run: fix failed required CI checks\n</agent_merge_state>';
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [
+				{ message: prompt, isSystemInitiated: true },
+				{ message: { text: `Context\n${prompt}`, parts: [] }, isSystemInitiated: true },
+				{ message: prompt },
+				{ message: prompt, isSystemInitiated: false },
+				{ message: prompt, isSystemInitiated: true, systemInitiatedLabel: 'Terminal needs input' },
+				{ message: prompt, isSystemInitiated: true, systemInitiatedLabel: '' },
+				{ message: '<agent_merge_state>malformed', isSystemInitiated: true },
+				{ message: 'Modern request', isSystemInitiated: true, requestSource: 'agentMerge' as const },
+			].map((request, index) => ({
+				requestId: `request-${index}`,
+				variableData: { variables: [] },
+				response: [],
+				...request,
+			})),
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: exportedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const operationLog = new ChatSessionOperationLog();
+		const expected = ['agentMerge', 'agentMerge', undefined, undefined, undefined, undefined, undefined, 'agentMerge'];
+		assert.deepStrictEqual({
+			model: model.getRequests().map(request => request.requestSource),
+			json: model.toJSON().requests.map(request => request.requestSource),
+			operationLog: operationLog.read(operationLog.createInitial(model)).requests.map(request => request.requestSource),
+		}, {
+			model: expected,
+			json: expected,
+			operationLog: expected,
+		});
 	});
 
 	test('legacy requests without timestamps keep display time unknown', () => {
@@ -529,6 +605,23 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual(serialized.attachments, [fileAttachment, implicitWithUri]);
 	});
 
+	test('inputModel.setState preserves contrib keys owned by other writers', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		// The chat service records "migration hint already shown" in `contrib`,
+		// then the input widget publishes its own contrib keys on the next sync
+		// (typing, sending, model change). That rebuild must not drop the
+		// service's key, or `chat.customizations.migrationHint: "once"` degrades
+		// into "always".
+		model.inputModel.setState({ contrib: { customizationMigrationHintShown: true } });
+		model.inputModel.setState({ inputText: 'typing', contrib: { widgetOwnedKey: 'from-widget' } });
+
+		assert.deepStrictEqual(model.inputModel.state.get()?.contrib, {
+			customizationMigrationHintShown: true,
+			widgetOwnedKey: 'from-widget',
+		});
+	});
+
 	test('modeInfo roundtrips through serialization', async () => {
 		const modeInfo: IChatRequestModeInfo = {
 			kind: ChatModeKind.Agent,
@@ -660,6 +753,53 @@ suite('Response', () => {
 		response.updateContent({ content: md1, kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+	});
+
+	for (const alreadyComplete of [false, true]) {
+		test(`notifies when a completed tool is promoted to a subagent (alreadyComplete=${alreadyComplete})`, async () => {
+			const response = store.add(new Response([]));
+			const invocation = new ChatToolInvocation(
+				{ invocationMessage: 'Delegating work' },
+				{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+				'launch', undefined, { mode: 'background' },
+			);
+			if (alreadyComplete) {
+				await invocation.didExecuteTool(undefined);
+			}
+			response.updateContent(invocation);
+			if (!alreadyComplete) {
+				await invocation.didExecuteTool(undefined);
+			}
+			const changes: Array<string | undefined> = [];
+			store.add(response.onDidChangeValue(() => changes.push(invocation.toolSpecificData?.kind)));
+
+			invocation.notifyToolSpecificDataChanged();
+			invocation.toolSpecificData = { kind: 'subagent', hasStarted: true, isActive: true };
+			invocation.notifyToolSpecificDataChanged();
+			invocation.toolSpecificData.isActive = false;
+			invocation.notifyToolSpecificDataChanged();
+
+			assert.deepStrictEqual(changes, ['subagent']);
+		});
+	}
+
+	test('clearing a response releases completed tool presentation observers', async () => {
+		const response = store.add(new Response([]));
+		const invocation = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work' },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'launch', undefined, {},
+		);
+		response.updateContent(invocation);
+		await invocation.didExecuteTool(undefined);
+		response.clear();
+		let changes = 0;
+		store.add(response.onDidChangeValue(() => changes++));
+
+		invocation.toolSpecificData = { kind: 'subagent', hasStarted: true, isActive: true };
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({ changes, parts: response.value }, { changes: 0, parts: [] });
 	});
 
 	test('resolved Auto routing replaces the row that is still routing', () => {
@@ -1592,6 +1732,7 @@ suite('ChatResponseModel', () => {
 			const toolInvocation = {
 				kind: 'toolInvocation',
 				invocationMessage: 'calling tool',
+				toolSpecificDataKind: constObservable(undefined),
 				state: toolState
 			} as Partial<IChatToolInvocation> as IChatToolInvocation;
 
@@ -1637,6 +1778,7 @@ suite('ChatResponseModel', () => {
 			const toolInvocation = {
 				kind: 'toolInvocation',
 				invocationMessage: 'calling tool',
+				toolSpecificDataKind: constObservable(undefined),
 				state: toolState
 			} as Partial<IChatToolInvocation> as IChatToolInvocation;
 			model.acceptResponseProgress(request, toolInvocation);
@@ -1721,6 +1863,7 @@ suite('ChatResponseModel', () => {
 		const toolInvocation = {
 			kind: 'toolInvocation',
 			invocationMessage: 'calling tool',
+			toolSpecificDataKind: constObservable(undefined),
 			state: observableValue<any>('state', {
 				type: IChatToolInvocation.StateKind.WaitingForAuthentication,
 				server: { id: 'server', name: 'GitHub MCP', resource: 'https://api.githubcopilot.com/mcp' },

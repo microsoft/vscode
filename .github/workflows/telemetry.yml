@@ -1,5 +1,11 @@
 name: 'Telemetry'
-on: pull_request
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+
 permissions: {}
 jobs:
   check-metadata:

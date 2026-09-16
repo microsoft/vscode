@@ -545,6 +545,15 @@ export interface ILanguageModelsGroup {
 	};
 }
 
+/** Read/write access to model-specific configuration, globally or within one conversation. */
+export interface IModelConfigurationAccess {
+	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	getModelConfigurationActions(modelId: string): IAction[];
+	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
+	readonly onDidChange?: Event<string>;
+}
+
 export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;

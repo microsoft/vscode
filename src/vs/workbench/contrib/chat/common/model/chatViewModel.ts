@@ -129,6 +129,7 @@ export interface IChatRequestViewModel {
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatRequestModel['requestSource'];
 	readonly systemInitiatedLabel?: string;
 	readonly origin?: IChatRequestModel['origin'];
 }
@@ -523,6 +524,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get isSystemInitiated() {
 		return this._model.isSystemInitiated;
+	}
+
+	get requestSource() {
+		return this._model.requestSource;
 	}
 
 	get systemInitiatedLabel() {

@@ -349,6 +349,7 @@ export interface IAgentHostE2EProviderConfig {
 	readonly claudeSdkRoot?: string;
 	/** Optional path to a locally installed `codex` binary. Forwarded to the target's `launch`. */
 	readonly codexSdkRoot?: string;
+	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
 	 * working directory to a `.worktrees/...` path on materialization. Now
@@ -421,12 +422,14 @@ export async function createRealSession(
 	trackingList: string[],
 	workingDirectory: URI,
 	beforeCreateSession?: () => Promise<void>,
+	beforeAuthenticate?: () => Promise<void>,
 ): Promise<string> {
 	const sessionUri = await createProviderSession(c, {
 		provider: config.provider,
 		scheme: config.scheme,
 		githubToken: config.githubToken ?? resolveGitHubToken(),
-	}, clientId, trackingList, workingDirectory, beforeCreateSession);
+		sessionConfig: config.sessionConfig,
+	}, clientId, trackingList, workingDirectory, beforeCreateSession, beforeAuthenticate);
 	c.setAhpSnapshotNormalization({
 		workingDirectory: workingDirectory.fsPath,
 		homeDirectory: homedir(),

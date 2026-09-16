@@ -7,7 +7,25 @@ import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventTyp
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILogService } from '../../../log/common/log.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
+
+export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+export interface ICopilotModelCallFinishedEvent {
+	readonly id: string;
+	readonly agentId?: string;
+	readonly data: {
+		readonly turnId: string;
+		readonly interactionId?: string;
+		readonly dispatchDurationMs: number;
+		readonly outcome: CopilotModelCallFinishedOutcome;
+		readonly containsBuiltInFileEditRequest?: boolean;
+		readonly editClassifierVersion: number;
+	};
+}
 
 /**
  * Thin wrapper around {@link CopilotSession} that exposes each SDK event as a
@@ -19,17 +37,29 @@ export class CopilotSessionWrapper extends Disposable {
 	private readonly _handledEventTypes = new Set<SessionEventType>();
 	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
+	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
+	readonly onModelCallFinished = this._onModelCallFinished.event;
 	private readonly _shutdown = new DeferredPromise<void>();
 	private _disconnectPromise: Promise<void> | undefined;
-	private _disconnectCompleted = false;
+	private _disconnectRpcState: 'notStarted' | 'pending' | 'completed' | 'failed' = 'notStarted';
+	private readonly _instanceId = generateUuid();
+	private readonly _lifetime = new StopWatch();
 
-	constructor(readonly session: CopilotSession) {
+	constructor(
+		readonly session: CopilotSession,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
+		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
 			if (event.type === 'session.shutdown') {
 				void this._shutdown.complete();
+				this._logService.info(this._lifecycleLogMessage(`shutdown received (${event.data.shutdownType})`));
 			}
-			if (!this._handledEventTypes.has(event.type)) {
+			const modelCallFinished = parseModelCallFinishedEvent(event);
+			if (modelCallFinished) {
+				this._onModelCallFinished.fire(modelCallFinished);
+			} else if (!this._handledEventTypes.has(event.type)) {
 				this._onUnhandledEvent.fire(event);
 			}
 		});
@@ -43,7 +73,7 @@ export class CopilotSessionWrapper extends Disposable {
 	get lifecycleState(): AgentTurnProviderSessionState {
 		return this._shutdown.isSettled
 			? 'shutdown'
-			: this._disconnectCompleted
+			: this._disconnectRpcState === 'completed'
 				? 'disconnected'
 				: this._disconnectPromise
 					? 'disconnecting'
@@ -53,12 +83,20 @@ export class CopilotSessionWrapper extends Disposable {
 	/** Disconnects once the request completes or the SDK reports session shutdown. */
 	disconnect(): Promise<void> {
 		if (this._shutdown.isSettled) {
+			this._logService.info(this._lifecycleLogMessage('disconnect skipped after shutdown'));
 			return this._shutdown.p;
 		}
 		if (!this._disconnectPromise) {
+			this._disconnectRpcState = 'pending';
+			this._logService.info(this._lifecycleLogMessage('disconnect RPC started'));
 			const disconnectPromise = this.session.disconnect()
-				.then(() => { this._disconnectCompleted = true; })
+				.then(() => {
+					this._disconnectRpcState = 'completed';
+					this._logService.info(this._lifecycleLogMessage('disconnect RPC completed'));
+				})
 				.catch(error => {
+					this._disconnectRpcState = 'failed';
+					this._logService.warn(this._lifecycleLogMessage('disconnect RPC failed'), error);
 					if (!this._shutdown.isSettled) {
 						if (this._disconnectPromise === disconnectPromise) {
 							this._disconnectPromise = undefined;
@@ -68,7 +106,17 @@ export class CopilotSessionWrapper extends Disposable {
 				});
 			this._disconnectPromise = disconnectPromise;
 		}
-		return Promise.race([this._disconnectPromise, this._shutdown.p]);
+		const result = Promise.race([this._disconnectPromise, this._shutdown.p]);
+		// Observe settlement without delaying the promise returned to the caller.
+		void result.then(
+			() => this._logService.info(this._lifecycleLogMessage('disconnect wait completed')),
+			() => this._logService.info(this._lifecycleLogMessage('disconnect wait failed')),
+		);
+		return result;
+	}
+
+	private _lifecycleLogMessage(event: string): string {
+		return `[Copilot:${this.sessionId}] SDK session ${event}: instanceId=${this._instanceId}, disconnectRpc=${this._disconnectRpcState}, shutdownReceived=${this._shutdown.isSettled}, disposed=${this._store.isDisposed}, lifetimeMs=${Math.round(this._lifetime.elapsed())}`;
 	}
 
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
@@ -271,6 +319,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSubagentStarted ??= this._sdkEvent('subagent.started');
 	}
 
+	private _onSubagentConfigured: Event<SessionEventPayload<'subagent.configured'>> | undefined;
+	get onSubagentConfigured(): Event<SessionEventPayload<'subagent.configured'>> {
+		return this._onSubagentConfigured ??= this._sdkEvent('subagent.configured');
+	}
+
 	private _onSubagentCompleted: Event<SessionEventPayload<'subagent.completed'>> | undefined;
 	get onSubagentCompleted(): Event<SessionEventPayload<'subagent.completed'>> {
 		return this._onSubagentCompleted ??= this._sdkEvent('subagent.completed');
@@ -326,6 +379,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
 	}
 
+	private _onBackgroundTasksChanged: Event<SessionEventPayload<'session.background_tasks_changed'>> | undefined;
+	get onBackgroundTasksChanged(): Event<SessionEventPayload<'session.background_tasks_changed'>> {
+		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');
+	}
+
 	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
 	get onCommandsChanged(): Event<SessionEventPayload<'commands.changed'>> {
 		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');
@@ -340,4 +398,46 @@ export class CopilotSessionWrapper extends Disposable {
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;
 	}
+}
+
+function parseModelCallFinishedEvent(event: unknown): ICopilotModelCallFinishedEvent | undefined {
+	if (!isRecord(event) || event.type !== 'model.call_finished' || event.ephemeral !== true || typeof event.id !== 'string' || !isRecord(event.data)) {
+		return undefined;
+	}
+	const data = event.data;
+	if (
+		typeof data.turnId !== 'string'
+		|| (data.interactionId !== undefined && typeof data.interactionId !== 'string')
+		|| typeof data.dispatchDurationMs !== 'number'
+		|| !Number.isFinite(data.dispatchDurationMs)
+		|| data.dispatchDurationMs < 0
+		|| !isModelCallFinishedOutcome(data.outcome)
+		|| typeof data.editClassifierVersion !== 'number'
+		|| !Number.isInteger(data.editClassifierVersion)
+		|| data.editClassifierVersion < 1
+		|| (data.containsBuiltInFileEditRequest !== undefined && typeof data.containsBuiltInFileEditRequest !== 'boolean')
+		|| (event.agentId !== undefined && typeof event.agentId !== 'string')
+	) {
+		return undefined;
+	}
+	return {
+		id: event.id,
+		agentId: event.agentId,
+		data: {
+			turnId: data.turnId,
+			interactionId: data.interactionId,
+			dispatchDurationMs: data.dispatchDurationMs,
+			outcome: data.outcome,
+			containsBuiltInFileEditRequest: data.containsBuiltInFileEditRequest,
+			editClassifierVersion: data.editClassifierVersion,
+		},
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function isModelCallFinishedOutcome(value: unknown): value is CopilotModelCallFinishedOutcome {
+	return value === 'success' || value === 'error' || value === 'cancelled' || value === 'rejected';
 }

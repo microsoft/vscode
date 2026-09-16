@@ -11,6 +11,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
@@ -26,7 +27,7 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -248,6 +249,16 @@ suite('aiCustomizationListWidget', () => {
 		assert.deepStrictEqual({ expanded, redistributed }, {
 			expanded: [110, 110],
 			redistributed: [0, 220],
+		});
+	});
+
+	test('virtualized sections show up to four rows by default', () => {
+		assert.deepStrictEqual({
+			fourOfFive: getVirtualizedSectionMinimumHeight([44, 44, 44, 44, 44], height => height),
+			allOfThree: getVirtualizedSectionMinimumHeight([44, 66, 44], height => height),
+		}, {
+			fourOfFive: 176,
+			allOfThree: 154,
 		});
 	});
 
@@ -722,6 +733,59 @@ suite('aiCustomizationListWidget', () => {
 				sectionExpanded: 'true',
 			});
 		});
+
+		for (const isSessionsWindow of [false, true]) {
+			test(`keyboard-focused skill rows expose validation diagnostics in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, async () => {
+				const listService = disposables.add(new ListService());
+				instaService.stub(IListService, listService);
+				instaService.stub(IAICustomizationWorkspaceService, 'isSessionsWindow', isSessionsWindow);
+				const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+					id: 'dreaming',
+					uri: URI.file('/workspace/.codex/skills/dreaming/SKILL.md'),
+					name: 'dreaming',
+					filename: 'SKILL.md',
+					source: PromptsStorage.local,
+					promptType: PromptsType.skill,
+					disabled: true,
+					status: 'error',
+					statusMessage: 'missing field `description`',
+				}]);
+				instaService.stub(IAICustomizationItemsModel, {
+					getItems: () => items,
+					getCount: () => observableValue('test', 1),
+					getPluginCount: () => observableValue('test', 0),
+					whenSectionLoaded: async () => { },
+					getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('agent-host-codex:///session'), dispose() { } }),
+				});
+				const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+				document.body.appendChild(widget.element);
+				disposables.add(toDisposable(() => widget.element.remove()));
+				setLayoutHeights(widget, 500);
+
+				await widget.setSection(AICustomizationManagementSection.Skills);
+				widget.layout(800, 500);
+
+				const row = widget.element.querySelector<HTMLElement>('.ai-customization-list-item');
+				assert(row);
+				const list = row.closest<HTMLElement>('.monaco-list');
+				assert(list);
+				list.focus();
+				list.dispatchEvent(new FocusEvent('focus'));
+				const focusedList = listService.lastFocusedList;
+				assert(focusedList);
+				await focusedList.focusNext(1, false, new KeyboardEvent('keydown'));
+
+				assert.deepStrictEqual({
+					hasKeyboardFocus: document.activeElement === list,
+					activeDescendant: list.getAttribute('aria-activedescendant'),
+					label: row.getAttribute('aria-label'),
+				}, {
+					hasKeyboardFocus: true,
+					activeDescendant: row.id,
+					label: 'dreaming. SKILL.md. Error. missing field `description`, disabled',
+				});
+			});
+		}
 
 		test('async section rerenders discard disposed virtual lists before redistributing height', async () => {
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', []);

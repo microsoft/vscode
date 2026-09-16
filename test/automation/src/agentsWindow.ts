@@ -12,6 +12,9 @@ const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"])';
+const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
@@ -113,6 +116,41 @@ export class AgentsWindow {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, retryCount);
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+	}
+
+	async selectDevContainer(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const picker = page.locator(WORKSPACE_PICKER).first();
+		const workspaceRow = page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
+		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
+		const deadline = Date.now() + 120_000;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			if (await picker.getAttribute('aria-expanded') === 'true') {
+				await page.keyboard.press('Escape');
+			}
+			try {
+				await picker.click();
+				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await devContainerRow.click();
+				await page.waitForFunction(
+					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
+					WORKSPACE_PICKER,
+					{ timeout: 15_000 },
+				);
+				return;
+			} catch (error) {
+				lastError = error;
+				if (await picker.getAttribute('aria-expanded') === 'true') {
+					await page.keyboard.press('Escape');
+				}
+				await new Promise(resolve => setTimeout(resolve, 500));
+			}
+		}
+		throw new Error(`Timed out selecting Use Dev Container from the workspace picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
 	private async isSessionTypeSelected(label: string): Promise<boolean> {
@@ -638,19 +676,8 @@ export class AgentsWindow {
 				// to narrow the list.
 				await page.keyboard.type(modelName);
 				await row.waitFor({ state: 'visible', timeout: 5_000 });
-				// `force` bypasses the transient `context-view-pointerBlock` overlay
-				// that intercepts pointer events while the action widget animates open.
-				await row.click({ force: true });
-				// Confirm the selection actually committed: the picker name button
-				// must now reflect the chosen model. A non-committing click (e.g.
-				// absorbed by the animating pointer-block overlay) silently leaves the
-				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it. Match on the button's accessible
-				// name (aria-label, e.g. "Models, <modelName>") rather than the visible
-				// text: when the input is narrow the picker collapses to an icon-only
-				// button and no longer renders the model name as visible text. Scope to
-				// `:visible` so a hidden overflow duplicate of the name button can't
-				// produce a false positive.
+				await row.click();
+				// Match the accessible name because narrow inputs collapse the picker to an icon-only button.
 				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 15_000 });

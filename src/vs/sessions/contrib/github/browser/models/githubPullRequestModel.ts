@@ -93,6 +93,13 @@ export class GitHubPullRequestModel extends Disposable {
 	}
 
 	/**
+	 * Post a review comment on a line in the pull request head.
+	 */
+	async postReviewComment(body: string, commitId: string, path: string, line: number, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>): Promise<void> {
+		await this._fetcher.postPullRequestReviewComment(this.owner, this.repo, this.prNumber, body, commitId, path, line, pendingReview);
+	}
+
+	/**
 	 * Start periodic polling. Each cycle refreshes all PR data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {

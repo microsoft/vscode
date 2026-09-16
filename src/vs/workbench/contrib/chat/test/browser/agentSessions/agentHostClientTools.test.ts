@@ -802,6 +802,7 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
 			instantiationService.stub(ILanguageModelsService, {
+				onDidChangeLanguageModels: Event.None,
 				deltaLanguageModelChatProviderDescriptors: () => { },
 				registerLanguageModelProvider: () => toDisposable(() => { }),
 			});
@@ -3081,9 +3082,11 @@ suite('AgentHostClientTools', () => {
 			}, {
 				parent: {
 					kind: 'subagent',
+					hasStarted: true,
 					description: 'Prepared delegated task',
 					agentName: undefined,
 					chatResource: subagentChat,
+					isChatAvailable: true,
 					isActive: true,
 					startedAt: Date.parse('2025-01-01T00:00:00.000Z'),
 					duration: undefined,
