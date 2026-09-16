@@ -189,14 +189,16 @@ class ControllableWarmQuery extends FakeWarmQuery {
  * A {@link Query} that behaves like a live SDK stream: at the start of each
  * turn (before the first message and after every `result`) it pulls a prompt
  * off the pipeline's prompt iterable (so the queue marks it in-flight), then
- * yields the scripted messages, and parks until abort once they run out.
- * `getContextUsage` is scripted and every call is recorded.
+ * yields the scripted messages, and parks once they run out until abort or
+ * until its {@link ScriptedWarmQuery} is disposed (a real dispose ends the
+ * stream). `getContextUsage` is scripted and every call is recorded.
  */
 class ScriptedQuery extends ImmediatelyDoneQuery {
 	readonly contextUsageCalls: Array<Parameters<Query['getContextUsage']>[0]> = [];
 	private _index = 0;
 	private _needsPrompt = true;
 	private _promptIterator: AsyncIterator<SDKUserMessage> | undefined;
+	private readonly _ended = new DeferredPromise<void>();
 
 	constructor(
 		private readonly _prompt: AsyncIterable<SDKUserMessage>,
@@ -206,22 +208,34 @@ class ScriptedQuery extends ImmediatelyDoneQuery {
 	) { super(); }
 
 	override async next(): Promise<IteratorResult<SDKMessage, void>> {
+		const done: IteratorResult<SDKMessage, void> = { done: true, value: undefined };
 		if (this._needsPrompt) {
 			this._needsPrompt = false;
 			this._promptIterator ??= this._prompt[Symbol.asyncIterator]();
-			await this._promptIterator.next();
+			// A disposed subprocess ends its stream even while the SDK is
+			// waiting on the prompt iterable, so the pull must not outlive it.
+			const pulled = await Promise.race([this._promptIterator.next().then(() => true), this._ended.p.then(() => false)]);
+			if (!pulled) {
+				return done;
+			}
 		}
 		if (this._index < this._messages.length) {
 			const value = this._messages[this._index++];
 			this._needsPrompt = value.type === 'result';
 			return { done: false, value };
 		}
-		if (this._signal.aborted) {
-			return { done: true, value: undefined };
+		if (this._signal.aborted || this._ended.isSettled) {
+			return done;
 		}
 		return new Promise<IteratorResult<SDKMessage, void>>(resolve => {
-			this._signal.addEventListener('abort', () => resolve({ done: true, value: undefined }), { once: true });
+			this._signal.addEventListener('abort', () => resolve(done), { once: true });
+			void this._ended.p.then(() => resolve(done));
 		});
+	}
+
+	/** Ends the stream, as disposing the owning warm subprocess does. */
+	end(): void {
+		void this._ended.complete();
 	}
 
 	override getContextUsage(opts?: Parameters<Query['getContextUsage']>[0]): Promise<SDKControlGetContextUsageResponse> {
@@ -249,6 +263,13 @@ class ScriptedWarmQuery extends FakeWarmQuery {
 		const q = new ScriptedQuery(prompt, this._messages, this._contextUsage, this.signal);
 		this.queries.push(q);
 		return q;
+	}
+
+	override async [Symbol.asyncDispose](): Promise<void> {
+		await super[Symbol.asyncDispose]();
+		for (const q of this.queries) {
+			q.end();
+		}
 	}
 }
 
@@ -289,6 +310,7 @@ function createPipeline(
 		controller,
 		dbRef,
 		subagents,
+		'native',
 		undefined,
 	));
 	return { pipeline, warm, controller };
@@ -361,6 +383,7 @@ suite('ClaudeSdkPipeline', () => {
 				controller,
 				dbRef,
 				subagents,
+				'native',
 				undefined,
 			));
 			// Bind the query by issuing a send (iterator closes immediately).
@@ -421,7 +444,7 @@ suite('ClaudeSdkPipeline', () => {
 				const ctl = new AbortController();
 				const warm = new FakeWarmQuery();
 				built.push({ warm, controller: ctl });
-				return { warm, abortController: ctl };
+				return { warm, abortController: ctl, transportKind: 'native' };
 			};
 			pipeline.attachRematerializer(rematerializer);
 
@@ -465,7 +488,7 @@ suite('ClaudeSdkPipeline', () => {
 			pipeline.attachRematerializer(async () => {
 				const pair = await releaseRebuild.p;
 				built.push(pair);
-				return { warm: pair.warm, abortController: pair.controller };
+				return { warm: pair.warm, abortController: pair.controller, transportKind: 'native' };
 			});
 
 			// Trigger rebind by aborting the seed controller and starting a send.
@@ -512,7 +535,7 @@ suite('ClaudeSdkPipeline', () => {
 
 			// Rebind to a fresh warm/Q2 while Q1's loop is still parked.
 			const warm2 = new ControllableWarmQuery();
-			pipeline.attachRematerializer(async () => ({ warm: warm2, abortController: new AbortController() }));
+			pipeline.attachRematerializer(async () => ({ warm: warm2, abortController: new AbortController(), transportKind: 'native' }));
 			await pipeline.rebindForRestart();
 			const q2 = warm2.queries[0];
 			assert.strictEqual(q2.nextCallCount, 0, 'new query not drained yet — the old loop is still running');
@@ -608,7 +631,7 @@ suite('ClaudeSdkPipeline', () => {
 			pipeline.attachRematerializer(async () => {
 				const ctl = new AbortController();
 				warm2 = new RecordingWarmQuery(ctl.signal);
-				return { warm: warm2, abortController: ctl };
+				return { warm: warm2, abortController: ctl, transportKind: 'native' };
 			});
 			pipeline.send(makePrompt('p2'), 'turn-B').catch(() => { /* stream ends without result */ });
 			await flushMicrotasks();
@@ -680,7 +703,7 @@ suite('ClaudeSdkPipeline', () => {
 				{
 					actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete],
 					contextUsageCalls: [{ detail: 'summary' }],
-					observedLimits: [{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 }],
+					observedLimits: [{ model: 'claude-test', transportKind: 'native', contextWindow: 200_000, maxOutputTokens: 8192 }],
 					usage: [{
 						inputTokens: 5_000,
 						outputTokens: 34,
@@ -728,6 +751,59 @@ suite('ClaudeSdkPipeline', () => {
 			);
 		});
 
+		test('a success result flagged is_error reports usage before the ChatError that ends the turn', async () => {
+			// The proxy relays an upstream failure as a success result with
+			// `is_error: true`, which the mapper turns into `ChatError`. The chat
+			// reducer ends the active turn on `ChatError` and applies `ChatUsage`
+			// only to the active turn, so the usage must be emitted first or the
+			// failed turn loses its token / credit data.
+			const result = makeResultWithUsage();
+			result.is_error = true;
+			result.result = 'upstream failed';
+			const warm = new ScriptedWarmQuery([result], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), inputTokens: usageActionsOf(signals).map(a => a.usage.inputTokens) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatError, ActionType.ChatTurnComplete], inputTokens: [5_000] },
+			);
+		});
+
+		test('observed model limits carry the transport of the query that produced them', async () => {
+			// The session forwards native observations only. It must not read its
+			// own transport at delivery time: a rebind commits the new transport
+			// before the old stream is detached, so the pipeline binds the
+			// transport to each query and swaps it together with the query.
+			const limitsOf = (result: SDKResultSuccess) => {
+				result.modelUsage = {
+					'claude-test': { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 },
+				};
+				return result;
+			};
+			const warm1 = new ScriptedWarmQuery([limitsOf(makeResultSuccess('sess-1'))], async () => { throw new Error('not scripted'); });
+			const { pipeline } = createPipeline(disposables, signal => { warm1.signal = signal; return warm1; });
+			const observed: Array<Pick<IClaudeObservedModelLimits, 'model' | 'transportKind'>> = [];
+			disposables.add(pipeline.onDidObserveModelLimits(l => observed.push({ model: l.model, transportKind: l.transportKind })));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			const controller2 = new AbortController();
+			const warm2 = new ScriptedWarmQuery([limitsOf(makeResultSuccess('sess-1'))], async () => { throw new Error('not scripted'); });
+			warm2.signal = controller2.signal;
+			pipeline.attachRematerializer(async () => ({ warm: warm2, abortController: controller2, transportKind: 'proxy' }));
+			await pipeline.rebindForRestart();
+			await pipeline.send(makePrompt('p2'), 'turn-2');
+
+			assert.deepStrictEqual(observed, [
+				{ model: 'claude-test', transportKind: 'native' },
+				{ model: 'claude-test', transportKind: 'proxy' },
+			]);
+		});
+
 		test('a failed result still reports the model limits it observed, without usage enrichment', async () => {
 			// A turn that ends in an error result made model calls all the same
 			// and names the serving model's window in `modelUsage`. The limits
@@ -745,7 +821,7 @@ suite('ClaudeSdkPipeline', () => {
 
 			assert.deepStrictEqual(
 				{ observedLimits, contextUsageCalls: warm.queries[0].contextUsageCalls.length },
-				{ observedLimits: [{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 }], contextUsageCalls: 0 },
+				{ observedLimits: [{ model: 'claude-test', transportKind: 'native', contextWindow: 200_000, maxOutputTokens: 8192 }], contextUsageCalls: 0 },
 			);
 		});
 

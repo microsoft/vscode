@@ -679,6 +679,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
+				ctx.transport.kind,
 				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
 			));
 		} catch (err) {
@@ -691,7 +692,10 @@ export class ClaudeAgentSession extends Disposable {
 			// Only a native turn describes the native catalog. The agent applies
 			// observations to `@provider=anthropic` rows only, so a proxy turn's
 			// `modelUsage` would overwrite the native rows' limits if forwarded.
-			if (this._transportKind === 'native') {
+			// The pipeline binds the transport to the query that produced the
+			// result; `_transportKind` already names the next transport while
+			// a rebind's old stream is still detaching.
+			if (limits.transportKind === 'native') {
 				this._onDidObserveModelLimits.fire(limits);
 			}
 		}));
@@ -803,7 +807,7 @@ export class ClaudeAgentSession extends Disposable {
 					this._pendingTransportSwitch = false;
 					this._pendingSwitchTransport = undefined;
 				}
-				return { warm: rebuildWarm, abortController: rebuildAbort };
+				return { warm: rebuildWarm, abortController: rebuildAbort, transportKind: rebuildTransport.kind };
 			} catch (err) {
 				rebuildAbort.abort();
 				await rebuildWarm?.[Symbol.asyncDispose]();

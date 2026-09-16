@@ -22,6 +22,7 @@ import { toClaudeContextAttribution } from './claudeContextUsage.js';
 import { buildClaudeUsageInfo } from './claudeMapSessionEvents.js';
 import type { IClaudeModelLimits } from './claudeModelSelection.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
+import type { ClaudeTransport } from './claudeProxyService.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
@@ -29,6 +30,13 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 export interface IClaudeObservedModelLimits extends IClaudeModelLimits {
 	/** SDK model id exactly as `modelUsage` keys it. */
 	readonly model: string;
+	/**
+	 * Transport of the query that produced the result. Bound to the query, not
+	 * read from the session at delivery time: a rebind commits the new
+	 * transport before the old stream is detached, so a late result from the
+	 * old query would otherwise be attributed to the new transport.
+	 */
+	readonly transportKind: ClaudeTransport['kind'];
 }
 
 /**
@@ -42,7 +50,7 @@ export interface IClaudeObservedModelLimits extends IClaudeModelLimits {
  * promotion (see `claudeAgent.ts` materialize path).
  */
 export interface IRematerializer {
-	(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
+	(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController; readonly transportKind: ClaudeTransport['kind'] }>;
 }
 
 /**
@@ -192,11 +200,12 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Error results carry the same map, and a turn that fails still names the
 	 * model it ran, so limits are observed on every result subtype.
 	 */
-	private _observeModelLimits(message: Extract<SDKMessage, { type: 'result' }>): void {
+	private _observeModelLimits(message: Extract<SDKMessage, { type: 'result' }>, transportKind: ClaudeTransport['kind']): void {
 		for (const [model, usage] of Object.entries(message.modelUsage)) {
 			if (Number.isFinite(usage.contextWindow) && usage.contextWindow > 0) {
 				this._onDidObserveModelLimits.fire({
 					model,
+					transportKind,
 					contextWindow: usage.contextWindow,
 					maxOutputTokens: Number.isFinite(usage.maxOutputTokens) && usage.maxOutputTokens > 0 ? usage.maxOutputTokens : 0,
 				});
@@ -305,6 +314,12 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * set is a *dead* stream awaiting rebuild. Cleared only on dispose.
 	 */
 	private _query: Query | undefined;
+	/**
+	 * Transport of {@link _warm}. Swapped together with it in
+	 * {@link _rebindQuery} so a consumer-loop pass can bind the transport of
+	 * the query it drains (see {@link IClaudeObservedModelLimits.transportKind}).
+	 */
+	private _transportKind: ClaudeTransport['kind'];
 	private _warm: WarmQuery;
 
 	/** Upper bound on the post-result `getContextUsage` control round-trip. Overridable by tests. */
@@ -376,12 +391,14 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
+		transportKind: ClaudeTransport['kind'],
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._warm = warm;
+		this._transportKind = transportKind;
 		this._abortController = abortController;
 		this._wireAbortHandler(abortController);
 		this._queue = this._register(instantiationService.createInstance(
@@ -755,6 +772,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during rebind: ${err}`));
 		this._warm = built.warm;
+		this._transportKind = built.transportKind;
 		this._abortController = built.abortController;
 		this._wireAbortHandler(built.abortController);
 		this._queue.resetForRebind();
@@ -789,6 +807,8 @@ export class ClaudeSdkPipeline extends Disposable {
 		if (!query) {
 			throw new Error('ClaudeSdkPipeline._processMessages called before query was bound');
 		}
+		// Bound with `query`: a rebind swaps both before this pass sees the swap.
+		const transportKind = this._transportKind;
 		try {
 			for await (const message of query) {
 				if (this._abortController.signal.aborted) {
@@ -806,6 +826,16 @@ export class ClaudeSdkPipeline extends Disposable {
 				const turnId = parent?.turnId;
 				const clientContext = parent?.clientContext;
 				const turnDuration = parent?.stopWatch.elapsed();
+				if (message.type === 'result' && message.subtype === 'success' && turnId !== undefined) {
+					// The turn's only usage report. Must land before the router
+					// maps the result: a success result with `is_error` maps to
+					// `ChatError`, and the chat reducer ends the active turn on
+					// `ChatError` / `ChatTurnComplete` and applies `ChatUsage`
+					// only to the active turn. The await stalls this loop, and
+					// so the delivery of any message queued behind the result,
+					// for at most `_contextUsageTimeoutMs`.
+					await this._emitTurnUsage(query, message, turnId);
+				}
 				try {
 					await this._router.handle(message, turnId, {
 						turnDuration,
@@ -816,15 +846,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result') {
-					this._observeModelLimits(message);
-					if (message.subtype === 'success' && turnId !== undefined) {
-						// The turn's only usage report. Must land before
-						// `ChatTurnComplete`: the chat reducer only applies
-						// `ChatUsage` to the active turn. The await stalls this
-						// loop, and so the delivery of any message queued behind
-						// the result, for at most `_contextUsageTimeoutMs`.
-						await this._emitTurnUsage(query, message, turnId);
-					}
+					this._observeModelLimits(message, transportKind);
 					const completed = this._queue.settleHead();
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
