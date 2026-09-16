@@ -6783,7 +6783,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
 				throw catalogReadable && !knownToRegistry
 					? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
-					: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
+					: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} is not ready to open ${sessionStr}; it may still be starting, so try again shortly`);
 			}
 		}
 		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
