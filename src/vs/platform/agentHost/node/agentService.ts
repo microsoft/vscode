@@ -2432,6 +2432,13 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				this._logService.warn('[AgentService] Failed to mark discovered title changes dirty', error);
 			}
+			// Discovery is direct evidence that these sources resolve, so a parked
+			// row must be re-attempted; otherwise it keeps its stale title until the
+			// periodic verification. Waking after the dirty write so a pass that is
+			// concurrently deciding to park one of them observes the newer revision.
+			for (const session of changedTitleSessions) {
+				this._catalogReconciliationService.wakeParkedSessions(session);
+			}
 		}
 		if (registryChanged || surfacedMetadataChanged) {
 			this._invalidateSessionList();
@@ -7508,14 +7515,16 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _markCatalogPayloadDirty(session: string): Promise<void> {
-		// A mutation is fresh evidence about this session, so a parked row must
-		// be re-attempted rather than waiting for the periodic verification.
-		this._catalogReconciliationService.wakeParkedSessions(session);
 		try {
 			await this._orchestratorDatabase.markSessionV2PayloadDirty(session);
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to mark catalog payload dirty for ${session}`, error);
 		}
+		// A mutation is fresh evidence about this session, so a parked row must
+		// be re-attempted rather than waiting for the periodic verification. The
+		// wake follows the dirty write so a pass that is concurrently deciding to
+		// park this session observes the newer revision and declines.
+		this._catalogReconciliationService.wakeParkedSessions(session);
 	}
 
 	private async _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {

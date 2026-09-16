@@ -319,8 +319,24 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	 * without opening its storage. The outcome still reports `retry`: the work
 	 * remains outstanding, it is simply waiting on a wake signal rather than a
 	 * timer.
+	 *
+	 * A mutation can land while the source is being resolved, and its wake is a
+	 * no-op because this session is not parked yet. Parking unconditionally
+	 * would then hide that newer revision until the periodic verification, so
+	 * the dirty marker is re-read and a changed one yields to the next pass.
 	 */
-	private _park(session: string): AgentHostCatalogReconciliationOutcome {
+	private async _park(session: string, observedDirty: number | undefined): Promise<AgentHostCatalogReconciliationOutcome> {
+		let currentDirty: number | undefined;
+		try {
+			currentDirty = await this._catalogDatabase.getSessionV2PayloadDirty(session);
+		} catch {
+			// An unreadable marker cannot rule out a concurrent mutation, so treat
+			// it as one rather than parking a session that may owe a rebuild.
+			return { session, status: 'retry', reason: 'superseded' };
+		}
+		if (currentDirty !== observedDirty) {
+			return { session, status: 'retry', reason: 'superseded' };
+		}
 		this._parkedSessions.add(session);
 		return { session, status: 'retry', reason: 'sourceUnresolvable' };
 	}
@@ -396,7 +412,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 							return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 						}
 						if (error instanceof CatalogReconciliationSourceUnresolvableError) {
-							return this._park(sessionKey);
+							return await this._park(sessionKey, observedDirty);
 						}
 						throw error;
 					}
@@ -461,7 +477,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 				}
 				if (sourceResult.status === 'sourceUnresolvable') {
-					return this._park(sessionKey);
+					return await this._park(sessionKey, observedDirty);
 				}
 				if (token.isCancellationRequested) {
 					return { session: sessionKey, status: 'retry', reason: 'cancelled' };

@@ -1032,6 +1032,41 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
+	test('a mutation arriving during source resolution is not parked away', async () => {
+		const harness = await createHarness(['one']);
+		const session = 'agenthost:one';
+		let sourceResolutions = 0;
+		let pendingMutation = true;
+		const service = harness.createService(async () => {
+			sourceResolutions++;
+			if (pendingMutation) {
+				// The mutation lands while the source is still resolving, so its own
+				// wake is a no-op: this session is not parked yet.
+				pendingMutation = false;
+				await harness.central.markSessionV2PayloadDirty(session);
+			}
+			return { status: 'sourceUnresolvable' };
+		});
+
+		const mutated = await service.runPass();
+		const parked = await service.runPass();
+		const afterParking = await service.runPass();
+
+		assert.deepStrictEqual({
+			mutated: mutated.outcomes,
+			parked: parked.outcomes,
+			afterParking: afterParking.outcomes,
+			sourceResolutions,
+		}, {
+			// Parking the mutated revision would hide it until the periodic
+			// verification, so the pass yields and the next one re-attempts it.
+			mutated: [{ session, status: 'retry', reason: 'superseded' }],
+			parked: [{ session, status: 'retry', reason: 'sourceUnresolvable' }],
+			afterParking: [],
+			sourceResolutions: 2,
+		});
+	});
+
 	test('mutations during a pass coalesce into one follow-up taken after the floor', async () => {
 		const harness = await createHarness(['one']);
 		const scheduler = new TestScheduler();
