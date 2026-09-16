@@ -47,6 +47,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
 	readonly archived: ISession[] = [];
+	readonly cancelled: ISession[] = [];
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
@@ -79,6 +80,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override async archiveSession(session: ISession): Promise<void> {
 		this.archived.push(session);
+	}
+
+	override async cancelCurrentRequest(session: ISession): Promise<void> {
+		this.cancelled.push(session);
 	}
 
 	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {

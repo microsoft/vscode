@@ -2056,14 +2056,24 @@ suite('Sessions - SessionsList', () => {
 			return { attempt1, attempt2, judge, synthesis, container, harness };
 		}
 
-		test('renders synthesis and Judge before connected compact attempts', () => {
-			const { attempt1, attempt2, container } = renderComparison();
+		test('renders synthesis and Judge before connected compact attempts', async () => {
+			const { attempt1, attempt2, container, harness } = renderComparison();
 			const parent = container.querySelector<HTMLElement>('.session-comparison-group');
 			const attempts = [...container.querySelectorAll<HTMLElement>('.session-comparison-attempt')];
+			const stopButtons = attempts.map(attempt => attempt.querySelector<HTMLButtonElement>('.session-comparison-participant-stop'));
+			const firstAttemptRow = attempts[0].closest<HTMLElement>('.monaco-list-row');
+			const listElement = container.querySelector<HTMLElement>('.monaco-list');
 			const participants = [...container.querySelectorAll<HTMLElement>('.session-comparison-participant')];
 			const independentParticipants = participants.filter(participant => !participant.classList.contains('session-comparison-attempt'));
 			const judge = independentParticipants.find(participant => participant.querySelector('.session-title')?.textContent === 'Judge');
-			assert.ok(parent && judge);
+			const synthesis = independentParticipants.find(participant => participant.querySelector('.session-title')?.textContent === 'Synthesis');
+			assert.ok(parent && judge && firstAttemptRow && listElement && stopButtons[0]);
+			const stopDisplayAtRest = mainWindow.getComputedStyle(stopButtons[0]).display;
+			firstAttemptRow.classList.add('focused');
+			listElement.tabIndex = 0;
+			listElement.focus();
+			const stopDisplayOnFocus = mainWindow.getComputedStyle(stopButtons[0]).display;
+			const spinnerDisplayOnFocus = mainWindow.getComputedStyle(attempts[0].querySelector<HTMLElement>('.session-comparison-attempt-status-icon')!).display;
 
 			assert.deepStrictEqual({
 				parent: {
@@ -2078,9 +2088,17 @@ suite('Sessions - SessionsList', () => {
 					ariaLabel: attempt.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					status: attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent,
 					hasSpinner: attempt.querySelector('.session-comparison-attempt-status-icon')?.classList.contains('codicon-modifier-spin'),
+					stopAriaLabel: attempt.querySelector('.session-comparison-participant-stop')?.getAttribute('aria-label'),
+					stopHidden: attempt.querySelector<HTMLButtonElement>('.session-comparison-participant-stop')?.hidden,
 					details: attempt.querySelector('.session-details-row')?.textContent,
 					height: attempt.closest<HTMLElement>('.monaco-list-row')?.style.height,
 					connectorVisibility: mainWindow.getComputedStyle(attempt.querySelector<HTMLElement>('.session-icon')!).visibility,
+				})),
+				independentStops: [synthesis, judge].map(participant => ({
+					title: participant?.querySelector('.session-title')?.textContent,
+					ariaLabel: participant?.querySelector('.session-comparison-participant-stop')?.getAttribute('aria-label'),
+					hidden: participant?.querySelector<HTMLButtonElement>('.session-comparison-participant-stop')?.hidden,
+					stopOnly: participant?.querySelector('.session-comparison-attempt-status')?.classList.contains('stop-only'),
 				})),
 				judge: {
 					title: judge.querySelector('.session-title')?.textContent,
@@ -2088,6 +2106,7 @@ suite('Sessions - SessionsList', () => {
 					hasProgressIndicator: judge.querySelector('.session-icon')?.childElementCount === 1,
 					connector: judge.getAttribute('data-session-group-connector'),
 				},
+				stopPresentation: { stopDisplayAtRest, stopDisplayOnFocus, spinnerDisplayOnFocus },
 				independentParticipantConnectors: independentParticipants.map(participant => participant.getAttribute('data-session-group-connector')),
 			}, {
 				parent: {
@@ -2098,23 +2117,34 @@ suite('Sessions - SessionsList', () => {
 				},
 				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5', 'Codex · GPT-5'],
 				attempts: [
-					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
-					{ title: 'Codex · GPT-5', ariaLabel: 'Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Copilot · Claude Opus 5', stopHidden: false, details: '', height: '30px', connectorVisibility: 'visible' },
+					{ title: 'Codex · GPT-5', ariaLabel: 'Codex · GPT-5, updated now, State: In Progress', status: '', hasSpinner: true, stopAriaLabel: 'Stop Codex · GPT-5', stopHidden: false, details: '', height: '30px', connectorVisibility: 'visible' },
+				],
+				independentStops: [
+					{ title: 'Synthesis', ariaLabel: 'Stop Synthesis', hidden: false, stopOnly: true },
+					{ title: 'Judge', ariaLabel: 'Stop Judge', hidden: false, stopOnly: true },
 				],
 				judge: { title: 'Judge', inProgress: true, hasProgressIndicator: true, connector: null },
+				stopPresentation: { stopDisplayAtRest: 'none', stopDisplayOnFocus: 'flex', spinnerDisplayOnFocus: 'none' },
 				independentParticipantConnectors: [null, null],
 			});
+
+			stopButtons[0]?.click();
+			await Promise.resolve();
+			assert.deepStrictEqual(harness.managementService.cancelled.map(session => session.sessionId), ['attempt-1']);
 
 			attempt1.status.set(SessionStatus.Completed, undefined);
 			assert.deepStrictEqual({
 				statuses: attempts.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent),
 				ariaLabels: attempts.map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-label')),
+				stopHidden: stopButtons.map(button => button?.hidden),
 			}, {
 				statuses: [undefined, ''],
 				ariaLabels: [
 					'Copilot · Claude Opus 5, updated now, State: Completed, in Workspace',
 					'Codex · GPT-5, updated now, State: In Progress',
 				],
+				stopHidden: [true, false],
 			});
 			attempt2.status.set(SessionStatus.Completed, undefined);
 			assert.deepStrictEqual({
@@ -2124,6 +2154,28 @@ suite('Sessions - SessionsList', () => {
 				summary: 'Comparison · Reviewing attempts',
 				statuses: [undefined, undefined],
 			});
+		});
+
+		test('stops all running comparison participants from the group header', async () => {
+			const { attempt1, container, harness } = renderComparison();
+			attempt1.status.set(SessionStatus.Completed, undefined);
+			const stopAll = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-stop-all');
+			assert.ok(stopAll);
+			assert.deepStrictEqual({
+				ariaLabel: stopAll.getAttribute('aria-label'),
+				hidden: stopAll.hidden,
+			}, {
+				ariaLabel: 'Stop All',
+				hidden: false,
+			});
+
+			stopAll.click();
+			await Promise.resolve();
+
+			assert.deepStrictEqual(
+				harness.managementService.cancelled.map(session => session.sessionId).sort(),
+				['attempt-2', 'judge', 'synthesis'],
+			);
 		});
 
 		test('opens from the parent and reserves disclosure for the chevron', () => {

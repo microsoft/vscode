@@ -383,6 +383,29 @@
 		.session-comparison-attempt-status-icon {
 			font-size: var(--vscode-codiconFontSize-compact);
 		}
+
+		.session-comparison-participant-stop.monaco-button {
+			display: none;
+			align-items: center;
+			justify-content: center;
+			width: var(--vscode-spacing-size160);
+			min-width: var(--vscode-spacing-size160);
+			height: var(--vscode-spacing-size160);
+			padding: 0;
+			border: 0;
+			border-radius: var(--vscode-cornerRadius-small);
+			background: transparent;
+			color: var(--vscode-descriptionForeground);
+
+			.codicon {
+				font-size: var(--vscode-codiconFontSize-compact);
+			}
+
+			&:hover {
+				background: var(--vscode-toolbar-hoverBackground);
+				color: var(--vscode-foreground);
+			}
+		}
 	}
 
 	&.session-comparison-attempt {
@@ -1098,6 +1121,20 @@
 	}
 }
 
+.monaco-list-row:hover .session-comparison-participant .session-comparison-attempt-status.stop-only:has(.session-comparison-participant-stop:not([hidden])),
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-participant .session-comparison-attempt-status.stop-only:has(.session-comparison-participant-stop:not([hidden])),
+.monaco-list-row:hover .session-comparison-participant .session-comparison-participant-stop:not([hidden]),
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-participant .session-comparison-participant-stop:not([hidden]),
+.session-comparison-participant .session-comparison-participant-stop:focus {
+	display: flex;
+}
+
+.monaco-list-row:hover .session-comparison-attempt .session-comparison-attempt-status-icon:has(+ .session-comparison-attempt-status-label + .session-comparison-participant-stop:not([hidden])),
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-attempt .session-comparison-attempt-status-icon:has(+ .session-comparison-attempt-status-label + .session-comparison-participant-stop:not([hidden])),
+.session-comparison-attempt .session-comparison-attempt-status:focus-within .session-comparison-attempt-status-icon {
+	display: none;
+}
+
 .session-group.session-comparison-group {
 	padding-top: var(--vscode-spacing-size40);
 	padding-bottom: var(--vscode-spacing-size40);
@@ -1121,7 +1158,38 @@
 
 	.session-section-toolbar {
 		order: 3;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
 	}
+
+	.session-comparison-stop-all.monaco-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--vscode-spacing-size160);
+		min-width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding: 0;
+		border: 0;
+		border-radius: var(--vscode-cornerRadius-small);
+		background: transparent;
+		color: var(--vscode-descriptionForeground);
+
+		.codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+
+		&:hover {
+			background: var(--vscode-toolbar-hoverBackground);
+			color: var(--vscode-foreground);
+		}
+	}
+}
+
+.monaco-list-row:hover .session-group.session-comparison-group .session-section-toolbar,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-toolbar,
+.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-toolbar {
+	display: flex;
 }
 
 .monaco-list-row:hover .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,

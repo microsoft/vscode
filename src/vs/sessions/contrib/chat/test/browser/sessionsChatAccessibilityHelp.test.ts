@@ -128,6 +128,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
 			latestStep: enabledProvider.provideContent().includes('follow the latest available step'),
 			inactiveInputs: enabledProvider.provideContent().includes('only the active attempt pane shows its chat input'),
+			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
+			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 			choiceButtons: enabledProvider.provideContent().includes('Use Tab to move between the choice buttons'),
 		}, {
@@ -143,6 +145,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			effort: true,
 			latestStep: true,
 			inactiveInputs: true,
+			stopParticipant: true,
+			stopAll: true,
 			customSynthesis: true,
 			choiceButtons: true,
 		});
