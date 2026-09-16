@@ -11,6 +11,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -27,7 +28,7 @@ import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../common/sessionCom
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(initialLayout: SessionGridLayout = 'grid', options?: { readonly attemptsOnly?: boolean; readonly hideInactiveInputs?: boolean }) {
+	function setup(initialLayout: SessionGridLayout = 'grid', options?: { readonly attemptsOnly?: boolean; readonly hideInactiveInputs?: boolean; readonly screenReaderOptimized?: boolean }) {
 		const judge = upcastPartial<IActiveSession>({ sessionId: 'judge', resource: URI.parse('test:///judge') });
 		const attempt = upcastPartial<IActiveSession>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
 		const attempt2 = upcastPartial<IActiveSession>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
@@ -70,12 +71,20 @@ suite('Session comparison grid controller', () => {
 		const onDidChangePartVisibility = store.add(new Emitter<{ partId: Parts; visible: boolean }>());
 		const mainContainer = mainWindow.document.createElement('div');
 		const configurationService = new TestConfigurationService({
-			[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: options?.hideInactiveInputs ?? false,
+			[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: options?.hideInactiveInputs ?? true,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const screenReaderOptimizedChanged = store.add(new Emitter<void>());
+		let screenReaderOptimized = options?.screenReaderOptimized ?? false;
 		let resetCount = 0;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override readonly onDidChangeScreenReaderOptimized = screenReaderOptimizedChanged.event;
+			override isScreenReaderOptimized(): boolean {
+				return screenReaderOptimized;
+			}
+		}());
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override readonly onDidFocusSession = focused.event;
 		}());
@@ -121,7 +130,28 @@ suite('Session comparison grid controller', () => {
 			}
 		}());
 		store.add(instantiationService.createInstance(SessionComparisonGridController));
-		return { judge, attempt, attempt2, focused, activeSession, visibleSessions, sessionGridLayout, comparisons, closed, shownOnly, hiddenParts, partVisibility, onDidChangePartVisibility, mainContainer, configurationService, get resetCount() { return resetCount; } };
+		return {
+			judge,
+			attempt,
+			attempt2,
+			focused,
+			activeSession,
+			visibleSessions,
+			sessionGridLayout,
+			comparisons,
+			closed,
+			shownOnly,
+			hiddenParts,
+			partVisibility,
+			onDidChangePartVisibility,
+			mainContainer,
+			configurationService,
+			setScreenReaderOptimized(value: boolean) {
+				screenReaderOptimized = value;
+				screenReaderOptimizedChanged.fire();
+			},
+			get resetCount() { return resetCount; },
+		};
 	}
 
 	test('keeps the whole side pane hidden while an attempt comparison grid is visible', () => {
@@ -195,30 +225,44 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, { shownOnly: [], closed: [], resetCount: 0 });
 	});
 
-	test('marks only enabled attempt grids for inactive input hiding', async () => {
+	test('defaults to hiding inactive attempt inputs except for screen readers', async () => {
 		const attemptGrid = setup('grid', { attemptsOnly: true });
+		const disabledGrid = setup('grid', { attemptsOnly: true, hideInactiveInputs: false });
 		const mixedGrid = setup('grid', { hideInactiveInputs: true });
+		const screenReaderGrid = setup('grid', { attemptsOnly: true, screenReaderOptimized: true });
 		const className = 'session-comparison-hide-inactive-inputs';
-		const before = attemptGrid.mainContainer.classList.contains(className);
+		const enabledByDefault = attemptGrid.mainContainer.classList.contains(className);
 
-		await attemptGrid.configurationService.setUserConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING, true);
+		attemptGrid.setScreenReaderOptimized(true);
+		const disabledForScreenReader = attemptGrid.mainContainer.classList.contains(className);
+		attemptGrid.setScreenReaderOptimized(false);
+		const restoredAfterScreenReader = attemptGrid.mainContainer.classList.contains(className);
+		await attemptGrid.configurationService.setUserConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING, false);
 		attemptGrid.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 			affectsConfiguration: key => key === HIDE_INACTIVE_COMPARISON_INPUTS_SETTING,
 		}));
-		const enabled = attemptGrid.mainContainer.classList.contains(className);
+		const disabledBySetting = attemptGrid.mainContainer.classList.contains(className);
 		attemptGrid.sessionGridLayout.set('columns', undefined);
 		const afterLeavingGrid = attemptGrid.mainContainer.classList.contains(className);
 
 		assert.deepStrictEqual({
-			before,
-			enabled,
+			enabledByDefault,
+			disabledForScreenReader,
+			restoredAfterScreenReader,
+			disabledBySetting,
 			afterLeavingGrid,
+			disabledGrid: disabledGrid.mainContainer.classList.contains(className),
 			mixedGrid: mixedGrid.mainContainer.classList.contains(className),
+			screenReaderGrid: screenReaderGrid.mainContainer.classList.contains(className),
 		}, {
-			before: false,
-			enabled: true,
+			enabledByDefault: true,
+			disabledForScreenReader: false,
+			restoredAfterScreenReader: true,
+			disabledBySetting: false,
 			afterLeavingGrid: false,
+			disabledGrid: false,
 			mixedGrid: false,
+			screenReaderGrid: false,
 		});
 	});
 });

@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -34,12 +35,18 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
 		const hideInactiveInputs = observableFromEvent(
 			this,
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING)),
 			() => configurationService.getValue<boolean>(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING),
+		);
+		const screenReaderOptimized = observableFromEvent(
+			this,
+			accessibilityService.onDidChangeScreenReaderOptimized,
+			() => accessibilityService.isScreenReaderOptimized(),
 		);
 		this._register(autorun(reader => {
 			const layout = this.sessionsService.sessionGridLayout.read(reader);
@@ -49,7 +56,10 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			this._comparisonGridActive = layout === 'grid' && this._isComparisonGrid(visibleSessions, comparisons);
 			this.layoutService.mainContainer.classList.toggle(
 				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
-				hideInactiveInputs.read(reader) && layout === 'grid' && this._isAttemptComparisonGrid(visibleSessions, comparisons),
+				hideInactiveInputs.read(reader)
+					&& !screenReaderOptimized.read(reader)
+					&& layout === 'grid'
+					&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
 			);
 			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
 				&& (visibleSessions.length !== 1
