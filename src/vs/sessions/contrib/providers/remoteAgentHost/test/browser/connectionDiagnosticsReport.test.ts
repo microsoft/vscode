@@ -86,7 +86,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		return { container, report, service, clipboard, update: (next: IConnectionDiagnosticsSnapshot) => { current = next; }, rediscoveries: () => rediscoveries };
 	}
 
-	function createContribution(service: IConnectionDiagnosticsService, clipboard: IClipboardService, getContainer: () => HTMLElement, verbosity = false): ConnectionDiagnosticsContribution {
+	function createContribution(service: IConnectionDiagnosticsService, clipboard: IClipboardService, getContainer: () => HTMLElement, verbosity = false, web = true): ConnectionDiagnosticsContribution {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConnectionDiagnosticsService, service);
 		instantiationService.stub(IClipboardService, clipboard);
@@ -103,7 +103,9 @@ suite('ConnectionDiagnosticsReport', () => {
 			lookupKeybinding: () => new USLayoutResolvedKeybinding([new KeyCodeChord(false, false, true, false, KeyCode.F1)], OperatingSystem.Windows),
 		});
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
-		return store.add(instantiationService.createInstance(ConnectionDiagnosticsContribution));
+		return store.add(instantiationService.createInstance(class extends ConnectionDiagnosticsContribution {
+			protected override get isWebPlatform(): boolean { return web; }
+		}));
 	}
 
 	test('diagnostics help takes precedence over general Agents chat help only in its own context', () => {
@@ -113,6 +115,28 @@ suite('ConnectionDiagnosticsReport', () => {
 			context: help.when?.serialize(),
 		}, { priorityAboveChat: true, context: 'connectionDiagnosticsFocused' });
 	});
+
+	for (const web of [false, true]) {
+		test(`${web ? 'web' : 'native'} accessibility help matches available host actions and refresh behavior`, async () => {
+			const { service, clipboard } = createReport(async () => { });
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			const contribution = createContribution(service, clipboard, () => container, false, web);
+			const closed = contribution.show();
+			const help = store.add(contribution.getAccessibleProvider(AccessibleViewType.Help)!);
+			const text = help.provideContent();
+			await closed;
+			assert.deepStrictEqual({
+				describesHostActions: text.includes('Connect and Disconnect'),
+				describesRediscovery: text.includes('Refresh re-runs host discovery'),
+				describesSnapshotOnly: text.includes('Refresh reads current local state without discovery'),
+			}, {
+				describesHostActions: web,
+				describesRediscovery: web,
+				describesSnapshotOnly: !web,
+			});
+		});
+	}
 
 	test('renders facts without a duplicate host list, with client details collapsed at the bottom', () => {
 		const { container } = createReport(async () => { });
@@ -336,67 +360,67 @@ suite('ConnectionDiagnosticsReport', () => {
 		});
 	});
 
-		for (const outcome of ['not-found', 'failure'] as const) {
-			test(`hidden host recovery shows pending state and ${outcome} without a false connection claim`, async () => {
-				const container = dom.$('div');
-				const pending = new DeferredPromise<void>();
-				let hidden = true;
-				const service = new class extends mock<IConnectionDiagnosticsService>() {
-					override readonly onDidChangeHostManagement = Event.None;
-					override getHostManagementState() {
-						return {
-							hosts: hidden ? [{
-								id: 'hidden', address: 'tunnel:hidden', label: 'Hidden laptop', status: 'disconnected' as const,
-								selectable: false, selected: false, hidden: true, autoConnectSuppressed: false, connectable: false,
-							}] : [],
-							isDiscovering: false,
-						};
+	for (const outcome of ['not-found', 'failure'] as const) {
+		test(`hidden host recovery shows pending state and ${outcome} without a false connection claim`, async () => {
+			const container = dom.$('div');
+			const pending = new DeferredPromise<void>();
+			let hidden = true;
+			const service = new class extends mock<IConnectionDiagnosticsService>() {
+				override readonly onDidChangeHostManagement = Event.None;
+				override getHostManagementState() {
+					return {
+						hosts: hidden ? [{
+							id: 'hidden', address: 'tunnel:hidden', label: 'Hidden laptop', status: 'disconnected' as const,
+							selectable: false, selected: false, hidden: true, autoConnectSuppressed: false, connectable: false,
+						}] : [],
+						isDiscovering: false,
+					};
+				}
+				override async runHostAction(): Promise<void> {
+					await pending.p;
+					hidden = false;
+					if (outcome === 'failure') {
+						throw new Error('Discovery failed');
 					}
-					override async runHostAction(): Promise<void> {
-						await pending.p;
-						hidden = false;
-						if (outcome === 'failure') {
-							throw new Error('Discovery failed');
-						}
-					}
-				}();
-				store.add(new ConnectionDiagnosticsReport(container, snapshot, () => { }, { enableHostManagement: true, rediscoverOnRefresh: true }, service, new class extends mock<IClipboardService>() { }));
-				container.querySelector<HTMLElement>('[aria-label="Restore Hidden laptop"]')!.click();
-				const pendingState = {
-					disabled: container.querySelector('[aria-label="Restore Hidden laptop"]')?.getAttribute('aria-disabled'),
-					working: container.textContent?.includes('Working...'),
-				};
-				await pending.complete();
-				await Promise.resolve();
-				await Promise.resolve();
-				assert.deepStrictEqual({
-					pendingState,
-					message: container.querySelector('[role="status"]')?.textContent,
-					hiddenSections: container.querySelectorAll('.connection-diagnostics-hidden-hosts').length,
-				}, {
-					pendingState: { disabled: 'true', working: true },
-					message: outcome === 'failure' ? 'Discovery failed' : 'Host restored, but not found in the latest discovery.',
-					hiddenSections: 0,
-				});
-			});
-		}
-
-		test('native diagnostics omit management even with hidden and selectable hosts', () => {
-			const { container, service, clipboard } = createReport(async () => { });
-			const host: IConnectionHostManagementEntry = {
-				id: 'host', address: 'tunnel:host', label: 'Host', status: 'connected',
-				selectable: true, selected: true, hidden: false, autoConnectSuppressed: false, connectable: true,
+				}
+			}();
+			store.add(new ConnectionDiagnosticsReport(container, snapshot, () => { }, { enableHostManagement: true, rediscoverOnRefresh: true }, service, new class extends mock<IClipboardService>() { }));
+			container.querySelector<HTMLElement>('[aria-label="Restore Hidden laptop"]')!.click();
+			const pendingState = {
+				disabled: container.querySelector('[aria-label="Restore Hidden laptop"]')?.getAttribute('aria-disabled'),
+				working: container.textContent?.includes('Working...'),
 			};
-			service.getHostManagementState = () => ({ hosts: [host, { ...host, id: 'hidden', hidden: true }], isDiscovering: false });
-			const nativeContainer = dom.$('div');
-			store.add(new ConnectionDiagnosticsReport(nativeContainer, snapshot, () => { }, { enableHostManagement: false, rediscoverOnRefresh: false }, service, clipboard));
+			await pending.complete();
+			await Promise.resolve();
+			await Promise.resolve();
 			assert.deepStrictEqual({
-				nativeHosts: nativeContainer.querySelectorAll('.connection-diagnostics-hosts').length,
-				nativeActions: nativeContainer.querySelectorAll('[role="button"]').length,
-				nativeDetails: nativeContainer.querySelectorAll('dd').length,
-				webDetails: container.querySelectorAll('dd').length,
-			}, { nativeHosts: 0, nativeActions: 0, nativeDetails: 2, webDetails: 2 });
+				pendingState,
+				message: container.querySelector('[role="status"]')?.textContent,
+				hiddenSections: container.querySelectorAll('.connection-diagnostics-hidden-hosts').length,
+			}, {
+				pendingState: { disabled: 'true', working: true },
+				message: outcome === 'failure' ? 'Discovery failed' : 'Host restored, but not found in the latest discovery.',
+				hiddenSections: 0,
+			});
 		});
+	}
+
+	test('native diagnostics omit management even with hidden and selectable hosts', () => {
+		const { container, service, clipboard } = createReport(async () => { });
+		const host: IConnectionHostManagementEntry = {
+			id: 'host', address: 'tunnel:host', label: 'Host', status: 'connected',
+			selectable: true, selected: true, hidden: false, autoConnectSuppressed: false, connectable: true,
+		};
+		service.getHostManagementState = () => ({ hosts: [host, { ...host, id: 'hidden', hidden: true }], isDiscovering: false });
+		const nativeContainer = dom.$('div');
+		store.add(new ConnectionDiagnosticsReport(nativeContainer, snapshot, () => { }, { enableHostManagement: false, rediscoverOnRefresh: false }, service, clipboard));
+		assert.deepStrictEqual({
+			nativeHosts: nativeContainer.querySelectorAll('.connection-diagnostics-hosts').length,
+			nativeActions: nativeContainer.querySelectorAll('[role="button"]').length,
+			nativeDetails: nativeContainer.querySelectorAll('dd').length,
+			webDetails: container.querySelectorAll('dd').length,
+		}, { nativeHosts: 0, nativeActions: 0, nativeDetails: 2, webDetails: 2 });
+	});
 
 	test('download uses UTF-8 text and a safe timestamped filename for the displayed snapshot', async () => {
 		const downloads: { name: string; text: string }[] = [];
@@ -666,68 +690,68 @@ suite('ConnectionDiagnosticsReport', () => {
 	});
 
 	for (const appearance of ['sidebar', 'titlebar'] as const) {
-	test(`${appearance} host information responds to click and tap without invoking its enclosing action`, () => {
-		const container = dom.append(mainWindow.document.body, dom.$('div.action-item'));
-		store.add(toDisposable(() => container.remove()));
-		const commands: string[] = [];
-		let enclosingActions = 0;
-		const widget = store.add(new HostFilterActionViewItem(
-			store.add(new Action('hosts', 'Hosts', undefined, true, async () => { enclosingActions++; })),
-			appearance,
-			new class extends mock<IAgentHostFilterService>() {
-				override readonly onDidChange = Event.None;
-				override readonly onDidChangeDiscovering = Event.None;
-				override readonly hosts = [{
-					id: 'work',
-					label: 'Work laptop',
-					providerIds: ['mock'],
-					grouped: false,
-					address: 'tunnel:work',
-					icon: Codicon.remote,
-					status: AgentHostFilterConnectionStatus.Connected,
-					connectable: true,
-				}];
-				override readonly selectedHost = this.hosts[0];
-				override readonly isDiscovering = false;
-			}(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends mock<IHoverService>() {
-				override setupManagedHover(): IManagedHover {
-					return {
-						dispose() { },
-						show() { },
-						hide() { },
-						update() { },
-					};
-				}
-			}(),
-			new class extends mock<ICommandService>() {
-				override async executeCommand<T>(id: string): Promise<T> {
-					commands.push(id);
-					return undefined as T;
-				}
-			}(),
-		));
-		widget.render(container);
-		const connection = container.querySelector<HTMLElement>('.agent-host-filter-connect');
-		const diagnostics = container.querySelector<HTMLElement>('.agent-host-filter-diagnostics');
-		connection?.click();
-		enclosingActions = 0;
-		diagnostics?.click();
-		diagnostics?.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true, cancelable: true }));
-		assert.deepStrictEqual({
-			statusAriaHidden: connection?.getAttribute('aria-hidden'),
-			statusRole: connection?.getAttribute('role'),
-			diagnosticsLabel: diagnostics?.getAttribute('aria-label'),
-			commands,
-			enclosingActions,
-		}, {
-			statusAriaHidden: 'true',
-			statusRole: null,
-			diagnosticsLabel: 'Open Connection Information. Current host status: Connected.',
-			commands: [ShowConnectionDiagnosticsCommandId, ShowConnectionDiagnosticsCommandId],
-			enclosingActions: 0,
+		test(`${appearance} host information responds to click and tap without invoking its enclosing action`, () => {
+			const container = dom.append(mainWindow.document.body, dom.$('div.action-item'));
+			store.add(toDisposable(() => container.remove()));
+			const commands: string[] = [];
+			let enclosingActions = 0;
+			const widget = store.add(new HostFilterActionViewItem(
+				store.add(new Action('hosts', 'Hosts', undefined, true, async () => { enclosingActions++; })),
+				appearance,
+				new class extends mock<IAgentHostFilterService>() {
+					override readonly onDidChange = Event.None;
+					override readonly onDidChangeDiscovering = Event.None;
+					override readonly hosts = [{
+						id: 'work',
+						label: 'Work laptop',
+						providerIds: ['mock'],
+						grouped: false,
+						address: 'tunnel:work',
+						icon: Codicon.remote,
+						status: AgentHostFilterConnectionStatus.Connected,
+						connectable: true,
+					}];
+					override readonly selectedHost = this.hosts[0];
+					override readonly isDiscovering = false;
+				}(),
+				new class extends mock<IContextMenuService>() { }(),
+				new class extends mock<IHoverService>() {
+					override setupManagedHover(): IManagedHover {
+						return {
+							dispose() { },
+							show() { },
+							hide() { },
+							update() { },
+						};
+					}
+				}(),
+				new class extends mock<ICommandService>() {
+					override async executeCommand<T>(id: string): Promise<T> {
+						commands.push(id);
+						return undefined as T;
+					}
+				}(),
+			));
+			widget.render(container);
+			const connection = container.querySelector<HTMLElement>('.agent-host-filter-connect');
+			const diagnostics = container.querySelector<HTMLElement>('.agent-host-filter-diagnostics');
+			connection?.click();
+			enclosingActions = 0;
+			diagnostics?.click();
+			diagnostics?.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true, cancelable: true }));
+			assert.deepStrictEqual({
+				statusAriaHidden: connection?.getAttribute('aria-hidden'),
+				statusRole: connection?.getAttribute('role'),
+				diagnosticsLabel: diagnostics?.getAttribute('aria-label'),
+				commands,
+				enclosingActions,
+			}, {
+				statusAriaHidden: 'true',
+				statusRole: null,
+				diagnosticsLabel: 'Open Connection Information. Current host status: Connected.',
+				commands: [ShowConnectionDiagnosticsCommandId, ShowConnectionDiagnosticsCommandId],
+				enclosingActions: 0,
+			});
 		});
-	});
 	}
 });

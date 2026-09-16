@@ -45,6 +45,8 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 	private active: IActiveConnectionDiagnostics | undefined;
 	private accessibleView: { readonly provider: AccessibleContentProvider; readonly snapshot: IConnectionDiagnosticsSnapshot } | undefined;
 
+	protected get isWebPlatform(): boolean { return isWeb; }
+
 	constructor(
 		@IConnectionDiagnosticsService private readonly diagnosticsService: IConnectionDiagnosticsService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
@@ -80,8 +82,8 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		let active: IActiveConnectionDiagnostics | undefined;
 		await showConnectionDiagnosticsSheet(container, snapshot ?? this.diagnosticsService.getSnapshot(), this.instantiationService, {
 			autoFocus: false,
-			enableHostManagement: isWeb,
-			rediscoverOnRefresh: isWeb,
+			enableHostManagement: this.isWebPlatform,
+			rediscoverOnRefresh: this.isWebPlatform,
 			onDidCreate: (report, api) => {
 				active = this.active = { report, overlay: api.overlay, close: () => api.close(), restoreFocus: true, returnFocus: dom.isHTMLElement(previouslyFocused) ? previouslyFocused : undefined };
 				return this.attachModal(container, report, api);
@@ -155,9 +157,15 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		active.overlay.remove();
 		active.close();
 		const help = [
-			localize('connectionDiagnostics.help.overview', "Connection information shows live host summaries with Connect and Disconnect beside each host. Expand a host to read its captured diagnostic details. Actions use current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. The separate Hidden hosts section has Restore actions that return hosts to discovery; restoration does not guarantee a connection."),
-			localize('connectionDiagnostics.help.navigation', "Use Tab and Shift+Tab to move between host actions, header actions, the report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details."),
-			localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh re-runs host discovery and then captures current local state."),
+			this.isWebPlatform
+				? localize('connectionDiagnostics.help.webOverview', "Connection information shows live host summaries with Connect and Disconnect beside each host. Expand a host to read its captured diagnostic details. Actions use current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. The separate Hidden hosts section has Restore actions that return hosts to discovery; restoration does not guarantee a connection.")
+				: localize('connectionDiagnostics.help.overview', "Connection diagnostics shows a read-only snapshot of local connection state."),
+			this.isWebPlatform
+				? localize('connectionDiagnostics.help.webNavigation', "Use Tab and Shift+Tab to move between host actions, header actions, the report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details.")
+				: localize('connectionDiagnostics.help.navigation', "Use Tab and Shift+Tab to move between the header actions, report, and collapsed sections. Use arrow keys to scroll the focused report. Use Enter or Space to expand client details."),
+			this.isWebPlatform
+				? localize('connectionDiagnostics.help.webCopy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh re-runs host discovery and then captures current local state.")
+				: localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh reads current local state without discovery, authentication, or connection changes."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
 			localize('connectionDiagnostics.help.close', "Escape or Close dismisses diagnostics. Closing this accessible view returns to the diagnostics snapshot."),
 		].join('\n\n');

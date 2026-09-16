@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import * as nls from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -29,6 +30,8 @@ const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;
 export class TunnelAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.tunnelAgentHostContribution';
+
+	protected get isWebPlatform(): boolean { return isWeb; }
 
 	private readonly _providerStores = this._register(new DisposableMap<string /* address */, DisposableStore>());
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
@@ -295,7 +298,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		if (options.userInitiated) {
 			this._tunnelService.clearTunnelDismissal(tunnelId);
-			this._tunnelService.clearAutoConnectSuppression(tunnelId);
+			if (this.isWebPlatform) {
+				this._tunnelService.clearAutoConnectSuppression(tunnelId);
+			}
 		}
 		const cached = this._tunnelService.getCachedTunnels().find(t => t.tunnelId === tunnelId);
 		const attemptStart = Date.now();
@@ -346,6 +351,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private async _disconnectTunnel(address: string): Promise<void> {
 		this._diagnosticsService.recordHostAction(address, 'disconnect', true);
+		if (!this.isWebPlatform) {
+			await this._removeTunnel(address);
+			return;
+		}
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		this._tunnelService.suppressAutoConnect(tunnelId);
 		await this._tunnelService.disconnect(address);
