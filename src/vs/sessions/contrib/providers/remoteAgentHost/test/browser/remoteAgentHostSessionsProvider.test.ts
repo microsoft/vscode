@@ -1778,7 +1778,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.workspace.get(), undefined);
 	}));
 
-	test('registers remote SDK session state homes from artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('maps remote artifact files and registers their SDK session state homes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const metadata = createSession('ahp-session', {
 			summary: 'Remote Session',
 			_meta: withSessionArtifacts(undefined, [{
@@ -1795,13 +1795,16 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		provider.getSessions();
 		await timeout(0);
 
+		const session = provider.getSessions().find(session => session.title.get() === 'Remote Session');
 		const root = URI.file('/home/remote/.copilot/session-state/sdk-session');
 		const resource = toAgentHostUri(URI.joinPath(root, 'files/plan.md'), agentHostAuthority('localhost:4321'));
 		const providerLabel = provider.sessionTypes.find(type => type.id === CopilotCLISessionType.id)?.label;
 		assert.deepStrictEqual({
+			artifact: session?.artifacts?.get()[0]?.uri?.toString(),
 			home: labelService.getUriHome(resource)?.path,
 			label: labelService.getUriLabel(resource),
 		}, {
+			artifact: resource.toString(),
 			home: root.path,
 			label: `${providerLabel}/Remote Session/files/plan.md`,
 		});
