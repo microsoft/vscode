@@ -8,30 +8,35 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { AgentSession } from '../../common/agent.js';
 import { AgentHostRemoteTargetStatus, AgentHostRemoteTargetUnavailableError, type IAgentHostRemoteTargetConnector } from '../../common/agentHostRemoteAgents.js';
 import { AgentHostProtocolClientCore } from '../../common/agentHostProtocolClient.js';
 import { AgentHostRemoteAgentsEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { ReconnectResultType } from '../../common/state/protocol/commands.js';
 import type { RootState } from '../../common/state/protocol/channels-root/state.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, TurnState } from '../../common/state/sessionState.js';
 import type { InitializeResult, JsonRpcRequest, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostRemoteAgentsService } from '../../node/agentHostRemoteAgentsService.js';
 import { AgentHostRemoteTargetRegistry } from '../../node/agentHostRemoteTargetRegistry.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
-import { WebSocketProtocolServer } from '../../node/webSocketTransport.js';
+import { AgentHostRemoteAgentProviderContribution } from '../../node/remoteAgent/remoteAgentProviderContribution.js';
 import { remoteTarget as target, TestAgentHostRemoteTargetConnector as TestTargetConnector } from './agentHostRemoteTargetsTestUtils.js';
 import { NodeWebSocketClientTransport } from './nodeWebSocketClientTransport.js';
+import { ScriptedRemoteAgentHostServer } from './scriptedRemoteAgentHostServer.js';
 
 class ScriptedTargetTransport extends Disposable implements IProtocolTransport {
 	protected readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
@@ -806,27 +811,8 @@ suite('AgentHostRemoteTargets', () => {
 
 	test('connects a fixed Node WebSocket target and reads its provider catalogue', async () => {
 		const logService = new NullLogService();
-		const server = disposables.add(await WebSocketProtocolServer.create({ port: 0, host: '127.0.0.1' }, logService));
-		await server.whenListening;
-		const serverConnections = disposables.add(new DisposableStore());
-		disposables.add(server.onConnection(transport => {
-			serverConnections.add(transport);
-			serverConnections.add(transport.onMessage(message => {
-				if (hasKey(message, { method: true, id: true }) && message.method === 'initialize') {
-					transport.send({
-						jsonrpc: '2.0',
-						id: message.id,
-						result: {
-							protocolVersion: PROTOCOL_VERSION,
-							serverSeq: 0,
-							snapshots: [{ resource: ROOT_STATE_URI, state: catalog, fromSeq: 0 }],
-						},
-					});
-				}
-			}));
-		}));
-
-		const address = `ws://127.0.0.1:${server.boundPort}`;
+		const server = disposables.add(await ScriptedRemoteAgentHostServer.create(catalog, logService));
+		const address = server.address;
 		const runtime = createRuntime();
 		const connector = new TestTargetConnector('fixed-websocket', async (_target, options) => {
 			const transportFactory = await NodeWebSocketClientTransport.createFactory(address, undefined, logService);
@@ -842,14 +828,113 @@ suite('AgentHostRemoteTargets', () => {
 		if (!rootState || rootState instanceof Error) {
 			throw new Error('Expected fixed target root state');
 		}
+		const connectedCount = server.activeConnectionCount;
+		runtime.configurationService.updateRootConfig({ [AgentHostRemoteAgentsEnabledConfigKey]: false });
+		await waitFor(() => server.activeConnectionCount === 0);
 		assert.deepStrictEqual({
 			targetId: handle.targetId,
 			status: handle.status.get(),
 			agents: rootState.agents,
+			connectionCounts: [connectedCount, server.activeConnectionCount],
 		}, {
 			targetId: 'fixed:local-test',
-			status: AgentHostRemoteTargetStatus.Connected,
+			status: AgentHostRemoteTargetStatus.Unavailable,
 			agents: catalog.agents,
+			connectionCounts: [1, 0],
+		});
+	});
+
+	test('runs one scripted two-host chat through a fixed Node WebSocket target', async function () {
+		this.timeout(15_000);
+		const logService = new NullLogService();
+		const response = {
+			startedAt: '2026-09-15T20:00:00.000Z',
+			partId: 'scripted-part',
+			content: 'Hello from Host B',
+			duration: 7,
+		};
+		const server = disposables.add(await ScriptedRemoteAgentHostServer.create(catalog, logService, response));
+		const address = server.address;
+		const runtime = createRuntime();
+		const authentication = disposables.add(new AgentHostAuthenticationService(logService));
+		const providers = disposables.add(new AgentHostProviderService(authentication, logService));
+		disposables.add(new AgentHostRemoteAgentProviderContribution(runtime.service, providers, logService));
+		const connector = new TestTargetConnector('fixed-websocket-chat', async (_target, options) => {
+			const transportFactory = await NodeWebSocketClientTransport.createFactory(address, undefined, logService);
+			return new TrackingProtocolClient(address, transportFactory, { clientId: options.clientId }, logService);
+		});
+		contribute(runtime.service, connector);
+		connector.setTargets([target(address, 'fixed:scripted-chat', 'Scripted Host B')]);
+		enable(runtime.configurationService, runtime.managedSettingsService);
+		await waitFor(() => providers.getProviders().length === 1);
+		const handle = runtime.service.targets.get()[0];
+		const agent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(agent.id, 'host-a-session');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		const expectedRemoteTurnId = `remote:${handle.clientId}:turn:host-a-turn`;
+		const expectedPartId = `remote:${handle.clientId}:part:${response.partId}`;
+		const progress: string[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action') {
+				progress.push(signal.action.type);
+			}
+		}));
+
+		const created = await agent.chats.createChat(localChat, localSession);
+		await agent.chats.sendMessage(localChat, 'Hello from Host A', undefined, undefined, 'host-a-turn');
+		await waitFor(() => progress.includes(ActionType.ChatTurnComplete));
+		const history = await agent.chats.getMessages(localChat, localSession);
+
+		assert.deepStrictEqual({
+			provider: agent.getDescriptor(),
+			createSessionCalls: server.createSessionCalls.map(call => ({
+				provider: call.provider,
+				workingDirectories: call.workingDirectories,
+				sessionProvider: AgentSession.provider(call.channel),
+				sessionIsNamespaced: AgentSession.id(call.channel).startsWith(`remote-${handle.clientId}-`),
+			})),
+			receivedTurns: server.receivedTurnStartedActions.map(action => ({
+				turnId: action.turnId,
+				prompt: action.message.text,
+			})),
+			progress,
+			history,
+			hasOpaqueProviderData: typeof created?.providerData === 'string',
+		}, {
+			provider: {
+				provider: agent.id,
+				displayName: 'Copilot (Scripted Host B)',
+				description: 'Remote Copilot on Scripted Host B',
+			},
+			createSessionCalls: [{
+				provider: 'copilot',
+				workingDirectories: [],
+				sessionProvider: 'copilot',
+				sessionIsNamespaced: true,
+			}],
+			receivedTurns: [{
+				turnId: expectedRemoteTurnId,
+				prompt: 'Hello from Host A',
+			}],
+			progress: [
+				ActionType.ChatResponsePart,
+				ActionType.ChatDelta,
+				ActionType.ChatTurnComplete,
+			],
+			history: [{
+				id: 'host-a-turn',
+				startedAt: response.startedAt,
+				duration: response.duration,
+				message: { text: 'Hello from Host A', origin: { kind: MessageKind.User } },
+				responseParts: [{
+					kind: ResponsePartKind.Markdown,
+					id: expectedPartId,
+					content: response.content,
+				}],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+			hasOpaqueProviderData: true,
 		});
 	});
 

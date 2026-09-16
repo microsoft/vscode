@@ -22,6 +22,10 @@ export interface IAgentHostProviderNetworkDiagnostics {
 	readonly account: string | undefined;
 }
 
+export interface IAgentHostProviderRegistrationOptions {
+	readonly canBeDefault?: boolean;
+}
+
 export interface IAgentHostProviderService {
 	readonly _serviceBrand: undefined;
 	readonly agents: IObservable<readonly IAgent[]>;
@@ -29,7 +33,11 @@ export interface IAgentHostProviderService {
 	readonly onMcpNotification: Event<IMcpNotification>;
 
 	registerProviderInitializer(initializer: (provider: IAgent) => IDisposable): IDisposable;
-	registerProvider(provider: IAgent): void;
+	/**
+	 * Registers a provider and transfers ownership to this service. Disposing the
+	 * returned handle withdraws the provider without removing session associations.
+	 */
+	registerProvider(provider: IAgent, options?: IAgentHostProviderRegistrationOptions): IDisposable;
 	resolveProvider(provider?: AgentProvider): IAgent | undefined;
 	getProvider(provider: AgentProvider): IAgent | undefined;
 	getProviderForSession(session: URI | string): IAgent | undefined;
@@ -48,6 +56,8 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _providers = this._register(new DisposableMap<AgentProvider, IAgent>());
+	private readonly _providerRegistrationHandles = this._register(new DisposableStore());
+	private readonly _defaultEligibleProviders = new Set<AgentProvider>();
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
 	private readonly _agents: ISettableObservable<readonly IAgent[]> = observableValue(this, []);
 	readonly agents: IObservable<readonly IAgent[]> = this._agents;
@@ -77,7 +87,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		return toDisposable(() => this._providerInitializers.delete(initializer));
 	}
 
-	registerProvider(provider: IAgent): void {
+	registerProvider(provider: IAgent, options?: IAgentHostProviderRegistrationOptions): IDisposable {
 		if (this._shutdownStarted) {
 			throw new Error('Cannot register an agent provider after shutdown has started');
 		}
@@ -88,6 +98,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		const registrations = new DisposableStore();
 		const previousDefaultProvider = this._defaultProvider;
+		const canBeDefault = options?.canBeDefault !== false;
 		try {
 			if (provider.onMcpNotification) {
 				registrations.add(provider.onMcpNotification(event => this._onMcpNotification.fire(event)));
@@ -97,13 +108,17 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			for (const initializer of this._providerInitializers) {
 				registrations.add(initializer(provider));
 			}
-			if (!this._defaultProvider) {
+			if (canBeDefault) {
+				this._defaultEligibleProviders.add(provider.id);
+			}
+			if (!this._defaultProvider && canBeDefault) {
 				this._defaultProvider = provider.id;
 			}
 			this._agents.set([...this._providers.values()], undefined);
 		} catch (error) {
 			this._providerRegistrations.deleteAndDispose(provider.id);
 			this._providers.deleteAndDispose(provider.id);
+			this._defaultEligibleProviders.delete(provider.id);
 			this._defaultProvider = previousDefaultProvider;
 			throw error;
 		}
@@ -116,6 +131,27 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 				this._authenticationReplays.delete(provider.id);
 			}
 		});
+		const registration = toDisposable(() => {
+			this._providerRegistrationHandles.deleteAndLeak(registration);
+			this._unregisterProvider(provider);
+		});
+		this._providerRegistrationHandles.add(registration);
+		return registration;
+	}
+
+	private _unregisterProvider(provider: IAgent): void {
+		if (this._providers.get(provider.id) !== provider) {
+			return;
+		}
+		this._logService.info(`Unregistering agent provider: ${provider.id}`);
+		this._authenticationReplays.delete(provider.id);
+		this._providerRegistrations.deleteAndDispose(provider.id);
+		this._providers.deleteAndDispose(provider.id);
+		this._defaultEligibleProviders.delete(provider.id);
+		if (this._defaultProvider === provider.id) {
+			this._defaultProvider = [...this._providers.keys()].find(candidate => this._defaultEligibleProviders.has(candidate));
+		}
+		this._agents.set([...this._providers.values()], undefined);
 	}
 
 	resolveProvider(provider?: AgentProvider): IAgent | undefined {
@@ -241,7 +277,9 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			}
 			this._agents.set([], undefined);
 			this._defaultProvider = undefined;
+			this._defaultEligibleProviders.clear();
 			this._sessionToProvider.clear();
+			this._providerRegistrationHandles.clear();
 		}
 	}
 }

@@ -18,6 +18,8 @@ import { activateAgentHostContributions } from '../../node/agentHostContribution
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostRemoteAgentsService, type IAgentHostRemoteAgentsContribution } from '../../node/agentHostRemoteAgentsService.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 
 class FailingChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -97,6 +99,7 @@ suite('AgentHostContributions', () => {
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
 			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 			[IAgentHostRemoteAgentsService, remoteAgentsService],
+			[IAgentHostProviderService, createTestAgentHostProviderService(() => undefined)],
 			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

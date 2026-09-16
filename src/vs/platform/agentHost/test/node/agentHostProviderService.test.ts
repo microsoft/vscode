@@ -131,6 +131,60 @@ suite('AgentHostProviderService', () => {
 		duplicate.dispose();
 	});
 
+	test('registration handle withdraws a non-default provider and preserves its session associations', () => {
+		const { service } = createService();
+		const first = new TestProvider('first');
+		const second = new TestProvider('second');
+		const associated = URI.parse('unknown:/associated');
+		const firstRegistration = service.registerProvider(first, { canBeDefault: false });
+		service.associateSession(associated, first.id);
+		const defaultBeforeLocal = service.resolveProvider();
+		service.registerProvider(second);
+
+		firstRegistration.dispose();
+		firstRegistration.dispose();
+		const replacement = new TestProvider('first');
+		service.registerProvider(replacement, { canBeDefault: false });
+
+		assert.deepStrictEqual({
+			agents: service.agents.get().map(agent => agent.id),
+			defaultBeforeLocal,
+			defaultProvider: service.resolveProvider()?.id,
+			associatedProvider: service.getProviderForSession(associated)?.id,
+			firstDisposeCount: first.disposeCount,
+			secondDisposeCount: second.disposeCount,
+			replacementDisposeCount: replacement.disposeCount,
+		}, {
+			agents: ['second', 'first'],
+			defaultBeforeLocal: undefined,
+			defaultProvider: 'second',
+			associatedProvider: 'first',
+			firstDisposeCount: 1,
+			secondDisposeCount: 0,
+			replacementDisposeCount: 0,
+		});
+	});
+
+	test('withdrawing the current default skips ineligible providers', () => {
+		const { service } = createService();
+		const first = new TestProvider('first');
+		const remote = new TestProvider('remote');
+		const second = new TestProvider('second');
+		const firstRegistration = service.registerProvider(first);
+		service.registerProvider(remote, { canBeDefault: false });
+		service.registerProvider(second);
+
+		firstRegistration.dispose();
+
+		assert.deepStrictEqual({
+			providers: service.getProviders().map(provider => provider.id),
+			defaultProvider: service.resolveProvider()?.id,
+		}, {
+			providers: ['remote', 'second'],
+			defaultProvider: 'second',
+		});
+	});
+
 	test('rolls back a provider when registration setup throws', async () => {
 		const { service, authentication } = createService();
 		const provider = new TestProvider('copilot');

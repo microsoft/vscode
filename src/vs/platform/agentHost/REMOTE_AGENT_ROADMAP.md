@@ -2,8 +2,8 @@
 
 Tracking issue: [#336199](https://github.com/microsoft/vscode/issues/336199)
 
-Status: proposal for incremental implementation. This document describes the
-target architecture and release gates; it does not define a public API.
+Status: prototype steps 0-7 implemented. This document describes the target
+architecture and release gates; it does not define a public API.
 
 For the one-page coworker handoff and ownership split, start with
 [REMOTE_AGENT_WORK_SPLIT.md](./REMOTE_AGENT_WORK_SPLIT.md).
@@ -32,7 +32,7 @@ credentials, and C remains authoritative for its provider execution.
 | Surface | Reuse and limitation |
 | --- | --- |
 | [`IAgent` and `IAgentChats`](./common/agent.ts) | The provider seam is already chat-addressed and supports opaque backing, progress, history, interactions, and capabilities. It does not represent a whole remote host. |
-| [`IAgentHostProviderService`](./node/agentHostProviderService.ts) | Provides the normal provider catalog and session association. Dynamic withdrawal/temporary unavailability needs an explicit design. |
+| [`IAgentHostProviderService`](./node/agentHostProviderService.ts) | Provides the normal provider catalog, lifetime-owned registration handles, default-provider eligibility, and session association. Withdrawal retains associations so a provider with the same identity can restore later. |
 | [`AgentHostProtocolClientCore`](./common/agentHostProtocolClient.ts) and [`AgentHostProtocolClient`](./browser/agentHostProtocolClient.ts) | The headless core implements AHP initialization, requests, subscriptions, actions, versioning, and reconnect behavior. The browser adapter retains workbench configuration, trust, telemetry, and resource integration. |
 | [`IRemoteAgentHostConnectionFactory`](./common/remoteAgentHostService.ts) | Useful prior art for target entries, factories, connection ownership, and observable availability. The current target-kind union is closed over built-ins. |
 | [Tunnel discovery](./node/tunnelAgentHostService.ts) | Existing tunnel enumeration and relay machinery should be reused rather than reimplemented inside `RemoteAgent`. |
@@ -224,10 +224,16 @@ Initial mapping:
 - Do not derive downstream identity by parsing A's session URI.
 - A owns local catalog entries and handles.
 - The downstream host owns execution and provider history.
-- Translate supported progress into local provider signals; do not mirror the
-  downstream root/session catalog into A.
+- Project each downstream `AgentInfo` and its models into A's provider/model
+  catalog, and translate supported chat progress into local provider signals.
+- Do not mirror downstream session or chat catalogs into A. Only A-created
+  chats with an explicit opaque downstream binding enter A's session catalog.
 - Namespace endpoint/provider, session, chat, turn, tool-call, and resource
   identities.
+- Build the local provider ID with
+  `remoteAgentHostSessionTypeId(agentHostAuthority(JSON.stringify([connectorId, targetId])), downstreamProvider)`.
+  Remote providers are never implicit defaults; callers select them explicitly
+  or resolve them through a retained session association.
 - Advertise only the intersection of downstream capabilities and adapter
   support.
 
@@ -303,6 +309,10 @@ define unavailable/withdrawn behavior.
 enable/discovery transitions do not duplicate providers; a tunnel removed by a
 successful discovery refresh removes its target and provider catalog entries.
 
+**Prototype status:** complete. Remote providers use the stable connector/target
+identity, remain registered but unavailable during transient disconnect, and
+withdraw with their target or authoritative downstream catalog entry.
+
 ### 6. One remote-backed chat - Person 2
 
 Implement create, send, ordered streaming progress, terminal errors, abort, and
@@ -311,12 +321,19 @@ history for a conservative capability subset.
 **Done when:** an ordinary A session talks to the scripted B exactly once and
 unrelated B sessions never appear in A.
 
+**Prototype status:** complete for one workspace-less default chat. The adapter
+supports opaque backing restore, ordered progress, terminal errors, abort,
+history, release, and explicit disposal; later interaction and tool routing
+remain deferred.
+
 ### 7. Fixed-endpoint integration - Joint
 
 Connect Person 1's real client to Person 2's adapter.
 
 **Done when:** a two-host chat works with no transport-specific code in
 `RemoteAgent`.
+
+**Prototype status:** complete against the fixed Node WebSocket target.
 
 ### 8. Optional host and client tunnel auth - Person 1
 

@@ -126,8 +126,9 @@ Likely primary files:
 
 ## Shared contract and current handoff status
 
-The headless AHP client extraction is complete. Person 2 can begin provider
-catalog and workspace-less chat work against a local fake of the proposed
+The headless AHP client extraction and the fixed-endpoint Person 2 prototype are
+complete through roadmap step 7. Admitted targets now contribute ordinary
+providers, and one workspace-less remote-backed chat runs through the shared
 connection contract.
 
 The runtime controls, shared activation lifecycle, stable target handles, and
@@ -135,11 +136,10 @@ connector boundary are implemented locally and pending review. The lifecycle
 remains disabled until both the persisted master setting and a connected
 client's managed-policy snapshot allow it.
 
-Person 2 can consume
+Later Person 2 milestones can continue to consume
 [`IAgentHostRemoteTargetHandle`](./common/agentHostRemoteAgents.ts) and
 [`TestAgentHostRemoteTargetConnector`](./test/node/agentHostRemoteTargetsTestUtils.ts)
-without depending directly on `AgentHostProtocolClientCore`. The handoff becomes
-available on the shared branch after review and push.
+without depending directly on `AgentHostProtocolClientCore`.
 
 Person 1 delivers one lifetime-owned connection per admitted target:
 
