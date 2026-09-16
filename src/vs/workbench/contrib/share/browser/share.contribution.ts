@@ -12,9 +12,16 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { CodeAction, CodeActionList, CodeActionProvider } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/types.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
@@ -38,6 +45,8 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 
+const SHARE_AS_PRIVATE_GIST_COMMAND_ID = 'workbench.action.shareAsPrivateGist';
+const SHOW_SHARE_CODE_TIP_COMMAND_ID = 'workbench.action.showShareCodeTip';
 interface IEditorLineNumberContextArgs {
 	readonly lineNumber?: number;
 	readonly uri?: URI;
@@ -95,12 +104,15 @@ class ShareWorkbenchContribution extends Disposable {
 
 	constructor(
 		@IShareService private readonly shareService: IShareService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
 		this.registerPrivateGistShareAction();
 		this.registerCopyGitHubDotComLinkAction();
+		this.registerShareCodeTipAction();
+		this.registerShareCodeActionProvider();
 
 		if (this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
 			this.registerActions();
@@ -126,7 +138,7 @@ class ShareWorkbenchContribution extends Disposable {
 
 	private registerPrivateGistShareAction(): void {
 		this._register(registerAction2(class ShareAsPrivateGistAction extends Action2 {
-			static readonly ID = 'workbench.action.shareAsPrivateGist';
+			static readonly ID = SHARE_AS_PRIVATE_GIST_COMMAND_ID;
 			static readonly LABEL = localize2('shareAsPrivateGist', 'Share as Private Gist');
 
 			constructor() {
@@ -323,6 +335,90 @@ class ShareWorkbenchContribution extends Disposable {
 				});
 			}
 		}));
+	}
+
+	private registerShareCodeTipAction(): void {
+		this._register(registerAction2(class ShowShareCodeTipAction extends Action2 {
+			constructor() {
+				super({
+					id: SHOW_SHARE_CODE_TIP_COMMAND_ID,
+					title: localize2('showShareCodeTip', 'Show me how to share this code'),
+					f1: true,
+					category: localize2('shareCategory', 'Share'),
+					precondition: EditorContextKeys.hasNonEmptySelection,
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const dialogService = accessor.get(IDialogService);
+				const commandService = accessor.get(ICommandService);
+
+				const markdown = new MarkdownString(undefined, { supportThemeIcons: true, isTrusted: true });
+				markdown.appendMarkdown(localize(
+					'showShareCodeTip.body',
+					"With code selected, open the editor context menu and choose **Share**:\n\n- **Share as Private Gist** — share the selection privately (prototype)\n- **Copy GitHub.com Link** — copy a github.com permalink for the current line\n- **Copy vscode.dev Link** — existing VS Code share action\n\nTip: you can also use **Share: Share as Private Gist** from the Command Palette."
+				));
+
+				const result = await dialogService.prompt({
+					type: Severity.Info,
+					message: localize('showShareCodeTip.title', "Show me how to share this code"),
+					custom: {
+						icon: Codicon.lightbulb,
+						markdownDetails: [{
+							markdown,
+							classes: ['share-dialog-input-text']
+						}]
+					},
+					cancelButton: localize('showShareCodeTip.close', "Close"),
+					buttons: [
+						{
+							label: localize('showShareCodeTip.tryGist', "Share as Private Gist"),
+							run: () => 'gist' as const
+						}
+					]
+				});
+
+				if (result.result === 'gist') {
+					await commandService.executeCommand(SHARE_AS_PRIVATE_GIST_COMMAND_ID);
+				}
+			}
+		}));
+	}
+
+	/**
+	 * Reuses the editor lightbulb / Quick Fix surface (VS Code equivalent of
+	 * Visual Studio Quick Actions) to surface a share tip when text is selected.
+	 */
+	private registerShareCodeActionProvider(): void {
+		const provider: CodeActionProvider = {
+			providedCodeActionKinds: [CodeActionKind.QuickFix.value],
+			provideCodeActions: (model: ITextModel, range: Range | Selection): CodeActionList | undefined => {
+				if (range.isEmpty()) {
+					return undefined;
+				}
+				const text = model.getValueInRange(range);
+				if (!text || text.trim().length < 2) {
+					return undefined;
+				}
+
+				const action: CodeAction = {
+					title: localize('shareCodeAction.title', "Show me how to share this code"),
+					kind: CodeActionKind.QuickFix.value,
+					isPreferred: true,
+					command: {
+						id: SHOW_SHARE_CODE_TIP_COMMAND_ID,
+						title: localize('shareCodeAction.title', "Show me how to share this code"),
+					}
+				};
+
+				return {
+					actions: [action],
+					dispose() { }
+				};
+			}
+		};
+
+		this._register(this.languageFeaturesService.codeActionProvider.register('*', provider));
 	}
 
 	private registerActions() {
