@@ -246,6 +246,32 @@ suite('URI Label', () => {
 		store.dispose();
 	});
 
+	test('URI home templates read URI identity casing at lookup time', () => {
+		let ignorePathCasing = false;
+		const store = new DisposableStore();
+		const dynamicLabelService = store.add(new LabelService(
+			TestEnvironmentService,
+			new TestContextService(),
+			new TestPathService(),
+			new TestRemoteAgentService(),
+			store.add(new TestStorageService()),
+			store.add(new TestLifecycleService()),
+			{ _serviceBrand: undefined, extUri: new resources.ExtUri(() => ignorePathCasing), asCanonicalUri: uri => uri }
+		));
+		store.add(dynamicLabelService.registerFormatter({
+			home: URI.parse('test:/sessions/K/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Session', separator: '/' }),
+		}));
+		const resource = URI.parse('test:/sessions/K/session-id/file.md');
+
+		assert.strictEqual(dynamicLabelService.getUriHome(resource), undefined);
+		ignorePathCasing = true;
+		assert.strictEqual(dynamicLabelService.getUriHome(resource)?.path, '/sessions/K/session-id');
+
+		store.dispose();
+	});
+
 	test('resolves URI home templates to concrete formatting', () => {
 		let resolverCalls = 0;
 		const staticRegistration = labelService.registerFormatter({
