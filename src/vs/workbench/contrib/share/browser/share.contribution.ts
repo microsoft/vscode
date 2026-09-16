@@ -30,6 +30,7 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -55,6 +56,8 @@ class ShareWorkbenchContribution extends Disposable {
 	) {
 		super();
 
+		this.registerPrivateGistShareAction();
+
 		if (this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
 			this.registerActions();
 		}
@@ -74,6 +77,125 @@ class ShareWorkbenchContribution extends Disposable {
 	override dispose(): void {
 		super.dispose();
 		this._disposables?.dispose();
+	}
+
+
+	private registerPrivateGistShareAction(): void {
+		this._register(registerAction2(class ShareAsPrivateGistAction extends Action2 {
+			static readonly ID = 'workbench.action.shareAsPrivateGist';
+			static readonly LABEL = localize2('shareAsPrivateGist', 'Share as Private Gist');
+
+			constructor() {
+				super({
+					id: ShareAsPrivateGistAction.ID,
+					title: ShareAsPrivateGistAction.LABEL,
+					f1: true,
+					category: localize2('shareCategory', 'Share'),
+					icon: Codicon.gistSecret,
+					precondition: EditorContextKeys.hasNonEmptySelection,
+					menu: [
+						{
+							id: MenuId.EditorContextShare,
+							group: '0_gist',
+							order: 1,
+							when: EditorContextKeys.hasNonEmptySelection
+						},
+						{
+							id: MenuId.MenubarShare,
+							group: '0_gist',
+							order: 1,
+							when: EditorContextKeys.hasNonEmptySelection
+						},
+						{
+							id: MenuId.EditorTitleContextShare,
+							group: '0_gist',
+							order: 1,
+							when: EditorContextKeys.hasNonEmptySelection
+						}
+					]
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const codeEditorService = accessor.get(ICodeEditorService);
+				const dialogService = accessor.get(IDialogService);
+				const clipboardService = accessor.get(IClipboardService);
+				const editor = codeEditorService.getActiveCodeEditor();
+				if (!editor) {
+					return;
+				}
+
+				const model = editor.getModel();
+				const selection = editor.getSelection();
+				if (!model || !selection || selection.isEmpty()) {
+					await dialogService.info(
+						localize('shareAsPrivateGist.noSelectionTitle', "Share as Private Gist"),
+						localize('shareAsPrivateGist.noSelection', "Select a block of text in the editor, then choose Share as Private Gist.")
+					);
+					return;
+				}
+
+				const selectedText = model.getValueInRange(selection);
+				const lineCount = selection.endLineNumber - selection.startLineNumber + 1;
+				const resource = model.uri;
+				const fileLabel = resource.path.split('/').pop() || resource.path || 'selection';
+				const previewLimit = 280;
+				const preview = selectedText.length > previewLimit
+					? `${selectedText.slice(0, previewLimit)}\n…`
+					: selectedText;
+				const markdown = new MarkdownString(undefined, { supportThemeIcons: false });
+				markdown.appendCodeblock('', preview);
+
+				const result = await dialogService.prompt({
+					type: Severity.Info,
+					message: localize('shareAsPrivateGist.title', "Share as Private Gist"),
+					detail: localize(
+						'shareAsPrivateGist.detail',
+						"Prototype only — no gist will be created. {0} line(s) from '{1}' are ready to share privately.",
+						lineCount,
+						fileLabel
+					),
+					custom: {
+						icon: Codicon.gistSecret,
+						markdownDetails: [{
+							markdown,
+							classes: ['share-dialog-input-text', 'share-private-gist-preview']
+						}]
+					},
+					cancelButton: localize('shareAsPrivateGist.cancel', "Cancel"),
+					buttons: [
+						{
+							label: localize('shareAsPrivateGist.confirm', "Share Private Gist"),
+							run: () => 'shared' as const
+						},
+						{
+							label: localize('shareAsPrivateGist.copy', "Copy Selection"),
+							run: async () => {
+								await clipboardService.writeText(selectedText);
+								return 'copied' as const;
+							}
+						}
+					]
+				});
+
+				if (result.result === 'shared') {
+					await dialogService.info(
+						localize('shareAsPrivateGist.doneTitle', "Private Gist Ready"),
+						localize(
+							'shareAsPrivateGist.done',
+							"UI prototype complete. Selected text from '{0}' would be shared as a private gist ({1} characters).",
+							fileLabel,
+							selectedText.length
+						)
+					);
+				} else if (result.result === 'copied') {
+					await dialogService.info(
+						localize('shareAsPrivateGist.copiedTitle', "Selection Copied"),
+						localize('shareAsPrivateGist.copied', "Copied the selected text to the clipboard.")
+					);
+				}
+			}
+		}));
 	}
 
 	private registerActions() {
