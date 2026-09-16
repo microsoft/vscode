@@ -280,7 +280,7 @@ export class SessionInsightsView extends Disposable {
 		const store = new DisposableStore();
 		const element = DOM.$('.agent-diagnostics-trace');
 		element.dataset.traceId = traceId;
-		const button = store.add(new Button(element, { ...defaultButtonStyles, secondary: true }));
+		const button = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		button.element.classList.add('agent-diagnostics-trace-button');
 		const detail = DOM.append(element, DOM.$('.agent-diagnostics-trace-detail'));
 		const detailStore = store.add(new DisposableStore());
@@ -290,7 +290,9 @@ export class SessionInsightsView extends Disposable {
 
 	private updateTraceNode(node: ITraceNode, turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace): void {
 		const expanded = this.model.isTraceExpanded(trace.traceId);
-		node.button.label = localize('agentDiagnostics.traceLabel', "{0} · {1} · {2} spans", trace.name, formatDuration(trace.duration), trace.spanCount);
+		const label = localize('agentDiagnostics.traceLabel', "{0} · {1} · {2} spans", trace.name, formatDuration(trace.duration), trace.spanCount);
+		node.button.label = `$(${expanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${label}`;
+		node.button.setAriaLabel(label);
 		node.button.element.setAttribute('aria-expanded', String(expanded));
 		node.element.classList.toggle('expanded', expanded);
 		if (expanded) {
@@ -338,8 +340,8 @@ export class SessionInsightsView extends Disposable {
 		const row = DOM.append(parent, DOM.$('.agent-diagnostics-message'));
 		const button = traceNode.detailStore.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
 		button.element.classList.add('agent-diagnostics-message-pill');
-		button.label = formatMessageRole(message.role);
 		const expanded = this.expandedMessageIds.has(message.id);
+		button.label = localize('agentDiagnostics.messagePill', "{0} {1}", formatMessageRole(message.role), expanded ? '-' : '+');
 		button.element.setAttribute('aria-expanded', String(expanded));
 		traceNode.detailStore.add(button.onDidClick(() => {
 			if (this.expandedMessageIds.has(message.id)) {
