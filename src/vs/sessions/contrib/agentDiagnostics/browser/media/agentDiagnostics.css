@@ -154,4 +154,5 @@
 	margin: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
+	white-space: pre-wrap;
 }

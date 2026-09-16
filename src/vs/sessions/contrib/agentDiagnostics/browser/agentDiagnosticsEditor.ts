@@ -17,8 +17,6 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOTelDiagnosticsService } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -35,6 +33,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { AgentDiagnosticsEditorInput } from './agentDiagnosticsEditorInput.js';
+import { SessionDiagnosticsModel } from './sessionDiagnosticsModel.js';
 import '../../../../workbench/contrib/chat/browser/chatDebug/media/chatDebug.css';
 
 export const AgentDiagnosticsFocusedContext = new RawContextKey<boolean>('agentDiagnosticsFocused', false, localize('agentDiagnosticsFocused', "Whether the Agents Diagnostics editor is focused"));
@@ -62,9 +61,8 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private readonly debugTabs = new Map<ChatDebugSessionView, Button>();
 	private selectedDebugView = ChatDebugSessionView.Logs;
 	private currentChatResource: URI | undefined;
-	private currentInsightsResource: URI | undefined;
 	private sessionInsightsDescription: HTMLElement | undefined;
-	private insightsGeneration = 0;
+	private diagnosticsModel: SessionDiagnosticsModel | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -82,8 +80,6 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IOTelDiagnosticsService private readonly otelDiagnosticsService: IOTelDiagnosticsService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.chatDebugService.registerSessionResourceResolver(sessionResource => {
@@ -120,6 +116,8 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.")
 		);
 		this.sessionInsightsDescription = insightsPanel.description;
+		this.diagnosticsModel = this._register(this.instantiationService.createInstance(SessionDiagnosticsModel));
+		this._register(this.diagnosticsModel.onDidChange(() => this.renderSessionInsights()));
 		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
@@ -150,9 +148,8 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const chatResource = activeSession?.activeChat.read(reader).resource;
 			this.setDebugSession(chatResource);
-			this.setInsightsSession(chatResource);
+			this.diagnosticsModel?.setSession(activeSession?.resource, chatResource);
 		}));
-		this._register(this.otelDiagnosticsService.onDidChange(() => this.refreshSessionInsights()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)
 				|| event.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
@@ -304,58 +301,30 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.updateDebugView();
 	}
 
-	private setInsightsSession(chatResource: URI | undefined): void {
-		if (isEqual(this.currentInsightsResource, chatResource)) {
+	private renderSessionInsights(): void {
+		if (!this.sessionInsightsDescription) {
 			return;
 		}
-		this.currentInsightsResource = chatResource;
-		this.refreshSessionInsights();
-	}
-
-	private refreshSessionInsights(): void {
-		const generation = ++this.insightsGeneration;
-		const resource = this.currentInsightsResource;
-		if (!resource) {
-			if (this.sessionInsightsDescription) {
-				this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.");
-			}
+		const state = this.diagnosticsModel?.state;
+		if (!state) {
+			this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.");
 			return;
 		}
-		void this.loadSessionInsights(resource, generation).catch(error => {
-			this.logService.error('[AgentDiagnostics] Failed to load native OTel diagnostics', error);
-			if (generation === this.insightsGeneration && this.sessionInsightsDescription) {
-				this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsError', "Failed to load native OpenTelemetry diagnostics.");
-			}
+		if (state.error) {
+			this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsError', "Failed to load native OpenTelemetry diagnostics: {0}", state.error);
+			return;
+		}
+		const lines = [
+			state.summary
+				? localize('agentDiagnostics.combinedSummary', "Combined diagnostics: {0} turns, {1} traces, {2} spans, {3} input tokens, and {4} output tokens.", state.turns.length, state.summary.traceCount, state.summary.spanCount, state.summary.inputTokens, state.summary.outputTokens)
+				: localize('agentDiagnostics.sessionInsightsEmpty', "No native OpenTelemetry data is available for the focused session."),
+		];
+		state.turns.forEach((turn, index) => {
+			lines.push(localize('agentDiagnostics.combinedTurn', "Turn {0}: {1}", index + 1, turn.prompt));
+			lines.push(localize('agentDiagnostics.combinedTurnModels', "Requested model: {0}; resolved model: {1}; OpenTelemetry traces: {2}; Agent Debug events: {3}.", turn.requestedModel ?? '-', turn.resolvedModel ?? '-', turn.otelTraces.length, turn.debugEvents.length));
 		});
-	}
-
-	private async loadSessionInsights(resource: URI, generation: number): Promise<void> {
-		const sessionUri = resource.with({ fragment: '' }).toString();
-		const [identity, summary, messages, traces, logs] = await Promise.all([
-			this.otelDiagnosticsService.resolveSessionUri(sessionUri),
-			this.otelDiagnosticsService.getSessionSummary(sessionUri),
-			this.otelDiagnosticsService.getSessionMessages(sessionUri),
-			this.otelDiagnosticsService.getSessionTraces(sessionUri),
-			this.otelDiagnosticsService.getSessionLogs(sessionUri),
-		]);
-		const traceDetails = traces[0]
-			? await this.otelDiagnosticsService.getTraceDetails(traces[0].traceId)
-			: undefined;
-		if (generation !== this.insightsGeneration || !this.sessionInsightsDescription) {
-			return;
-		}
-		this.sessionInsightsDescription.textContent = identity && summary
-			? localize(
-				'agentDiagnostics.sessionInsightsLoaded',
-				"Native OpenTelemetry: {0} turns, {1} traces, {2} spans, {3} messages, and {4} activity records. First trace has {5} spans.",
-				summary.turns,
-				summary.traceCount,
-				summary.spanCount,
-				messages.length,
-				logs.length,
-				traceDetails?.spans.length ?? 0,
-			)
-			: localize('agentDiagnostics.sessionInsightsEmpty', "No native OpenTelemetry data is available for the focused session.");
+		lines.push(localize('agentDiagnostics.combinedActivity', "Session activity: {0} records; unmatched OpenTelemetry traces: {1}; unmatched Agent Debug events: {2}.", state.sessionActivity.length, state.unmatchedTraces.length, state.unmatchedDebugEvents.length));
+		this.sessionInsightsDescription.textContent = lines.join('\n\n');
 	}
 
 	private updateDebugView(): void {
