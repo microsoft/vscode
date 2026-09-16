@@ -403,6 +403,26 @@ suite('TerminalSandboxEngine', () => {
 		}
 	});
 
+	test('denies writes to the sandbox config file on macOS', async () => {
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+			getOS: () => Promise.resolve(OperatingSystem.Macintosh),
+		})));
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const tempDirPath = engine.getTempDir()?.path;
+		ok(tempDirPath, 'Temp dir path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		deepStrictEqual({
+			configDenyWrite: config.filesystem.denyWrite.includes(configPath),
+			tempDirAllowWrite: config.filesystem.allowWrite.includes(tempDirPath),
+		}, {
+			configDenyWrite: true,
+			tempDirAllowWrite: true,
+		});
+	});
+
 	test('preserves filesystem symlink paths and resolves their targets on Linux when writing the config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-link'],
