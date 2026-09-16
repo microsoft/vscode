@@ -5,7 +5,7 @@
 
 import Severity from '../../../base/common/severity.js';
 import * as strings from '../../../base/common/strings.js';
-import { hash } from '../../../base/common/hash.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILocalizedString } from '../../action/common/action.js';
 import { ExtensionKind } from '../../environment/common/environment.js';
@@ -15,6 +15,14 @@ import { getRemoteName } from '../../remote/common/remoteHosts.js';
 const USER_MANIFEST_CACHE_FILE_PREFIX = 'extensions.user';
 const BUILTIN_MANIFEST_CACHE_FILE_PREFIX = 'extensions.builtin';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
+
+/**
+ * How much of the language is kept in readable form. Only there to make a cache file
+ * recognisable by eye - the digest is what identifies it - so it is bounded to keep the
+ * name well within the length a path component may have.
+ */
+const MAX_READABLE_LANGUAGE_LENGTH = 16;
+const LANGUAGE_DIGEST_LENGTH = 12;
 
 function getManifestCacheFilePrefix(type: ExtensionType): string {
 	return type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
@@ -31,10 +39,12 @@ export function getManifestCacheFileName(type: ExtensionType, language: string |
 	if (!language) {
 		return `${prefix}.cache`;
 	}
-	// The readable part is lossy and file names can be case insensitive, so a hash of the exact
-	// value keeps languages that only differ in case or in separators in separate files
-	const readable = language.toLowerCase().replace(/[^a-z0-9]/g, '-');
-	return `${prefix}.${readable}-${(hash(language) >>> 0).toString(16)}.cache`;
+	// The readable part is lossy and bounded, and file names can be compared case insensitively,
+	// so the language is identified by a digest of its exact value
+	const readable = language.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, MAX_READABLE_LANGUAGE_LENGTH);
+	const digest = new StringSHA1();
+	digest.update(language);
+	return `${prefix}.${readable}-${digest.digest().substring(0, LANGUAGE_DIGEST_LENGTH)}.cache`;
 }
 
 /**
