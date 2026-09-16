@@ -4312,6 +4312,7 @@ suite('CopilotAgentSession', () => {
 			status: 'idle', agentType: 'explore', prompt: 'Initial request', startedAt,
 		}];
 		mockSession.fire('session.background_tasks_changed', {});
+		assert.strictEqual(session.hasBackgroundTasks, true);
 		await timeout(25);
 		mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 1, outputTokens: 1 }, { agentId: 'agent-1' });
 		await timeout(35);
@@ -4320,7 +4321,13 @@ suite('CopilotAgentSession', () => {
 		await timeout(25);
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(60);
-		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), ['tc-subagent']);
+		assert.deepStrictEqual({
+			completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+			hasBackgroundTasks: session.hasBackgroundTasks,
+		}, {
+			completed: ['tc-subagent'],
+			hasBackgroundTasks: false,
+		});
 	});
 
 	test('keeps running subagents active between SDK model rounds', async () => {

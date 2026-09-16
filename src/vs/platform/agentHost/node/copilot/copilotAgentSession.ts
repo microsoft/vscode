@@ -427,8 +427,10 @@ const ASSISTANT_IDLE_PROCESSING_PROBE_TIMEOUT_MS = 1_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 const BACKGROUND_TASK_STATUS_RETRY_DELAY_MS = 1_000;
 
-function isRunningBackgroundTask(task: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'][number]): boolean {
-	return task.status === 'running' || (task.type === 'shell' && task.status === 'idle');
+function isRunningBackgroundTask(task: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'][number], activeSubagentAgentIds: ReadonlySet<string>): boolean {
+	return task.status === 'running'
+		|| (task.type === 'shell' && task.status === 'idle')
+		|| (task.type === 'agent' && task.status === 'idle' && activeSubagentAgentIds.has(task.id));
 }
 
 function hasParentPathSegment(filePath: string): boolean {
@@ -1739,7 +1741,6 @@ export class CopilotAgentSession extends Disposable {
 				return false;
 			}
 			this._backgroundTaskStatusRetryScheduler.cancel();
-			this._setHasBackgroundTasks(tasks.tasks.some(isRunningBackgroundTask));
 			for (const task of tasks.tasks) {
 				if (task.type !== 'agent') {
 					continue;
@@ -1758,6 +1759,7 @@ export class CopilotAgentSession extends Disposable {
 					this._subagentTaskCompletionSchedulers.deleteAndDispose(task.id);
 				}
 			}
+			this._setHasBackgroundTasks(tasks.tasks.some(task => isRunningBackgroundTask(task, this._activeSubagentAgentIds)));
 			return true;
 		});
 	}
@@ -1923,7 +1925,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._wrapper.session.rpc.tasks.refresh();
 			const tasks = await this._wrapper.session.rpc.tasks.list();
-			return tasks.tasks.some(isRunningBackgroundTask);
+			return tasks.tasks.some(task => isRunningBackgroundTask(task, this._activeSubagentAgentIds));
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read background task state; deferring release: ${getErrorMessage(err)}`);
 			return true;
