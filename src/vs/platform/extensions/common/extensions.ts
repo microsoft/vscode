@@ -5,6 +5,7 @@
 
 import Severity from '../../../base/common/severity.js';
 import * as strings from '../../../base/common/strings.js';
+import { hash } from '../../../base/common/hash.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILocalizedString } from '../../action/common/action.js';
 import { ExtensionKind } from '../../environment/common/environment.js';
@@ -18,15 +19,18 @@ export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 /**
  * Returns the name of the manifest cache file for the given extension type and scan language.
  * Scan results are localized, so each language needs its own file or scans that use different
- * languages overwrite each other's entry and neither ever gets a cache hit.
+ * languages overwrite each other's entry and neither ever gets a cache hit. The name must
+ * therefore identify the language as precisely as `ExtensionScannerInput` compares it.
  */
 export function getManifestCacheFileName(type: ExtensionType, language: string | undefined): string {
 	const prefix = type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
 	if (!language) {
 		return `${prefix}.cache`;
 	}
-	// The language can come from a remote client, so reduce it to characters that are safe in a file name
-	return `${prefix}.${language.toLowerCase().replace(/[^a-z0-9]/g, '-')}.cache`;
+	// The readable part is lossy and file names can be case insensitive, so a hash of the exact
+	// value keeps languages that only differ in case or in separators in separate files
+	const readable = language.toLowerCase().replace(/[^a-z0-9]/g, '-');
+	return `${prefix}.${readable}-${(hash(language) >>> 0).toString(16)}.cache`;
 }
 
 export interface ICommand {

@@ -29,26 +29,27 @@ suite('Manifest Cache File Name', () => {
 		assert.deepStrictEqual([
 			getManifestCacheFileName(ExtensionType.System, undefined),
 			getManifestCacheFileName(ExtensionType.System, 'en'),
-			getManifestCacheFileName(ExtensionType.System, 'zh-CN'),
 			getManifestCacheFileName(ExtensionType.User, undefined),
-			getManifestCacheFileName(ExtensionType.User, 'pt-br'),
+			getManifestCacheFileName(ExtensionType.User, 'en'),
 		], [
 			'extensions.builtin.cache',
-			'extensions.builtin.en.cache',
-			'extensions.builtin.zh-cn.cache',
+			'extensions.builtin.en-88f0e12.cache',
 			'extensions.user.cache',
-			'extensions.user.pt-br.cache',
+			'extensions.user.en-88f0e12.cache',
 		]);
 	});
 
-	test('language is reduced to characters that are safe in a file name', () => {
+	test('name is safe to use as a file name', () => {
 		assert.deepStrictEqual([
 			getManifestCacheFileName(ExtensionType.System, '../evil'),
 			getManifestCacheFileName(ExtensionType.System, 'a/b\\c'),
-		], [
-			'extensions.builtin.---evil.cache',
-			'extensions.builtin.a-b-c.cache',
-		]);
+		].map(name => /^[a-z0-9.-]+$/.test(name)), [true, true]);
+	});
+
+	test('languages that only differ in case or separators get their own file', () => {
+		const names = ['zh-cn', 'zh-CN', 'zh_CN', 'ZH-CN'].map(language => getManifestCacheFileName(ExtensionType.System, language));
+
+		assert.deepStrictEqual(new Set(names.map(name => name.toLowerCase())).size, names.length, `expected distinct names, got ${names.join(', ')}`);
 	});
 
 });
