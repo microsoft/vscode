@@ -181,15 +181,15 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'string',
 	},
 	[TerminalSettingId.FontRendering]: {
-		markdownDescription: localize('terminal.integrated.fontRendering', "Controls the font rendering style of terminal text on macOS without changing theme colors, font size, or font weight."),
+		markdownDescription: localize('terminal.integrated.fontRendering', "Controls the experimental font rendering style of terminal text without changing its font, size, or weight. On Windows and Linux, this currently affects GPU-accelerated terminals."),
 		type: 'string',
 		enum: ['inherit', 'crisp'],
 		markdownEnumDescriptions: [
-			localize('terminal.integrated.fontRendering.inherit', "Use the workbench font smoothing configured by {0}.", '`#workbench.fontAliasing#`'),
-			localize('terminal.integrated.fontRendering.crisp', "Use pixel-level antialiasing on high-DPI displays. Text may appear lighter and more defined. On other displays, inherit the workbench font smoothing.")
+			localize('terminal.integrated.fontRendering.inherit', "Use the platform's default font rendering. On macOS, this follows the workbench font smoothing configured by {0}.", '`#workbench.fontAliasing#`'),
+			localize('terminal.integrated.fontRendering.crisp', "Use grayscale antialiasing when supported. Text may appear lighter and more defined. On macOS this applies to high-DPI displays; on Windows and Linux it disables LCD/subpixel antialiasing in the terminal's WebGL glyph canvas.")
 		],
 		default: 'inherit',
-		included: isMacintosh
+		tags: ['experimental', 'advanced']
 	},
 	[TerminalSettingId.FontLigaturesEnabled]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),

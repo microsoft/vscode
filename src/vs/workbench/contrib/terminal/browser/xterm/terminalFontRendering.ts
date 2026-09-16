@@ -12,6 +12,11 @@ const enum CssClasses {
 	Crisp = 'terminal-font-rendering-crisp'
 }
 
+export function getTerminalAllowTransparency(fontRendering: ITerminalConfiguration['fontRendering'], enableImages: boolean, platformIsMacintosh = isMacintosh): boolean {
+	// Alpha-capable canvases disable LCD/subpixel antialiasing in Chromium.
+	return enableImages || (!platformIsMacintosh && fontRendering === 'crisp');
+}
+
 export function updateTerminalFontRendering(terminal: Terminal, fontRendering: ITerminalConfiguration['fontRendering']): void {
 	const element = terminal.element;
 	if (!element) {

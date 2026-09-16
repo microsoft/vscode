@@ -50,7 +50,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { updateTerminalFontRendering } from './terminalFontRendering.js';
+import { getTerminalAllowTransparency, updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -277,7 +277,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				kittyKeyboard: config.enableKittyKeyboardProtocol,
 				win32InputMode: config.enableWin32InputMode,
 			},
-			allowTransparency: config.enableImages,
+			allowTransparency: getTerminalAllowTransparency(config.fontRendering, config.enableImages),
 			windowOptions: {
 				getWinSizePixels: true,
 				getCellSizePixels: true,
@@ -592,7 +592,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	updateConfig(): void {
 		const config = this._terminalConfigurationService.config;
-		updateTerminalFontRendering(this.raw, config.fontRendering);
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setTextBlinking(config.textBlinking);
@@ -614,7 +613,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.scrollbar = this._getScrollbarOptions();
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
-		this.raw.options.allowTransparency = config.enableImages;
+		this.raw.options.allowTransparency = getTerminalAllowTransparency(config.fontRendering, config.enableImages);
+		updateTerminalFontRendering(this.raw, config.fontRendering);
 		this.raw.options.vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,
 			win32InputMode: config.enableWin32InputMode,
