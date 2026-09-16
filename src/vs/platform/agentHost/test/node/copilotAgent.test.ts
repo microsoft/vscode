@@ -33,6 +33,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { AgentSessionReleaseVetoError } from '../../node/agentSessionResidency.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
@@ -207,6 +208,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 		usesStaticGitHubToken?: boolean;
 		bindChatChannel?: (uri: URI) => void;
 		destroySession?: () => Promise<void>;
+		hasRunningBackgroundTasks?: () => Promise<boolean>;
 	};
 	typed.sessionId ??= sessionId;
 	typed.sessionUri ??= sessionUri;
@@ -218,6 +220,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 	typed.chatChannelUri = chatUri ?? typed.chatChannelUri ?? defaultChatUri(sessionUri);
 	typed.bindChatChannel ??= (uri: URI) => { typed.chatChannelUri = uri; };
 	typed.destroySession ??= async () => { };
+	typed.hasRunningBackgroundTasks ??= async () => false;
 	setLiveChatStub(agent, sessionId, typed, typed.chatChannelUri);
 	// Stubs bypass real creation/materialization, so seed the scope a fork
 	// would otherwise have recorded then.
@@ -234,6 +237,7 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 		chatChannelUri?: URI;
 		bindChatChannel?: (uri: URI) => void;
 		destroySession?: () => Promise<void>;
+		hasRunningBackgroundTasks?: () => Promise<boolean>;
 	};
 	typed.sessionId ??= resolvedSdkSessionId;
 	typed.sessionUri ??= ownerSession;
@@ -242,6 +246,7 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 	typed.chatChannelUri ??= chatUri;
 	typed.bindChatChannel ??= (uri: URI) => { typed.chatChannelUri = uri; };
 	typed.destroySession ??= async () => { };
+	typed.hasRunningBackgroundTasks ??= async () => false;
 	setLiveChatStub(agent, resolvedSdkSessionId, typed, chatUri);
 	chatBackings(agent).set(chatUri.toString(), { sdkSessionId: resolvedSdkSessionId });
 	// Stubs bypass real creation/materialization, so seed the scope a fork
@@ -1090,7 +1095,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			appliedSnapshot: undefined,
 			dispose: fake.dispose,
 			onDidRequireAuth: Event.None,
-			hasRunningDetachedShells: async () => false,
+			hasRunningBackgroundTasks: async () => false,
 			resetTurnState: (newTurnId: string) => { turnId = newTurnId; },
 			emitInitialMarkdown: (content: string) => {
 				emitter.fire({
@@ -3063,9 +3068,10 @@ suite('CopilotAgent', () => {
 		const session = {
 			hasActiveTurn: true as boolean,
 			disposed: false,
+			async hasRunningBackgroundTasks() { return false; },
 			async updateGitHubCredentials() { return { success: true }; },
 			dispose() { this.disposed = true; },
-		} satisfies ICredentialUpdateSession & { disposed: boolean };
+		} satisfies ICredentialUpdateSession & { disposed: boolean; hasRunningBackgroundTasks(): Promise<boolean> };
 		try {
 			await agent.listChatsToMigrate();
 			setDefaultSessionStub(agent, 'proxy-change', session);
@@ -6848,11 +6854,17 @@ suite('CopilotAgent', () => {
 			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
 		}
 
+		function reportChatBackgroundTasksChanged(agent: CopilotAgent): void {
+			(agent as unknown as { _onChatBackgroundTasksChanged(): void })._onChatBackgroundTasksChanged();
+		}
+
 		/** A stub chat whose in-flight turn can be ended by the test. */
-		function busyChatStub(): { hasActiveTurn: boolean; disposed: boolean; dispose(): void; destroySession(): Promise<void> } {
+		function busyChatStub(): { hasActiveTurn: boolean; hasBackgroundTasks: boolean; disposed: boolean; hasRunningBackgroundTasks(): Promise<boolean>; dispose(): void; destroySession(): Promise<void> } {
 			return {
 				hasActiveTurn: true,
+				hasBackgroundTasks: false,
 				disposed: false,
+				async hasRunningBackgroundTasks() { return false; },
 				dispose() { this.disposed = true; },
 				destroySession: async () => { },
 			};
@@ -6882,6 +6894,40 @@ suite('CopilotAgent', () => {
 				}, {
 					duringTurn: { stopCount: 0, disposed: false },
 					afterTurn: { stopCount: 1, disposed: true },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('defers the restart until background tasks end', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				const chat = busyChatStub();
+				chat.hasActiveTurn = false;
+				chat.hasBackgroundTasks = true;
+				chat.hasRunningBackgroundTasks = async () => true;
+				setDefaultSessionStub(agent, 'background-task', chat);
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await timeout(0);
+				const duringTask = { stopCount: client.stopCount, disposed: chat.disposed };
+
+				chat.hasRunningBackgroundTasks = async () => false;
+				chat.hasBackgroundTasks = false;
+				reportChatBackgroundTasksChanged(agent);
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					duringTask,
+					afterTask: { stopCount: client.stopCount, disposed: chat.disposed },
+				}, {
+					duringTask: { stopCount: 0, disposed: false },
+					afterTask: { stopCount: 1, disposed: true },
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -11420,7 +11466,7 @@ suite('CopilotAgent', () => {
 					rec.debugLogCalls.push({ outputDirectory: outputDirectory.toString(), includeSessionLogs });
 					return true;
 				},
-				async hasRunningDetachedShells(): Promise<boolean> { return false; },
+				async hasRunningBackgroundTasks(): Promise<boolean> { return false; },
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
 				getMessages: getMessages ?? (async () => []),
@@ -11759,7 +11805,7 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chat, {
 					workingDirectory: URI.file('/workspace'),
 					hasActiveTurn: false,
-					async hasRunningDetachedShells() { return false; },
+					async hasRunningBackgroundTasks() { return false; },
 					async getMessages() { return []; },
 					async destroySession() {
 						releaseStarted = true;
@@ -11868,7 +11914,7 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, waitingChat, {
 					workingDirectory: URI.file('/workspace'),
 					hasActiveTurn: false,
-					async hasRunningDetachedShells() { return false; },
+					async hasRunningBackgroundTasks() { return false; },
 					async destroySession() {
 						releaseStarted = true;
 						await releaseGate.p;
@@ -13003,7 +13049,7 @@ suite('CopilotAgent', () => {
 		 * keyed as the real agent would, so the chat adapter can drive the real
 		 * legacy methods.
 		 */
-		function installFake(agent: CopilotAgent, key: string, target: 'chat' | 'session', sessionUri: URI): IFakeConvRecorder {
+		function installFake(agent: CopilotAgent, key: string, target: 'chat' | 'session', sessionUri: URI, hasRunningBackgroundTasks = false): IFakeConvRecorder {
 			const rec: IFakeConvRecorder = { sends: [], resets: [], modelCalls: [], agentCalls: [], aborted: 0, disposed: false };
 			const fake = {
 				sessionUri,
@@ -13017,7 +13063,7 @@ suite('CopilotAgent', () => {
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
 				async abort(): Promise<void> { rec.aborted++; },
 				async getMessages(): Promise<readonly Turn[]> { return [{ id: `turn-${key}` } as unknown as Turn]; },
-				async hasRunningDetachedShells(): Promise<boolean> { return false; },
+				async hasRunningBackgroundTasks(): Promise<boolean> { return hasRunningBackgroundTasks; },
 				handleClientToolCallComplete(): void { },
 				dispose(): void { rec.disposed = true; },
 			} as unknown as CopilotAgentSession;
@@ -13400,6 +13446,33 @@ suite('CopilotAgent', () => {
 					defaultLive: true,
 					peerLive: false,
 					peerBacking: { sdkSessionId: 'sdk-' + peerChat.toString() },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('releaseChat retains a chat with running background tasks', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'conv-background-release');
+				const chat = URI.parse(buildChatUri(session, 'peer-background'));
+				const rec = installFake(agent, chat.toString(), 'chat', session, true);
+
+				const canRelease = await agent.chats.canReleaseChat!(chat, exactChatContext(session, chat));
+				await assert.rejects(
+					() => agent.chats.releaseChat(chat, exactChatContext(session, chat)),
+					error => error instanceof AgentSessionReleaseVetoError,
+				);
+
+				assert.deepStrictEqual({
+					canRelease,
+					disposed: rec.disposed,
+					live: hasLiveChat(agent, chat),
+				}, {
+					canRelease: false,
+					disposed: false,
+					live: true,
 				});
 			} finally {
 				await disposeAgent(agent);

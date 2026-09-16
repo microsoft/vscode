@@ -20,7 +20,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
-import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
+import { AgentSessionReleaseVetoError, AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
 
 suite('AgentSessionResidency', () => {
 	const disposables = new DisposableStore();
@@ -284,6 +284,37 @@ suite('AgentSessionResidency', () => {
 		}, {
 			attempts: 2,
 			residentAfterFailure: true,
+		});
+	});
+
+	test('keeps state after a late release veto and retries', async () => {
+		residency.dispose();
+		let attempts = 0;
+		delegate.createRelease = session => ({
+			canRelease: async () => true,
+			release: async () => {
+				attempts++;
+				if (attempts === 1) {
+					throw new AgentSessionReleaseVetoError();
+				}
+				released.push(session.toString());
+			},
+		});
+		residency = createResidency(10, 10);
+		const session = createUsedSession('late-veto');
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+		await residency.reconcile();
+		const residentAfterVeto = stateManager.getSessionState(session.toString()) !== undefined;
+		await timeout(15);
+		await waitFor(() => stateManager.getSessionState(session.toString()) === undefined, 'release retry did not complete after late veto');
+
+		assert.deepStrictEqual({
+			attempts,
+			residentAfterVeto,
+		}, {
+			attempts: 2,
+			residentAfterVeto: true,
 		});
 	});
 

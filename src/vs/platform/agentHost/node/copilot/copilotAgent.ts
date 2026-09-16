@@ -55,6 +55,7 @@ import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlash
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
+import { AgentSessionReleaseVetoError } from '../agentSessionResidency.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
@@ -1162,7 +1163,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Requests a CLI client restart, running it immediately when every chat is
-	 * idle and otherwise parking it until the last in-flight turn ends.
+	 * idle and has no background work, and otherwise parking it.
 	 *
 	 * Restarting tears the SDK sessions down, and a torn-down session stops
 	 * producing the events that finalize its protocol turn — the client would be
@@ -1203,11 +1204,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Runs a restart parked by {@link _requestClientRestart} once no chat has
-	 * an in-flight turn. No-op while any turn is still running; the next chat
-	 * to go idle drives this again.
+	 * an in-flight turn or background task.
 	 */
 	private async _applyPendingClientRestart(): Promise<void> {
 		if (this._pendingClientRestartReasons.size === 0 || this._shutdownPromise || !this._client || this._updatingGitHubCredentials || this._chatsWithActiveTurn() > 0) {
+			return;
+		}
+		const backgroundTaskChats = this._chatsWithRunningBackgroundTasks();
+		if (backgroundTaskChats > 0) {
+			this._logService.info(`[Copilot] Deferring CopilotClient restart while ${backgroundTaskChats} chat(s) have background tasks`);
 			return;
 		}
 		const reason = [...this._pendingClientRestartReasons].join('; ');
@@ -1239,6 +1244,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error('[Copilot] Failed to apply deferred client restart', err)
 			);
 		});
+	}
+
+	private _onChatBackgroundTasksChanged(): void {
+		this._onChatTurnEnded();
 	}
 
 	private async _handleClientOperationFailure(error: unknown, operation: CopilotClientOperation, correlation?: ICopilotFailureCorrelation): Promise<ICopilotClosedConnectionRecoveryResult | undefined> {
@@ -1335,6 +1344,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Number of live chats (default or peer, across all sessions) with an in-flight turn. */
 	private _chatsWithActiveTurn(): number {
 		return this._allLiveSessions().filter(session => session.hasActiveTurn).length;
+	}
+
+	private _chatsWithRunningBackgroundTasks(): number {
+		return this._allLiveSessions().filter(session => session.hasBackgroundTasks).length;
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -4838,8 +4851,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (target.hasActiveTurn) {
 			return false;
 		}
-		if (await target.hasRunningDetachedShells()) {
-			this._logService.info(`[Copilot:${target.sessionId}] Deferring idle release while a detached shell is running`);
+		if (await target.hasRunningBackgroundTasks()) {
+			this._logService.info(`[Copilot:${target.sessionId}] Deferring idle release while background work is running`);
 			return false;
 		}
 		return true;
@@ -4853,8 +4866,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		await lifetime.release(async () => {
 			const target = this._resolveChatContext(chat, operationContext).target;
-			if (!target || target.hasActiveTurn) {
+			if (!target) {
 				return;
+			}
+			if (target.hasActiveTurn || await target.hasRunningBackgroundTasks()) {
+				throw new AgentSessionReleaseVetoError();
 			}
 			await this._destroyLiveSession(target, true);
 		});
@@ -5409,6 +5425,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				onBackgroundTasksChanged: () => this._onChatBackgroundTasksChanged(),
 			},
 		);
 		return agentSession;

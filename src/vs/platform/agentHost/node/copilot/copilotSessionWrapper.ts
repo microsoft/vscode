@@ -164,6 +164,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onIdle ??= this._sdkEvent('session.idle');
 	}
 
+	private _onAssistantIdle: Event<SessionEventPayload<'assistant.idle'>> | undefined;
+	get onAssistantIdle(): Event<SessionEventPayload<'assistant.idle'>> {
+		return this._onAssistantIdle ??= this._sdkEvent('assistant.idle');
+	}
+
 	private _onSessionStart: Event<SessionEventPayload<'session.start'>> | undefined;
 	get onSessionStart(): Event<SessionEventPayload<'session.start'>> {
 		return this._onSessionStart ??= this._sdkEvent('session.start');

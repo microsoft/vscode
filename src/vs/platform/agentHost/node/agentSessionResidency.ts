@@ -29,6 +29,13 @@ export interface IAgentSessionRelease {
 	release(chats: readonly URI[]): Promise<void>;
 }
 
+/** Signals that provider state changed after release preflight and must be retried. */
+export class AgentSessionReleaseVetoError extends Error {
+	constructor() {
+		super('Session release was vetoed after preflight');
+	}
+}
+
 export interface IAgentSessionReleaseDelegate {
 	isReleaseBlocked(session: URI): boolean;
 	whenSessionDataIdle(session: URI): Promise<void>;
@@ -276,6 +283,10 @@ export class AgentSessionResidency extends Disposable {
 			this._delegate.evictSessionState(session, chats);
 			return true;
 		} catch (error) {
+			if (error instanceof AgentSessionReleaseVetoError) {
+				this._scheduleRetryIfNeeded(session, expectedRecency);
+				return false;
+			}
 			this._logService.error(error, `[AgentSessionResidency] Failed to release session ${sessionKey}`);
 			this._scheduleRetryIfNeeded(session, expectedRecency);
 			return false;
