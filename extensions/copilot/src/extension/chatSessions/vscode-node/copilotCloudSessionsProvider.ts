@@ -460,6 +460,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private cachedSessionsSize: number = 0;
 	private cachedSessionItems: vscode.ChatSessionItem[] | undefined;
 	private cachedSessionItemsExpiresAt = Infinity;
+	private readonly cachedSessionItemsExpiryScheduler = this._register(new RunOnceScheduler(() => {
+		if (Date.now() > this.cachedSessionItemsExpiresAt) {
+			this.refresh();
+		} else {
+			this.scheduleCachedSessionItemsExpiry();
+		}
+	}, 0));
 	private sessionItemsRequestGeneration = 0;
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
 	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
@@ -911,6 +918,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	public refresh(): void {
+		this.cachedSessionItemsExpiryScheduler.cancel();
 		this.sessionItemsRequestGeneration++;
 		this.cachedSessionItems = undefined;
 		this.cachedSessionItemsExpiresAt = Infinity;
@@ -918,6 +926,17 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Note: _ccaEnabledCache and _optionsCache are TTL-based and NOT cleared on refresh.
 		// Use clearOptionsCaches() to force-clear them (e.g. on auth change).
 		this._onDidChangeChatSessionItems.fire();
+	}
+
+	private scheduleCachedSessionItemsExpiry(): void {
+		this.cachedSessionItemsExpiryScheduler.cancel();
+		if (this._store.isDisposed || !Number.isFinite(this.cachedSessionItemsExpiresAt)) {
+			return;
+		}
+
+		// The cutoff is inclusive, and setTimeout delays cannot exceed ~24.8 days.
+		const delay = Math.max(0, this.cachedSessionItemsExpiresAt - Date.now() + 1);
+		this.cachedSessionItemsExpiryScheduler.schedule(Math.min(delay, 2 ** 31 - 1));
 	}
 
 	/**
@@ -1476,6 +1495,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			this.cachedSessionsSize = sessionList.length;
 			this.cachedSessionItems = filteredSessions;
 			this.cachedSessionItemsExpiresAt = expiresAt;
+			this.scheduleCachedSessionItemsExpiry();
 
 			return filteredSessions;
 		})().finally(() => {

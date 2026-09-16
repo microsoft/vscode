@@ -23,6 +23,7 @@ import { IExperimentationService } from '../../../../platform/telemetry/common/n
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -46,6 +47,7 @@ vi.mock('vscode', async () => {
 		...actual,
 		workspace: {
 			workspaceFolders: [],
+			get isAgentSessionsWorkspace() { return false; },
 		},
 		chat: {
 			createChatParticipant: () => ({ dispose() { } }),
@@ -313,6 +315,8 @@ describe('cloud session visibility', () => {
 	});
 
 	describe('CopilotCloudSessionsProvider discovery', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
+
 		const now = Date.parse('2026-09-16T12:00:00Z');
 		const day = 24 * 60 * 60 * 1000;
 		let store: DisposableStore;
@@ -331,7 +335,7 @@ describe('cloud session visibility', () => {
 		});
 
 		beforeEach(() => {
-			vi.useFakeTimers({ toFake: ['Date'] });
+			vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			vi.setSystemTime(now);
 			store = new DisposableStore();
 			configurationService = store.add(new InMemoryConfigurationService(store.add(new DefaultsOnlyConfigurationService())));
@@ -414,6 +418,129 @@ describe('cloud session visibility', () => {
 
 			expect({ before: before.map(item => item.label), after, fetches: fetchSessionList.mock.calls.length })
 				.toEqual({ before: ['expiring'], after: [], fetches: 2 });
+		});
+
+		it.each([false, true])('refreshes at the cutoff without another catalog request (Agents Window: %s)', async isAgentSessionsWorkspace => {
+			vi.spyOn(vscode.workspace, 'isAgentSessionsWorkspace', 'get').mockReturnValue(isAgentSessionsWorkspace);
+			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1000)]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			await vi.advanceTimersByTimeAsync(1000);
+			const eventsAtCutoff = changes.mock.calls.length;
+			await vi.advanceTimersByTimeAsync(1);
+			const afterExpiry = { events: changes.mock.calls.length, fetches: fetchSessionList.mock.calls.length };
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+
+			expect({ eventsAtCutoff, afterExpiry, items, timers: vi.getTimerCount() }).toEqual({
+				eventsAtCutoff: 0,
+				afterExpiry: { events: 1, fetches: 1 },
+				items: [],
+				timers: 0,
+			});
+		});
+
+		it.each([
+			['30days', 30],
+			['90days', 90],
+		] satisfies [ConfigKey.CloudSessionVisibilityValue, number][])('handles %s expiry beyond the native timeout limit', async (visibility, days) => {
+			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, visibility);
+			fetchSessionList.mockResolvedValue([session('recent')]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			const maxTimeoutDelay = 2 ** 31 - 1;
+			await vi.advanceTimersByTimeAsync(maxTimeoutDelay);
+			const afterFirstChunk = { events: changes.mock.calls.length, timers: vi.getTimerCount() };
+			await vi.advanceTimersByTimeAsync(days * day - maxTimeoutDelay);
+			const eventsAtCutoff = changes.mock.calls.length;
+			await vi.advanceTimersByTimeAsync(1);
+
+			expect({ afterFirstChunk, eventsAtCutoff, eventsAfterExpiry: changes.mock.calls.length, timers: vi.getTimerCount() }).toEqual({
+				afterFirstChunk: { events: 0, timers: 1 },
+				eventsAtCutoff: 0,
+				eventsAfterExpiry: 1,
+				timers: 0,
+			});
+		});
+
+		it('cancels and reschedules expiry when the cache is refreshed', async () => {
+			fetchSessionList.mockResolvedValue([session('original', now - 30 * day + 1000)]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			provider.refresh();
+			const timersAfterRefresh = vi.getTimerCount();
+			fetchSessionList.mockResolvedValue([session('replacement', now - 30 * day + 2000)]);
+			await provider.provideChatSessionItems(CancellationToken.None);
+			changes.mockClear();
+			await vi.advanceTimersByTimeAsync(1001);
+			const eventsAtOldExpiry = changes.mock.calls.length;
+			await vi.advanceTimersByTimeAsync(1000);
+
+			expect({ timersAfterRefresh, eventsAtOldExpiry, eventsAtNewExpiry: changes.mock.calls.length }).toEqual({
+				timersAfterRefresh: 0,
+				eventsAtOldExpiry: 0,
+				eventsAtNewExpiry: 1,
+			});
+		});
+
+		it('cancels expiry when the age limit is disabled', async () => {
+			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1000)]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const timersBeforeChange = vi.getTimerCount();
+
+			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, 'all');
+			const timersAfterChange = vi.getTimerCount();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			changes.mockClear();
+			await vi.advanceTimersByTimeAsync(90 * day);
+
+			expect({ timersBeforeChange, timersAfterChange, timers: vi.getTimerCount(), events: changes.mock.calls.length }).toEqual({
+				timersBeforeChange: 1,
+				timersAfterChange: 0,
+				timers: 0,
+				events: 0,
+			});
+		});
+
+		it('disposes the pending cache expiry timer', async () => {
+			fetchSessionList.mockResolvedValue([session('recent')]);
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const timersBeforeDisposal = vi.getTimerCount();
+			provider.dispose();
+
+			expect({ timersBeforeDisposal, timersAfterDisposal: vi.getTimerCount() }).toEqual({
+				timersBeforeDisposal: 1,
+				timersAfterDisposal: 0,
+			});
+		});
+
+		it('does not schedule an expiry when an in-flight fetch completes after disposal', async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<CloudSessionData[]>();
+			fetchSessionList.mockImplementationOnce(() => {
+				started.complete();
+				return pending.p;
+			});
+			const provider = createProvider();
+			const items = provider.provideChatSessionItems(CancellationToken.None);
+			await started.p;
+			provider.dispose();
+			pending.complete([session('recent')]);
+			await items;
+
+			expect(vi.getTimerCount()).toBe(0);
 		});
 
 		it('does not let an obsolete fetch replace newer results after a setting change', async () => {
