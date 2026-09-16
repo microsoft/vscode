@@ -8,6 +8,7 @@ import { IPosition, Position } from '../../../../../editor/common/core/position.
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
+import { toToolVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { getChatSessionType } from '../model/chatUri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
@@ -188,7 +189,7 @@ export class ChatRequestParser {
 
 		const toolset = toolSetsByName.get(name);
 		if (toolset) {
-			const value = Array.from(toolset.getTools()).map(t => new ChatRequestToolPart(varRange, varEditorRange, t.toolReferenceName ?? t.displayName, t.id, t.displayName, t.icon).toVariableEntry());
+			const value = Array.from(toolset.getTools()).map(t => toToolVariableEntry(t));
 			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.referenceName, toolset.icon, value);
 		}
 
