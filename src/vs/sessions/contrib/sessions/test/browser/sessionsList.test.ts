@@ -1349,7 +1349,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: true,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
-				revealSessionId: '3',
+				revealSessionIds: ['3'],
 			});
 
 			assert.deepStrictEqual({
@@ -1375,7 +1375,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: false,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
-				revealSessionId: '3',
+				revealSessionIds: ['3'],
 			});
 
 			assert.deepStrictEqual({
@@ -1395,7 +1395,7 @@ suite('Sessions - SessionsList', () => {
 					expanded: false,
 					sectionId: 'group:alpha',
 					sectionLabel: 'Alpha',
-					revealSessionId,
+					revealSessionIds: [revealSessionId],
 				});
 				const addsSession = revealSessionId === '3' || revealSessionId === '5';
 
@@ -1423,7 +1423,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: false,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
-				revealSessionId: '3',
+				revealSessionIds: ['3'],
 			});
 
 			assert.deepStrictEqual({

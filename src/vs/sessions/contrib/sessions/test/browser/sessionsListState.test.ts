@@ -10,13 +10,15 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { constObservable } from '../../../../../base/common/observable.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, type IChat, type ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { getCollapsedFindAncestors, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { type IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getCollapsedFindAncestors, limitSessionsForList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 
 suite('Sessions - SessionsList state', () => {
@@ -362,4 +364,125 @@ suite('Sessions - SessionsList state', () => {
 			});
 		});
 	}
+
+	test('keeps visible activations stationary while revealing offscreen sessions', async () => {
+		const sessions = Array.from({ length: 25 }, (_, index) => ({
+			...createTestSession(`Session ${index}`).session,
+			createdAt: new Date(Date.now() - index * 1000),
+		}));
+		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+		const { list, container } = renderList(sessions, instantiationService => {
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = activeSession;
+				override readonly visibleSessions = constObservable([]);
+			});
+		});
+		list.setWorkspaceGroupCapped(false);
+		list.layout(300, 400);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const activate = async (session: ISession) => {
+			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat, sticky: constObservable(false) }), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		};
+		const before = rowFor(container, 'Session 3').getBoundingClientRect().top;
+		await activate(sessions[3]);
+		const after = rowFor(container, 'Session 3').getBoundingClientRect().top;
+		await activate(sessions[20]);
+		const offscreen = rowFor(container, 'Session 20').getBoundingClientRect();
+		const tree = container.querySelector<HTMLElement>('[role="tree"]');
+		assert.ok(tree);
+		const viewport = tree.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			visibleRowStayedPut: before === after,
+			offscreenRevealed: offscreen.top >= viewport.top && offscreen.bottom <= viewport.bottom,
+			selected: container.querySelector('.monaco-list-row.selected .session-title')?.textContent,
+		}, { visibleRowStayedPut: true, offscreenRevealed: true, selected: 'Session 20' });
+	});
+
+	test('reveals multiple capped sessions once and in section order', () => {
+		const sessions = ['1', '2', '3', '4', '5'].map(title => createTestSession(title).session);
+		const result = limitSessionsForList(sessions, 2, {
+			enabled: true,
+			expanded: false,
+			sectionId: 'workspace:Workspace',
+			sectionLabel: 'Workspace',
+			revealSessionIds: ['5', '1', '4', '5', 'missing'],
+		});
+
+		assert.deepStrictEqual({
+			sessions: result.sessions.map(session => session.sessionId),
+			remaining: result.showMore?.remainingCount,
+		}, { sessions: ['1', '2', '4', '5'], remaining: 1 });
+	});
+
+	test('retains active and explicit reveals across the onboarding lifetime beyond the session cap', () => {
+		const sessions = Array.from({ length: 8 }, (_, index) => withPeerChats({
+			...createTestSession(`Owner ${index}`).session,
+			createdAt: new Date(Date.now() - index * 1000),
+		}, `Peer ${index}`));
+		const active = upcastPartial<IActiveSession>({ ...sessions[7], activeChat: sessions[7].mainChat, sticky: constObservable(false) });
+		const { list, container, store } = renderList(sessions, instantiationService => {
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(active);
+				override readonly visibleSessions = constObservable([active]);
+			});
+			instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+		});
+		const snapshot = () => ({
+			sessions: list.getVisibleSessions().map(session => session.sessionId),
+			more: container.querySelector('.session-show-more-label')?.textContent,
+		});
+		const before = snapshot();
+		const revealed = list.reveal(sessions[6].resource);
+		const explicit = snapshot();
+		const target = store.add(list.revealArchiveAction(sessions[5]));
+		const onboarding = snapshot();
+		target.dispose();
+
+		assert.deepStrictEqual({ before, revealed, explicit, onboarding, after: snapshot() }, {
+			before: { sessions: ['Owner 0', 'Owner 1', 'Owner 2', 'Owner 3', 'Owner 4', 'Owner 7'], more: '+2 more' },
+			revealed: true,
+			explicit: { sessions: ['Owner 0', 'Owner 1', 'Owner 2', 'Owner 3', 'Owner 4', 'Owner 6', 'Owner 7'], more: '+1 more' },
+			onboarding: { sessions: sessions.map(session => session.sessionId), more: undefined },
+			after: { sessions: ['Owner 0', 'Owner 1', 'Owner 2', 'Owner 3', 'Owner 4', 'Owner 6', 'Owner 7'], more: '+1 more' },
+		});
+	});
+
+	test('reveals active, explicit, and onboarding sessions in capped workspaces', () => {
+		const recent = withPeerChats(createTestSession('Recent', { workspaceLabel: 'Current' }).session, 'Recent peer');
+		const older = ['Active', 'Explicit', 'Onboarding', 'Unrelated'].map(title => withPeerChats({
+			...createTestSession(title, { workspaceLabel: title }).session,
+			updatedAt: constObservable(new Date(2020, 0, 1)),
+		}, `${title} peer`));
+		const active = upcastPartial<IActiveSession>({ ...older[0], activeChat: older[0].mainChat, sticky: constObservable(false) });
+		const { list, store } = renderList([recent, ...older], instantiationService => {
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(active);
+				override readonly visibleSessions = constObservable([active]);
+			});
+			instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+		});
+		const visible = () => list.getVisibleSessions().map(session => session.sessionId).sort();
+		const before = visible();
+		const revealed = list.reveal(older[1].resource);
+		const explicit = visible();
+		const target = store.add(list.revealArchiveAction(older[2]));
+		const onboarding = visible();
+		target.dispose();
+		const after = visible();
+		list.setStatusExcluded(SessionStatus.Completed, true);
+
+		assert.deepStrictEqual({
+			before, revealed, explicit, onboarding, after,
+			filteredReveal: list.reveal(older[1].resource),
+		}, {
+			before: ['Active', 'Recent'],
+			revealed: true,
+			explicit: ['Active', 'Explicit', 'Recent'],
+			onboarding: ['Active', 'Explicit', 'Onboarding', 'Recent'],
+			after: ['Active', 'Explicit', 'Recent'],
+			filteredReveal: false,
+		});
+	});
 });
