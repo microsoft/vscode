@@ -474,8 +474,9 @@ export interface ITunnelAgentHostService {
 	 * disabled. Rejects when discovery cannot complete, including when
 	 * authentication is unavailable. {@link options.silent} suppresses
 	 * authentication prompts but does not convert failures to empty results.
+	 * An explicit auth provider takes precedence over cached provider selection.
 	 */
-	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
+	listTunnels(options?: { silent?: boolean; authProvider?: 'github' | 'microsoft' }): Promise<ITunnelInfo[]>;
 
 	/**
 	 * Determine whether startup auto-connect can run silently or must first ask
@@ -501,7 +502,7 @@ export interface ITunnelAgentHostService {
 	readonly canDeleteTunnels: boolean;
 
 	/** Delete a dev tunnel and remove it from the local tunnel cache. */
-	deleteTunnel(tunnel: ITunnelInfo): Promise<void>;
+	deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void>;
 
 	/**
 	 * Disconnect from a tunnel agent host.

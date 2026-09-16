@@ -220,16 +220,24 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Returns in-progress when any chat is active, then the main-chat status for trees with chat rows. */
-function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): SessionStatus {
+/** Returns in-progress when hidden chat activity should be summarized, then the main-chat status for trees with chat rows. */
+function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, includeVisibleChildProgress = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
 		return sessionStatus;
 	}
-	if (session.chats.read(reader).some(chat => chat.status.read(reader) === SessionStatus.InProgress)) {
+	const mainChatStatus = session.mainChat.read(reader).status.read(reader);
+	if (mainChatStatus === SessionStatus.InProgress) {
+		return mainChatStatus;
+	}
+	const visibleChildChats = includeVisibleChildProgress ? undefined : getSessionListChats(session, reader);
+	if (session.chats.read(reader).some(chat =>
+		chat.status.read(reader) === SessionStatus.InProgress &&
+		(includeVisibleChildProgress || !visibleChildChats?.includes(chat))
+	)) {
 		return SessionStatus.InProgress;
 	}
-	return session.mainChat.read(reader).status.read(reader);
+	return mainChatStatus;
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
@@ -767,6 +775,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
+			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
+			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			archiveOnboardingSession?: IObservable<ISession | undefined>;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
@@ -1011,7 +1021,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// CSS spin animation.
 		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
-			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
+			const sessionStatus = getSessionRowStatus(
+				element,
+				reader,
+				!!this.options.deriveStatusFromMainChat,
+				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+			);
 			template.statusContext.set(sessionStatus);
 			const isRead = element.isRead.read(reader);
 			template.isReadContext.set(isRead);
@@ -1049,7 +1064,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
-			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
+			const sessionStatus = getSessionRowStatus(
+				element,
+				reader,
+				!!this.options.deriveStatusFromMainChat,
+				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+			);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
@@ -1859,6 +1879,7 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
+	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 }
 
 class SessionsAccessibilityProvider {
@@ -1934,7 +1955,12 @@ class SessionsAccessibilityProvider {
 			} else {
 				label = localize('sessionItemAria', "{0}, updated {1}", title, updated);
 			}
-			const status = getSessionRowStatus(element, reader, !!this.options?.deriveStatusFromMainChat);
+			const status = getSessionRowStatus(
+				element,
+				reader,
+				!!this.options?.deriveStatusFromMainChat,
+				this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
 			}
@@ -2517,6 +2543,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private readonly chatApprovalHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
+	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly automationsNewBadgeState: AutomationsNewBadgeState;
 	/**
 	 * Session IDs whose hierarchy indent/connector guides should be visible:
@@ -2593,6 +2620,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	get element(): HTMLElement { return this.listContainer; }
 
+	private isCompact(): boolean {
+		return (this.options.compact?.() ?? false) && !IsPhoneLayoutContext.getValue(this.contextKeyService);
+	}
+
 	async resetAutomationsNewBadge(): Promise<void> {
 		if (this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
 			this.customViewService.hideCustomView();
@@ -2643,7 +2674,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
-		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.listContainer.classList.toggle('compact', this.isCompact());
 		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
 			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -2692,7 +2723,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
 				useCompactQuickChatRows: true,
-				compact: () => this.options.compact?.() ?? false,
+				compact: () => this.isCompact(),
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				aggregateChatApprovals: false,
 				toolbarMenuId: SessionItemToolbarMenuId,
@@ -2701,6 +2732,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
+				collapsedSessionIds: this.collapsedSessionIds,
 				archiveOnboardingSession: this.archiveOnboardingSession,
 			},
 			approvalModel,
@@ -2765,7 +2797,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
 			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
-			() => this.options.compact?.() ?? false,
+			() => this.isCompact(),
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
 			undefined,
 			true /* useCompactQuickChatRows */,
@@ -2793,6 +2825,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
 					deriveStatusFromMainChat: true,
+					collapsedSessionIds: this.collapsedSessionIds,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
@@ -3036,15 +3069,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore>): void => {
-				if (node.element && (isSessionItem(node.element) || isSessionChatItem(node.element))) {
-					this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
-				}
-				for (const child of node.children) {
-					updateNodeHeights(child);
-				}
-			};
-			updateNodeHeights(this.tree.getNode());
+			this.setCompact();
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -3061,6 +3086,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (!this.suspendCollapseStatePersistence) {
 					this.saveSectionCollapseState(element.id, e.node.collapsed);
 				}
+			} else if (element && isSessionItem(element)) {
+				this.syncCollapsedSessionIds();
 			}
 		}));
 
@@ -3538,8 +3565,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		this.tree.setChildren(null, children);
+		this.syncCollapsedSessionIds();
 		this.reconcileChatApprovalHeights();
 		this._onDidUpdate.fire();
+	}
+
+	private syncCollapsedSessionIds(): void {
+		const collapsedSessionIds = new Set<string>();
+		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			if (node.element && isSessionItem(node.element) && node.collapsed) {
+				collapsedSessionIds.add(node.element.sessionId);
+			}
+			for (const child of node.children) {
+				collect(child);
+			}
+		};
+		collect(this.tree.getNode(null));
+
+		const current = this.collapsedSessionIds.get();
+		if (current.size !== collapsedSessionIds.size || [...current].some(sessionId => !collapsedSessionIds.has(sessionId))) {
+			this.collapsedSessionIds.set(collapsedSessionIds, undefined);
+		}
 	}
 
 	/**
@@ -3716,7 +3762,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	setCompact(): void {
-		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
 	}
 

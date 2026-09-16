@@ -99,9 +99,9 @@ export interface IOnboardingScenarioService {
 	/** Whether the scenario has already been shown to the user. */
 	hasBeenShown(id: string): boolean;
 
-	/** Clear the "shown" state for a single scenario (developer/testing aid). */
+	/** Clear persisted and in-memory "shown" state so a single scenario can be retried. */
 	reset(id: string): void;
 
-	/** Clear the "shown" state for all scenarios (developer/testing aid). */
+	/** Clear persisted "shown" state for all scenarios without resetting developer-mode replay guards. */
 	resetAll(): void;
 }

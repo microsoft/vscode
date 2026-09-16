@@ -164,8 +164,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 			store.add(onboardingScenarioRegistry.register(scenario));
 			const outcome = await this._onboardingService.runScenario(scenario.id);
 			if (outcome !== OnboardingOutcome.Completed && outcome !== OnboardingOutcome.Skipped) {
+				// Allow the optional introduction to retry later without blocking the requested archive.
 				this._onboardingService.reset(scenario.id);
-				throw new Error(localize('archiveOnboarding.interrupted', "The session list introduction was interrupted. Try again."));
 			}
 		} finally {
 			this._onboardingStore.clear();

@@ -8,11 +8,12 @@ import { spy } from 'sinon';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IContextViewService } from '../../../contextview/browser/contextView.js';
@@ -20,12 +21,13 @@ import { IHoverService } from '../../../hover/browser/hover.js';
 import { NullHoverService } from '../../../hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
-import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
+import { IKeybindingService, IKeyboardEvent } from '../../../keybinding/common/keybinding.js';
+import { ResolutionResult, ResultKind } from '../../../keybinding/common/keybindingResolver.js';
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
+import { acceptSelectedActionCommand, ActionList, ActionListItemKind, ActionListWidget, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 
 interface ITestActionItem {
@@ -47,9 +49,10 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 	readonly onHide?: () => void;
 	readonly onSelect?: (item: ITestActionItem) => void;
 	readonly listOptions?: Partial<IActionListOptions>;
+	readonly keybindingService?: IKeybindingService;
 }): ActionListWidget<ITestActionItem> {
 	const instantiationService = disposables.add(new TestInstantiationService());
-	instantiationService.set(IKeybindingService, new MockKeybindingService());
+	instantiationService.set(IKeybindingService, options.keybindingService ?? new MockKeybindingService());
 	instantiationService.set(IHoverService, NullHoverService);
 	instantiationService.set(IOpenerService, NullOpenerService);
 	const delegate = options.onFilter
@@ -558,6 +561,31 @@ suite('ActionListWidget', () => {
 			disabled: true,
 			title: 'Managed by your organization',
 		});
+	});
+
+	test('nested action groups expose a keyboard-accessible submenu and select the parent item', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [new SubmenuAction('hosts', '', [
+					new SubmenuAction('workspace', 'Workspace', [
+						toAction({ id: 'container', label: 'Use Dev Container', run: () => selected.push('container') }),
+					]),
+				])],
+			}],
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList')!;
+		const workspaceRow = submenu.querySelector<HTMLElement>('.monaco-list-row.action')!;
+		assert.ok(workspaceRow.querySelector('.action-list-submenu-indicator.has-submenu'));
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const nested = submenu.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(nested);
+		nested.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.deepStrictEqual(selected, ['container', 'remote']);
 	});
 
 	test('Escape from a submenu hides the action list', () => {
@@ -1383,6 +1411,19 @@ suite('ActionListWidget', () => {
 	});
 
 	test('nested submenu options enable filtering', () => {
+		const actionWidgetCommands = new Map<KeyCode, string>([
+			[KeyCode.Space, 'toggleSectionCodeAction'],
+			[KeyCode.Enter, acceptSelectedActionCommand],
+			[KeyCode.Period, acceptSelectedActionCommand],
+		]);
+		const keybindingService = new class extends MockKeybindingService {
+			override softDispatch(event: IKeyboardEvent): ResolutionResult {
+				const commandId = actionWidgetCommands.get(event.keyCode);
+				return commandId
+					? { kind: ResultKind.KbFound, commandId, commandArgs: undefined, isBubble: false }
+					: { kind: ResultKind.NoMatchingKb };
+			}
+		}();
 		const widget = createActionListWidget(disposables, {
 			items: [{
 				...action('remote'),
@@ -1395,11 +1436,23 @@ suite('ActionListWidget', () => {
 					showFilter: true,
 					filterPlaceholder: 'Search Remote',
 					filterAsCombobox: true,
+					focusFilterOnOpen: true,
 					minWidth: 180,
 					maxWidth: 180,
 				},
 			}],
 			listOptions: { showFilter: false },
+			keybindingService,
+		});
+		let hidden = 0;
+		const dismissibleWidget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [toAction({ id: 'alpha', label: 'Alpha', run: () => { } })],
+				submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
+			}],
+			listOptions: { showFilter: false },
+			onHide: () => hidden++,
 		});
 		widget.focus();
 		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -1416,12 +1469,17 @@ suite('ActionListWidget', () => {
 			{ key: 'P', ctrlKey: true },
 			{ key: 'F1', altKey: true },
 			{ key: ' ' },
+			{ key: 'Enter', ctrlKey: true },
+			{ key: '.', ctrlKey: true },
 			{ key: 'Process' },
-		].forEach(init => filter.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init })));
+		].forEach(init => filter.dispatchEvent(new KeyboardEvent('keydown', {
+			bubbles: true,
+			keyCode: init.key === ' ' ? 32 : init.key === 'Enter' ? 13 : init.key === '.' ? 190 : undefined,
+			...init,
+		})));
 		filter.value = 'bet';
 		filter.dispatchEvent(new Event('input'));
-
-		assert.deepStrictEqual({
+		const filteredState = {
 			placeholder: filter.placeholder,
 			role: filter.getAttribute('role'),
 			width: panel.style.width,
@@ -1433,6 +1491,21 @@ suite('ActionListWidget', () => {
 			listWidth: panel.querySelector<HTMLElement>('.actionList')?.style.width,
 			longLabelTooltip,
 			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action')).map(row => row.querySelector<HTMLElement>('.title')?.textContent),
+		};
+		dismissibleWidget.focus();
+		dismissibleWidget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const dismissiblePanel = dismissibleWidget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const dismissibleFilter = dismissiblePanel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
+		const focusedOnOpen = document.activeElement === dismissibleFilter;
+		dismissibleFilter.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		const hiddenFromFilter = hidden;
+		dismissibleWidget.focus();
+		dismissibleWidget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		dismissiblePanel.querySelector<HTMLElement>('.monaco-list')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+		assert.deepStrictEqual({
+			...filteredState,
+			dismissal: { focusedOnOpen, hiddenFromFilter, hiddenFromList: hidden },
 		}, {
 			placeholder: 'Search Remote',
 			role: 'combobox',
@@ -1441,11 +1514,79 @@ suite('ActionListWidget', () => {
 				panelStyle: '0px',
 				expectedStyle: '0px',
 			},
-			bubbledKeys: ['P', 'F1', ' ', 'Process'],
+			bubbledKeys: ['P', 'F1', 'Process'],
+			dismissal: { focusedOnOpen: true, hiddenFromFilter: 1, hiddenFromList: 2 },
 			listWidth: '180px',
 			longLabelTooltip: 'A long remote host label',
 			rows: ['Beta'],
 		});
+	});
+
+	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('local'),
+				{
+					...action('remote'),
+					filterItems: [action('Alpha'), action('Beta')],
+					submenuActions: [toAction({ id: 'alpha', label: 'Remote Alpha', run: () => { } })],
+				},
+			],
+		});
+
+		typeFilter(widget, 'alpha');
+		const childMatch = getVisibleRowText(widget);
+		typeFilter(widget, 'remote');
+		const parentMatch = getVisibleRowText(widget);
+
+		assert.deepStrictEqual({ childMatch, parentMatch }, {
+			childMatch: ['Alpha'],
+			parentMatch: ['Alpha', 'Beta'],
+		});
+	});
+
+	test('submenu hover labels preserve literal markdown characters', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const childAction = toAction({ id: 'remote', label: 'host_*_[name](target)', run: () => { } });
+		Object.assign(childAction, { hoverContent: '**Online**' });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('remote'), submenuActions: [childAction] }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const childRow = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector('.title')?.textContent === childAction.label)!;
+		childRow.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		childRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		await timeout(600);
+
+		assert.deepStrictEqual({
+			text: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-hover-header')?.textContent,
+			links: widget.domNode.querySelectorAll('.action-list-submenu-hover-header a').length,
+		}, { text: `${childAction.label}Online`, links: 0 });
+	}));
+
+	test('nested submenu renders footer and removes the list strip when filtering has no matches', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: [toAction({ id: 'alpha', label: 'Alpha', run: () => { } })],
+				submenuOptions: { showFilter: true, filterAsCombobox: true, footerText: 'Remote footer' },
+			}],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
+		filter.value = 'missing';
+		filter.dispatchEvent(new Event('input'));
+
+		assert.deepStrictEqual({
+			footer: panel.querySelector('.action-list-footer')?.textContent,
+			listHeight: panel.querySelector<HTMLElement>('.actionList')?.style.height,
+		}, { footer: 'Remote footer', listHeight: '0px' });
 	});
 
 	test('a filtered submenu near the viewport bottom shifts enough to show one row', () => withWindowInnerHeight(300, () => {
@@ -1537,6 +1678,46 @@ suite('ActionListWidget', () => {
 			listIsConstrained: true,
 			rowsAreScrollable: true,
 		});
+	}));
+
+	test('scrolling a submenu relayouts an open child hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const submenuActions = Array.from({ length: 30 }, (_, index) => {
+			const child = toAction({ id: `remote-${index}`, label: `Remote ${index}`, run: () => { } });
+			Object.assign(child, { hoverContent: `Status ${index}` });
+			return child;
+		});
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('remote'), submenuActions }],
+			listOptions: { showFilter: false },
+		});
+		widget.layout(24, 180);
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const parentPanel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const childRow = Array.from(parentPanel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector('.title')?.textContent === 'Remote 0')!;
+		childRow.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		childRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		await timeout(600);
+		const childPanel = parentPanel.querySelector<HTMLElement>('.actionList .action-list-submenu-panel')!;
+		const submenuWidget = (widget as unknown as {
+			_currentSubmenuWidget: {
+				_layoutSubmenu: (() => void) | undefined;
+				_list: { scrollTop: number };
+			} | undefined;
+		})._currentSubmenuWidget!;
+		const layout = submenuWidget._layoutSubmenu;
+		let layouts = 0;
+		submenuWidget._layoutSubmenu = () => {
+			layouts++;
+			layout?.();
+		};
+		submenuWidget._list.scrollTop = 24;
+
+		assert.deepStrictEqual({
+			panelVisible: childPanel.style.display !== 'none',
+			layouts,
+		}, { panelVisible: true, layouts: 1 });
 	}));
 
 	test('tabs through a focused row toolbar and hover panel while preserving list navigation', () => {
@@ -2041,6 +2222,23 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	test('submenu pointer intent keeps the panel open while crossing a plain row', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { panel, hover } = createPersistentPreview('right', true);
+		const origin = hover(0);
+		hover(3, origin.x + 60);
+		const duringTravel = panel.textContent;
+		panel.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(300);
+
+		assert.deepStrictEqual({
+			duringTravel,
+			afterEntering: panel.textContent,
+		}, {
+			duringTravel: 'Details for first',
+			afterEntering: 'Details for first',
+		});
+	}));
+
 	test('pointer travel grace is bounded across multiple crossed rows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { panel, hover } = createPersistentPreview();
 		const origin = hover(0);
@@ -2455,6 +2653,7 @@ suite('ActionListWidget', () => {
 					withinLeftEdge: true,
 					withinRightEdge: true,
 				});
+				widget.dispose();
 			});
 		});
 	}
@@ -2492,6 +2691,42 @@ suite('ActionListWidget', () => {
 		}, {
 			narrowWidth: 312,
 			wideWidth: 490,
+		});
+	});
+
+	test('hover resize restores its preferred width without changing focus', async () => {
+		const content = document.createElement('div');
+		content.style.cssText = 'width: 120px; height: 80px;';
+		const control = document.createElement('button');
+		control.textContent = 'Open';
+		content.appendChild(control);
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('active'),
+				hover: { content, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => [control], contentOwnsPadding: true },
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		control.focus();
+		await settleLayout();
+
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const preferredWidth = panel.getBoundingClientRect().width;
+		panel.style.width = '80px';
+		await settleLayout();
+		const restoredWidth = panel.getBoundingClientRect().width;
+		await settleLayout();
+
+		assert.deepStrictEqual({
+			restoredWidth,
+			settledWidth: panel.getBoundingClientRect().width,
+			focusRetained: document.activeElement === control,
+		}, {
+			restoredWidth: preferredWidth,
+			settledWidth: preferredWidth,
+			focusRetained: true,
 		});
 	});
 

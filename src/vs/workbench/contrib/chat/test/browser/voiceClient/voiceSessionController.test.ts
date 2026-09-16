@@ -533,6 +533,70 @@ class RefCountingChatService extends mock<IChatService>() {
 	}
 }
 
+class NonVisibleTargetChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	private readonly _resource = URI.parse('chat-session://existing/1');
+	readonly responseEmitter = new Emitter<void>();
+	readonly response = {
+		id: 'held-response',
+		requestId: 'held-request',
+		isComplete: false,
+		isCanceled: false,
+		onDidChange: this.responseEmitter.event,
+		response: {
+			value: [] as readonly IChatProgressResponseContent[],
+			getMarkdown: () => '',
+		},
+	} as unknown as IChatResponseModel;
+	private readonly _model = {
+		sessionResource: this._resource,
+		onDidChange: Event.None,
+		lastRequest: { id: 'held-request', response: this.response },
+		getRequests: () => [{ id: 'held-request', response: this.response }],
+	} as unknown as IChatModel;
+	private _retainedRefs = 0;
+
+	get retainedRefs(): number {
+		return this._retainedRefs;
+	}
+
+	override getSession(resource: URI): IChatModel | undefined {
+		return resource.toString() === this._resource.toString() ? this._model : undefined;
+	}
+
+	override async acquireOrLoadSession(resource: URI): Promise<IChatModelReference | undefined> {
+		if (resource.toString() !== this._resource.toString()) {
+			return undefined;
+		}
+		this._retainedRefs++;
+		let disposed = false;
+		return {
+			object: { sessionResource: this._resource } as unknown as IChatModelReference['object'],
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				this._retainedRefs--;
+			},
+		};
+	}
+
+	override async sendRequest(resource: URI): Promise<ChatSendResult> {
+		if (resource.toString() !== this._resource.toString()) {
+			return { kind: 'rejected', reason: 'wrong-target' };
+		}
+		return {
+			kind: 'sent',
+			data: {
+				agent: {} as never,
+				responseCreatedPromise: Promise.resolve(this.response),
+				responseCompletePromise: Promise.resolve(),
+			},
+		};
+	}
+}
+
 /**
  * Chat service whose tracked models can be driven from a test, so the
  * controller's always-on pending-confirmation tracker can be exercised.
@@ -731,6 +795,18 @@ class RejectingAcceptCommandService extends TestCommandService {
 	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
 		if (commandId === '_chat.voice.acceptInput') {
 			throw new Error('accept failed');
+		}
+		return super.executeCommand<T>(commandId, ...args);
+	}
+}
+
+class NoVisibleSessionCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.getCurrentSession') {
+			return undefined as T;
+		}
+		if (commandId === '_chat.voice.switchToSession') {
+			return false as T;
 		}
 		return super.executeCommand<T>(commandId, ...args);
 	}
@@ -5716,6 +5792,34 @@ suite('VoiceSessionController', () => {
 
 		// The pane holds its own reference, so voice must not keep one too.
 		assert.strictEqual(chatService.refCount('chat-session://new/1'), 0);
+	});
+
+	test('send_to_chat releases hidden-session watchers on disconnect', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new NonVisibleTargetChatService();
+		store.add({ dispose: () => chatService.responseEmitter.dispose() });
+		const controller = createController(voiceClientService, undefined, new NoVisibleSessionCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.setTargetSession(URI.parse('chat-session://existing/1'));
+		await Reflect.get(controller, '_sendTranscriptionToChat').call(controller, 'review the indexing flow');
+
+		assert.deepStrictEqual({
+			retainedRefsBeforeDisconnect: chatService.retainedRefs,
+			hasResponseListenerBeforeDisconnect: chatService.responseEmitter.hasListeners(),
+		}, {
+			retainedRefsBeforeDisconnect: 1,
+			hasResponseListenerBeforeDisconnect: true,
+		});
+
+		controller.disconnect();
+
+		assert.deepStrictEqual({
+			retainedRefsAfterDisconnect: chatService.retainedRefs,
+			hasResponseListenerAfterDisconnect: chatService.responseEmitter.hasListeners(),
+		}, {
+			retainedRefsAfterDisconnect: 0,
+			hasResponseListenerAfterDisconnect: false,
+		});
 	});
 
 	test('send_to_chat with new_session outranks a pinned submit session', async () => {
