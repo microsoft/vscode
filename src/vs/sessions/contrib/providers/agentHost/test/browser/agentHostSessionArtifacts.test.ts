@@ -13,18 +13,21 @@ import { partitionSessionArtifacts } from '../../browser/agentHostSessionArtifac
 suite('Agent Host Session Artifacts', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('maps host file URIs while preserving resource URIs', () => {
-		const fileUri = URI.file('/remote/artifacts/report.png');
+	test('maps host file artifact and reference URIs while preserving resource URIs', () => {
+		const artifactFileUri = URI.file('/remote/artifacts/report.png');
+		const referenceFileUri = URI.file('/remote/references/input.png');
 		const resourceUri = URI.parse('https://example.com/report');
 		const connectionAuthority = 'remote-host';
 		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
-			{ id: 'file', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: fileUri.toString() },
+			{ id: 'artifact-file', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: artifactFileUri.toString() },
+			{ id: 'reference-file', type: SessionArtifactType.File, label: 'Input', isArtifact: false, uri: referenceFileUri.toString() },
 			{ id: 'resource', type: SessionArtifactType.Resource, label: 'Dashboard', isArtifact: true, uri: resourceUri.toString() },
 		]), uri => toAgentHostUri(uri, connectionAuthority));
 
 		assert.deepStrictEqual(Object.fromEntries(result.entries.map(({ artifact }) => [artifact.id, artifact.uri?.toString()])), {
 			resource: resourceUri.toString(),
-			file: toAgentHostUri(fileUri, connectionAuthority).toString(),
+			'reference-file': toAgentHostUri(referenceFileUri, connectionAuthority).toString(),
+			'artifact-file': toAgentHostUri(artifactFileUri, connectionAuthority).toString(),
 		});
 	});
 });

@@ -1778,16 +1778,25 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.workspace.get(), undefined);
 	}));
 
-	test('maps remote artifact files and registers their SDK session state homes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('maps remote artifact and reference files and registers their SDK session state homes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const metadata = createSession('ahp-session', {
 			summary: 'Remote Session',
-			_meta: withSessionArtifacts(undefined, [{
-				id: 'artifact',
-				type: SessionArtifactType.File,
-				label: 'Plan',
-				isArtifact: true,
-				uri: 'file:///home/remote/.copilot/session-state/sdk-session/files/plan.md',
-			}])
+			_meta: withSessionArtifacts(undefined, [
+				{
+					id: 'artifact',
+					type: SessionArtifactType.File,
+					label: 'Plan',
+					isArtifact: true,
+					uri: 'file:///home/remote/.copilot/session-state/sdk-session/files/plan.md',
+				},
+				{
+					id: 'reference',
+					type: SessionArtifactType.File,
+					label: 'Input',
+					isArtifact: false,
+					uri: 'file:///home/remote/.copilot/session-state/sdk-session/files/input.md',
+				},
+			])
 		});
 		connection.addSession(metadata);
 		const labelService = new MockLabelService();
@@ -1798,13 +1807,17 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(session => session.title.get() === 'Remote Session');
 		const root = URI.file('/home/remote/.copilot/session-state/sdk-session');
 		const resource = toAgentHostUri(URI.joinPath(root, 'files/plan.md'), agentHostAuthority('localhost:4321'));
+		const referenceResource = toAgentHostUri(URI.joinPath(root, 'files/input.md'), agentHostAuthority('localhost:4321'));
 		const providerLabel = provider.sessionTypes.find(type => type.id === CopilotCLISessionType.id)?.label;
 		assert.deepStrictEqual({
-			artifact: session?.artifacts?.get()[0]?.uri?.toString(),
+			resources: Object.fromEntries(session?.artifacts?.get().map(artifact => [artifact.id, artifact.uri?.toString()]) ?? []),
 			home: labelService.getUriHome(resource)?.path,
 			label: labelService.getUriLabel(resource),
 		}, {
-			artifact: resource.toString(),
+			resources: {
+				reference: referenceResource.toString(),
+				artifact: resource.toString(),
+			},
 			home: root.path,
 			label: `${providerLabel}/Remote Session/files/plan.md`,
 		});
