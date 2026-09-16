@@ -246,7 +246,7 @@ class StubSessionsProvidersService extends Disposable {
 class StubFilterService {
 	declare readonly _serviceBrand: undefined;
 	registerDiscoveryHandler(_handler: () => Promise<void>): IDisposable { return toDisposable(() => { }); }
-	async rediscover(): Promise<void> { /* noop — production routes through the discovery handler */ }
+	async rediscover(): Promise<boolean> { return true; }
 }
 
 class TestTunnelContribution extends TunnelAgentHostContribution {
@@ -455,7 +455,7 @@ suite('TunnelAgentHostContribution', () => {
 		assert.strictEqual(tunnelService.isAutoConnectSuppressed(tunnelId), false);
 	});
 
-	test('dismissed tunnel stays removed through discovery until explicitly restored', async () => {
+	test('intentional disconnect keeps the tunnel selectable and suppresses automatic reconnect', async () => {
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
@@ -486,49 +486,54 @@ suite('TunnelAgentHostContribution', () => {
 		tunnelService.setListed([tunnel]);
 		const testable = contribution as unknown as {
 			_disconnectTunnel(address: string): Promise<void>;
+			_removeTunnel(address: string): Promise<void>;
 			_silentStatusCheck(): Promise<void>;
 		};
 
 		await testable._disconnectTunnel(address);
-		const afterRemove = {
+		const afterDisconnect = {
 			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
 			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
-			disconnectCalls: tunnelService.disconnectCalls,
+			autoConnectSuppressed: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
+			disconnectCalls: [...tunnelService.disconnectCalls],
 			providers: providersService.getProviders().map(provider => provider.id),
 		};
 		await testable._silentStatusCheck();
 		const afterDiscovery = {
 			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
 			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
+			autoConnectSuppressed: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
+			providers: providersService.getProviders().map(provider => provider.id),
+		};
+		await testable._removeTunnel(address);
+		const afterRemove = {
+			cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
+			dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
 			providers: providersService.getProviders().map(provider => provider.id),
 		};
 
-		tunnelService.clearTunnelDismissal(tunnel.tunnelId);
-		tunnelService.cacheTunnel(tunnel, 'github');
 		assert.deepStrictEqual({
-			afterRemove,
+			afterDisconnect,
 			afterDiscovery,
-			afterExplicitRestore: {
-				cached: tunnelService.getCachedTunnels().map(cached => cached.tunnelId),
-				dismissed: tunnelService.isTunnelDismissed(tunnel.tunnelId),
-				providers: providersService.getProviders().map(provider => provider.id),
-			},
+			afterRemove,
 		}, {
+			afterDisconnect: {
+				cached: [tunnel.tunnelId],
+				dismissed: false,
+				autoConnectSuppressed: true,
+				disconnectCalls: [address],
+				providers: [`agenthost-${address}`],
+			},
+			afterDiscovery: {
+				cached: [tunnel.tunnelId],
+				dismissed: false,
+				autoConnectSuppressed: true,
+				providers: [`agenthost-${address}`],
+			},
 			afterRemove: {
 				cached: [],
 				dismissed: true,
-				disconnectCalls: [address],
 				providers: [],
-			},
-			afterDiscovery: {
-				cached: [],
-				dismissed: true,
-				providers: [],
-			},
-			afterExplicitRestore: {
-				cached: [tunnel.tunnelId],
-				dismissed: false,
-				providers: [`agenthost-${address}`],
 			},
 		});
 	});

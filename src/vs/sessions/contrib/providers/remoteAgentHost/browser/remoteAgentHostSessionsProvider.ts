@@ -72,6 +72,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly connectOnDemand?: () => Promise<void>;
 	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
 	readonly disconnectOnDemand?: () => Promise<void>;
+	/** Optional hook to permanently remove the host from its provider inventory. */
+	readonly removeOnDemand?: () => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Optional kind-scoped policy for automatically starting the host. */
@@ -182,6 +184,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
+	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
@@ -227,6 +230,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
+		this._removeOnDemand = config.removeOnDemand;
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
@@ -511,6 +515,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}
 		await removeWebSocketRemoteAgentHostEntry(this._configurationService, this.remoteAddress);
 		await this._remoteAgentHostService.removeRemoteAgentHost(this.remoteAddress);
+	}
+
+	async remove(): Promise<void> {
+		this.unpublishCachedSessions();
+		if (this._removeOnDemand) {
+			await this._removeOnDemand();
+			return;
+		}
+		await this.disconnect();
 	}
 
 	/** Update the connection status for this provider. */
