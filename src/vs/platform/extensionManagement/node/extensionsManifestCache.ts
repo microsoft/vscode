@@ -44,17 +44,33 @@ export class ExtensionsManifestCache extends Disposable {
 		if (extensionsManifestLocation) {
 			for (const profile of this.userDataProfilesService.profiles) {
 				if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, extensionsManifestLocation)) {
-					await this.deleteUserCacheFile(profile);
+					await this.deleteUserCacheFiles(profile);
 				}
 			}
 		} else {
-			await this.deleteUserCacheFile(this.userDataProfilesService.defaultProfile);
+			await this.deleteUserCacheFiles(this.userDataProfilesService.defaultProfile);
 		}
 	}
 
-	private async deleteUserCacheFile(profile: IUserDataProfile): Promise<void> {
+	private async deleteUserCacheFiles(profile: IUserDataProfile): Promise<void> {
 		try {
-			await this.fileService.del(this.uriIdentityService.extUri.joinPath(profile.cacheHome, USER_MANIFEST_CACHE_FILE));
+			const stat = await this.fileService.resolve(profile.cacheHome);
+			await Promise.all((stat.children ?? [])
+				.filter(child => {
+					const name = this.uriIdentityService.extUri.ignorePathCasing(child.resource) ? child.name.toLowerCase() : child.name;
+					return name === USER_MANIFEST_CACHE_FILE || name.endsWith(`.${USER_MANIFEST_CACHE_FILE}`);
+				})
+				.map(child => this.deleteUserCacheFile(child.resource)));
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+		}
+	}
+
+	private async deleteUserCacheFile(cacheFile: URI): Promise<void> {
+		try {
+			await this.fileService.del(cacheFile);
 		} catch (error) {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error(error);

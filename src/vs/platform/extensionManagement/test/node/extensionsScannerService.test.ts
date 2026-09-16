@@ -3,15 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { Event } from '../../../../base/common/event.js';
+import { dirname, ExtUri, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IExtensionManagementService } from '../../common/extensionManagement.js';
 import { IExtensionsProfileScannerService, IProfileExtensionsScanOptions } from '../../common/extensionsProfileScannerService.js';
 import { AbstractExtensionsScannerService, ExtensionScannerInput, IExtensionsScannerService, IScannedExtensionManifest, Translations } from '../../common/extensionsScannerService.js';
 import { ExtensionsProfileScannerService } from '../../node/extensionsProfileScannerService.js';
-import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../../extensions/common/extensions.js';
+import { ExtensionsManifestCache } from '../../node/extensionsManifestCache.js';
+import { BUILTIN_MANIFEST_CACHE_FILE, ExtensionType, IExtensionManifest, TargetPlatform, USER_MANIFEST_CACHE_FILE } from '../../../extensions/common/extensions.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -21,7 +26,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
-import { IUserDataProfilesService, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
 
 let translations: Translations = Object.create(null);
 const ROOT = URI.file('/ROOT');
@@ -103,6 +108,130 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual[0].targetPlatform, TargetPlatform.UNDEFINED);
 		assert.deepStrictEqual(actual[0].manifest, manifest);
 	});
+
+	for (const type of [ExtensionType.System, ExtensionType.User]) {
+		test(`cached ${type === ExtensionType.System ? 'system' : 'user'} scans preserve caches for different languages`, () => runWithFakedTimers({}, async () => {
+			instantiationService.get(INativeEnvironmentService).isBuilt = true;
+			const fileService = instantiationService.get(IFileService);
+			const profile = instantiationService.get(IUserDataProfilesService).defaultProfile;
+			const manifest = anExtensionManifest({ name: 'name', publisher: 'pub', displayName: '%displayName%' });
+			const extensionLocation = await (type === ExtensionType.System ? aSystemExtension(manifest) : aUserExtension(manifest));
+			for (const [file, displayName] of [['package.nls.json', 'Default'], ['package.nls.en.json', 'English'], ['package.nls.de.json', 'German'], ['package.nls.zh-cn.json', 'Chinese']]) {
+				await fileService.writeFile(joinPath(extensionLocation, file), VSBuffer.fromString(JSON.stringify({ displayName })));
+			}
+			const scanners = [undefined, 'en', 'de', 'zh-cn', 'zh-CN'].map(language => {
+				const scanner = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+				return () => type === ExtensionType.System
+					? scanner.scanSystemExtensions({ language })
+					: scanner.scanUserExtensions({ language, profileLocation: profile.extensionsResource, useCache: true });
+			});
+			for (const scan of scanners) {
+				await scan();
+				await scan();
+			}
+
+			const operations: string[] = [];
+			disposables.add(fileService.onDidRunOperation(e => operations.push(e.resource.toString())));
+			const displayNames: (string | undefined)[] = [];
+			for (let i = 0; i < 2; i++) {
+				for (const scan of scanners) {
+					displayNames.push((await scan())[0].manifest.displayName);
+				}
+				await timeout(3100);
+			}
+			const cacheFile = type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE;
+			const cache = await fileService.resolve(profile.cacheHome);
+			assert.deepStrictEqual({
+				displayNames,
+				operations,
+				files: cache.children?.map(child => child.name).sort(),
+			}, {
+				displayNames: ['Default', 'English', 'German', 'Chinese', 'Chinese', 'Default', 'English', 'German', 'Chinese', 'Chinese'],
+				operations: [],
+				files: [cacheFile, `en.${cacheFile}`, `de.${cacheFile}`, `zh-cn.${cacheFile}`].sort(),
+			});
+		}));
+	}
+
+	test('invalidating a profile removes all user cache languages but preserves other caches', async () => {
+		const fileService = instantiationService.get(IFileService);
+		const profilesService = instantiationService.get(IUserDataProfilesService);
+		const profile = profilesService.defaultProfile;
+		const otherProfile = toUserDataProfile('other', 'other', joinPath(ROOT, 'profiles', 'other'), dirname(profile.cacheHome));
+		const cacheFiles = [USER_MANIFEST_CACHE_FILE, ...['en', 'de', 'zh-cn', 'zh-CN'].map(language => `${language}.${USER_MANIFEST_CACHE_FILE}`)];
+		for (const target of [profile, otherProfile]) {
+			for (const name of [...cacheFiles, BUILTIN_MANIFEST_CACHE_FILE, `en.${BUILTIN_MANIFEST_CACHE_FILE}`, 'unrelated.cache']) {
+				await fileService.writeFile(joinPath(target.cacheHome, name), VSBuffer.fromString('{}'));
+			}
+		}
+		instantiationService.stub(IExtensionManagementService, {
+			onDidInstallExtensions: Event.None,
+			onDidUninstallExtension: Event.None,
+		});
+		const cache = disposables.add(new ExtensionsManifestCache(
+			profilesService, fileService, instantiationService.get(IUriIdentityService),
+			instantiationService.get(IExtensionManagementService), instantiationService.get(ILogService)));
+
+		await cache.invalidate(profile.extensionsResource);
+		await cache.invalidate(profile.extensionsResource);
+
+		assert.deepStrictEqual({
+			files: (await fileService.resolve(profile.cacheHome)).children?.map(child => child.name).sort(),
+			otherFiles: (await fileService.resolve(otherProfile.cacheHome)).children?.map(child => child.name).sort(),
+		}, {
+			files: [BUILTIN_MANIFEST_CACHE_FILE, `en.${BUILTIN_MANIFEST_CACHE_FILE}`, 'unrelated.cache'].sort(),
+			otherFiles: [...cacheFiles, BUILTIN_MANIFEST_CACHE_FILE, `en.${BUILTIN_MANIFEST_CACHE_FILE}`, 'unrelated.cache'].sort(),
+		});
+	});
+
+	for (const ignorePathCasing of [false, true]) {
+		test(`cache invalidation respects filesystem case sensitivity (ignorePathCasing: ${ignorePathCasing})`, async () => {
+			const fileService = instantiationService.get(IFileService);
+			const profilesService = instantiationService.get(IUserDataProfilesService);
+			const profile = profilesService.defaultProfile;
+			const upperCaseFiles = [USER_MANIFEST_CACHE_FILE.toUpperCase(), `zh-CN.${USER_MANIFEST_CACHE_FILE.toUpperCase()}`];
+			const preservedFiles = [BUILTIN_MANIFEST_CACHE_FILE, 'unrelated.cache'];
+			for (const name of [USER_MANIFEST_CACHE_FILE, `en.${USER_MANIFEST_CACHE_FILE}`, ...upperCaseFiles, ...preservedFiles]) {
+				await fileService.writeFile(joinPath(profile.cacheHome, name), VSBuffer.fromString('{}'));
+			}
+			const uriIdentityService = instantiationService.stub(IUriIdentityService, { extUri: new ExtUri(() => ignorePathCasing) });
+			const extensionManagementService = instantiationService.stub(IExtensionManagementService, {
+				onDidInstallExtensions: Event.None,
+				onDidUninstallExtension: Event.None,
+			});
+			const cache = disposables.add(new ExtensionsManifestCache(
+				profilesService, fileService, uriIdentityService, extensionManagementService, instantiationService.get(ILogService)));
+
+			await cache.invalidate(profile.extensionsResource);
+
+			assert.deepStrictEqual(
+				(await fileService.resolve(profile.cacheHome)).children?.map(child => child.name).sort(),
+				[...preservedFiles, ...(ignorePathCasing ? [] : upperCaseFiles)].sort(),
+			);
+		});
+	}
+
+	test('cached scans still invalidate changed manifests', () => runWithFakedTimers({}, async () => {
+		instantiationService.get(INativeEnvironmentService).isBuilt = true;
+		const fileService = instantiationService.get(IFileService);
+		const profile = instantiationService.get(IUserDataProfilesService).defaultProfile;
+		const manifest = anExtensionManifest({ name: 'name', publisher: 'pub', displayName: 'Before' });
+		const location = await aSystemExtension(manifest);
+		const scanner = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+		let invalidations = 0;
+		disposables.add(scanner.onDidChangeCache(() => invalidations++));
+		await scanner.scanSystemExtensions({ language: 'en' });
+		await scanner.scanSystemExtensions({ language: 'en' });
+
+		await fileService.writeFile(joinPath(location, 'package.json'), VSBuffer.fromString(JSON.stringify({ ...manifest, displayName: 'After' })));
+		await timeout(3100);
+
+		assert.deepStrictEqual({
+			invalidations,
+			exists: await fileService.exists(joinPath(profile.cacheHome, `en.${BUILTIN_MANIFEST_CACHE_FILE}`)),
+			displayName: (await scanner.scanSystemExtensions({ language: 'en' }))[0].manifest.displayName,
+		}, { invalidations: 1, exists: false, displayName: 'After' });
+	}));
 
 	test('scan user extensions', async () => {
 		const manifest: Partial<IScannedExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });

@@ -485,6 +485,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private async createExtensionScannerInput(location: URI, profile: boolean, type: ExtensionType, language: string | undefined, validate: boolean, profileScanOptions: IProfileExtensionsScanOptions | undefined, productVersion: IProductVersion): Promise<ExtensionScannerInput> {
+		language = language?.toLowerCase();
 		const translations = await this.getTranslations(language ?? platform.language);
 		const mtime = await this.getMtime(location);
 		const applicationExtensionsLocation = profile && !this.uriIdentityService.extUri.isEqual(location, this.userDataProfilesService.defaultProfile.extensionsResource) ? this.userDataProfilesService.defaultProfile.extensionsResource : undefined;
@@ -1032,7 +1033,10 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 
 	private getCacheFile(input: ExtensionScannerInput): URI {
 		const profile = this.getProfile(input);
-		return this.uriIdentityService.extUri.joinPath(profile.cacheHome, input.type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE);
+		const cacheFile = input.type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE;
+		// Scans without a language use default messages, not necessarily the English message bundle.
+		const cacheFileName = input.language === undefined ? cacheFile : `${encodeURIComponent(input.language)}.${cacheFile}`;
+		return this.uriIdentityService.extUri.joinPath(profile.cacheHome, cacheFileName);
 	}
 
 	private getProfile(input: ExtensionScannerInput): IUserDataProfile {
