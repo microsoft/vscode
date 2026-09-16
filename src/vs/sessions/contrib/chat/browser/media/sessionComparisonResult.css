@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 .session-comparison-result {
+	box-sizing: border-box;
+	max-height: min(60vh, 40rem);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);

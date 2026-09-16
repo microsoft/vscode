@@ -233,6 +233,13 @@ suite('Sessions - Comparison Result', () => {
 		metricsDetails?.querySelector('summary')?.click();
 		await timeout(0);
 		const metricsExpanded = metricsDetails?.open;
+		result.domNode.style.maxHeight = '160px';
+		result.domNode.scrollTop = result.domNode.scrollHeight;
+		const resultScroll = {
+			overflowY: mainWindow.getComputedStyle(result.domNode).overflowY,
+			contentExceedsViewport: result.domNode.scrollHeight > result.domNode.clientHeight,
+			scrollAdvanced: result.domNode.scrollTop > 0,
+		};
 		focusAttemptDropdown?.click();
 		await focusAttemptActions[0]?.run();
 		const alternateFocus = {
@@ -319,6 +326,7 @@ suite('Sessions - Comparison Result', () => {
 			instructionsHiddenBefore,
 			choiceState,
 			actionLayout,
+			resultScroll,
 			accessibility,
 			metricsExpanded,
 			renderedMarkdown,
@@ -410,6 +418,11 @@ suite('Sessions - Comparison Result', () => {
 				sameRow: true,
 				synthesisLabel: 'Synthesize Recommended',
 				synthesisPrimaryWiderThanDropdown: true,
+			},
+			resultScroll: {
+				overflowY: 'auto',
+				contentExceedsViewport: true,
+				scrollAdvanced: true,
 			},
 			accessibility: {
 				regionRole: 'region',
