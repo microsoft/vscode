@@ -56,6 +56,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrat
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -264,6 +265,39 @@ suite('ChatService', () => {
 		});
 
 		assert.strictEqual(await captured.p, true);
+	});
+
+	test('retains submitted model configuration for sent, queued and steering requests', async () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const modelId = 'agent-host-copilot:claude-opus-4.8';
+		const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+		for (const queue of [undefined, ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			const result = await service.sendRequest(model.sessionResource, 'hello', {
+				queue,
+				pauseQueue: true,
+				userSelectedModelId: modelId,
+				userSelectedModelConfiguration: modelConfiguration,
+			});
+			if (queue === undefined) {
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+			} else {
+				assert.ok(ChatSendResult.isQueued(result));
+			}
+		}
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const expected = { modelId, modelConfiguration };
+		assert.deepStrictEqual({
+			requests: viewModel.getItems().filter(isRequestVM).map(request => ({ modelId: request.modelId, modelConfiguration: request.modelConfiguration })),
+			pending: model.getPendingRequests().map(request => ({
+				modelId: request.sendOptions.userSelectedModelId,
+				modelConfiguration: request.sendOptions.userSelectedModelConfiguration,
+			})),
+		}, {
+			requests: [expected, expected, expected],
+			pending: [expected, expected],
+		});
 	});
 
 	test('slash commands can share ids across non-overlapping session types', async () => {
@@ -1425,6 +1459,50 @@ suite('ChatService', () => {
 			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
 			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'updated remote message' },
 		]]);
+	});
+
+	test('remote pending requests reconcile model-only edits and preserve selections on legacy text updates', async () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const modelId = 'agent-host-copilot:claude-opus-4.8';
+		const modelConfiguration = { reasoningEffort: 'xhigh' };
+		const remote = [
+			{ id: 'steer', kind: ChatRequestQueueKind.Steering, message: 'steer', modelId, modelConfiguration },
+			{ id: 'queue', kind: ChatRequestQueueKind.Queued, message: 'queue', modelId, modelConfiguration },
+		];
+		let changes = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => changes++));
+		service.syncPendingRequestsFromRemote(model.sessionResource, remote);
+		const original = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, remote.map(request => ({ ...request, modelConfiguration: { ...modelConfiguration } })));
+		const unchanged = model.getPendingRequests()[0] === original;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ ...remote[0], modelConfiguration: { reasoningEffort: 'max' } },
+			{ ...remote[1], modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
+		]);
+		service.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'steer', kind: ChatRequestQueueKind.Steering, message: 'edited steer' },
+			{ id: 'queue', kind: ChatRequestQueueKind.Queued, message: 'edited queue' },
+		]);
+
+		assert.deepStrictEqual({
+			unchanged,
+			changes,
+			requests: model.getPendingRequests().map(pending => ({
+				message: pending.request.message.text,
+				modelId: pending.request.modelId,
+				modelConfiguration: pending.request.modelConfiguration,
+				sentModelId: pending.sendOptions.userSelectedModelId,
+				sentModelConfiguration: pending.sendOptions.userSelectedModelConfiguration,
+			})),
+		}, {
+			unchanged: true,
+			changes: 3,
+			requests: [
+				{ message: 'edited steer', modelId, modelConfiguration: { reasoningEffort: 'max' }, sentModelId: modelId, sentModelConfiguration: { reasoningEffort: 'max' } },
+				{ message: 'edited queue', modelId: 'agent-host-copilot:auto', modelConfiguration: undefined, sentModelId: 'agent-host-copilot:auto', sentModelConfiguration: undefined },
+			],
+		});
 	});
 
 	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
@@ -3168,6 +3246,40 @@ suite('ChatService', () => {
 				requestTimestamp: undefined,
 				serializedTimestamp: undefined,
 			});
+		});
+
+		test('preserves model configuration through history, live requests and persistence', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const modelId = 'agent-host-copilot:claude-opus-4.8';
+			const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'legacy', type: 'request', prompt: 'legacy', participant: remoteScheme, modelId },
+					{ id: 'history', type: 'request', prompt: 'history', participant: remoteScheme, modelId, modelConfiguration },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt: 'live', modelId, modelConfiguration });
+
+			const operationLog = new ChatSessionOperationLog();
+			const restoredModels = [ref.object.toJSON(), operationLog.read(operationLog.createInitial(ref.object))].map(value =>
+				testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }))
+			);
+			const expected = [
+				{ modelId, modelConfiguration: undefined },
+				{ modelId, modelConfiguration },
+				{ modelId, modelConfiguration },
+			];
+			assert.deepStrictEqual([ref.object, ...restoredModels].map(model => {
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				return viewModel.getItems().filter(isRequestVM).map(request => ({ modelId: request.modelId, modelConfiguration: request.modelConfiguration }));
+			}), [expected, expected, expected]);
 		});
 
 		test('preserves explicit Agent Merge identity in history and live server requests', async () => {

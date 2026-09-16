@@ -983,6 +983,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			prompt: turn.message.text,
 			participant: participantId,
 			modelId,
+			...(turn.message.model?.config ? { modelConfiguration: turn.message.model.config } : {}),
 			...(turn.startedAt !== undefined && Number.isFinite(Date.parse(turn.startedAt)) ? { timestamp: Date.parse(turn.startedAt) } : {}),
 			variableData,
 			...(isMessageHiddenFromTranscript(turn.message) ? { isHidden: true } : {}),

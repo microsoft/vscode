@@ -38,6 +38,7 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 - **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
 - **[resources.ts](../../build/next/resources.ts)** - Curated production resource selection and copied JavaScript minification
+- **[standalone.ts](../../build/next/standalone.ts)** - Unbundled desktop Electron preloads and their source-map publication
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
 - **[svg.ts](../../build/next/svg.ts)** - Production-only SVG finishing, independent of the legacy gulp infrastructure
@@ -134,6 +135,7 @@ Two placeholders that need injection:
 
 - Removes `webEndpointUrlTemplate` from product config (see `tweakProductForServerWeb` in old build)
 - Uses `.build/extensions` for builtin extensions (not `.build/web/extensions`)
+- Bundles the browser shell `vs/code/browser/workbench/workbench`, which statically imports the web workbench. Do not also emit `vs/workbench/workbench.web.main.internal` as a separate server-web entry; standalone `web` still needs that entry.
 
 ### 5. Entry Point Parity with Old Build
 
@@ -188,6 +190,23 @@ Focused regression tests (no workbench compilation required):
 ```bash
 node --test build/next/test/resources.test.ts build/next/test/transpile.test.ts build/next/test/source-map-url.test.ts build/next/test/svg.test.ts
 ```
+
+### Standalone Electron Preload Source Maps
+
+[standalone.ts](../../build/next/standalone.ts) compiles all three desktop preloads: [preload.ts](../../src/vs/base/parts/sandbox/electron-browser/preload.ts), [preload-aux.ts](../../src/vs/base/parts/sandbox/electron-browser/preload-aux.ts), and [preload-browserView.ts](../../src/vs/platform/browserView/electron-browser/preload-browserView.ts). These special-context scripts retain `bundle: false`, `format: 'cjs'`, the existing target and copyright banner. They must not use the normal ESM bundle options or receive NLS/private-field post-processing.
+
+- Both minified and non-minified bundle outputs embed the original TypeScript in `sourcesContent`. Finalization uses the existing [rewriteSourceMappingURL()](../../build/next/source-map-url.ts), including platform-independent URL separators, before writing JavaScript. Only the trailing map comment changes; executable bytes and esbuild's mappings are preserved.
+- With an omitted or empty `--source-map-base-url`, the sibling `*.js.map` reference remains local. Development transpile/watch/build-fast paths remain separate and retain their inline maps without embedded sources.
+- `core-ci` supplies `https://main.vscode-cdn.net/sourcemaps/<commit>/core`. [upload-sourcemaps.ts](../../build/azure-pipelines/upload-sourcemaps.ts) uploads each map under `sourcemaps/<commit>/core/<output-relative-path>.map`. No extra `out/` or `src/` belongs in the JavaScript's CDN URL.
+- The bundle command awaits all standalone writes before downstream packaging. CI packaging strips local JS/CSS maps and computes the existing `preload.js` integrity checksum from final JavaScript bytes; do not move URL rewriting after checksum calculation.
+
+Focused tests compile the real three entrypoints into temporary outputs and check CDN/local modes, exact original source content and identity, representative line/column mappings, unchanged CommonJS output, non-desktop omission, development maps, and the upload/map-stripping/checksum assumptions. The packaging check exercises the real file streams and filter, not a complete Electron distribution or a manual debugger session.
+
+```bash
+node --test build/next/test/standalone.test.ts build/next/test/source-map-url.test.ts
+```
+
+This repairs production debugging/source publication, not startup performance.
 
 ---
 

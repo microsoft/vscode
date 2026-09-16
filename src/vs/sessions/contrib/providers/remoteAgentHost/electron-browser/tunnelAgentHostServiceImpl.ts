@@ -37,6 +37,7 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
@@ -609,6 +610,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

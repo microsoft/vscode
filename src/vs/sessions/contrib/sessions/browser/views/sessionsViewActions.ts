@@ -1150,8 +1150,8 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			title: localize2('markRead', "Mark as Read"),
 			menu: [{
 				id: SessionItemContextMenuId,
-				group: '0_read',
-				order: 0,
+				group: '1_edit',
+				order: 1.5,
 				when: ContextKeyExpr.and(
 					SessionIsReadContext.negate(),
 					SessionIsArchivedContext.negate(),
@@ -1184,8 +1184,8 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			title: localize2('markUnread', "Mark as Unread"),
 			menu: [{
 				id: SessionItemContextMenuId,
-				group: '0_read',
-				order: 0,
+				group: '1_edit',
+				order: 1.5,
 				when: ContextKeyExpr.and(
 					SessionIsReadContext,
 					SessionIsArchivedContext.negate(),
@@ -1220,8 +1220,8 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			title: localize2('openToTheSide', "Open to the Side"),
 			menu: [{
 				id: SessionItemContextMenuId,
-				group: 'navigation',
-				order: -1,
+				group: '0_pin',
+				order: 1,
 				when: IsSessionsWindowContext,
 			}]
 		});
@@ -1263,6 +1263,7 @@ registerAction2(class MarkAllSessionsReadAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '0_read',
 				order: 1,
+				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Date),
 			}]
 		});
 	}

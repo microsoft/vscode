@@ -35,6 +35,7 @@ import { IHostService } from '../../../../../../workbench/services/host/browser/
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
 import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { TunnelAgentHostContribution } from '../../browser/tunnelAgentHost.contribution.js';
 
@@ -116,6 +117,7 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 		this._onDidChangeTunnels.fire();
 	}
 	isTunnelDismissed(id: string): boolean { return this._dismissed.has(id); }
+	getTunnelVisibility() { return { dismissed: [...this._dismissed], autoConnectSuppressed: [...this._suppressed] }; }
 	dismissTunnel(id: string): void {
 		this._dismissed.add(id);
 		this._onDidChangeTunnels.fire();
@@ -261,6 +263,15 @@ suite('TunnelAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createInstantiationService(): TestInstantiationService {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConnectionDiagnosticsService, {
+			trackDiscovery: (_trigger, discover) => discover(),
+			recordHostAction: () => { },
+		});
+		return instantiationService;
+	}
+
 	test('newly-cached tunnel binds to subsequent live connection', async () => {
 		// Tunnel connection staging caches the tunnel before the remote service
 		// announces its live connection. That ordering lets the cache-change
@@ -272,7 +283,7 @@ suite('TunnelAgentHostContribution', () => {
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		const hostService = new StubHostService();
 
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
@@ -325,7 +336,7 @@ suite('TunnelAgentHostContribution', () => {
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		const hostService = new StubHostService();
 
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
@@ -367,7 +378,14 @@ suite('TunnelAgentHostContribution', () => {
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
+		const recorded: string[] = [];
+		instantiationService.stub(IConnectionDiagnosticsService, {
+			trackDiscovery: async (trigger, discover) => {
+				recorded.push(trigger);
+				return discover();
+			},
+		});
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
@@ -390,9 +408,11 @@ suite('TunnelAgentHostContribution', () => {
 		assert.deepStrictEqual({
 			cached: tunnelService.getCachedTunnels(),
 			providers: providersService.getProviders().map(provider => provider.id),
+			recorded,
 		}, {
 			cached: [cachedTunnel],
 			providers: [`agenthost-${TUNNEL_ADDRESS_PREFIX}${cachedTunnel.tunnelId}`],
+			recorded: ['startup'],
 		});
 	});
 
@@ -402,7 +422,7 @@ suite('TunnelAgentHostContribution', () => {
 		const providersService = store.add(new StubSessionsProvidersService());
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		const remoteTunnelService = store.add(new StubRemoteTunnelService());
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
@@ -440,7 +460,7 @@ suite('TunnelAgentHostContribution', () => {
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
@@ -519,7 +539,7 @@ suite('TunnelAgentHostContribution', () => {
 		const providersService = store.add(new StubSessionsProvidersService());
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		const hostService = new StubHostService();
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
 		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
 		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);

@@ -19,6 +19,7 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { logTunnelConnectAttempt, logTunnelConnectResolved, logTunnelDiscoveryResult, TunnelDiscoveryTrigger } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
@@ -58,6 +59,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteTunnelService private readonly _remoteTunnelService: IRemoteTunnelService,
 		@IAgentHostFilterService agentHostFilterService: IAgentHostFilterService,
+		@IConnectionDiagnosticsService private readonly _diagnosticsService: IConnectionDiagnosticsService,
 	) {
 		super();
 
@@ -287,6 +289,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		if (existing) {
 			return existing;
 		}
+		this._diagnosticsService.recordHostAction(address, 'connect', options.userInitiated);
 
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		if (options.userInitiated) {
@@ -343,6 +346,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	 * Dismiss a tunnel from the remote-host picker and tear down its active relay.
 	 */
 	private async _disconnectTunnel(address: string): Promise<void> {
+		this._diagnosticsService.recordHostAction(address, 'disconnect', true);
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		this._tunnelService.dismissTunnel(tunnelId);
 		this._tunnelService.removeCachedTunnel(tunnelId);
@@ -409,7 +413,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// Fetch tunnel list silently to check online status
 		let onlineTunnels: ITunnelInfo[] | undefined;
 		try {
-			onlineTunnels = await this._tunnelService.listTunnels({ silent: true });
+			onlineTunnels = await this._diagnosticsService.trackDiscovery(resolvedTrigger, () => this._tunnelService.listTunnels({ silent: true }));
 		} catch (error) {
 			// No cached token or network error — leave statuses as-is
 			this._logService.warn(`[TunnelAgentHost] Discovery failed for trigger '${resolvedTrigger}'; preserving ${cachedBefore} cached tunnel(s): ${error instanceof Error ? error.message : String(error)}`);

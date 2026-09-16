@@ -1487,6 +1487,7 @@ export class WorkspacePicker extends Disposable {
 			preferDevContainer?: boolean;
 		} = {};
 		const remoteSubmenuActions: IAction[] = [];
+		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
 		let devContainerActionIndex = 0;
 		const setRemotePickerItem = (item: IWorkspacePickerItem): void => {
 			remotePickerItem.folderUri = item.folderUri;
@@ -1586,6 +1587,15 @@ export class WorkspacePicker extends Disposable {
 					onRemove: () => this._removeRecentWorkspace(folderUri),
 				});
 				remoteSubmenuActions.push(submenuAction);
+				remoteFilterItems.push({
+					kind: ActionListItemKind.Action,
+					label: workspace.label,
+					description: workspace.description,
+					group: { title: '', icon },
+					disabled: unavailable,
+					item: { folderUri, providerId },
+					onRemove: () => this._removeRecentWorkspace(folderUri),
+				});
 				continue;
 			}
 			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
@@ -1663,6 +1673,14 @@ export class WorkspacePicker extends Disposable {
 				});
 				Object.assign(submenuAction, { icon: actionIcon });
 				remoteSubmenuActions.push(submenuAction);
+				remoteFilterItems.push({
+					kind: ActionListItemKind.Action,
+					label: submenuAction.label,
+					description: submenuAction.tooltip || undefined,
+					group: { title: '', icon: actionIcon },
+					disabled: isUnavailable,
+					item: { browseAction: action },
+				});
 				return;
 			}
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
@@ -1745,6 +1763,14 @@ export class WorkspacePicker extends Disposable {
 						onRemove: extended.onRemove,
 					});
 					remoteSubmenuActions.push(submenuAction);
+					remoteFilterItems.push({
+						kind: ActionListItemKind.Action,
+						label: submenuAction.label,
+						description: submenuAction.tooltip || undefined,
+						group: { title: '', icon: extended.icon },
+						item: { run: () => action.run(), ariaLabel: extended.ariaLabel },
+						onRemove: extended.onRemove,
+					});
 				} else {
 					manageActions.push(action);
 				}
@@ -1769,6 +1795,14 @@ export class WorkspacePicker extends Disposable {
 						});
 						Object.assign(submenuAction, { icon });
 						remoteSubmenuActions.push(submenuAction);
+						remoteFilterItems.push({
+							kind: ActionListItemKind.Action,
+							label: submenuAction.label,
+							description: submenuAction.tooltip || undefined,
+							group: { title: '', icon },
+							disabled: !submenuAction.enabled,
+							item: { run: () => menuAction.run() },
+						});
 					} else {
 						manageActions.push(Object.assign(menuAction, { icon }));
 					}
@@ -1787,10 +1821,13 @@ export class WorkspacePicker extends Disposable {
 				item: remotePickerItem,
 				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
 				submenuActions: [new SubmenuAction('workspacePicker.remote.options', '', remoteSubmenuActions)],
+				filterItems: remoteFilterItems,
+				openSubmenuOnClick: true,
 				submenuOptions: {
 					showFilter: true,
 					filterPlaceholder: localize('workspacePicker.remoteFilter', "Search Remote"),
 					filterAsCombobox: true,
+					focusFilterOnOpen: true,
 					minWidth: 180,
 					maxWidth: 180,
 					hideDefaultKeybindingTooltip: true,

@@ -915,6 +915,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			model,
 		};
 	let launchedRuntime: ICopilotSessionRuntime | undefined;
+	const logService = options?.logService ?? new NullLogService();
 	const sessionLauncher: ICopilotSessionLauncher = {
 		launch: async (_plan, runtime) => {
 			options?.beforeLaunch?.();
@@ -922,12 +923,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
 			}
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, logService);
 		}
 	};
 
 	const services = new ServiceCollection();
-	services.set(ILogService, options?.logService ?? new NullLogService());
+	services.set(ILogService, logService);
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
@@ -1740,9 +1741,22 @@ suite('CopilotAgentSession', () => {
 	});
 
 	suite('CopilotSessionWrapper', () => {
+		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, logService));
+		}
+
+		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {
+			const prefix = '[Copilot:test-session-1] SDK session ';
+			return entries
+				.filter(entry => entry.message.startsWith(prefix))
+				.map(entry => entry.message.slice(prefix.length)
+					.replace(/instanceId=[\da-f-]+, /, '')
+					.replace(/, lifetimeMs=\d+$/, ''));
+		}
+
 		test('fires unhandled events when no wrapped listener is registered', () => {
 			const mockSession = new MockCopilotSession();
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const wrapper = createWrapper(mockSession);
 			const events: string[] = [];
 			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
 
@@ -1753,7 +1767,7 @@ suite('CopilotAgentSession', () => {
 
 		test('tracks wrapped listener registrations dynamically', () => {
 			const mockSession = new MockCopilotSession();
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const wrapper = createWrapper(mockSession);
 			const events: string[] = [];
 			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
 			const handledListener = wrapper.onSessionCompactionStart(() => { });
@@ -1767,7 +1781,7 @@ suite('CopilotAgentSession', () => {
 
 		test('validates model.call_finished events from the raw SDK event stream', () => {
 			const mockSession = new MockCopilotSession();
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const wrapper = createWrapper(mockSession);
 			const events: unknown[] = [];
 			disposables.add(wrapper.onModelCallFinished(event => events.push(event)));
 
@@ -1815,7 +1829,8 @@ suite('CopilotAgentSession', () => {
 			const disconnectGate = new DeferredPromise<void>();
 			const mockSession = new MockCopilotSession();
 			mockSession.disconnectGate = disconnectGate.p;
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const logService = new CapturingLogService();
+			const wrapper = createWrapper(mockSession, logService);
 
 			const disconnect = wrapper.disconnect();
 			const pendingState = wrapper.lifecycleState;
@@ -1825,16 +1840,24 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				pendingState,
 				completedState: wrapper.lifecycleState,
+				logs: lifecycleMessages(logService.infos),
 			}, {
 				pendingState: 'disconnecting',
 				completedState: 'disconnected',
+				logs: [
+					'attached: disconnectRpc=notStarted, shutdownReceived=false, disposed=false',
+					'disconnect RPC started: disconnectRpc=pending, shutdownReceived=false, disposed=false',
+					'disconnect RPC completed: disconnectRpc=completed, shutdownReceived=false, disposed=false',
+					'disconnect wait completed: disconnectRpc=completed, shutdownReceived=false, disposed=false',
+				],
 			});
 		});
 
 		test('returns to active and permits retry after disconnect rejects', async () => {
 			const mockSession = new MockCopilotSession();
 			mockSession.disconnectError = new Error('disconnect failed');
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const logService = new CapturingLogService();
+			const wrapper = createWrapper(mockSession, logService);
 
 			await assert.rejects(wrapper.disconnect(), /disconnect failed/);
 			const rejectedState = wrapper.lifecycleState;
@@ -1845,11 +1868,90 @@ suite('CopilotAgentSession', () => {
 				rejectedState,
 				completedState: wrapper.lifecycleState,
 				disconnectCalls: mockSession.disconnectCalls,
+				failures: lifecycleMessages(logService.warnings),
 			}, {
 				rejectedState: 'active',
 				completedState: 'disconnected',
 				disconnectCalls: 2,
+				failures: ['disconnect RPC failed: disconnectRpc=failed, shutdownReceived=false, disposed=false'],
 			});
+		});
+
+		for (const outcome of ['completed', 'failed'] as const) {
+			test(`logs early shutdown and a late disconnect RPC ${outcome} after disposal`, async () => {
+				const disconnectGate = new DeferredPromise<void>();
+				const rpcSettled = new DeferredPromise<void>();
+				const logService = new class extends CapturingLogService {
+					override info(message: string, ...args: unknown[]): void {
+						super.info(message, ...args);
+						if (message.includes('SDK session disconnect RPC completed:')) {
+							void rpcSettled.complete();
+						}
+					}
+					override warn(message: string, ...args: unknown[]): void {
+						super.warn(message, ...args);
+						if (message.includes('SDK session disconnect RPC failed:')) {
+							void rpcSettled.complete();
+						}
+					}
+				}();
+				const mockSession = new MockCopilotSession();
+				mockSession.disconnectGate = disconnectGate.p;
+				mockSession.disconnectError = outcome === 'failed' ? new Error('late disconnect failure') : undefined;
+				const wrapper = createWrapper(mockSession, logService);
+
+				const firstDisconnect = wrapper.disconnect();
+				const secondDisconnect = wrapper.disconnect();
+				try {
+					mockSession.fire('session.shutdown', {
+						shutdownType: 'routine',
+						sessionStartTime: 0,
+						totalApiDurationMs: 0,
+						modelMetrics: {},
+						codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+					});
+					await Promise.all([firstDisconnect, secondDisconnect]);
+					wrapper.dispose();
+				} finally {
+					void disconnectGate.complete();
+				}
+				await rpcSettled.p;
+
+				assert.deepStrictEqual({
+					disconnectCalls: mockSession.disconnectCalls,
+					infos: lifecycleMessages(logService.infos),
+					warnings: lifecycleMessages(logService.warnings),
+					errors: logService.warnings.map(entry => entry.args),
+					instanceCount: new Set([...logService.infos, ...logService.warnings].map(entry => entry.message.match(/instanceId=(?<id>[\da-f-]{36})/)?.groups?.id)).size,
+				}, {
+					disconnectCalls: 1,
+					infos: [
+						'attached: disconnectRpc=notStarted, shutdownReceived=false, disposed=false',
+						'disconnect RPC started: disconnectRpc=pending, shutdownReceived=false, disposed=false',
+						'shutdown received (routine): disconnectRpc=pending, shutdownReceived=true, disposed=false',
+						'disconnect wait completed: disconnectRpc=pending, shutdownReceived=true, disposed=false',
+						'disconnect wait completed: disconnectRpc=pending, shutdownReceived=true, disposed=false',
+						'disconnect skipped after shutdown: disconnectRpc=pending, shutdownReceived=true, disposed=true',
+						...(outcome === 'completed' ? ['disconnect RPC completed: disconnectRpc=completed, shutdownReceived=true, disposed=true'] : []),
+					],
+					warnings: outcome === 'failed' ? ['disconnect RPC failed: disconnectRpc=failed, shutdownReceived=true, disposed=true'] : [],
+					errors: outcome === 'failed' ? [[mockSession.disconnectError]] : [],
+					instanceCount: 1,
+				});
+			});
+		}
+
+		test('distinguishes wrappers of the same SDK session in lifecycle logs', () => {
+			const logService = new CapturingLogService();
+			createWrapper(new MockCopilotSession(), logService);
+			createWrapper(new MockCopilotSession(), logService);
+			const instanceIds = logService.infos.map(entry => entry.message.match(/instanceId=(?<id>[\da-f-]{36})/)?.groups?.id);
+
+			assert.deepStrictEqual({
+				count: instanceIds.length,
+				distinctCount: new Set(instanceIds).size,
+				missingId: instanceIds.includes(undefined),
+			}, { count: 2, distinctCount: 2, missingId: false });
 		});
 	});
 
@@ -9217,6 +9319,32 @@ Use the attached image as context.
 						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
 					],
 				);
+			});
+
+			test('a replacement turn completes without waiting for an aborted turn edit', async () => {
+				const { session, mockSession, signals, writes } = await startEdits();
+				mockSession.fire('session.idle', {});
+				await session.abort();
+				mockSession.fire('session.idle', { aborted: true });
+				session.resetTurnState('replacement');
+				mockSession.fire('user.message', { content: 'Replacement prompt' });
+				mockSession.fire('session.idle', {});
+				await timeout(0);
+				const beforeOldEditSettles = {
+					activeTurn: session.currentTurnId,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				};
+				await writes[0].release.complete();
+				await timeout(0);
+				assert.deepStrictEqual({
+					beforeOldEditSettles,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+					completedTools: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+				}, {
+					beforeOldEditSettles: { activeTurn: undefined, completedTurns: ['replacement'] },
+					completedTurns: ['replacement'],
+					completedTools: [],
+				});
 			});
 
 			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {

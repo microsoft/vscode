@@ -33,7 +33,7 @@
 ### Guiding principles
 
 - **"Represent, don't orchestrate."** The agent harness creates and drives SDK chats; the orchestrator records what exists and routes protocol actions. No agent-specific logic leaks into `AgentService` or `AgentHostStateManager`.
-- **Composition over inheritance.** All harnesses share one membership path (`addChat`/`removeChat`), one persistence path (`PEER_CHATS_METADATA_KEY`), and one restore path (`registerRestoredChatSummary` + `resolveChatState`). Per-harness features are expressed through `IAgentCapabilities` flags, not `if (provider === 'claude') ...` branches.
+- **Composition over inheritance.** All harnesses share one membership path (`addChat`/`removeChat`), one authoritative persistence path (`AgentHostPeerChatStore` in `agent-host.db`, with a `PEER_CHATS_METADATA_KEY` compatibility mirror), and one restore path (`registerRestoredChatSummary` + `resolveChatState`). Per-harness features are expressed through `IAgentCapabilities` flags, not `if (provider === 'claude') ...` branches.
 - **Single catalog path.** Whether a chat is created by the user ("Add Chat") or spawned by the harness (subagent tool call), it enters the catalog through exactly one path (`AgentHostStateManager.addChat`). See invariant I4 below.
 
 ### Terminology convention: "session" is overloaded — read it by layer
@@ -97,19 +97,19 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
-The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits the existing `sessionArtifacts` database metadata write, then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed deletion leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
+The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits ordered catalog synchronization (including the legacy-first `sessionArtifacts` metadata write), then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed local persistence leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Central synchronization uses the usual pending receipts for repair. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
 
 **`AgentService` (`node/agentService.ts`):**
 - Resolves the `(session, chat)` → `(agent, session URI, chat URI)` mapping for orchestration.
 - Uses `IAgentHostProviderService` for provider ownership and session routing. Its `getProviderForSession` path falls back through the session URI's scheme when a restored session was not associated in this process lifetime.
-- Owns `AgentSessionRegistry`, the durable source of truth for which sessions exist. `listSessions` enumerates the registry, hydrates each initial chat through `IAgent.getChatMetadata`, and applies the existing DB/state overlays.
+- Owns `AgentSessionRegistry`, backed by `sessions_v2` in `agent-host.db`, as the durable source of truth for which sessions exist. `listSessions` reads validated, rebuildable central payloads and applies live-state overlays; provider/local database reads are fallback and reconciliation paths, not prerequisites for listing.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Disposes every catalog chat in stable order (peers first, initial chat last); releases every catalog chat on idle eviction.
 - Derives the exhaustive per-operation `IAgentChatContext` (persistence scope, opaque configuration scope, catalog origin, host customizations) via the single `createAgentChatContext` helper.
 - Supplies complete resolved `IAgentCreateChatOptions` (`workingDirectories`, `project`, provider config, model/agent, active client, and fork/import/side-chat source) on every creation.
 - Records side-chat provenance in the catalog but leaves hidden context injection and visible-history filtering to the provider. The source is a stable turn id; active-turn partial response and selected text are immutable creation-time snapshots.
 - Passes the full ordered `workingDirectories` set and the initiating `AgentHostClientType` on each send while still supplying transient chat context. Providers launch in index 0, retain additional roots, and attribute usage/telemetry to the correct client surface.
-- Persists and restores the orchestrator-owned peer-chat catalog (`PEER_CHATS_METADATA_KEY` in the session database, serialized per session via `_peerChatCatalogWrites`).
+- Persists and restores authoritative peer-chat membership through `AgentHostPeerChatStore` (`session_chat_catalogs` and `session_chats` in `agent-host.db`). Parent `PEER_CHATS_METADATA_KEY` and chat-local metadata remain compatibility mirrors; conversation history remains in session/chat databases.
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
@@ -161,7 +161,17 @@ Opaque to the host, but not arbitrary for the provider: whatever id the blob car
 
 **I4 — Single catalog path (spawn channel).** Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. `AgentService` installs the spawn-channel listener **before** the `AgentSideEffects` listener through the provider service's synchronous initializer to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
 
-**I5 — Orchestrator peer-chat catalog is the restore source of truth (with one-time legacy migration).** The orchestrator persists additional chats in `PEER_CHATS_METADATA_KEY` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a native catalog session has no persisted blob, the provider recovers its backing from the provider-native session id in the Agent Host session URI and returns canonical provider data, which the host persists additively for later restores; an already-canonical blob is never rewritten. A missing additional-chat catalog triggers the one-time `listLegacyChatBackings` migration. Harness-spawned chats remain transient and are re-derived from tool-origin state. `_persistDefaultChatBacking`'s two writes — the `defaultChatProviderData` blob and the default chat's own `_markChatBacking` call (I7) — are independent: a failure persisting the blob is logged and swallowed rather than skipping the backing marker, since the marker is what keeps the default chat's backing session out of the top-level list and must not be held hostage to an unrelated write's success.
+**I5 — The central peer-chat catalog is the restore source of truth (with legacy migration and compatibility mirrors).** The orchestrator persists additional-chat membership in `agent-host.db` through `AgentHostPeerChatStore` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a native catalog session has no persisted blob, the provider recovers its backing from the provider-native session id in the Agent Host session URI and returns canonical provider data, which the host persists additively for later restores; an already-canonical blob is never rewritten. Missing central membership is migrated from the legacy parent mirror and provider backings. An authoritative empty central catalog is not missing; later provider recovery may enrich matching entries but must not resurrect removed peers. Harness-spawned chats remain transient and are re-derived from tool-origin state. `_persistDefaultChatBacking`'s two writes — the `defaultChatProviderData` blob and the default chat's own `_markChatBacking` call (I7) — are independent: a failure persisting the blob is logged and swallowed rather than skipping the backing marker, since the marker is what keeps the default chat's backing session out of the top-level list and must not be held hostage to an unrelated write's success.
+
+**List payload compatibility.** Central identity and membership are authoritative; the bounded list payload is rebuildable. When local storage exists, catalog synchronization uses legacy-first writes and pending receipts before central acknowledgement. Import and runtime discovery of unopened adoptable legacy sessions use the non-creating path: metadata discovery must not create `agentSessionData/<id>` and accidentally claim ownership. Explicit adoption owns that transition.
+
+Automatic catalog reconciliation waits until both host startup and the first session listing have completed. Startup repair requests leave their dirty markers for that deferred pass, which then starts periodic maintenance; explicit refreshes and mutation persistence do not wait for background maintenance.
+
+`chat.agentHost.sessionCatalog.enabled` is the rollback lever for the catalog read path. It is frozen at its first read, so the store backing the list cannot change while the host runs, and it requires a restart. When disabled the host performs no catalog import and no background repair, and `listSessions` uses the provider and per-session fallback instead of the cached payload — which is slower, so it is a safety switch rather than a tuning option. Registry identity and every compatibility write are unaffected, so both stores stay current and interchangeable; the verification marker is cleared while disabled so the next enabled start re-verifies every row.
+
+Catalog imports may revisit registered sessions to repair payloads, but only newly registered identities cause discovery announcements or initial read-state side effects. Hydrated provider titles dirty the central payload even when recency is unchanged; persisted custom titles still take precedence. Automatic archival queues central synchronization immediately, while destructive lifecycle eligibility retains local durable metadata checks (including the auto-archive timestamp) rather than trusting only a rebuildable cache.
+
+Because listing never opens session storage, migrations the provider/session fallback would perform during a list run in the catalog's maintenance pass instead, where the database is already open. Legacy per-kind changeset blobs are aggregated and written to the modern changes summary there, so the chip stays correct without adding a per-session read to the list path.
 
 **I6 — Route through `IAgentHostProviderService`.** The provider service's explicit session association is populated only by `AgentService.createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it, so restore re-associates the durable `AgentSessionRegistry` provider before lookup. For unregistered provider-native sessions, `getProviderForSession` falls back to the session URI scheme. Do not read the association map directly.
 
@@ -285,7 +295,7 @@ sequenceDiagram
     AS->>SM: addChat(session, chatUri, { providerData })
     SM-->>UI: ActionEnvelope (SessionChatAdded)
     AS->>AS: _persistPeerChat(session, chatUri, providerData)
-    Note over AS: enqueued per-session RMW of PEER_CHATS_METADATA_KEY
+    Note over AS: central peer membership write with legacy compatibility mirror
     opt backingSession set (I7)
         AS->>AS: _markPeerChatBacking(backingSession, chatUri)
         Note over AS: writes peerChatBacking marker into the backing session's DB<br/>so listSessions filters it out
@@ -310,7 +320,7 @@ sequenceDiagram
     SM-->>AS: ChatSummary
     Note over SE: AgentSideEffects listener fires next, chat already in catalog (DR1)
     SE->>SM: dispatch turn lifecycle actions for the spawned chat
-    Note over AS: Spawned chats are NOT persisted to PEER_CHATS_METADATA_KEY\n(transient, re-derived from event log on restore)
+    Note over AS: Spawned chats are NOT persisted to the peer catalog\n(transient, re-derived from event log on restore)
 ```
 
 On restart, AgentService discovers completed subagents from the already-restored parent turns and registers metadata-only read-only chat summaries. Their provider transcripts are resolved through `AgentHostStateManager.resolveChatState` only when the child chat is subscribed, matching restored peer-chat laziness; no provider-wide eager child enumeration remains.
@@ -339,7 +349,7 @@ sequenceDiagram
     AS->>AS: _readPersistedChatTitle(session, defaultChatUri)
     AS->>SM: restoreSession(summary, turns, {draft, defaultChatTitle})
     SM->>SM: _ensureDefaultChat(sessionKey, summary, turns)
-    Note over AS: Peer chats: read PEER_CHATS_METADATA_KEY from DB
+    Note over AS: Peer chats: read authoritative central membership
     alt catalog present (defined)
         loop for each IPersistedPeerChat (in catalog order)
             AS->>SM: registerRestoredChatSummary(session, chatUri, {title, draft, providerData, resolver})
@@ -352,7 +362,7 @@ sequenceDiagram
             AS->>SM: registerRestoredChatSummary(session, chatUri, {resolver, providerData})
             Note over SM: Create a retryable entry-owned resolver
         end
-        AS->>AS: _persistPeerChat(...) writes PEER_CHATS_METADATA_KEY (drain once)
+        AS->>AS: _persistPeerChat(...) writes central membership and compatibility mirror
     end
     AS-->>C: IStateSnapshot
     C->>AS: subscribe(peerChatUri, clientId)

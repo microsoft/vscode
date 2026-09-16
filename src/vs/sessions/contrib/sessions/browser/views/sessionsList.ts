@@ -124,7 +124,6 @@ export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.sh
 export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions.list.showUnreadInCollapsedSections';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
-export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
@@ -980,7 +979,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
-		SessionItemHasBranchNameContext.bindTo(template.contextKeyService).set(!!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim());
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -2595,6 +2593,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	get element(): HTMLElement { return this.listContainer; }
 
+	private isCompact(): boolean {
+		return (this.options.compact?.() ?? false) && !IsPhoneLayoutContext.getValue(this.contextKeyService);
+	}
+
 	async resetAutomationsNewBadge(): Promise<void> {
 		if (this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
 			this.customViewService.hideCustomView();
@@ -2645,7 +2647,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
-		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.listContainer.classList.toggle('compact', this.isCompact());
 		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
 			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -2694,7 +2696,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
 				useCompactQuickChatRows: true,
-				compact: () => this.options.compact?.() ?? false,
+				compact: () => this.isCompact(),
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				aggregateChatApprovals: false,
 				toolbarMenuId: SessionItemToolbarMenuId,
@@ -2767,7 +2769,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
 			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
-			() => this.options.compact?.() ?? false,
+			() => this.isCompact(),
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
 			undefined,
 			true /* useCompactQuickChatRows */,
@@ -3038,15 +3040,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore>): void => {
-				if (node.element && (isSessionItem(node.element) || isSessionChatItem(node.element))) {
-					this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
-				}
-				for (const child of node.children) {
-					updateNodeHeights(child);
-				}
-			};
-			updateNodeHeights(this.tree.getNode());
+			this.setCompact();
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -3718,7 +3712,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	setCompact(): void {
-		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
 	}
 
@@ -4006,8 +4000,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.showChatContextMenu(element, e.anchor);
 			return;
 		}
-		if (!element || isSessionSection(element) || isSessionShowMore(element) || isSessionPlaceholder(element)) {
+		if (!element || isSessionShowMore(element) || isSessionPlaceholder(element)) {
 			this.showCreateGroupContextMenu(e.anchor);
+			return;
+		}
+
+		if (isSessionSection(element)) {
+			this.showSectionContextMenu(element, e.anchor);
 			return;
 		}
 
@@ -4023,7 +4022,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.isRead.get()],
-			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
@@ -4157,8 +4155,38 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
+		return toAction({
+			id: 'sessionsViewPane.markAllInSectionRead',
+			label: localize('markAllInSectionRead', "Mark All as Read"),
+			run: () => {
+				const sessions = getSessions().filter(session => !isAutomationSession(session) && !session.isArchived.get() && !session.isRead.get());
+				return this._sessionsManagementService.markAllRead(sessions);
+			},
+		});
+	}
+
+	private showSectionContextMenu(section: ISessionSection, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
+		const actions: IAction[] = [];
+		if (this.options.grouping() === SessionsGrouping.Workspace && section.id.startsWith('workspace:')) {
+			actions.push(this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => sessionWorkspaceLabel(session) === section.label)), new Separator());
+		}
+		actions.push(this.getCreateGroupAction());
+		this.contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getAnchor: () => anchor,
+		});
+	}
+
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
-		const actions: IAction[] = [
+		const actions: IAction[] = [];
+		if (this.options.grouping() === SessionsGrouping.Workspace && !groupItem.isEmpty) {
+			actions.push(this.getMarkAllSessionsReadAction(() => {
+				const sessionIds = new Set(this._sessionGroupsService.getSessionIdsInGroup(groupItem.group.id));
+				return this.sessions.filter(session => sessionIds.has(session.sessionId));
+			}), new Separator());
+		}
+		actions.push(
 			this.getCreateGroupAction(),
 			new Separator(),
 			toAction({
@@ -4171,7 +4199,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				label: localize('deleteGroupAction', "Delete Group"),
 				run: () => this._sessionGroupsService.deleteGroup(groupItem.group.id),
 			}),
-		];
+		);
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => anchor,
