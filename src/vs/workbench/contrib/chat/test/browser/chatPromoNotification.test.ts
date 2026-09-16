@@ -15,6 +15,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import type { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -520,7 +521,7 @@ suite('ChatPromoNotificationContribution', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			seen: fixture.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
-			seenWrites: store.withArgs('chat.seenPromoIds').callCount,
+					seenWrites: store.args.filter(args => args[0] === 'chat.seenPromoIds').length,
 			dismissed: fixture.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
 			banner: !!fixture.notifications.getNotification(),
 			queries: fixture.getTreatment.callCount,
@@ -1457,7 +1458,7 @@ suite('ChatPromoNotificationContribution', () => {
 		let card: HTMLElement | undefined;
 		stubPromoWidgetServices(instantiation, container, disposables, {
 			hideHover() { },
-			showInstantHover(options) {
+					showInstantHover(options: IHoverOptions) {
 				card = options.content as HTMLElement;
 				return undefined;
 			}
