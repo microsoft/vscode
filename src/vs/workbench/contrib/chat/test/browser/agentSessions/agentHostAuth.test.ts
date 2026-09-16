@@ -457,7 +457,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		assert.strictEqual(commandService.calls.length, 2);
 	});
 
-	test('tries a broader matching session before prompting after an exact session is rejected', async () => {
+	test('tries a broader matching session once before prompting again', async () => {
 		const account = { id: 'account-1', label: 'Account 1' };
 		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
 		const broaderSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
@@ -482,11 +482,58 @@ suite('AgentHostAuthenticationRecovery', () => {
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		const afterFallback = { commandCalls: commandService.calls.length, authenticateCalls: [...authenticateCalls] };
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 
 		assert.deepStrictEqual({
+			afterFallback,
 			commandCalls: commandService.calls.length,
 			authenticateCalls,
 		}, {
+			afterFallback: { commandCalls: 0, authenticateCalls: ['stale-token', 'fresh-token'] },
+			commandCalls: 1,
+			authenticateCalls: ['stale-token', 'fresh-token', 'fresh-token'],
+		});
+	});
+
+	test('defers when the quarantined replacement cannot be resolved yet', async () => {
+		const account = { id: 'account-1', label: 'Account 1' };
+		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
+		const broaderSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
+		let providerReady = true;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'provider-1',
+			getSessions: async (_providerId, scopes) => {
+				if (scopes) {
+					return [exactSession];
+				}
+				if (!providerReady) {
+					throw new Error('Authentication provider unavailable');
+				}
+				return [exactSession, broaderSession];
+			},
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		providerReady = false;
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({ commandCalls: commandService.calls.length, authenticateCalls }, {
 			commandCalls: 0,
 			authenticateCalls: ['stale-token', 'fresh-token'],
 		});

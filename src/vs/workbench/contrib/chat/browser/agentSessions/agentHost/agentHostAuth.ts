@@ -248,86 +248,59 @@ export class AgentHostAuthenticationRecovery {
 		const commandService = accessor.get(ICommandService);
 		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
-		const resolution = await resolveAuthenticationSessionForResource(
-			URI.parse(resource.resource),
-			resource.authorization_servers ?? [],
-			scopes,
-			authenticationService,
-			logService,
-			options.logPrefix,
-		);
+		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, {});
 		throwIfAuthenticationStale(options);
+		if (resolution.kind === 'signedOut') {
+			this._resentTokens.delete(key);
+		}
 		if (resolution.kind !== 'resolved') {
 			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
-			if (resolution.kind === 'signedOut') {
-				this._resentTokens.delete(key);
-			}
 			return;
 		}
-		let session = resolution.session;
-		let usedRejectedSessionFallback = false;
-		let shouldPrompt = false;
+		const currentSession = resolution.session;
+		const previousToken = this._resentTokens.get(key);
 		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
-		if (rejectedSession && isSameAuthenticationSession(session, rejectedSession)) {
-			const alternativeResolution = await resolveSessionForProtectedResource(
+		const isQuarantined = rejectedSession !== undefined && isSameAuthenticationSession(currentSession, rejectedSession);
+		let candidateResolution: AuthenticationSessionResolution = resolution;
+		if (isQuarantined || previousToken === currentSession.accessToken) {
+			candidateResolution = await resolveSessionForProtectedResource(
 				authenticationService,
 				logService,
 				resource,
 				options,
-				{ accountId: session.account?.id, excludedSession: rejectedSession },
+				{ accountId: currentSession.account?.id, excludedSession: currentSession },
 			);
 			throwIfAuthenticationStale(options);
-			if (alternativeResolution.kind === 'unavailable') {
-				return;
-			}
-			if (alternativeResolution.kind === 'resolved') {
-				session = alternativeResolution.session;
-				usedRejectedSessionFallback = true;
-			} else {
-				shouldPrompt = true;
-			}
+		}
+		if (isQuarantined && candidateResolution.kind === 'unavailable') {
+			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, candidateResolution);
+			return;
 		}
 
-		const previousToken = this._resentTokens.get(key);
-		if (shouldPrompt || (previousToken !== undefined && previousToken === session.accessToken)) {
-			if (!shouldPrompt && !usedRejectedSessionFallback) {
-				const alternativeResolution = await resolveSessionForProtectedResource(
-					authenticationService,
-					logService,
-					resource,
-					options,
-					{ accountId: session.account?.id, excludedSession: session },
-				);
-				throwIfAuthenticationStale(options);
-				if (alternativeResolution.kind === 'resolved') {
-					options.authTokenCache?.rejectSession(resource.resource, scopes, session);
-					options.authTokenCache?.clear(resource.resource, scopes);
-					const alternativeSession = alternativeResolution.session;
-					if (await forwardAuthenticationToken(options, resource.resource, scopes, alternativeSession)) {
-						this._resentTokens.set(key, alternativeSession.accessToken);
-						logService.info(`${options.logPrefix} Authenticating for resource with an alternate session: ${resource.resource}`);
-					}
-					return;
-				}
+		if (candidateResolution.kind === 'resolved' && (!isQuarantined || candidateResolution.session.accessToken !== previousToken)) {
+			const session = candidateResolution.session;
+			const isNewAlternative = session !== currentSession && !isQuarantined;
+			if (isNewAlternative) {
+				options.authTokenCache?.rejectSession(resource.resource, scopes, currentSession);
 			}
-
-			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
-			throwIfAuthenticationStale(options);
-			const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
-			throwIfAuthenticationStale(options);
-			if (interactiveSession) {
-				this._resentTokens.set(key, interactiveSession.accessToken);
-				if (interactiveSession.accessToken === session.accessToken) {
-					logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
-				}
+			options.authTokenCache?.clear(resource.resource, isNewAlternative ? scopes : resource.scopes_supported);
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
+				this._resentTokens.set(key, session.accessToken);
+				logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 			}
 			return;
 		}
 
 		options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
-		if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], session)) {
-			this._resentTokens.set(key, session.accessToken);
-			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+		const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
+		throwIfAuthenticationStale(options);
+		if (!interactiveSession) {
+			return;
+		}
+		this._resentTokens.set(key, interactiveSession.accessToken);
+		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
+		if (interactiveSession.accessToken === challengedToken) {
+			logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 		}
 	}
 }
