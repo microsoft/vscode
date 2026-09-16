@@ -9,7 +9,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	transform: translateY(1px);
 }
 
 .agent-host-mode-permission-summary,
