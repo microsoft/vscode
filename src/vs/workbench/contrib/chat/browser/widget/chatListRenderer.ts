@@ -70,7 +70,7 @@ import { ClickAnimation } from '../../../../../base/browser/ui/animations/animat
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getCompactCodicon } from '../chatIcons.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
@@ -121,7 +121,7 @@ import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/c
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -708,6 +708,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly templateDataByRow = new WeakMap<HTMLElement, IChatListItemTemplate>();
 	private readonly thinkingPartOwners = new WeakMap<IChatContentPart, ChatThinkingContentPart>();
 	private readonly subagentDisclosureObservers = new WeakMap<ChatSubagentContentPart, DisposableMap<string>>();
+	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
@@ -817,6 +818,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 		}));
+		this.observeToolConfirmations();
 	}
 
 	private _pendingDragController: ChatPendingDragController | undefined;
@@ -826,7 +828,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	public updateOptions(options: IChatListItemRendererOptions): void {
+		const wasReadOnly = this.rendererOptions.readOnly;
 		this.rendererOptions = { ...this.rendererOptions, ...options };
+		if (wasReadOnly !== this.rendererOptions.readOnly) {
+			this.observeToolConfirmations();
+		}
 	}
 
 	get templateId(): string {
@@ -972,6 +978,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
+		this.toolConfirmationObservation.clear();
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
 		this._notifiedQuestionCarousels.clear();
@@ -996,6 +1003,95 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._diffEditorPool.clear();
 		this._treePool.clear();
 		this._contentReferencesListPool.clear();
+		this.observeToolConfirmations();
+	}
+
+	/** Discovers approvals even when their owning response is outside the virtualized transcript. */
+	private observeToolConfirmations(): void {
+		this.toolConfirmationObservation.clear();
+		const viewModel = this.viewModel;
+		if (!viewModel || this.rendererOptions.readOnly) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		this.toolConfirmationObservation.value = store;
+		store.add(Event.once(viewModel.onDidDisposeModel)(() => store.dispose()));
+		const responses = observableFromEvent(this, viewModel.onDidChange, () => viewModel.getItems().filter(isResponseVM));
+		const editing = observableFromEvent(this, viewModel.onDidChangeEditing, () => !!viewModel.editing);
+		const enabled = observableFromEvent(this, this.configService.onDidChangeConfiguration, () => this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel));
+		const widget = observableFromEvent(this, Event.any(this.chatWidgetService.onDidAddWidget, this.chatWidgetService.onDidRemoveWidget), () => this.chatWidgetService.getWidgetBySessionResource(viewModel.sessionResource));
+
+		store.add(autorunPerKeyedItem(responses, response => response.id, (_id, response$, responseStore) => {
+			const response = response$.get();
+			const changed = observableSignalFromEvent(this, response.model.onDidChange);
+			const pendingTools = derived(reader => {
+				changed.read(reader);
+				if (!enabled.read(reader) || editing.read(reader) || !response.model.isPendingConfirmation.read(reader)) {
+					return [];
+				}
+				return response.response.value.filter((part): part is IChatToolInvocation => {
+					if (part.kind !== 'toolInvocation' || part.presentation === 'hidden' || part.source.type === 'mcp' || isParentSubagentTool(part)) {
+						return false;
+					}
+					const state = part.state.read(reader);
+					return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && !!state.confirmationMessages?.title;
+				});
+			});
+			responseStore.add(autorunPerKeyedItem(pendingTools, tool => tool.toolCallId, (_toolCallId, tool$, toolStore) => {
+				toolStore.add(autorun(reader => {
+					const targetWidget = widget.read(reader);
+					const tool = tool$.read(reader);
+					if (targetWidget) {
+						reader.store.add(this.addModelToolConfirmation(response, tool, targetWidget));
+					}
+				}));
+			}));
+		}));
+	}
+
+	private addModelToolConfirmation(response: IChatResponseViewModel, tool: IChatToolInvocation, widget: IChatWidget): IDisposable {
+		const parent = response.response.value.find(part =>
+			(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolCallId === tool.subAgentInvocationId);
+		const subagentData = (parent?.kind === 'toolInvocation' || parent?.kind === 'toolInvocationSerialized') && parent.toolSpecificData?.kind === 'subagent'
+			? parent.toolSpecificData
+			: undefined;
+		const subagentTitle = tool.subAgentInvocationId ? subagentData?.description ?? localize('confirmationSubagent', "Subagent") : undefined;
+		const revealSubagent = () => {
+			if (this.environmentService.isSessionsWindow && subagentData?.chatResource) {
+				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource: subagentData.chatResource });
+			} else {
+				widget.reveal(response);
+			}
+		};
+		const revealSubagentLabel = this.environmentService.isSessionsWindow && subagentTitle
+			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
+			: undefined;
+		const context: IChatContentPartRenderContext = {
+			element: response,
+			elementIndex: this.viewModel?.getItems().indexOf(response) ?? 0,
+			container: this.delegate.container,
+			content: [tool],
+			contentIndex: 0,
+			editorPool: this._editorPool,
+			diffEditorPool: this._diffEditorPool,
+			currentWidth: this._currentLayoutWidth,
+			onDidChangeVisibility: this._onDidChangeVisibility.event,
+			inlineTextModels: this._inlineTextModels,
+			codeBlockStartIndex: 0,
+			treeStartIndex: 0,
+		};
+		const factory = (invocation: IChatToolInvocation) => this.instantiationService.createInstance(
+			ChatToolInvocationPart, invocation, context,
+			this.chatContentMarkdownRenderer, this._contentReferencesListPool,
+			this._toolEditorPool, () => this._currentLayoutWidth.get(),
+			this._announcedToolProgressKeys, context.codeBlockStartIndex,
+		);
+		widget.inputPart.addToolToConfirmationCarousel(tool, factory, tool.subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
+		for (const template of this.templateDataByRequestId.values()) {
+			this.updateWorkingProgressForPendingConfirmations(template);
+		}
+		return toDisposable(() => widget.inputPart.removeToolFromConfirmationCarousel(tool, response.sessionResource));
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -1862,7 +1958,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
-		// Show confirmation progress while a non-subagent confirmation carousel is active above the input.
+		// Subagent approvals are surfaced by their pill and the input carousel, including out-of-band requests.
 		if (isResponseVM(element)) {
 			const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 			if (widget?.inputPart.hasActiveToolConfirmationCarousel) {
@@ -1873,15 +1969,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						content: new MarkdownString().appendText(this.getConfirmationPendingLabel(nonSubagentConfirmationCount))
 					};
 				}
-
-				if (this.getPendingToolConfirmationCount(partsToRender, true) > 0) {
-					return undefined;
-				}
-
-				return {
-					kind: 'working',
-					content: new MarkdownString().appendText(this.getConfirmationPendingLabel(1))
-				};
+				return undefined;
 			}
 		}
 
@@ -1903,15 +1991,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
+		// A trailing empty thinking marker ends the open thinking section, so the section's own
+		// activity indicators no longer stand in for the response-level progress.
+		const sectionFinished = isEmptyThinkingPart(workingParts.at(-1));
+		const hasIncompleteTool = workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part));
+
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-		if (lastThinking && !endsWithCompletedQuestion) {
+		if (lastThinking && !endsWithCompletedQuestion && !sectionFinished) {
 			return undefined;
 		}
 
 		// Never show working when the last part is a tool invocation that is attached to thinking,
 		// or *will be* attached to thinking during the upcoming render pass
-		if (lastPart && (lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized')) {
+		if (lastPart && (lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && !sectionFinished) {
 			if (lastPart.isAttachedToThinking) {
 				return undefined;
 			}
@@ -1925,7 +2018,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
 		const hasEditPillMarkdown = workingParts.some(part => part.kind === 'markdownContent' && this.hasEditCodeblockUri(part));
-		if (hasRenderedThinkingPart && hasEditPillMarkdown) {
+		if (hasRenderedThinkingPart && hasEditPillMarkdown && !sectionFinished) {
 			return undefined;
 		}
 
@@ -1934,10 +2027,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			lastPart.kind === 'references' ||
 			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element)) ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || IChatToolInvocation.isEffectivelyHidden(lastPart))) ||
-			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
-			(lastPart.kind === 'externalEdit' && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
+			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !hasIncompleteTool) ||
+			(lastPart.kind === 'externalEdit' && !hasIncompleteTool) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
 			endsWithCompletedQuestion ||
+			(sectionFinished && !hasIncompleteTool) ||
 			lastPart.kind === 'mcpServersStarting' ||
 			lastPart.kind === 'mcpAuthenticationRequired' ||
 			lastPart.kind === 'mcpServersStartingSlow' ||
@@ -3725,25 +3819,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private finalizeCurrentThinkingPart(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
-		if (!lastThinking) {
-			return;
+		if (lastThinking) {
+			this.finalizeThinkingPart(lastThinking, context);
 		}
+	}
+
+	/** Ends a thinking section the same way arriving answer text does. */
+	private finalizeThinkingPart(thinking: ChatThinkingContentPart, context: IChatContentPartRenderContext): void {
 		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		if (style === ThinkingDisplayMode.CollapsedPreview) {
-			lastThinking.collapseContent();
+			thinking.collapseContent();
 		}
-		lastThinking.finalizeTitleIfDefault();
-		lastThinking.resetId();
-		lastThinking.markAsInactive();
+		thinking.finalizeTitleIfDefault();
+		thinking.resetId();
+		thinking.markAsInactive();
 	}
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
 		try {
-			// if we get an empty thinking part, mark thinking as finished
-			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : content.value === '')) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-				lastThinking?.resetId();
-				return this.renderNoContent(other => content.kind === other.kind);
+			if (isEmptyThinkingPart(content)) {
+				for (const part of templateData.renderedParts?.slice(0, context.contentIndex) ?? []) {
+					if (part instanceof ChatThinkingContentPart && part.getIsActive()) {
+						this.finalizeThinkingPart(part, context);
+					}
+				}
+				return this.renderNoContent(other => isEmptyThinkingPart(other));
 			}
 
 			const isResponseElement = isResponseVM(context.element);
@@ -5136,7 +5236,8 @@ export function getWorkingProgressRelevantParts(parts: readonly IChatRendererCon
 }
 
 export function endsWithActiveSubagentContent(parts: readonly IChatRendererContent[]): boolean {
-	const lastPart = findLastMeaningfulPart(parts.filter(part => !isNestedSubagentContent(part)));
+	const lastPart = findLastMeaningfulPart(parts.filter(part => !isNestedSubagentContent(part)
+		&& !((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && IChatToolInvocation.isEffectivelyHidden(part))));
 	if (!lastPart || (lastPart.kind !== 'toolInvocation' && lastPart.kind !== 'toolInvocationSerialized')) {
 		return false;
 	}
@@ -5170,9 +5271,16 @@ export function isWaitingForMcpServers(parts: readonly IChatRendererContent[]): 
 	return parts.some(part => part.kind === 'mcpServersStartingSlow' && part.servers.get().length > 0);
 }
 
+function isEmptyThinkingPart(part: IChatRendererContent | undefined): boolean {
+	return part?.kind === 'thinking' && (part.value === '' || (Array.isArray(part.value) && part.value.length === 0));
+}
+
 function findLastMeaningfulPart(parts: readonly IChatRendererContent[]): IChatRendererContent | undefined {
 	for (let i = parts.length - 1; i >= 0; i--) {
 		const part = parts[i];
+		if (isEmptyThinkingPart(part)) {
+			continue;
+		}
 		if (part.kind !== 'markdownContent' || part.content.value.trim().length > 0) {
 			return part;
 		}

@@ -26,6 +26,36 @@ suite('mapSessionEvents — history replay', () => {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
 
+	for (const hasExecutionEvents of [true, false]) {
+		test(`restores canonical agent read labels even when identity is recorded later (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'parent', content: 'Read the agent result.' } },
+				{ type: 'assistant.message', data: { messageId: 'read-request', content: '', toolRequests: [{ toolCallId: 'tc-read', name: 'read_agent', arguments: { agent_id: agentId } }] } },
+			];
+			if (hasExecutionEvents) {
+				events.push(
+					{ type: 'tool.execution_start', data: { toolCallId: 'tc-read', toolName: 'read_agent', arguments: { agent_id: agentId } } },
+					{ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true } },
+				);
+			}
+			events.push({
+				type: 'subagent.started', agentId, data: {
+					toolCallId: 'tc-task', agentName: 'research', agentDisplayName: 'catalog-perf', agentDescription: 'Profile the catalog',
+				}
+			});
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolName === 'read_agent' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage }]
+				: [])), [{
+					invocation: { markdown: 'Read agent `catalog-perf`' },
+					completed: { markdown: 'Read agent `catalog-perf`' },
+				}]);
+		});
+	}
+
 	test('task_complete renders the input summary when tool output is truncated', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
