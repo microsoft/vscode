@@ -141,6 +141,11 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 
 class StubRemoteAgentHostService extends Disposable {
 	declare readonly _serviceBrand: undefined;
+	readonly pendingConnections: { address: string; startedAt: number; userInitiated: boolean }[] = [];
+	private readonly _onDidChangePendingConnections = this._register(new Emitter<void>());
+	readonly onDidChangePendingConnections = this._onDidChangePendingConnections.event;
+
+	firePendingChange(): void { this._onDidChangePendingConnections.fire(); }
 
 	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
 	readonly onDidChangeConnections = this._onDidChangeConnections.event;
@@ -308,6 +313,19 @@ suite('TunnelAgentHostContribution', () => {
 		const provider = contribution.stubProviders.get(address);
 		assert.ok(provider, 'provider should be created for the cached tunnel');
 		assert.strictEqual(provider!.setConnectionCalls.length, 0, 'no live connection yet — wire-up must wait');
+
+		remoteService.pendingConnections.push({ address, startedAt: Date.now(), userInitiated: false });
+		remoteService.firePendingChange();
+		tunnelService.setListed([{ tunnelId, clusterId: 'use', name: 'My Tunnel', hostConnectionCount: 1, protocolVersion: 6, tags: [] }]);
+		await (contribution as unknown as { _silentStatusCheck(): Promise<void> })._silentStatusCheck();
+		assert.deepStrictEqual({
+			status: provider!.connectionStatus.get().kind,
+			connectionEntries: remoteService.connections.length,
+		}, { status: 'connecting', connectionEntries: 0 });
+
+		remoteService.pendingConnections.length = 0;
+		remoteService.firePendingChange();
+		assert.strictEqual(provider!.connectionStatus.get().kind, 'disconnected');
 
 		// Step 2: announce the live connection — `_wireConnections` should bind it.
 		remoteService.addConnection({

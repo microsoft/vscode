@@ -80,6 +80,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._updateConnectionStatuses();
 			this._wireConnections();
 		}));
+		if (this.isWebPlatform) {
+			this._register(this._remoteAgentHostService.onDidChangePendingConnections(() => this._updateConnectionStatuses()));
+		}
 
 		// Reconcile providers when the tunnel cache changes
 		this._register(this._tunnelService.onDidChangeTunnels(() => {
@@ -233,8 +236,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	// -- Connection status --
 
 	private _updateConnectionStatuses(): void {
+		const pending = new Set(this.isWebPlatform ? this._remoteAgentHostService.pendingConnections.map(attempt => attempt.address) : []);
 		for (const [address, provider] of this._providerInstances) {
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
+			if (pending.has(address) && (!connectionInfo || RemoteAgentHostConnectionStatus.isDisconnected(connectionInfo.status))) {
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+				continue;
+			}
 			if (connectionInfo) {
 				// Service has an entry — its status is authoritative
 				// (including incompatible from the WebSocket connect

@@ -39,6 +39,7 @@ interface IActivity {
 /** Captures local evidence, not remote probes or raw protocol/log payloads. */
 export class ConnectionDiagnosticsService extends Disposable implements IConnectionDiagnosticsService {
 	declare readonly _serviceBrand: undefined;
+	protected get isWebPlatform(): boolean { return isWeb; }
 
 	private readonly _onDidChangeHostManagement = this._register(new Emitter<void>());
 	readonly onDidChangeHostManagement = this._onDidChangeHostManagement.event;
@@ -68,6 +69,9 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			this._captureConnections();
 			this._onDidChangeHostManagement.fire();
 		}));
+		if (this.isWebPlatform) {
+			this._register(this._remoteService.onDidChangePendingConnections(() => this._onDidChangeHostManagement.fire()));
+		}
 		this._register(this._filterService.onDidChange(() => this._onDidChangeHostManagement.fire()));
 		this._register(this._filterService.onDidChangeDiscovering(() => this._onDidChangeHostManagement.fire()));
 		this._register(this._tunnelService.onDidChangeTunnels(() => this._onDidChangeHostManagement.fire()));
@@ -117,6 +121,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 
 	getHostManagementState(): IConnectionHostManagementState {
 		const connections = new Map(this._remoteService.connections.map(connection => [normalizeRemoteAgentHostAddress(connection.address), connection]));
+		const pending = new Set(this.isWebPlatform ? this._remoteService.pendingConnections.map(attempt => attempt.address) : []);
 		const visibility = this._tunnelService.getTunnelVisibility();
 		const cached = new Map(this._tunnelService.getCachedTunnels().map(tunnel => [tunnel.tunnelId, tunnel]));
 		const discovered = new Map(this._discoveredTunnels.map(tunnel => [tunnel.tunnelId, tunnel]));
@@ -127,7 +132,8 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				selectableAddresses.add(address);
 			}
 			const connectionStatus = address ? connections.get(address)?.status.kind : undefined;
-			const status = connectionStatus ?? (host.status === 'connected' ? 'connected' : host.status === 'connecting' ? 'connecting' : 'disconnected');
+			const status = address && pending.has(address) && (!connectionStatus || connectionStatus === 'disconnected') ? 'connecting'
+				: connectionStatus ?? (host.status === 'connected' ? 'connected' : host.status === 'connecting' ? 'connecting' : 'disconnected');
 			const tunnelId = address?.startsWith(TUNNEL_ADDRESS_PREFIX) ? address.slice(TUNNEL_ADDRESS_PREFIX.length) : undefined;
 			return {
 				id: host.id,
@@ -238,6 +244,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		for (const event of connectionDiagnostics) {
 			lastStages.set(normalizeRemoteAgentHostAddress(event.address), event);
 		}
+		const pending = new Map((this.isWebPlatform ? this._remoteService.pendingConnections : []).map(attempt => [attempt.address, attempt]));
 		const discovered = new Map(this._discoveredTunnels.map(tunnel => [`${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`, tunnel]));
 		const cachedByAddress = new Map(cached.map(tunnel => [`${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`, tunnel]));
 		const addresses = new Set([...discovered.keys(), ...cachedByAddress.keys(), ...configured.keys(), ...connections.keys()]);
@@ -255,6 +262,8 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			const cache = cachedByAddress.get(address);
 			const entry = configured.get(address);
 			const connection = connections.get(address);
+			const attempt = pending.get(address);
+			const connectionStatus = attempt && (!connection || connection.status.kind === 'disconnected') ? 'connecting' : connection?.status.kind;
 			const pickerHost = visible.get(address);
 			const tunnelId = address.startsWith(TUNNEL_ADDRESS_PREFIX) ? address.slice(TUNNEL_ADDRESS_PREFIX.length) : undefined;
 			const dismissed = tunnelId !== undefined && this._tunnelService.isTunnelDismissed(tunnelId);
@@ -263,12 +272,22 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			const entries = [
 				{ label: localize('diagnostics.address', "Address"), value: safeAddress(address) },
 				{ label: localize('diagnostics.transport', "Connection type"), value: entry?.connection.type ?? (tunnelId !== undefined ? 'tunnel' : localize('diagnostics.unknown', "Unknown")) },
-				{ label: localize('diagnostics.status', "Connection status"), value: connection?.status.kind ?? localize('diagnostics.notObserved', "No connection entry") },
+				{ label: localize('diagnostics.status', "Connection status"), value: connectionStatus ?? localize('diagnostics.notObserved', "No connection entry") },
 				{ label: localize('diagnostics.selectableLabel', "Selectable"), value: yesNo(!!pickerHost) },
 				{ label: localize('diagnostics.configured', "Configured"), value: yesNo(!!entry) },
 				{ label: localize('diagnostics.cached', "Cached"), value: yesNo(!!cache) },
 				{ label: localize('diagnostics.discovered', "In last successful discovery"), value: yesNo(!!tunnel) },
 			];
+			if (attempt) {
+				entries.push(
+					{ label: localize('diagnostics.pendingAttempt', "Connection attempt"), value: localize('diagnostics.pending', "Pending") },
+					{ label: localize('diagnostics.attemptPhase', "Attempt phase"), value: connection?.clientId ? localize('diagnostics.protocolPending', "Protocol connection") : localize('diagnostics.setupPending', "Connection setup (before protocol client)") },
+					{ label: localize('diagnostics.attemptStarted', "Attempt started at"), value: new Date(attempt.startedAt).toISOString() },
+					{ label: localize('diagnostics.attemptElapsed', "Attempt elapsed at capture (ms)"), value: String(Math.max(0, Date.parse(capturedAt) - attempt.startedAt)) },
+					{ label: localize('diagnostics.attemptTrigger', "Attempt trigger"), value: attempt.userInitiated ? localize('diagnostics.user', "user") : localize('diagnostics.automatic', "automatic") },
+					{ label: localize('diagnostics.connectionEntryPresent', "Connection entry present"), value: yesNo(!!connection) },
+				);
+			}
 			if (tunnelId !== undefined) {
 				entries.push(
 					{ label: localize('diagnostics.dismissedLabel', "Persistently dismissed"), value: yesNo(dismissed) },
@@ -312,7 +331,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				entries.push({ label: localize('diagnostics.agents', "Advertised agents"), value: root.agents.map(agent => agent.provider).join(', ') });
 			}
 			hostSections.push({
-				title: localize('diagnostics.hostSummary', "{0} - {1}, {2}", name, connection?.status.kind ?? localize('diagnostics.noConnection', "no connection"), pickerHost ? localize('diagnostics.selectable', "selectable") : localize('diagnostics.notSelectable', "not selectable")),
+				title: localize('diagnostics.hostSummary', "{0} - {1}, {2}", name, connectionStatus ?? localize('diagnostics.noConnection', "no connection"), pickerHost ? localize('diagnostics.selectable', "selectable") : localize('diagnostics.notSelectable', "not selectable")),
 				hostAddress: address,
 				collapsed: true,
 				entries,

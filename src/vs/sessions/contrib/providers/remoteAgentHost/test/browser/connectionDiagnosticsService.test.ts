@@ -13,7 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { traceConnectionOperation, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostPendingConnection, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -39,10 +39,12 @@ suite('ConnectionDiagnosticsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const tunnel: ITunnelInfo = { tunnelId: 'mock', clusterId: 'local', name: 'Mock host', protocolVersion: 5, hostConnectionCount: 1, tags: [] };
 
-	function createService() {
+	function createService(web = true) {
 		const changes = store.add(new Emitter<void>());
 		const remote = new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = changes.event;
+			override readonly onDidChangePendingConnections = changes.event;
+			override pendingConnections: IRemoteAgentHostPendingConnection[] = [];
 			override connections: IRemoteAgentHostConnectionInfo[] = [];
 			override configuredEntries: IRemoteAgentHostEntry[] = [];
 			override getConnection(): IAgentConnection | undefined { return undefined; }
@@ -99,7 +101,9 @@ suite('ConnectionDiagnosticsService', () => {
 		const logFile = URI.parse('test:/window.log');
 		instantiation.stub(IFileService, files);
 		instantiation.stub(IWorkbenchEnvironmentService, { logFile });
-		const service = store.add(instantiation.createInstance(ConnectionDiagnosticsService));
+		const service = store.add(instantiation.createInstance(class extends ConnectionDiagnosticsService {
+			protected override get isWebPlatform(): boolean { return web; }
+		}));
 		return { service, remote, tunnels, changes, configuration, instantiation, filter, files, logFile };
 	}
 
@@ -108,6 +112,66 @@ suite('ConnectionDiagnosticsService', () => {
 		assert.ok(section, `Missing ${title} section`);
 		return Object.fromEntries(section.entries.map(entry => [entry.label, entry.value]));
 	}
+
+	test('exports authoritative pending automatic setup and updates live host status before a connection exists', async () => {
+		const { service, remote, filter, changes } = createService();
+		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Disconnected }];
+		remote.pendingConnections = [{ address: 'tunnel:mock', startedAt: Date.now() - 5000, userInitiated: false }];
+		let notifications = 0;
+		store.add(service.onDidChangeHostManagement(() => notifications++));
+		changes.fire();
+		const snapshot = await service.getSnapshot();
+		const details = values(snapshot, 'Mock host');
+		const pendingStatus = service.getHostManagementState().hosts[0].status;
+		remote.pendingConnections = [];
+		changes.fire();
+		assert.deepStrictEqual({
+			pendingStatus,
+			statusAfterCompletion: service.getHostManagementState().hosts[0].status,
+			status: details['Connection status'],
+			attempt: details['Connection attempt'],
+			trigger: details['Attempt trigger'],
+			entry: details['Connection entry present'],
+			elapsed: Number(details['Attempt elapsed at capture (ms)']) >= 5000,
+			exported: snapshot.text.includes('Connection attempt: Pending'),
+			notified: notifications > 0,
+		}, {
+			pendingStatus: 'connecting', statusAfterCompletion: 'disconnected', status: 'connecting',
+			attempt: 'Pending', trigger: 'automatic', entry: 'No', elapsed: true, exported: true, notified: true,
+		});
+	});
+
+	test('native host status does not change for pending setup metadata', async () => {
+		const { service, remote, filter } = createService(false);
+		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Disconnected }];
+		remote.pendingConnections = [{ address: 'tunnel:mock', startedAt: Date.now(), userInitiated: false }];
+		const details = values(await service.getSnapshot(), 'Mock host');
+		assert.deepStrictEqual({
+			live: service.getHostManagementState().hosts[0].status,
+			status: details['Connection status'],
+			attempt: details['Connection attempt'],
+		}, { live: 'disconnected', status: 'No connection entry', attempt: undefined });
+	});
+
+	test('pending metadata does not replace established or retrying connection state', async () => {
+		const { service, remote, filter } = createService();
+		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connecting }];
+		remote.pendingConnections = [{ address: 'tunnel:mock', startedAt: Date.now(), userInitiated: false }];
+		const states = [RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.reconnecting, RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'])];
+		const actual = [];
+		for (const status of states) {
+			remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status }];
+			actual.push({
+				live: service.getHostManagementState().hosts[0].status,
+				captured: values(await service.getSnapshot(), 'Mock host')['Connection status'],
+			});
+		}
+		assert.deepStrictEqual(actual, [
+			{ live: 'connected', captured: 'connected' },
+			{ live: 'reconnecting', captured: 'reconnecting' },
+			{ live: 'incompatible', captured: 'incompatible' },
+		]);
+	});
 
 	test('shows online dismissed hosts even when the cache and picker are empty', async () => {
 		const { service, tunnels } = createService();

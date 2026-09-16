@@ -692,6 +692,10 @@ export interface IRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[];
 
+	/** In-flight attempts, including setup before a protocol connection entry exists. */
+	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[];
+	readonly onDidChangePendingConnections: Event<void>;
+
 	/** Fires when a remote connection is established or lost. */
 	readonly onDidChangeConnections: Event<void>;
 
@@ -797,10 +801,18 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly status: RemoteAgentHostConnectionStatus;
 }
 
+export interface IRemoteAgentHostPendingConnection {
+	readonly address: string;
+	readonly startedAt: number;
+	readonly userInitiated: boolean;
+}
+
 export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
+	readonly onDidChangePendingConnections = Event.None;
+	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	registerConnectionFactory(): IDisposable {

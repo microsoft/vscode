@@ -726,6 +726,61 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('factory connections', () => {
+		for (const outcome of ['success', 'failure', 'removed', 'disabled', 'disposed'] as const) {
+			test(`exposes pending automatic setup before a client exists and clears it on ${outcome}`, async () => {
+				const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+				const started = new DeferredPromise<void>();
+				let calls = 0;
+				const factory = disposables.add(new class extends TestConnectionFactory {
+					override createConnection(): Promise<IRemoteAgentHostCreatedConnection> {
+						calls++;
+						void started.complete();
+						return pending.p;
+					}
+				}(RemoteAgentHostEntryType.Tunnel));
+				const registration = disposables.add(service.registerConnectionFactory(factory));
+				const entry: IRemoteAgentHostEntry = { name: 'Pending tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'pending', clusterId: 'test' } };
+				const address = getEntryAddress(entry);
+				let notifications = 0;
+				disposables.add(service.onDidChangePendingConnections(() => notifications++));
+				const beforeStart = Date.now();
+				factory.stageFailure(entry, new Error('unused'));
+				await started.p;
+				const before = {
+					entries: service.connections.length,
+					address: service.pendingConnections[0]?.address,
+					automatic: service.pendingConnections[0]?.userInitiated === false,
+					started: service.pendingConnections[0]?.startedAt >= beforeStart,
+				};
+				service.reconnect(address);
+				if (outcome === 'removed') {
+					registration.dispose();
+				} else if (outcome === 'disabled') {
+					configService.setEnabled(false);
+				} else if (outcome === 'disposed') {
+					service.dispose();
+				}
+				const unavailablePending = outcome === 'removed' || outcome === 'disabled' || outcome === 'disposed' ? service.pendingConnections.length : undefined;
+				if (outcome === 'failure') {
+					await pending.error(new NonReconnectableTransportError('setup failed'));
+				} else {
+					const client = disposables.add(new MockProtocolClient(address));
+					void client.connectDeferred.complete();
+					await pending.complete({ connection: client as unknown as IRemoteAgentHostProtocolClient });
+				}
+				while (service.pendingConnections.length) {
+					await Event.toPromise(service.onDidChangePendingConnections);
+				}
+				assert.deepStrictEqual({
+					before, unavailablePending, calls, notified: notifications > 0, pending: service.pendingConnections.length,
+				}, {
+					before: { entries: 0, address, automatic: true, started: true },
+					unavailablePending: outcome === 'removed' || outcome === 'disabled' || outcome === 'disposed' ? 0 : undefined,
+					calls: 1, notified: true, pending: 0,
+				});
+			});
+		}
+
 
 		function makeTransportDisposable(): { disposable: { dispose(): void }; disposed: () => boolean } {
 			let disposed = false;
