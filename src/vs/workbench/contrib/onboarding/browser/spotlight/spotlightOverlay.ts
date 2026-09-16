@@ -122,7 +122,7 @@ export class SpotlightOverlay extends Disposable {
 		this._callout = append(this._root, $('.spotlight-callout'));
 		this._callout.setAttribute('role', 'dialog');
 		this._callout.setAttribute('aria-modal', 'true');
-		this._callout.tabIndex = -1;
+		this._callout.tabIndex = 0;
 
 		const header = append(this._callout, $('.spotlight-callout-header'));
 		this._title = append(header, $('h2.spotlight-callout-title'));
@@ -428,9 +428,7 @@ export class SpotlightOverlay extends Disposable {
 		const active = getActiveElement();
 		const currentIndex = focusable.findIndex(element => element === active);
 
-		// When focus isn't currently on a tracked element (e.g. it landed on the
-		// callout container itself), start from the appropriate end so Tab goes to
-		// the first element and Shift+Tab to the last.
+		// Start from the appropriate end when focus isn't currently on a tracked element.
 		let nextIndex: number;
 		if (currentIndex === -1) {
 			nextIndex = event.shiftKey ? focusable.length - 1 : 0;
@@ -444,14 +442,7 @@ export class SpotlightOverlay extends Disposable {
 		focusable[nextIndex].focus();
 	}
 
-	/**
-	 * The focusable elements participating in the focus trap, in DOM order: the
-	 * spotlighted target (when it is interactive or the Next button is hidden), then any
-	 * interactive content in the (possibly markdown) description, then the visible
-	 * action buttons. Including the target keeps the spotlighted control
-	 * keyboard-reachable, and querying the description keeps markdown links
-	 * reachable despite `aria-modal`.
-	 */
+	/** Collects the interactive target, callout, description links, and visible actions in focus order. */
 	private _collectFocusable(): HTMLElement[] {
 		const targetFocusables = (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.hideNext) && this._target
 			// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
@@ -464,7 +455,7 @@ export class SpotlightOverlay extends Disposable {
 		const buttons = [this._skipButton, this._backButton, this._nextButton]
 			.filter(button => button.element.style.display !== 'none')
 			.map(button => button.element);
-		return [...targetFocusables, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
+		return [...targetFocusables, this._callout, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
 	}
 
 	private _isTabbable(element: HTMLElement): boolean {
