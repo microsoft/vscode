@@ -15448,6 +15448,7 @@ suite('AgentHostChatContribution', () => {
 				commandCalls: [{
 					commandId: CHAT_SETUP_ACTION_ID,
 					args: [undefined, {
+						telemetrySource: 'agentHost',
 						forceSignInDialog: true,
 						additionalScopes: ['read:user'],
 						dialogTitle: 'Sign in to use GitHub Copilot',

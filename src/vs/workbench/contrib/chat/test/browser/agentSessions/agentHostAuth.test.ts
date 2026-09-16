@@ -1978,6 +1978,7 @@ suite('resolveAuthenticationInteractively', () => {
 			commandCalls: [{
 				commandId: CHAT_SETUP_ACTION_ID,
 				args: [undefined, {
+					telemetrySource: 'agentHost',
 					forceSignInDialog: true,
 					additionalScopes: ['read'],
 					dialogTitle: 'Sign in to use GitHub Copilot',
