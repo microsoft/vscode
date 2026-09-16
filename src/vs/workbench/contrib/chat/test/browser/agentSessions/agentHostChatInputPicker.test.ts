@@ -71,6 +71,13 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		{ label: 'Allow all', level: ChatPermissionLevel.AutoApprove, sandboxed: false },
 	];
 
+	const isVerticallyCentered = (element: HTMLElement, container: HTMLElement): boolean => {
+		const elementBounds = element.getBoundingClientRect();
+		const containerBounds = container.getBoundingClientRect();
+		const offset = elementBounds.top + elementBounds.height / 2 - containerBounds.top - containerBounds.height / 2;
+		return Math.abs(offset) < 0.5;
+	};
+
 	function createPermissionsWidget() {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(IKeybindingService, new MockKeybindingService());
@@ -412,6 +419,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				const trigger = dom.append(slot, dom.$('div.action-label'));
 				const rendered = store.add(renderModePickerTrigger(trigger, mode, permissionPresentations[0], () => { }));
 				const icon = rendered.modeButton.querySelector<HTMLElement>('.codicon')!;
+				const modeLabel = rendered.modeButton.querySelector<HTMLElement>('.agent-host-chat-input-picker-label')!;
+				const permissionLabel = rendered.permissionsButton.querySelector<HTMLElement>('.agent-host-mode-permission-summary')!;
 				const style = dom.getWindow(icon).getComputedStyle(icon);
 				const contentInsets = [rendered.modeButton, rendered.permissionsButton].map(button => {
 					const bounds = button.getBoundingClientRect();
@@ -420,7 +429,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 						right: bounds.right - button.lastElementChild!.getBoundingClientRect().right,
 					};
 				});
-				const labelGap = rendered.permissionsButton.querySelector('.agent-host-mode-permission-summary')!.getBoundingClientRect().left - rendered.modeButton.querySelector('.agent-host-chat-input-picker-label')!.getBoundingClientRect().right;
+				const labelGap = permissionLabel.getBoundingClientRect().left - modeLabel.getBoundingClientRect().right;
 				const dividerStyle = dom.getWindow(rendered.permissionsButton).getComputedStyle(rendered.permissionsButton, '::before');
 				states.push({
 					surface: surface.className,
@@ -430,8 +439,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					width: icon.getBoundingClientRect().width,
 					height: icon.getBoundingClientRect().height,
 					triggerHeight: trigger.getBoundingClientRect().height,
-					labelTransform: dom.getWindow(rendered.modeButton).getComputedStyle(rendered.modeButton.querySelector('.agent-host-chat-input-picker-label')!).transform,
-					permissionTransform: dom.getWindow(rendered.permissionsButton).getComputedStyle(rendered.permissionsButton.querySelector('.agent-host-mode-permission-summary')!).transform,
+					modeLabelCentered: isVerticallyCentered(modeLabel, rendered.modeButton),
+					permissionLabelCentered: isVerticallyCentered(permissionLabel, rendered.permissionsButton),
 					buttonHeights: [rendered.modeButton, rendered.permissionsButton].map(button => button.getBoundingClientRect().height),
 					buttonPadding: [rendered.modeButton, rendered.permissionsButton].map(button => dom.getWindow(button).getComputedStyle(button).padding),
 					contentInsets,
@@ -454,8 +463,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			surface: surface.className, label: mode.label, icon: `codicon codicon-${mode.icon.id}-compact`,
 			fontSize: '12px', width: 12, height: 12,
 			triggerHeight: surface.buttonHeight,
-			labelTransform: 'matrix(1, 0, 0, 1, 0, 1)',
-			permissionTransform: 'matrix(1, 0, 0, 1, 0, 1)',
+			modeLabelCentered: true,
+			permissionLabelCentered: true,
 			buttonHeights: [surface.buttonHeight, surface.buttonHeight],
 			buttonPadding: ['0px 4px', '0px 4px'],
 			contentInsets: [{ left: 4, right: 4 }, { left: 4, right: 4 }],
@@ -474,7 +483,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}))));
 	});
 
-	test('matches picker heights and icon boxes across the primary and secondary composer toolbars', () => {
+	test('matches picker heights and centers their content across the primary and secondary composer toolbars', () => {
 		const host = dom.append(document.body, dom.$('.monaco-workbench'));
 		store.add(toDisposable(() => host.remove()));
 		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
@@ -504,7 +513,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					padding: buttonStyle.padding,
 					radius: buttonStyle.borderRadius,
 					icon: { width: icon.getBoundingClientRect().width, height: icon.getBoundingClientRect().height, fontSize: style.fontSize, lineHeight: style.lineHeight },
-					labelTransform: dom.getWindow(label).getComputedStyle(label).transform,
+					iconCentered: isVerticallyCentered(icon, button),
+					labelCentered: isVerticallyCentered(label, button),
 				});
 			}
 		}
@@ -516,7 +526,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				padding: '0px 6px',
 				radius: '4px',
 				icon: { width: 12, height: 12, fontSize: '12px', lineHeight: '12px' },
-				labelTransform: 'matrix(1, 0, 0, 1, 0, 1)',
+				iconCentered: true,
+				labelCentered: true,
 			}))));
 	});
 
