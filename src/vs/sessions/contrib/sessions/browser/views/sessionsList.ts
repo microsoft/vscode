@@ -223,6 +223,16 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
+function getSessionTreeElement(session: ISession, createChatItem: (chat: IChat) => SessionChatItem = chat => new SessionChatItem(session, chat), reader?: IReader): IObjectTreeElement<SessionListItem> {
+	const chats = getSessionListChats(session, reader);
+	return {
+		element: session,
+		collapsible: chats.length > 0,
+		collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+		children: chats.length > 0 ? chats.map(chat => ({ element: createChatItem(chat) })) : undefined,
+	};
+}
+
 /** Returns in-progress when hidden chat activity should be summarized, then the main-chat status for trees with chat rows. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, includeVisibleChildProgress = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
@@ -350,11 +360,11 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		return height + (this._useInsetRowSpacing ? INSET_ROW_GAP : 0);
 	}
 
-	getHeight(element: SessionListItem): number {
+	getHeight(element: SessionListItem, reader?: IReader): number {
 		if (isSessionChatItem(element)) {
 			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
 			if (this._approvalModel) {
-				const approval = this._approvalModel.getApproval(element.chat.resource).get();
+				const approval = this._approvalModel.getApproval(element.chat.resource).read(reader);
 				if (approval) {
 					// Reserve the approval row plus a small bottom slack (the chat row,
 					// unlike the session row, has no bottom padding to absorb the
@@ -378,7 +388,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		let height: number;
 		if (this._isPhone()) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
-		} else if (this._useCompactQuickChatRows && isQuickChatSession(element as ISession)) {
+		} else if (this._useCompactQuickChatRows && element.isQuickChat?.read(reader)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
 		} else if (this._isCompact()) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPACT;
@@ -391,7 +401,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			// In the main tree only the main chat's approval renders on the session
 			// row (nested/side chats surface theirs on their own rows); flat lists
 			// with no chat rows aggregate an approval from any of the session's chats.
-			approval = getSessionRowApproval(this._approvalModel, session, undefined, this._aggregateChatApprovals);
+			approval = getSessionRowApproval(this._approvalModel, session, reader, this._aggregateChatApprovals);
 			if (approval) {
 				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
 			}
@@ -399,7 +409,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
 			height += SessionsTreeDelegate.INPUT_NEEDED_ROW_HEIGHT;
 		}
-		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
+		if (this._ciFixModel && this._ciFixModel.getCIFix(element).read(reader)) {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
 		}
 		return this.withInsetRowSpacing(height);
@@ -477,7 +487,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly markdownRendererService: IMarkdownRendererService | undefined,
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly approvalRowMaxLines: number,
-		private readonly onDidDoubleClickRename: (item: ISessionChatItem) => void,
+		private readonly onDidDoubleClickRename: ((item: ISessionChatItem) => void) | undefined,
 		private readonly onDidFinishRename: () => void,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
@@ -549,6 +559,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}), { groupId: 'sessions-list' }));
 		template.elementDisposables.add(DOM.addDisposableListener(template.titleContainer, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
 			if (
+				!this.onDidDoubleClickRename ||
 				event.button !== 0 ||
 				event.altKey ||
 				event.ctrlKey ||
@@ -3766,17 +3777,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionGroupLimit = this.sessionGroupLimit.get();
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
-			sessions.map(session => {
-				const chats = getSessionListChats(session);
-				return {
-					element: session as SessionListItem,
-					collapsible: chats.length > 0,
-					collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
-					children: chats.length > 0
-						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
-						: undefined,
-				};
-			});
+			sessions.map(session => getSessionTreeElement(session));
 
 		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, enabled: boolean): IObjectTreeElement<SessionListItem>[] => {
 			const limited = limitSessionsForList(sessions, sessionGroupLimit, {
@@ -5404,8 +5405,17 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 export interface ISessionsFlatListOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly showSessionHover?: boolean;
+	/** Renders the sidebar's nested chats, expanded by default, without adding sections. */
+	readonly showChatChildren?: boolean;
+	readonly ariaLabel?: string;
 	/** Called when a session row is opened (clicked / activated). */
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+	readonly onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void;
+	/** Enables dragging session and chat rows as their owning session. */
+	readonly onSessionDragStart?: (session: ISession, event: DragEvent) => void;
+	readonly onSessionDragEnd?: () => void;
+	readonly onSessionDragOver?: (event: DragEvent) => boolean;
+	readonly onSessionDrop?: (event: DragEvent) => void;
 	/**
 	 * Approval model tracking pending tool confirmations for the shown sessions.
 	 * When omitted the list creates and owns its own; injectable so tests and
@@ -5467,7 +5477,8 @@ export class SessionsFlatList extends Disposable {
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private readonly _delegate: SessionsTreeDelegate;
-	private _sessions: readonly ISession[] = [];
+	private readonly _sessions = observableValue<readonly ISession[]>(this, []);
+	private readonly chatItems = new WeakMap<ISession, WeakMap<IChat, SessionChatItem>>();
 
 	constructor(
 		container: HTMLElement,
@@ -5489,6 +5500,7 @@ export class SessionsFlatList extends Disposable {
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService labelService: ILabelService,
 		@IPreferencesService preferencesService: IPreferencesService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super();
 
@@ -5503,6 +5515,9 @@ export class SessionsFlatList extends Disposable {
 		// the only reference. See the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const useCompactQuickChatRows = this.options.useCompactQuickChatRows ?? true;
+		const showChatChildren = this.options.showChatChildren ?? false;
+		const approvalRowMaxLines = this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES;
+		const activeGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 
 		const sessionRenderer = new SessionItemRenderer(
 			{
@@ -5513,12 +5528,12 @@ export class SessionsFlatList extends Disposable {
 				showHover: this.options.showSessionHover ?? true,
 				useCompactQuickChatRows,
 				compact: () => false,
-				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
-				// This list renders no nested chat rows, so the session row is the
-				// only place an approval on any of its chats can surface.
-				aggregateChatApprovals: true,
-				toolbarMenuId: this.options.toolbarMenuId ?? Menus.SessionItemToolbar,
 				inlineRename: false,
+				approvalRowMaxLines,
+				aggregateChatApprovals: !showChatChildren,
+				deriveStatusFromMainChat: showChatChildren,
+				activeGuideSessionIds,
+				toolbarMenuId: this.options.toolbarMenuId ?? Menus.SessionItemToolbar,
 				handleToolbarAction: this.options.onToolbarAction,
 			},
 			approvalModel,
@@ -5538,44 +5553,140 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, session => session.status.get(), this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
+		const chatRenderer = showChatChildren ? new SessionChatItemRenderer(hoverService, instantiationService, this._sessionsManagementService, contextViewService, markdownRendererService, approvalModel, approvalRowMaxLines, undefined, () => this.tree.domFocus(), activeGuideSessionIds) : undefined;
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, session => getSessionRowStatus(session, undefined, showChatChildren), approvalRowMaxLines, this.options.ciFixModel, useCompactQuickChatRows, !showChatChildren, showChatChildren);
+		const accessibilityProvider = new SessionsAccessibilityProvider(undefined, {
+			grouping: () => SessionsGrouping.Date,
+			isPinned: session => this._sessionsListModelService.isSessionPinned(session),
+			includeQuickChatInAriaLabel: !useCompactQuickChatRows,
+			deriveStatusFromMainChat: showChatChildren,
+		});
+		const getSession = (element: SessionListItem | undefined | null): ISession | undefined =>
+			element && isSessionChatItem(element) ? element.session : element && isSessionItem(element) ? element : undefined;
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsFlatList',
 			listRoot,
 			this._delegate,
-			[sessionRenderer],
+			chatRenderer ? [sessionRenderer, chatRenderer] : [sessionRenderer],
 			{
-				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
-					grouping: () => SessionsGrouping.Date,
-					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
-					includeQuickChatInAriaLabel: !useCompactQuickChatRows,
-				}),
-				identityProvider: {
-					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
+				accessibilityProvider: {
+					getWidgetAriaLabel: () => this.options.ariaLabel ?? accessibilityProvider.getWidgetAriaLabel(),
+					getAriaLabel: element => accessibilityProvider.getAriaLabel(element),
 				},
+				identityProvider: {
+					getId: (element: SessionListItem) => isSessionChatItem(element)
+						? `chat:${element.session.sessionId}:${element.chat.resource.toString()}`
+						: (element as ISession).resource.toString(),
+				},
+				dnd: this.options.onSessionDragStart ? {
+					getDragURI: element => getSession(element)?.resource.toString() ?? null,
+					getDragLabel: elements => getSession(elements[0])?.title.get(),
+					onDragStart: (data, event) => {
+						const session = data instanceof ElementsDragAndDropData ? getSession((data as ElementsDragAndDropData<SessionListItem>).elements[0]) : undefined;
+						if (session) {
+							this.options.onSessionDragStart?.(session, event);
+						}
+					},
+					onDragEnd: () => this.options.onSessionDragEnd?.(),
+					onDragOver: (_data, _target, _index, _sector, event) => {
+						const accepted = this.options.onSessionDragOver?.(event) ?? false;
+						if (accepted) {
+							event.stopPropagation();
+						}
+						return accepted;
+					},
+					drop: (_data, _target, _index, _sector, event) => {
+						event.stopPropagation();
+						this.options.onSessionDrop?.(event);
+					},
+					dispose: () => { },
+				} : undefined,
 				horizontalScrolling: false,
 				alwaysConsumeMouseWheel: this.options.alwaysConsumeMouseWheel ?? true,
 				multipleSelectionSupport: false,
 				indent: 0,
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
-				twistieAdditionalCssClass: () => 'force-no-twistie',
+				twistieAdditionalCssClass: element => showChatChildren && isSessionItem(element) && getSessionListChats(element).length > 0
+					? 'session-chat-twistie'
+					: 'force-no-twistie',
 			}
 		));
 
+		if (showChatChildren) {
+			this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false, expandOnlyOnTwistieClick: element => !!element && isSessionItem(element) });
+			let hoveredSession: ISession | undefined;
+			const updateGuides = () => {
+				const sessions = [hoveredSession, ...this.tree.getSelection().map(getSession), ...this.tree.getFocus().map(getSession)];
+				activeGuideSessionIds.set(new Set(sessions.flatMap(session => session ? [session.sessionId] : [])), undefined);
+			};
+			this._register(this.tree.onMouseOver(e => {
+				hoveredSession = getSession(e.element);
+				updateGuides();
+			}));
+			this._register(this.tree.onMouseOut(e => {
+				if (getSession(e.element) === hoveredSession) {
+					hoveredSession = undefined;
+					updateGuides();
+				}
+			}));
+			this._register(this.tree.onDidChangeFocus(updateGuides));
+			this._register(this.tree.onDidChangeSelection(updateGuides));
+			this._register(this.tree.onDidFocus(updateGuides));
+			this._register(this.tree.onDidBlur(() => activeGuideSessionIds.set(EMPTY_GUIDE_SESSION_IDS, undefined)));
+			this._register(autorun(reader => {
+				const elements = this._sessions.read(reader).map(session => getSessionTreeElement(session, chat => {
+					let chats = this.chatItems.get(session);
+					if (!chats) {
+						chats = new WeakMap();
+						this.chatItems.set(session, chats);
+					}
+					let item = chats.get(chat);
+					if (!item) {
+						item = new SessionChatItem(session, chat);
+						chats.set(chat, item);
+					}
+					return item;
+				}, reader));
+				this.tree.setChildren(null, elements);
+				reader.store.add(autorun(heightReader => {
+					for (const node of this.tree.getNode().children) {
+						if (node.element) {
+							this.tree.updateElementHeight(node.element, this._delegate.getHeight(node.element, heightReader));
+						}
+						for (const child of node.children) {
+							if (child.element) {
+								this.tree.updateElementHeight(child.element, this._delegate.getHeight(child.element, heightReader));
+							}
+						}
+					}
+					this._onDidChangeContentHeight.fire();
+				}));
+			}));
+		}
+
 		this._register(this.tree.onDidOpen(e => {
 			const element = e.element;
-			if (!element || !isSessionItem(element)) {
+			const session = getSession(element);
+			if (!element || !session) {
 				return;
 			}
 			if (this.options.markSessionReadOnOpen !== false) {
-				this._sessionsManagementService.markRead(element);
+				this._sessionsManagementService.markRead(session);
 			}
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 			const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
-			this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);
+			if (isSessionChatItem(element)) {
+				if (this.options.onChatOpen) {
+					this.options.onChatOpen(session, element.chat, preserveFocus, e.sideBySide);
+				} else {
+					this._sessionsService.openChat(session, element.chat.resource, { preserveFocus }).catch(onUnexpectedError);
+				}
+			} else {
+				this.options.onSessionOpen(session.resource, preserveFocus, e.sideBySide);
+			}
 		}));
 		if (this.options.contextMenuId) {
 			this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -5589,6 +5700,15 @@ export class SessionsFlatList extends Disposable {
 		}));
 
 		this._register(sessionRenderer.onDidApproveSession(approved => this._onDidApproveSession.fire(approved)));
+		if (chatRenderer) {
+			this._register(this.tree.onDidChangeContentHeight(() => this._onDidChangeContentHeight.fire()));
+			this._register(chatRenderer.onDidApproveSession(approved => this._onDidApproveSession.fire(approved)));
+			this._register(chatRenderer.onDidChangeItemHeight(item => {
+				if (this.tree.hasElement(item)) {
+					this.tree.updateElementHeight(item, this._delegate.getHeight(item));
+				}
+			}));
+		}
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
@@ -5628,13 +5748,31 @@ export class SessionsFlatList extends Disposable {
 	}
 
 	setSessions(sessions: readonly ISession[]): void {
-		this._sessions = sessions;
-		this.tree.setChildren(null, sessions.map(session => ({ element: session })));
+		this._sessions.set(sessions, undefined);
+		if (!this.options.showChatChildren) {
+			this.tree.setChildren(null, sessions.map(session => ({ element: session })));
+		}
 	}
 
 	/** The total pixel height required to render all current rows without scrolling. */
 	getContentHeight(): number {
-		return this._sessions.reduce((total, session) => total + this._delegate.getHeight(session), 0);
+		if (!this.options.showChatChildren) {
+			return this._sessions.get().reduce((total, session) => total + this._delegate.getHeight(session), 0);
+		}
+		let height = 0;
+		for (const node of this.tree.getNode().children) {
+			if (node.element) {
+				height += this._delegate.getHeight(node.element);
+			}
+			if (!node.collapsed) {
+				for (const child of node.children) {
+					if (child.element) {
+						height += this._delegate.getHeight(child.element);
+					}
+				}
+			}
+		}
+		return height;
 	}
 
 	getRowHeight(): number {
@@ -5654,7 +5792,35 @@ export class SessionsFlatList extends Disposable {
 			return;
 		}
 		this.tree.setFocus([session]);
+		this.tree.reveal(session);
 		this.tree.domFocus();
+	}
+
+	getFocusedSession(): ISession | undefined {
+		const focused = this.tree.getFocus()[0];
+		return focused && isSessionChatItem(focused) ? focused.session : focused && isSessionItem(focused) ? focused : undefined;
+	}
+
+	getFocusedChat(): IChat | undefined {
+		const focused = this.tree.getFocus()[0];
+		return focused && isSessionChatItem(focused) ? focused.chat : undefined;
+	}
+
+	focusChat(resource: URI): void {
+		for (const session of this._sessions.get()) {
+			if (isEqual(session.mainChat.get().resource, resource)) {
+				this.focusSession(session);
+				return;
+			}
+			const child = this.tree.getNode(session).children.find(node => node.element && isSessionChatItem(node.element) && isEqual(node.element.chat.resource, resource));
+			if (child?.element) {
+				this.tree.expand(session);
+				this.tree.setFocus([child.element]);
+				this.tree.reveal(child.element);
+				this.tree.domFocus();
+				return;
+			}
+		}
 	}
 }
 

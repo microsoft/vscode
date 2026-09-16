@@ -136,6 +136,20 @@
 	display: none;
 }
 
+.project-board-session-list {
+	width: 100%;
+	min-width: 0;
+}
+
+.project-board-session-list-mode .project-board-card-list {
+	align-items: stretch;
+}
+
+.project-board-session-list .monaco-list-row.session-list-inset-row {
+	margin: 0;
+	width: 100%;
+}
+
 .project-board-axis-controls,
 .project-board-tray-heading {
 	display: flex;

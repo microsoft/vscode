@@ -56,6 +56,8 @@ export class ProjectBoardModel {
 	private _rows = projectBoardRows;
 	private _columns = projectBoardColumns;
 	private autoIncludeSessions = true;
+	private showSessionList = false;
+	private sessionPlacements: Map<ISession, IProjectBoardPlacement | undefined> | undefined;
 
 	get rows(): readonly IProjectBoardAxis[] { return this._rows; }
 	get columns(): readonly IProjectBoardAxis[] { return this._columns; }
@@ -65,6 +67,8 @@ export class ProjectBoardModel {
 		this._rows = configuration.rows;
 		this._columns = configuration.columns;
 		this.autoIncludeSessions = configuration.autoIncludeSessions;
+		this.showSessionList = !!configuration.display?.showSessionList;
+		this.sessionPlacements = undefined;
 		this.placements.clear();
 		for (const placement of configuration.placements) {
 			this.placements.set(placement.cardId, { rowId: placement.rowId, columnId: placement.columnId });
@@ -155,10 +159,39 @@ export class ProjectBoardModel {
 			}
 		}
 		this._cards = cards;
+		this.sessionPlacements = undefined;
 	}
 
 	getPlacement(cardId: string): IProjectBoardPlacement | undefined {
+		if (this.showSessionList) {
+			const card = this._cards.find(card => card.id === cardId);
+			return card ? this.getCardPlacement(card) : undefined;
+		}
 		return this.placements.get(cardId);
+	}
+
+	private getCardPlacement(card: IProjectBoardCard): IProjectBoardPlacement | undefined {
+		if (!this.showSessionList) {
+			return this.placements.get(card.id);
+		}
+		if (!this.sessionPlacements) {
+			this.sessionPlacements = new Map();
+			const conflicts = new Set<ISession>();
+			for (const card of this._cards) {
+				const placement = this.placements.get(card.id);
+				if (placement) {
+					const result = this.sessionPlacements.get(card.session);
+					if (result && (result.rowId !== placement.rowId || result.columnId !== placement.columnId)) {
+						conflicts.add(card.session);
+					}
+					this.sessionPlacements.set(card.session, placement);
+				}
+			}
+			for (const session of conflicts) {
+				this.sessionPlacements.set(session, undefined);
+			}
+		}
+		return this.sessionPlacements.get(card.session);
 	}
 
 	moveCard(cardId: string, placement: IProjectBoardPlacement | undefined): void {
@@ -167,26 +200,43 @@ export class ProjectBoardModel {
 		}
 		if (!placement) {
 			this.placements.delete(cardId);
+			this.sessionPlacements = undefined;
 			return;
 		}
 		if (!this.rows.some(row => row.id === placement.rowId) || !this.columns.some(column => column.id === placement.columnId)) {
 			throw new Error(`Unknown project board cell: ${placement.rowId}/${placement.columnId}`);
 		}
 		this.placements.set(cardId, placement);
+		this.sessionPlacements = undefined;
 	}
 
 	getUnassignedCards(showArchived = false): readonly IProjectBoardCard[] {
 		if (!this.autoIncludeSessions) {
 			return [];
 		}
-		return this.sortCards(this._cards.filter(card => (showArchived || !card.archived) && !this.placements.has(card.id)));
+		return this.getPresentationCards(showArchived).filter(card => !this.getCardPlacement(card));
 	}
 
 	getCards(rowId: string, columnId: string, showArchived = false): readonly IProjectBoardCard[] {
-		return this.sortCards(this._cards.filter(card => {
-			const placement = this.placements.get(card.id);
-			return (showArchived || !card.archived) && placement?.rowId === rowId && placement.columnId === columnId;
-		}));
+		return this.getPresentationCards(showArchived).filter(card => {
+			const placement = this.getCardPlacement(card);
+			return placement?.rowId === rowId && placement.columnId === columnId;
+		});
+	}
+
+	private getPresentationCards(showArchived: boolean): readonly IProjectBoardCard[] {
+		const cards = this.sortCards(this._cards.filter(card => showArchived || !card.archived));
+		if (!this.showSessionList) {
+			return cards;
+		}
+		const sessions = new Set<ISession>();
+		return cards.filter(card => {
+			if (sessions.has(card.session)) {
+				return false;
+			}
+			sessions.add(card.session);
+			return true;
+		});
 	}
 }
 
