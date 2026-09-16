@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { WebSocketClientTransport } from '../../browser/webSocketClientTransport.js';
-import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
+import type { ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 
 class TestWebSocket extends EventTarget implements WebSocket {
 	readonly CONNECTING = 0;
@@ -38,9 +38,9 @@ suite('WebSocketClientTransport close diagnostics', () => {
 			const transport = store.add(new class extends WebSocketClientTransport {
 				protected override createWebSocket(): WebSocket { return socket; }
 			}('ws://test', undefined, undefined, instantiation));
-			const closed: IProtocolTransport['closeDetails'][] = [];
-			const details: IProtocolTransport['closeDetails'][] = [];
-			store.add(transport.onClose(() => closed.push(transport.closeDetails)));
+			let closeCount = 0;
+			const details: ITransportCloseDetails[] = [];
+			store.add(transport.onClose(() => closeCount++));
 			store.add(transport.onDidCloseDetails(event => details.push(event)));
 			const connecting = transport.connect();
 			socket.readyState = socket.OPEN;
@@ -51,10 +51,9 @@ suite('WebSocketClientTransport close diagnostics', () => {
 			}
 			socket.dispatchEvent(new CloseEvent('close', { code: 4001, reason: 'remote closed', wasClean: !errorFirst }));
 			const expected = { code: 4001, reason: 'remote closed', wasClean: !errorFirst };
-			assert.deepStrictEqual({ closed, details, stored: transport.closeDetails }, {
-				closed: [errorFirst ? undefined : expected],
+			assert.deepStrictEqual({ closeCount, details }, {
+				closeCount: 1,
 				details: [expected],
-				stored: expected,
 			});
 		});
 	}

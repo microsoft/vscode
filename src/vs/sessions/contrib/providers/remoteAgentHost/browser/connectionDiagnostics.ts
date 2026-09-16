@@ -9,7 +9,6 @@ import { ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgen
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export const ShowConnectionDiagnosticsCommandId = 'sessions.showConnectionDiagnostics';
-export const CopyConnectionDiagnosticsCommandId = 'sessions.copyConnectionDiagnostics';
 
 export interface IConnectionDiagnosticsSection {
 	readonly title: string;

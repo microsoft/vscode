@@ -685,8 +685,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private _handleTransportClose(): void {
 		if (this._state.kind !== AgentHostClientState.Closed) {
-			const close = this._transport.closeDetails;
-			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastMessageMs=${Date.now() - this._lastReadTime}; code=${close?.code ?? 'unavailable'}; wasClean=${close?.wasClean ?? 'unavailable'}; reason=${sanitizeConnectionDiagnosticText(close?.reason ?? '(unavailable)')}`);
+			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastMessageMs=${Date.now() - this._lastReadTime}`);
 		}
 		switch (this._state.kind) {
 			case AgentHostClientState.Closed:

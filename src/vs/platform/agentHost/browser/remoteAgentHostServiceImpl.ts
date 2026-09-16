@@ -47,7 +47,7 @@ import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, norm
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
-import { ConnectionDiagnosticBuffer, getConnectionDiagnosticError, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
+import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 
 /** Tracks a single remote connection through its lifecycle. */
@@ -591,15 +591,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		let createdConnection: IRemoteAgentHostCreatedConnection;
-		const operationId = generateUuid();
-		const started = Date.now();
-		const phase = `factory.${entryToCreate.connection.type}`;
-		this._diagnostics.record(address, { operationId, attemptId: operationId, phase, outcome: 'started', timestamp: started, detail: `userInitiated=${options.userInitiated}` });
+		const attemptId = generateUuid();
+		const onDiagnostic: ConnectionDiagnosticObserver = event => this._diagnostics.record(address, { ...event, attemptId });
+		const diagnostic = new ConnectionDiagnosticOperation(onDiagnostic, `factory.${entryToCreate.connection.type}`, `userInitiated=${options.userInitiated}`);
 		try {
-			createdConnection = await factory.createConnection(entryToCreate, { ...options, onDiagnostic: event => this._diagnostics.record(address, { ...event, attemptId: operationId }) });
-			this._diagnostics.record(address, { operationId, attemptId: operationId, phase, outcome: 'succeeded', timestamp: Date.now(), durationMs: Date.now() - started, detail: `clientId=${createdConnection.connection.clientId}` });
+			createdConnection = await factory.createConnection(entryToCreate, { ...options, onDiagnostic });
+			diagnostic.succeeded(`clientId=${createdConnection.connection.clientId}`);
 		} catch (err) {
-			this._diagnostics.record(address, { operationId, attemptId: operationId, phase, outcome: 'failed', timestamp: Date.now(), durationMs: Date.now() - started, error: getConnectionDiagnosticError(err) });
+			diagnostic.failed(err);
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
 			// A factory can fail before any client exists — a stopped WSL distro is
 			// rejected by its precondition check, never reaching the handshake below.

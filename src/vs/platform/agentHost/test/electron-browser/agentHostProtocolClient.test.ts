@@ -32,7 +32,7 @@ import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, ty
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -1091,7 +1091,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('records late close details without repeating the protocol close', async () => {
 		const transport = disposables.add(new class extends TestProtocolTransport {
-			readonly closeDetailsEmitter = this._register(new Emitter<NonNullable<IProtocolTransport['closeDetails']>>());
+			readonly closeDetailsEmitter = this._register(new Emitter<ITransportCloseDetails>());
 			readonly onDidCloseDetails = this.closeDetailsEmitter.event;
 		}());
 		const { client } = createClient(transport);

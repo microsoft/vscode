@@ -121,20 +121,45 @@ export function formatConnectionDiagnosticError(error: IConnectionDiagnosticErro
 	].filter(value => value !== undefined).join('; ');
 }
 
+/** Records an operation without adding an asynchronous boundary to its caller. */
+export class ConnectionDiagnosticOperation {
+	private readonly operationId = generateUuid();
+	private readonly started = Date.now();
+
+	constructor(
+		private readonly observer: ConnectionDiagnosticObserver,
+		private readonly phase: string,
+		detail?: string,
+	) {
+		emitConnectionDiagnostic(observer, { operationId: this.operationId, phase, timestamp: this.started, outcome: 'started', detail });
+	}
+
+	succeeded(detail?: string): void {
+		this.complete('succeeded', { detail });
+	}
+
+	failed(error: unknown): void {
+		this.complete('failed', { error: getConnectionDiagnosticError(error) });
+	}
+
+	private complete(outcome: 'succeeded' | 'failed', details: Pick<IConnectionDiagnosticEvent, 'detail' | 'error'>): void {
+		const timestamp = Date.now();
+		emitConnectionDiagnostic(this.observer, { operationId: this.operationId, phase: this.phase, timestamp, outcome, durationMs: timestamp - this.started, ...details });
+	}
+}
+
 /** A single operation ID ties its start to its completion without modifying errors or results. */
 export async function traceConnectionOperation<T>(observer: ConnectionDiagnosticObserver | undefined, phase: string, operation: () => Promise<T>): Promise<T> {
 	if (!observer) {
 		return operation();
 	}
-	const operationId = generateUuid();
-	const started = Date.now();
-	emitConnectionDiagnostic(observer, { operationId, phase, timestamp: started, outcome: 'started' });
+	const diagnostic = new ConnectionDiagnosticOperation(observer, phase);
 	try {
 		const result = await operation();
-		emitConnectionDiagnostic(observer, { operationId, phase, timestamp: Date.now(), outcome: 'succeeded', durationMs: Date.now() - started });
+		diagnostic.succeeded();
 		return result;
 	} catch (error) {
-		emitConnectionDiagnostic(observer, { operationId, phase, timestamp: Date.now(), outcome: 'failed', durationMs: Date.now() - started, error: getConnectionDiagnosticError(error) });
+		diagnostic.failed(error);
 		throw error;
 	}
 }

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ConnectionDiagnosticBuffer, formatConnectionDiagnosticError, getConnectionDiagnosticError, IConnectionDiagnosticEvent, sanitizeConnectionDiagnosticText, traceConnectionOperation } from '../../common/connectionDiagnostics.js';
+import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, formatConnectionDiagnosticError, getConnectionDiagnosticError, IConnectionDiagnosticEvent, sanitizeConnectionDiagnosticText, traceConnectionOperation } from '../../common/connectionDiagnostics.js';
 
 suite('Connection diagnostic evidence', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -102,6 +102,30 @@ suite('Connection diagnostic evidence', () => {
 		} finally {
 			setUnexpectedErrorHandler(previous);
 		}
+	});
+
+	test('records operation details and attempt context without wrapping the operation', () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const diagnostic = new ConnectionDiagnosticOperation(event => events.push({ ...event, attemptId: 'attempt' }), 'factory', 'userInitiated=true');
+		diagnostic.succeeded('clientId=client');
+		assert.deepStrictEqual({
+			sameOperation: events[0].operationId === events[1].operationId,
+			events: events.map(event => [event.outcome, event.attemptId, event.detail]),
+		}, {
+			sameOperation: true,
+			events: [['started', 'attempt', 'userInitiated=true'], ['succeeded', 'attempt', 'clientId=client']],
+		});
+	});
+
+	test('manual completion uses the same bounded error conversion as traced operations', () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const diagnostic = new ConnectionDiagnosticOperation(event => events.push(event), 'factory');
+		diagnostic.failed(new Error('Failed with token=private'));
+		assert.deepStrictEqual({
+			outcomes: events.map(event => event.outcome),
+			sameOperation: events[0].operationId === events[1].operationId,
+			error: events[1].error?.message,
+		}, { outcomes: ['started', 'failed'], sameOperation: true, error: 'Failed with token=[redacted]' });
 	});
 
 	test('bounds event retention without changing chronological order', () => {

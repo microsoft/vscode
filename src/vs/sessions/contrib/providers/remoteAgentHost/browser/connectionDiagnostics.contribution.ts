@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isWeb } from '../../../../../base/common/platform.js';
@@ -13,20 +12,20 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { CopyConnectionDiagnosticsCommandId, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
 import './connectionDiagnosticsService.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
 
@@ -44,13 +43,12 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 	static readonly ID = 'sessions.connectionDiagnostics';
 
 	private active: IActiveConnectionDiagnostics | undefined;
-	private accessibleView: { readonly provider: AccessibleContentProvider; readonly snapshot: IConnectionDiagnosticsSnapshot } | undefined;
+	private accessibleView: AccessibleContentProvider | undefined;
 
 	protected get isWebPlatform(): boolean { return isWeb; }
 
 	constructor(
 		@IConnectionDiagnosticsService private readonly diagnosticsService: IConnectionDiagnosticsService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -62,7 +60,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => this.active?.close()));
-		this._register(toDisposable(() => this.accessibleView?.provider.dispose()));
+		this._register(toDisposable(() => this.accessibleView?.dispose()));
 		this._register(this.entitlementService.onDidChangeSentiment(() => {
 			if (this.entitlementService.sentiment.hidden) {
 				this.active?.close();
@@ -150,24 +148,6 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		return store;
 	}
 
-	async copy(): Promise<void> {
-		if (this.entitlementService.sentiment.hidden) {
-			return;
-		}
-		if (this.active) {
-			return this.active.report.copy();
-		}
-		if (this.isWebPlatform && !this.accessibleView) {
-			return this.show();
-		}
-		try {
-			await this.clipboardService.writeText((this.accessibleView?.snapshot ?? await this.diagnosticsService.getSnapshot()).text);
-			status(localize('connectionDiagnostics.copied', "Diagnostics copied."));
-		} catch {
-			this.notificationService.warn(localize('connectionDiagnostics.copyFailed', "Could not copy diagnostics. Open Show Connection Diagnostics and try again."));
-		}
-	}
-
 	getAccessibleProvider(type: AccessibleViewType): AccessibleContentProvider | undefined {
 		const active = this.active;
 		if (!active) {
@@ -191,7 +171,6 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 				: localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh reads current local state without discovery, authentication, or connection changes."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
 			localize('connectionDiagnostics.help.logs', "Snapshots include recorded connection stages and a bounded excerpt of the local Window log. Copy and Download use the captured text without collecting new logs. Known credentials are redacted; review messages before sharing."),
-			...(this.isWebPlatform ? [localize('connectionDiagnostics.help.webCopyCommand', "When no snapshot is open, Copy Connection Diagnostics opens this report first. Activate Copy Diagnostics after it opens to allow browser clipboard access.")] : []),
 			localize('connectionDiagnostics.help.close', "Escape or Close dismisses diagnostics. Closing this accessible view returns to the diagnostics snapshot."),
 		].join('\n\n');
 		const provider = new AccessibleContentProvider(
@@ -199,16 +178,16 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 			{ type, language: 'plaintext' },
 			() => type === AccessibleViewType.Help ? help : snapshot.text,
 			() => {
-				if (this.accessibleView?.provider === provider) {
+				if (this.accessibleView === provider) {
 					this.accessibleView = undefined;
 				}
 				void this.show(snapshot, dom.isHTMLElement(returnFocus) ? returnFocus : undefined);
 			},
 			AccessibilityVerbositySettingId.ConnectionDiagnostics,
 		);
-		this.accessibleView = { provider, snapshot };
+		this.accessibleView = provider;
 		provider.onDispose = () => {
-			if (this.accessibleView?.provider === provider) {
+			if (this.accessibleView === provider) {
 				this.accessibleView = undefined;
 			}
 		};
@@ -223,26 +202,13 @@ registerAction2(class extends Action2 {
 		super({
 			id: ShowConnectionDiagnosticsCommandId,
 			title: localize2('connectionDiagnostics.showCommand', "Show Connection Information"),
+			category: localize2('connectionDiagnostics.category', "Remote Agent Hosts"),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled),
 		});
 	}
 	run(_accessor: ServicesAccessor): void {
 		void getWorkbenchContribution<ConnectionDiagnosticsContribution>(ConnectionDiagnosticsContribution.ID).show();
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: CopyConnectionDiagnosticsCommandId,
-			title: localize2('connectionDiagnostics.copyCommand', "Copy Connection Diagnostics"),
-			f1: true,
-			precondition: ChatContextKeys.enabled,
-		});
-	}
-	run(_accessor: ServicesAccessor): Promise<void> {
-		return getWorkbenchContribution<ConnectionDiagnosticsContribution>(ConnectionDiagnosticsContribution.ID).copy();
 	}
 });
 
