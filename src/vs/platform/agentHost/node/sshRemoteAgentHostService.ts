@@ -5,15 +5,17 @@
 
 import type WebSocket from 'ws';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
-import { promises as fsp } from 'fs';
+import { constants as fsConstants, promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
+import { Duplex } from 'stream';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
+import { killTree } from '../../../base/node/processes.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -73,6 +75,7 @@ import {
 import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
+import { createSSHProxySpawnSpec, getSSHExecutableCandidates, parseSSHProxyTransport, validateSSHConfigHost, type ISSHProxySpawnSpec, type SSHProxyTransport } from './sshProxyTransport.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -101,6 +104,224 @@ interface SSHClient {
 	exec(command: string, callback: (err: Error | undefined, stream: SSHChannel) => void): SSHClient;
 	forwardOut(srcIP: string, srcPort: number, dstIP: string, dstPort: number, callback: (err: Error | undefined, channel: SSHChannel) => void): SSHClient;
 	end(): void;
+}
+
+interface ISSHConnectedClient {
+	readonly client: SSHClient;
+	readonly proxyProcess: IDisposable | undefined;
+}
+
+interface ISSHEffectiveSSHConfig {
+	readonly resolved: ISSHResolvedConfig;
+	readonly proxyTransport: SSHProxyTransport | undefined;
+}
+
+class SSHProxyProcess extends Disposable {
+	readonly socket: Duplex;
+	private readonly _onDidFail = this._register(new Emitter<Error>());
+	readonly onDidFail = this._onDidFail.event;
+
+	private _disposed = false;
+	private _exited = false;
+	private _failure: Error | undefined;
+
+	get failure(): Error | undefined {
+		return this._failure;
+	}
+
+	constructor(
+		_child: cp.ChildProcessWithoutNullStreams,
+		private readonly _terminate: (pid: number) => Promise<void>,
+		private readonly _logService: ILogService,
+	) {
+		super();
+
+		this.socket = Duplex.from({ readable: _child.stdout, writable: _child.stdin });
+		_child.stderr.resume();
+		const onSocketError = () => { };
+		this.socket.on('error', onSocketError);
+
+		const onError = () => {
+			this._fail(new Error(localize('ssh.proxyProcessStartFailed', "The SSH proxy process failed to start.")));
+		};
+		const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+			this._exited = true;
+			if (this._disposed) {
+				return;
+			}
+			const message = code !== null
+				? localize('ssh.proxyProcessExitedCode', "The SSH proxy process exited before the SSH connection closed (exit code {0}).", code)
+				: signal
+					? localize('ssh.proxyProcessExitedSignal', "The SSH proxy process exited before the SSH connection closed (signal {0}).", signal)
+					: localize('ssh.proxyProcessExited', "The SSH proxy process exited before the SSH connection closed.");
+			this._fail(new Error(message));
+		};
+		_child.once('error', onError);
+		_child.once('exit', onExit);
+
+		this._register(toDisposable(() => {
+			this._disposed = true;
+			_child.removeListener('error', onError);
+			_child.removeListener('exit', onExit);
+			this.socket.destroy();
+			const pid = _child.pid;
+			if (!this._exited && pid !== undefined) {
+				void this._terminate(pid).catch(() => {
+					this._logService.warn(`${LOG_PREFIX} Failed to terminate SSH proxy process tree`);
+				});
+			}
+		}));
+	}
+
+	private _fail(error: Error): void {
+		if (this._failure || this._disposed) {
+			return;
+		}
+		this._failure = error;
+		this._onDidFail.fire(error);
+		this.socket.destroy(error);
+	}
+}
+
+export interface ISSHProxyHostOptions {
+	readonly executeSSHConfig?: (sshExecutable: string, host: string) => Promise<string>;
+	readonly spawn?: (spec: ISSHProxySpawnSpec, shell: string | false) => cp.ChildProcessWithoutNullStreams;
+	readonly terminate?: (pid: number) => Promise<void>;
+	readonly resolveSSHExecutable?: () => Promise<string>;
+}
+
+export interface ISSHProxyHost {
+	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
+	resolveConnectionConfig(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConfig>;
+	createProxyProcess(config: ISSHAgentHostConfig): Promise<SSHProxyProcess | undefined>;
+}
+
+class SSHProxyHost implements ISSHProxyHost {
+	private _sshExecutable: Promise<string> | undefined;
+	private readonly _proxyTransports = new WeakMap<ISSHAgentHostConfig, SSHProxyTransport>();
+
+	constructor(
+		private readonly _logService: ILogService,
+		private readonly _options: ISSHProxyHostOptions,
+	) { }
+
+	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+		return (await this._resolveEffectiveSSHConfig(host)).resolved;
+	}
+
+	async resolveConnectionConfig(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConfig> {
+		if (!config.sshConfigHost) {
+			return config;
+		}
+
+		const effective = await this._resolveEffectiveSSHConfig(config.sshConfigHost);
+		if (!effective.resolved.hostname) {
+			throw new Error(localize('ssh.resolvedHostEmpty', "The resolved SSH configuration does not contain a host name."));
+		}
+
+		const resolvedConfig: ISSHAgentHostConfig = {
+			...config,
+			host: effective.resolved.hostname,
+			port: effective.resolved.port !== 22 ? effective.resolved.port : undefined,
+			username: effective.resolved.user ?? config.username,
+			privateKeyPath: effective.resolved.identityFile[0],
+			identityAgent: effective.resolved.identityAgent,
+			agentForward: config.agentForward && effective.resolved.forwardAgent ? true : undefined,
+		};
+		if (effective.proxyTransport) {
+			this._proxyTransports.set(resolvedConfig, effective.proxyTransport);
+		}
+		return resolvedConfig;
+	}
+
+	async createProxyProcess(config: ISSHAgentHostConfig): Promise<SSHProxyProcess | undefined> {
+		const transport = this._proxyTransports.get(config);
+		this._proxyTransports.delete(config);
+		if (!transport) {
+			return undefined;
+		}
+
+		let spec = createSSHProxySpawnSpec(transport, {
+			host: config.host,
+			originalHost: config.sshConfigHost ?? config.host,
+			port: config.port ?? 22,
+			username: config.username,
+		});
+		if (transport.type === 'jump') {
+			spec = { ...spec, command: await this._getSSHExecutable() };
+		}
+
+		const shell = spec.shell
+			? process.platform === 'win32'
+				? join(process.env['WINDIR'] ?? 'C:\\Windows', 'System32', 'cmd.exe')
+				: '/bin/sh'
+			: false;
+		let child: cp.ChildProcessWithoutNullStreams;
+		try {
+			child = this._options.spawn
+				? this._options.spawn(spec, shell)
+				: cp.spawn(spec.command, [...spec.args], {
+					shell,
+					stdio: ['pipe', 'pipe', 'pipe'],
+					windowsHide: true,
+					cwd: os.homedir(),
+				});
+		} catch {
+			throw new Error(localize('ssh.proxyProcessStartFailed', "The SSH proxy process failed to start."));
+		}
+
+		return new SSHProxyProcess(
+			child,
+			this._options.terminate ?? (pid => killTree(pid, true)),
+			this._logService,
+		);
+	}
+
+	private async _resolveEffectiveSSHConfig(host: string): Promise<ISSHEffectiveSSHConfig> {
+		validateSSHConfigHost(host);
+		const sshExecutable = await this._getSSHExecutable();
+		const stdout = this._options.executeSSHConfig
+			? await this._options.executeSSHConfig(sshExecutable, host)
+			: await new Promise<string>((resolve, reject) => {
+				cp.execFile(sshExecutable, ['-G', '--', host], { timeout: 5000 }, (err, stdout) => {
+					if (err) {
+						reject(new Error(localize('ssh.resolveConfigFailed', "Failed to resolve the SSH configuration.")));
+						return;
+					}
+					resolve(stdout);
+				});
+			});
+
+		return {
+			resolved: parseSSHGOutput(stdout),
+			proxyTransport: parseSSHProxyTransport(stdout),
+		};
+	}
+
+	private _getSSHExecutable(): Promise<string> {
+		this._sshExecutable ??= this._options.resolveSSHExecutable?.() ?? this._findSSHExecutable();
+		return this._sshExecutable;
+	}
+
+	private async _findSSHExecutable(): Promise<string> {
+		const candidates = getSSHExecutableCandidates(process.platform, process.env['PATH'], process.env['WINDIR']);
+		for (const candidate of candidates) {
+			try {
+				const stat = await fsp.stat(candidate);
+				await fsp.access(candidate, fsConstants.X_OK);
+				if (stat.isFile()) {
+					return candidate;
+				}
+			} catch {
+				// Continue through trusted absolute candidates.
+			}
+		}
+		throw new Error(localize('ssh.executableNotFound', "The OpenSSH client could not be found."));
+	}
+}
+
+export function createSSHProxyHost(logService: ILogService, options: ISSHProxyHostOptions = {}): ISSHProxyHost {
+	return new SSHProxyHost(logService, options);
 }
 
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
@@ -645,6 +866,7 @@ class SSHConnection extends Disposable {
 		/** Remote user-data path the endpoint registry was resolved against; empty for the `remoteAgentHostCommand` override path (not applicable). */
 		readonly userDataPath: string,
 		readonly sshClient: SSHClient,
+		readonly proxyProcess: IDisposable | undefined,
 		private readonly _relay: { send: (data: string) => void; close: () => void },
 		private readonly _remoteStream: SSHChannel | undefined,
 		private readonly _logService: ILogService,
@@ -662,6 +884,7 @@ class SSHConnection extends Disposable {
 			this._relay.close();
 			if (!this._sshClientDetached) {
 				this._remoteStream?.close();
+				this.proxyProcess?.dispose();
 				sshClient.end();
 			}
 			this._onDidClose.fire();
@@ -692,6 +915,7 @@ class SSHConnection extends Disposable {
 
 export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRemoteAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
+	private readonly _sshProxyHost: ISSHProxyHost;
 
 	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
 	readonly onDidChangeConnections: Event<void> = this._onDidChangeConnections.event;
@@ -771,8 +995,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		sshProxyHost?: ISSHProxyHost,
 	) {
 		super();
+		this._sshProxyHost = sshProxyHost ?? createSSHProxyHost(_logService);
 	}
 
 	/**
@@ -806,7 +1032,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// never silently promote a different candidate or spawn a
 				// duplicate standalone (requirement 7).
 				this._logService.info(`${LOG_PREFIX} Reconnecting relay for existing SSH tunnel ${connectionKey}`);
-				const { sshClient, endpoint, connectionToken, serverType, instanceId, lifecycle, cliBin, cliDataDir, userDataPath } = existing;
+				const { sshClient, proxyProcess, endpoint, connectionToken, serverType, instanceId, lifecycle, cliBin, cliDataDir, userDataPath } = existing;
 
 				// Remove from map and detach SSH client before disposing so
 				// the old relay's close handler (conn?.dispose()) is a no-op.
@@ -839,7 +1065,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					conn = new SSHConnection(
 						config, connectionId, connectionKey, config.name,
 						connectionToken, endpoint, serverType, instanceId, lifecycle, cliBin, cliDataDir, userDataPath,
-						sshClient, relay, undefined,
+						sshClient, proxyProcess, relay, undefined,
 						this._logService,
 					);
 
@@ -867,6 +1093,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 						lifecycle: conn.lifecycle,
 					};
 				} catch (err) {
+					proxyProcess?.dispose();
 					sshClient.end();
 					this._onDidRelayClose.fire(connectionId);
 					this._onDidCloseConnection.fire(connectionId);
@@ -892,15 +1119,20 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		this._logService.info(`${LOG_PREFIX} ${replaceRelay ? 'Reconnecting' : 'Connecting'} to ${connectionKey}`);
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		let sshClient: SSHClient | undefined;
+		let proxyProcess: IDisposable | undefined;
 
 		try {
+			config = await this._sshProxyHost.resolveConnectionConfig(config);
+
 			const reportProgress = (message: string) => {
 				this._onDidReportConnectProgress.fire({ connectionKey, message });
 			};
 
 			// 1. Establish SSH connection
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
-			sshClient = await this._connectSSH(config, connectionKey);
+			const connectedClient = await this._connectSSH(config, connectionKey);
+			sshClient = connectedClient.client;
+			proxyProcess = connectedClient.proxyProcess;
 
 			let endpoint: AgentHostEndpointAddress;
 			let connectionToken: string | undefined;
@@ -1116,6 +1348,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				cliDataDir,
 				userDataPath,
 				sshClient,
+				proxyProcess,
 				relay,
 				agentStream,
 				this._logService,
@@ -1149,6 +1382,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			};
 
 		} catch (err) {
+			proxyProcess?.dispose();
 			sshClient?.end();
 			if (!(err instanceof CancellationError)) {
 				this._logService.error(`${LOG_PREFIX} Failed to connect to ${displayHost}`, err);
@@ -1178,29 +1412,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
-		const resolved = await this.resolveSSHConfig(sshConfigHost);
-
-		// Always use Agent auth — the auth handler will walk through the SSH
-		// agent and any default identities. If the user pinned a non-default
-		// `IdentityFile` in their ssh config, surface it as the explicit key
-		// so it gets tried first.
-		let privateKeyPath: string | undefined;
-		if (resolved.identityFile.length > 0 && !SSHRemoteAgentHostMainService._isDefaultKeyPath(resolved.identityFile[0])) {
-			privateKeyPath = resolved.identityFile[0];
-		}
-		this._logService.info(`${LOG_PREFIX} reconnect: identityFiles=${JSON.stringify(resolved.identityFile)}, explicit key=${privateKeyPath ?? '(none)'}`);
-
 		return this.connect({
-			host: resolved.hostname,
-			port: resolved.port !== 22 ? resolved.port : undefined,
-			username: resolved.user ?? sshConfigHost,
+			host: sshConfigHost,
+			username: sshConfigHost,
 			authMethod: SSHAuthMethod.Agent,
-			privateKeyPath,
-			identityAgent: resolved.identityAgent,
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
-			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
+			agentForward,
 			userInitiated,
 			preferredAgentLocation,
 		}, /* replaceRelay */ true);
@@ -1259,16 +1478,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
-		return new Promise<ISSHResolvedConfig>((resolve, reject) => {
-			cp.execFile('ssh', ['-G', host], { timeout: 5000 }, (err, stdout) => {
-				if (err) {
-					reject(new Error(`${LOG_PREFIX} ssh -G failed for ${host}: ${err.message}`));
-					return;
-				}
-				const config = this._parseSSHGOutput(stdout);
-				resolve(config);
-			});
-		});
+		return this._sshProxyHost.resolveSSHConfig(host);
 	}
 
 	private async _parseSSHConfigHosts(content: string, configDir: string, visited?: Set<string>): Promise<string[]> {
@@ -1338,14 +1548,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return hosts;
 	}
 
-	private _parseSSHGOutput(stdout: string): ISSHResolvedConfig {
-		return parseSSHGOutput(stdout);
-	}
-
 	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
 		connectionKey?: string,
-	): Promise<SSHClient> {
+	): Promise<ISSHConnectedClient> {
 		const port = config.port ?? 22;
 		const connectConfig: ConnectConfig = {
 			host: config.host,
@@ -1484,8 +1690,20 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			);
 		};
 
-		const client = await this._createSSHClient();
-		return new Promise<SSHClient>((resolve, reject) => {
+		const proxyProcess = await this._sshProxyHost.createProxyProcess(config);
+		if (proxyProcess) {
+			connectConfig.sock = proxyProcess.socket;
+		}
+
+		let client: SSHClient;
+		try {
+			client = await this._createSSHClient();
+		} catch (error) {
+			proxyProcess?.dispose();
+			throw error;
+		}
+
+		return new Promise<ISSHConnectedClient>((resolve, reject) => {
 			let settled = false;
 			let deadlineTimer: IHandshakeDeadlineHandle | undefined;
 
@@ -1512,10 +1730,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				settled = true;
 				clearDeadline();
+				proxyFailureListener?.dispose();
 				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
-				resolve(client);
+				resolve({ client, proxyProcess });
 			};
 
 			const rejectConnect = (err: Error, endClient: boolean) => {
@@ -1524,13 +1743,21 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				settled = true;
 				clearDeadline();
+				proxyFailureListener?.dispose();
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
+				proxyProcess?.dispose();
 				if (endClient) {
 					client.end();
 				}
 				reject(err);
 			};
+
+			const proxyFailureListener = proxyProcess?.onDidFail(error => rejectConnect(error, true));
+			if (proxyProcess?.failure) {
+				rejectConnect(proxyProcess.failure, true);
+				return;
+			}
 
 			cancelConnectFromKbi = () => {
 				this._logService.info(`${LOG_PREFIX} SSH keyboard-interactive prompt cancelled by user for ${displayHost}`);
