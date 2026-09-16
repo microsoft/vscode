@@ -478,6 +478,7 @@ function validateRelationships(analysis: ISemanticDiffAnalysis, issues: Issues):
 				['oldRanges', hunk.reviewFocus.oldRanges, hunk.oldRange],
 				['newRanges', hunk.reviewFocus.newRanges, hunk.newRange],
 			] as const;
+			const primaryTypeRanges = hunk.changeTypeRanges?.find(ranges => ranges.changeType === classification.changeType);
 			if (ranges.every(([, focusRanges]) => focusRanges.length === 0)) {
 				issues.add(`${path}/reviewFocus`, 'INVALID_RANGE', localize('semanticDiff.emptyReviewFocus', "A review focus requires at least one original or modified range."));
 			}
@@ -486,6 +487,9 @@ function validateRelationships(analysis: ISemanticDiffAnalysis, issues: Issues):
 				for (const [rangeIndex, range] of focusRanges.entries()) {
 					if (!contains(hunkRange, range) || range.start < previousEnd) {
 						issues.add(`${path}/reviewFocus/${name}/${rangeIndex}`, 'INVALID_RANGE', localize('semanticDiff.invalidReviewFocus', "Review focus ranges must be ordered, non-overlapping, and contained within the owning hunk."));
+					}
+					if (primaryTypeRanges && !primaryTypeRanges[name].some(primaryRange => contains(primaryRange, range))) {
+						issues.add(`${path}/reviewFocus/${name}/${rangeIndex}`, 'INVALID_RANGE', localize('semanticDiff.invalidReviewFocusType', "Review focus ranges must contain only changed lines assigned to the hunk's primary type. Split ranges around secondary-type lines."));
 					}
 					previousEnd = range.start + range.count;
 				}
@@ -521,6 +525,10 @@ function validateRelationships(analysis: ISemanticDiffAnalysis, issues: Issues):
 				['newRanges', hunk.changeTypeRanges.flatMap(item => item.newRanges)],
 			] as const) {
 				const ordered = ranges.toSorted((left, right) => left.start - right.start);
+				const expectedChangedLineCount = name === 'oldRanges' ? hunk.deletions : hunk.additions;
+				if (ordered.reduce((total, range) => total + range.count, 0) !== expectedChangedLineCount) {
+					issues.add(`${path}/changeTypeRanges`, 'INVALID_RANGE', localize('semanticDiff.changedLineCountMismatch', "Changed-line ranges must contain exactly the hunk's {0}.", name === 'oldRanges' ? localize('semanticDiff.deletions', "deleted lines") : localize('semanticDiff.additions', "added lines")));
+				}
 				for (let rangeIndex = 1; rangeIndex < ordered.length; rangeIndex++) {
 					if (ordered[rangeIndex].start < ordered[rangeIndex - 1].start + ordered[rangeIndex - 1].count) {
 						issues.add(`${path}/changeTypeRanges`, 'INVALID_RANGE', localize('semanticDiff.overlappingChangeTypeRanges', "Changed-line ranges for different types must not overlap on the {0}.", name === 'oldRanges' ? localize('semanticDiff.originalSide', "original side") : localize('semanticDiff.modifiedSide', "modified side")));

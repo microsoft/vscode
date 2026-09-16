@@ -97,11 +97,20 @@ continuation lines in multi-line imports, including in test and generated files.
 Using an imported helper to implement new behavior does not make the import Logic.
 Record behavioral consequences in the explanation rather than changing its type.
 
+A bare constructor parameter or field that only makes a dependency available to
+behavior in another changed hunk is also Supporting. Keep it Logic when the
+declaration itself changes a public or construction contract, default,
+optionality, parameter ordering, or directly executes behavior.
+
 For every hunk, provide `changeTypeRanges`: one entry for the primary type followed
 by one entry per secondary type, with `changeType`, `oldRanges`, and `newRanges`.
 Each range is `{ "start": <absolute file line>, "count": <changed line count> }`.
 Use `[]` on a side with no changed lines of that type. Cover every changed line on
 both sides exactly once; exclude unchanged context and overlapping assignments.
+Reconstruct absolute coordinates by walking the literal hunk body from its
+old/new header starts: context advances both sides, deletion advances only old,
+and addition advances only new. Verify that original range counts total the
+hunk's deletions and modified range counts total its additions.
 
 Every changed import line belongs exclusively to the Supporting entry.
 **Hunk priority never overrides an individual line's type.** Adding Supporting
@@ -125,6 +134,19 @@ Its primary type is Logic, with Supporting secondary. The Logic entry covers
 old line 2 and new line 3; the Supporting entry covers new line 1 only. Unchanged
 lines are excluded. If providing optional `reviewFocus` for the behavioral core,
 use old line 2 and new line 3, not the accompanying import.
+
+After forming `reviewFocus`, reconcile every range against `changeTypeRanges`.
+Each focus range must be contained within a changed-line range for the hunk's
+primary type. Split focus ranges around secondary-type comments, imports, blank
+separators, formatting, or other supporting lines instead of widening across
+them, and never include unchanged context to keep a focus contiguous. Omit
+`reviewFocus` when the whole hunk deserves equal attention or no narrower
+behavioral or contractual core is supported.
+
+For a hunk with more than 20 changed lines or multiple branch-separated blocks,
+explicitly decide whether a narrower condition, state transition, failure path,
+or assertion provides a useful starting point. Add that focus when it exists;
+do not use `reviewFocus` merely to repeat nearly all primary-type ranges.
 
 For every hunk, provide:
 
@@ -159,18 +181,31 @@ Before invoking the tool, audit the inventory by file and old/new range:
   to Supporting on both sides. Repair any Logic/Test/Generated range containing
   imports; a mixed hunk's primary type is not a line-level assignment.
 - Reinspect the first and last changed line of every Logic and Test range. Move blank separators, formatting-only lines, license text, and non-behavioral comments into Supporting ranges, adding Supporting as a secondary type when necessary.
+- Recheck every range endpoint against the literal diff line at that absolute coordinate. If before/after source is available, reopen the first and last cited line and compare its text with the intended changed line; otherwise repeat the hunk-header walk. Repair any range that lands on unchanged context rather than lowering confidence around a coordinate error.
 - Every low-confidence or null classification has an explicit uncertainty.
 - Every missing, inaccessible, truncated, unsupported, nontext, or stale source has a scoped limitation.
 
 Before submission, audit every behavioral or contractual claim in each group description against the inspected evidence. For each claim, identify the changed condition, state transition, data flow, API contract, or test that proves it; revise claims supported only by an abstraction name, a familiar pattern, or presumed motivation.
 
+For each concrete behavioral claim, identify an implementing hunk owned by that same group. Do not attribute behavior implemented only by another group merely because the groups participate in one larger feature.
+
+Audit declaration visibility changes as contract changes. When a hunk adds or
+removes export/public visibility, mention the resulting surface change in that
+hunk or group's explanation and check whether in-diff tests exercise the newly
+exposed behavior. Do not generalize this rule to unchanged visibility or
+mechanical barrel re-exports.
+
 Trace lifecycle-sensitive replacements through construction, buffering, consumption, completion, and repeated use before describing timing, replay, retention, or loss. State the narrow observable contrast the source establishes, and preserve uncertainty when the motivating workload or compatibility expectation is not evidenced.
+
+Distinguish invoking an operation from proving its guarantees. Claims about atomicity, durability, cleanup completion, event ordering, or final state require an explicit contract or a traced success and failure path. When multiple listeners, callbacks, or asynchronous paths can affect the result, inspect registration and delivery order plus later writes; otherwise state the narrow trigger that changed and preserve the unresolved effect as uncertainty.
 
 This audit is semantic, not structural: do not change hunk ownership, types, ranges, inventory completeness, or confidence merely to make the prose easier to justify. A description may summarize several hunks, but each asserted consequence must follow from their inspected mechanics or an explicit contract. If the evidence proves only equivalence for a boundary path, describe that path as mechanical rather than generalizing equivalence to live or non-empty behavior.
 
 Revisit unresolved hunks by reading targeted before/after context, callers, related tests, or generation metadata. Prefer a defensible low-confidence assignment over an avoidable unknown, but never force a guess or omit a difficult hunk to make the summary appear complete.
 
 Limitations contain a `code`, a concrete `message`, and nullable `fileId` and `hunkId` scopes. Use only `incompleteInventory`, `truncatedDiff`, `missingContext`, `nonTextChange`, `excludedContent`, `unsupportedChange`, or `staleSource`. Scope a limitation as narrowly as the evidence allows. Whenever `inventoryComplete` is `false`, include an `incompleteInventory` limitation.
+
+Use `analysis.limitations` only for missing or constrained repository source evidence that limits the semantic classification. Do not put runtime, model, active skill or tool implementation, instruction provenance, checksum, or usage availability in `analysis.limitations`; record operational metadata outside the payload. Every submitted limitation makes the receipt partial.
 
 For mutable staged or working-tree comparisons, recheck the diff before submission. If it changed, reread it or add `staleSource` and `incompleteInventory`, set `inventoryComplete` to `false`, and explain the gap. Set `diffFingerprint` to `null` unless you computed a SHA-256 fingerprint from the exact inspected patch.
 

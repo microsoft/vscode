@@ -140,6 +140,11 @@ suite('Semantic Diff Server Tool', () => {
 				'Do not copy a whole hunk or added block into a logic range when it also contains imports',
 				'zero times in logic, test, or generated ranges',
 				'Classify comments, whitespace, and structural separators by their own changed content',
+				'Treat a bare constructor parameter or field that only makes a dependency available',
+				'Keep it logic when the declaration itself changes a public or construction contract',
+				'Reconstruct absolute changed-line coordinates by walking the literal hunk body',
+				'context advances both sides, deletion advances only old, and addition advances only new',
+				'original range counts total deletions and modified range counts total additions',
 				'Recheck import edits before submission',
 			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
 			schemaImportOnly: schema.includes('Import-only hunks are supporting'),
@@ -202,13 +207,25 @@ suite('Semantic Diff Server Tool', () => {
 				'absolute baseline coordinates in oldRanges',
 				'absolute modified-file coordinates in newRanges',
 				'include changed lines only',
+				'reconcile every range against changeTypeRanges',
+				'Each focus range must be contained within a changed-line range for the hunk\'s primary type',
+				'split ranges around secondary-type comments, imports, blank separators, formatting, or other supporting lines',
+				'Never include unchanged context to keep a focus contiguous',
+				'more than 20 changed lines or multiple branch-separated blocks',
+				'do not use reviewFocus merely to repeat nearly all primary-type ranges',
 				'Omit reviewFocus when the whole hunk deserves equal attention',
 				'never means that other lines are safe, approved, low-risk, or skippable',
 				'must not encode classification confidence',
+				'an implementing hunk owned by that same group',
+				'Do not attribute behavior implemented only by another group',
+				'Audit declaration visibility changes as contract changes',
+				'adds or removes export/public visibility',
+				'do not generalize this rule to unchanged visibility or mechanical barrel re-exports',
 			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
 			schemaHasReviewFocus: schema.includes('"reviewFocus"'),
 			schemaExplainsReadingOrder: schema.includes('reading-order cue'),
-		}, { missingPromptClauses: [], schemaHasReviewFocus: true, schemaExplainsReadingOrder: true });
+			schemaRestrictsFocusType: schema.includes('Include only changed lines assigned to the hunk\'s primary change type'),
+		}, { missingPromptClauses: [], schemaHasReviewFocus: true, schemaExplainsReadingOrder: true, schemaRestrictsFocusType: true });
 	});
 
 	test('prompt and group schema request an evidence-based paragraph about the logical unit', () => {
@@ -229,10 +246,29 @@ suite('Semantic Diff Server Tool', () => {
 				'narrow observable contrast',
 				'equivalence for a boundary path',
 				'rather than generalizing equivalence to live or non-empty behavior',
+				'Distinguish invoking an operation from proving its guarantees',
+				'atomicity, durability, cleanup completion, event ordering, or final state',
+				'inspect registration and delivery order plus later writes',
 			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
 			schemaGrounding: schema.includes('Every behavioral or contractual claim must follow from inspected mechanics'),
-			schemaLifecycleClaims: schema.includes('timing, replay, retention, loss, or motivation'),
-		}, { missingPromptClauses: [], schemaGrounding: true, schemaLifecycleClaims: true });
+			schemaLifecycleClaims: schema.includes('timing, replay, retention, loss, atomicity'),
+			schemaOperationGuarantees: schema.includes('atomicity, durability, cleanup completion, event ordering, final state'),
+		}, { missingPromptClauses: [], schemaGrounding: true, schemaLifecycleClaims: true, schemaOperationGuarantees: true });
+	});
+
+	test('prompt and schema reserve semantic limitations for source evidence', () => {
+		const schema = JSON.stringify(semanticDiffServerToolGroup.definitions[0].inputSchema);
+		assert.deepStrictEqual({
+			missingPromptClauses: [
+				'Use analysis.limitations only for missing or constrained repository source evidence',
+				'Do not put runtime, model, active skill or tool implementation, instruction provenance, checksum, or usage availability in analysis.limitations',
+				'record operational metadata outside the payload',
+				'Every submitted limitation makes the receipt partial',
+			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
+			schemaSourceOnly: schema.includes('Missing or constrained repository source evidence'),
+			schemaExcludesOperationalMetadata: schema.includes('runtime, model, active skill or tool implementation, instruction provenance, checksum, or usage availability'),
+			schemaExplainsPartialStatus: schema.includes('Every limitation makes the report partial'),
+		}, { missingPromptClauses: [], schemaSourceOnly: true, schemaExcludesOperationalMetadata: true, schemaExplainsPartialStatus: true });
 	});
 
 	test('prompt rejects symbol-based umbrella grouping and behavioral boundary-line typing', () => {
@@ -243,6 +279,9 @@ suite('Semantic Diff Server Tool', () => {
 			'Reinspect the first and last changed line of every logic and test range',
 			'blank separators, formatting-only lines, license text, and non-behavioral comments',
 			'adding supporting as a secondary type when necessary',
+			'Recheck every range endpoint against the literal diff line at that absolute coordinate',
+			'reopen the first and last cited line',
+			'Repair any range that lands on unchanged context',
 		].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)), []);
 	});
 

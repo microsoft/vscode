@@ -583,12 +583,30 @@ suite('Semantic diff classification', () => {
 				expectIssue(input, path, code);
 			}
 		});
+		test('review focus cannot cross from the primary type into secondary changed lines', () => {
+			const input = minimalSubmission();
+			const hunk = input.analysis.hunks[0];
+			hunk.classification.changeType = 'logic';
+			hunk.classification.secondaryChangeTypes = ['supporting'];
+			hunk.changeTypeRanges = [
+				{ changeType: 'logic', oldRanges: [{ start: 1, count: 2 }], newRanges: [{ start: 1, count: 2 }] },
+				{ changeType: 'supporting', oldRanges: [{ start: 3, count: 1 }], newRanges: [{ start: 3, count: 1 }] },
+			];
+			hunk.reviewFocus = {
+				oldRanges: [{ start: 1, count: 3 }],
+				newRanges: [{ start: 1, count: 2 }],
+				reason: 'The focus spans logic and a supporting line.',
+			};
+			expectIssue(input, '/analysis/hunks/0/reviewFocus/oldRanges/0', 'INVALID_RANGE');
+			hunk.reviewFocus.oldRanges = [{ start: 1, count: 2 }];
+			assert.strictEqual(success(input).status, 'complete');
+		});
 		test('changed-line classifications are optional for stored reports and preserve typed ranges in plain text', () => {
 			const input = minimalSubmission();
 			input.analysis.hunks[0].classification.changeType = 'logic';
 			input.analysis.hunks[0].classification.secondaryChangeTypes = ['supporting'];
 			input.analysis.hunks[0].changeTypeRanges = [
-				{ changeType: 'logic', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }] },
+				{ changeType: 'logic', oldRanges: [{ start: 1, count: 2 }], newRanges: [{ start: 1, count: 2 }] },
 				{ changeType: 'supporting', oldRanges: [{ start: 4, count: 1 }], newRanges: [{ start: 4, count: 1 }] },
 			];
 			const report = success(input);
@@ -596,6 +614,20 @@ suite('Semantic diff classification', () => {
 				ranges: report.analysis.hunks[0].changeTypeRanges,
 				text: formatSemanticDiffReport(report).includes('Supporting changed lines. Original: line 4. Modified: line 4.'),
 			}, { ranges: input.analysis.hunks[0].changeTypeRanges, text: true });
+		});
+		test('changed-line range totals must match hunk additions and deletions', () => {
+			const input = minimalSubmission();
+			input.analysis.hunks[0].changeTypeRanges = [{
+				changeType: 'supporting',
+				oldRanges: [{ start: 1, count: 2 }],
+				newRanges: [{ start: 1, count: 3 }],
+			}];
+			expectIssue(input, '/analysis/hunks/0/changeTypeRanges', 'INVALID_RANGE');
+			input.analysis.hunks[0].changeTypeRanges[0].oldRanges = [{ start: 1, count: 3 }];
+			input.analysis.hunks[0].changeTypeRanges[0].newRanges = [{ start: 1, count: 2 }];
+			expectIssue(input, '/analysis/hunks/0/changeTypeRanges', 'INVALID_RANGE');
+			input.analysis.hunks[0].changeTypeRanges[0].newRanges = [{ start: 1, count: 3 }];
+			assert.strictEqual(success(input).status, 'complete');
 		});
 		test('changed-line classifications match declared types and do not overlap', () => {
 			const cases: { ranges: ISemanticDiffChangeTypeRanges[]; path: string; code: SemanticDiffIssueCode }[] = [

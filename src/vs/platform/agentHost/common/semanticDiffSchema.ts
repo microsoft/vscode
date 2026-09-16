@@ -51,7 +51,7 @@ const definitions: Record<string, IJSONSchema> = {
 				description: 'A concise evidence-based explanation of why these changed lines are the best place to begin reviewing this hunk.',
 			},
 		}),
-		description: 'Optional review focus for a narrower behavioral or contractual core within a Git hunk. Include only changed lines and use absolute file coordinates. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
+		description: 'Optional review focus for a narrower behavioral or contractual core within a Git hunk. Include only changed lines assigned to the hunk\'s primary change type and use absolute file coordinates. Split ranges around secondary-type or unchanged lines. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
 	},
 	changeTypeRanges: {
 		...object({
@@ -68,7 +68,7 @@ const definitions: Record<string, IJSONSchema> = {
 				description: 'Absolute modified-file ranges for every changed line assigned this type. Use an empty array when this type exists only on the baseline side.',
 			},
 		}),
-		description: 'Exhaustive changed-line classification for one primary or secondary type. Ranges contain changed lines only, do not overlap another type, and use absolute file coordinates. Changed imports belong exclusively to the supporting entry on each side; other entries must exclude them even in a primarily logic or test hunk.',
+		description: 'Exhaustive changed-line classification for one primary or secondary type. Ranges contain changed lines only, do not overlap another type, and use absolute file coordinates. Across all type entries, original range counts must total the hunk deletions and modified range counts must total the hunk additions. Changed imports belong exclusively to the supporting entry on each side; other entries must exclude them even in a primarily logic or test hunk.',
 	},
 	source: {
 		...object({
@@ -91,7 +91,7 @@ const definitions: Record<string, IJSONSchema> = {
 		title: text(100),
 		description: {
 			...text(600),
-			description: 'A self-contained review brief of 2-3 sentences, at most 600 characters. Lead with the logical unit\'s purpose and resulting behavior or contract, explain how the related edits work together, and include an evidence-supported boundary case, compatibility constraint, dependency, or test coverage. Every behavioral or contractual claim must follow from inspected mechanics, an explicit contract, or a test; do not infer timing, replay, retention, loss, or motivation from an abstraction name or familiar pattern. Focus on intent and impact, not a file/hunk inventory or a restatement of the title. Do not invent motivation or claim tests passed without evidence.',
+			description: 'A self-contained review brief of 2-3 sentences, at most 600 characters. Lead with the logical unit\'s purpose and resulting behavior or contract, explain how the related edits work together, and include an evidence-supported boundary case, compatibility constraint, dependency, or test coverage. Every behavioral or contractual claim must follow from inspected mechanics, an explicit contract, or a test; do not infer timing, replay, retention, loss, atomicity, durability, cleanup completion, event ordering, final state, or motivation from an operation name or familiar pattern. Focus on intent and impact, not a file/hunk inventory or a restatement of the title. Do not invent motivation or claim tests passed without evidence.',
 		},
 	}),
 	file: {
@@ -114,7 +114,7 @@ const definitions: Record<string, IJSONSchema> = {
 			},
 			changeType: {
 				...nullable(reference('changeType')),
-				description: 'The best-supported primary change type. Import-only hunks are supporting, including imports in test or generated files. Changed imports mixed with non-import logic or test edits contribute supporting in secondaryChangeTypes while logic or test stays primary; their actual coordinates must also be assigned supporting in changeTypeRanges, never copied into a logic or test range. Unchanged imports in context do not count. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
+				description: 'The best-supported primary change type. Import-only hunks are supporting, including imports in test or generated files. A bare constructor parameter or field that only makes a dependency available to behavior in another changed hunk is also supporting; it is logic when it changes a public or construction contract, default, optionality, ordering, or directly executes behavior. Changed imports mixed with non-import logic or test edits contribute supporting in secondaryChangeTypes while logic or test stays primary; their actual coordinates must also be assigned supporting in changeTypeRanges, never copied into a logic or test range. Unchanged imports in context do not count. Resolve ambiguous cases using relevant context and apply the documented priority for mixed types. Use low confidence for a defensible tentative assignment; null only when the type remains genuinely unresolved.',
 			},
 			secondaryChangeTypes: { ...array('changeType', 3), uniqueItems: true },
 			summary: text(160), groupReason: reference('reason'), typeReason: reference('reason'),
@@ -150,11 +150,11 @@ const definitions: Record<string, IJSONSchema> = {
 		additions: reference('count'), deletions: reference('count'), classification: reference('classification'),
 		changeTypeRanges: {
 			...array('changeTypeRanges', 4),
-			description: 'One entry for the primary type followed by one entry for each secondary type. Together the ranges must classify every changed line on both sides exactly once. Put changed imports in supporting ranges even when the hunk primary is logic or test; listing supporting only as a secondary type is insufficient. A hunk with an unresolved primary type uses one null entry.',
+			description: 'One entry for the primary type followed by one entry for each secondary type. Together the ranges must classify every changed line on both sides exactly once: original range counts total deletions and modified range counts total additions. Put changed imports in supporting ranges even when the hunk primary is logic or test; listing supporting only as a secondary type is insufficient. A hunk with an unresolved primary type uses one null entry.',
 		},
 		reviewFocus: {
 			...reference('reviewFocus'),
-			description: 'Optional review focus for a narrower behavioral or contractual core within this Git hunk. Include only changed lines, use absolute file coordinates, and omit this field when the whole hunk deserves equal attention or the evidence does not support a narrower focus. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
+			description: 'Optional review focus for a narrower behavioral or contractual core within this Git hunk. Each focus range must be contained within a changed-line range for the hunk\'s primary change type. Split ranges around secondary-type or unchanged lines. For large or branch-heavy hunks, identify a narrower core when one exists; do not repeat nearly all primary-type ranges as focus. Omit this field when the whole hunk deserves equal attention or the evidence does not support a narrower focus. This is a reading-order cue, not a safety, approval, risk, or confidence score.',
 		},
 	}, ['changeTypeRanges', 'reviewFocus']),
 	limitation: object({
@@ -172,7 +172,10 @@ const definitions: Record<string, IJSONSchema> = {
 			...array('hunk', 500),
 			description: 'Every observed Git hunk exactly once. Do not copy a file/range under another ID or group. Revisit unresolved classifications before submission; preserve explicit uncertainty only where the available evidence cannot support an assignment.',
 		},
-		limitations: array('limitation', 200)
+		limitations: {
+			...array('limitation', 200),
+			description: 'Missing or constrained repository source evidence that limits this semantic classification. Do not include runtime, model, active skill or tool implementation, instruction provenance, checksum, or usage availability; record that operational metadata outside analysis. Every limitation makes the report partial.',
+		}
 	}),
 	summary: object({
 		groups: reference('count'), files: reference('count'), hunks: reference('count'),
