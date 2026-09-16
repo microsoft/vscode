@@ -22,6 +22,7 @@ import ts from 'typescript';
 import watch from './watch/index.ts';
 import * as tsb from './tsb/index.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
+import { apiProposalNamesSource, checkApiProposalNames, generateApiProposalNames } from './apiProposalNames.ts';
 
 
 import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
@@ -286,7 +287,7 @@ class MonacoGenerator {
 	}
 }
 
-function generateApiProposalNames() {
+function createApiProposalNamesGenerator() {
 	let eol: string;
 
 	try {
@@ -297,45 +298,14 @@ function generateApiProposalNames() {
 		eol = os.EOL;
 	}
 
-	const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-	const proposals = new Map<string, { proposal: string }>();
+	const proposalFiles: string[] = [];
 
 	const input = es.through();
 	const output = input
-		.pipe(util.filter((f: File) => pattern.test(f.path)))
 		.pipe(es.through((f: File) => {
-			const name = path.basename(f.path);
-			const match = pattern.exec(name);
-
-			if (!match) {
-				return;
-			}
-
-			const proposalName = match[1];
-
-			proposals.set(proposalName, {
-				proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
-			});
+			proposalFiles.push(f.path);
 		}, function () {
-			const names = [...proposals.keys()].sort();
-			const contents = [
-				'/*---------------------------------------------------------------------------------------------',
-				' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-				' *  Licensed under the MIT License. See License.txt in the project root for license information.',
-				' *--------------------------------------------------------------------------------------------*/',
-				'',
-				'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
-				'',
-				'const _allApiProposals = {',
-				`${names.map(proposalName => {
-					const proposal = proposals.get(proposalName)!;
-					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}\t}`;
-				}).join(`,${eol}`)}`,
-				'};',
-				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string }> }>(_allApiProposals);',
-				'export type ApiProposalName = keyof typeof _allApiProposals;',
-				'',
-			].join(eol);
+			const contents = generateApiProposalNames(proposalFiles, eol);
 
 			const filePath = 'vs/platform/extensions/common/extensionsApiProposals.ts';
 			try {
@@ -359,9 +329,13 @@ function generateApiProposalNames() {
 
 const apiProposalNamesReporter = createReporter('api-proposal-names');
 
+export const checkApiProposalNamesTask = task.define('check-api-proposal-names', async () => {
+	checkApiProposalNames(process.cwd());
+});
+
 export const compileApiProposalNamesTask = task.define('compile-api-proposal-names', () => {
-	return gulp.src('src/vscode-dts/**')
-		.pipe(generateApiProposalNames())
+	return gulp.src(apiProposalNamesSource)
+		.pipe(createApiProposalNamesGenerator())
 		.pipe(gulp.dest('src'))
 		.pipe(apiProposalNamesReporter.end(true));
 });
@@ -420,11 +394,11 @@ export const watchExtensionPointNamesTask = task.define('watch-extension-point-n
 });
 
 export const watchApiProposalNamesTask = task.define('watch-api-proposal-names', () => {
-	const task = () => gulp.src('src/vscode-dts/**')
-		.pipe(generateApiProposalNames())
+	const task = () => gulp.src(apiProposalNamesSource)
+		.pipe(createApiProposalNamesGenerator())
 		.pipe(apiProposalNamesReporter.end(true));
 
-	return watch('src/vscode-dts/**', { readDelay: 200 })
+	return watch(apiProposalNamesSource, { readDelay: 200 })
 		.pipe(util.debounce(task))
 		.pipe(gulp.dest('src'));
 });

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import type { Terminal } from '@xterm/xterm';
 import { importAMDNodeModule } from '../../../../../../../amdX.js';
+import { scheduleAtNextAnimationFrame } from '../../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -15,7 +17,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
@@ -601,6 +603,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 suite('ChatTerminalToolOutputSection layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	teardown(() => sinon.restore());
+
 	// Mounts the real section with the real snapshot mirror over a faked detached terminal,
 	// so the asserted heights are what actually reaches the DOM. Regression coverage for the
 	// sliced-last-row symptom of #328299: the box height must derive from the mirror's
@@ -719,6 +723,119 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 10));
 	});
 
+	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Keep private layout access type-checked without exposing test-only APIs. */
+	test('scans output once after resizing and preserves native reflow', async () => {
+		const text = 'x'.repeat(100);
+		const section = createSection({ text });
+		await section.toggle(true);
+		const scrollable = section['_scrollableContainer'];
+		assert.ok(scrollable);
+		const scan = sinon.spy(scrollable, 'scanDomNode');
+		const fake = fakes[0];
+		const initialColumns = fake.raw.cols;
+		const initialWriteCalls = fake.counters.writeCalls;
+		const results = [];
+
+		for (const width of [220, 800, 800]) {
+			scan.resetHistory();
+			container.style.width = `${width}px`;
+			await section['_handleResize']();
+			const rows = Math.min(10, Math.ceil(text.length / fake.raw.cols));
+			results.push({
+				scans: scan.callCount,
+				narrower: fake.raw.cols < initialColumns,
+				heightMatchesReflow: boxHeight(section) === expectedHeight(section, rows, 20),
+				rewrites: fake.counters.writeCalls - initialWriteCalls,
+			});
+		}
+
+		assert.deepStrictEqual(results, [
+			{ scans: 1, narrower: true, heightMatchesReflow: true, rewrites: 0 },
+			{ scans: 1, narrower: false, heightMatchesReflow: true, rewrites: 0 },
+			{ scans: 1, narrower: false, heightMatchesReflow: true, rewrites: 0 },
+		]);
+	});
+
+	test('scans output once without a mirror and while collapsed', async () => {
+		const section = createSection(undefined);
+		await section.toggle(true);
+		const scrollable = section['_scrollableContainer'];
+		assert.ok(scrollable);
+		const scan = sinon.spy(scrollable, 'scanDomNode');
+
+		await section['_handleResize']();
+		const expandedScans = scan.callCount;
+		await section.toggle(false);
+		scan.resetHistory();
+		await section['_handleResize']();
+
+		assert.deepStrictEqual({ expandedScans, collapsedScans: scan.callCount }, { expandedScans: 1, collapsedScans: 1 });
+	});
+
+	test('keeps the output row cap when reflow does not change the columns', async () => {
+		const section = createSection({ text: 'line\r\n'.repeat(20) });
+		await section.toggle(true);
+		const columns = fakes[0].raw.cols;
+		section.domNode.style.maxHeight = expectedHeight(section, 2, 20);
+
+		await section['_handleResize']();
+
+		assert.deepStrictEqual({
+			columns: fakes[0].raw.cols,
+			height: boxHeight(section),
+		}, {
+			columns,
+			height: expectedHeight(section, 2, 20),
+		});
+	});
+
+	test('does not lay out or scroll after disposal during reflow', async () => {
+		const section = createSection(undefined);
+		await section.toggle(true);
+		const reflow = new DeferredPromise<{ lineCount: number }>();
+		let layouts = 0;
+		let scrolls = 0;
+		section['_layoutMirrorWidth'] = () => reflow.p;
+		section['_layoutOutput'] = () => layouts++;
+		section['_scrollOutputToBottom'] = () => scrolls++;
+
+		const resize = section['_handleResize']();
+		section.dispose();
+		await reflow.complete({ lineCount: 3 });
+		await resize;
+
+		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
+	});
+
+	test('coalesces scheduled output layouts', async () => {
+		const section = createSection(undefined);
+		let layouts = 0;
+		let scrolls = 0;
+		section['_layoutOutput'] = () => layouts++;
+		section['_scrollOutputToBottom'] = () => scrolls++;
+
+		section['_scheduleOutputRelayout']();
+		section['_scheduleOutputRelayout']();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+
+		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 1, scrolls: 1 });
+	});
+
+	test('cancels scheduled output layout on disposal', async () => {
+		const section = createSection(undefined);
+		let layouts = 0;
+		let scrolls = 0;
+		section['_layoutOutput'] = () => layouts++;
+		section['_scrollOutputToBottom'] = () => scrolls++;
+
+		section['_scheduleOutputRelayout']();
+		section.dispose();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+
+		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
+	});
+	/* eslint-enable local/code-no-bracket-notation-for-identifiers */
+
 	test('relayouts when the mirror announces changed cell metrics', async () => {
 		const section = createSection({ text: 'l1\r\nl2\r\nl3' });
 		await section.toggle(true);
@@ -739,6 +856,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		container.appendChild(host);
 		fake.raw.open(host);
 		await renderFired;
+		await timeout(0);
 
 		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 30));
 	});

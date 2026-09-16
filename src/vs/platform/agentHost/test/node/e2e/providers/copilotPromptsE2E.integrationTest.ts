@@ -24,13 +24,15 @@
  */
 
 import assert from 'assert';
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
+import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
+import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
@@ -152,7 +154,88 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
 	}
+
+	// The rendered Windows system message has separate PowerShell-only sections,
+	// so keep this prompt-shape assertion on the same POSIX scope as the snapshots.
+	(process.platform === 'win32' ? test.skip : test)('skill character budget includes 24 skills instead of 14', async function () {
+		this.timeout(120_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-skill-budget-`);
+		tempDirs.push(workspaceDir);
+		for (let index = 0; index < 40; index++) {
+			const name = `budget-skill-${String(index).padStart(2, '0')}`;
+			const skillDirectory = join(workspaceDir, '.github', 'skills', name);
+			mkdirSync(skillDirectory, { recursive: true });
+			writeFileSync(join(skillDirectory, 'SKILL.md'), [
+				'---',
+				`name: ${name}`,
+				`description: BUDGET_SKILL_DESCRIPTION_${String(index).padStart(2, '0')}_${'x'.repeat(900)}`,
+				'---',
+				'Use this skill when measuring the skill menu character budget.',
+			].join('\n'));
+		}
+
+		const defaultBudgetSessionUri = await createRealSession(
+			client,
+			COPILOT_CONFIG,
+			'skill-char-budget-default',
+			createdSessions,
+			URI.file(workspaceDir),
+			undefined,
+			async () => setSkillCharBudget(client, 15_000, 10_000),
+		);
+		await driveTurnWithModel(client, defaultBudgetSessionUri, 'gpt-5.6-sol');
+		const defaultBudgetBody = lease!.observedModelRequestBodies.at(-1);
+		assert.ok(defaultBudgetBody, 'no model request body was captured for the 15000-character budget');
+		const defaultBudgetCounts = countIncludedBudgetSkills(defaultBudgetBody);
+
+		const peer = await lease!.connectClient();
+		let configuredBudgetCounts: ReturnType<typeof countIncludedBudgetSkills>;
+		try {
+			const configuredBudgetSessionUri = await createRealSession(
+				peer,
+				COPILOT_CONFIG,
+				'skill-char-budget-configured',
+				createdSessions,
+				URI.file(workspaceDir),
+				undefined,
+				async () => setSkillCharBudget(peer, 25_000, 10_001),
+			);
+			await driveTurnWithModel(peer, configuredBudgetSessionUri, 'gpt-5.6-sol');
+			const configuredBudgetBody = lease!.observedModelRequestBodies.at(-1);
+			assert.ok(configuredBudgetBody, 'no model request body was captured for the 25000-character budget');
+			configuredBudgetCounts = countIncludedBudgetSkills(configuredBudgetBody);
+		} finally {
+			peer.close();
+		}
+
+		assert.deepStrictEqual({
+			default15000Budget: defaultBudgetCounts,
+			configured25000Budget: configuredBudgetCounts,
+		}, {
+			default15000Budget: { skills: 14, descriptions: 14 },
+			configured25000Budget: { skills: 24, descriptions: 24 },
+		});
+	});
 });
+
+function setSkillCharBudget(c: TestProtocolClient, budget: number, clientSeq: number): void {
+	c.dispatch({
+		channel: ROOT_STATE_URI,
+		clientSeq,
+		action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.SkillCharBudget]: budget } },
+	});
+}
+
+function countIncludedBudgetSkills(rawBody: string): { skills: number; descriptions: number } {
+	const request = JSON.parse(rawBody) as IWireRequest;
+	const system = extractText(request.instructions ?? request.system);
+	const skillBlocks = system.match(/<skill>[\s\S]*?<\/skill>/g)?.filter(block => block.includes('<name>budget-skill-')) ?? [];
+	return {
+		skills: skillBlocks.length,
+		descriptions: skillBlocks.filter(block => block.includes('<description>BUDGET_SKILL_DESCRIPTION_')).length,
+	};
+}
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {

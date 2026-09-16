@@ -42,6 +42,43 @@
 	display: none;
 }
 
-.sessions-chat-background > .sessions-chat-codicon-background > .codicon {
+.sessions-chat-background > .sessions-chat-codicon-background > .codicon,
+.sessions-chat-codicon-cell,
+.sessions-chat-codicon-hit-target {
 	position: absolute;
+}
+
+.sessions-chat-codicon-cell {
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: inherit;
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+	display: grid;
+	place-items: center;
+}
+
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target {
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	z-index: 3;
+	opacity: 0;
+	pointer-events: auto;
+	transform: translate(-50%, -50%);
+}
+
+.sessions-chat-codicon-button-animation {
+	display: flex;
+	line-height: 1;
+}
+
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:hover ~ .sessions-chat-background .sessions-chat-codicon-button-active {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:focus-visible ~ .sessions-chat-background .sessions-chat-codicon-button-active {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }

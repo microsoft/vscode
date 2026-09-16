@@ -13,6 +13,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
@@ -38,8 +39,9 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		@IAgentHostFilterService filterService: IAgentHostFilterService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(action, 'titlebar', filterService, contextMenuService, hoverService);
+		super(action, 'titlebar', filterService, contextMenuService, hoverService, commandService);
 	}
 
 	/**
@@ -109,7 +111,12 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			disposables.add({ dispose: () => clearTimeout(fallback) });
 		};
 
-		disposables.add({ dispose: () => overlay.remove() });
+		disposables.add({
+			dispose: () => {
+				overlay.remove();
+				this.focus();
+			}
+		});
 
 		// --- Header (drag-handle + title + close) ----------------------------
 		dom.append(sheet, $('div.host-picker-sheet-handle'));
@@ -180,7 +187,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		}));
 
 		// Focus the currently selected host when the sheet opens.
-		focusRefs.firstCheckedHost?.focus();
+		(focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover)?.focus();
 	}
 
 	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
@@ -189,7 +196,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 		if (hosts.length === 0) {
 			const empty = dom.append(body, $('div.host-picker-sheet-empty'));
-			empty.textContent = this._filterService.isDiscovering
+			dom.append(empty, $('span')).textContent = this._filterService.isDiscovering
 				? localize('agentHostFilter.sheet.searching', "Searching for hosts…")
 				: localize('agentHostFilter.sheet.empty', "No hosts found yet.");
 			return;

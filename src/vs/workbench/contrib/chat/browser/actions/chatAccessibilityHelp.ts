@@ -163,7 +163,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('chatAgent.userActionRequired', 'An alert will indicate when user action is required. For example, if the agent wants to run something in the terminal, you will hear Action Required: Run Command in Terminal.'));
 			content.push(localize('chatAgent.runCommand', 'To take the action, use the accept tool command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
 			content.push(localize('chatAgent.autoApprove', 'To automatically approve tool actions without manual confirmation, set {0} to {1} in your settings.', ChatConfiguration.GlobalAutoApprove, 'true'));
-			content.push(localize('chatAgent.acceptTool', 'To accept a tool action, use the Accept Tool Confirmation command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
+			content.push(localize('chatAgent.acceptTool', "To accept a tool action, use the Accept Tool Confirmation command{0}. When the confirmation carousel is shown, this activates the primary button of the selected confirmation. Disabled actions cannot be accepted.", '<keybinding:workbench.action.chat.acceptTool>'));
+			content.push(localize('chatAgent.sectionProgress', "Finished thinking and tool-call sections stop showing activity. The Working indicator is omitted when subagent pills are the last visible content; it appears after other content while the response remains in progress."));
 			content.push(localize('chatAgent.openEditedFilesSetting', 'By default, when edits are made to files, they will be opened. To change this behavior, set accessibility.openChatEditedFiles to false in your settings.'));
 			content.push(localize('chatAgent.focusTodosView', 'To toggle focus between the Agent TODOs view and the chat input, use Agent TODOs: Toggle Focus{0}.', '<keybinding:workbench.action.chat.focusTodosView>'));
 		}
