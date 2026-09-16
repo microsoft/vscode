@@ -6,16 +6,21 @@
 import { disposableTimeout, raceCancellation, timeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { InlineCompletionsProvider } from '../../../../editor/common/languages.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { hideInlineCompletionId } from '../../../../editor/contrib/inlineCompletions/browser/controller/commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitId } from '../../../../editor/contrib/inlineCompletions/browser/controller/commandIds.js';
+import { InlineCompletionContextKeys } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -28,6 +33,33 @@ import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNex
 const MODEL_TIMEOUT_MS = 5000;
 const FOLLOWUP_SETTLE_MS = 400;
 const TREATMENT_NAME = 'chat.nextUserMessageSuggestion';
+const NextUserMessageSuggestionVisible = new RawContextKey<boolean>('sessionsNextUserMessageSuggestionVisible', false);
+
+export const ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID = 'workbench.action.sessions.acceptNextUserMessageSuggestion';
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID,
+	weight: KeybindingWeight.SessionsContrib,
+	primary: KeyCode.RightArrow,
+	when: ContextKeyExpr.and(
+		NextUserMessageSuggestionVisible,
+		EditorContextKeys.textInputFocus,
+		InlineCompletionContextKeys.inlineSuggestionVisible,
+		InlineCompletionContextKeys.cursorBeforeGhostText,
+	),
+	handler: accessor => accessor.get(ICommandService).executeCommand(inlineSuggestCommitId),
+});
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'tab',
+	weight: KeybindingWeight.SessionsContrib,
+	primary: KeyCode.Tab,
+	when: ContextKeyExpr.and(
+		NextUserMessageSuggestionVisible,
+		EditorContextKeys.textInputFocus,
+		EditorContextKeys.tabDoesNotMoveFocus,
+	),
+});
 
 export function shouldDismissNextUserMessageSuggestion(commandId: string, inputHasTextFocus: boolean): boolean {
 	return commandId === hideInlineCompletionId && inputHasTextFocus;
@@ -39,6 +71,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 	private readonly _generation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _pendingEditorPlaceholderRestore = this._register(new MutableDisposable());
 	private readonly _onDidChangeInlineCompletions = this._register(new Emitter<void>());
+	private readonly _suggestionVisibleContext: IContextKey<boolean>;
 
 	private _treatmentEnabled = false;
 	private _treatmentGeneration = 0;
@@ -72,6 +105,8 @@ export class NextUserMessageSuggestionController extends Disposable {
 
 		const inputUri = this._widget.inputPart.inputUri;
 		const inputEditor = this._widget.inputPart.inputEditor;
+		this._suggestionVisibleContext = NextUserMessageSuggestionVisible.bindTo(inputEditor.contextKeyService);
+		this._register(toDisposable(() => this._suggestionVisibleContext.reset()));
 		const provider: InlineCompletionsProvider = {
 			onDidChangeInlineCompletions: this._onDidChangeInlineCompletions.event,
 			provideInlineCompletions: (model, position) => {
@@ -92,7 +127,10 @@ export class NextUserMessageSuggestionController extends Disposable {
 		this._register(this._widget.onDidAcceptInput(() => this._clearSuggestion()));
 		this._register(inputEditor.onDidChangeModelContent(() => this._clearSuggestion()));
 		this._register(inputEditor.onDidFocusEditorText(() => this._updatePresentation()));
-		this._register(inputEditor.onDidBlurEditorText(() => this._updatePresentation()));
+		this._register(inputEditor.onDidBlurEditorText(() => {
+			this._suggestionVisibleContext.reset();
+			this._updatePresentation();
+		}));
 		this._register(inputEditor.onDidChangeConfiguration(event => {
 			if (event.hasChanged(EditorOption.readOnly)) {
 				this._resumeEligibleSuggestion();
@@ -307,8 +345,11 @@ export class NextUserMessageSuggestionController extends Disposable {
 			return;
 		}
 		if (hasTextFocus) {
+			this._suggestionVisibleContext.set(true);
 			this._onDidChangeInlineCompletions.fire();
 			void InlineCompletionsController.get(this._widget.inputPart.inputEditor)?.model.get()?.triggerExplicitly();
+		} else {
+			this._suggestionVisibleContext.reset();
 		}
 	}
 
@@ -378,6 +419,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 		this._generation.value?.cancel();
 		this._generation.clear();
 		this._suggestion = undefined;
+		this._suggestionVisibleContext.reset();
 		this._restorePlaceholder();
 		this._placeholderBaseline = undefined;
 		this._restoreInlineSuggestToolbar();
