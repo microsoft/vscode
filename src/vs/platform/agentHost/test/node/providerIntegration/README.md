@@ -18,6 +18,8 @@ The trusted and untrusted `SessionStart` cases in [codexCustomizations.integrati
 
 Codex can omit project hooks from `hooks/list` until `thread/start` establishes native project trust. The provider rechecks hook trust before the first turn and uses its existing pre-turn restart path when the discovered hashes differ from those supplied at startup. A failed recheck is logged without discarding existing grants or triggering a restart. Hook grants remain thread-scoped and gated by Workspace Trust.
 
+The successful recheck is carried into the replacement without a second discovery request. Workspace Trust is revalidated for the workspace and each hook source immediately before startup; changing the working directory requires fresh discovery.
+
 The marker hook is synchronous. A successfully completed model turn without the marker calls for checking hook discovery, trust, and execution diagnostics, not a longer model-response timeout.
 
 On Windows, run just these cases with:

@@ -146,6 +146,7 @@ import type { McpServerElicitationRequestParams } from './protocol/generated/v2/
 import type { McpServerElicitationRequestResponse } from './protocol/generated/v2/McpServerElicitationRequestResponse.js';
 import type { SkillsListResponse } from './protocol/generated/v2/SkillsListResponse.js';
 import type { HooksListResponse } from './protocol/generated/v2/HooksListResponse.js';
+import type { HookMetadata } from './protocol/generated/v2/HookMetadata.js';
 import type { ItemGuardianApprovalReviewCompletedNotification } from './protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 import type { GuardianWarningNotification } from './protocol/generated/v2/GuardianWarningNotification.js';
 import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/generated/v2/ThreadApproveGuardianDeniedActionResponse.js';
@@ -896,6 +897,11 @@ interface ICodexCustomizationLaunch {
 	readonly developerInstructions?: string;
 	readonly selectedCapabilityRoots: SelectedCapabilityRoot[];
 	readonly signature: string;
+}
+
+interface ICodexSessionHooks {
+	readonly cwd: string | undefined;
+	readonly hooks: readonly HookMetadata[];
 }
 
 /**
@@ -5366,7 +5372,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * if `threadId` is already populated, just returns. Called from
 	 * `sendMessage` before the first `turn/start`.
 	 */
-	private async _materializeIfNeeded(session: ICodexSession, configResource: URI = session.configurationResource, fireMaterializedEvent = true): Promise<void> {
+	private async _materializeIfNeeded(session: ICodexSession, configResource: URI = session.configurationResource, fireMaterializedEvent = true, sessionHooks?: ICodexSessionHooks): Promise<void> {
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
@@ -5384,7 +5390,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			return;
 		}
-		session.materializePromise = this._materialize(session, configResource).finally(() => {
+		session.materializePromise = this._materialize(session, configResource, sessionHooks).finally(() => {
 			session.materializePromise = undefined;
 		});
 		await session.materializePromise;
@@ -5431,7 +5437,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		await this._metadataStore.write(session.sessionUri, { managedWorkingDirectory: null, ownsManagedWorkingDirectory: false });
 	}
 
-	private async _materialize(session: ICodexSession, configResource: URI): Promise<void> {
+	private async _materialize(session: ICodexSession, configResource: URI, sessionHooks?: ICodexSessionHooks): Promise<void> {
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
@@ -5499,7 +5505,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Resolve the process only after every filesystem/configuration await so a
 		// connection that died during preparation is never used for thread/start.
 		const conn = await this._ensureConnection();
-		const hookTrustState = await this._buildSessionHookTrustState(conn.client, session.workingDirectory.fsPath);
+		const hookTrustState = sessionHooks?.cwd && extUriBiasedIgnorePathCase.isEqual(URI.file(sessionHooks.cwd), session.workingDirectory)
+			? this._sessionHookTrustState(sessionHooks)
+			: await this._buildSessionHookTrustState(conn.client, session.workingDirectory.fsPath);
 		this._applySessionHookTrustState(threadConfig, hookTrustState);
 		if (session.disposed || !session.chatChannel) {
 			return;
@@ -5561,7 +5569,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Restarts a pre-turn Codex thread so current tools, MCP servers, customizations, and hook trust are applied at `thread/start`.
 	 * Only safe before history exists; the first send remains responsible for publishing materialization.
 	 */
-	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
+	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource, sessionHooks?: ICodexSessionHooks): Promise<void> {
 		const conn = this._connection;
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${session.clientToolSet.merged().map(t => t.name).join(', ') || '(none)'}]`);
@@ -5579,7 +5587,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.threadId = undefined;
 		this._applyMcpInventoryToSession(session);
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session, configResource, false);
+		await this._materializeIfNeeded(session, configResource, false, sessionHooks);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
@@ -5849,16 +5857,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		const customizationsChanged = customizationLaunch.signature !== session.materializedCustomizationsSig;
 		// Starting a thread can establish Codex project trust and reveal hooks hidden during prewarm.
 		let hookTrustChanged = false;
+		let sessionHooks: ICodexSessionHooks | undefined;
 		if (!session.firstTurnSent && !session.needsResume && !toolsChanged && !mcpChanged && !customizationsChanged) {
-			const hookTrustState = await this._tryBuildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
-			hookTrustChanged = hookTrustState !== undefined && !equals(session.materializedHookTrustState ?? {}, hookTrustState);
+			sessionHooks = await this._tryDiscoverSessionHooks(conn.client, session.workingDirectory?.fsPath);
+			hookTrustChanged = sessionHooks !== undefined && !equals(session.materializedHookTrustState ?? {}, this._sessionHookTrustState(sessionHooks));
 		}
 		if (session.firstTurnSent && mcpChanged) {
 			this._markSessionForReload(session);
 		}
 		if (!session.firstTurnSent && !session.needsResume && (toolsChanged || mcpChanged || customizationsChanged || hookTrustChanged)) {
 			try {
-				await this._restartThreadWithCurrentTools(session, configResource);
+				await this._restartThreadWithCurrentTools(session, configResource, sessionHooks);
 				this._persistMaterializedSession(session);
 			} catch (err) {
 				session.agentMergeTurn = false;
@@ -7571,12 +7580,13 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Builds per-thread trust for the project hooks Codex discovered from the primary workspace. */
 	private async _buildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<Record<string, JsonValue>> {
-		return await this._tryBuildSessionHookTrustState(client, cwd) ?? {};
+		const sessionHooks = await this._tryDiscoverSessionHooks(client, cwd);
+		return sessionHooks ? this._sessionHookTrustState(sessionHooks) : {};
 	}
 
-	private async _tryBuildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<Record<string, JsonValue> | undefined> {
+	private async _tryDiscoverSessionHooks(client: ICodexAppServerClient, cwd: string | undefined): Promise<ICodexSessionHooks | undefined> {
 		if (!cwd || !this._isWorkspaceTrusted(URI.file(cwd))) {
-			return {};
+			return { cwd, hooks: [] };
 		}
 
 		let response: HooksListResponse;
@@ -7587,7 +7597,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		const trust: Record<string, JsonValue> = {};
 		for (const entry of response.data) {
 			for (const error of entry.errors) {
 				this._logService.warn(`[Codex] hooks/list for session hook trust: ${error.path}: ${error.message}`);
@@ -7595,13 +7604,21 @@ export class CodexAgent extends Disposable implements IAgent {
 			for (const warning of entry.warnings) {
 				this._logService.warn(`[Codex] hooks/list for session hook trust: ${warning}`);
 			}
-			for (const hook of entry.hooks) {
-				if (hook.source === 'project' && !hook.isManaged && hook.currentHash && this._isWorkspaceTrusted(URI.file(hook.sourcePath))) {
-					trust[hook.key] = { trusted_hash: hook.currentHash };
-				}
+		}
+		return { cwd, hooks: response.data.flatMap(entry => entry.hooks) };
+	}
+
+	private _sessionHookTrustState({ cwd, hooks }: ICodexSessionHooks): Record<string, JsonValue> {
+		if (!cwd || !this._isWorkspaceTrusted(URI.file(cwd))) {
+			return {};
+		}
+		const trust: Record<string, JsonValue> = {};
+		for (const hook of hooks) {
+			if (hook.source === 'project' && !hook.isManaged && hook.currentHash && this._isWorkspaceTrusted(URI.file(hook.sourcePath))) {
+				trust[hook.key] = { trusted_hash: hook.currentHash };
 			}
 		}
-		return this._isWorkspaceTrusted(URI.file(cwd)) ? trust : {};
+		return trust;
 	}
 
 	private _isWorkspaceTrusted(resource: URI): boolean {
