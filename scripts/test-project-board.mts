@@ -40,7 +40,7 @@ try {
 	initialPages = new Set(context.pages());
 	await Promise.all(context.pages().map(prepare));
 	for (const page of context.pages()) {
-		if (await page.locator('.project-board').count()) {
+		if (await page.locator('.project-board-scrollable').count()) {
 			assert.equal(board, undefined, 'Expected one board window');
 			board = page;
 		}
@@ -72,6 +72,9 @@ try {
 	};
 	const ownerInput = await inputText(owner);
 	const scroller = board.locator('.project-board');
+	const scrollbarHost = board.locator('.project-board-scrollable.monaco-scrollable-element');
+	await expect(scrollbarHost).toHaveCount(1);
+	await expect(scroller).toHaveCSS('overflow', 'hidden');
 	scrollPosition = await scroller.evaluate(element => ({ top: element.scrollTop, left: element.scrollLeft }));
 	const dimensions = await scroller.evaluate(element => ({
 		height: element.clientHeight, viewport: innerHeight, scrollHeight: element.scrollHeight,
@@ -90,15 +93,28 @@ try {
 	await board.keyboard.press('Space');
 	await expect(trayToggle).toHaveAttribute('aria-expanded', 'true');
 	await board.mouse.move(dimensions.width - 20, Math.min(200, dimensions.height - 20));
-	await board.mouse.wheel(10000, 10000);
+	await board.mouse.wheel(0, 10000);
 	await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
 	if (dimensions.scrollWidth > dimensions.width) {
+		await board.mouse.wheel(10000, 0);
 		await expect.poll(() => scroller.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
 	}
 	await expect.poll(() => scroller.evaluate(element => {
 		const lastCell = element.querySelector('.project-board-grid .project-board-card-group:last-child');
 		return lastCell && lastCell.getBoundingClientRect().bottom <= element.getBoundingClientRect().bottom;
 	}), { message: 'The last row must be reachable with the wheel, not just present in the DOM' }).toBe(true);
+	const slider = scrollbarHost.locator(':scope > .scrollbar.vertical > .slider');
+	const sliderBounds = await slider.boundingBox();
+	const hostBounds = await scrollbarHost.boundingBox();
+	assert.ok(sliderBounds && hostBounds);
+	await board.mouse.move(sliderBounds.x + sliderBounds.width / 2, sliderBounds.y + sliderBounds.height / 2);
+	await board.mouse.down();
+	try {
+		await board.mouse.move(sliderBounds.x + sliderBounds.width / 2, hostBounds.y, { steps: 8 });
+	} finally {
+		await board.mouse.up();
+	}
+	await expect.poll(() => scroller.evaluate(element => element.scrollTop), { message: 'Dragging the themed thumb reaches the top' }).toBe(0);
 
 	const card = board.locator(`[data-chat-resource=${JSON.stringify(resource)}], [data-draft-id=${JSON.stringify(resource)}]`);
 	await expect(card).toHaveCount(1);
@@ -190,7 +206,7 @@ try {
 	await board.keyboard.up('Escape');
 	await expect.poll(() => hasExclusiveFocus(boardPage)).toBe(true);
 	assert.equal(context.pages().length, initialPages.size, 'Verification must not leave extra windows');
-	console.log('PASS: bounded scrolling, real editing keys, popup priority, Enter/Escape, retained input, and window cleanup');
+	console.log('PASS: themed scrollbar thumb and wheel, bounded scrolling, real editing keys, popup priority, Enter/Escape, retained input, and window cleanup');
 } finally {
 	if (board && !board.isClosed()) {
 		if (scrollPosition) {
