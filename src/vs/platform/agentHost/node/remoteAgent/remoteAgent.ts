@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { ILogService } from '../../../log/common/log.js';
-import { AgentSession, resolveAgentChatContext, type AgentChatMigrationResult, type AgentChatOperationContext, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveChatConfigParams } from '../../common/agent.js';
+import { AgentSession, resolveAgentChatContext, type AgentChatMigrationResult, type AgentChatOperationContext, type AgentPermissionResponseMetadata, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveChatConfigParams } from '../../common/agent.js';
 import { AgentHostRemoteTargetUnavailableError, type IAgentHostRemoteTargetHandle } from '../../common/agentHostRemoteAgents.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { agentHostAuthority } from '../../common/agentHostUri.js';
@@ -22,9 +22,9 @@ import type { IAgentConnection } from '../../common/agentService.js';
 import type { IAgentSubscription } from '../../common/state/agentSubscription.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
-import { ActionType, isChatAction, type ChatAction } from '../../common/state/sessionActions.js';
+import { ActionType, isChatAction, type ChatAction, type ChatInputCompletedAction, type ChatToolCallConfirmedAction, type ChatToolCallResultConfirmedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, isDefaultChatUri, MessageKind, ResponsePartKind, StateComponents, TurnState, type ActiveTurn, type AgentSelection, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallResult, type ToolDefinition, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatInputResponseKind, isDefaultChatUri, MessageKind, ResponsePartKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ActiveTurn, type AgentSelection, type ChatInputAnswer, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallResult, type ToolDefinition, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AgentInfo, ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 
@@ -69,6 +69,19 @@ interface IRemoteTurn {
 	cancellation: CancellationTokenSource | undefined;
 }
 
+type RemoteInteractionResponse = ChatToolCallConfirmedAction | ChatToolCallResultConfirmedAction | ChatInputCompletedAction;
+
+interface IRemotePendingInteractionResponse {
+	readonly remoteTurnId: string;
+	readonly action: RemoteInteractionResponse;
+	dispatchedConnection: IAgentConnection | undefined;
+}
+
+interface IRemoteResidentInteractionResponse {
+	readonly remoteTurnId: string;
+	readonly action: RemoteInteractionResponse;
+}
+
 /** Resident adapter state transferred between registrations of the same remote provider. */
 export interface IRemoteAgentResidentChat {
 	readonly localChat: URI;
@@ -83,6 +96,7 @@ export interface IRemoteAgentResidentChat {
 	readonly knownState: ChatState | undefined;
 	readonly localChatRegistered: boolean;
 	readonly pendingProgress: readonly ChatAction[];
+	readonly pendingInteractionResponses: readonly IRemoteResidentInteractionResponse[];
 }
 
 class RemoteActiveClient implements IActiveClient {
@@ -105,6 +119,7 @@ class RemoteAgentChatBinding extends Disposable {
 	private _knownState: ChatState | undefined;
 	private _localChatRegistered = false;
 	private _pendingProgress: ChatAction[] = [];
+	private _pendingInteractionResponses: IRemotePendingInteractionResponse[] = [];
 	private _subscriptionRecoveryPending = false;
 
 	constructor(
@@ -124,6 +139,10 @@ class RemoteAgentChatBinding extends Disposable {
 		this._knownState = resident?.knownState;
 		this._localChatRegistered = resident?.localChatRegistered ?? false;
 		this._pendingProgress = resident ? [...resident.pendingProgress] : [];
+		this._pendingInteractionResponses = resident?.pendingInteractionResponses.map(response => ({
+			...response,
+			dispatchedConnection: undefined,
+		})) ?? [];
 		if (resident?.activeTurn) {
 			this._activeTurn = {
 				...resident.activeTurn,
@@ -143,6 +162,125 @@ class RemoteAgentChatBinding extends Disposable {
 
 	get activeTurn(): IRemoteTurn | undefined {
 		return this._activeTurn;
+	}
+
+	get knownState(): ChatState | undefined {
+		return this._knownState;
+	}
+
+	get interactionState(): ChatState | undefined {
+		if (!this._subscription) {
+			return this._knownState;
+		}
+		const state = this._subscription.value;
+		return state instanceof Error ? undefined : state;
+	}
+
+	hasPendingPermissionResponse(remoteTurnId: string, remoteToolCallId: string): boolean {
+		return this._pendingInteractionResponses.some(response => response.dispatchedConnection !== undefined
+			&& response.remoteTurnId === remoteTurnId
+			&& response.action.type === ActionType.ChatToolCallConfirmed
+			&& response.action.toolCallId === remoteToolCallId);
+	}
+
+	hasPendingResultConfirmationResponse(remoteTurnId: string, remoteToolCallId: string): boolean {
+		return this._pendingInteractionResponses.some(response => response.dispatchedConnection !== undefined
+			&& response.remoteTurnId === remoteTurnId
+			&& response.action.type === ActionType.ChatToolCallResultConfirmed
+			&& response.action.toolCallId === remoteToolCallId);
+	}
+
+	hasPendingInputResponse(remoteTurnId: string, remoteRequestId: string): boolean {
+		return this._pendingInteractionResponses.some(response => response.dispatchedConnection !== undefined
+			&& response.remoteTurnId === remoteTurnId
+			&& response.action.type === ActionType.ChatInputCompleted
+			&& response.action.requestId === remoteRequestId);
+	}
+
+	queueInteractionResponse(remoteTurnId: string, action: RemoteInteractionResponse): void {
+		const duplicate = action.type === ActionType.ChatToolCallConfirmed
+			? this._pendingInteractionResponses.some(response => response.remoteTurnId === remoteTurnId
+				&& response.action.type === ActionType.ChatToolCallConfirmed
+				&& response.action.toolCallId === action.toolCallId)
+			: action.type === ActionType.ChatToolCallResultConfirmed
+				? this._pendingInteractionResponses.some(response => response.remoteTurnId === remoteTurnId
+					&& response.action.type === ActionType.ChatToolCallResultConfirmed
+					&& response.action.toolCallId === action.toolCallId)
+				: this._pendingInteractionResponses.some(response => response.remoteTurnId === remoteTurnId
+					&& response.action.type === ActionType.ChatInputCompleted
+					&& response.action.requestId === action.requestId);
+		if (duplicate) {
+			this.flushPendingInteractionResponses();
+			return;
+		}
+		this._pendingInteractionResponses.push({ remoteTurnId, action, dispatchedConnection: undefined });
+		this.flushPendingInteractionResponses();
+	}
+
+	rejectInteractionResponse(action: ChatAction, connection: IAgentConnection): IRemotePendingInteractionResponse | undefined {
+		const index = this._pendingInteractionResponses.findIndex(response => response.dispatchedConnection === connection
+			&& (action.type === ActionType.ChatToolCallConfirmed
+				? response.action.type === ActionType.ChatToolCallConfirmed
+					&& response.action.turnId === action.turnId
+					&& response.action.toolCallId === action.toolCallId
+				: action.type === ActionType.ChatToolCallResultConfirmed
+					? response.action.type === ActionType.ChatToolCallResultConfirmed
+						&& response.action.turnId === action.turnId
+						&& response.action.toolCallId === action.toolCallId
+					: action.type === ActionType.ChatInputCompleted
+						&& response.action.type === ActionType.ChatInputCompleted
+						&& response.action.requestId === action.requestId));
+		if (index !== -1) {
+			return this._pendingInteractionResponses.splice(index, 1)[0];
+		}
+		return undefined;
+	}
+
+	reconcilePendingInteractionResponses(state: ChatState): void {
+		this._pendingInteractionResponses = this._pendingInteractionResponses.filter(response => {
+			const activeTurn = state.activeTurn;
+			if (!activeTurn) {
+				return false;
+			}
+			const action = response.action;
+			if (activeTurn.id !== response.remoteTurnId) {
+				return false;
+			}
+			if (action.type === ActionType.ChatToolCallConfirmed) {
+				return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.ToolCall
+					&& part.toolCall.toolCallId === action.toolCallId
+					&& part.toolCall.status === ToolCallStatus.PendingConfirmation);
+			}
+			if (action.type === ActionType.ChatToolCallResultConfirmed) {
+				return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.ToolCall
+					&& part.toolCall.toolCallId === action.toolCallId
+					&& part.toolCall.status === ToolCallStatus.PendingResultConfirmation);
+			}
+			return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.InputRequest
+				&& part.request.id === action.requestId
+				&& part.response === undefined);
+		});
+	}
+
+	flushPendingInteractionResponses(): void {
+		const connection = this._connection;
+		const subscriptionState = this._subscription?.value;
+		if (!connection || !subscriptionState || subscriptionState instanceof Error) {
+			return;
+		}
+		for (const response of this._pendingInteractionResponses) {
+			if (response.dispatchedConnection) {
+				continue;
+			}
+			response.dispatchedConnection = connection;
+			try {
+				connection.dispatch(this.remoteChat.toString(), response.action);
+			} catch (error) {
+				response.dispatchedConnection = undefined;
+				this._logService.error(`[RemoteAgent] Failed to relay an interaction response for ${this.remoteChat.toString()}.`, error);
+				break;
+			}
+		}
 	}
 
 	setActiveTurn(turn: IRemoteTurn): void {
@@ -188,7 +326,7 @@ class RemoteAgentChatBinding extends Disposable {
 		return true;
 	}
 
-	private failActiveTurn(error: Error): void {
+	private failActiveTurn(error: Error, errorType = 'remoteAgentSubscriptionError'): void {
 		const activeTurn = this._activeTurn;
 		if (!activeTurn?.dispatched) {
 			return;
@@ -200,7 +338,7 @@ class RemoteAgentChatBinding extends Disposable {
 			part: {
 				kind: ResponsePartKind.Error,
 				error: {
-					errorType: 'remoteAgentSubscriptionError',
+					errorType,
 					message: error.message,
 				},
 			},
@@ -220,7 +358,27 @@ class RemoteAgentChatBinding extends Disposable {
 				const reference: IReference<IAgentSubscription<ChatState>> = connection.getSubscription(StateComponents.Chat, this.remoteChat, 'RemoteAgent');
 				lifetime.add(reference);
 				lifetime.add(reference.object.onWillApplyAction(envelope => {
-					if (isChatAction(envelope.action)) {
+					if (envelope.rejectionReason) {
+						if (isChatAction(envelope.action) && envelope.origin?.clientId === connection.clientId) {
+							const rejectedResponse = this.rejectInteractionResponse(envelope.action, connection);
+							if (envelope.action.type === ActionType.ChatTurnStarted
+								&& this._activeTurn?.remoteTurnId === envelope.action.turnId) {
+								this.failActiveTurn(new Error(envelope.rejectionReason), 'remoteAgentActionRejected');
+							} else if (rejectedResponse) {
+								this.failActiveTurn(new Error(envelope.rejectionReason), 'remoteAgentActionRejected');
+								try {
+									connection.dispatch(this.remoteChat.toString(), {
+										type: ActionType.ChatTurnCancelled,
+										turnId: rejectedResponse.remoteTurnId,
+										duration: 0,
+									});
+								} catch (error) {
+									this._logService.error(`[RemoteAgent] Failed to cancel ${this.remoteChat.toString()} after an interaction response was rejected.`, error);
+								}
+							}
+						}
+						this._logService.warn(`[RemoteAgent] Downstream rejected '${envelope.action.type}' for ${this.remoteChat.toString()}: ${envelope.rejectionReason}`);
+					} else if (isChatAction(envelope.action)) {
 						this._acceptAction(this, envelope.action, envelope.origin?.clientId === connection.clientId);
 					}
 				}));
@@ -278,6 +436,12 @@ class RemoteAgentChatBinding extends Disposable {
 	releaseConnection(connection?: IAgentConnection): void {
 		if (connection && this._connection !== connection) {
 			return;
+		}
+		const releasedConnection = this._connection;
+		for (const response of this._pendingInteractionResponses) {
+			if (response.dispatchedConnection === releasedConnection) {
+				response.dispatchedConnection = undefined;
+			}
 		}
 		this._connection = undefined;
 		this._subscription = undefined;
@@ -347,6 +511,10 @@ class RemoteAgentChatBinding extends Disposable {
 			knownState: this._knownState,
 			localChatRegistered: this._localChatRegistered,
 			pendingProgress: [...this._pendingProgress],
+			pendingInteractionResponses: this._pendingInteractionResponses.map(response => ({
+				remoteTurnId: response.remoteTurnId,
+				action: response.action,
+			})),
 		};
 	}
 
@@ -360,6 +528,18 @@ class RemoteAgentChatBinding extends Disposable {
 	}
 
 }
+
+type RemotePermissionRequest = {
+	readonly binding: RemoteAgentChatBinding;
+	readonly remoteTurnId: string;
+	readonly remoteToolCallId: string;
+};
+
+type RemoteInputRequest = {
+	readonly binding: RemoteAgentChatBinding;
+	readonly remoteTurnId: string;
+	readonly remoteRequestId: string;
+};
 
 function parseProviderData(providerData: string): IRemoteAgentProviderData {
 	let parsed: unknown;
@@ -600,16 +780,89 @@ export class RemoteAgent extends Disposable implements IAgent {
 		this._activeClients.delete(JSON.stringify([chat.toString(), clientId]));
 	}
 
-	onClientToolCallComplete(_chat: URI, _toolCallId: string, _result: ToolCallResult): void {
+	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
+		if (context) {
+			resolveAgentChatContext(context, chat);
+		}
+		const binding = this._bindings.get(chat.toString());
+		const states = [binding?.interactionState, binding?.knownState].filter((state): state is ChatState => state !== undefined);
+		const turns = states.flatMap(state => [...(state.activeTurn ? [state.activeTurn] : []), ...state.turns]);
+		const completedToolCall = turns.flatMap(turn => turn.responseParts.flatMap(part =>
+			part.kind === ResponsePartKind.ToolCall
+				&& binding
+				&& this._toLocalToolCallId(binding, turn.id, part.toolCall.toolCallId) === toolCallId
+				&& (part.toolCall.status === ToolCallStatus.Completed || part.toolCall.status === ToolCallStatus.PendingResultConfirmation)
+				? [part]
+				: []))[0];
+		if (completedToolCall?.kind === ResponsePartKind.ToolCall
+			&& (completedToolCall.toolCall.status === ToolCallStatus.Completed || completedToolCall.toolCall.status === ToolCallStatus.PendingResultConfirmation)) {
+			const completedResult: ToolCallResult = {
+				success: completedToolCall.toolCall.success,
+				pastTenseMessage: completedToolCall.toolCall.pastTenseMessage,
+				...(completedToolCall.toolCall.content !== undefined ? { content: completedToolCall.toolCall.content } : {}),
+				...(completedToolCall.toolCall.structuredContent !== undefined ? { structuredContent: completedToolCall.toolCall.structuredContent } : {}),
+				...(completedToolCall.toolCall.error !== undefined ? { error: completedToolCall.toolCall.error } : {}),
+			};
+			if (equals(completedResult, result)) {
+				return;
+			}
+		}
 		throw new Error(localize('remoteAgent.clientToolsUnsupported', "Remote Agent client tools are not supported."));
 	}
 
-	respondToPermissionRequest(): void {
-		throw new Error(localize('remoteAgent.permissionsUnsupported', "Remote Agent permission routing is not supported."));
+	respondToPermissionRequest(requestId: string, approved: boolean, metadata?: AgentPermissionResponseMetadata): void {
+		const request = this._findPendingPermissionRequest(requestId);
+		if (!request) {
+			this._logService.warn(`[RemoteAgent] Ignoring stale or unknown permission response '${requestId}'.`);
+			return;
+		}
+		const action: ChatToolCallConfirmedAction = approved
+			? {
+				...(metadata && 'confirmed' in metadata ? metadata : {}),
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: request.remoteTurnId,
+				toolCallId: request.remoteToolCallId,
+				approved: true,
+				confirmed: metadata && 'confirmed' in metadata ? metadata.confirmed : ToolCallConfirmationReason.UserAction,
+			}
+			: {
+				...(metadata && 'reason' in metadata ? metadata : {}),
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: request.remoteTurnId,
+				toolCallId: request.remoteToolCallId,
+				approved: false,
+				reason: metadata && 'reason' in metadata ? metadata.reason : ToolCallCancellationReason.Denied,
+			};
+		request.binding.queueInteractionResponse(request.remoteTurnId, action);
 	}
 
-	respondToUserInputRequest(): void {
-		throw new Error(localize('remoteAgent.inputUnsupported', "Remote Agent user input routing is not supported."));
+	respondToToolResultConfirmation(requestId: string, approved: boolean): void {
+		const request = this._findPendingToolResultConfirmation(requestId);
+		if (!request) {
+			this._logService.warn(`[RemoteAgent] Ignoring stale or unknown tool-result response '${requestId}'.`);
+			return;
+		}
+		request.binding.queueInteractionResponse(request.remoteTurnId, {
+			type: ActionType.ChatToolCallResultConfirmed,
+			turnId: request.remoteTurnId,
+			toolCallId: request.remoteToolCallId,
+			approved,
+		});
+	}
+
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
+		const request = this._findPendingInputRequest(requestId);
+		if (!request) {
+			this._logService.warn(`[RemoteAgent] Ignoring stale or unknown user input response '${requestId}'.`);
+			return;
+		}
+		const action: ChatInputCompletedAction = {
+			type: ActionType.ChatInputCompleted,
+			requestId: request.remoteRequestId,
+			response,
+			answers,
+		};
+		request.binding.queueInteractionResponse(request.remoteTurnId, action);
 	}
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
@@ -743,7 +996,8 @@ export class RemoteAgent extends Disposable implements IAgent {
 
 	private async _releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void> {
 		resolveAgentChatContext(context, chat);
-		if (this._bindings.has(chat.toString())) {
+		const binding = this._bindings.get(chat.toString());
+		if (binding) {
 			this._bindings.deleteAndDispose(chat.toString());
 		}
 		this._deleteActiveClients(chat);
@@ -890,14 +1144,17 @@ export class RemoteAgent extends Disposable implements IAgent {
 			return localTurnId ? [{
 				...turn,
 				id: localTurnId,
-				responseParts: turn.responseParts.map(part => this._translateResponsePart(part)),
+				responseParts: turn.responseParts.map(part => this._translateResponsePart(binding, turn.id, part)),
 			}] : [];
 		});
 	}
 
 	private _acceptAction(binding: RemoteAgentChatBinding, action: ChatAction, isOwnAction: boolean): void {
 		binding.applyKnownAction(action);
-		const translated = this._translateAction(action, isOwnAction);
+		if (binding.knownState) {
+			binding.reconcilePendingInteractionResponses(binding.knownState);
+		}
+		const translated = this._translateAction(binding, action, isOwnAction);
 		if (!translated) {
 			return;
 		}
@@ -911,6 +1168,8 @@ export class RemoteAgent extends Disposable implements IAgent {
 	private _acceptSnapshot(binding: RemoteAgentChatBinding, state: ChatState): void {
 		binding.markSubscriptionReady();
 		const previousState = binding.replaceKnownState(state);
+		binding.reconcilePendingInteractionResponses(state);
+		binding.flushPendingInteractionResponses();
 		const activeTurn = state.activeTurn;
 		const previousActiveTurn = binding.activeTurn;
 		const completedPendingTurn = previousActiveTurn
@@ -967,7 +1226,7 @@ export class RemoteAgent extends Disposable implements IAgent {
 	private _emitSnapshotActiveProgress(binding: RemoteAgentChatBinding, turn: ActiveTurn, previousState: ChatState | undefined): void {
 		const previousTurn = previousState?.activeTurn?.id === turn.id ? previousState.activeTurn : undefined;
 		for (const action of this._snapshotContentActions(turn.id, turn.responseParts, turn.usage, previousTurn)) {
-			const translated = this._translateAction(action, false);
+			const translated = this._translateAction(binding, action, false);
 			if (translated) {
 				binding.emitProgress(translated);
 			}
@@ -979,7 +1238,7 @@ export class RemoteAgent extends Disposable implements IAgent {
 			? previousState.activeTurn
 			: previousState?.turns.find(candidate => candidate.id === turn.id);
 		for (const action of this._snapshotContentActions(turn.id, turn.responseParts, turn.usage, previousTurn)) {
-			const translated = this._translateAction(action, false);
+			const translated = this._translateAction(binding, action, false);
 			if (translated) {
 				binding.emitProgress(translated);
 			}
@@ -1054,7 +1313,7 @@ export class RemoteAgent extends Disposable implements IAgent {
 		this._onDidChatProgress.fire({ kind: 'action', resource: binding.localChat, action });
 	}
 
-	private _translateAction(action: ChatAction, isOwnAction: boolean): ChatAction | undefined {
+	private _translateAction(binding: RemoteAgentChatBinding, action: ChatAction, isOwnAction: boolean): ChatAction | undefined {
 		switch (action.type) {
 			case ActionType.ChatDelta: {
 				const turnId = this._toLocalTurnId(action.turnId);
@@ -1062,7 +1321,19 @@ export class RemoteAgent extends Disposable implements IAgent {
 			}
 			case ActionType.ChatResponsePart: {
 				const turnId = this._toLocalTurnId(action.turnId);
-				return turnId ? { ...action, turnId, part: this._translateResponsePart(action.part) } : undefined;
+				return turnId ? { ...action, turnId, part: this._translateResponsePart(binding, action.turnId, action.part) } : undefined;
+			}
+			case ActionType.ChatToolCallStart:
+			case ActionType.ChatToolCallDelta:
+			case ActionType.ChatToolCallReady:
+			case ActionType.ChatToolCallComplete:
+			case ActionType.ChatToolCallContentChanged: {
+				const turnId = this._toLocalTurnId(action.turnId);
+				return turnId ? {
+					...action,
+					turnId,
+					toolCallId: this._toLocalToolCallId(binding, action.turnId, action.toolCallId),
+				} : undefined;
 			}
 			case ActionType.ChatTurnComplete:
 			case ActionType.ChatError:
@@ -1080,6 +1351,24 @@ export class RemoteAgent extends Disposable implements IAgent {
 			}
 			case ActionType.ChatActivityChanged:
 				return action;
+			case ActionType.ChatInputRequested: {
+				const remoteTurnId = binding.knownState?.activeTurn?.id;
+				if (!remoteTurnId || !this._isPendingInputRequest(binding, action.request.id)) {
+					return undefined;
+				}
+				return {
+					...action,
+					request: {
+						...action.request,
+						id: this._toLocalInputRequestId(binding, remoteTurnId, action.request.id),
+					},
+				};
+			}
+			case ActionType.ChatToolCallConfirmed:
+			case ActionType.ChatToolCallResultConfirmed:
+			case ActionType.ChatInputAnswerChanged:
+			case ActionType.ChatInputCompleted:
+				return undefined;
 			case ActionType.ChatTurnStarted:
 			case ActionType.ChatTurnsLoaded:
 				return undefined;
@@ -1089,15 +1378,15 @@ export class RemoteAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _translateResponsePart(part: ResponsePart): ResponsePart {
+	private _translateResponsePart(binding: RemoteAgentChatBinding, remoteTurnId: string, part: ResponsePart): ResponsePart {
 		switch (part.kind) {
 			case ResponsePartKind.Markdown:
 			case ResponsePartKind.Reasoning:
 				return { ...part, id: this._toLocalPartId(part.id) };
 			case ResponsePartKind.ToolCall:
-				return { ...part, toolCall: { ...part.toolCall, toolCallId: this._toLocalToolCallId(part.toolCall.toolCallId) } };
+				return { ...part, toolCall: { ...part.toolCall, toolCallId: this._toLocalToolCallId(binding, remoteTurnId, part.toolCall.toolCallId) } };
 			case ResponsePartKind.InputRequest:
-				return { ...part, request: { ...part.request, id: this._toLocalInputRequestId(part.request.id) } };
+				return { ...part, request: { ...part.request, id: this._toLocalInputRequestId(binding, remoteTurnId, part.request.id) } };
 			case ResponsePartKind.ContentRef:
 			case ResponsePartKind.Error:
 			case ResponsePartKind.SystemNotification:
@@ -1181,6 +1470,79 @@ export class RemoteAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _findPendingPermissionRequest(requestId: string): RemotePermissionRequest | undefined {
+		for (const binding of this._bindings.values()) {
+			const activeTurn = (binding.interactionState ?? binding.knownState)?.activeTurn;
+			if (!activeTurn || !this._toLocalTurnId(activeTurn.id)) {
+				continue;
+			}
+			const part = activeTurn.responseParts.find(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.status === ToolCallStatus.PendingConfirmation
+				&& !binding.hasPendingPermissionResponse(activeTurn.id, part.toolCall.toolCallId)
+				&& this._toLocalToolCallId(binding, activeTurn.id, part.toolCall.toolCallId) === requestId);
+			if (part?.kind === ResponsePartKind.ToolCall) {
+				return {
+					binding,
+					remoteTurnId: activeTurn.id,
+					remoteToolCallId: part.toolCall.toolCallId,
+				};
+			}
+		}
+		return undefined;
+	}
+
+	private _findPendingToolResultConfirmation(requestId: string): RemotePermissionRequest | undefined {
+		for (const binding of this._bindings.values()) {
+			const activeTurn = (binding.interactionState ?? binding.knownState)?.activeTurn;
+			if (!activeTurn || !this._toLocalTurnId(activeTurn.id)) {
+				continue;
+			}
+			const part = activeTurn.responseParts.find(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.status === ToolCallStatus.PendingResultConfirmation
+				&& !binding.hasPendingResultConfirmationResponse(activeTurn.id, part.toolCall.toolCallId)
+				&& this._toLocalToolCallId(binding, activeTurn.id, part.toolCall.toolCallId) === requestId);
+			if (part?.kind === ResponsePartKind.ToolCall) {
+				return {
+					binding,
+					remoteTurnId: activeTurn.id,
+					remoteToolCallId: part.toolCall.toolCallId,
+				};
+			}
+		}
+		return undefined;
+	}
+
+	private _findPendingInputRequest(requestId: string): RemoteInputRequest | undefined {
+		for (const binding of this._bindings.values()) {
+			const activeTurn = (binding.interactionState ?? binding.knownState)?.activeTurn;
+			if (!activeTurn || !this._toLocalTurnId(activeTurn.id)) {
+				continue;
+			}
+			const part = activeTurn.responseParts.find(part => part.kind === ResponsePartKind.InputRequest
+				&& part.response === undefined
+				&& !binding.hasPendingInputResponse(activeTurn.id, part.request.id)
+				&& this._toLocalInputRequestId(binding, activeTurn.id, part.request.id) === requestId);
+			if (part?.kind === ResponsePartKind.InputRequest) {
+				return {
+					binding,
+					remoteTurnId: activeTurn.id,
+					remoteRequestId: part.request.id,
+				};
+			}
+		}
+		return undefined;
+	}
+
+	private _isPendingInputRequest(binding: RemoteAgentChatBinding, remoteRequestId: string): boolean {
+		const activeTurn = binding.knownState?.activeTurn;
+		if (!activeTurn || !this._toLocalTurnId(activeTurn.id)) {
+			return false;
+		}
+		return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.InputRequest
+			&& part.request.id === remoteRequestId
+			&& part.response === undefined);
+	}
+
 	private _toRemoteTurnId(localTurnId: string): string {
 		return `${this._idPrefix('turn')}${localTurnId}`;
 	}
@@ -1194,12 +1556,12 @@ export class RemoteAgent extends Disposable implements IAgent {
 		return `${this._idPrefix('part')}${remotePartId}`;
 	}
 
-	private _toLocalToolCallId(remoteToolCallId: string): string {
-		return `${this._idPrefix('tool')}${remoteToolCallId}`;
+	private _toLocalToolCallId(binding: RemoteAgentChatBinding, remoteTurnId: string, remoteToolCallId: string): string {
+		return `${this._idPrefix('tool')}${JSON.stringify([binding.remoteChat.toString(), remoteTurnId, remoteToolCallId])}`;
 	}
 
-	private _toLocalInputRequestId(remoteRequestId: string): string {
-		return `${this._idPrefix('input')}${remoteRequestId}`;
+	private _toLocalInputRequestId(binding: RemoteAgentChatBinding, remoteTurnId: string, remoteRequestId: string): string {
+		return `${this._idPrefix('input')}${JSON.stringify([binding.remoteChat.toString(), remoteTurnId, remoteRequestId])}`;
 	}
 
 	private _toProtectedResourceId(downstreamResource: string): string {

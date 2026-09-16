@@ -1459,10 +1459,27 @@ export class AgentSideEffects extends Disposable {
 				}
 				const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
 				const agentId = this._toolCallAgents.get(toolCallKey);
-				if (agentId) {
-					this._toolCallAgents.delete(toolCallKey);
-					const agent = this._options.agents.get().find(a => a.id === agentId);
-					agent?.respondToPermissionRequest(action.toolCallId, action.approved);
+				this._toolCallAgents.delete(toolCallKey);
+				const agent = agentId
+					? this._options.agents.get().find(candidate => candidate.id === agentId)
+					: this._options.getAgent(sessionChannel);
+				if (agent) {
+					if (action.approved) {
+						agent.respondToPermissionRequest(action.toolCallId, true, {
+							confirmed: action.confirmed,
+							editedToolInput: action.editedToolInput,
+							selectedOptionId: action.selectedOptionId,
+							_meta: action._meta,
+						});
+					} else {
+						agent.respondToPermissionRequest(action.toolCallId, false, {
+							reason: action.reason,
+							userSuggestion: action.userSuggestion,
+							reasonMessage: action.reasonMessage,
+							selectedOptionId: action.selectedOptionId,
+							_meta: action._meta,
+						});
+					}
 				} else {
 					this._logService.warn(`[AgentSideEffects] No agent for tool call confirmation: ${action.toolCallId}`);
 				}
@@ -1472,6 +1489,13 @@ export class AgentSideEffects extends Disposable {
 				if (action.approved && !managedApprovalRequired) {
 					this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
 				}
+				break;
+			}
+			case ActionType.ChatToolCallResultConfirmed: {
+				if (!chatChannel) {
+					throw new Error(`ChatToolCallResultConfirmed must be handled on an AHP chat channel: ${channel}`);
+				}
+				this._options.getAgent(sessionChannel)?.respondToToolResultConfirmation?.(action.toolCallId, action.approved);
 				break;
 			}
 			case ActionType.ChatInputCompleted: {

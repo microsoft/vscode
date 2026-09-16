@@ -4366,11 +4366,94 @@ suite('AgentSideEffects', () => {
 				toolCallId: 'tc-conf-1',
 				approved: true,
 				confirmed: 'user-action' as const,
+				editedToolInput: '{"path":"updated.txt"}',
+				selectedOptionId: 'allow-session',
 			} as ChatAction);
 
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-conf-1', approved: true },
-			]);
+			assert.deepStrictEqual({
+				calls: agent.respondToPermissionCalls,
+				metadata: agent.respondToPermissionMetadata,
+			}, {
+				calls: [{ requestId: 'tc-conf-1', approved: true }],
+				metadata: [{
+					confirmed: ToolCallConfirmationReason.UserAction,
+					editedToolInput: '{"path":"updated.txt"}',
+					selectedOptionId: 'allow-session',
+					_meta: undefined,
+				}],
+			});
+		});
+
+		test('routes a restored confirmation through the current session agent', () => {
+			setupSession();
+			startTurn('turn-restored', defaultChatUri);
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-restored',
+				toolCallId: 'tc-restored',
+				toolName: 'read',
+				displayName: 'Read File',
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-restored',
+				toolCallId: 'tc-restored',
+				invocationMessage: 'Read restored file',
+			});
+
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-restored',
+				toolCallId: 'tc-restored',
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [{
+				requestId: 'tc-restored',
+				approved: true,
+			}]);
+		});
+
+		test('routes a tool-result confirmation through the current session agent', () => {
+			setupSession();
+			startTurn('turn-result', defaultChatUri);
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				toolName: 'read',
+				displayName: 'Read File',
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				invocationMessage: 'Read file',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				result: {
+					success: true,
+					pastTenseMessage: 'Read file',
+				},
+				requiresResultConfirmation: true,
+			});
+
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatToolCallResultConfirmed,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				approved: false,
+			});
+
+			assert.deepStrictEqual(agent.respondToToolResultConfirmationCalls, [{
+				requestId: 'tc-result',
+				approved: false,
+			}]);
 		});
 
 		test('handles denial of tool call', () => {

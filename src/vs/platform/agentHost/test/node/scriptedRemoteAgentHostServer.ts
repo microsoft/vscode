@@ -10,7 +10,7 @@ import type { ILogService } from '../../../log/common/log.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { ActionType, isChatAction, isSessionAction, type ChatAction, type ChatToolCallCompleteAction, type ChatTurnStartedAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { ReconnectResultType } from '../../common/state/protocol/commands.js';
-import { SessionInputRequestKind, type SessionState, type SessionToolClientExecutionRequest } from '../../common/state/protocol/channels-session/state.js';
+import { SessionInputRequestKind, type SessionState, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ChatState, type RootState, type ToolCallResult } from '../../common/state/sessionState.js';
 import { isJsonRpcNotification, isJsonRpcRequest, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -35,6 +35,7 @@ export interface IScriptedRemoteAgentHostClientTool {
 	readonly displayName: string;
 	readonly input: string;
 	readonly toolCallId: string;
+	readonly requiresConfirmation?: boolean;
 }
 
 interface IScriptedSession {
@@ -216,8 +217,24 @@ export class ScriptedRemoteAgentHostServer extends Disposable {
 			return;
 		}
 		const action = message.params.action;
+		if (action.type === ActionType.ChatToolCallConfirmed) {
+			this._confirmClientTool(transport, scripted, action, origin);
+			return;
+		}
 		if (action.type === ActionType.ChatToolCallComplete) {
 			this._completeClientTool(transport, scripted, action, origin);
+			return;
+		}
+		if (action.type === ActionType.ChatTurnCancelled) {
+			const confirmations = scripted.sessionState.inputNeeded?.filter(request =>
+				request.kind === SessionInputRequestKind.ToolConfirmation && request.turnId === action.turnId) ?? [];
+			for (const confirmation of confirmations) {
+				this._sendSessionAction(transport, scripted, {
+					type: ActionType.SessionInputNeededRemoved,
+					id: confirmation.id,
+				});
+			}
+			this._sendChatAction(transport, scripted, action, origin);
 			return;
 		}
 		if (action.type !== ActionType.ChatTurnStarted) {
@@ -336,14 +353,78 @@ export class ScriptedRemoteAgentHostServer extends Disposable {
 			toolCallId: tool.toolCallId,
 			invocationMessage: tool.displayName,
 			toolInput: tool.input,
-			confirmed: ToolCallConfirmationReason.UserAction,
+			...(tool.requiresConfirmation ? {} : { confirmed: ToolCallConfirmationReason.UserAction }),
 			contributor,
 		});
+		if (tool.requiresConfirmation) {
+			const request: SessionToolConfirmationRequest = {
+				id: `toolConfirmation:${scripted.chat}:${turn.turnId}:${tool.toolCallId}`,
+				kind: SessionInputRequestKind.ToolConfirmation,
+				chat: scripted.chat,
+				turnId: turn.turnId,
+				toolCall: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: tool.toolCallId,
+					toolName: tool.name,
+					displayName: tool.displayName,
+					invocationMessage: tool.displayName,
+					toolInput: tool.input,
+					contributor,
+				},
+			};
+			this._sendSessionAction(transport, scripted, {
+				type: ActionType.SessionInputNeededSet,
+				request,
+			});
+			return;
+		}
+		this._startClientToolExecution(transport, scripted, turn.turnId, clientId, ToolCallConfirmationReason.UserAction);
+	}
+
+	private _confirmClientTool(
+		transport: IProtocolTransport,
+		scripted: IScriptedSession,
+		action: Extract<ChatAction, { type: ActionType.ChatToolCallConfirmed }>,
+		origin: { readonly clientId: string; readonly clientSeq: number } | undefined,
+	): void {
+		const confirmation = scripted.sessionState.inputNeeded?.find((request): request is SessionToolConfirmationRequest =>
+			request.kind === SessionInputRequestKind.ToolConfirmation
+			&& request.turnId === action.turnId
+			&& request.toolCall.toolCallId === action.toolCallId);
+		const contributor = confirmation?.toolCall.contributor;
+		if (!confirmation
+			|| contributor?.kind !== ToolCallContributorKind.Client) {
+			return;
+		}
+		this._sendChatAction(transport, scripted, action, origin);
+		this._sendSessionAction(transport, scripted, {
+			type: ActionType.SessionInputNeededRemoved,
+			id: confirmation.id,
+		});
+		if (!action.approved) {
+			this._completeTurn(transport, scripted, action.turnId);
+			return;
+		}
+		this._startClientToolExecution(transport, scripted, action.turnId, contributor.clientId, action.confirmed);
+	}
+
+	private _startClientToolExecution(
+		transport: IProtocolTransport,
+		scripted: IScriptedSession,
+		turnId: string,
+		clientId: string,
+		confirmed: ToolCallConfirmationReason,
+	): void {
+		const tool = this._clientTool;
+		if (!tool) {
+			return;
+		}
+		const contributor = { kind: ToolCallContributorKind.Client, clientId } as const;
 		const request: SessionToolClientExecutionRequest = {
-			id: `toolClientExecution:${scripted.chat}:${turn.turnId}:${tool.toolCallId}`,
+			id: `toolClientExecution:${scripted.chat}:${turnId}:${tool.toolCallId}`,
 			kind: SessionInputRequestKind.ToolClientExecution,
 			chat: scripted.chat,
-			turnId: turn.turnId,
+			turnId,
 			clientId,
 			toolCall: {
 				status: ToolCallStatus.Running,
@@ -352,7 +433,7 @@ export class ScriptedRemoteAgentHostServer extends Disposable {
 				displayName: tool.displayName,
 				invocationMessage: tool.displayName,
 				toolInput: tool.input,
-				confirmed: ToolCallConfirmationReason.UserAction,
+				confirmed,
 				contributor,
 			},
 		};

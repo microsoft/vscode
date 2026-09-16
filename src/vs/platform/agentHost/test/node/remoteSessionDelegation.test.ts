@@ -32,7 +32,7 @@ import { DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY, REMOTE_SESSION_DELEGATION_SPAW
 import type { IAgentSubscription } from '../../common/state/agentSubscription.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ActionType, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
-import { SessionInputRequestKind, type SessionState, type SessionToolClientExecutionRequest } from '../../common/state/protocol/channels-session/state.js';
+import { SessionInputRequestKind, type SessionState, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../../common/state/protocol/channels-session/state.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildDefaultChatUri, MessageKind, readSessionCreationReference, readSessionSpawnDepth, SessionLifecycle, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, withSessionCreationReference, withSessionSpawnDepth, type ComponentToState, type Message, type RootState } from '../../common/state/sessionState.js';
 import type { TunnelAgentHostDiscoveryState } from '../../common/tunnelAgentHostDiscovery.js';
@@ -1992,6 +1992,7 @@ suite('RemoteSessionDelegation', () => {
 			name: CREATE_REMOTE_SESSION_TOOL_NAME,
 			displayName: 'Create Remote Session',
 			toolCallId: 'create-remote-session-call',
+			requiresConfirmation: true,
 			input: JSON.stringify({
 				target: destinationHandle,
 				provider: 'copilot',
@@ -2055,9 +2056,13 @@ suite('RemoteSessionDelegation', () => {
 		const providerService = getTestAgentHostProviderService(hostA);
 		await waitFor(() => !!providerService.getProvider(sourceProvider) && !!providerService.getProvider(destinationProvider), 'remote provider registration');
 		let completedTurns = 0;
+		let relayedConfirmation: SessionToolConfirmationRequest | undefined;
 		disposables.add(hostA.onDidAction(envelope => {
 			if (envelope.action.type === ActionType.ChatTurnComplete) {
 				completedTurns++;
+			} else if (envelope.action.type === ActionType.SessionInputNeededSet
+				&& envelope.action.request.kind === SessionInputRequestKind.ToolConfirmation) {
+				relayedConfirmation = envelope.action.request;
 			}
 		}));
 
@@ -2074,6 +2079,23 @@ suite('RemoteSessionDelegation', () => {
 			startedAt: response.startedAt,
 			message: { text: 'Delegate to Host C', origin: { kind: MessageKind.User } },
 		}, 'test-client', 1);
+		await waitFor(() => relayedConfirmation !== undefined, 'relayed tool confirmation');
+		const confirmation = relayedConfirmation;
+		if (!confirmation) {
+			throw new Error('Expected a relayed tool confirmation');
+		}
+		const beforeApproval = {
+			hostBResults: hostB.receivedClientToolResults.length,
+			hostCCreateCount: hostC.createSessionCalls.length,
+			hostCTurnCount: hostC.receivedTurnStartedActions.length,
+		};
+		hostA.dispatchAction(confirmation.chat, {
+			type: ActionType.ChatToolCallConfirmed,
+			turnId: confirmation.turnId,
+			toolCallId: confirmation.toolCall.toolCallId,
+			approved: true,
+			confirmed: ToolCallConfirmationReason.UserAction,
+		}, 'test-client', 2);
 
 		try {
 			await waitFor(() => hostB.receivedClientToolResults.length === 1 && hostC.receivedTurnStartedActions.length === 1 && completedTurns >= 2, 'initial delegation');
@@ -2120,6 +2142,13 @@ suite('RemoteSessionDelegation', () => {
 			spawnDepth: readSessionSpawnDepth(delegatedSummary?._meta),
 			persistedSpawnDepth,
 			delegation: delegatedMessage ? readAgentMessageDelegationMeta(delegatedMessage) : undefined,
+			relayedConfirmation: {
+				chat: confirmation.chat,
+				turnId: confirmation.turnId,
+				toolCallIdIsNamespaced: confirmation.toolCall.toolCallId !== 'create-remote-session-call',
+				status: confirmation.toolCall.status,
+			},
+			beforeApproval,
 			resultReplay: hostB.receivedClientToolResults.every(candidate => equals(candidate, hostB.receivedClientToolResults[0])),
 			hostASessions: sessions
 				.filter(session => session.session.toString() === sourceSession.toString() || session.session.toString() === delegatedSession)
@@ -2140,6 +2169,17 @@ suite('RemoteSessionDelegation', () => {
 			delegation: {
 				sourceSession: sourceSession.toString(),
 				sourceChat,
+			},
+			relayedConfirmation: {
+				chat: sourceChat,
+				turnId: 'source-turn',
+				toolCallIdIsNamespaced: true,
+				status: ToolCallStatus.PendingConfirmation,
+			},
+			beforeApproval: {
+				hostBResults: 0,
+				hostCCreateCount: 0,
+				hostCTurnCount: 0,
 			},
 			resultReplay: true,
 			hostASessions: [

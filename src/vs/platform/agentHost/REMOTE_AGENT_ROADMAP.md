@@ -363,13 +363,23 @@ root refresh command, not on a timer. Match current client behavior for
 dismissal, self-host suppression, tunnel identity, location preference, and
 background dedicated-host creation.
 
-### 10. Persist backing and relay interactions - Person 2
+### 10. Persist backing and relay interactions - Person 2 (implemented)
 
 Persist opaque backing through provider data, restore the same conversation, and
 route permission/user-input requests with exact ownership.
 
 **Done when:** restart restores the same downstream conversation; release does
 not delete it; approve/deny/cancel reaches the right request once.
+
+**Prototype status:** complete. Parameter confirmations, result confirmations,
+and user-input requests use chat- and turn-scoped opaque identities, retain
+exact ownership across reconnect and provider re-registration, and dispatch
+each accepted response to the original downstream chat at most once. Responses
+queue through target outages, rejected actions fail and cancel the divergent
+turn, and cold-restored confirmations fall back to the current session
+provider. The fixed-endpoint A -> B -> C proof now starts with an unconfirmed
+client tool and verifies that A's relayed approval unlocks B's client-tool
+execution.
 
 ### 11. Client-tool callback - Person 2 (implemented)
 

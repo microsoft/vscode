@@ -22,7 +22,7 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ActionType, isChatAction, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, type ChatState, type ComponentToState, type RootState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, TurnState, type ChatState, type ComponentToState, type RootState } from '../../common/state/sessionState.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IAgentHostRemoteAgentsContribution, IAgentHostRemoteAgentsService } from '../../node/agentHostRemoteAgentsService.js';
@@ -162,6 +162,16 @@ class TestAgentConnection extends mock<IAgentConnection>() {
 		this._receive(call.channel, call.action, { clientId: this.clientId, clientSeq: call.clientSeq });
 	}
 
+	rejectLastDispatch(rejectionReason: string): void {
+		const call = this.dispatchCalls[this.dispatchCalls.length - 1];
+		this._receive(call.channel, call.action, { clientId: this.clientId, clientSeq: call.clientSeq }, rejectionReason);
+	}
+
+	rejectLastDispatchForClient(clientId: string, rejectionReason: string): void {
+		const call = this.dispatchCalls[this.dispatchCalls.length - 1];
+		this._receive(call.channel, call.action, { clientId, clientSeq: call.clientSeq }, rejectionReason);
+	}
+
 	sendServerAction(channel: URI, action: ChatAction): void {
 		this._receive(channel.toString(), action);
 	}
@@ -187,12 +197,13 @@ class TestAgentConnection extends mock<IAgentConnection>() {
 		this._store.dispose();
 	}
 
-	private _receive(channel: string, action: ActionEnvelope['action'], origin?: ActionEnvelope['origin']): void {
+	private _receive(channel: string, action: ActionEnvelope['action'], origin?: ActionEnvelope['origin'], rejectionReason?: string): void {
 		this._onDidAction.fire({
 			channel,
 			action,
 			serverSeq: ++this._serverSeq,
 			origin,
+			rejectionReason,
 		});
 	}
 }
@@ -731,7 +742,621 @@ suite('RemoteAgent', () => {
 			subscriptionCounts: [1, 0, 1, 0],
 			disposeSessionCalls: [connection.createSessionCalls[0].session!.toString()],
 		});
+	});
 
+	test('relays downstream permission and user input interactions to their exact chats once', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('interaction-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'interaction-host', connection.clientId, 'Interaction Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const agent = providers.getProviders()[0];
+		const progress: { resource: string; action: ChatAction }[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && isChatAction(signal.action)) {
+				progress.push({ resource: signal.resource.toString(), action: signal.action });
+			}
+		}));
+
+		const firstSession = AgentSession.uri(agent.id, 'interaction-first');
+		const firstChat = URI.parse(buildDefaultChatUri(firstSession));
+		await agent.chats.createChat(firstChat, firstSession);
+		await agent.chats.sendMessage(firstChat, 'First interaction', undefined, undefined, 'first-turn');
+		const firstStarted = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		assert.strictEqual(firstStarted.action.type, ActionType.ChatTurnStarted);
+		connection.acknowledgeLastDispatch();
+
+		const secondSession = AgentSession.uri(agent.id, 'interaction-second');
+		const secondChat = URI.parse(buildDefaultChatUri(secondSession));
+		await agent.chats.createChat(secondChat, secondSession);
+		await agent.chats.sendMessage(secondChat, 'Second interaction', undefined, undefined, 'second-turn');
+		const secondStarted = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		assert.strictEqual(secondStarted.action.type, ActionType.ChatTurnStarted);
+		connection.acknowledgeLastDispatch();
+
+		const firstRemoteChat = URI.parse(firstStarted.channel);
+		const secondRemoteChat = URI.parse(secondStarted.channel);
+		for (const [remoteChat, remoteTurnId] of [
+			[firstRemoteChat, firstStarted.action.turnId],
+			[secondRemoteChat, secondStarted.action.turnId],
+		] as const) {
+			connection.sendServerAction(remoteChat, {
+				type: ActionType.ChatToolCallStart,
+				turnId: remoteTurnId,
+				toolCallId: 'shared-tool-call',
+				toolName: 'shared_tool',
+				displayName: 'Shared Tool',
+			});
+			connection.sendServerAction(remoteChat, {
+				type: ActionType.ChatToolCallReady,
+				turnId: remoteTurnId,
+				toolCallId: 'shared-tool-call',
+				invocationMessage: 'Run the shared tool',
+			});
+			connection.sendServerAction(remoteChat, {
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'shared-input-request',
+					message: 'Continue?',
+				},
+			});
+		}
+
+		const firstLocalToolCallId = progress.flatMap(entry =>
+			entry.resource === firstChat.toString() && entry.action.type === ActionType.ChatToolCallStart
+				? [entry.action.toolCallId]
+				: [])[0];
+		const secondLocalToolCallId = progress.flatMap(entry =>
+			entry.resource === secondChat.toString() && entry.action.type === ActionType.ChatToolCallStart
+				? [entry.action.toolCallId]
+				: [])[0];
+		const firstLocalInputRequestId = progress.flatMap(entry =>
+			entry.resource === firstChat.toString() && entry.action.type === ActionType.ChatInputRequested
+				? [entry.action.request.id]
+				: [])[0];
+		const secondLocalInputRequestId = progress.flatMap(entry =>
+			entry.resource === secondChat.toString() && entry.action.type === ActionType.ChatInputRequested
+				? [entry.action.request.id]
+				: [])[0];
+		assert.ok(firstLocalToolCallId);
+		assert.ok(secondLocalToolCallId);
+		assert.ok(firstLocalInputRequestId);
+		assert.ok(secondLocalInputRequestId);
+
+		const firstAnswers = {
+			confirmation: {
+				state: ChatInputAnswerState.Submitted,
+				value: {
+					kind: ChatInputAnswerValueKind.Text,
+					value: 'Continue',
+				},
+			},
+		} as const;
+		const responseStart = connection.dispatchCalls.length;
+		agent.respondToPermissionRequest(firstLocalToolCallId, true, {
+			confirmed: ToolCallConfirmationReason.UserAction,
+			editedToolInput: '{"path":"updated.txt"}',
+			selectedOptionId: 'allow-session',
+		});
+		connection.acknowledgeLastDispatch();
+		agent.respondToPermissionRequest(firstLocalToolCallId, false);
+		agent.respondToPermissionRequest(secondLocalToolCallId, false, {
+			reason: ToolCallCancellationReason.Denied,
+			reasonMessage: 'Do not run this tool',
+			selectedOptionId: 'deny-once',
+		});
+		connection.acknowledgeLastDispatch();
+		agent.respondToUserInputRequest(firstLocalInputRequestId, ChatInputResponseKind.Accept, firstAnswers);
+		connection.acknowledgeLastDispatch();
+		agent.respondToUserInputRequest(firstLocalInputRequestId, ChatInputResponseKind.Cancel);
+		agent.respondToUserInputRequest(secondLocalInputRequestId, ChatInputResponseKind.Cancel);
+		connection.acknowledgeLastDispatch();
+		const interactionDispatches = connection.dispatchCalls.slice(responseStart).map(call => {
+			switch (call.action.type) {
+				case ActionType.ChatToolCallConfirmed:
+					return {
+						channel: call.channel,
+						type: call.action.type,
+						toolCallId: call.action.toolCallId,
+						approved: call.action.approved,
+						outcome: call.action.approved ? call.action.confirmed : call.action.reason,
+						editedToolInput: call.action.approved ? call.action.editedToolInput : undefined,
+						reasonMessage: call.action.approved ? undefined : call.action.reasonMessage,
+						selectedOptionId: call.action.selectedOptionId,
+					};
+				case ActionType.ChatInputCompleted:
+					return {
+						channel: call.channel,
+						type: call.action.type,
+						requestId: call.action.requestId,
+						response: call.action.response,
+						answers: call.action.answers,
+					};
+				default:
+					return { channel: call.channel, type: call.action.type };
+			}
+		});
+
+		connection.dispatch(firstRemoteChat.toString(), {
+			type: ActionType.ChatToolCallComplete,
+			turnId: firstStarted.action.turnId,
+			toolCallId: 'shared-tool-call',
+			result: {
+				success: true,
+				pastTenseMessage: 'Ran the shared tool',
+			},
+			requiresResultConfirmation: true,
+		});
+		connection.acknowledgeLastDispatch();
+		agent.onClientToolCallComplete(firstChat, firstLocalToolCallId, {
+			success: true,
+			pastTenseMessage: 'Ran the shared tool',
+		});
+		agent.respondToToolResultConfirmation?.(firstLocalToolCallId, true);
+		const resultConfirmation = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		connection.acknowledgeLastDispatch();
+		const firstLocalToolCompletion = progress.find(entry =>
+			entry.resource === firstChat.toString() && entry.action.type === ActionType.ChatToolCallComplete);
+
+		assert.deepStrictEqual({
+			localIdsAreNamespaced: firstLocalToolCallId !== 'shared-tool-call'
+				&& firstLocalInputRequestId !== 'shared-input-request',
+			localIdsAreChatScoped: firstLocalToolCallId !== secondLocalToolCallId
+				&& firstLocalInputRequestId !== secondLocalInputRequestId,
+			readyActions: progress
+				.filter(entry => entry.action.type === ActionType.ChatToolCallReady)
+				.map(entry => ({
+					resource: entry.resource,
+					toolCallId: entry.action.type === ActionType.ChatToolCallReady ? entry.action.toolCallId : undefined,
+				})),
+			interactionDispatches,
+			firstLocalToolCompletion: firstLocalToolCompletion?.action.type === ActionType.ChatToolCallComplete ? {
+				turnId: firstLocalToolCompletion.action.turnId,
+				toolCallId: firstLocalToolCompletion.action.toolCallId,
+				result: firstLocalToolCompletion.action.result,
+			} : undefined,
+			resultConfirmation: resultConfirmation.action.type === ActionType.ChatToolCallResultConfirmed ? {
+				channel: resultConfirmation.channel,
+				turnId: resultConfirmation.action.turnId,
+				toolCallId: resultConfirmation.action.toolCallId,
+				approved: resultConfirmation.action.approved,
+			} : undefined,
+		}, {
+			localIdsAreNamespaced: true,
+			localIdsAreChatScoped: true,
+			readyActions: [{
+				resource: firstChat.toString(),
+				toolCallId: firstLocalToolCallId,
+			}, {
+				resource: secondChat.toString(),
+				toolCallId: secondLocalToolCallId,
+			}],
+			interactionDispatches: [{
+				channel: firstRemoteChat.toString(),
+				type: ActionType.ChatToolCallConfirmed,
+				toolCallId: 'shared-tool-call',
+				approved: true,
+				outcome: ToolCallConfirmationReason.UserAction,
+				editedToolInput: '{"path":"updated.txt"}',
+				reasonMessage: undefined,
+				selectedOptionId: 'allow-session',
+			}, {
+				channel: secondRemoteChat.toString(),
+				type: ActionType.ChatToolCallConfirmed,
+				toolCallId: 'shared-tool-call',
+				approved: false,
+				outcome: ToolCallCancellationReason.Denied,
+				editedToolInput: undefined,
+				reasonMessage: 'Do not run this tool',
+				selectedOptionId: 'deny-once',
+			}, {
+				channel: firstRemoteChat.toString(),
+				type: ActionType.ChatInputCompleted,
+				requestId: 'shared-input-request',
+				response: ChatInputResponseKind.Accept,
+				answers: firstAnswers,
+			}, {
+				channel: secondRemoteChat.toString(),
+				type: ActionType.ChatInputCompleted,
+				requestId: 'shared-input-request',
+				response: ChatInputResponseKind.Cancel,
+				answers: undefined,
+			}],
+			firstLocalToolCompletion: {
+				turnId: 'first-turn',
+				toolCallId: firstLocalToolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran the shared tool',
+				},
+			},
+			resultConfirmation: {
+				channel: firstRemoteChat.toString(),
+				turnId: firstStarted.action.turnId,
+				toolCallId: 'shared-tool-call',
+				approved: true,
+			},
+		});
+	});
+
+	test('does not relay a rejected downstream tool completion', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('interaction-rejection-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'interaction-rejection-host', connection.clientId, 'Interaction Rejection Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const agent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(agent.id, 'interaction-rejection');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		const progress: ChatAction[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && isChatAction(signal.action)) {
+				progress.push(signal.action);
+				if (signal.action.type === ActionType.ChatToolCallComplete) {
+					agent.onClientToolCallComplete(signal.resource, signal.action.toolCallId, signal.action.result);
+				}
+			}
+		}));
+		await agent.chats.createChat(localChat, localSession);
+		await agent.chats.sendMessage(localChat, 'Reject completion', undefined, undefined, 'rejection-turn');
+		const started = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		assert.strictEqual(started.action.type, ActionType.ChatTurnStarted);
+		connection.acknowledgeLastDispatch();
+		const remoteChat = URI.parse(started.channel);
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallStart,
+			turnId: started.action.turnId,
+			toolCallId: 'rejected-tool-call',
+			toolName: 'rejected_tool',
+			displayName: 'Rejected Tool',
+		});
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: started.action.turnId,
+			toolCallId: 'rejected-tool-call',
+			invocationMessage: 'Run the rejected tool',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		const completion = {
+			type: ActionType.ChatToolCallComplete,
+			turnId: started.action.turnId,
+			toolCallId: 'rejected-tool-call',
+			result: {
+				success: true,
+				pastTenseMessage: 'Ran the rejected tool',
+			},
+			requiresResultConfirmation: true,
+		} as const;
+		connection.dispatch(remoteChat.toString(), completion);
+		connection.rejectLastDispatch('scripted rejection');
+		const completionsAfterRejection = progress.filter(action => action.type === ActionType.ChatToolCallComplete);
+		connection.sendServerAction(remoteChat, completion);
+		const acceptedCompletion = progress.find(action => action.type === ActionType.ChatToolCallComplete);
+		assert.ok(acceptedCompletion?.type === ActionType.ChatToolCallComplete);
+		agent.respondToToolResultConfirmation?.(acceptedCompletion.toolCallId, false);
+		const resultConfirmation = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		connection.acknowledgeLastDispatch();
+
+		assert.deepStrictEqual({
+			completionsAfterRejection,
+			acceptedCompletion: acceptedCompletion?.type === ActionType.ChatToolCallComplete ? {
+				turnId: acceptedCompletion.turnId,
+				toolCallIdIsNamespaced: acceptedCompletion.toolCallId !== 'rejected-tool-call',
+				result: acceptedCompletion.result,
+			} : undefined,
+			resultConfirmation: resultConfirmation.action.type === ActionType.ChatToolCallResultConfirmed ? {
+				channel: resultConfirmation.channel,
+				turnId: resultConfirmation.action.turnId,
+				toolCallId: resultConfirmation.action.toolCallId,
+				approved: resultConfirmation.action.approved,
+			} : undefined,
+		}, {
+			completionsAfterRejection: [],
+			acceptedCompletion: {
+				turnId: 'rejection-turn',
+				toolCallIdIsNamespaced: true,
+				result: completion.result,
+			},
+			resultConfirmation: {
+				channel: remoteChat.toString(),
+				turnId: started.action.turnId,
+				toolCallId: 'rejected-tool-call',
+				approved: false,
+			},
+		});
+	});
+
+	test('fails local turns when downstream starts or interactions are rejected', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('turn-rejection-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'turn-rejection-host', connection.clientId, 'Turn Rejection Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const agent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(agent.id, 'turn-rejection');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		const progress: ChatAction[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && isChatAction(signal.action)) {
+				progress.push(signal.action);
+			}
+		}));
+		await agent.chats.createChat(localChat, localSession);
+		await agent.chats.sendMessage(localChat, 'Reject this turn', undefined, undefined, 'rejected-turn');
+		connection.rejectLastDispatch('scripted turn rejection');
+		await agent.chats.sendMessage(localChat, 'Retry with a new turn', undefined, undefined, 'replacement-turn');
+		const replacementStarted = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		assert.strictEqual(replacementStarted.action.type, ActionType.ChatTurnStarted);
+		connection.acknowledgeLastDispatch();
+		const remoteChat = URI.parse(replacementStarted.channel);
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallStart,
+			turnId: replacementStarted.action.turnId,
+			toolCallId: 'rejected-interaction',
+			toolName: 'rejected_interaction',
+			displayName: 'Rejected Interaction',
+		});
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: replacementStarted.action.turnId,
+			toolCallId: 'rejected-interaction',
+			invocationMessage: 'Run the rejected interaction',
+		});
+		const localToolCallId = progress.flatMap(action =>
+			action.type === ActionType.ChatToolCallStart ? [action.toolCallId] : [])[0];
+		assert.ok(localToolCallId);
+		agent.respondToPermissionRequest(localToolCallId, true);
+		connection.rejectLastDispatch('scripted interaction rejection');
+		const dispatchedTurnIds = connection.dispatchCalls.flatMap(call =>
+			call.action.type === ActionType.ChatTurnStarted ? [call.action.turnId] : []);
+
+		assert.deepStrictEqual({
+			dispatchTypes: connection.dispatchCalls.map(call => call.action.type),
+			turnIdsAreScoped: dispatchedTurnIds.length === 2
+				&& dispatchedTurnIds[0] !== dispatchedTurnIds[1]
+				&& dispatchedTurnIds[0].endsWith('rejected-turn')
+				&& dispatchedTurnIds[1].endsWith('replacement-turn'),
+			errors: progress.flatMap(action => action.type === ActionType.ChatError ? [{
+				turnId: action.turnId,
+				error: action.part.error,
+			}] : []),
+		}, {
+			dispatchTypes: [
+				ActionType.ChatTurnStarted,
+				ActionType.ChatTurnStarted,
+				ActionType.ChatToolCallConfirmed,
+				ActionType.ChatTurnCancelled,
+			],
+			turnIdsAreScoped: true,
+			errors: [{
+				turnId: 'rejected-turn',
+				error: {
+					errorType: 'remoteAgentActionRejected',
+					message: 'scripted turn rejection',
+				},
+			}, {
+				turnId: 'replacement-turn',
+				error: {
+					errorType: 'remoteAgentActionRejected',
+					message: 'scripted interaction rejection',
+				},
+			}],
+		});
+	});
+
+	test('restores pending interaction ownership when a remote provider is re-registered', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('interaction-restore-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'interaction-restore-host', connection.clientId, 'Interaction Restore Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const firstAgent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(firstAgent.id, 'interaction-restore');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		const progress: ChatAction[] = [];
+		disposables.add(firstAgent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && isChatAction(signal.action)) {
+				progress.push(signal.action);
+			}
+		}));
+		await firstAgent.chats.createChat(localChat, localSession);
+		await firstAgent.chats.sendMessage(localChat, 'Restore interactions', undefined, undefined, 'restore-turn');
+		const started = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		assert.strictEqual(started.action.type, ActionType.ChatTurnStarted);
+		connection.acknowledgeLastDispatch();
+		const remoteChat = URI.parse(started.channel);
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallStart,
+			turnId: started.action.turnId,
+			toolCallId: 'restore-tool-call',
+			toolName: 'restore_tool',
+			displayName: 'Restore Tool',
+		});
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: started.action.turnId,
+			toolCallId: 'restore-tool-call',
+			invocationMessage: 'Run the restore tool',
+		});
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatInputRequested,
+			request: {
+				id: 'restore-input-request',
+				message: 'Restore input?',
+			},
+		});
+		const localToolCallId = progress.flatMap(action =>
+			action.type === ActionType.ChatToolCallStart ? [action.toolCallId] : [])[0];
+		const localInputRequestId = progress.flatMap(action =>
+			action.type === ActionType.ChatInputRequested ? [action.request.id] : [])[0];
+		assert.ok(localToolCallId);
+		assert.ok(localInputRequestId);
+		const responseStart = connection.dispatchCalls.length;
+		connection.dispatchError = new Error('scripted relay failure');
+		firstAgent.respondToPermissionRequest(localToolCallId, true);
+		firstAgent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Decline);
+		const pendingState = connection.getSubscriptionUnmanaged(StateComponents.Chat, remoteChat)?.value;
+		assert.ok(pendingState && !(pendingState instanceof Error));
+		connection.setChatState(remoteChat, pendingState);
+
+		connection.setAgents([]);
+		assert.deepStrictEqual(providers.getProviders(), []);
+		connection.dispatchError = undefined;
+		connection.setAgents([remoteCatalog]);
+		const restoredAgent = providers.getProviders()[0];
+		await waitFor(() => connection.dispatchCalls.length === responseStart + 2);
+		restoredAgent.respondToPermissionRequest(localToolCallId, true);
+		restoredAgent.respondToPermissionRequest(localToolCallId, false);
+		restoredAgent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Decline);
+		restoredAgent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Cancel);
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatTurnCancelled,
+			turnId: started.action.turnId,
+			duration: 1,
+		});
+		restoredAgent.respondToPermissionRequest(localToolCallId, false);
+		restoredAgent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Cancel);
+
+		assert.deepStrictEqual({
+			restoredGeneration: restoredAgent !== firstAgent,
+			dispatches: connection.dispatchCalls.slice(responseStart).map(call => {
+				switch (call.action.type) {
+					case ActionType.ChatToolCallConfirmed:
+						return {
+							channel: call.channel,
+							type: call.action.type,
+							toolCallId: call.action.toolCallId,
+							approved: call.action.approved,
+						};
+					case ActionType.ChatInputCompleted:
+						return {
+							channel: call.channel,
+							type: call.action.type,
+							requestId: call.action.requestId,
+							response: call.action.response,
+						};
+					default:
+						return { channel: call.channel, type: call.action.type };
+				}
+			}),
+		}, {
+			restoredGeneration: true,
+			dispatches: [{
+				channel: remoteChat.toString(),
+				type: ActionType.ChatToolCallConfirmed,
+				toolCallId: 'restore-tool-call',
+				approved: true,
+			}, {
+				channel: remoteChat.toString(),
+				type: ActionType.ChatInputCompleted,
+				requestId: 'restore-input-request',
+				response: ChatInputResponseKind.Decline,
+			}],
+		});
+	});
+
+	test('retains pending interaction ownership across a connection replacement', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('interaction-reconnect-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'interaction-reconnect-host', connection.clientId, 'Interaction Reconnect Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const agent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(agent.id, 'interaction-reconnect');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		const progress: ChatAction[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && isChatAction(signal.action)) {
+				progress.push(signal.action);
+			}
+		}));
+		await agent.chats.createChat(localChat, localSession);
+		await agent.chats.sendMessage(localChat, 'Reconnect interactions', undefined, undefined, 'reconnect-turn');
+		const started = connection.dispatchCalls[connection.dispatchCalls.length - 1];
+		assert.strictEqual(started.action.type, ActionType.ChatTurnStarted);
+		connection.acknowledgeLastDispatch();
+		const remoteChat = URI.parse(started.channel);
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallStart,
+			turnId: started.action.turnId,
+			toolCallId: 'reconnect-tool-call',
+			toolName: 'reconnect_tool',
+			displayName: 'Reconnect Tool',
+		});
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: started.action.turnId,
+			toolCallId: 'reconnect-tool-call',
+			invocationMessage: 'Run the reconnect tool',
+		});
+		connection.sendServerAction(remoteChat, {
+			type: ActionType.ChatInputRequested,
+			request: {
+				id: 'reconnect-input-request',
+				message: 'Reconnect input?',
+			},
+		});
+		const localToolCallId = progress.flatMap(action =>
+			action.type === ActionType.ChatToolCallStart ? [action.toolCallId] : [])[0];
+		const localInputRequestId = progress.flatMap(action =>
+			action.type === ActionType.ChatInputRequested ? [action.request.id] : [])[0];
+		assert.ok(localToolCallId);
+		assert.ok(localInputRequestId);
+		const state = connection.getSubscriptionUnmanaged(StateComponents.Chat, remoteChat)?.value;
+		assert.ok(state && !(state instanceof Error));
+
+		agent.respondToPermissionRequest(localToolCallId, true);
+		connection.rejectLastDispatchForClient('other-interaction-client', 'other client rejection');
+		target.setConnection(undefined);
+		agent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Cancel);
+		agent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Accept);
+		const replacement = disposables.add(new TestAgentConnection(connection.clientId));
+		replacement.setChatState(remoteChat, state);
+		target.setConnection(replacement);
+		await waitFor(() => {
+			const replacementState = replacement.getSubscriptionUnmanaged(StateComponents.Chat, remoteChat)?.value;
+			return replacementState !== undefined && !(replacementState instanceof Error);
+		});
+		agent.respondToPermissionRequest(localToolCallId, true);
+		agent.respondToPermissionRequest(localToolCallId, false);
+		agent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Cancel);
+		agent.respondToUserInputRequest(localInputRequestId, ChatInputResponseKind.Accept);
+
+		assert.deepStrictEqual(replacement.dispatchCalls.map(call => {
+			switch (call.action.type) {
+				case ActionType.ChatToolCallConfirmed:
+					return {
+						channel: call.channel,
+						type: call.action.type,
+						toolCallId: call.action.toolCallId,
+						approved: call.action.approved,
+					};
+				case ActionType.ChatInputCompleted:
+					return {
+						channel: call.channel,
+						type: call.action.type,
+						requestId: call.action.requestId,
+						response: call.action.response,
+					};
+				default:
+					return { channel: call.channel, type: call.action.type };
+			}
+		}), [{
+			channel: remoteChat.toString(),
+			type: ActionType.ChatToolCallConfirmed,
+			toolCallId: 'reconnect-tool-call',
+			approved: true,
+		}, {
+			channel: remoteChat.toString(),
+			type: ActionType.ChatInputCompleted,
+			requestId: 'reconnect-input-request',
+			response: ChatInputResponseKind.Cancel,
+		}]);
 	});
 
 	test('rejects workspace-backed creation and mismatched provider data', async () => {
