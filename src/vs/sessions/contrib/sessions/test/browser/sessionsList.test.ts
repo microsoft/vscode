@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -36,7 +37,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { getSelectionKeyboardEvent, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -61,7 +62,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, 
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, ISessionsFlatListOptions, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -5428,6 +5429,350 @@ suite('Sessions - SessionsList', () => {
 				desktop: { compactClass: true, height: '30px', hasDetails: false, diff: undefined },
 				phone: { compactClass: false, height: '78px', hasDetails: true, diff: '+12-3' },
 				desktopAgain: { compactClass: true, height: '30px', hasDetails: false, diff: undefined },
+			});
+		});
+	});
+
+	suite('SessionsFlatList nested chats', () => {
+		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full) {
+			const chat = {
+				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				title: observableValue('title', title),
+				updatedAt: constObservable(new Date()),
+				status: observableValue('status', SessionStatus.Completed),
+				interactivity: observableValue('interactivity', interactivity),
+				origin: origin ? { kind: origin } : undefined,
+			};
+			return upcastPartial<IChat & typeof chat>(chat);
+		}
+
+		function createChatSession(title: string, children: readonly IChat[] = []) {
+			const main = createChat(`${title} main`);
+			const chats = observableValue<readonly IChat[]>('chats', [main, ...children]);
+			const mainChat = observableValue<IChat>('mainChat', main);
+			const session: ISession = {
+				...createTestSession(title).session,
+				chats,
+				mainChat,
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			return { session, main, chats, mainChat };
+		}
+
+		function renderFlatList(sessions: ISession[], options: Partial<ISessionsFlatListOptions> = {}) {
+			const harness = createListHarness(disposables, sessions);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				showChatChildren: true,
+				onSessionOpen: () => { },
+				...options,
+			}));
+			list.setSessions(sessions);
+			list.layout(500, 400);
+			return { ...harness, container, list };
+		}
+
+		function rowTitles(container: HTMLElement): string[] {
+			return [...container.querySelectorAll('.session-title, .session-chat-title')].map(element => element.textContent ?? '');
+		}
+
+		function row(container: HTMLElement, title: string): HTMLElement {
+			const element = [...container.querySelectorAll('.session-title, .session-chat-title')]
+				.find(element => element.textContent === title)?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(element, `Missing row: ${title}`);
+			return element;
+		}
+
+		function toggleSession(container: HTMLElement, title: string): void {
+			const twistie = row(container, title).querySelector<HTMLElement>('.monaco-tl-twistie');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		}
+
+		function getTree(list: SessionsFlatList) {
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+			return list['tree'];
+		}
+
+		test('keeps flat mode sectionless and chatless unless opted in', () => {
+			const peer = createChat('Peer');
+			const { session } = createChatSession('Workspace session', [peer]);
+			const quick = createTestSession('Quick chat', { isQuickChat: true }).session;
+			const archived = createTestSession('Archived', { isArchived: true }).session;
+			const { container, list } = renderFlatList([session, quick, archived], { showChatChildren: false });
+
+			assert.deepStrictEqual({
+				titles: rowTitles(container),
+				sections: container.querySelectorAll('.session-section').length,
+				chatRows: container.querySelectorAll('.session-chat-item').length,
+				collapsible: container.querySelectorAll('.session-chat-twistie').length,
+				draggable: container.querySelectorAll('[draggable="true"]').length,
+				height: list.getContentHeight(),
+			}, {
+				titles: ['Workspace session', 'Quick chat', 'Archived'],
+				sections: 0,
+				chatRows: 0,
+				collapsible: 0,
+				draggable: 0,
+				height: 54 + 28 + 54,
+			});
+		});
+
+		test('uses sidebar child visibility, status, expanded rows, and accessibility without grouping', () => {
+			const peer = createChat('Peer', ChatOriginKind.User);
+			const fork = createChat('Fork', ChatOriginKind.Fork);
+			const tool = createChat('Tool', ChatOriginKind.Tool);
+			const side = createChat('Side', ChatOriginKind.SideChat);
+			const hidden = createChat('Hidden', undefined, ChatInteractivity.Hidden);
+			const { session } = createChatSession('Session', [peer, fork, tool, side, hidden]);
+			const { container, list } = renderFlatList([session], { ariaLabel: 'Ready sessions' });
+			peer.status.set(SessionStatus.NeedsInput, undefined);
+
+			assert.deepStrictEqual({
+				titles: rowTitles(container),
+				sections: container.querySelectorAll('.session-section').length,
+				expanded: row(container, 'Session').getAttribute('aria-expanded'),
+				label: container.querySelector('[role="tree"]')?.getAttribute('aria-label'),
+				chatLabel: row(container, 'Peer').getAttribute('aria-label'),
+				chatNeedsInput: row(container, 'Peer').querySelector('.session-chat-item')?.classList.contains('needs-input'),
+				mainNeedsInput: row(container, 'Session').querySelector('.session-item')?.classList.contains('needs-input'),
+				heights: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(element => element.style.height),
+				contentHeight: list.getContentHeight(),
+			}, {
+				titles: ['Session', 'Peer', 'Fork'],
+				sections: 0,
+				expanded: 'true',
+				label: 'Ready sessions',
+				chatLabel: 'Peer, chat, updated now, State: Input Needed',
+				chatNeedsInput: true,
+				mainNeedsInput: false,
+				heights: ['56px', '30px', '30px'],
+				contentHeight: 116,
+			});
+		});
+
+		test('updates live chats and preserves tree, chat identity, focus, and collapsed state across refreshes', () => {
+			const peer = createChat('Peer');
+			const added = createChat('Added');
+			const { session, main, chats, mainChat } = createChatSession('Session', [peer]);
+			const { container, list, store } = renderFlatList([session]);
+			const tree = getTree(list);
+			const child = tree.getNode(session).children[0].element;
+			const heights: number[] = [];
+			store.add(list.onDidChangeContentHeight(() => heights.push(list.getContentHeight())));
+			list.focusChat(peer.resource);
+			chats.set([main, peer, added], undefined);
+			list.setSessions([session]);
+			const afterRefresh = {
+				sameTree: getTree(list) === tree,
+				sameChild: tree.getNode(session).children[0].element === child,
+				focusedSession: list.getFocusedSession() === session,
+				focusedChat: list.getFocusedChat() === peer,
+				titles: rowTitles(container),
+				height: list.getContentHeight(),
+			};
+
+			toggleSession(container, 'Session');
+			chats.set([main, peer], undefined);
+			list.setSessions([session]);
+			const collapsed = { titles: rowTitles(container), height: list.getContentHeight(), expanded: row(container, 'Session').getAttribute('aria-expanded') };
+			list.focusChat(peer.resource);
+			peer.title.set('Renamed', undefined);
+			peer.interactivity.set(ChatInteractivity.Hidden, undefined);
+			const hidden = rowTitles(container);
+			peer.interactivity.set(ChatInteractivity.Full, undefined);
+			mainChat.set(peer, undefined);
+
+			assert.deepStrictEqual({
+				afterRefresh,
+				collapsed,
+				hidden,
+				mainChanged: rowTitles(container),
+				notifiedExpandedHeight: heights.includes(116),
+				notifiedCollapsedHeight: heights.includes(56),
+			}, {
+				afterRefresh: { sameTree: true, sameChild: true, focusedSession: true, focusedChat: true, titles: ['Session', 'Peer', 'Added'], height: 116 },
+				collapsed: { titles: ['Session'], height: 56, expanded: 'false' },
+				hidden: ['Session'],
+				mainChanged: ['Session', 'Session main'],
+				notifiedExpandedHeight: true,
+				notifiedCollapsedHeight: true,
+			});
+		});
+
+		test('routes exact parent and child opens with mouse, keyboard, and side-by-side options', () => {
+			const peer = createChat('Peer');
+			const { session } = createChatSession('Session', [peer]);
+			const opened: { session: URI | ISession; chat?: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
+			const { container, list, managementService } = renderFlatList([session], {
+				onSessionOpen: (resource, preserveFocus, sideBySide) => opened.push({ session: resource, preserveFocus, sideBySide }),
+				onChatOpen: (session, chat, preserveFocus, sideBySide) => opened.push({ session, chat, preserveFocus, sideBySide }),
+			});
+			row(container, 'Session').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			row(container, 'Peer').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, altKey: true }));
+			list.focusChat(peer.resource);
+			const tree = getTree(list);
+			tree.setSelection([]);
+			tree.setSelection(tree.getFocus(), getSelectionKeyboardEvent('keydown', true));
+
+			assert.deepStrictEqual({
+				opened,
+				readSessions: managementService.readSessions,
+				expanded: row(container, 'Session').getAttribute('aria-expanded'),
+			}, {
+				opened: [
+					{ session: session.resource, preserveFocus: false, sideBySide: false },
+					{ session, chat: peer, preserveFocus: false, sideBySide: true },
+					{ session, chat: peer, preserveFocus: true, sideBySide: false },
+				],
+				readSessions: [session, session, session],
+				expanded: 'true',
+			});
+		});
+
+		test('reveals focused sessions and chats without opening or marking them read', () => {
+			const peer = createChat('Peer');
+			const { session, main } = createChatSession('Last', [peer]);
+			const first = createChatSession('First').session;
+			const opened: URI[] = [];
+			const { container, list, managementService } = renderFlatList([first, session], { onSessionOpen: resource => opened.push(resource) });
+			toggleSession(container, 'Last');
+			list.layout(56, 400);
+			list.focusSession(session);
+			const parentFocus = { session: list.getFocusedSession(), chat: list.getFocusedChat(), visible: !!container.querySelector('.monaco-list-row.focused .session-title') };
+			list.focusChat(peer.resource);
+			const childFocus = { session: list.getFocusedSession(), chat: list.getFocusedChat(), visible: !!container.querySelector('.monaco-list-row.focused .session-chat-title') };
+			list.setSessions([session, first]);
+			const reorderedChat = list.getFocusedChat();
+			list.focusChat(main.resource);
+
+			assert.deepStrictEqual({
+				parentFocus,
+				childFocus,
+				reorderedChat,
+				mainFocus: { session: list.getFocusedSession(), chat: list.getFocusedChat() },
+				readSessions: managementService.readSessions,
+				opened,
+			}, {
+				parentFocus: { session, chat: undefined, visible: true },
+				childFocus: { session, chat: peer, visible: true },
+				reorderedChat: peer,
+				mainFocus: { session, chat: undefined },
+				readSessions: [],
+				opened: [],
+			});
+		});
+
+		test('keeps child approvals on their own rows and reconciles offscreen and collapsed heights', () => {
+			const peer = createChat('Peer');
+			const { session } = createChatSession('Session', [peer]);
+			const approval = observableValue<IAgentSessionApprovalInfo | undefined>('approval', undefined);
+			const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return resource.toString() === peer.resource.toString() ? approval : constObservable(undefined);
+				}
+			}();
+			const { container, list, store } = renderFlatList([session], { approvalModel });
+			const heights: number[] = [];
+			store.add(list.onDidChangeContentHeight(() => heights.push(list.getContentHeight())));
+			const baseline = list.getContentHeight();
+			list.layout(56, 400);
+			approval.set({ approvalId: 'allow-peer', kind: AgentSessionApprovalKind.Terminal, label: 'npm test', languageId: 'shellscript', since: new Date(), confirm: () => { } }, undefined);
+			const withApproval = list.getContentHeight();
+			list.layout(withApproval, 400);
+			const renderedHeight = parseInt(row(container, 'Peer').style.height);
+			const approvalVisibility = {
+				parent: !!row(container, 'Session').querySelector('.session-approval-row.visible'),
+				child: !!row(container, 'Peer').querySelector('.session-approval-row.visible .session-approval-button .monaco-button'),
+			};
+			const approved: { session: ISession; approvalId: string }[] = [];
+			store.add(list.onDidApproveSession(event => approved.push(event)));
+			row(container, 'Peer').querySelector<HTMLElement>('.session-approval-button .monaco-button')?.click();
+			toggleSession(container, 'Session');
+			const collapsedHeight = list.getContentHeight();
+			approval.set(undefined, undefined);
+			list.focusChat(peer.resource);
+
+			assert.deepStrictEqual({
+				reservesApproval: withApproval > baseline,
+				renderedHeightMatches: renderedHeight + 56 === withApproval,
+				approvalVisibility,
+				approved,
+				collapsedHeight,
+				restoredHeight: list.getContentHeight(),
+				notifiedApproval: heights.includes(withApproval),
+				notifiedRemoval: heights.includes(baseline),
+			}, {
+				reservesApproval: true,
+				renderedHeightMatches: true,
+				approvalVisibility: { parent: false, child: true },
+				approved: [{ session, approvalId: 'allow-peer' }],
+				collapsedHeight: 56,
+				restoredHeight: baseline,
+				notifiedApproval: true,
+				notifiedRemoval: true,
+			});
+		});
+
+		test('opts into row drag/drop callbacks and drags child rows as their parent session', () => {
+			const peer = createChat('Peer');
+			const { session } = createChatSession('Session', [peer]);
+			const events: { kind: string; session?: ISession; event?: DragEvent }[] = [];
+			const { container, store } = renderFlatList([session], {
+				onSessionDragStart: (session, event) => events.push({ kind: 'start', session, event }),
+				onSessionDragEnd: () => events.push({ kind: 'end' }),
+				onSessionDragOver: event => { events.push({ kind: 'over', event }); return true; },
+				onSessionDrop: event => events.push({ kind: 'drop', event }),
+			});
+			store.add(addDisposableListener(container, 'dragover', () => events.push({ kind: 'outer over' })));
+			store.add(addDisposableListener(container, 'drop', () => events.push({ kind: 'outer drop' })));
+			const drag = (source: HTMLElement, target: HTMLElement) => {
+				const dataTransfer = new DataTransfer();
+				const start = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+				const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer });
+				const drop = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer });
+				source.dispatchEvent(start);
+				target.dispatchEvent(over);
+				target.dispatchEvent(drop);
+				source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+				return [
+					{ kind: 'start', session, event: start },
+					{ kind: 'over', event: over },
+					{ kind: 'drop', event: drop },
+					{ kind: 'end' },
+				];
+			};
+			const parent = row(container, 'Session');
+			const child = row(container, 'Peer');
+			const expected = [...drag(child, parent), ...drag(parent, child)];
+
+			assert.deepStrictEqual({ events, draggable: [parent.draggable, child.draggable] }, {
+				events: expected,
+				draggable: [true, true],
+			});
+		});
+
+		test('does not enable drag/drop or mark-read side effects without their opt-ins', () => {
+			const peer = createChat('Peer');
+			const { session } = createChatSession('Session', [peer]);
+			const events: string[] = [];
+			const { container, managementService } = renderFlatList([session], {
+				markSessionReadOnOpen: false,
+				onSessionDragOver: () => { events.push('over'); return true; },
+				onSessionDrop: () => events.push('drop'),
+				onChatOpen: () => events.push('open'),
+			});
+			const child = row(container, 'Peer');
+			const dataTransfer = new DataTransfer();
+			child.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			child.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			child.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+			assert.deepStrictEqual({ events, readSessions: managementService.readSessions, draggable: child.draggable }, {
+				events: ['open'],
+				readSessions: [],
+				draggable: false,
 			});
 		});
 	});

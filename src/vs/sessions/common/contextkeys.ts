@@ -23,6 +23,7 @@ export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionS
 
 //#region < --- Kanban Custom View --- >
 
+export const KanbanShowSessionListContext = new RawContextKey<boolean>('kanbanShowSessionList', false, localize('kanbanShowSessionList', "Whether Agents Hub renders session lists instead of cards"));
 export const KanbanBoardEditableContext = new RawContextKey<boolean>('kanbanBoardEditable', true, localize('kanbanBoardEditable', "Whether the Agents Hub board configuration can be edited"));
 export const KanbanAutoIncludeSessionsContext = new RawContextKey<boolean>('kanbanAutoIncludeSessions', true, localize('kanbanAutoIncludeSessions', "Whether sessions are automatically included in Agents Hub"));
 export const KanbanOpenChatInSidePanelContext = new RawContextKey<boolean>('kanbanOpenChatInSidePanel', false, localize('kanbanOpenChatInSidePanel', "Whether Agents Hub chats open in the secondary sidebar"));

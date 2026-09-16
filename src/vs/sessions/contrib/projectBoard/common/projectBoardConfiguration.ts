@@ -24,6 +24,7 @@ export interface IProjectBoardConfiguration {
 }
 
 export interface IProjectBoardDisplayOptions {
+	readonly showSessionList?: boolean;
 	readonly showStateDuration: boolean;
 	readonly showCredits: boolean;
 	readonly showLastPrompt?: boolean;
